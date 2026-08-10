@@ -25,8 +25,6 @@ package sqlite
 import (
 	"context"
 
-	"github.com/jmoiron/sqlx"
-
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
@@ -51,22 +49,15 @@ type DB struct {
 
 	converter   mysql.DataConverter
 	driver      sqldriver.Driver
-	originalDBs []*sqlx.DB
 	numDBShards int
 	dsn         string
 }
 
 // NewDB returns an instance of DB, which contains a new created mysql.DB with sqlite specific methods
-func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int, dataConverter mysql.DataConverter, dsn string) (*DB, error) {
-	driver, err := sqldriver.NewDriver(xdbs, tx, dbShardID)
-	if err != nil {
-		return nil, err
-	}
-
+func NewDB(driver sqldriver.Driver, numDBShards int, dataConverter mysql.DataConverter, dsn string) (*DB, error) {
 	return &DB{
-		DB:          mysql.NewDBWithDriver(xdbs, driver, numDBShards, dataConverter),
+		DB:          mysql.NewDB(driver, numDBShards, dataConverter),
 		driver:      driver,
-		originalDBs: xdbs,
 		numDBShards: numDBShards,
 		converter:   dataConverter,
 		dsn:         dsn,
@@ -80,12 +71,12 @@ func (mdb *DB) PluginName() string {
 
 // BeginTx starts a new transaction and returns a new Tx
 func (mdb *DB) BeginTx(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
-	xtx, err := mdb.driver.BeginTxx(ctx, dbShardID, nil)
+	driver, err := mdb.driver.BeginTransaction(ctx, dbShardID, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewDB(mdb.originalDBs, xtx, dbShardID, mdb.numDBShards, mdb.converter, mdb.dsn)
+	return NewDB(driver, mdb.numDBShards, mdb.converter, mdb.dsn)
 }
 
 func (mdb *DB) Close() error {

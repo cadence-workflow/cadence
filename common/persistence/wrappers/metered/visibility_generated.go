@@ -50,7 +50,9 @@ func (c *meteredVisibilityManager) CountWorkflowExecutions(ctx context.Context, 
 		return err
 	}
 
-	err = c.call(metrics.PersistenceCountWorkflowExecutionsScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceCountWorkflowExecutionsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -61,7 +63,9 @@ func (c *meteredVisibilityManager) DeleteUninitializedWorkflowExecution(ctx cont
 		return err
 	}
 
-	err = c.call(metrics.PersistenceDeleteUninitializedWorkflowExecutionScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceDeleteUninitializedWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -72,7 +76,9 @@ func (c *meteredVisibilityManager) DeleteWorkflowExecution(ctx context.Context, 
 		return err
 	}
 
-	err = c.call(metrics.PersistenceVisibilityDeleteWorkflowExecutionScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceVisibilityDeleteWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -83,7 +89,9 @@ func (c *meteredVisibilityManager) GetClosedWorkflowExecution(ctx context.Contex
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetClosedWorkflowExecutionScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetClosedWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -98,7 +106,9 @@ func (c *meteredVisibilityManager) ListClosedWorkflowExecutions(ctx context.Cont
 		return err
 	}
 
-	err = c.call(metrics.PersistenceListClosedWorkflowExecutionsScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceListClosedWorkflowExecutionsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -109,7 +119,9 @@ func (c *meteredVisibilityManager) ListClosedWorkflowExecutionsByStatus(ctx cont
 		return err
 	}
 
-	err = c.call(metrics.PersistenceListClosedWorkflowExecutionsByStatusScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceListClosedWorkflowExecutionsByStatusScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -120,7 +132,9 @@ func (c *meteredVisibilityManager) ListClosedWorkflowExecutionsByType(ctx contex
 		return err
 	}
 
-	err = c.call(metrics.PersistenceListClosedWorkflowExecutionsByTypeScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceListClosedWorkflowExecutionsByTypeScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -131,7 +145,9 @@ func (c *meteredVisibilityManager) ListClosedWorkflowExecutionsByWorkflowID(ctx 
 		return err
 	}
 
-	err = c.call(metrics.PersistenceListClosedWorkflowExecutionsByWorkflowIDScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceListClosedWorkflowExecutionsByWorkflowIDScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -142,7 +158,9 @@ func (c *meteredVisibilityManager) ListOpenWorkflowExecutions(ctx context.Contex
 		return err
 	}
 
-	err = c.call(metrics.PersistenceListOpenWorkflowExecutionsScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceListOpenWorkflowExecutionsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -153,7 +171,9 @@ func (c *meteredVisibilityManager) ListOpenWorkflowExecutionsByType(ctx context.
 		return err
 	}
 
-	err = c.call(metrics.PersistenceListOpenWorkflowExecutionsByTypeScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceListOpenWorkflowExecutionsByTypeScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -164,7 +184,9 @@ func (c *meteredVisibilityManager) ListOpenWorkflowExecutionsByWorkflowID(ctx co
 		return err
 	}
 
-	err = c.call(metrics.PersistenceListOpenWorkflowExecutionsByWorkflowIDScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceListOpenWorkflowExecutionsByWorkflowIDScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -175,7 +197,9 @@ func (c *meteredVisibilityManager) ListWorkflowExecutions(ctx context.Context, r
 		return err
 	}
 
-	err = c.call(metrics.PersistenceListWorkflowExecutionsScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceListWorkflowExecutionsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -186,7 +210,9 @@ func (c *meteredVisibilityManager) RecordWorkflowExecutionClosed(ctx context.Con
 		return err
 	}
 
-	err = c.call(metrics.PersistenceRecordWorkflowExecutionClosedScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceRecordWorkflowExecutionClosedScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -197,7 +223,9 @@ func (c *meteredVisibilityManager) RecordWorkflowExecutionStarted(ctx context.Co
 		return err
 	}
 
-	err = c.call(metrics.PersistenceRecordWorkflowExecutionStartedScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceRecordWorkflowExecutionStartedScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -208,7 +236,9 @@ func (c *meteredVisibilityManager) RecordWorkflowExecutionUninitialized(ctx cont
 		return err
 	}
 
-	err = c.call(metrics.PersistenceRecordWorkflowExecutionUninitializedScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceRecordWorkflowExecutionUninitializedScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -219,7 +249,9 @@ func (c *meteredVisibilityManager) ScanWorkflowExecutions(ctx context.Context, r
 		return err
 	}
 
-	err = c.call(metrics.PersistenceScanWorkflowExecutionsScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceScanWorkflowExecutionsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -230,6 +262,8 @@ func (c *meteredVisibilityManager) UpsertWorkflowExecution(ctx context.Context, 
 		return err
 	}
 
-	err = c.call(metrics.PersistenceUpsertWorkflowExecutionScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceUpsertWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }

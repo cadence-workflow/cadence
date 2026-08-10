@@ -327,6 +327,10 @@ func parseActivityInfo(
 			info.LastWorkerIdentity = v.(string)
 		case "last_failure_details":
 			info.LastFailureDetails = v.([]byte)
+		case "last_failure_category":
+			info.LastFailureCategory = types.FailureCategory(v.(int))
+		case "last_retry_interval_seconds":
+			info.LastRetryIntervalSeconds = int32(v.(int))
 		case "event_data_encoding":
 			sharedEncoding = constants.EncodingType(v.(string))
 		}

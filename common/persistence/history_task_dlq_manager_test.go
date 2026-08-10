@@ -75,6 +75,7 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 						assert.Equal(t, "test-domain", req.DomainID)
 						assert.Equal(t, "scope", req.ClusterAttributeScope)
 						assert.Equal(t, "cluster-a", req.ClusterAttributeName)
+						assert.Equal(t, HistoryTaskCategoryIDTransfer, req.TaskCategory)
 						assert.Equal(t, int64(42), req.TaskID)
 						assert.Equal(t, now, req.CreatedAt)
 						assert.Equal(t, serializedBlob.Data, req.TaskBlob.Data)
@@ -125,6 +126,72 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 				ClusterAttributeScope: "scope",
 				ClusterAttributeName:  "cluster-a",
 				Task:                  testTask,
+			})
+
+			if tc.wantErr != "" {
+				assert.EqualError(t, err, tc.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestHistoryTaskDLQManager_CreateHistoryDLQAckLevelIfNotExists(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		mockSetup func(*MockHistoryDLQTaskStore)
+		wantErr   string
+	}{
+		{
+			name: "forwards sentinel key to store",
+			mockSetup: func(store *MockHistoryDLQTaskStore) {
+				store.EXPECT().
+					CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.AssignableToTypeOf(InternalHistoryDLQAckLevel{})).
+					DoAndReturn(func(_ context.Context, row InternalHistoryDLQAckLevel) error {
+						assert.Equal(t, 1, row.ShardID)
+						assert.Equal(t, "test-domain", row.DomainID)
+						assert.Equal(t, "scope", row.ClusterAttributeScope)
+						assert.Equal(t, "cluster-a", row.ClusterAttributeName)
+						assert.Equal(t, HistoryTaskCategoryTransfer.ID(), row.TaskCategory)
+						assert.Equal(t, MinimumHistoryTaskKey.GetScheduledTime(), row.AckLevelVisibilityTS)
+						assert.Equal(t, MinimumHistoryTaskKey.GetTaskID(), row.AckLevelTaskID)
+						assert.Equal(t, now, row.LastUpdatedAt)
+						return nil
+					})
+			},
+		},
+		{
+			name: "store error propagates",
+			mockSetup: func(store *MockHistoryDLQTaskStore) {
+				store.EXPECT().
+					CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
+					Return(errors.New("cassandra unavailable"))
+			},
+			wantErr: "cassandra unavailable",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockStore := NewMockHistoryDLQTaskStore(ctrl)
+			tc.mockSetup(mockStore)
+
+			mgr := &historyTaskDLQManagerImpl{
+				persistence:    mockStore,
+				taskSerializer: NewMockHistoryTaskSerializer(ctrl),
+				logger:         log.NewNoop(),
+				timeSrc:        clock.NewMockedTimeSourceAt(now),
+			}
+			err := mgr.CreateHistoryDLQAckLevelIfNotExists(context.Background(), CreateHistoryDLQAckLevelRequest{
+				ShardID:               1,
+				DomainID:              "test-domain",
+				ClusterAttributeScope: "scope",
+				ClusterAttributeName:  "cluster-a",
+				TaskCategory:          HistoryTaskCategoryTransfer,
 			})
 
 			if tc.wantErr != "" {
@@ -323,11 +390,12 @@ func TestHistoryTaskDLQManager_GetHistoryDLQTasks(t *testing.T) {
 	deserializedTask := &ActivityTask{TaskData: TaskData{TaskID: 15}}
 
 	tests := []struct {
-		name      string
-		request   HistoryDLQGetTasksRequest
-		mockSetup func(*MockHistoryDLQTaskStore, *MockHistoryTaskSerializer)
-		wantTasks []Task
-		wantErr   string
+		name              string
+		request           HistoryDLQGetTasksRequest
+		mockSetup         func(*MockHistoryDLQTaskStore, *MockHistoryTaskSerializer)
+		wantTasks         []Task
+		wantPageSizeBytes int
+		wantErr           string
 	}{
 		{
 			name: "converts keys and deserializes tasks",
@@ -357,7 +425,8 @@ func TestHistoryTaskDLQManager_GetHistoryDLQTasks(t *testing.T) {
 					DeserializeTask(HistoryTaskCategoryTransfer, taskBlob).
 					Return(deserializedTask, nil)
 			},
-			wantTasks: []Task{deserializedTask},
+			wantTasks:         []Task{deserializedTask},
+			wantPageSizeBytes: len(taskBlob.Data),
 		},
 		{
 			name: "deserialization error surfaces",
@@ -405,6 +474,7 @@ func TestHistoryTaskDLQManager_GetHistoryDLQTasks(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.wantTasks, resp.Tasks)
+				assert.Equal(t, tc.wantPageSizeBytes, resp.PageSizeBytes)
 			}
 		})
 	}

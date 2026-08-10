@@ -25,11 +25,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/config/yaml"
 	"github.com/uber/cadence/common/constants"
 )
 
-func defaultFilestoreConfig(t *testing.T) *YamlNode {
-	node, err := ToYamlNode(&FilestoreArchiver{
+func defaultFilestoreConfig(t *testing.T) *yaml.Node {
+	node, err := yaml.ToNode(&FilestoreArchiver{
 		FileMode: "044",
 	})
 	require.NoError(t, err)

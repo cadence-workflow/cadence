@@ -36,6 +36,55 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
+// domainTagKey is the metric-tag key produced by metrics.DomainTag.
+// It is captured once at init so call() can decide between the overall
+// (persistence_requests) and per-domain (persistence_requests_per_domain)
+// metrics by inspecting tag content rather than tag count.
+var domainTagKey = metrics.DomainTag("").Key()
+
+// taskCategoryTagKey is the metric-tag key produced by metrics.TaskCategoryTag.
+// Base persistence metrics use task_category="none" for operations where the
+// concept does not apply, keeping label keys consistent with history-task calls.
+var taskCategoryTagKey = metrics.TaskCategoryTag("").Key()
+
+func hasDomainTag(tags []metrics.Tag) bool {
+	for _, t := range tags {
+		if t.Key() == domainTagKey {
+			return true
+		}
+	}
+	return false
+}
+
+func ensureTaskCategoryTag(tags []metrics.Tag) []metrics.Tag {
+	for _, t := range tags {
+		if t.Key() == taskCategoryTagKey {
+			return tags
+		}
+	}
+	return append(tags, metrics.TaskCategoryTag("none"))
+}
+
+// dropDomainTag removes any domain tag from tags. It exists for the row-count and
+// payload-size metrics (see emitRowCountMetrics/emitPayloadSizeMetrics), which -
+// unlike the request/latency family - use a single metric name across every
+// persistence operation rather than splitting into overall/per-domain variants.
+// getCustomMetricTags(req) is shared with that request/latency family and returns
+// a domain tag for some request types (e.g. ReadHistoryBranchRequest) and not
+// others; letting it through here would multiply these metrics' cardinality by
+// every domain in the cluster while duplicating the discrimination the built-in
+// operation tag already provides, and would collide with the metric registered by
+// the domain-less request types sharing the same metric name.
+func dropDomainTag(tags []metrics.Tag) []metrics.Tag {
+	filtered := make([]metrics.Tag, 0, len(tags))
+	for _, t := range tags {
+		if t.Key() != domainTagKey {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered
+}
+
 type base struct {
 	metricClient                  metrics.Client
 	logger                        log.Logger
@@ -133,8 +182,12 @@ func (p *base) recordLatencyHistogram(scope metrics.ScopeIdx, duration time.Dura
 }
 
 func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag) error {
+	perDomain := hasDomainTag(tags)
+	if !perDomain {
+		tags = ensureTaskCategoryTag(tags)
+	}
 	metricsScope := p.metricClient.Scope(scope, tags...)
-	if len(tags) > 0 {
+	if perDomain {
 		metricsScope.IncCounter(metrics.PersistenceRequestsPerDomain)
 	} else {
 		metricsScope.IncCounter(metrics.PersistenceRequests)
@@ -142,7 +195,7 @@ func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag
 	before := time.Now()
 	err := op()
 	duration := time.Since(before)
-	if len(tags) > 0 {
+	if perDomain {
 		metricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
 		metricsScope.ExponentialHistogram(metrics.PersistenceLatencyPerDomainHistogram, duration)
 	} else {
@@ -153,7 +206,7 @@ func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag
 
 	logger := p.logger.Helper()
 	if err != nil {
-		if len(tags) > 0 {
+		if perDomain {
 			p.updateErrorMetricPerDomain(scope, err, metricsScope, logger)
 		} else {
 			p.updateErrorMetric(scope, err, metricsScope, logger)
@@ -163,6 +216,7 @@ func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag
 }
 
 func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag) error {
+	tags = ensureTaskCategoryTag(tags)
 	metricsScope := p.metricClient.Scope(scope, tags...)
 	metricsScope.IncCounter(metrics.PersistenceRequests)
 	before := time.Now()
@@ -179,10 +233,10 @@ func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tag
 }
 
 func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() error, domainTag metrics.Tag, shardIDTag metrics.Tag, additionalTags ...metrics.Tag) error {
-	overallScope := p.metricClient.Scope(scope)
+	overallScope := p.metricClient.Scope(scope, ensureTaskCategoryTag(additionalTags)...)
 	domainMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{domainTag}, additionalTags...)...)
 	shardOperationsMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{shardIDTag}, additionalTags...)...)
-	shardOverallMetricsScope := p.metricClient.Scope(metrics.PersistenceShardRequestCountScope, shardIDTag)
+	shardOverallMetricsScope := p.metricClient.Scope(metrics.PersistenceShardRequestCountScope, append([]metrics.Tag{shardIDTag}, additionalTags...)...)
 
 	domainMetricsScope.IncCounter(metrics.PersistenceRequestsPerDomain)
 	shardOperationsMetricsScope.IncCounter(metrics.PersistenceRequestsPerShard)
@@ -224,6 +278,13 @@ type extraLogRequest interface {
 	GetExtraLogTags() []tag.Tag
 }
 
+// rowMetricTags builds the tag set shared by the row-count and payload-size
+// metrics: task_category is always present (defaulted like the request/latency
+// family), while domain is deliberately excluded — see dropDomainTag.
+func rowMetricTags(req any) []metrics.Tag {
+	return ensureTaskCategoryTag(dropDomainTag(getCustomMetricTags(req)))
+}
+
 func (p *base) emitRowCountMetrics(methodName string, req any, res any) {
 	scope, ok := emptyCountedMethods[methodName]
 	if !ok {
@@ -236,7 +297,7 @@ func (p *base) emitRowCountMetrics(methodName string, req any, res any) {
 		return
 	}
 
-	metricScope := p.metricClient.Scope(scope.scope, getCustomMetricTags(req)...)
+	metricScope := p.metricClient.Scope(scope.scope, rowMetricTags(req)...)
 
 	if resLen.Len() == 0 {
 		metricScope.IncCounter(metrics.PersistenceEmptyResponseCounter)
@@ -256,7 +317,7 @@ func (p *base) emitPayloadSizeMetrics(methodName string, req any, res any) {
 		return
 	}
 
-	metricScope := p.metricClient.Scope(scope.scope, getCustomMetricTags(req)...)
+	metricScope := p.metricClient.Scope(scope.scope, rowMetricTags(req)...)
 	metricScope.RecordHistogramValue(metrics.PersistenceResponsePayloadSize, float64(resSize.ByteSize()))
 }
 
@@ -331,10 +392,22 @@ type domainTaggedRequest interface {
 	GetDomainName() string
 }
 
+type shardIDTaggedRequest interface {
+	GetShardID() *int
+}
+
 func getDomainNameFromRequest(req any) (res string, check bool) {
 	d, check := req.(domainTaggedRequest)
 	if check {
 		res = d.GetDomainName()
+	}
+	return res, check
+}
+
+func getShardIDFromRequest(req any) (res *int, check bool) {
+	s, check := req.(shardIDTaggedRequest)
+	if check {
+		res = s.GetShardID()
 	}
 	return res, check
 }

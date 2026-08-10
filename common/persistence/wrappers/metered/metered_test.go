@@ -29,9 +29,11 @@ import (
 	"testing"
 	"time"
 
+	p8s "github.com/m3db/prometheus_client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	tallyp8s "github.com/uber-go/tally/prometheus"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
@@ -46,15 +48,84 @@ import (
 )
 
 var _staticMethods = map[string]bool{
-	"Close":      true,
-	"GetName":    true,
-	"GetShardID": true,
+	"Close":   true,
+	"GetName": true,
+}
+
+// TestPersistenceMetricsLabelConsistency exercises every method of every metered
+// wrapper against a single, shared Prometheus-backed metrics client. Prometheus
+// rejects registering the same metric name twice with a different label set, so
+// running all wrappers/methods through one registry surfaces label inconsistencies
+// between methods and between wrapper types (e.g. shard-enabled vs shard-disabled
+// ExecutionManager, or ExecutionManager vs HistoryManager sharing a metric name).
+//
+// Functional errors returned by the wrapped calls are intentionally ignored: the
+// mocks below return zero-value responses that aren't semantically valid, so the
+// only thing worth asserting on is the absence of Prometheus registration errors.
+func TestPersistenceMetricsLabelConsistency(t *testing.T) {
+	var registrationErrors []error
+	promCfg := &tallyp8s.Configuration{
+		OnError:   "none",
+		TimerType: "histogram",
+	}
+	reporter, err := promCfg.NewReporter(tallyp8s.ConfigurationOptions{
+		Registry: p8s.NewRegistry(),
+		OnError: func(err error) {
+			registrationErrors = append(registrationErrors, err)
+		},
+	})
+	require.NoError(t, err)
+	rootScope, closer := tally.NewRootScope(tally.ScopeOptions{
+		Tags: map[string]string{
+			metrics.CadenceServiceTagName: "history",
+		},
+		CachedReporter: reporter,
+		Separator:      tallyp8s.DefaultSeparator,
+	}, time.Second)
+
+	metricsClient := metrics.NewClient(rootScope, metrics.History, metrics.MigrationConfig{})
+	logger := log.NewNoop()
+
+	for _, tc := range persistenceWrapperTestCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			newObj, mocked := tc.prepareMock(t, ctrl, metricsClient, logger)
+			prepareMockForTest(t, mocked, nil)
+
+			invokeAllMethods(t, newObj)
+		})
+	}
+
+	// The calls above all return zero-value (empty, Len()==0) responses, so they
+	// only ever exercise the PersistenceEmptyResponseCounter branch of
+	// emitRowCountMetrics. Call every emptyCountedMethods entry once more with a
+	// non-empty response so the PersistenceResponseRowSize histogram branch gets
+	// registered too, and any label inconsistency there is caught as well.
+	for _, tc := range nonEmptyRowCountTestCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			tc.invoke(t, ctrl, metricsClient, logger)
+		})
+	}
+
+	// Metric registration happens as metrics are emitted, and reporting/flushing
+	// happens on Close(); force it here so registrationErrors is fully populated.
+	require.NoError(t, closer.Close())
+
+	// Log every registration error for diagnosability, then fail: these indicate a
+	// metric name being registered with inconsistent labels across persistence
+	// operations, which silently drops data in production (Prometheus keeps
+	// whichever registration won the race and rejects the rest).
+	for _, regErr := range registrationErrors {
+		t.Logf("Prometheus registration error (label inconsistency): %v", regErr)
+	}
+	assert.Empty(t, registrationErrors, "Prometheus registration errors must not be emitted")
 }
 
 func TestGetRetryCountFromContext(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	wrapped := persistence.NewMockExecutionManager(ctrl)
-	wrapped.EXPECT().GetShardID().Return(1).AnyTimes()
 	request := &persistence.GetHistoryTasksRequest{}
 
 	gomock.InOrder(
@@ -87,8 +158,15 @@ func TestGetRetryCountFromContext(t *testing.T) {
 	require.Equal(t, map[string]int64{"false": 1, "true": 1}, countsByIsRetry)
 }
 
-func TestWrappersAgainstPreviousImplementation(t *testing.T) {
-	for _, tc := range []struct {
+// persistenceWrapperTestCases enumerates every metered wrapper constructor so that
+// tests can exercise all of them generically. ExecutionManager is included twice,
+// once per shard-reporting mode, since that flag changes which metric labels are
+// emitted for the same metric names.
+func persistenceWrapperTestCases() []struct {
+	name        string
+	prepareMock func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any)
+} {
+	return []struct {
 		name        string
 		prepareMock func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any)
 	}{
@@ -167,15 +245,142 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockExecutionManager(ctrl)
 
-				wrapped.EXPECT().GetShardID().Return(0).AnyTimes()
-
 				newObj := NewExecutionManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
 					dynamicproperties.GetBoolPropertyFn(true))
 
 				return newObj, wrapped
 			},
 		},
-	} {
+		{
+			name: "ExecutionManagerShardReportingDisabled",
+			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
+				wrapped := persistence.NewMockExecutionManager(ctrl)
+
+				newObj := NewExecutionManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
+					dynamicproperties.GetBoolPropertyFn(false))
+
+				return newObj, wrapped
+			},
+		},
+	}
+}
+
+// nonEmptyRowCountTestCases covers every emptyCountedMethods entry with a
+// non-empty (Len() > 0) response, one method call each, so the
+// PersistenceResponseRowSize histogram branch of emitRowCountMetrics gets
+// registered against the shared Prometheus registry at least once.
+//
+// ExecutionManager.GetReplicationTasksFromDLQ is intentionally omitted: its
+// response type, *persistence.GetReplicationDLQTasksResponse, doesn't implement
+// the lengther interface, so emitRowCountMetrics silently no-ops for it today
+// regardless of response content.
+func nonEmptyRowCountTestCases() []struct {
+	name   string
+	invoke func(t *testing.T, ctrl *gomock.Controller, metricsClient metrics.Client, logger log.Logger)
+} {
+	ctx := context.Background()
+	return []struct {
+		name   string
+		invoke func(t *testing.T, ctrl *gomock.Controller, metricsClient metrics.Client, logger log.Logger)
+	}{
+		{
+			name: "ExecutionManager.ListCurrentExecutions",
+			invoke: func(t *testing.T, ctrl *gomock.Controller, metricsClient metrics.Client, logger log.Logger) {
+				wrapped := persistence.NewMockExecutionManager(ctrl)
+				wrapped.EXPECT().ListCurrentExecutions(gomock.Any(), gomock.Any()).Return(&persistence.ListCurrentExecutionsResponse{
+					Executions: []*persistence.CurrentWorkflowExecution{{}},
+				}, nil)
+
+				mgr := NewExecutionManager(wrapped, metricsClient, logger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
+					dynamicproperties.GetBoolPropertyFn(true))
+				_, err := mgr.ListCurrentExecutions(ctx, &persistence.ListCurrentExecutionsRequest{})
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "ExecutionManager.GetHistoryTasks",
+			invoke: func(t *testing.T, ctrl *gomock.Controller, metricsClient metrics.Client, logger log.Logger) {
+				wrapped := persistence.NewMockExecutionManager(ctrl)
+				wrapped.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{
+					Tasks: []persistence.Task{&persistence.ActivityTask{}},
+				}, nil)
+
+				mgr := NewExecutionManager(wrapped, metricsClient, logger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
+					dynamicproperties.GetBoolPropertyFn(true))
+				_, err := mgr.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{TaskCategory: persistence.HistoryTaskCategoryTransfer})
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "TaskManager.GetTasks",
+			invoke: func(t *testing.T, ctrl *gomock.Controller, metricsClient metrics.Client, logger log.Logger) {
+				wrapped := persistence.NewMockTaskManager(ctrl)
+				wrapped.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetTasksResponse{
+					Tasks: []*persistence.TaskInfo{{}},
+				}, nil)
+
+				mgr := NewTaskManager(wrapped, metricsClient, logger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
+				_, err := mgr.GetTasks(ctx, &persistence.GetTasksRequest{DomainName: "test-domain"})
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "DomainManager.ListDomains",
+			invoke: func(t *testing.T, ctrl *gomock.Controller, metricsClient metrics.Client, logger log.Logger) {
+				wrapped := persistence.NewMockDomainManager(ctrl)
+				wrapped.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(&persistence.ListDomainsResponse{
+					Domains: []*persistence.GetDomainResponse{{}},
+				}, nil)
+
+				mgr := NewDomainManager(wrapped, metricsClient, logger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
+				_, err := mgr.ListDomains(ctx, &persistence.ListDomainsRequest{})
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "HistoryManager.ReadHistoryBranch",
+			invoke: func(t *testing.T, ctrl *gomock.Controller, metricsClient metrics.Client, logger log.Logger) {
+				wrapped := persistence.NewMockHistoryManager(ctrl)
+				wrapped.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(&persistence.ReadHistoryBranchResponse{
+					HistoryEvents: []*types.HistoryEvent{{}},
+				}, nil)
+
+				mgr := NewHistoryManager(wrapped, metricsClient, logger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
+				_, err := mgr.ReadHistoryBranch(ctx, &persistence.ReadHistoryBranchRequest{DomainName: "test-domain"})
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "HistoryManager.GetAllHistoryTreeBranches",
+			invoke: func(t *testing.T, ctrl *gomock.Controller, metricsClient metrics.Client, logger log.Logger) {
+				wrapped := persistence.NewMockHistoryManager(ctrl)
+				wrapped.EXPECT().GetAllHistoryTreeBranches(gomock.Any(), gomock.Any()).Return(&persistence.GetAllHistoryTreeBranchesResponse{
+					Branches: []persistence.HistoryBranchDetail{{}},
+				}, nil)
+
+				mgr := NewHistoryManager(wrapped, metricsClient, logger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
+				_, err := mgr.GetAllHistoryTreeBranches(ctx, &persistence.GetAllHistoryTreeBranchesRequest{})
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "QueueManager.ReadMessages",
+			invoke: func(t *testing.T, ctrl *gomock.Controller, metricsClient metrics.Client, logger log.Logger) {
+				wrapped := persistence.NewMockQueueManager(ctrl)
+				wrapped.EXPECT().ReadMessages(gomock.Any(), gomock.Any()).Return(&persistence.ReadMessagesResponse{
+					Messages: persistence.QueueMessageList{{}},
+				}, nil)
+
+				mgr := NewQueueManager(wrapped, metricsClient, logger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
+				_, err := mgr.ReadMessages(ctx, &persistence.ReadMessagesRequest{})
+				require.NoError(t, err)
+			},
+		},
+	}
+}
+
+func TestWrappersAgainstPreviousImplementation(t *testing.T) {
+	for _, tc := range persistenceWrapperTestCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("without error", func(t *testing.T) {
 				ctrl := gomock.NewController(t)
@@ -331,6 +536,14 @@ func setupLogsCapture() (*zap.Logger, *observer.ObservedLogs) {
 }
 
 func runScenario(t *testing.T, newObj any, newLogs *observer.ObservedLogs, newMetrics tally.TestScope) {
+	invokeAllMethods(t, newObj)
+}
+
+// invokeAllMethods calls every non-static method of newObj exactly once via
+// reflection, using zero-value/newly-allocated arguments. It only asserts that
+// the call doesn't panic; return values (including errors) are ignored, since
+// callers use this to exercise metric-emission paths, not business logic.
+func invokeAllMethods(t *testing.T, newObj any) {
 	newV := reflect.ValueOf(newObj)
 	infoT := reflect.TypeOf(newV.Interface())
 	for i := 0; i < infoT.NumMethod(); i++ {
@@ -351,15 +564,9 @@ func runScenario(t *testing.T, newObj any, newLogs *observer.ObservedLogs, newMe
 				vals = append(vals, reflect.Zero(method.Type.In(i)))
 			}
 
-			var newRes []reflect.Value
 			assert.NotPanicsf(t, func() {
-				newRes = newV.MethodByName(method.Name).Call(vals)
+				newV.MethodByName(method.Name).Call(vals)
 			}, "method does not have tag defined")
-
-			if len(newRes) == 0 {
-				// Empty result means that method panicked.
-				return
-			}
 		})
 	}
 }

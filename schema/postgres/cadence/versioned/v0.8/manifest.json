@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.8",
+  "MinCompatibleVersion": "0.8",
+  "Description": "Add active_cluster_selection_policy table for active-active domain workflows",
+  "SchemaUpdateCqlFiles": [
+    "active_cluster_selection_policy.sql"
+  ]
+}

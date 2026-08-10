@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Generate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,DomainAuditManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -658,20 +658,22 @@ type (
 		LastHeartBeatUpdatedTime time.Time
 		TimerTaskStatus          int32
 		// For retry
-		Attempt            int32
-		StartedIdentity    string
-		TaskList           string
-		TaskListKind       types.TaskListKind
-		HasRetryPolicy     bool
-		InitialInterval    int32
-		BackoffCoefficient float64
-		MaximumInterval    int32
-		ExpirationTime     time.Time
-		MaximumAttempts    int32
-		NonRetriableErrors []string
-		LastFailureReason  string
-		LastWorkerIdentity string
-		LastFailureDetails []byte
+		Attempt                  int32
+		StartedIdentity          string
+		TaskList                 string
+		TaskListKind             types.TaskListKind
+		HasRetryPolicy           bool
+		InitialInterval          int32
+		BackoffCoefficient       float64
+		MaximumInterval          int32
+		ExpirationTime           time.Time
+		MaximumAttempts          int32
+		NonRetriableErrors       []string
+		LastFailureReason        string
+		LastWorkerIdentity       string
+		LastFailureDetails       []byte
+		LastFailureCategory      types.FailureCategory
+		LastRetryIntervalSeconds int32
 		// Not written to database - This is used only for deduping heartbeat timer creation
 		LastHeartbeatTimeoutVisibilityInSeconds int64
 	}
@@ -1684,7 +1686,6 @@ type (
 	ExecutionManager interface {
 		Closeable
 		GetName() string
-		GetShardID() int
 
 		CreateWorkflowExecution(ctx context.Context, request *CreateWorkflowExecutionRequest) (*CreateWorkflowExecutionResponse, error)
 		GetWorkflowExecution(ctx context.Context, request *GetWorkflowExecutionRequest) (*GetWorkflowExecutionResponse, error)
@@ -1718,12 +1719,6 @@ type (
 
 		GetActiveClusterSelectionPolicy(ctx context.Context, request *GetActiveClusterSelectionPolicyRequest) (*types.ActiveClusterSelectionPolicy, error)
 		DeleteActiveClusterSelectionPolicy(ctx context.Context, request *DeleteActiveClusterSelectionPolicyRequest) error
-	}
-
-	// ExecutionManagerFactory creates an instance of ExecutionManager for a given shard
-	ExecutionManagerFactory interface {
-		Closeable
-		NewExecutionManager(shardID int) (ExecutionManager, error)
 	}
 
 	// TaskManager is used to manage tasks
@@ -1798,6 +1793,9 @@ type (
 		Closeable
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request CreateHistoryDLQTaskRequest) error
+		// CreateHistoryDLQAckLevelIfNotExists creates the sentinel ack-level row for a DLQ partition/task
+		// category only when one does not already exist. It is a no-op (successful) when the row is present.
+		CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request CreateHistoryDLQAckLevelRequest) error
 		// GetHistoryDLQAckLevels returns DLQ partitions for a shard and task category with their current ack levels.
 		// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
 		GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error)
@@ -1809,7 +1807,7 @@ type (
 		DeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
 	}
 
-	// CreateHistoryDLQTaskRequest is the public request for adding a task to the history DLQ.
+	// CreateHistoryDLQTaskRequest adds a task to the History Task Dead Letter Queue.
 	CreateHistoryDLQTaskRequest struct {
 		ShardID               int
 		DomainID              string
@@ -1817,6 +1815,16 @@ type (
 		ClusterAttributeScope string
 		ClusterAttributeName  string
 		Task                  Task
+	}
+
+	// CreateHistoryDLQAckLevelRequest creates the sentinel ack-level row for a DLQ partition/task
+	// category when one does not already exist.
+	CreateHistoryDLQAckLevelRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          HistoryTaskCategory
 	}
 
 	// HistoryDLQAckLevel identifies one DLQ partition and its current processing watermark.
@@ -1847,6 +1855,10 @@ type (
 	HistoryDLQGetTasksResponse struct {
 		Tasks         []Task
 		NextPageToken []byte
+		// PageSizeBytes is the summed serialized byte size of the raw task payloads in
+		// this page, before deserialization. Callers can use it to track
+		// batch size relative to the underlying store's batch threshold.
+		PageSizeBytes int
 	}
 
 	// HistoryDLQGetAckLevelsRequest specifies the shard and task category to query ack levels for.
@@ -2693,8 +2705,9 @@ func IsTransientError(err error) bool {
 	var internalServiceError *types.InternalServiceError
 	var serviceBusyError *types.ServiceBusyError
 	var timeoutError *TimeoutError
+	var dbUnavailableError *DBUnavailableError
 	switch {
-	case errors.As(err, &internalServiceError), errors.As(err, &serviceBusyError), errors.As(err, &timeoutError):
+	case errors.As(err, &internalServiceError), errors.As(err, &serviceBusyError), errors.As(err, &timeoutError), errors.As(err, &dbUnavailableError):
 		return true
 	}
 

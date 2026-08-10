@@ -353,6 +353,7 @@ var (
 		Attempt:            Attempt,
 		LastFailureReason:  &FailureReason,
 		LastFailureDetails: FailureDetails,
+		LastFailureOptions: &FailureOptions,
 	}
 	ActivityTaskCompletedEventAttributes = types.ActivityTaskCompletedEventAttributes{
 		Result:           Payload1,
@@ -363,6 +364,7 @@ var (
 	ActivityTaskFailedEventAttributes = types.ActivityTaskFailedEventAttributes{
 		Reason:           &FailureReason,
 		Details:          FailureDetails,
+		FailureOptions:   &FailureOptions,
 		ScheduledEventID: EventID1,
 		StartedEventID:   EventID2,
 		Identity:         Identity,
@@ -374,6 +376,7 @@ var (
 		TimeoutType:        &TimeoutType,
 		LastFailureReason:  &FailureReason,
 		LastFailureDetails: FailureDetails,
+		LastFailureOptions: &FailureOptions,
 	}
 	TimerStartedEventAttributes = types.TimerStartedEventAttributes{
 		TimerID:                      TimerID,

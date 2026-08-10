@@ -158,7 +158,7 @@ func (s *IntegrationSuite) TestSignalWorkflow() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -321,7 +321,7 @@ func (s *IntegrationSuite) TestSignalWorkflow_DuplicateRequest() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -478,7 +478,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -531,7 +531,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: foreignDtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -546,7 +546,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision() {
 	s.Nil(err)
 
 	// Run the activity in the original workflow. Its completion triggers the next decision, which signals the foreign workflow.
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 
@@ -786,7 +786,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision_WithoutRunID() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -839,7 +839,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision_WithoutRunID() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: foreignDtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -854,7 +854,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision_WithoutRunID() {
 	s.Nil(err)
 
 	// Complete the activity so the next decision is scheduled
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 
@@ -992,7 +992,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision_UnKnownTarget() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -1003,7 +1003,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision_UnKnownTarget() {
 	s.Nil(err)
 
 	// Complete the activity so the next decision is scheduled
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 
@@ -1128,7 +1128,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision_SignalSelf() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -1139,7 +1139,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision_SignalSelf() {
 	s.Nil(err)
 
 	// Complete the activity so the next decision is scheduled
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 
@@ -1294,7 +1294,7 @@ func (s *IntegrationSuite) TestSignalWithStartWorkflow() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -1549,7 +1549,7 @@ func (s *IntegrationSuite) TestSignalWithStartWorkflow_IDReusePolicy() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -1559,7 +1559,7 @@ func (s *IntegrationSuite) TestSignalWithStartWorkflow_IDReusePolicy() {
 	s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 	// Run the activity instead of waiting for it to time out
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 

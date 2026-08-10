@@ -154,7 +154,7 @@ func getDBFlags() []cli.Flag {
 }
 
 type ManagerFactory interface {
-	initializeExecutionManager(c *cli.Context, shardID int) (persistence.ExecutionManager, error)
+	initializeExecutionManager(c *cli.Context) (persistence.ExecutionManager, error)
 	initializeHistoryManager(c *cli.Context) (persistence.HistoryManager, error)
 	initializeShardManager(c *cli.Context) (persistence.ShardManager, error)
 	initializeDomainManager(c *cli.Context) (persistence.DomainManager, error)
@@ -166,12 +166,12 @@ type defaultManagerFactory struct {
 	persistenceFactory client.Factory
 }
 
-func (f *defaultManagerFactory) initializeExecutionManager(c *cli.Context, shardID int) (persistence.ExecutionManager, error) {
+func (f *defaultManagerFactory) initializeExecutionManager(c *cli.Context) (persistence.ExecutionManager, error) {
 	factory, err := f.getPersistenceFactory(c)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get persistence factory: %w", err)
 	}
-	executionManager, err := factory.NewExecutionManager(shardID)
+	executionManager, err := factory.NewExecutionManager()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to initialize history manager %w", err)
 	}

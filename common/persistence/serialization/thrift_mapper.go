@@ -403,6 +403,10 @@ func activityInfoToThrift(info *ActivityInfo) *sqlblobs.ActivityInfo {
 		RetryLastFailureReason:        &info.RetryLastFailureReason,
 		RetryLastWorkerIdentity:       &info.RetryLastWorkerIdentity,
 		RetryLastFailureDetails:       info.RetryLastFailureDetails,
+		RetryLastFailureOptions: &shared.FailureOptions{
+			FailureCategory:          thrift.FromFailureCategory(info.RetryLastFailureCategory.Ptr()),
+			NextRetryIntervalSeconds: &info.RetryLastRetryIntervalSeconds,
+		},
 	}
 }
 
@@ -411,39 +415,51 @@ func activityInfoFromThrift(info *sqlblobs.ActivityInfo) *ActivityInfo {
 		return nil
 	}
 	return &ActivityInfo{
-		Version:                  info.GetVersion(),
-		ScheduledEventBatchID:    info.GetScheduledEventBatchID(),
-		ScheduledEvent:           info.ScheduledEvent,
-		ScheduledEventEncoding:   info.GetScheduledEventEncoding(),
-		ScheduledTimestamp:       timeFromUnixNano(info.GetScheduledTimeNanos()),
-		StartedID:                info.GetStartedID(),
-		StartedEvent:             info.StartedEvent,
-		StartedEventEncoding:     info.GetStartedEventEncoding(),
-		StartedTimestamp:         timeFromUnixNano(info.GetStartedTimeNanos()),
-		ActivityID:               info.GetActivityID(),
-		RequestID:                info.GetRequestID(),
-		ScheduleToStartTimeout:   common.SecondsToDuration(int64(info.GetScheduleToStartTimeoutSeconds())),
-		ScheduleToCloseTimeout:   common.SecondsToDuration(int64(info.GetScheduleToCloseTimeoutSeconds())),
-		StartToCloseTimeout:      common.SecondsToDuration(int64(info.GetStartToCloseTimeoutSeconds())),
-		HeartbeatTimeout:         common.SecondsToDuration(int64(info.GetHeartbeatTimeoutSeconds())),
-		CancelRequested:          info.GetCancelRequested(),
-		CancelRequestID:          info.GetCancelRequestID(),
-		TimerTaskStatus:          info.GetTimerTaskStatus(),
-		Attempt:                  info.GetAttempt(),
-		TaskList:                 info.GetTaskList(),
-		TaskListKind:             taskListKindFromThrift(info.TaskListKind),
-		StartedIdentity:          info.GetStartedIdentity(),
-		HasRetryPolicy:           info.GetHasRetryPolicy(),
-		RetryInitialInterval:     common.SecondsToDuration(int64(info.GetRetryInitialIntervalSeconds())),
-		RetryMaximumInterval:     common.SecondsToDuration(int64(info.GetRetryMaximumIntervalSeconds())),
-		RetryMaximumAttempts:     info.GetRetryMaximumAttempts(),
-		RetryExpirationTimestamp: timeFromUnixNano(info.GetRetryExpirationTimeNanos()),
-		RetryBackoffCoefficient:  info.GetRetryBackoffCoefficient(),
-		RetryNonRetryableErrors:  info.RetryNonRetryableErrors,
-		RetryLastFailureReason:   info.GetRetryLastFailureReason(),
-		RetryLastWorkerIdentity:  info.GetRetryLastWorkerIdentity(),
-		RetryLastFailureDetails:  info.RetryLastFailureDetails,
+		Version:                       info.GetVersion(),
+		ScheduledEventBatchID:         info.GetScheduledEventBatchID(),
+		ScheduledEvent:                info.ScheduledEvent,
+		ScheduledEventEncoding:        info.GetScheduledEventEncoding(),
+		ScheduledTimestamp:            timeFromUnixNano(info.GetScheduledTimeNanos()),
+		StartedID:                     info.GetStartedID(),
+		StartedEvent:                  info.StartedEvent,
+		StartedEventEncoding:          info.GetStartedEventEncoding(),
+		StartedTimestamp:              timeFromUnixNano(info.GetStartedTimeNanos()),
+		ActivityID:                    info.GetActivityID(),
+		RequestID:                     info.GetRequestID(),
+		ScheduleToStartTimeout:        common.SecondsToDuration(int64(info.GetScheduleToStartTimeoutSeconds())),
+		ScheduleToCloseTimeout:        common.SecondsToDuration(int64(info.GetScheduleToCloseTimeoutSeconds())),
+		StartToCloseTimeout:           common.SecondsToDuration(int64(info.GetStartToCloseTimeoutSeconds())),
+		HeartbeatTimeout:              common.SecondsToDuration(int64(info.GetHeartbeatTimeoutSeconds())),
+		CancelRequested:               info.GetCancelRequested(),
+		CancelRequestID:               info.GetCancelRequestID(),
+		TimerTaskStatus:               info.GetTimerTaskStatus(),
+		Attempt:                       info.GetAttempt(),
+		TaskList:                      info.GetTaskList(),
+		TaskListKind:                  taskListKindFromThrift(info.TaskListKind),
+		StartedIdentity:               info.GetStartedIdentity(),
+		HasRetryPolicy:                info.GetHasRetryPolicy(),
+		RetryInitialInterval:          common.SecondsToDuration(int64(info.GetRetryInitialIntervalSeconds())),
+		RetryMaximumInterval:          common.SecondsToDuration(int64(info.GetRetryMaximumIntervalSeconds())),
+		RetryMaximumAttempts:          info.GetRetryMaximumAttempts(),
+		RetryExpirationTimestamp:      timeFromUnixNano(info.GetRetryExpirationTimeNanos()),
+		RetryBackoffCoefficient:       info.GetRetryBackoffCoefficient(),
+		RetryNonRetryableErrors:       info.RetryNonRetryableErrors,
+		RetryLastFailureReason:        info.GetRetryLastFailureReason(),
+		RetryLastWorkerIdentity:       info.GetRetryLastWorkerIdentity(),
+		RetryLastFailureDetails:       info.RetryLastFailureDetails,
+		RetryLastFailureCategory:      failureCategoryFromSqlblob(info.RetryLastFailureOptions),
+		RetryLastRetryIntervalSeconds: info.RetryLastFailureOptions.GetNextRetryIntervalSeconds(),
 	}
+}
+
+func failureCategoryFromSqlblob(o *shared.FailureOptions) types.FailureCategory {
+	if o == nil {
+		return types.FailureCategoryStandard
+	}
+	if c := thrift.ToFailureCategory(o.FailureCategory); c != nil {
+		return *c
+	}
+	return types.FailureCategoryStandard
 }
 
 func childExecutionInfoToThrift(info *ChildExecutionInfo) *sqlblobs.ChildExecutionInfo {

@@ -242,6 +242,24 @@ func identicalByteArray(a, b []byte) bool {
 	return len(a) == len(b) && unsafe.SliceData(a) == unsafe.SliceData(b)
 }
 
+func TestFailureCategory(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     *FailureOptions
+		expected FailureCategory
+	}{
+		{name: "nil FailureOptions", opts: nil},
+		{name: "empty FailureOptions", opts: &FailureOptions{}},
+		{name: "nil category", opts: &FailureOptions{FailureCategory: nil}},
+		{name: "explicitly set", opts: &FailureOptions{FailureCategory: FailureCategoryFatal.Ptr()}, expected: FailureCategoryFatal},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.opts.GetFailureCategory())
+		})
+	}
+}
+
 func TestActiveClusters_GetAllClusters(t *testing.T) {
 	tests := []struct {
 		name           string

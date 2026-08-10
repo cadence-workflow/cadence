@@ -767,7 +767,7 @@ func FromSyncActivityTaskAttributes(t *types.SyncActivityTaskAttributes) *adminv
 		LastHeartbeatTime:  unixNanoToTime(t.LastHeartbeatTime),
 		Details:            FromPayload(t.Details),
 		Attempt:            t.Attempt,
-		LastFailure:        FromFailure(t.LastFailureReason, t.LastFailureDetails),
+		LastFailure:        FromFailureWithOptions(t.LastFailureReason, t.LastFailureDetails, t.LastFailureOptions),
 		LastWorkerIdentity: t.LastWorkerIdentity,
 		VersionHistory:     FromVersionHistory(t.VersionHistory),
 	}
@@ -791,6 +791,7 @@ func ToSyncActivityTaskAttributes(t *adminv1.SyncActivityTaskAttributes) *types.
 		Attempt:            t.Attempt,
 		LastFailureReason:  ToFailureReason(t.LastFailure),
 		LastFailureDetails: ToFailureDetails(t.LastFailure),
+		LastFailureOptions: ToFailureOptions(t.LastFailure.GetOptions()),
 		LastWorkerIdentity: t.LastWorkerIdentity,
 		VersionHistory:     ToVersionHistory(t.VersionHistory),
 	}

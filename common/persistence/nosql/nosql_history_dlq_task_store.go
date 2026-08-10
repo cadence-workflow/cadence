@@ -77,7 +77,7 @@ func (sh *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 		DomainID:              request.DomainID,
 		ClusterAttributeScope: request.ClusterAttributeScope,
 		ClusterAttributeName:  request.ClusterAttributeName,
-		TaskType:              request.TaskType,
+		TaskCategory:          request.TaskCategory,
 		TaskID:                request.TaskID,
 		WorkflowID:            request.WorkflowID,
 		RunID:                 request.RunID,
@@ -110,7 +110,7 @@ func (sh *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
 		DomainID:                 request.DomainID,
 		ClusterAttributeScope:    request.ClusterAttributeScope,
 		ClusterAttributeName:     request.ClusterAttributeName,
-		TaskType:                 request.TaskCategory.ID(),
+		TaskCategory:             request.TaskCategory.ID(),
 		InclusiveMinVisibilityTS: request.InclusiveMinTaskKey.GetScheduledTime(),
 		InclusiveMinTaskID:       request.InclusiveMinTaskKey.GetTaskID(),
 		ExclusiveMaxVisibilityTS: request.ExclusiveMaxTaskKey.GetScheduledTime(),
@@ -128,7 +128,7 @@ func (sh *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
 			DomainID:              row.DomainID,
 			ClusterAttributeScope: row.ClusterAttributeScope,
 			ClusterAttributeName:  row.ClusterAttributeName,
-			TaskCategory:          row.TaskType,
+			TaskCategory:          row.TaskCategory,
 			VisibilityTimestamp:   row.VisibilityTimestamp,
 			TaskID:                row.TaskID,
 			TaskPayload:           &persistence.DataBlob{Data: row.Data, Encoding: constants.EncodingType(row.DataEncoding)},
@@ -156,7 +156,7 @@ func (sh *nosqlHistoryDLQTaskStore) RangeDeleteHistoryDLQTasks(
 		DomainID:                 request.DomainID,
 		ClusterAttributeScope:    request.ClusterAttributeScope,
 		ClusterAttributeName:     request.ClusterAttributeName,
-		TaskType:                 request.TaskCategory.ID(),
+		TaskCategory:             request.TaskCategory.ID(),
 		ExclusiveMaxVisibilityTS: request.ExclusiveMaxTaskKey.GetScheduledTime(),
 		ExclusiveMaxTaskID:       request.ExclusiveMaxTaskKey.GetTaskID(),
 	})
@@ -193,7 +193,7 @@ func (sh *nosqlHistoryDLQTaskStore) GetHistoryDLQAckLevels(
 			DomainID:              row.DomainID,
 			ClusterAttributeScope: row.ClusterAttributeScope,
 			ClusterAttributeName:  row.ClusterAttributeName,
-			TaskCategory:          row.TaskType,
+			TaskCategory:          row.TaskCategory,
 			AckLevelVisibilityTS:  row.AckLevelVisibilityTS,
 			AckLevelTaskID:        row.AckLevelTaskID,
 			LastUpdatedAt:         row.LastUpdatedAt,
@@ -219,13 +219,40 @@ func (sh *nosqlHistoryDLQTaskStore) UpdateHistoryDLQAckLevel(
 		DomainID:              request.Row.DomainID,
 		ClusterAttributeScope: request.Row.ClusterAttributeScope,
 		ClusterAttributeName:  request.Row.ClusterAttributeName,
-		TaskType:              request.Row.TaskCategory,
+		TaskCategory:          request.Row.TaskCategory,
 		AckLevelVisibilityTS:  request.Row.AckLevelVisibilityTS,
 		AckLevelTaskID:        request.Row.AckLevelTaskID,
 		LastUpdatedAt:         request.Row.LastUpdatedAt,
 	})
 	if err != nil {
 		return convertCommonErrors(storeShard.db, "UpdateHistoryDLQAckLevel", err)
+	}
+	return nil
+}
+
+// CreateHistoryDLQAckLevelIfNotExists writes a sentinel ack-level row only when
+// no row already exists for this partition/task-type.
+func (sh *nosqlHistoryDLQTaskStore) CreateHistoryDLQAckLevelIfNotExists(
+	ctx context.Context,
+	row persistence.InternalHistoryDLQAckLevel,
+) error {
+	storeShard, err := sh.GetStoreShardByHistoryShard(row.ShardID)
+	if err != nil {
+		return err
+	}
+
+	err = storeShard.db.InsertHistoryDLQAckLevelIfNotExistsRow(ctx, &nosqlplugin.HistoryDLQAckLevelRow{
+		ShardID:               row.ShardID,
+		DomainID:              row.DomainID,
+		ClusterAttributeScope: row.ClusterAttributeScope,
+		ClusterAttributeName:  row.ClusterAttributeName,
+		TaskCategory:          row.TaskCategory,
+		AckLevelVisibilityTS:  row.AckLevelVisibilityTS,
+		AckLevelTaskID:        row.AckLevelTaskID,
+		LastUpdatedAt:         row.LastUpdatedAt,
+	})
+	if err != nil {
+		return convertCommonErrors(storeShard.db, "CreateHistoryDLQAckLevelIfNotExists", err)
 	}
 	return nil
 }

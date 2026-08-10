@@ -261,6 +261,10 @@ func Test__ReplicateActivityInfo(t *testing.T) {
 		Version:           1,
 		ScheduledTime:     &nowUnix,
 		LastHeartbeatTime: &nowUnix,
+		LastFailureOptions: &types.FailureOptions{
+			FailureCategory:          types.FailureCategoryFatal.Ptr(),
+			NextRetryIntervalSeconds: common.Int32Ptr(100),
+		},
 	}
 	ai := &persistence.ActivityInfo{}
 
@@ -275,6 +279,8 @@ func Test__ReplicateActivityInfo(t *testing.T) {
 	assert.Equal(t, now.UTC(), ai.ScheduledTime.UTC())
 	assert.Equal(t, request.StartedID, ai.StartedID)
 	assert.Equal(t, now.UTC(), ai.LastHeartBeatUpdatedTime.UTC())
+	assert.Equal(t, request.LastFailureOptions.GetFailureCategory(), ai.LastFailureCategory)
+	assert.Equal(t, request.LastFailureOptions.GetNextRetryIntervalSeconds(), ai.LastRetryIntervalSeconds)
 }
 
 func Test__UpdateActivity(t *testing.T) {
@@ -621,6 +627,30 @@ func Test__AddActivityTaskFailedEvent(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, int64(1), event.ActivityTaskFailedEventAttributes.ScheduledEventID)
-
+		assert.Equal(t, types.FailureCategoryStandard, event.ActivityTaskFailedEventAttributes.FailureOptions.GetFailureCategory())
+		assert.Equal(t, int32(0), event.ActivityTaskFailedEventAttributes.FailureOptions.GetNextRetryIntervalSeconds())
+	})
+	t.Run("success with options", func(t *testing.T) {
+		mb := testMutableStateBuilder(t)
+		ai := &persistence.ActivityInfo{
+			ScheduleID:     1,
+			ActivityID:     "1",
+			ScheduledEvent: &types.HistoryEvent{},
+			StartedID:      1,
+		}
+		mb.pendingActivityInfoIDs[1] = ai
+		mb.hBuilder = NewHistoryBuilder(mb)
+		event, err := mb.AddActivityTaskFailedEvent(1, 1, &types.RespondActivityTaskFailedRequest{
+			Identity: "test",
+			Details:  make([]byte, 10),
+			FailureOptions: &types.FailureOptions{
+				FailureCategory:          types.FailureCategoryFatal.Ptr(),
+				NextRetryIntervalSeconds: common.Int32Ptr(200),
+			},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, int64(1), event.ActivityTaskFailedEventAttributes.ScheduledEventID)
+		assert.Equal(t, types.FailureCategoryFatal, event.ActivityTaskFailedEventAttributes.FailureOptions.GetFailureCategory())
+		assert.Equal(t, int32(200), event.ActivityTaskFailedEventAttributes.FailureOptions.GetNextRetryIntervalSeconds())
 	})
 }

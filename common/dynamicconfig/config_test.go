@@ -64,6 +64,15 @@ func (s *configSuite) TestGetStringProperty() {
 	s.Equal("b", value())
 }
 
+func (s *configSuite) TestGetStringPropertyFilteredByShardID() {
+	key := dynamicproperties.TestGetStringPropertyFilteredByShardIDKey
+	shardID := 1
+	value := s.cln.GetStringPropertyFilteredByShardID(key)
+	s.Equal(key.DefaultValue(), value(shardID))
+	s.client.SetValue(key, "b")
+	s.Equal("b", value(shardID))
+}
+
 func (s *configSuite) TestGetIntProperty() {
 	key := dynamicproperties.TestGetIntPropertyKey
 	value := s.cln.GetIntProperty(key)

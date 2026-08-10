@@ -581,11 +581,24 @@ func TestHistoryTaskV2AttributesFuzz(t *testing.T) {
 	)
 }
 
+// SyncActivityTaskAttributesFuzzer ensures LastFailureReason is non-nil when
+// LastFailureDetails or LastFailureOptions is set (they merge into a single
+// LastFailure object, which is dropped when reason is nil), and normalizes the
+// failure category to a valid enum value so it round-trips.
+func SyncActivityTaskAttributesFuzzer(r *types.SyncActivityTaskAttributes, c fuzz.Continue) {
+	c.FuzzNoCustom(r)
+	if r.LastFailureReason == nil && (len(r.LastFailureDetails) > 0 || r.LastFailureOptions != nil) {
+		reason := ""
+		r.LastFailureReason = &reason
+	}
+	normalizeFailureCategory(r.LastFailureOptions, c)
+}
+
 func TestSyncActivityTaskAttributesFuzz(t *testing.T) {
-	// [BUG] FailureDetails is not round-trip compatible
+	// LastFailureReason + LastFailureDetails + LastFailureOptions merge into LastFailure (Failure);
+	// the fuzzer keeps reason non-nil when those are set so the round-trip is preserved.
 	testutils.RunMapperFuzzTest(t, FromSyncActivityTaskAttributes, ToSyncActivityTaskAttributes,
-		testutils.WithCommonEnumFuzzers(),
-		testutils.WithExcludedFields("LastFailureDetails"),
+		testutils.WithCustomFuncs(SyncActivityTaskAttributesFuzzer),
 	)
 }
 

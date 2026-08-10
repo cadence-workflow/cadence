@@ -37,16 +37,12 @@ const (
 	deleteTaskQry = `DELETE FROM tasks ` +
 		`WHERE domain_id = ? AND task_list_name = ? AND task_type = ? AND task_id = ?`
 
-	rangeDeleteTaskQry = `WITH tasks_to_delete AS (
-    SELECT domain_id,task_list_name,task_type,task_id 
-    FROM tasks
-    WHERE domain_id = ? AND task_list_name = ? AND task_type = ? AND task_id <= ?
-    ORDER BY domain_id,task_list_name,task_type,task_id
-    LIMIT ?
-)
-
-DELETE FROM tasks
-WHERE (domain_id,task_list_name,task_type,task_id) IN (SELECT domain_id,task_list_name,task_type,task_id FROM tasks_to_delete);`
+	rangeDeleteTaskQry = `DELETE FROM tasks WHERE rowid IN (
+SELECT rowid FROM tasks 
+WHERE domain_id = ? AND task_list_name = ? AND task_type = ? AND task_id <= ?
+ORDER BY domain_id,task_list_name,task_type,task_id
+LIMIT ?
+)`
 )
 
 // LockTaskLists locks a row in task_lists table

@@ -23,7 +23,6 @@
 package host
 
 import (
-	"errors"
 	"flag"
 	"strconv"
 	"testing"
@@ -113,7 +112,7 @@ func (s *TaskListIsolationIntegrationSuite) TestTaskListIsolation() {
 	// Run 10 workflows to demonstrate that we consistently isolate tasks to the correct poller
 	for i := 0; i < 10; i++ {
 		runID := s.startWorkflow("a").RunID
-		result, err := s.getWorkflowResult(runID)
+		result, err := s.GetWorkflowResult(runID)
 		s.NoError(err)
 		s.Equal("a", result)
 	}
@@ -127,7 +126,7 @@ func (s *TaskListIsolationIntegrationSuite) TestTaskListIsolationLeak_SLOW() {
 	cancelB := bPoller.PollAndProcessDecisions()
 	defer cancelB()
 
-	result, err := s.getWorkflowResult(runID)
+	result, err := s.GetWorkflowResult(runID)
 	s.NoError(err)
 	s.Equal("b", result)
 }
@@ -180,32 +179,6 @@ func (s *TaskListIsolationIntegrationSuite) startWorkflow(group string) *types.S
 	s.Nil(err)
 
 	return result
-}
-
-func (s *TaskListIsolationIntegrationSuite) getWorkflowResult(runID string) (string, error) {
-	ctx, cancel := createContext()
-	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain: s.DomainName,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: s.T().Name(),
-			RunID:      runID,
-		},
-		HistoryEventFilterType: types.HistoryEventFilterTypeCloseEvent.Ptr(),
-		WaitForNewEvent:        true,
-	})
-	cancel()
-	if err != nil {
-		return "", err
-	}
-	history := historyResponse.History
-
-	lastEvent := history.Events[len(history.Events)-1]
-	if *lastEvent.EventType != types.EventTypeWorkflowExecutionCompleted {
-		return "", errors.New("workflow didn't complete")
-	}
-
-	return string(lastEvent.WorkflowExecutionCompletedEventAttributes.Result), nil
-
 }
 
 func withIsolationGroup(group string) yarpc.CallOption {

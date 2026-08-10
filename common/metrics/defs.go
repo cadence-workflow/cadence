@@ -960,6 +960,8 @@ const (
 
 	// PersistenceCreateHistoryDLQTaskScope tracks CreateHistoryDLQTask calls to the persistence layer
 	PersistenceCreateHistoryDLQTaskScope
+	// PersistenceCreateHistoryDLQAckLevelIfNotExistsScope tracks CreateHistoryDLQAckLevelIfNotExists calls to the persistence layer
+	PersistenceCreateHistoryDLQAckLevelIfNotExistsScope
 	// PersistenceGetHistoryDLQAckLevelsScope tracks GetAckLevels calls to the persistence layer
 	PersistenceGetHistoryDLQAckLevelsScope
 	// PersistenceGetHistoryDLQTasksScope tracks GetTasks calls to the persistence layer
@@ -1465,6 +1467,8 @@ const (
 	HistoryTaskSchedulerMigrationScope
 	// WorkflowCorruptionRepairScope is the scope used for workflow corruption detection and repair operations
 	WorkflowCorruptionRepairScope
+	// HistoryTaskDLQProcessorScope is the scope used by the history task DLQ re-injection processor
+	HistoryTaskDLQProcessorScope
 	NumHistoryScopes
 )
 
@@ -1966,11 +1970,12 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		ActiveClusterManager:                   {operation: "ActiveClusterManager"},
 		ActiveClusterManagerWorkflowCacheScope: {operation: "ActiveClusterManagerWorkflowCache"},
 
-		PersistenceCreateHistoryDLQTaskScope:     {operation: "CreateHistoryDLQTask"},
-		PersistenceGetHistoryDLQAckLevelsScope:   {operation: "GetHistoryDLQAckLevels"},
-		PersistenceGetHistoryDLQTasksScope:       {operation: "GetHistoryDLQTasks"},
-		PersistenceUpdateHistoryDLQAckLevelScope: {operation: "UpdateHistoryDLQAckLevel"},
-		PersistenceDeleteHistoryDLQTasksScope:    {operation: "DeleteHistoryDLQTasks"},
+		PersistenceCreateHistoryDLQTaskScope:                {operation: "CreateHistoryDLQTask"},
+		PersistenceCreateHistoryDLQAckLevelIfNotExistsScope: {operation: "CreateHistoryDLQAckLevelIfNotExists"},
+		PersistenceGetHistoryDLQAckLevelsScope:              {operation: "GetHistoryDLQAckLevels"},
+		PersistenceGetHistoryDLQTasksScope:                  {operation: "GetHistoryDLQTasks"},
+		PersistenceUpdateHistoryDLQAckLevelScope:            {operation: "UpdateHistoryDLQAckLevel"},
+		PersistenceDeleteHistoryDLQTasksScope:               {operation: "DeleteHistoryDLQTasks"},
 	},
 	// Frontend Scope Names
 	Frontend: {
@@ -2218,6 +2223,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryFlushBufferedEventsScope:                                 {operation: "HistoryFlushBufferedEvents"},
 		HistoryTaskSchedulerMigrationScope:                              {operation: "HistoryTaskSchedulerMigration"},
 		WorkflowCorruptionRepairScope:                                   {operation: "WorkflowCorruptionRepair"},
+		HistoryTaskDLQProcessorScope:                                    {operation: "HistoryTaskDLQProcessor"},
 	},
 	// Matching Scope Names
 	Matching: {
@@ -2983,12 +2989,20 @@ const (
 	CachedQueueHitsCounter
 	CachedQueueMissesCounter
 	CachedQueueSizeHistogram
+	CachedQueueShadowMismatchCounter
 
 	TaskRequestsPerTaskList
 	TaskLatencyPerTaskListHistogram
 	TaskProcessingLatencyPerTaskListHistogram
 	TaskQueueLatencyPerTaskListHistogram
 	TaskScheduleLatencyPerTaskListHistogram
+	TaskScheduleSubmittedPerTaskList
+	TaskScheduleThrottledPerTaskList
+
+	// HistoryTaskDLQReinjectFailuresCounter counts DLQ page re-injection failures (alert on this)
+	HistoryTaskDLQReinjectFailuresCounter
+	// HistoryTaskDLQPageSizeBytes tracks the serialized byte size of each re-injected DLQ page
+	HistoryTaskDLQPageSizeBytes
 
 	NumHistoryMetrics
 )
@@ -3287,11 +3301,11 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		PersistenceEmptyResponseCounter:                              {metricName: "persistence_empty_response", metricType: Counter},
 		PersistenceResponseRowSize:                                   {metricName: "persistence_response_row_size", metricType: Histogram, buckets: ResponseRowSizeBuckets},
 		PersistenceResponsePayloadSize:                               {metricName: "persistence_response_payload_size", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
-		PersistenceRequestsPerDomain:                                 {metricName: "persistence_requests_per_domain", metricRollupName: "persistence_requests", metricType: Counter},
+		PersistenceRequestsPerDomain:                                 {metricName: "persistence_requests_per_domain", metricRollupName: "persistence_requests_rollup", metricType: Counter},
 		PersistenceRequestsPerShard:                                  {metricName: "persistence_requests_per_shard", metricType: Counter},
 		PersistenceFailuresPerDomain:                                 {metricName: "persistence_errors_per_domain", metricRollupName: "persistence_errors", metricType: Counter},
-		PersistenceLatencyPerDomain:                                  {metricName: "persistence_latency_per_domain", metricRollupName: "persistence_latency", metricType: Timer},
-		PersistenceLatencyPerDomainHistogram:                         {metricName: "persistence_latency_per_domain_ns", metricRollupName: "persistence_latency_ns", metricType: Histogram, exponentialBuckets: Default1ms100s},
+		PersistenceLatencyPerDomain:                                  {metricName: "persistence_latency_per_domain", metricRollupName: "persistence_latency_rollup", metricType: Timer},
+		PersistenceLatencyPerDomainHistogram:                         {metricName: "persistence_latency_per_domain_ns", metricRollupName: "persistence_latency_ns_rollup", metricType: Histogram, exponentialBuckets: Default1ms100s},
 		PersistenceLatencyPerShard:                                   {metricName: "persistence_latency_per_shard", metricType: Timer},
 		PersistenceLatencyPerShardHistogram:                          {metricName: "persistence_latency_per_shard_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		PersistenceErrShardExistsCounterPerDomain:                    {metricName: "persistence_errors_shard_exists_per_domain", metricRollupName: "persistence_errors_shard_exists", metricType: Counter},
@@ -3631,6 +3645,11 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskProcessingLatencyPerTaskListHistogram: {metricName: "task_latency_processing_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
 		TaskQueueLatencyPerTaskListHistogram:      {metricName: "task_latency_queue_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
 		TaskScheduleLatencyPerTaskListHistogram:   {metricName: "task_latency_schedule_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
+		TaskScheduleSubmittedPerTaskList:          {metricName: "task_schedule_submitted_per_task_list", metricType: Counter},
+		TaskScheduleThrottledPerTaskList:          {metricName: "task_schedule_throttled_per_task_list", metricType: Counter},
+
+		HistoryTaskDLQReinjectFailuresCounter: {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
+		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},
@@ -3953,6 +3972,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CachedQueueHitsCounter:                                        {metricName: "cached_queue_hits", metricType: Counter},
 		CachedQueueMissesCounter:                                      {metricName: "cached_queue_misses", metricType: Counter},
 		CachedQueueSizeHistogram:                                      {metricName: "cached_queue_size", metricType: Histogram, buckets: TaskCountBuckets},
+		CachedQueueShadowMismatchCounter:                              {metricName: "cached_queue_shadow_mismatch", metricType: Counter},
 	},
 	Matching: {
 		PollSuccessPerTaskListCounter:                                    {metricName: "poll_success_per_tl", metricRollupName: "poll_success"},

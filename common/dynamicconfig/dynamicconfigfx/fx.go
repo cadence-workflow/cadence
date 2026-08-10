@@ -23,6 +23,7 @@
 package dynamicconfigfx
 
 import (
+	"context"
 	"path/filepath"
 
 	"go.uber.org/fx"
@@ -30,7 +31,9 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
+	csc "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/dynamicconfig/openfeatureclient"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -55,8 +58,10 @@ type Params struct {
 type Result struct {
 	fx.Out
 
-	Client     dynamicconfig.Client
-	Collection *dynamicconfig.Collection
+	Client                   dynamicconfig.Client
+	Collection               *dynamicconfig.Collection
+	OperationalConfigStore   configstore.Client        `name:"operational-config-store"`
+	OperationalDynamicConfig *dynamicconfig.Collection `name:"operational-dynamic-config"`
 }
 
 // New creates dynamicconfig.Client from the configuration
@@ -93,6 +98,21 @@ func New(p Params) Result {
 		case dynamicconfig.FileBasedClient:
 			p.Logger.Info("initialising File Based dynamic config client")
 			res, err = dynamicconfig.NewFileBasedClient(&p.Cfg.DynamicConfig.FileBased, p.Logger, stopped)
+		case dynamicconfig.OpenFeatureClient:
+			p.Logger.Info("initialising OpenFeature dynamic config client")
+			res = openfeatureclient.NewOpenFeatureClient(p.Logger)
+
+			providerName := p.Cfg.DynamicConfig.OpenFeature.ProviderName
+			providerConfig := p.Cfg.DynamicConfig.OpenFeature.Provider
+			p.Lifecycle.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					return openfeatureclient.RegisterProvider(ctx, providerName, providerConfig)
+				},
+				OnStop: func(ctx context.Context) error {
+					openfeatureclient.DeregisterProvider()
+					return nil
+				},
+			})
 		}
 	}
 
@@ -111,9 +131,19 @@ func New(p Params) Result {
 		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
 	)
 
+	// Create operational config store
+	operationalConfigStore := createOperationalConfigStore(&p.Cfg.Persistence, dc, p.Logger, p.MetricsClient)
+	operationalDC := dynamicconfig.NewCollection(
+		operationalConfigStore,
+		p.Logger,
+		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
+	)
+
 	return Result{
-		Client:     res,
-		Collection: dc,
+		Client:                   res,
+		Collection:               dc,
+		OperationalConfigStore:   operationalConfigStore,
+		OperationalDynamicConfig: operationalDC,
 	}
 }
 
@@ -124,4 +154,31 @@ func constructPathIfNeed(dir string, file string) string {
 		return dir + "/" + file
 	}
 	return file
+}
+
+// createOperationalConfigStore returns the primary persistence-backed configstore.Client, or a no-op when persistence doesn't support one.
+func createOperationalConfigStore(
+	persistenceConfig *config.Persistence,
+	dc *dynamicconfig.Collection,
+	logger log.Logger,
+	metricsClient metrics.Client,
+) configstore.Client {
+	cscConfig := &csc.ClientConfig{
+		PollInterval:        dc.GetDurationProperty(dynamicproperties.OperationalConfigStorePollInterval)(),
+		UpdateRetryAttempts: dc.GetIntProperty(dynamicproperties.OperationalConfigStoreUpdateRetryAttempts)(),
+		FetchTimeout:        dc.GetDurationProperty(dynamicproperties.OperationalConfigStoreFetchTimeout)(),
+		UpdateTimeout:       dc.GetDurationProperty(dynamicproperties.OperationalConfigStoreUpdateTimeout)(),
+	}
+	client, err := configstore.NewConfigStoreClient(
+		cscConfig,
+		persistenceConfig,
+		logger,
+		metricsClient,
+		persistence.OperationalDynamicConfig,
+	)
+	if err != nil {
+		logger.Warn("not instantiating operational dynamic config store, this feature will not be enabled", tag.Error(err))
+		return configstore.NewNopClient()
+	}
+	return client
 }

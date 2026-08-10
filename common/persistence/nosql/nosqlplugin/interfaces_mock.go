@@ -445,6 +445,20 @@ func (mr *MockDBMockRecorder) InsertDomainAuditLog(ctx, row any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDomainAuditLog", reflect.TypeOf((*MockDB)(nil).InsertDomainAuditLog), ctx, row)
 }
 
+// InsertHistoryDLQAckLevelIfNotExistsRow mocks base method.
+func (m *MockDB) InsertHistoryDLQAckLevelIfNotExistsRow(ctx context.Context, row *HistoryDLQAckLevelRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertHistoryDLQAckLevelIfNotExistsRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertHistoryDLQAckLevelIfNotExistsRow indicates an expected call of InsertHistoryDLQAckLevelIfNotExistsRow.
+func (mr *MockDBMockRecorder) InsertHistoryDLQAckLevelIfNotExistsRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQAckLevelIfNotExistsRow", reflect.TypeOf((*MockDB)(nil).InsertHistoryDLQAckLevelIfNotExistsRow), ctx, row)
+}
+
 // InsertHistoryDLQTaskRow mocks base method.
 func (m *MockDB) InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTaskRow) error {
 	m.ctrl.T.Helper()
@@ -1690,6 +1704,20 @@ func (m *MocktableCRUD) InsertDomainAuditLog(ctx context.Context, row *DomainAud
 func (mr *MocktableCRUDMockRecorder) InsertDomainAuditLog(ctx, row any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDomainAuditLog", reflect.TypeOf((*MocktableCRUD)(nil).InsertDomainAuditLog), ctx, row)
+}
+
+// InsertHistoryDLQAckLevelIfNotExistsRow mocks base method.
+func (m *MocktableCRUD) InsertHistoryDLQAckLevelIfNotExistsRow(ctx context.Context, row *HistoryDLQAckLevelRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertHistoryDLQAckLevelIfNotExistsRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertHistoryDLQAckLevelIfNotExistsRow indicates an expected call of InsertHistoryDLQAckLevelIfNotExistsRow.
+func (mr *MocktableCRUDMockRecorder) InsertHistoryDLQAckLevelIfNotExistsRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQAckLevelIfNotExistsRow", reflect.TypeOf((*MocktableCRUD)(nil).InsertHistoryDLQAckLevelIfNotExistsRow), ctx, row)
 }
 
 // InsertHistoryDLQTaskRow mocks base method.
@@ -3961,6 +3989,20 @@ func NewMockHistoryDLQTaskCRUD(ctrl *gomock.Controller) *MockHistoryDLQTaskCRUD 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockHistoryDLQTaskCRUD) EXPECT() *MockHistoryDLQTaskCRUDMockRecorder {
 	return m.recorder
+}
+
+// InsertHistoryDLQAckLevelIfNotExistsRow mocks base method.
+func (m *MockHistoryDLQTaskCRUD) InsertHistoryDLQAckLevelIfNotExistsRow(ctx context.Context, row *HistoryDLQAckLevelRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertHistoryDLQAckLevelIfNotExistsRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertHistoryDLQAckLevelIfNotExistsRow indicates an expected call of InsertHistoryDLQAckLevelIfNotExistsRow.
+func (mr *MockHistoryDLQTaskCRUDMockRecorder) InsertHistoryDLQAckLevelIfNotExistsRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQAckLevelIfNotExistsRow", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).InsertHistoryDLQAckLevelIfNotExistsRow), ctx, row)
 }
 
 // InsertHistoryDLQTaskRow mocks base method.

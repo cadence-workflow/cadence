@@ -169,7 +169,11 @@ func (t *transferTaskExecutorBase) pushDecision(
 		if t.shard.GetTimeSource().Now().Before(task.GetVisibilityTimestamp().Add(t.config.StandbyTaskMissingEventsDiscardDelay())) {
 			return standbyTaskPostActionNoOp(ctx, task, pushDecisionInfo, t.logger)
 		}
-		return standbyTaskPostActionTaskDiscarded(ctx, task, pushDecisionInfo, t.logger)
+		return standbyTaskPostActionWriteToDLQ(
+			t.dlqWriter,
+			t.shard,
+			t.config.HistoryTaskDLQMode,
+		)(ctx, task, pushDecisionInfo, t.logger)
 	}
 
 	decisionScheduleToStartTimeout := min(pushDecisionInfo.decisionScheduleToStartTimeout, constants.MaxTaskTimeout)

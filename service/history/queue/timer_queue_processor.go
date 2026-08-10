@@ -128,7 +128,7 @@ func NewTimerQueueProcessor(
 			shard.GetMetricsClient(),
 			clusterName,
 			config,
-			shard.GetService().GetHistoryTaskDLQManager(),
+			shard.GetHistoryTaskDLQWriter(),
 		)
 		standbyTaskExecutors = append(standbyTaskExecutors, standbyTaskExecutor)
 		standbyQueueProcessors[clusterName], standbyQueueTimerGates[clusterName] = newTimerQueueStandbyProcessor(

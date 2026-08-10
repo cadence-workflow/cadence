@@ -30,16 +30,14 @@ import (
 )
 
 const (
-	deleteHistoryNodesQuery = `WITH events_to_delete AS (
-    SELECT shard_id, tree_id, branch_id, node_id, txn_id
-    FROM history_node
-    WHERE shard_id = ? AND tree_id = ? AND branch_id = ? AND node_id >= ?
-    ORDER BY shard_id, tree_id, branch_id, node_id, txn_id
-    LIMIT ?
+	deleteHistoryNodesQuery = `DELETE FROM history_node
+WHERE rowid in (
+SELECT rowid FROM history_node
+WHERE shard_id = ? AND tree_id = ? AND branch_id = ? AND node_id >= ?
+ORDER BY shard_id, tree_id, branch_id, node_id, txn_id
+LIMIT ?
 )
-
-DELETE FROM history_node
-WHERE (shard_id, tree_id, branch_id, node_id, txn_id) IN (SELECT shard_id, tree_id, branch_id, node_id, txn_id FROM events_to_delete);`
+`
 )
 
 // DeleteFromHistoryNode deletes one or more rows from history_node table

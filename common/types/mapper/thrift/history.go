@@ -1178,6 +1178,7 @@ func FromHistorySyncActivityRequest(t *types.SyncActivityRequest) *history.SyncA
 		LastFailureReason:  t.LastFailureReason,
 		LastWorkerIdentity: &t.LastWorkerIdentity,
 		LastFailureDetails: t.LastFailureDetails,
+		LastFailureOptions: FromFailureOptions(t.LastFailureOptions),
 		VersionHistory:     FromVersionHistory(t.VersionHistory),
 	}
 }
@@ -1202,6 +1203,7 @@ func ToHistorySyncActivityRequest(t *history.SyncActivityRequest) *types.SyncAct
 		LastFailureReason:  t.LastFailureReason,
 		LastWorkerIdentity: t.GetLastWorkerIdentity(),
 		LastFailureDetails: t.LastFailureDetails,
+		LastFailureOptions: ToFailureOptions(t.LastFailureOptions),
 		VersionHistory:     ToVersionHistory(t.VersionHistory),
 	}
 }

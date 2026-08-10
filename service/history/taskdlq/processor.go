@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"go.uber.org/multierr"
 
@@ -36,8 +35,10 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/constants"
+	"github.com/uber/cadence/service/history/shard"
 )
 
 type (
@@ -59,59 +60,117 @@ type (
 		// within a shard.
 		// Returns errors for all partitions that could not be processed.
 		ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error
+
+		// FailoverPartitions schedules on-demand re-injection of the given DLQ partitions.
+		// It is non-blocking and safe to call from the domain failover callback (which must not
+		// block on DB work): the partitions are queued and processed by the background loop,
+		// which preempts any in-progress periodic ProcessShard sweep so failed-over partitions
+		// are reprocessed first.
+		FailoverPartitions(partitions []Partition)
+	}
+
+	// Partition identifies a single DLQ partition to reprocess on demand.
+	// An empty ClusterAttributeScope/ClusterAttributeName targets the domain's default partition.
+	Partition struct {
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
 	}
 
 	ProcessorImpl struct {
-		shardID    int
-		mgr        persistence.HistoryTaskDLQManager
-		executors  map[int]TaskExecutor // persistence.HistoryTaskCategoryID* → executor
-		pageSize   int
-		interval   dynamicproperties.DurationPropertyFnWithShardIDFilter
-		domainMode dynamicproperties.StringPropertyFnWithDomainFilter
-		enabled    dynamicproperties.BoolPropertyFn
-		timeSource clock.TimeSource
-		logger     log.Logger
+		shardID       int
+		mgr           persistence.HistoryTaskDLQManager
+		reinjector    TaskReinjector
+		pageSize      int
+		interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
+		domainMode    dynamicproperties.StringPropertyFnWithDomainFilter
+		enabled       dynamicproperties.BoolPropertyFn
+		timeSource    clock.TimeSource
+		metricsClient metrics.Client
+		logger        log.Logger
 
 		status    int32
 		ctx       context.Context
 		cancel    context.CancelFunc
 		wg        sync.WaitGroup
 		processMu sync.Mutex // serializes ProcessShard and ProcessPartition
+
+		// failoverMu guards the failover coordination state below.
+		failoverMu sync.Mutex
+		// pendingFailover holds partitions awaiting on-demand reprocessing, keyed by
+		// Partition.key() so a burst of failovers for the same partition collapses to one.
+		pendingFailover map[string]Partition
+		// sweepCancel cancels the in-flight periodic sweep so a failover can preempt it; nil
+		// when no sweep is running.
+		sweepCancel context.CancelFunc
+		// failoverSignal wakes an idle loop when pendingFailover becomes non-empty. Buffered
+		// size 1 and sent non-blocking, so it coalesces: one wake-up drains everything pending.
+		failoverSignal chan struct{}
+	}
+
+	// ProcessorParams are the dependencies needed to build a Processor.
+	ProcessorParams struct {
+		ShardID       int
+		Manager       persistence.HistoryTaskDLQManager
+		Reinjector    TaskReinjector
+		PageSize      int
+		Interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
+		DomainMode    dynamicproperties.StringPropertyFnWithDomainFilter
+		Enabled       dynamicproperties.BoolPropertyFn
+		TimeSource    clock.TimeSource
+		MetricsClient metrics.Client
+		Logger        log.Logger
 	}
 )
 
 var _ Processor = (*ProcessorImpl)(nil)
 
-// NewProcessor creates a Processor that reads from the history task DLQ for shardID.
+// NewProcessor creates a Processor from the given dependencies.
 //
-// executors maps persistence.HistoryTaskCategoryID* constants to the appropriate
-// historyqueuev2 executor for each task type.
-//
-// interval controls how often the background loop calls ProcessShard.
-func NewProcessor(
-	shardID int,
-	mgr persistence.HistoryTaskDLQManager,
-	executors map[int]TaskExecutor,
+// The processor will periodically process the DLQ for the entire shard,
+// and will process a domain/clusterAttribute pair on demand.
+func NewProcessor(params ProcessorParams) *ProcessorImpl {
+	return &ProcessorImpl{
+		shardID:         params.ShardID,
+		mgr:             params.Manager,
+		reinjector:      params.Reinjector,
+		pageSize:        params.PageSize,
+		interval:        params.Interval,
+		domainMode:      params.DomainMode,
+		enabled:         params.Enabled,
+		timeSource:      params.TimeSource,
+		metricsClient:   params.MetricsClient,
+		logger:          params.Logger,
+		status:          common.DaemonStatusInitialized,
+		cancel:          func() {}, // no-op until Start() sets the real cancel
+		pendingFailover: make(map[string]Partition),
+		failoverSignal:  make(chan struct{}, 1),
+	}
+}
+
+// NewProcessorFromShard is a convenience constructor that derives the shard-scoped
+// dependencies (shard ID, reinjector, DLQ manager, time source, metrics, logger)
+// from the shard context and delegates to NewProcessor.
+func NewProcessorFromShard(
+	shard shard.Context,
+	// TODO(c-warren): Convert pageSize to a dynamic property.
 	pageSize int,
 	interval dynamicproperties.DurationPropertyFnWithShardIDFilter,
 	domainMode dynamicproperties.StringPropertyFnWithDomainFilter,
 	enabled dynamicproperties.BoolPropertyFn,
-	timeSource clock.TimeSource,
-	logger log.Logger,
 ) *ProcessorImpl {
-	return &ProcessorImpl{
-		shardID:    shardID,
-		mgr:        mgr,
-		executors:  executors,
-		pageSize:   pageSize,
-		interval:   interval,
-		domainMode: domainMode,
-		enabled:    enabled,
-		timeSource: timeSource,
-		logger:     logger,
-		status:     common.DaemonStatusInitialized,
-		cancel:     func() {}, // no-op until Start() sets the real cancel
-	}
+	return NewProcessor(ProcessorParams{
+		ShardID:       shard.GetShardID(),
+		Manager:       shard.GetService().GetHistoryTaskDLQManager(),
+		Reinjector:    shard,
+		PageSize:      pageSize,
+		Interval:      interval,
+		DomainMode:    domainMode,
+		Enabled:       enabled,
+		TimeSource:    shard.GetTimeSource(),
+		MetricsClient: shard.GetMetricsClient(),
+		Logger:        shard.GetLogger(),
+	})
 }
 
 // Start starts the processor and launches the background processing loop.
@@ -137,9 +196,13 @@ func (p *ProcessorImpl) Stop() {
 	p.logger.Debug("DLQ processor stopped", tag.ShardID(p.shardID))
 }
 
-// processLoop is the background goroutine that periodically calls ProcessShard.
-// It reads the interval on every tick so that dynamic-config changes take effect
-// without a restart.
+// processLoop is the background goroutine that periodically calls ProcessShard and drains
+// on-demand failovers. It reads the interval on every tick so dynamic-config changes take
+// effect without a restart.
+//
+// processLoop coordinates between two processing triggers:
+// - A periodic sweep of all DLQ partitions for the shard.
+// - On-demand failovers of specific DLQ partitions.
 func (p *ProcessorImpl) processLoop() {
 	defer p.wg.Done()
 	defer func() { log.CapturePanic(recover(), p.logger, nil) }()
@@ -151,16 +214,69 @@ func (p *ProcessorImpl) processLoop() {
 		select {
 		case <-p.ctx.Done():
 			return
+		case <-p.failoverSignal:
+			// A failover arrived while the loop was idle; drain it.
+			p.processPendingFailovers()
 		case <-timer.Chan():
-			if p.enabled() {
-				if err := p.ProcessShard(p.ctx); err != nil {
-					p.logger.Error("DLQ periodic shard sweep failed",
-						tag.ShardID(p.shardID),
-						tag.Error(err),
-					)
-				}
-			}
+			p.runSweep()
+			// A failover may have preempted the sweep; drain it before the next tick.
+			p.processPendingFailovers()
 			timer.Reset(p.interval(p.shardID))
+		}
+	}
+}
+
+// runSweep runs one periodic ProcessShard synchronously under a cancelable context.
+// It creates a cancelable context, stored in p.sweepCancel, so that a background sweep can
+// be preempted when a failover occurs.
+func (p *ProcessorImpl) runSweep() {
+	if !p.enabled() {
+		return
+	}
+	ctx, cancel := context.WithCancel(p.ctx)
+	p.failoverMu.Lock()
+	p.sweepCancel = cancel
+	p.failoverMu.Unlock()
+	defer func() {
+		p.failoverMu.Lock()
+		p.sweepCancel = nil
+		p.failoverMu.Unlock()
+		cancel()
+	}()
+
+	if err := p.ProcessShard(ctx); err != nil && ctx.Err() == nil {
+		p.logger.Error("DLQ periodic shard sweep failed",
+			tag.ShardID(p.shardID),
+			tag.Error(err),
+		)
+	}
+}
+
+// processPendingFailovers drains the pending failover set and processes each partition.
+func (p *ProcessorImpl) processPendingFailovers() {
+	p.failoverMu.Lock()
+	parts := make([]Partition, 0, len(p.pendingFailover))
+	for _, part := range p.pendingFailover {
+		parts = append(parts, part)
+	}
+	p.pendingFailover = make(map[string]Partition)
+	p.failoverMu.Unlock()
+
+	if !p.enabled() {
+		return
+	}
+	for _, part := range parts {
+		if p.ctx.Err() != nil {
+			return
+		}
+		if err := p.ProcessPartition(p.ctx, part.DomainID, part.ClusterAttributeScope, part.ClusterAttributeName); err != nil {
+			p.logger.Error("DLQ failover partition reprocessing failed",
+				tag.ShardID(p.shardID),
+				tag.WorkflowDomainID(part.DomainID),
+				tag.Dynamic("cluster-attribute-scope", part.ClusterAttributeScope),
+				tag.Dynamic("cluster-attribute-name", part.ClusterAttributeName),
+				tag.Error(err),
+			)
 		}
 	}
 }
@@ -205,12 +321,49 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 	return p.processAckLevels(ctx, ackLevels)
 }
 
-// processAckLevels attempts to process every ack level entry. All partitions are
-// attempted regardless of individual failures; all errors are combined and returned.
+// FailoverPartitions enqueues the given partitions for on-demand reprocessing processLoop.
+func (p *ProcessorImpl) FailoverPartitions(partitions []Partition) {
+	if len(partitions) == 0 {
+		return
+	}
+
+	p.failoverMu.Lock()
+	for _, part := range partitions {
+		p.pendingFailover[part.key()] = part
+	}
+	// Cancel an in-flight sweep (if any) to prioritize the failover partitions.
+	cancel := p.sweepCancel
+	p.failoverMu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+
+	// Send a signal to failoverSignal to trigger the background loop to process the newly added partitions.
+	// If the failoverSignal is already pending then nothing needs to be done - the new partitions will be processed on the next iteration.
+	select {
+	case p.failoverSignal <- struct{}{}:
+	default:
+	}
+}
+
+// processAckLevels takes a set of ackLevels and processes them sequentially.
+// It manages context cancellation to allow the processor to preempt and ongoing operation.
+// Returns an error when any of the ack levels cannot be processed
 func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persistence.HistoryDLQAckLevel) error {
 	var errs error
 	for _, al := range ackLevels {
+		// Preempt promptly when the sweep's context is canceled (e.g. a failover wants to run
+		// its partitions first). ProcessShard is resumable, so stopping between partitions is safe.
+		if err := ctx.Err(); err != nil {
+			return multierr.Append(errs, err)
+		}
 		if err := p.processAckLevel(ctx, al); err != nil {
+			// A canceled context means the sweep was preempted mid-partition, not a real
+			// failure — return quietly so the failover partitions can run.
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return multierr.Append(errs, ctxErr)
+			}
 			p.logger.Error("failed to process DLQ partition",
 				tag.WorkflowDomainID(al.DomainID),
 				tag.Dynamic("cluster-attribute-scope", al.ClusterAttributeScope),
@@ -224,19 +377,28 @@ func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persis
 	return errs
 }
 
-// processAckLevel pages through the tasks for one (partition, taskType) and executes
-// each one. It stops at the first execution failure, then advances the ack level to
-// the last successfully executed task key.
+// processAckLevel fetches and re-injects tasks for the given ack level.
+// It reads all tasks from the current ack position to the shards max read level, and re-injects them
+// to the executions table.
+// Returns an error when the domain is not enabled or when the tasks cannot be fetched or re-injected.
 func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.HistoryDLQAckLevel) error {
 	if p.domainMode(al.DomainID) != constants.HistoryTaskDLQModeEnabled {
 		p.logger.Debug("DLQ not enabled for domain, skipping ack level processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(al.DomainID))
 		return nil
 	}
 
-	executor, ok := p.executors[al.TaskCategory.ID()]
-	if !ok {
-		return fmt.Errorf("no executor registered for task type %d", al.TaskCategory.ID())
+	// Reinjection only supports transfer and timer tasks (see ExecutionManager.CreateHistoryTasks).
+	// Skip any other category (e.g. replication) so an ack level cannot block processing.
+	if id := al.TaskCategory.ID(); id != persistence.HistoryTaskCategoryIDTransfer &&
+		id != persistence.HistoryTaskCategoryIDTimer {
+		p.logger.Debug("Skipping DLQ ack level for unsupported task category",
+			tag.ShardID(p.shardID),
+			tag.WorkflowDomainID(al.DomainID),
+			tag.TaskType(al.TaskCategory.ID()))
+		return nil
 	}
+
+	scope := p.metricsClient.Scope(metrics.HistoryTaskDLQProcessorScope, metrics.DomainTag(al.DomainID))
 
 	var (
 		pageToken   []byte
@@ -245,10 +407,16 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 	)
 	// Start just past the current ack position.
 	minKey := persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
-	// TODO(c-warren): Pass in max read level from the shard context
-	maxKey := persistence.NewHistoryTaskKey(time.Unix(1<<62, 0), 0)
+	// TODO(c-warren): Pass in max read level from the shard context.
+	maxKey := persistence.MaximumHistoryTaskKey
 
 	for {
+		// Preempt promptly between pages when the sweep is canceled; any pages already
+		// reinjected are still acknowledged below so progress is not lost.
+		if err := ctx.Err(); err != nil {
+			firstErr = err
+			break
+		}
 		resp, err := p.mgr.GetHistoryDLQTasks(ctx, persistence.HistoryDLQGetTasksRequest{
 			ShardID:               al.ShardID,
 			DomainID:              al.DomainID,
@@ -265,30 +433,27 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 			break
 		}
 
-		for _, t := range resp.Tasks {
-			if err := executor.Execute(ctx, t); err != nil {
-				if handledErr := executor.HandleErr(err); handledErr != nil {
-					firstErr = handledErr
-					break
-				}
-				// ackable error: log and skip this task, advance past it
-				p.logger.Warn("skipping ackable DLQ task execution error",
-					tag.WorkflowDomainID(al.DomainID),
-					tag.Error(err),
-				)
+		if len(resp.Tasks) > 0 {
+			scope.RecordHistogramValue(metrics.HistoryTaskDLQPageSizeBytes, float64(resp.PageSizeBytes))
+			k := resp.Tasks[len(resp.Tasks)-1].GetTaskKey()
+			if err := p.reinjector.ReinjectHistoryTasks(ctx, resp.Tasks); err != nil {
+				scope.IncCounter(metrics.HistoryTaskDLQReinjectFailuresCounter)
+				firstErr = err
+				break
 			}
-			k := t.GetTaskKey()
 			lastGoodKey = &k
 		}
 
-		if firstErr != nil || len(resp.NextPageToken) == 0 {
+		if len(resp.NextPageToken) == 0 {
 			break
 		}
 		pageToken = resp.NextPageToken
 	}
 
 	if lastGoodKey != nil {
-		if err := p.advanceAckLevel(ctx, al, *lastGoodKey); err != nil {
+		// Use the processor context, not the passed-in (possibly sweep-canceled) context, so that
+		// pages already reinjected above are acknowledged and not re-injected on the next run.
+		if err := p.advanceAckLevel(p.ctx, al, *lastGoodKey); err != nil {
 			return multierr.Append(err, firstErr)
 		}
 	}
@@ -323,4 +488,8 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al persistence.Hist
 		)
 	}
 	return nil
+}
+
+func (p *Partition) key() string {
+	return fmt.Sprintf("DomainID/%s/ClusterAttributeScope/%s/ClusterAttributeName/%s", p.DomainID, p.ClusterAttributeScope, p.ClusterAttributeName)
 }

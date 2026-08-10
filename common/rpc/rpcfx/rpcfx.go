@@ -63,28 +63,8 @@ type factoryParams struct {
 
 	Logger    log.Logger
 	RPCParams rpc.Params
-
-	Lifecycle fx.Lifecycle
 }
 
 func buildFactory(p factoryParams) rpc.Factory {
-	res := rpc.NewFactory(p.Logger, p.RPCParams)
-	p.Lifecycle.Append(fx.StartStopHook(startDispatcher(res), rpcStopper(res)))
-	return res
-}
-
-func startDispatcher(f rpc.Factory) func() error {
-	return func() error {
-		return f.GetDispatcher().Start()
-	}
-}
-
-func rpcStopper(factory rpc.Factory) func() error {
-	return func() error {
-		err := factory.GetDispatcher().Stop()
-		if err != nil {
-			return fmt.Errorf("dispatcher stop: %w", err)
-		}
-		return nil
-	}
+	return rpc.NewFactory(p.Logger, p.RPCParams)
 }

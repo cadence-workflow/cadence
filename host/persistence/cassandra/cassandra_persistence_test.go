@@ -119,3 +119,11 @@ func TestCassandraDomainAuditPersistence(t *testing.T) {
 	s.Setup()
 	suite.Run(t, s)
 }
+
+func TestCassandraHistoryTaskDLQPersistence(t *testing.T) {
+	testflags.RequireCassandra(t)
+	s := new(persistencetests.HistoryTaskDLQPersistenceSuite)
+	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
+	s.Setup()
+	suite.Run(t, s)
+}

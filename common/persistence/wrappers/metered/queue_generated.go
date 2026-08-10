@@ -50,7 +50,9 @@ func (c *meteredQueueManager) DeleteMessageFromDLQ(ctx context.Context, request 
 		return err
 	}
 
-	err = c.call(metrics.PersistenceDeleteMessageFromDLQScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceDeleteMessageFromDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -61,7 +63,9 @@ func (c *meteredQueueManager) DeleteMessagesBefore(ctx context.Context, request 
 		return err
 	}
 
-	err = c.call(metrics.PersistenceDeleteMessagesBeforeScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceDeleteMessagesBeforeScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -72,7 +76,9 @@ func (c *meteredQueueManager) EnqueueMessage(ctx context.Context, request *_sour
 		return err
 	}
 
-	err = c.call(metrics.PersistenceEnqueueMessageScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceEnqueueMessageScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -83,7 +89,9 @@ func (c *meteredQueueManager) EnqueueMessageToDLQ(ctx context.Context, request *
 		return err
 	}
 
-	err = c.call(metrics.PersistenceEnqueueMessageToDLQScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceEnqueueMessageToDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -94,7 +102,9 @@ func (c *meteredQueueManager) GetAckLevels(ctx context.Context, request *_source
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetAckLevelsScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetAckLevelsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -105,7 +115,9 @@ func (c *meteredQueueManager) GetDLQAckLevels(ctx context.Context, request *_sou
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetDLQAckLevelsScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetDLQAckLevelsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -116,7 +128,9 @@ func (c *meteredQueueManager) GetDLQSize(ctx context.Context, request *_sourcePe
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetDLQSizeScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetDLQSizeScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -127,7 +141,9 @@ func (c *meteredQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, re
 		return err
 	}
 
-	err = c.call(metrics.PersistenceRangeDeleteMessagesFromDLQScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceRangeDeleteMessagesFromDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -138,7 +154,9 @@ func (c *meteredQueueManager) ReadMessages(ctx context.Context, request *_source
 		return err
 	}
 
-	err = c.call(metrics.PersistenceReadMessagesScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceReadMessagesScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -149,7 +167,9 @@ func (c *meteredQueueManager) ReadMessagesFromDLQ(ctx context.Context, request *
 		return err
 	}
 
-	err = c.call(metrics.PersistenceReadMessagesFromDLQScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceReadMessagesFromDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -160,7 +180,9 @@ func (c *meteredQueueManager) UpdateAckLevel(ctx context.Context, request *_sour
 		return err
 	}
 
-	err = c.call(metrics.PersistenceUpdateAckLevelScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceUpdateAckLevelScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -171,6 +193,8 @@ func (c *meteredQueueManager) UpdateDLQAckLevel(ctx context.Context, request *_s
 		return err
 	}
 
-	err = c.call(metrics.PersistenceUpdateDLQAckLevelScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceUpdateDLQAckLevelScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }

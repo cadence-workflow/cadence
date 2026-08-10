@@ -49,6 +49,10 @@ const (
 	// BatcherTaskListName is the tasklist name
 	BatcherTaskListName = "cadence-sys-batcher-tasklist"
 	// BatchWFTypeName is the workflow type
+	//
+	// Deprecated: superseded by BatchWFV2TypeName / BatchWorkflowV2. Kept registered
+	// only to serve in-flight v1 executions started before the switch to v2.
+	// TODO: remove once no v1 executions remain.
 	BatchWFTypeName   = "cadence-sys-batch-workflow"
 	batchActivityName = "cadence-sys-batch-activity"
 	// InfiniteDuration is a long duration(20 yrs) we used for infinite workflow running
@@ -79,10 +83,12 @@ const (
 	BatchTypeSignal = "signal"
 	// BatchTypeReplicate is batch type for replicating workflows
 	BatchTypeReplicate = "replicate"
+	// BatchTypeRefresh is batch type for refreshing workflow tasks.
+	BatchTypeRefresh = "refresh"
 )
 
 // AllBatchTypes is the batch types we supported
-var AllBatchTypes = []string{BatchTypeTerminate, BatchTypeCancel, BatchTypeSignal, BatchTypeReplicate}
+var AllBatchTypes = []string{BatchTypeTerminate, BatchTypeCancel, BatchTypeSignal, BatchTypeReplicate, BatchTypeRefresh}
 
 var (
 	BatchActivityRetryPolicy = cadence.RetryPolicy{
@@ -106,6 +112,10 @@ func init() {
 }
 
 // BatchWorkflow is the workflow that runs a batch job of resetting workflows
+//
+// Deprecated: superseded by BatchWorkflowV2. Kept registered only to serve
+// in-flight v1 executions started before the switch to v2.
+// TODO: remove once no v1 executions remain.
 func BatchWorkflow(ctx workflow.Context, batchParams BatchParams) (HeartBeatDetails, error) {
 	batchParams = setDefaultParams(batchParams)
 	err := validateParams(batchParams)
@@ -313,6 +323,17 @@ func startTaskProcessor(
 							WorkflowID:    workflowID,
 							RunID:         runID,
 							RemoteCluster: batchParams.ReplicateParams.SourceCluster,
+						})
+					})
+			case BatchTypeRefresh:
+				err = processTask(ctx, limiter, task, batchParams, client, common.BoolPtr(false),
+					func(workflowID, runID string) error {
+						return client.RefreshWorkflowTasks(ctx, &types.RefreshWorkflowTasksRequest{
+							Domain: batchParams.DomainName,
+							Execution: &types.WorkflowExecution{
+								WorkflowID: workflowID,
+								RunID:      runID,
+							},
 						})
 					})
 			}

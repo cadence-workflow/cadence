@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/config/yaml"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -174,7 +175,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		MessagingClient:               messagingClient,
 		DomainManager:                 testBase.DomainManager,
 		HistoryV2Mgr:                  testBase.HistoryV2Mgr,
-		ExecutionMgrFactory:           testBase.ExecutionMgrFactory,
+		ExecutionMgr:                  testBase.ExecutionManager,
 		DomainReplicationQueue:        domainReplicationQueue,
 		Logger:                        logger,
 		ZapLogger:                     testlogger.NewZap(t),
@@ -256,7 +257,7 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 		MessagingClient:               messagingClient,
 		DomainManager:                 testBase.DomainManager,
 		HistoryV2Mgr:                  testBase.HistoryV2Mgr,
-		ExecutionMgrFactory:           testBase.ExecutionMgrFactory,
+		ExecutionMgr:                  testBase.ExecutionManager,
 		DomainReplicationQueue:        domainReplicationQueue,
 		Logger:                        logger,
 		ZapLogger:                     testlogger.NewZap(t),
@@ -411,7 +412,7 @@ func newArchiverBase(enabled bool, logger log.Logger) *ArchiverBase {
 		FileMode: "0666",
 		DirMode:  "0766",
 	}
-	node, err := config.ToYamlNode(cfg)
+	node, err := yaml.ToNode(cfg)
 	if err != nil {
 		logger.Fatal("Should be impossible: failed to convert filestore archiver config to a yaml node")
 	}
@@ -486,7 +487,7 @@ func (tc *TestCluster) GetMatchingClients() []MatchingClient {
 	return result
 }
 
-// GetExecutionManagerFactory returns an execution manager factory from the test cluster
-func (tc *TestCluster) GetExecutionManagerFactory() persistence.ExecutionManagerFactory {
-	return tc.host.GetExecutionManagerFactory()
+// GetExecutionManager returns the execution manager from the test cluster
+func (tc *TestCluster) GetExecutionManager() persistence.ExecutionManager {
+	return tc.host.GetExecutionManager()
 }

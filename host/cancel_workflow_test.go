@@ -108,7 +108,7 @@ func (s *IntegrationSuite) TestExternalRequestCancelWorkflowExecution() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -117,7 +117,7 @@ func (s *IntegrationSuite) TestExternalRequestCancelWorkflowExecution() {
 	s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 
@@ -270,7 +270,7 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -313,7 +313,7 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: foreignDtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -327,8 +327,7 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 	s.Logger.Info("foreign PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 
-	// Complete the activity so the next decision is scheduled
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 
@@ -496,7 +495,7 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution_UnKnownTar
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -507,7 +506,7 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution_UnKnownTar
 	s.Nil(err)
 
 	// Complete the activity so the next decision is scheduled
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 

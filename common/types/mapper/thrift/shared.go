@@ -170,6 +170,7 @@ func FromActivityTaskFailedEventAttributes(t *types.ActivityTaskFailedEventAttri
 	return &shared.ActivityTaskFailedEventAttributes{
 		Reason:           t.Reason,
 		Details:          t.Details,
+		FailureOptions:   FromFailureOptions(t.FailureOptions),
 		ScheduledEventId: &t.ScheduledEventID,
 		StartedEventId:   &t.StartedEventID,
 		Identity:         &t.Identity,
@@ -184,6 +185,7 @@ func ToActivityTaskFailedEventAttributes(t *shared.ActivityTaskFailedEventAttrib
 	return &types.ActivityTaskFailedEventAttributes{
 		Reason:           t.Reason,
 		Details:          t.Details,
+		FailureOptions:   ToFailureOptions(t.FailureOptions),
 		ScheduledEventID: t.GetScheduledEventId(),
 		StartedEventID:   t.GetStartedEventId(),
 		Identity:         t.GetIdentity(),
@@ -244,6 +246,7 @@ func FromActivityTaskStartedEventAttributes(t *types.ActivityTaskStartedEventAtt
 		Attempt:            &t.Attempt,
 		LastFailureReason:  t.LastFailureReason,
 		LastFailureDetails: t.LastFailureDetails,
+		LastFailureOptions: FromFailureOptions(t.LastFailureOptions),
 	}
 }
 
@@ -259,6 +262,7 @@ func ToActivityTaskStartedEventAttributes(t *shared.ActivityTaskStartedEventAttr
 		Attempt:            t.GetAttempt(),
 		LastFailureReason:  t.LastFailureReason,
 		LastFailureDetails: t.LastFailureDetails,
+		LastFailureOptions: ToFailureOptions(t.LastFailureOptions),
 	}
 }
 
@@ -274,6 +278,7 @@ func FromActivityTaskTimedOutEventAttributes(t *types.ActivityTaskTimedOutEventA
 		TimeoutType:        FromTimeoutType(t.TimeoutType),
 		LastFailureReason:  t.LastFailureReason,
 		LastFailureDetails: t.LastFailureDetails,
+		LastFailureOptions: FromFailureOptions(t.LastFailureOptions),
 	}
 }
 
@@ -289,7 +294,65 @@ func ToActivityTaskTimedOutEventAttributes(t *shared.ActivityTaskTimedOutEventAt
 		TimeoutType:        ToTimeoutType(t.TimeoutType),
 		LastFailureReason:  t.LastFailureReason,
 		LastFailureDetails: t.LastFailureDetails,
+		LastFailureOptions: ToFailureOptions(t.LastFailureOptions),
 	}
+}
+
+// FromFailureOptions converts internal FailureOptions type to thrift
+func FromFailureOptions(t *types.FailureOptions) *shared.FailureOptions {
+	if t == nil {
+		return nil
+	}
+	return &shared.FailureOptions{
+		FailureCategory:          FromFailureCategory(t.FailureCategory),
+		NextRetryIntervalSeconds: t.NextRetryIntervalSeconds,
+	}
+}
+
+// ToFailureOptions converts thrift FailureOptions type to internal
+func ToFailureOptions(t *shared.FailureOptions) *types.FailureOptions {
+	if t == nil {
+		return nil
+	}
+	return &types.FailureOptions{
+		FailureCategory:          ToFailureCategory(t.FailureCategory),
+		NextRetryIntervalSeconds: t.NextRetryIntervalSeconds,
+	}
+}
+
+// FromFailureCategory converts internal FailureCategory type to thrift
+func FromFailureCategory(t *types.FailureCategory) *shared.FailureCategory {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case types.FailureCategoryPoll:
+		v := shared.FailureCategoryPoll
+		return &v
+	case types.FailureCategoryStandard:
+		v := shared.FailureCategoryStandard
+		return &v
+	case types.FailureCategoryFatal:
+		v := shared.FailureCategoryFatal
+		return &v
+	}
+	return nil
+}
+
+// ToFailureCategory converts thrift FailureCategory type to internal
+func ToFailureCategory(t *shared.FailureCategory) *types.FailureCategory {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case shared.FailureCategoryPoll:
+		return types.FailureCategoryPoll.Ptr()
+	case shared.FailureCategoryStandard:
+		return types.FailureCategoryStandard.Ptr()
+	case shared.FailureCategoryFatal:
+		return types.FailureCategoryFatal.Ptr()
+	}
+	return nil
 }
 
 // FromActivityType converts internal ActivityType type to thrift
@@ -3791,6 +3854,7 @@ func FromPendingActivityInfo(t *types.PendingActivityInfo) *shared.PendingActivi
 		LastFailureReason:      t.LastFailureReason,
 		LastWorkerIdentity:     &t.LastWorkerIdentity,
 		LastFailureDetails:     t.LastFailureDetails,
+		LastFailureOptions:     FromFailureOptions(t.LastFailureOptions),
 		StartedWorkerIdentity:  &t.StartedWorkerIdentity,
 		ScheduleID:             &t.ScheduleID,
 	}
@@ -3815,6 +3879,7 @@ func ToPendingActivityInfo(t *shared.PendingActivityInfo) *types.PendingActivity
 		LastFailureReason:      t.LastFailureReason,
 		LastWorkerIdentity:     t.GetLastWorkerIdentity(),
 		LastFailureDetails:     t.LastFailureDetails,
+		LastFailureOptions:     ToFailureOptions(t.LastFailureOptions),
 		StartedWorkerIdentity:  t.GetStartedWorkerIdentity(),
 		ScheduleID:             t.GetScheduleID(),
 	}
@@ -5024,13 +5089,15 @@ func FromRespondActivityTaskFailedByIDRequest(t *types.RespondActivityTaskFailed
 		return nil
 	}
 	return &shared.RespondActivityTaskFailedByIDRequest{
-		Domain:     &t.Domain,
-		WorkflowID: &t.WorkflowID,
-		RunID:      &t.RunID,
-		ActivityID: &t.ActivityID,
-		Reason:     t.Reason,
-		Details:    t.Details,
-		Identity:   &t.Identity,
+		Domain:           &t.Domain,
+		WorkflowID:       &t.WorkflowID,
+		RunID:            &t.RunID,
+		ActivityID:       &t.ActivityID,
+		Reason:           t.Reason,
+		Details:          t.Details,
+		Identity:         &t.Identity,
+		FailureOptions:   FromFailureOptions(t.FailureOptions),
+		HeartbeatDetails: t.HeartbeatDetails,
 	}
 }
 
@@ -5040,13 +5107,15 @@ func ToRespondActivityTaskFailedByIDRequest(t *shared.RespondActivityTaskFailedB
 		return nil
 	}
 	return &types.RespondActivityTaskFailedByIDRequest{
-		Domain:     t.GetDomain(),
-		WorkflowID: t.GetWorkflowID(),
-		RunID:      t.GetRunID(),
-		ActivityID: t.GetActivityID(),
-		Reason:     t.Reason,
-		Details:    t.Details,
-		Identity:   t.GetIdentity(),
+		Domain:           t.GetDomain(),
+		WorkflowID:       t.GetWorkflowID(),
+		RunID:            t.GetRunID(),
+		ActivityID:       t.GetActivityID(),
+		Reason:           t.Reason,
+		Details:          t.Details,
+		Identity:         t.GetIdentity(),
+		FailureOptions:   ToFailureOptions(t.FailureOptions),
+		HeartbeatDetails: t.HeartbeatDetails,
 	}
 }
 
@@ -5056,10 +5125,12 @@ func FromRespondActivityTaskFailedRequest(t *types.RespondActivityTaskFailedRequ
 		return nil
 	}
 	return &shared.RespondActivityTaskFailedRequest{
-		TaskToken: t.TaskToken,
-		Reason:    t.Reason,
-		Details:   t.Details,
-		Identity:  &t.Identity,
+		TaskToken:        t.TaskToken,
+		Reason:           t.Reason,
+		Details:          t.Details,
+		Identity:         &t.Identity,
+		FailureOptions:   FromFailureOptions(t.FailureOptions),
+		HeartbeatDetails: t.HeartbeatDetails,
 	}
 }
 
@@ -5069,10 +5140,12 @@ func ToRespondActivityTaskFailedRequest(t *shared.RespondActivityTaskFailedReque
 		return nil
 	}
 	return &types.RespondActivityTaskFailedRequest{
-		TaskToken: t.TaskToken,
-		Reason:    t.Reason,
-		Details:   t.Details,
-		Identity:  t.GetIdentity(),
+		TaskToken:        t.TaskToken,
+		Reason:           t.Reason,
+		Details:          t.Details,
+		Identity:         t.GetIdentity(),
+		FailureOptions:   ToFailureOptions(t.FailureOptions),
+		HeartbeatDetails: t.HeartbeatDetails,
 	}
 }
 

@@ -136,7 +136,7 @@ func NewTransferQueueProcessor(
 			standByLogger,
 			clusterName,
 			cfg,
-			shard.GetService().GetHistoryTaskDLQManager(),
+			shard.GetHistoryTaskDLQWriter(),
 		)
 		standbyQueueProcessors[clusterName] = newTransferQueueStandbyProcessor(
 			clusterName,

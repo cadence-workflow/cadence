@@ -109,7 +109,7 @@ func (e *historyEngineImpl) RespondActivityTaskFailed(
 			}
 
 			postActions := &workflow.UpdateAction{}
-			ok, err := mutableState.RetryActivity(ai, req.FailedRequest.GetReason(), req.FailedRequest.GetDetails())
+			ok, err := mutableState.RetryActivity(ai, req.FailedRequest.GetReason(), req.FailedRequest.GetDetails(), req.FailedRequest.FailureOptions)
 			if err != nil {
 				return nil, err
 			}

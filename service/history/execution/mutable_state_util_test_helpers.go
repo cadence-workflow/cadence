@@ -192,6 +192,8 @@ func CopyActivityInfo(t *testing.T, sourceInfo *persistence.ActivityInfo) *persi
 		LastFailureReason:        sourceInfo.LastFailureReason,
 		LastWorkerIdentity:       sourceInfo.LastWorkerIdentity,
 		LastFailureDetails:       sourceInfo.LastFailureDetails,
+		LastFailureCategory:      sourceInfo.LastFailureCategory,
+		LastRetryIntervalSeconds: sourceInfo.LastRetryIntervalSeconds,
 		// Not written to database - This is used only for deduping heartbeat timer creation
 		LastHeartbeatTimeoutVisibilityInSeconds: sourceInfo.LastHeartbeatTimeoutVisibilityInSeconds,
 	}

@@ -1990,32 +1990,42 @@ func TestCatchUpWatermark(t *testing.T) {
 	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tests := []struct {
 		name              string
+		createTime        time.Time
 		lastProcessedTime time.Time
 		lastRunTime       time.Time
 		want              time.Time
 	}{
 		{
-			name: "both zero -> zero",
+			name: "all zero -> zero",
 			want: time.Time{},
 		},
 		{
+			name:       "never fired, CreateTime set -> CreateTime (prevents epoch watermark)",
+			createTime: t0,
+			want:       t0,
+		},
+		{
 			name:        "only LastRunTime set (no catch-up has run yet) -> LastRunTime",
+			createTime:  t0.Add(-time.Hour),
 			lastRunTime: t0,
 			want:        t0,
 		},
 		{
 			name:              "only LastProcessedTime set (catch-up ran but no live fires since) -> LastProcessedTime",
+			createTime:        t0.Add(-time.Hour),
 			lastProcessedTime: t0,
 			want:              t0,
 		},
 		{
 			name:              "live fires happened after catch-up -> LastRunTime is newer",
+			createTime:        t0.Add(-time.Hour),
 			lastProcessedTime: t0,
 			lastRunTime:       t0.Add(time.Hour),
 			want:              t0.Add(time.Hour),
 		},
 		{
 			name:              "catch-up ran after a quiet period (LastProcessedTime newer)",
+			createTime:        t0.Add(-time.Hour),
 			lastProcessedTime: t0.Add(time.Hour),
 			lastRunTime:       t0,
 			want:              t0.Add(time.Hour),
@@ -2024,6 +2034,7 @@ func TestCatchUpWatermark(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := catchUpWatermark(&SchedulerWorkflowState{
+				CreateTime:        tt.createTime,
 				LastProcessedTime: tt.lastProcessedTime,
 				LastRunTime:       tt.lastRunTime,
 			})

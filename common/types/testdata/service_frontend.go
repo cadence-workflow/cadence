@@ -286,19 +286,23 @@ var (
 		Identity:   Identity,
 	}
 	RespondActivityTaskFailedRequest = types.RespondActivityTaskFailedRequest{
-		TaskToken: TaskToken,
-		Reason:    &FailureReason,
-		Details:   FailureDetails,
-		Identity:  Identity,
+		TaskToken:        TaskToken,
+		Reason:           &FailureReason,
+		Details:          FailureDetails,
+		Identity:         Identity,
+		FailureOptions:   &FailureOptions,
+		HeartbeatDetails: Payload1,
 	}
 	RespondActivityTaskFailedByIDRequest = types.RespondActivityTaskFailedByIDRequest{
-		Domain:     DomainName,
-		WorkflowID: WorkflowID,
-		RunID:      RunID,
-		ActivityID: ActivityID,
-		Reason:     &FailureReason,
-		Details:    FailureDetails,
-		Identity:   Identity,
+		Domain:           DomainName,
+		WorkflowID:       WorkflowID,
+		RunID:            RunID,
+		ActivityID:       ActivityID,
+		Reason:           &FailureReason,
+		Details:          FailureDetails,
+		Identity:         Identity,
+		FailureOptions:   &FailureOptions,
+		HeartbeatDetails: Payload1,
 	}
 	RespondActivityTaskCanceledRequest = types.RespondActivityTaskCanceledRequest{
 		TaskToken: TaskToken,

@@ -108,6 +108,8 @@ type (
 		ExecutionMgr    *mocks.ExecutionManager
 		PersistenceBean *persistenceClient.MockBean
 
+		HistoryTaskDLQMgr *persistence.MockHistoryTaskDLQManager
+
 		IsolationGroups        *isolationgroup.MockState
 		IsolationGroupStore    configstore.Client
 		OperationalConfigStore configstore.Client
@@ -169,8 +171,12 @@ func NewTest(
 	persistenceBean.EXPECT().GetVisibilityManager().Return(visibilityMgr).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
 	persistenceBean.EXPECT().GetShardManager().Return(shardMgr).AnyTimes()
-	persistenceBean.EXPECT().GetExecutionManager(gomock.Any()).Return(executionMgr, nil).AnyTimes()
-	persistenceBean.EXPECT().GetHistoryTaskDLQManager().Return(persistence.NewMockHistoryTaskDLQManager(controller)).AnyTimes()
+	persistenceBean.EXPECT().GetExecutionManager().Return(executionMgr).AnyTimes()
+	historyTaskDLQMgr := persistence.NewMockHistoryTaskDLQManager(controller)
+	// Permissive default: the standby DLQ write path seeds the partition ack-level row through the
+	// shard after inserting the task. Tests that care can override on the exposed HistoryTaskDLQMgr.
+	historyTaskDLQMgr.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	persistenceBean.EXPECT().GetHistoryTaskDLQManager().Return(historyTaskDLQMgr).AnyTimes()
 
 	isolationGroupMock := isolationgroup.NewMockState(controller)
 	isolationGroupMock.EXPECT().Stop().AnyTimes()
@@ -217,15 +223,16 @@ func NewTest(
 
 		// persistence clients
 
-		MetadataMgr:     metadataMgr,
-		DomainAuditMgr:  domainAuditMgr,
-		TaskMgr:         taskMgr,
-		VisibilityMgr:   visibilityMgr,
-		ShardMgr:        shardMgr,
-		HistoryMgr:      historyMgr,
-		ExecutionMgr:    executionMgr,
-		PersistenceBean: persistenceBean,
-		IsolationGroups: isolationGroupMock,
+		MetadataMgr:       metadataMgr,
+		DomainAuditMgr:    domainAuditMgr,
+		TaskMgr:           taskMgr,
+		VisibilityMgr:     visibilityMgr,
+		ShardMgr:          shardMgr,
+		HistoryMgr:        historyMgr,
+		ExecutionMgr:      executionMgr,
+		PersistenceBean:   persistenceBean,
+		HistoryTaskDLQMgr: historyTaskDLQMgr,
+		IsolationGroups:   isolationGroupMock,
 
 		// logger
 
@@ -440,11 +447,9 @@ func (s *Test) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
 }
 
 // GetExecutionManager for testing
-func (s *Test) GetExecutionManager(
-	shardID int,
-) (persistence.ExecutionManager, error) {
+func (s *Test) GetExecutionManager() persistence.ExecutionManager {
 
-	return s.ExecutionMgr, nil
+	return s.ExecutionMgr
 }
 
 // GetPersistenceBean for testing

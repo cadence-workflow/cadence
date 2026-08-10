@@ -29,6 +29,7 @@ import (
 
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/config/yaml"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -56,14 +57,14 @@ func TestNewAsyncQueueProvider(t *testing.T) {
 		{
 			name: "Successful Initialization",
 			cfg: map[string]config.AsyncWorkflowQueueProvider{
-				"testQueue": {Type: "validType", Config: &config.YamlNode{}},
+				"testQueue": {Type: "validType", Config: &yaml.Node{}},
 			},
 			expectError: false,
 		},
 		{
 			name: "Unregistered Queue Type",
 			cfg: map[string]config.AsyncWorkflowQueueProvider{
-				"testQueue": {Type: "invalidType", Config: &config.YamlNode{}},
+				"testQueue": {Type: "invalidType", Config: &yaml.Node{}},
 			},
 			expectError:   true,
 			errorContains: "not registered",

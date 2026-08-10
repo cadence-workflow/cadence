@@ -268,20 +268,6 @@ func (mr *MockExecutionStoreMockRecorder) GetReplicationTasksFromDLQ(ctx, reques
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationTasksFromDLQ", reflect.TypeOf((*MockExecutionStore)(nil).GetReplicationTasksFromDLQ), ctx, request)
 }
 
-// GetShardID mocks base method.
-func (m *MockExecutionStore) GetShardID() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetShardID")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// GetShardID indicates an expected call of GetShardID.
-func (mr *MockExecutionStoreMockRecorder) GetShardID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardID", reflect.TypeOf((*MockExecutionStore)(nil).GetShardID))
-}
-
 // GetWorkflowExecution mocks base method.
 func (m *MockExecutionStore) GetWorkflowExecution(ctx context.Context, request *InternalGetWorkflowExecutionRequest) (*InternalGetWorkflowExecutionResponse, error) {
 	m.ctrl.T.Helper()
@@ -1190,6 +1176,20 @@ func (m *MockHistoryDLQTaskStore) Close() {
 func (mr *MockHistoryDLQTaskStoreMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockHistoryDLQTaskStore)(nil).Close))
+}
+
+// CreateHistoryDLQAckLevelIfNotExists mocks base method.
+func (m *MockHistoryDLQTaskStore) CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request InternalHistoryDLQAckLevel) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateHistoryDLQAckLevelIfNotExists", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateHistoryDLQAckLevelIfNotExists indicates an expected call of CreateHistoryDLQAckLevelIfNotExists.
+func (mr *MockHistoryDLQTaskStoreMockRecorder) CreateHistoryDLQAckLevelIfNotExists(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHistoryDLQAckLevelIfNotExists", reflect.TypeOf((*MockHistoryDLQTaskStore)(nil).CreateHistoryDLQAckLevelIfNotExists), ctx, request)
 }
 
 // CreateHistoryDLQTask mocks base method.

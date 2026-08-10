@@ -59,6 +59,21 @@ func TestActivityTaskFailedEventAttributes(t *testing.T) {
 		assert.Equal(t, item, ToActivityTaskFailedEventAttributes(FromActivityTaskFailedEventAttributes(item)))
 	}
 }
+func TestFailureOptions(t *testing.T) {
+	for _, item := range []*types.FailureOptions{nil, {}, &testdata.FailureOptions} {
+		assert.Equal(t, item, ToFailureOptions(FromFailureOptions(item)))
+	}
+}
+func TestFailureCategory(t *testing.T) {
+	for _, item := range []*types.FailureCategory{
+		nil,
+		types.FailureCategoryPoll.Ptr(),
+		types.FailureCategoryStandard.Ptr(),
+		types.FailureCategoryFatal.Ptr(),
+	} {
+		assert.Equal(t, item, ToFailureCategory(FromFailureCategory(item)))
+	}
+}
 func TestActivityTaskScheduledEventAttributes(t *testing.T) {
 	// since proto definition for Domain field doesn't have pointer, To(From(item)) won't be equal to item when item's Domain is a nil pointer
 	// this is fine as the code using this field will check both if the field is a nil pointer and if it's a pointer to an empty string.
@@ -1629,6 +1644,10 @@ func FailoverTypeFuzzer(e *types.FailoverType, c fuzz.Continue) {
 	*e = types.FailoverType(c.Intn(2) + 1) // 1-2: Force, Graceful (skip 0=Invalid which maps to nil)
 }
 
+func FailureCategoryFuzzer(e *types.FailureCategory, c fuzz.Continue) {
+	*e = types.FailureCategory(c.Intn(3)) // 0-2: Standard, Poll, Fatal
+}
+
 // FailoverDomainRequestFuzzer fuzzes a FailoverDomainRequest and normalizes *string fields so
 // that ptr("") becomes nil. proto3 cannot distinguish an unset string from an empty one, so
 // without this normalization the round-trip ptr("") -> "" -> nil produces a spurious diff.
@@ -1705,7 +1724,7 @@ func TestPendingActivityInfoArrayFuzz(t *testing.T) {
 	// FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	// Excluding both fields from comparison to handle this asymmetry
 	testutils.RunMapperFuzzTest(t, FromPendingActivityInfoArray, ToPendingActivityInfoArray,
-		testutils.WithExcludedFields("LastFailureReason", "LastFailureDetails"),
+		testutils.WithExcludedFields("LastFailureReason", "LastFailureDetails", "LastFailureOptions"),
 	)
 }
 
@@ -1724,9 +1743,8 @@ func TestRequestCancelWorkflowExecutionRequestFuzz(t *testing.T) {
 }
 
 func TestRespondActivityTaskFailedByIDRequestFuzz(t *testing.T) {
-	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromRespondActivityTaskFailedByIDRequest, ToRespondActivityTaskFailedByIDRequest,
-		testutils.WithExcludedFields("Details"),
+		testutils.WithCustomFuncs(RespondActivityTaskFailedByIDRequestFuzzer),
 	)
 }
 
@@ -2033,10 +2051,46 @@ func TestHistoryEventFuzz(t *testing.T) {
 	)
 }
 
+// ActivityTaskFailedEventAttributesFuzzer keeps Reason non-nil when Details or
+// FailureOptions is set. Reason, Details and FailureOptions merge into a single
+// Failure object, and FromFailure(nil, ...) returns nil (dropping details and
+// options when reason is nil), so a nil reason with non-nil details/options
+// breaks the round-trip. It also normalizes the failure category to a valid
+// enum value, since unknown values map to INVALID and round-trip to nil.
+func ActivityTaskFailedEventAttributesFuzzer(a *types.ActivityTaskFailedEventAttributes, c fuzz.Continue) {
+	c.FuzzNoCustom(a)
+	if a.Reason == nil && (len(a.Details) > 0 || a.FailureOptions != nil) {
+		reason := ""
+		a.Reason = &reason
+	}
+	normalizeFailureCategory(a.FailureOptions, c)
+}
+
 func TestActivityTaskFailedEventAttributesFuzz(t *testing.T) {
-	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromActivityTaskFailedEventAttributes, ToActivityTaskFailedEventAttributes,
-		testutils.WithExcludedFields("Details"),
+		testutils.WithCustomFuncs(ActivityTaskFailedEventAttributesFuzzer),
+	)
+}
+
+func TestFailureOptionsFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailureOptions, ToFailureOptions,
+		testutils.WithCustomFuncs(
+			FailureCategoryFuzzer,
+			func(v *types.FailureOptions, c fuzz.Continue) {
+				c.Fuzz(v)
+				// Bound seconds to a safe range to avoid Duration overflow during proto conversion
+				if v.NextRetryIntervalSeconds != nil {
+					s := int32(c.Int31n(testutils.MaxDurationSeconds))
+					v.NextRetryIntervalSeconds = &s
+				}
+			},
+		),
+	)
+}
+
+func TestFailureCategoryFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailureCategory, ToFailureCategory,
+		testutils.WithCustomFuncs(FailureCategoryFuzzer),
 	)
 }
 
@@ -2275,10 +2329,18 @@ func TestUpdateDomainRequestFuzz(t *testing.T) {
 	)
 }
 
+func ActivityTaskTimedOutEventAttributesFuzzer(a *types.ActivityTaskTimedOutEventAttributes, c fuzz.Continue) {
+	c.FuzzNoCustom(a)
+	if a.LastFailureReason == nil && (len(a.LastFailureDetails) > 0 || a.LastFailureOptions != nil) {
+		reason := ""
+		a.LastFailureReason = &reason
+	}
+	normalizeFailureCategory(a.LastFailureOptions, c)
+}
+
 func TestActivityTaskTimedOutEventAttributesFuzz(t *testing.T) {
-	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromActivityTaskTimedOutEventAttributes, ToActivityTaskTimedOutEventAttributes,
-		testutils.WithExcludedFields("LastFailureDetails"),
+		testutils.WithCustomFuncs(ActivityTaskTimedOutEventAttributesFuzzer),
 	)
 }
 
@@ -2338,10 +2400,18 @@ func TestWorkflowExecutionFilterFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionFilter, ToWorkflowExecutionFilter)
 }
 
+func ActivityTaskStartedEventAttributesFuzzer(a *types.ActivityTaskStartedEventAttributes, c fuzz.Continue) {
+	c.FuzzNoCustom(a)
+	if a.LastFailureReason == nil && (len(a.LastFailureDetails) > 0 || a.LastFailureOptions != nil) {
+		reason := ""
+		a.LastFailureReason = &reason
+	}
+	normalizeFailureCategory(a.LastFailureOptions, c)
+}
+
 func TestActivityTaskStartedEventAttributesFuzz(t *testing.T) {
-	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromActivityTaskStartedEventAttributes, ToActivityTaskStartedEventAttributes,
-		testutils.WithExcludedFields("LastFailureDetails"),
+		testutils.WithCustomFuncs(ActivityTaskStartedEventAttributesFuzzer),
 	)
 }
 
@@ -2469,9 +2539,8 @@ func TestFailoverInfoFuzz(t *testing.T) {
 }
 
 func TestRespondActivityTaskFailedRequestFuzz(t *testing.T) {
-	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromRespondActivityTaskFailedRequest, ToRespondActivityTaskFailedRequest,
-		testutils.WithExcludedFields("Details"),
+		testutils.WithCustomFuncs(RespondActivityTaskFailedRequestFuzzer),
 	)
 }
 
@@ -2821,13 +2890,21 @@ func TestWorkflowExecutionConfigurationFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionConfiguration, ToWorkflowExecutionConfiguration)
 }
 
+func PendingActivityInfoFuzzer(a *types.PendingActivityInfo, c fuzz.Continue) {
+	c.FuzzNoCustom(a)
+	if a.State != nil {
+		PendingActivityStateFuzzer(a.State, c)
+	}
+	if a.LastFailureReason == nil && (len(a.LastFailureDetails) > 0 || a.LastFailureOptions != nil) {
+		reason := ""
+		a.LastFailureReason = &reason
+	}
+	normalizeFailureCategory(a.LastFailureOptions, c)
+}
+
 func TestPendingActivityInfoFuzz(t *testing.T) {
-	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromPendingActivityInfo, ToPendingActivityInfo,
-		testutils.WithCustomFuncs(
-			PendingActivityStateFuzzer,
-		),
-		testutils.WithExcludedFields("LastFailureDetails"),
+		testutils.WithCustomFuncs(PendingActivityInfoFuzzer),
 	)
 }
 

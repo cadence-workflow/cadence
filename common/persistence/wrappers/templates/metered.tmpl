@@ -49,10 +49,13 @@ func New{{.Interface.Name}}(
                 {{ $scopeName = "metrics.PersistenceVisibilityDeleteWorkflowExecutionScope" }}
             {{ end -}}
 
+	        retryCount := getRetryCountFromContext(ctx)
             {{$extraTags := ""}}
             {{ if gt (len $method.Params) 1 -}}
                {{ $reqName := (index $method.Params 1).Name }}
-               {{ $extraTags = printf ", getCustomMetricTags(%s)..." $reqName }}
+               {{ $extraTags = printf ", append(getCustomMetricTags(%s), metrics.IsRetryTag(retryCount > 0))..." $reqName }}
+            {{ else -}}
+               {{ $extraTags = ", metrics.IsRetryTag(retryCount > 0)" }}
             {{ end -}}
 
 	        err = c.call({{$scopeName}}, op{{$extraTags}})

@@ -1095,7 +1095,7 @@ func createExecution(
 		}
 	}
 	if rowsAffected != 1 {
-		return &types.EntityNotExistsError{
+		return &types.InternalServiceError{
 			Message: fmt.Sprintf("createExecution failed. Affected %v rows updated instead of 1.", rowsAffected),
 		}
 	}
@@ -1145,7 +1145,7 @@ func updateExecution(
 		}
 	}
 	if rowsAffected != 1 {
-		return &types.EntityNotExistsError{
+		return &types.InternalServiceError{
 			Message: fmt.Sprintf("updateExecution failed. Affected %v rows updated instead of 1.", rowsAffected),
 		}
 	}

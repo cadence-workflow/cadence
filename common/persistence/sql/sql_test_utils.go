@@ -33,7 +33,6 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence/persistence-tests/testcluster"
-	"github.com/uber/cadence/environment"
 )
 
 // testCluster allows executing cassandra operations in testing.
@@ -48,23 +47,23 @@ var _ testcluster.PersistenceTestCluster = (*testCluster)(nil)
 // NewTestCluster returns a new SQL test cluster
 func NewTestCluster(pluginName, dbName, username, password, host string, port int, schemaDir string) (testcluster.PersistenceTestCluster, error) {
 	var result testCluster
-	var err error
-	if port == 0 {
-		port, err = environment.GetMySQLPort()
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	if schemaDir == "" {
 		return nil, errors.New("schemaDir is empty")
 	}
 	result.dbName = dbName
 	result.schemaDir = schemaDir
+	var connectAddr string
+	// CloudSQL doesn't need a port, don't add it
+	if port > 0 {
+		connectAddr = fmt.Sprintf("%s:%d", host, port)
+	} else {
+		connectAddr = host
+	}
 	result.cfg = config.SQL{
 		User:            username,
 		Password:        password,
-		ConnectAddr:     fmt.Sprintf("%v:%v", host, port),
+		ConnectAddr:     connectAddr,
 		ConnectProtocol: "tcp",
 		PluginName:      pluginName,
 		DatabaseName:    dbName,

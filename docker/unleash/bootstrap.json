@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "features": [
+    {
+      "name": "system.enableVisibilitySampling",
+      "type": "release",
+      "enabled": true,
+      "strategies": [
+        { "name": "default", "parameters": {}, "constraints": [] }
+      ],
+      "variants": []
+    }
+  ]
+}

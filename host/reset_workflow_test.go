@@ -272,7 +272,7 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 		TaskList:        tasklist,
 		Identity:        identity,
 		DecisionHandler: wtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -283,7 +283,7 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 	s.NoError(err)
 
 	// Process one activity task which also creates second workflow task
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("Poll and process first activity", tag.Error(err))
 	s.NoError(err)
 
@@ -319,11 +319,11 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 	})
 	s.NoError(err)
 
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("Poll and process second activity", tag.Error(err))
 	s.NoError(err)
 
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("Poll and process third activity", tag.Error(err))
 	s.NoError(err)
 
@@ -495,7 +495,7 @@ func (s *IntegrationSuite) TestResetWorkflow_NoDecisionTaskCompleted() {
 		TaskList:        tasklist,
 		Identity:        identity,
 		DecisionHandler: wtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -506,7 +506,7 @@ func (s *IntegrationSuite) TestResetWorkflow_NoDecisionTaskCompleted() {
 	s.NoError(err)
 
 	// Process one activity task which also creates second workflow task
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("Poll and process first activity", tag.Error(err))
 	s.NoError(err)
 
@@ -615,7 +615,7 @@ func (s *IntegrationSuite) TestResetWorkflow_NoDecisionTaskCompleted() {
 	})
 
 	// Process one activity task which also creates second workflow task
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("Poll and process first activity", tag.Error(err))
 	s.NoError(err)
 

@@ -66,11 +66,11 @@ func (p *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
 
 // createDB create a new instance of DB
 func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
-	conns, err := sqldriver.CreateDBConnections(cfg, p.createSingleDBConn)
+	driver, err := sqldriver.CreateDBConnections(cfg, p.createSingleDBConn, sqldriver.NoopClose)
 	if err != nil {
 		return nil, err
 	}
-	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards, newConverter(), buildDSN(cfg))
+	return NewDB(driver, cfg.NumShards, newConverter(), buildDSN(cfg))
 }
 
 // createSingleDBConn creates a single database connection for sqlite

@@ -130,13 +130,20 @@ func TestGetRemoteClusterName(t *testing.T) {
 
 // mockDLQWriter is a simple in-process test double for TaskDLQWriter.
 type mockDLQWriter struct {
-	calls []persistence.CreateHistoryDLQTaskRequest
-	err   error
+	calls    []persistence.CreateHistoryDLQTaskRequest
+	err      error
+	ackCalls []persistence.CreateHistoryDLQAckLevelRequest
+	ackErr   error
 }
 
 func (m *mockDLQWriter) CreateHistoryDLQTask(_ context.Context, req persistence.CreateHistoryDLQTaskRequest) error {
 	m.calls = append(m.calls, req)
 	return m.err
+}
+
+func (m *mockDLQWriter) CreateHistoryDLQAckLevelIfNotExists(_ context.Context, req persistence.CreateHistoryDLQAckLevelRequest) error {
+	m.ackCalls = append(m.ackCalls, req)
+	return m.ackErr
 }
 
 func TestStandbyTaskPostActionWriteToDLQ_NilPostActionInfo_ReturnsNil(t *testing.T) {
@@ -167,6 +174,7 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
 	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
@@ -198,6 +206,14 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 	assert.Equal(t, "my-scope", req.ClusterAttributeScope)
 	assert.Equal(t, "my-name", req.ClusterAttributeName)
 	assert.Equal(t, mockTask, req.Task)
+
+	assert.Len(t, writer.ackCalls, 1)
+	ackReq := writer.ackCalls[0]
+	assert.Equal(t, 7, ackReq.ShardID)
+	assert.Equal(t, "domain-1", ackReq.DomainID)
+	assert.Equal(t, "my-scope", ackReq.ClusterAttributeScope)
+	assert.Equal(t, "my-name", ackReq.ClusterAttributeName)
+	assert.Equal(t, persistence.HistoryTaskCategoryTransfer, ackReq.TaskCategory)
 }
 
 func TestStandbyTaskPostActionWriteToDLQ_PropagatesWriterError(t *testing.T) {
@@ -214,6 +230,7 @@ func TestStandbyTaskPostActionWriteToDLQ_PropagatesWriterError(t *testing.T) {
 	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
 	mockTask.EXPECT().GetVersion().Return(int64(1)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("d").Return(getDomainCacheEntry(true, true), nil)
@@ -252,6 +269,7 @@ func TestStandbyTaskPostActionWriteToDLQ_DisabledMode_FallsBackToDiscard(t *test
 	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
 	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, false), nil)
@@ -283,6 +301,7 @@ func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *te
 	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
 	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
@@ -309,6 +328,7 @@ func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *te
 	assert.Len(t, writer.calls, 1)
 	assert.Equal(t, "domain-1", writer.calls[0].DomainID)
 	assert.Equal(t, "my-domain-name", writer.calls[0].DomainName)
+	assert.Len(t, writer.ackCalls, 1)
 }
 
 func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttributes(t *testing.T) {
@@ -324,6 +344,7 @@ func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttrib
 	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
 	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, false), nil)
@@ -344,4 +365,51 @@ func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttrib
 	assert.Equal(t, "my-domain-name", writer.calls[0].DomainName)
 	assert.Equal(t, taskdlq.DefaultClusterAttributeScope, writer.calls[0].ClusterAttributeScope)
 	assert.Equal(t, taskdlq.DefaultClusterAttributeName, writer.calls[0].ClusterAttributeName)
+	assert.Len(t, writer.ackCalls, 1)
+	assert.Equal(t, taskdlq.DefaultClusterAttributeScope, writer.ackCalls[0].ClusterAttributeScope)
+	assert.Equal(t, taskdlq.DefaultClusterAttributeName, writer.ackCalls[0].ClusterAttributeName)
+}
+
+func TestStandbyTaskPostActionWriteToDLQ_AckLevelFailure_PropagatesErrorForRetry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sentinel := errors.New("ack level write failed")
+	writer := &mockDLQWriter{ackErr: sentinel}
+	mockTask := persistence.NewMockTask(ctrl)
+	mockTask.EXPECT().GetDomainID().Return("domain-1").AnyTimes()
+	mockTask.EXPECT().GetWorkflowID().Return("wf-1").AnyTimes()
+	mockTask.EXPECT().GetRunID().Return("run-1").AnyTimes()
+	mockTask.EXPECT().GetTaskID().Return(int64(100)).AnyTimes()
+	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
+	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
+	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
+	mockDomainCache.EXPECT().GetDomainName("domain-1").Return("my-domain-name", nil)
+
+	mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
+	mockActiveClusterMgr.EXPECT().
+		GetActiveClusterSelectionPolicyForWorkflow(gomock.Any(), "domain-1", "wf-1", "run-1").
+		Return(&types.ActiveClusterSelectionPolicy{
+			ClusterAttribute: &types.ClusterAttribute{Scope: "my-scope", Name: "my-name"},
+		}, nil)
+
+	mockShard := shard.NewMockContext(ctrl)
+	mockShard.EXPECT().GetShardID().Return(7)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
+
+	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
+
+	fn := standbyTaskPostActionWriteToDLQ(writer, mockShard, enabled)
+	err := fn(context.Background(), mockTask, "info", testlogger.New(t))
+
+	// The task row was inserted, but the ack-level write failed. The error must propagate so the
+	// whole standby task is retried (guaranteeing the task row is not left orphaned).
+	assert.ErrorIs(t, err, sentinel)
+	assert.Len(t, writer.calls, 1)
+	assert.Len(t, writer.ackCalls, 1)
 }

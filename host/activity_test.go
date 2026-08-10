@@ -22,11 +22,13 @@ package host
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/rand"
 	"strconv"
+	"testing"
 	"time"
 
 	"github.com/pborman/uuid"
@@ -136,7 +138,7 @@ func (s *IntegrationSuite) TestActivityHeartBeatWorkflow_Success() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -144,7 +146,7 @@ func (s *IntegrationSuite) TestActivityHeartBeatWorkflow_Success() {
 	_, err := poller.PollAndProcessDecisionTask(false, false)
 	s.True(err == nil || err == tasklist.ErrNoTasks)
 
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.True(err == nil || err == tasklist.ErrNoTasks)
 
 	s.Logger.Info("Waiting for workflow to complete", tag.WorkflowRunID(we.RunID))
@@ -272,7 +274,7 @@ func (s *IntegrationSuite) TestActivityHeartbeatDetailsDuringRetry_SLOW() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -293,7 +295,7 @@ func (s *IntegrationSuite) TestActivityHeartbeatDetailsDuringRetry_SLOW() {
 	s.True(err == nil, err)
 
 	for i := 0; i != 3; i++ {
-		err = poller.PollAndProcessActivityTask(false)
+		err = poller.PollAndProcessActivityTask()
 		if i == 0 {
 			// first time, hearbeat timeout, respond activity complete will fail
 			s.Error(err)
@@ -484,7 +486,7 @@ func (s *IntegrationSuite) TestActivityRetry_SLOW() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -495,7 +497,7 @@ func (s *IntegrationSuite) TestActivityRetry_SLOW() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -515,7 +517,7 @@ func (s *IntegrationSuite) TestActivityRetry_SLOW() {
 	_, err := poller.PollAndProcessDecisionTask(false, false)
 	s.True(err == nil, err)
 
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.True(err == nil || err == tasklist.ErrNoTasks, err)
 
 	descResp, err := describeWorkflowExecution()
@@ -529,7 +531,7 @@ func (s *IntegrationSuite) TestActivityRetry_SLOW() {
 		}
 	}
 
-	err = poller2.PollAndProcessActivityTask(false)
+	err = poller2.PollAndProcessActivityTask()
 	s.True(err == nil || err == tasklist.ErrNoTasks, err)
 
 	descResp, err = describeWorkflowExecution()
@@ -653,7 +655,7 @@ func (s *IntegrationSuite) TestActivityHeartBeatWorkflow_Timeout() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -661,7 +663,7 @@ func (s *IntegrationSuite) TestActivityHeartBeatWorkflow_Timeout() {
 	_, err := poller.PollAndProcessDecisionTask(false, false)
 	s.True(err == nil || err == tasklist.ErrNoTasks)
 
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Error(err)
 
 	s.Logger.Info("Waiting for workflow to complete", tag.WorkflowRunID(we.RunID))
@@ -888,7 +890,7 @@ func (s *IntegrationSuite) TestActivityTimeouts_SLOW() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -898,7 +900,7 @@ func (s *IntegrationSuite) TestActivityTimeouts_SLOW() {
 
 	for i := 0; i < 3; i++ {
 		go func() {
-			err = poller.PollAndProcessActivityTask(false)
+			err = poller.PollAndProcessActivityTask()
 			s.Logger.Info("Activity Processing Completed.  Error", tag.Error(err))
 		}()
 	}
@@ -1077,7 +1079,7 @@ func (s *IntegrationSuite) TestActivityHeartbeatTimeouts_SLOW() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -1087,7 +1089,7 @@ func (s *IntegrationSuite) TestActivityHeartbeatTimeouts_SLOW() {
 
 	for i := 0; i < activityCount; i++ {
 		go func() {
-			err := poller.PollAndProcessActivityTask(false)
+			err := poller.PollAndProcessActivityTask()
 			s.Logger.Info("Activity Processing Completed.", tag.Error(err))
 		}()
 	}
@@ -1218,7 +1220,7 @@ func (s *IntegrationSuite) TestActivityCancellation() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -1237,7 +1239,7 @@ func (s *IntegrationSuite) TestActivityCancellation() {
 		cancelCh <- struct{}{}
 	}()
 
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.True(err == nil || err == tasklist.ErrNoTasks, err)
 
 	<-cancelCh
@@ -1334,7 +1336,7 @@ func (s *IntegrationSuite) TestActivityCancellationNotStarted() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -1369,4 +1371,267 @@ func (s *IntegrationSuite) TestActivityCancellationNotStarted() {
 	requestCancellation = false
 	_, err = poller.PollAndProcessDecisionTask(false, false)
 	s.True(err == nil || err == tasklist.ErrNoTasks)
+}
+
+func (s *IntegrationSuite) TestActivityFailure() {
+	cases := []struct {
+		name        string
+		failer      *activityFailer
+		retryPolicy *types.RetryPolicy
+		fn          func(runID string, poller *TaskPoller)
+	}{
+		{
+			name: "no retries",
+			failer: &activityFailer{
+				reason:  common.StringPtr("bugs :("),
+				details: []byte("buggy details"),
+			},
+			fn: func(runID string, poller *TaskPoller) {
+				// Run the one activity
+				s.NoError(poller.PollAndProcessActivityTask())
+				// Block until the workflow completes
+				_, err := s.GetWorkflowResult(runID)
+				s.NoError(err)
+				started := s.GetOnlyEventWithType(runID, types.EventTypeActivityTaskStarted).ActivityTaskStartedEventAttributes
+				s.Equal(int32(0), started.Attempt)
+				s.Nil(started.LastFailureDetails)
+				s.Equal(common.StringPtr(""), started.LastFailureReason)
+				s.Equal(types.FailureCategoryStandard, started.LastFailureOptions.GetFailureCategory())
+				s.Equal(int32(0), started.LastFailureOptions.GetNextRetryIntervalSeconds())
+
+				failed := s.GetOnlyEventWithType(runID, types.EventTypeActivityTaskFailed).ActivityTaskFailedEventAttributes
+				s.Equal(common.StringPtr("bugs :("), failed.Reason)
+				s.Equal([]byte("buggy details"), failed.Details)
+				s.Equal(types.FailureCategoryStandard, started.LastFailureOptions.GetFailureCategory())
+				s.Equal(int32(0), started.LastFailureOptions.GetNextRetryIntervalSeconds())
+			},
+		},
+		{
+			// TODO: Subsequent changes will make these fields useful
+			name: "with options: store in history",
+			failer: &activityFailer{
+				reason:  common.StringPtr("bugs :("),
+				details: []byte("buggy details"),
+				failureOptions: &types.FailureOptions{
+					FailureCategory:          types.FailureCategoryFatal.Ptr(),
+					NextRetryIntervalSeconds: common.Int32Ptr(10),
+				},
+			},
+			fn: func(runID string, poller *TaskPoller) {
+				// Run the one activity
+				s.NoError(poller.PollAndProcessActivityTask())
+				// Block until the workflow completes
+				_, err := s.GetWorkflowResult(runID)
+				s.NoError(err)
+				started := s.GetOnlyEventWithType(runID, types.EventTypeActivityTaskStarted).ActivityTaskStartedEventAttributes
+				s.Equal(int32(0), started.Attempt)
+				s.Nil(started.LastFailureDetails)
+				s.Equal(common.StringPtr(""), started.LastFailureReason)
+				s.Equal(types.FailureCategoryStandard, started.LastFailureOptions.GetFailureCategory())
+				s.Equal(int32(0), started.LastFailureOptions.GetNextRetryIntervalSeconds())
+
+				failed := s.GetOnlyEventWithType(runID, types.EventTypeActivityTaskFailed).ActivityTaskFailedEventAttributes
+				s.Equal(common.StringPtr("bugs :("), failed.Reason)
+				s.Equal([]byte("buggy details"), failed.Details)
+				s.Equal(types.FailureCategoryFatal, failed.FailureOptions.GetFailureCategory())
+				s.Equal(int32(10), failed.FailureOptions.GetNextRetryIntervalSeconds())
+			},
+		},
+		{
+			// TODO: Subsequent changes will make these fields useful
+			name: "with options by id: store in history",
+			failer: &activityFailer{
+				reason:  common.StringPtr("bugs :("),
+				details: []byte("buggy details"),
+				failureOptions: &types.FailureOptions{
+					FailureCategory:          types.FailureCategoryFatal.Ptr(),
+					NextRetryIntervalSeconds: common.Int32Ptr(10),
+				},
+				byID: true,
+			},
+			fn: func(runID string, poller *TaskPoller) {
+				// Run the one activity
+				s.NoError(poller.PollAndProcessActivityTask())
+				// Block until the workflow completes
+				_, err := s.GetWorkflowResult(runID)
+				s.NoError(err)
+				started := s.GetOnlyEventWithType(runID, types.EventTypeActivityTaskStarted).ActivityTaskStartedEventAttributes
+				s.Equal(int32(0), started.Attempt)
+				s.Nil(started.LastFailureDetails)
+				s.Equal(common.StringPtr(""), started.LastFailureReason)
+				s.Equal(types.FailureCategoryStandard, started.LastFailureOptions.GetFailureCategory())
+				s.Equal(int32(0), started.LastFailureOptions.GetNextRetryIntervalSeconds())
+
+				failed := s.GetOnlyEventWithType(runID, types.EventTypeActivityTaskFailed).ActivityTaskFailedEventAttributes
+				s.Equal(common.StringPtr("bugs :("), failed.Reason)
+				s.Equal([]byte("buggy details"), failed.Details)
+				s.Equal(types.FailureCategoryFatal, failed.FailureOptions.GetFailureCategory())
+				s.Equal(int32(10), failed.FailureOptions.GetNextRetryIntervalSeconds())
+			},
+		},
+		{
+			name: "fails then succeeds: store in history",
+			failer: &activityFailer{
+				// Zero-indexed
+				successAttempt: 1,
+				reason:         common.StringPtr("bugs :("),
+				details:        []byte("buggy details"),
+				failureOptions: &types.FailureOptions{
+					FailureCategory:          types.FailureCategoryPoll.Ptr(),
+					NextRetryIntervalSeconds: common.Int32Ptr(1),
+				},
+			},
+			retryPolicy: &types.RetryPolicy{
+				MaximumIntervalInSeconds:    1,
+				InitialIntervalInSeconds:    1,
+				BackoffCoefficient:          1,
+				ExpirationIntervalInSeconds: 20,
+			},
+			fn: func(runID string, poller *TaskPoller) {
+				// Activity so nice we ran it twice
+				s.NoError(poller.PollAndProcessActivityTask())
+				s.NoError(poller.PollAndProcessActivityTask())
+				// Block until the workflow completes
+				_, err := s.GetWorkflowResult(runID)
+				s.NoError(err)
+				started := s.GetOnlyEventWithType(runID, types.EventTypeActivityTaskStarted).ActivityTaskStartedEventAttributes
+				s.Equal(int32(1), started.Attempt)
+				s.Equal(types.FailureCategoryPoll, started.LastFailureOptions.GetFailureCategory())
+				s.Equal(int32(1), started.LastFailureOptions.GetNextRetryIntervalSeconds())
+				s.Equal([]byte("buggy details"), started.LastFailureDetails)
+				s.Equal(common.StringPtr("bugs :("), started.LastFailureReason)
+
+				completed := s.GetOnlyEventWithType(runID, types.EventTypeActivityTaskCompleted).ActivityTaskCompletedEventAttributes
+				s.Equal([]byte("Activity Result."), completed.Result)
+			},
+		},
+		{
+			// TODO: Subsequent changes will make this do something
+			name: "fails with heartbeat: do nothing",
+			failer: &activityFailer{
+				lastHeartbeat: []byte("badoom"),
+				reason:        common.StringPtr("bugs :("),
+				details:       []byte("buggy details"),
+			},
+			retryPolicy: &types.RetryPolicy{
+				InitialIntervalInSeconds: 10,
+				BackoffCoefficient:       1,
+				MaximumIntervalInSeconds: 100,
+				MaximumAttempts:          2,
+			},
+			fn: func(runID string, poller *TaskPoller) {
+				// Fail the activity. It has a large backoff interval
+				// so it won't run for a bit
+				s.NoError(poller.PollAndProcessActivityTask())
+				resp := s.DescribeWorkflow(runID)
+				s.NotEmpty(resp.PendingActivities)
+				activity := resp.PendingActivities[0]
+				// Not wired up yet
+				s.Nil(activity.HeartbeatDetails)
+			},
+		},
+	}
+	for _, tc := range cases {
+		s.Run(tc.name, func() {
+			// For each case, run a unique Workflow on a unique TaskList based on the test name
+			activity := &types.Decision{
+				DecisionType: types.DecisionTypeScheduleActivityTask.Ptr(),
+				ScheduleActivityTaskDecisionAttributes: &types.ScheduleActivityTaskDecisionAttributes{
+					ActivityID: "0",
+					ActivityType: &types.ActivityType{
+						Name: "activity",
+					},
+					Domain: s.DomainName,
+					TaskList: &types.TaskList{
+						Name: s.T().Name(),
+						Kind: types.TaskListKindNormal.Ptr(),
+					},
+					RetryPolicy:                   tc.retryPolicy,
+					Input:                         []byte("0"),
+					ScheduleToCloseTimeoutSeconds: common.Int32Ptr(150),
+					ScheduleToStartTimeoutSeconds: common.Int32Ptr(10),
+					StartToCloseTimeoutSeconds:    common.Int32Ptr(15),
+					HeartbeatTimeoutSeconds:       common.Int32Ptr(0),
+				},
+			}
+			poller := s.newPoller(s.singleDecisionWorkflow("test-workflow", activity), tc.failer)
+			wf := s.startWorkflow()
+			// Automatically run decisions as needed, but let the test case handle the activities
+			stopDecisions := poller.PollAndProcessDecisions()
+			defer stopDecisions()
+			tc.fn(wf.RunID, poller)
+		})
+	}
+
+}
+
+func (s *IntegrationSuite) startWorkflow() *types.StartWorkflowExecutionResponse {
+	request := &types.StartWorkflowExecutionRequest{
+		RequestID:  uuid.New(),
+		Domain:     s.DomainName,
+		WorkflowID: s.T().Name(),
+		WorkflowType: &types.WorkflowType{
+			Name: "test-workflow",
+		},
+		TaskList: &types.TaskList{
+			Name: s.T().Name(),
+			Kind: types.TaskListKindNormal.Ptr(),
+		},
+		Input:                               nil,
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(10),
+		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),
+		Identity:                            s.T().Name(),
+		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+	}
+
+	ctx, cancel := createContext()
+	defer cancel()
+	result, err := s.Engine.StartWorkflowExecution(ctx, request)
+	s.Nil(err)
+
+	return result
+}
+
+type activityFailer struct {
+	lastHeartbeat  []byte
+	failureOptions *types.FailureOptions
+	reason         *string
+	details        []byte
+	byID           bool
+	successAttempt int
+}
+
+func (f *activityFailer) Execute(ctx context.Context, t *testing.T, client FrontendClient, request *types.PollForActivityTaskResponse) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	t.Logf("Executing Activity (%s) for Workflow(%s), attempt: %v", request.WorkflowExecution.WorkflowID, request.ActivityType.Name, request.Attempt)
+	if int(request.Attempt) == f.successAttempt && f.successAttempt > 0 {
+		t.Logf("Executing RespondActivityTaskCompleted")
+		return client.RespondActivityTaskCompleted(ctx, &types.RespondActivityTaskCompletedRequest{
+			TaskToken: request.TaskToken,
+			Result:    []byte("Activity Result."),
+			Identity:  "activityFailer",
+		})
+	}
+	if f.byID {
+		t.Logf("Executing RespondActivityTaskFailedByID")
+		return client.RespondActivityTaskFailedByID(ctx, &types.RespondActivityTaskFailedByIDRequest{
+			Domain:         request.WorkflowDomain,
+			WorkflowID:     request.WorkflowExecution.GetWorkflowID(),
+			RunID:          request.WorkflowExecution.GetRunID(),
+			ActivityID:     request.GetActivityID(),
+			Identity:       "activityFailer",
+			Reason:         f.reason,
+			Details:        f.details,
+			FailureOptions: f.failureOptions,
+		})
+	}
+	t.Logf("Executing RespondActivityTaskFailed")
+	return client.RespondActivityTaskFailed(ctx, &types.RespondActivityTaskFailedRequest{
+		TaskToken:      request.TaskToken,
+		Identity:       "activityFailer",
+		Reason:         f.reason,
+		Details:        f.details,
+		FailureOptions: f.failureOptions,
+	})
 }

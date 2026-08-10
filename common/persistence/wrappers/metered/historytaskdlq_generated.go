@@ -43,6 +43,19 @@ func (c *meteredHistoryTaskDLQManager) Close() {
 	return
 }
 
+func (c *meteredHistoryTaskDLQManager) CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request _sourcePersistence.CreateHistoryDLQAckLevelRequest) (err error) {
+	op := func() error {
+		err = c.wrapped.CreateHistoryDLQAckLevelIfNotExists(ctx, request)
+		c.emptyMetric("HistoryTaskDLQManager.CreateHistoryDLQAckLevelIfNotExists", request, err, err)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceCreateHistoryDLQAckLevelIfNotExistsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	return
+}
+
 func (c *meteredHistoryTaskDLQManager) CreateHistoryDLQTask(ctx context.Context, request _sourcePersistence.CreateHistoryDLQTaskRequest) (err error) {
 	op := func() error {
 		err = c.wrapped.CreateHistoryDLQTask(ctx, request)
@@ -50,7 +63,9 @@ func (c *meteredHistoryTaskDLQManager) CreateHistoryDLQTask(ctx context.Context,
 		return err
 	}
 
-	err = c.call(metrics.PersistenceCreateHistoryDLQTaskScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceCreateHistoryDLQTaskScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -61,7 +76,9 @@ func (c *meteredHistoryTaskDLQManager) DeleteHistoryDLQTasks(ctx context.Context
 		return err
 	}
 
-	err = c.call(metrics.PersistenceDeleteHistoryDLQTasksScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceDeleteHistoryDLQTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -72,7 +89,9 @@ func (c *meteredHistoryTaskDLQManager) GetHistoryDLQAckLevels(ctx context.Contex
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetHistoryDLQAckLevelsScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetHistoryDLQAckLevelsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -83,7 +102,9 @@ func (c *meteredHistoryTaskDLQManager) GetHistoryDLQTasks(ctx context.Context, r
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetHistoryDLQTasksScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetHistoryDLQTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -98,6 +119,8 @@ func (c *meteredHistoryTaskDLQManager) UpdateHistoryDLQAckLevel(ctx context.Cont
 		return err
 	}
 
-	err = c.call(metrics.PersistenceUpdateHistoryDLQAckLevelScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceUpdateHistoryDLQAckLevelScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }

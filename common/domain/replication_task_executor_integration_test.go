@@ -64,7 +64,7 @@ func (s *domainReplicationTaskExecutorSuite) setupTestBase(t *testing.T) {
 func (s *domainReplicationTaskExecutorSuite) SetupTest() {
 	s.setupTestBase(s.T())
 
-	domainAuditManager, err := s.ExecutionMgrFactory.NewDomainAuditManager()
+	domainAuditManager, err := s.PersistenceFactory.NewDomainAuditManager()
 	if err != nil {
 		s.T().Fatalf("Failed to create domain audit manager: %v", err)
 	}

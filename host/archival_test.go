@@ -200,7 +200,7 @@ func (s *IntegrationSuite) isHistoryDeleted(domainID string, execution *types.Wo
 
 func (s *IntegrationSuite) isMutableStateDeleted(domainID string, execution *types.WorkflowExecution) bool {
 	shardID := common.WorkflowIDToHistoryShard(execution.WorkflowID, s.TestClusterConfig.HistoryConfig.NumHistoryShards)
-	executionManager, err := s.TestCluster.testBase.ExecutionMgrFactory.NewExecutionManager(shardID)
+	executionManager, err := s.TestCluster.testBase.PersistenceFactory.NewExecutionManager()
 	if err != nil {
 		s.NoError(err)
 		return false
@@ -335,7 +335,7 @@ func (s *IntegrationSuite) startAndFinishWorkflow(id, wt, tl, domain, domainID s
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -344,11 +344,7 @@ func (s *IntegrationSuite) startAndFinishWorkflow(id, wt, tl, domain, domainID s
 			_, err := poller.PollAndProcessDecisionTask(false, false)
 			s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 			s.Nil(err)
-			if i%2 == 0 {
-				err = poller.PollAndProcessActivityTask(false)
-			} else { // just for testing respondActivityTaskCompleteByID
-				err = poller.PollAndProcessActivityTaskWithID(false)
-			}
+			err = poller.PollAndProcessActivityTask()
 			s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 			s.Nil(err)
 		}

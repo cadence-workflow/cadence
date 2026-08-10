@@ -26,4 +26,5 @@ package domaindeprecation
 type DomainDeprecationParams struct {
 	DomainName    string `json:"domain_name"`
 	SecurityToken string `json:"security_token"`
+	Force         bool   `json:"force"`
 }

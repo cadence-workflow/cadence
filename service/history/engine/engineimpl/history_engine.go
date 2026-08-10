@@ -295,16 +295,12 @@ func NewEngineWithShardContext(
 	replicationMessageHandler := replication.NewDLQHandler(shard, replicationTaskExecutors)
 	historyEngImpl.replicationDLQHandler = replicationMessageHandler
 
-	historyEngImpl.dlqProcessor = taskdlq.NewProcessor(
-		shard.GetShardID(),
-		shard.GetService().GetHistoryTaskDLQManager(),
-		map[int]taskdlq.TaskExecutor{},
+	historyEngImpl.dlqProcessor = taskdlq.NewProcessorFromShard(
+		shard,
 		100,
 		config.HistoryTaskDLQProcessorInterval,
 		config.HistoryTaskDLQMode,
 		config.HistoryTaskDLQProcessorEnabled,
-		shard.GetTimeSource(),
-		logger,
 	)
 
 	shard.SetEngine(historyEngImpl)
@@ -414,18 +410,16 @@ func (e *historyEngineImpl) checkForHistoryCorruptions(ctx context.Context, muta
 	// Ensure that we can obtain start event. Failing to do so means corrupted history or resurrected mutable state record.
 	_, err := mutableState.GetStartEvent(ctx)
 	if err != nil {
-		info := mutableState.GetExecutionInfo()
-		// Mark workflow as corrupted. So that new one can be restarted.
-		info.State = persistence.WorkflowStateCorrupted
-
-		e.logger.Error("history corruption check failed",
-			tag.WorkflowDomainName(domainName),
-			tag.WorkflowID(info.WorkflowID),
-			tag.WorkflowRunID(info.RunID),
-			tag.WorkflowType(info.WorkflowTypeName),
-			tag.Error(err))
-
 		if errors.Is(err, execution.ErrMissingWorkflowStartEvent) {
+			info := mutableState.GetExecutionInfo()
+			// Mark workflow as corrupted. So that new one can be restarted.
+			info.State = persistence.WorkflowStateCorrupted
+			e.logger.Error("history corruption check failed",
+				tag.WorkflowDomainName(domainName),
+				tag.WorkflowID(info.WorkflowID),
+				tag.WorkflowRunID(info.RunID),
+				tag.WorkflowType(info.WorkflowTypeName),
+				tag.Error(err))
 			return true, nil
 		}
 		return false, err

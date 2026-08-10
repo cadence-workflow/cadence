@@ -1043,6 +1043,7 @@ type SyncActivityTaskAttributes struct {
 	LastFailureReason  *string         `json:"lastFailureReason,omitempty"`
 	LastWorkerIdentity string          `json:"lastWorkerIdentity,omitempty"`
 	LastFailureDetails []byte          `json:"lastFailureDetails,omitempty"`
+	LastFailureOptions *FailureOptions `json:"lastFailureOptions,omitempty"`
 	VersionHistory     *VersionHistory `json:"versionHistory,omitempty"`
 }
 
@@ -1152,6 +1153,7 @@ func (v *SyncActivityTaskAttributes) ByteSize() uint64 {
 	}
 	size += uint64(len(v.LastWorkerIdentity))
 	size += uint64(len(v.LastFailureDetails))
+	size += v.LastFailureOptions.ByteSize()
 	size += v.VersionHistory.ByteSize()
 
 	return size

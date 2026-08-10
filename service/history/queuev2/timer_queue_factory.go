@@ -122,7 +122,7 @@ func (f *timerQueueFactory) createQueuev2(
 		shard.GetMetricsClient(),
 		shard.GetClusterMetadata().GetCurrentClusterName(),
 		shard.GetConfig(),
-		shard.GetService().GetHistoryTaskDLQManager(),
+		shard.GetHistoryTaskDLQWriter(),
 	)
 	executorWrapper := task.NewExecutorWrapper(
 		shard.GetClusterMetadata().GetCurrentClusterName(),
@@ -159,7 +159,7 @@ func (f *timerQueueFactory) createQueuev2(
 		options.MaxPollInterval,
 		options.MaxPollIntervalJitterCoefficient,
 	)
-	if !isCachedQueueReaderDisabled(config.TimerProcessorCachedQueueReaderMode()) {
+	if !isCachedQueueReaderDisabled(config.TimerProcessorCachedQueueReaderMode(shard.GetShardID())) {
 		cachedReader = newCachedQueueReader(reader, newInMemQueue(), shard, metricsScope)
 		reader = cachedReader
 	}

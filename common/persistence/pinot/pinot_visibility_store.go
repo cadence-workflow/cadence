@@ -720,14 +720,20 @@ func (f *PinotQueryFilter) checkFirstFilter() {
 
 func (f *PinotQueryFilter) addEqual(obj string, val interface{}) {
 	f.checkFirstFilter()
-	if _, ok := val.(string); ok {
-		val = fmt.Sprintf("'%s'", val)
+	if strVal, ok := val.(string); ok {
+		val = fmt.Sprintf("'%s'", escapePinotStringLiteral(strVal))
 	} else {
 		val = fmt.Sprintf("%v", val)
 	}
 
 	quotedVal := fmt.Sprintf("%s", val)
 	f.string += fmt.Sprintf("%s = %s\n", obj, quotedVal)
+}
+
+// escapePinotStringLiteral returns value with embedded single quotes doubled,
+// so the escaped value remains inside one Pinot string literal when wrapped.
+func escapePinotStringLiteral(value string) string {
+	return strings.ReplaceAll(value, "'", "''")
 }
 
 // addQuery adds a complete query into the filter

@@ -2234,3 +2234,61 @@ func TestGetCurrentTimeLocked(t *testing.T) {
 	result = ctx.contextImpl.getCurrentTimeLocked("standby")
 	assert.Equal(t, remoteTime, result)
 }
+
+func TestShardedHistoryTaskDLQWriterAckLevel(t *testing.T) {
+	req := persistence.CreateHistoryDLQAckLevelRequest{
+		DomainID:              "dom",
+		ClusterAttributeScope: "scope",
+		ClusterAttributeName:  "cluster-a",
+		TaskCategory:          persistence.HistoryTaskCategoryTransfer,
+	}
+
+	tests := []struct {
+		name             string
+		managerErrs      []error  // error the underlying manager returns on each call it actually receives
+		wantErrs         []string // expected error from each writer call in order ("" == no error)
+		wantManagerCalls int      // number of times the underlying manager is expected to be hit
+	}{
+		{
+			name:             "first call fires the write and caches; second call is a no-op",
+			managerErrs:      []error{nil},
+			wantErrs:         []string{"", ""},
+			wantManagerCalls: 1,
+		},
+		{
+			name:             "error is propagated and not cached so a retry re-attempts",
+			managerErrs:      []error{errors.New("boom"), nil},
+			wantErrs:         []string{"boom", ""},
+			wantManagerCalls: 2,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			dlqMgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+
+			var managerCalls int
+			dlqMgr.EXPECT().
+				CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, got persistence.CreateHistoryDLQAckLevelRequest) error {
+					assert.Equal(t, req, got)
+					err := tc.managerErrs[managerCalls]
+					managerCalls++
+					return err
+				}).
+				Times(tc.wantManagerCalls)
+
+			w := &shardedHistoryTaskDLQWriter{writer: dlqMgr, dlqAckLevelsCreated: make(map[dlqAckLevelKey]struct{})}
+			for i, want := range tc.wantErrs {
+				err := w.CreateHistoryDLQAckLevelIfNotExists(context.Background(), req)
+				if want == "" {
+					require.NoError(t, err, "call %d", i)
+				} else {
+					require.EqualError(t, err, want, "call %d", i)
+				}
+			}
+			assert.Equal(t, tc.wantManagerCalls, managerCalls)
+		})
+	}
+}

@@ -414,6 +414,7 @@ Loop:
 			activityInfo,
 			execution.TimerTypeToReason(timerSequenceID.TimerType),
 			nil,
+			nil,
 		); err != nil {
 			return err
 		} else if ok {
@@ -650,6 +651,7 @@ func (t *timerActiveTaskExecutor) executeWorkflowBackoffTimerTask(
 				TaskData: persistence.TaskData{
 					Version: mutableState.GetCurrentVersion(),
 				},
+				TaskList: executionInfo.TaskList,
 			})
 		}
 	}

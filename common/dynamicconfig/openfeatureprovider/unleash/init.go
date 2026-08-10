@@ -1,5 +1,7 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
-//
+// The MIT License (MIT)
+
+// Copyright (c) 2017-2020 Uber Technologies Inc.
+
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -7,35 +9,31 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
-package sqldriver
+// Package unleash is an openfeatureprovider plugin backed by Unleash
+// (https://www.getunleash.io/). Blank-import this package to register it:
+//
+//	import _ "github.com/uber/cadence/common/dynamicconfig/openfeatureprovider/unleash"
+package unleash
 
 import (
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/uber/cadence/common/dynamicconfig/openfeatureprovider"
 )
 
-// NewDriver returns a driver to SQL, either using singleton Driver or sharded Driver
-func NewDriver(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int) (Driver, error) {
-
-	if len(xdbs) == 1 {
-		return newSingletonSQLDriver(xdbs[0], tx, dbShardID), nil
+func init() {
+	if err := openfeatureprovider.Register(ProviderName, newProvider); err != nil {
+		panic(fmt.Errorf("failed to register openfeature unleash provider: %w", err))
 	}
-
-	if len(xdbs) <= 1 {
-		return nil, fmt.Errorf("invalid number of connection for sharded SQL driver")
-	}
-	// this is the case of multiple database with sharding
-	return newShardedSQLDriver(xdbs, tx, dbShardID), nil
 }
