@@ -30,8 +30,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/tools/cli/clitest"
 )
 
 func (s *cliAppSuite) TestDomainRegister() {
@@ -979,6 +981,87 @@ func TestRenderFailoverHistoryTable(t *testing.T) {
 			result := output.String()
 			for _, expected := range tc.expectedOutput {
 				assert.Contains(t, result, expected, "output should contain '%s'", expected)
+			}
+		})
+	}
+}
+
+func TestDescribeDomain_ActiveActiveOutput(t *testing.T) {
+	describeResponse := &types.DescribeDomainResponse{
+		DomainInfo: &types.DomainInfo{
+			Name: "test-domain",
+			UUID: "test-uuid",
+		},
+		Configuration: &types.DomainConfiguration{
+			WorkflowExecutionRetentionPeriodInDays: 3,
+		},
+		ReplicationConfiguration: &types.DomainReplicationConfiguration{
+			ActiveClusterName: "c1",
+			Clusters: []*types.ClusterReplicationConfiguration{
+				{ClusterName: "c1"},
+				{ClusterName: "c2"},
+			},
+			ActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"seattle":       {ActiveClusterName: "c1", FailoverVersion: 1},
+							"san_francisco": {ActiveClusterName: "c2", FailoverVersion: 2},
+						},
+					},
+				},
+			},
+		},
+		IsGlobalDomain: true,
+	}
+
+	tests := []struct {
+		name        string
+		command     string
+		wantContain []string
+		notContain  []string
+	}{
+		{
+			name:    "default output shows cluster attribute summary and --format json hint",
+			command: "cadence --do test-domain domain describe",
+			wantContain: []string{
+				"ActiveClustersByClusterAttribute: 2 cluster attribute(s)",
+				"--format json",
+			},
+			notContain: []string{"--print-json"},
+		},
+		{
+			name:        "format json includes active clusters by cluster attribute",
+			command:     "cadence --do test-domain domain describe --format json",
+			wantContain: []string{`"attributeScopes"`, `"seattle"`, `"san_francisco"`},
+		},
+		{
+			name:        "print_json still prints the raw server response",
+			command:     "cadence --do test-domain domain describe --print_json",
+			wantContain: []string{`"activeClusters"`, `"seattle"`},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			serverFrontendClient := frontend.NewMockClient(ctrl)
+			ioHandler := &testIOHandler{}
+			app := NewCliApp(
+				&clientFactoryMock{serverFrontendClient: serverFrontendClient},
+				WithIOHandler(ioHandler),
+			)
+			serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(describeResponse, nil)
+
+			err := clitest.RunCommandLine(t, app, tt.command)
+			assert.NoError(t, err)
+
+			out := ioHandler.outputBytes.String()
+			for _, want := range tt.wantContain {
+				assert.Contains(t, out, want)
+			}
+			for _, not := range tt.notContain {
+				assert.NotContains(t, out, not)
 			}
 		})
 	}

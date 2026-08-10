@@ -38,6 +38,7 @@ const (
 	DomainDeprecationTaskListName     = "domain-deprecation-tasklist"
 	domainDeprecationBatchPrefix      = "domain-deprecation-batch"
 
+	checkActivePollersActivity = "checkActivePollers"
 	disableArchivalActivity    = "disableArchival"
 	deprecateDomainActivity    = "deprecateDomain"
 	checkOpenWorkflowsActivity = "checkOpenWorkflows"
@@ -61,6 +62,7 @@ var (
 		NonRetriableErrorReasons: []string{
 			ErrDomainDoesNotExistNonRetryable,
 			ErrAccessDeniedNonRetryable,
+			ErrActivePollersNonRetryable,
 		},
 	}
 
@@ -77,7 +79,19 @@ func (w *domainDeprecator) DomainDeprecationWorkflow(ctx workflow.Context, param
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting domain deprecation workflow", zap.String("domain", params.DomainName))
 
-	// Step 1: Activity disables archival
+	// Step 1: Check for active pollers (skipped when Force is set)
+	if !params.Force {
+		err := workflow.ExecuteActivity(
+			workflow.WithActivityOptions(ctx, activityOptions),
+			w.CheckActivePollersActivity,
+			params,
+		).Get(ctx, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Step 2: Activity disables archival
 	err := workflow.ExecuteActivity(
 		workflow.WithActivityOptions(ctx, activityOptions),
 		w.DisableArchivalActivity,
@@ -87,7 +101,7 @@ func (w *domainDeprecator) DomainDeprecationWorkflow(ctx workflow.Context, param
 		return err
 	}
 
-	// Step 2: Deprecate a domain
+	// Step 3: Deprecate a domain
 	err = workflow.ExecuteActivity(
 		workflow.WithActivityOptions(ctx, activityOptions),
 		w.DeprecateDomainActivity,
@@ -97,7 +111,7 @@ func (w *domainDeprecator) DomainDeprecationWorkflow(ctx workflow.Context, param
 		return err
 	}
 
-	// Step 3: Start child batch workflow to terminate open workflows of a domain
+	// Step 4: Start child batch workflow to terminate open workflows of a domain
 	batchParams := batcher.BatchParams{
 		DomainName: params.DomainName,
 		Query:      "CloseTime = missing",

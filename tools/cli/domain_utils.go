@@ -236,7 +236,7 @@ var (
 		},
 		&cli.BoolFlag{
 			Name:  FlagForce,
-			Usage: "Deprecate domain regardless of domain history.",
+			Usage: "Skip all safety checks and force domain deprecation. Use with caution.",
 		},
 	}
 
@@ -248,7 +248,7 @@ var (
 		&cli.BoolFlag{
 			Name:    FlagPrintJSON,
 			Aliases: []string{"pjson"},
-			Usage:   "Print in raw JSON format",
+			Usage:   "Print the raw server response in JSON format (DEPRECATED: use --format json)",
 		},
 		getFormatFlag(),
 	}

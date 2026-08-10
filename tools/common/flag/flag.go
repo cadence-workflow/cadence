@@ -113,6 +113,12 @@ func (f *RepeatedStringFlag) Names() []string {
 	return []string{f.Name}
 }
 
+// IsVisible makes the flag appear in --help output; urfave/cli hides any
+// flag that does not implement cli.VisibleFlag.
+func (f *RepeatedStringFlag) IsVisible() bool {
+	return true
+}
+
 // IsSet always returns false; c.IsSet() uses fs.Visit which is the
 // authoritative check for whether the flag appeared on the command line.
 func (f *RepeatedStringFlag) IsSet() bool {
