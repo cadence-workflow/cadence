@@ -423,6 +423,10 @@ func (q *cachedQueueReader) prefetch() error {
 
 	now := q.clock.Now()
 
+	// Started after the no-op guards so skips aren't timed.
+	sw := q.metrics.StartTimerWithExponentialHistogram(metrics.CachedQueuePrefetchLatency, metrics.CachedQueuePrefetchLatencyHistogram)
+	defer sw.Stop()
+
 	// Ceiling of the look-ahead window; tasks at or after this time aren't due yet.
 	exclusiveMaxTaskKey := persistence.NewHistoryTaskKey(now.Add(q.options.MaxLookAheadWindow()), 0)
 
@@ -466,11 +470,14 @@ func (q *cachedQueueReader) prefetch() error {
 	q.prefetchTargetUpper = persistence.MinimumHistoryTaskKey
 
 	if err != nil {
+		q.metrics.IncCounter(metrics.CachedQueuePrefetchFailureCounter)
 		q.logger.Error("prefetch failed", tag.Error(err))
 		return fmt.Errorf("prefetch failed: %w", err)
 	}
 
 	if q.isDisabled() {
+		// Mode flipped to disabled mid-fetch: the result is discarded rather than
+		// completed, so it is neither a success nor a failure and is not counted.
 		q.logger.Info("prefetch result discarded, mode switched to disabled during prefetch")
 		q.pendingInjectBuffer = q.pendingInjectBuffer[:0]
 		return nil
@@ -483,6 +490,7 @@ func (q *cachedQueueReader) prefetch() error {
 	// existing cache remains valid for [inclusiveLowerBound, exclusiveUpperBound).
 	// The next prefetch will fill the gap from the new exclusiveUpperBound.
 	if !q.exclusiveUpperBound.Equal(upperBound) {
+		q.metrics.IncCounter(metrics.CachedQueuePrefetchGapDetectedCounter)
 		q.logger.Info("gap detected, discarding fetched data",
 			tag.Dynamic("prevUpper", upperBound),
 			tag.Dynamic("cacheState", q.getState()),
@@ -497,16 +505,22 @@ func (q *cachedQueueReader) prefetch() error {
 	}
 
 	// If a trim occurred, putTasks already updated the upper bound correctly.
-	if trimmed := q.putTasks(resp.Tasks); trimmed {
-		return nil
+	// Otherwise advance to NextTaskKey: the key to start the next page, pointing
+	// to the first task beyond the current page (or ExclusiveMaxTaskKey when
+	// there are no more tasks to fetch).
+	if trimmed := q.putTasks(resp.Tasks); !trimmed {
+		q.updateExclusiveUpperBound(resp.Progress.NextTaskKey)
 	}
 
-	// NextTaskKey is the key to start the next page; it points to the first task beyond the current page
-	// or may be equal to ExclusiveMaxTaskKey if there are no more tasks to fetch
-	q.updateExclusiveUpperBound(resp.Progress.NextTaskKey)
+	q.metrics.IncCounter(metrics.CachedQueuePrefetchSuccessCounter)
+
+	// Whether prefetch is keeping up with newly created tasks.
+	windowSpan := q.exclusiveUpperBound.GetScheduledTime().Sub(q.inclusiveLowerBound.GetScheduledTime())
+	q.metrics.ExponentialHistogram(metrics.CachedQueuePrefetchWindowSpanHistogram, windowSpan)
 
 	q.logger.Debug("prefetch complete",
 		tag.Dynamic("tasksFetched", len(resp.Tasks)),
+		tag.Dynamic("windowSpan", windowSpan),
 		tag.Dynamic("cacheState", q.getState()),
 	)
 	return nil

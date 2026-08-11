@@ -2992,6 +2992,12 @@ const (
 	CachedQueueShadowMismatchCounter
 	CachedQueueInjectAttemptCounter
 	CachedQueueDroppedFutureTimerTasksDurationHistogram
+	CachedQueuePrefetchSuccessCounter
+	CachedQueuePrefetchFailureCounter
+	CachedQueuePrefetchGapDetectedCounter
+	CachedQueuePrefetchLatency
+	CachedQueuePrefetchLatencyHistogram
+	CachedQueuePrefetchWindowSpanHistogram
 
 	TaskRequestsPerTaskList
 	TaskLatencyPerTaskListHistogram
@@ -3977,6 +3983,12 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CachedQueueShadowMismatchCounter:                              {metricName: "cached_queue_shadow_mismatch", metricType: Counter},
 		CachedQueueInjectAttemptCounter:                               {metricName: "cached_queue_inject_attempt", metricType: Counter},
 		CachedQueueDroppedFutureTimerTasksDurationHistogram:           {metricName: "cached_queue_dropped_future_timer_tasks_duration_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
+		CachedQueuePrefetchSuccessCounter:                             {metricName: "cached_queue_prefetch_success", metricType: Counter},
+		CachedQueuePrefetchFailureCounter:                             {metricName: "cached_queue_prefetch_failure", metricType: Counter},
+		CachedQueuePrefetchGapDetectedCounter:                         {metricName: "cached_queue_prefetch_gap_detected", metricType: Counter},
+		CachedQueuePrefetchLatency:                                    {metricName: "cached_queue_prefetch_latency", metricType: Timer},
+		CachedQueuePrefetchLatencyHistogram:                           {metricName: "cached_queue_prefetch_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
+		CachedQueuePrefetchWindowSpanHistogram:                        {metricName: "cached_queue_prefetch_window_span_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 	},
 	Matching: {
 		PollSuccessPerTaskListCounter:                                    {metricName: "poll_success_per_tl", metricRollupName: "poll_success"},
