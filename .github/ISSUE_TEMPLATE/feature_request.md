@@ -2,12 +2,13 @@
 name: Feature request
 about: Suggest an idea for this project
 title: ''
-labels: feature
+labels: kind/feature
 assignees: ''
 
 ---
+<!-- template: feature_request -->
 
-Use this template for feature, improvement, or refractoring requests.
+Use this template for feature, improvement, or cleanup requests.
 
 ### Description
 What you want to happen and why.
