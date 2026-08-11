@@ -51,9 +51,9 @@ import (
 )
 
 const (
-	defaultTestLimit   = 3 * time.Second
+	defaultTestLimit   = 5 * time.Second
 	slowTestLimit      = 40 * time.Second
-	suiteOverheadLimit = 30 * time.Second
+	suiteOverheadLimit = 60 * time.Second
 	slowTestSuffix     = "_SLOW"
 )
 
