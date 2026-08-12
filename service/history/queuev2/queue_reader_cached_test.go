@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -1117,7 +1118,7 @@ type periodicShadowSampleStep struct {
 	advance              time.Duration // clock advance applied before this call
 	setupMocks           func(base *MockQueueReader, queue *MockInMemQueue)
 	wantResp             *GetTaskResponse
-	wantSampleLogCount   int // cumulative "shadow sample check" log count after this call
+	wantSampleLogCount   int // cumulative count of logs tagged isPeriodicShadowSample=true after this call
 	wantMismatchLogCount int // cumulative "potential severe mismatch..." log count after this call
 }
 
@@ -1245,7 +1246,10 @@ func TestCachedQueueReader_GetTask_PeriodicShadowSample(t *testing.T) {
 
 				require.NoErrorf(t, err, "step %d", i)
 				require.Equalf(t, step.wantResp, resp, "step %d", i)
-				assert.Equalf(t, step.wantSampleLogCount, obs.FilterMessage("shadow sample check").Len(), "step %d: sample log count", i)
+				assert.Equalf(t, step.wantSampleLogCount, obs.Filter(func(e observer.LoggedEntry) bool {
+					v, ok := e.ContextMap()["isPeriodicShadowSample"]
+					return ok && v == true
+				}).Len(), "step %d: sample log count", i)
 				assert.Equalf(t, step.wantMismatchLogCount, obs.FilterMessage("potential severe mismatch between db and cache states").Len(), "step %d: mismatch log count", i)
 			}
 		})

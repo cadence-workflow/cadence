@@ -828,9 +828,12 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 		},
 	}
 
-	if q.isShadow() || q.isPeriodicShadowSample() {
+	isPeriodicShadowSample := q.isPeriodicShadowSample()
+	if q.isShadow() || isPeriodicShadowSample {
+		logTags = append(logTags, tag.Dynamic("isPeriodicShadowSample", isPeriodicShadowSample))
 		return q.getTaskInShadow(ctx, req, cacheResp, logTags)
 	}
+
 	return cacheResp, nil
 }
 
@@ -860,7 +863,6 @@ func (q *cachedQueueReader) isPeriodicShadowSample() bool {
 	if !q.lastShadowSampleUnixNano.CompareAndSwap(last, now) {
 		return false
 	}
-	q.logger.Info("shadow sample check")
 	return true
 }
 
