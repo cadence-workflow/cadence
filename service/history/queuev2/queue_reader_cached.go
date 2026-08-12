@@ -789,6 +789,12 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 		inclusiveMinTaskKey = req.Progress.NextTaskKey
 	}
 
+	// Cassandra's timer task query range-filters only on scheduledTime; taskID is never
+	// enforced as a DB-side bound (unlike transfer/replication tasks, where taskID is the
+	// sole range key). Drop it here so the cache's filtering matches what the DB actually
+	// guarantees, instead of being stricter than the DB and causing false shadow mismatches.
+	inclusiveMinTaskKey = persistence.NewHistoryTaskKey(inclusiveMinTaskKey.GetScheduledTime(), 0)
+
 	q.mu.RLock()
 	covered := q.isRangeCovered(inclusiveMinTaskKey, exclusiveMaxTaskKey)
 

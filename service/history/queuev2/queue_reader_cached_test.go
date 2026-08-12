@@ -671,6 +671,35 @@ func TestCachedQueueReader_GetTask(t *testing.T) {
 			},
 		},
 		{
+			// Cassandra's timer task query never filters by taskID, only scheduledTime, so a
+			// request floor with a non-zero taskID must be zeroed before querying the cache -
+			// otherwise the cache would be stricter than the DB ever was at a shared timestamp.
+			name:  "hit: non-zero taskID floor at same scheduledTime as lower bound is zeroed before querying cache",
+			mode:  "enabled",
+			lower: lower, upper: upper,
+			req: &GetTaskRequest{
+				Progress:  newProgress(newTaskKey(now, 5), upper),
+				Predicate: NewUniversalPredicate(),
+				PageSize:  10,
+			},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *shard.MockContext) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				// Expect the zeroed-taskID key (== lower), not the request's raw (now, taskID=5) key.
+				queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).
+					Return([]persistence.Task{t1, t2}, upper)
+			},
+			wantResp: &GetTaskResponse{
+				Tasks: []persistence.Task{t1, t2},
+				Progress: &GetTaskProgress{
+					Range: Range{
+						InclusiveMinTaskKey: upper,
+						ExclusiveMaxTaskKey: upper,
+					},
+					NextTaskKey: upper,
+				},
+			},
+		},
+		{
 			// NextPageToken set and NextTaskKey falls inside cache window → cache hit.
 			name:  "nextPageToken with nextTaskKey inside cache hits cache",
 			mode:  "enabled",
