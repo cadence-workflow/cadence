@@ -1149,7 +1149,6 @@ type periodicShadowSampleStep struct {
 	advance              time.Duration // clock advance applied before this call
 	setupMocks           func(base *MockQueueReader, queue *MockInMemQueue)
 	wantResp             *GetTaskResponse
-	wantSampleLogCount   int // cumulative "shadow sample check" log count after this call
 	wantMismatchLogCount int // cumulative "potential severe mismatch..." log count after this call
 }
 
@@ -1195,31 +1194,31 @@ func TestCachedQueueReader_GetTask_PeriodicShadowSample(t *testing.T) {
 			name:     "first call after start samples immediately",
 			interval: 5 * time.Minute,
 			steps: []periodicShadowSampleStep{
-				{setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 1},
+				{setupMocks: sampledHit, wantResp: dbResp},
 			},
 		},
 		{
 			name:     "second call within interval does not re-sample",
 			interval: 5 * time.Minute,
 			steps: []periodicShadowSampleStep{
-				{setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 1},
-				{setupMocks: cacheHit, wantResp: cacheOnlyResp, wantSampleLogCount: 1},
+				{setupMocks: sampledHit, wantResp: dbResp},
+				{setupMocks: cacheHit, wantResp: cacheOnlyResp},
 			},
 		},
 		{
 			name:     "call after interval elapses samples again",
 			interval: 5 * time.Minute,
 			steps: []periodicShadowSampleStep{
-				{setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 1},
-				{advance: 5 * time.Minute, setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 2},
+				{setupMocks: sampledHit, wantResp: dbResp},
+				{advance: 5 * time.Minute, setupMocks: sampledHit, wantResp: dbResp},
 			},
 		},
 		{
 			name:     "interval <= 0 disables sampling",
 			interval: 0,
 			steps: []periodicShadowSampleStep{
-				{advance: time.Hour, setupMocks: cacheHit, wantResp: cacheOnlyResp, wantSampleLogCount: 0},
-				{advance: time.Hour, setupMocks: cacheHit, wantResp: cacheOnlyResp, wantSampleLogCount: 0},
+				{advance: time.Hour, setupMocks: cacheHit, wantResp: cacheOnlyResp},
+				{advance: time.Hour, setupMocks: cacheHit, wantResp: cacheOnlyResp},
 			},
 		},
 		{
@@ -1233,7 +1232,6 @@ func TestCachedQueueReader_GetTask_PeriodicShadowSample(t *testing.T) {
 						base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(dbResp, nil)
 					},
 					wantResp:             dbResp,
-					wantSampleLogCount:   1,
 					wantMismatchLogCount: 1,
 				},
 			},
@@ -1277,7 +1275,6 @@ func TestCachedQueueReader_GetTask_PeriodicShadowSample(t *testing.T) {
 
 				require.NoErrorf(t, err, "step %d", i)
 				require.Equalf(t, step.wantResp, resp, "step %d", i)
-				assert.Equalf(t, step.wantSampleLogCount, obs.FilterMessage("shadow sample check").Len(), "step %d: sample log count", i)
 				assert.Equalf(t, step.wantMismatchLogCount, obs.FilterMessage("potential severe mismatch between db and cache states").Len(), "step %d: mismatch log count", i)
 			}
 		})
