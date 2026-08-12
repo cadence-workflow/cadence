@@ -218,6 +218,7 @@ func (q *cachedQueueReader) Start() {
 	if !atomic.CompareAndSwapInt32(&q.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
+	q.logger.Info("Cached Queue Reader state changed", tag.LifeCycleStarting)
 	q.wg.Add(1)
 	go q.prefetchLoop()
 }
@@ -227,8 +228,10 @@ func (q *cachedQueueReader) Stop() {
 	if !atomic.CompareAndSwapInt32(&q.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
 		return
 	}
+	q.logger.Info("Cached Queue Reader state changed", tag.LifeCycleStopping)
 	q.cancel()
 	q.wg.Wait()
+	q.logger.Info("Cached Queue Reader state changed", tag.LifeCycleStopped)
 }
 
 // prefetchLoop fetches tasks into the look-ahead window on a timer. It fires
@@ -240,10 +243,11 @@ func (q *cachedQueueReader) prefetchLoop() {
 	timer := q.clock.NewTimer(time.Millisecond)
 	defer timer.Stop()
 
+	q.logger.Info("Cached Queue Reader state changed", tag.LifeCycleStarted)
+
 	for {
 		select {
 		case <-q.ctx.Done():
-			q.logger.Info("prefetch loop stopping")
 			return
 		case <-q.prefetchCh:
 			// Upper bound changed externally, recompute delay and reset timer.
