@@ -828,9 +828,7 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 		},
 	}
 
-	isPeriodicShadowSample := q.isPeriodicShadowSample()
-	if q.isShadow() || isPeriodicShadowSample {
-		logTags = append(logTags, tag.Dynamic("isPeriodicShadowSample", isPeriodicShadowSample))
+	if q.isShadow() || q.isPeriodicShadowSample() {
 		return q.getTaskInShadow(ctx, req, cacheResp, logTags)
 	}
 
