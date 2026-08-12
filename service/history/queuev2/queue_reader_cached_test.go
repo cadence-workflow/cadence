@@ -433,27 +433,41 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			assert.Equal(t, tc.wantBuffered, injectCounterValue(snapshot, injectStatusBuffered), "buffered count")
 			assert.Equal(t, tc.wantDroppedBelow, injectCounterValue(snapshot, injectStatusDroppedBelow), "dropped_below count")
 			assert.Equal(t, tc.wantDroppedUpper, injectCounterValue(snapshot, injectStatusDroppedUpper), "dropped_upper count")
-			assert.Equal(t, tc.wantFutureHistogram, hasFutureDurationHistogram(snapshot), "future duration histogram recorded")
+			assert.Equal(t, tc.wantFutureHistogram, histogramHasSample(snapshot, "cached_queue_dropped_future_timer_tasks_duration_ns"), "future duration histogram recorded")
 		})
 	}
 }
 
-// injectCounterValue sums the cached_queue_inject_attempt counter samples tagged with the given status.
-func injectCounterValue(snapshot tally.Snapshot, status string) int64 {
+// counterValue sums counter samples matching name and all of wantTags (nil matches any tags).
+func counterValue(snapshot tally.Snapshot, name string, wantTags map[string]string) int64 {
 	var total int64
 	for _, c := range snapshot.Counters() {
-		if c.Name() == "cached_queue_inject_attempt" && c.Tags()["status"] == status {
+		if c.Name() != name {
+			continue
+		}
+		match := true
+		for k, v := range wantTags {
+			if c.Tags()[k] != v {
+				match = false
+				break
+			}
+		}
+		if match {
 			total += c.Value()
 		}
 	}
 	return total
 }
 
-// hasFutureDurationHistogram reports whether the cached_queue_dropped_future_timer_tasks_duration_ns
-// histogram recorded at least one sample.
-func hasFutureDurationHistogram(snapshot tally.Snapshot) bool {
+// injectCounterValue sums the cached_queue_inject_attempt counter samples tagged with the given status.
+func injectCounterValue(snapshot tally.Snapshot, status string) int64 {
+	return counterValue(snapshot, "cached_queue_inject_attempt", map[string]string{"status": status})
+}
+
+// histogramHasSample reports whether the named duration histogram recorded at least one sample.
+func histogramHasSample(snapshot tally.Snapshot, name string) bool {
 	for _, h := range snapshot.Histograms() {
-		if h.Name() != "cached_queue_dropped_future_timer_tasks_duration_ns" {
+		if h.Name() != name {
 			continue
 		}
 		for _, count := range h.Durations() {
@@ -463,6 +477,24 @@ func hasFutureDurationHistogram(snapshot tally.Snapshot) bool {
 		}
 	}
 	return false
+}
+
+// assertPrefetchMetrics asserts a cycle emitted only the wantOutcome counter, the latency histogram (wantLatency), and the window-span histogram (wantWindowSpan).
+func assertPrefetchMetrics(t *testing.T, snapshot tally.Snapshot, wantOutcome string, wantLatency, wantWindowSpan bool) {
+	t.Helper()
+	for _, name := range []string{
+		"cached_queue_prefetch_success",
+		"cached_queue_prefetch_failure",
+		"cached_queue_prefetch_gap_detected",
+	} {
+		want := int64(0)
+		if name == wantOutcome {
+			want = 1
+		}
+		assert.Equal(t, want, counterValue(snapshot, name, nil), "prefetch counter %q", name)
+	}
+	assert.Equal(t, wantLatency, histogramHasSample(snapshot, "cached_queue_prefetch_latency_ns"), "prefetch latency histogram")
+	assert.Equal(t, wantWindowSpan, histogramHasSample(snapshot, "cached_queue_prefetch_window_span_ns"), "prefetch window span histogram")
 }
 
 func TestCachedQueueReader_Clear(t *testing.T) {
@@ -1641,17 +1673,19 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 	t2 := newTask(2, now.Add(10*time.Minute))
 	t3 := newTask(3, now.Add(35*time.Minute))
 	t4 := newTask(4, now.Add(40*time.Minute))
-
 	tests := []struct {
-		name         string
-		optsOverride func(*cachedQueueReaderOptions)
-		initLower    persistence.HistoryTaskKey
-		initUpper    persistence.HistoryTaskKey
-		initBuffer   []persistence.Task
-		setupMocks   func(base *MockQueueReader, queue *MockInMemQueue, r *cachedQueueReader)
-		wantErr      bool
-		wantLower    persistence.HistoryTaskKey
-		wantUpper    persistence.HistoryTaskKey
+		name                  string
+		optsOverride          func(*cachedQueueReaderOptions)
+		initLower             persistence.HistoryTaskKey
+		initUpper             persistence.HistoryTaskKey
+		initBuffer            []persistence.Task
+		setupMocks            func(base *MockQueueReader, queue *MockInMemQueue, r *cachedQueueReader)
+		wantErr               bool
+		wantLower             persistence.HistoryTaskKey
+		wantUpper             persistence.HistoryTaskKey
+		wantOutcomeMetricName string
+		wantLatencyMetric     bool
+		wantWindowSpanMetric  bool
 	}{
 		{
 			name: "disabled: no-op when cache empty",
@@ -1696,9 +1730,11 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
 			},
-			wantErr:   true,
-			wantLower: someLower,
-			wantUpper: someUpper,
+			wantErr:               true,
+			wantLower:             someLower,
+			wantUpper:             someUpper,
+			wantOutcomeMetricName: "cached_queue_prefetch_failure",
+			wantLatencyMetric:     true,
 		},
 		{
 			name:      "clear cache, first prefetch, no tasks",
@@ -1711,8 +1747,11 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 					Progress: &GetTaskProgress{NextTaskKey: maxKey},
 				}, nil)
 			},
-			wantLower: evictBefore,
-			wantUpper: maxKey,
+			wantLower:             evictBefore,
+			wantUpper:             maxKey,
+			wantOutcomeMetricName: "cached_queue_prefetch_success",
+			wantLatencyMetric:     true,
+			wantWindowSpanMetric:  true,
 		},
 		{
 			name:      "clear cache, first prefetch, tasks returned",
@@ -1727,8 +1766,11 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 				queue.EXPECT().PutTasks([]persistence.Task{t1, t2})
 				queue.EXPECT().RTrimBySize(maxSize).Return(persistence.MinimumHistoryTaskKey, false)
 			},
-			wantLower: evictBefore,
-			wantUpper: maxKey,
+			wantLower:             evictBefore,
+			wantUpper:             maxKey,
+			wantOutcomeMetricName: "cached_queue_prefetch_success",
+			wantLatencyMetric:     true,
+			wantWindowSpanMetric:  true,
 		},
 		{
 			name:      "subsequent prefetch, no tasks",
@@ -1741,8 +1783,11 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 					Progress: &GetTaskProgress{NextTaskKey: maxKey},
 				}, nil)
 			},
-			wantLower: someLower,
-			wantUpper: maxKey,
+			wantLower:             someLower,
+			wantUpper:             maxKey,
+			wantOutcomeMetricName: "cached_queue_prefetch_success",
+			wantLatencyMetric:     true,
+			wantWindowSpanMetric:  true,
 		},
 		{
 			name:      "subsequent prefetch, tasks returned, tasks inserted",
@@ -1757,8 +1802,11 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 				queue.EXPECT().PutTasks([]persistence.Task{t3, t4})
 				queue.EXPECT().RTrimBySize(maxSize).Return(persistence.MinimumHistoryTaskKey, false)
 			},
-			wantLower: someLower,
-			wantUpper: t4.GetTaskKey().Next(),
+			wantLower:             someLower,
+			wantUpper:             t4.GetTaskKey().Next(),
+			wantOutcomeMetricName: "cached_queue_prefetch_success",
+			wantLatencyMetric:     true,
+			wantWindowSpanMetric:  true,
 		},
 		{
 			name: "subsequent prefetch, tasks returned, tasks inserted, trimmed by size",
@@ -1779,8 +1827,11 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 				queue.EXPECT().PutTasks([]persistence.Task{t3})
 				queue.EXPECT().RTrimBySize(1).Return(trimKey, true)
 			},
-			wantLower: evictBefore,
-			wantUpper: trimKey,
+			wantLower:             evictBefore,
+			wantUpper:             trimKey,
+			wantOutcomeMetricName: "cached_queue_prefetch_success",
+			wantLatencyMetric:     true,
+			wantWindowSpanMetric:  true,
 		},
 		{
 			name:      "gap detected: upper changed during fetch, returns error, bounds unchanged",
@@ -1801,9 +1852,11 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 					},
 				)
 			},
-			wantErr:   true,
-			wantLower: someLower,
-			wantUpper: differentUpper,
+			wantErr:               true,
+			wantLower:             someLower,
+			wantUpper:             differentUpper,
+			wantOutcomeMetricName: "cached_queue_prefetch_gap_detected",
+			wantLatencyMetric:     true,
 		},
 		{
 			// A task buffered in pendingInjectBuffer (arrived while prefetch was in-flight)
@@ -1827,8 +1880,11 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 				queue.EXPECT().PutTasks([]persistence.Task{tBuf})
 				queue.EXPECT().RTrimBySize(maxSize).Return(persistence.MinimumHistoryTaskKey, false)
 			},
-			wantLower: someLower,
-			wantUpper: maxKey,
+			wantLower:             someLower,
+			wantUpper:             maxKey,
+			wantOutcomeMetricName: "cached_queue_prefetch_success",
+			wantLatencyMetric:     true,
+			wantWindowSpanMetric:  true,
 		},
 		{
 			name:      "mode switched to disabled during in-flight fetch discards results and buffer",
@@ -1849,8 +1905,9 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 					},
 				)
 			},
-			wantLower: someLower,
-			wantUpper: someUpper,
+			wantLower:         someLower,
+			wantUpper:         someUpper,
+			wantLatencyMetric: true, // fetch ran (DB round-trip) before the mode-switch discard, so latency is recorded
 		},
 	}
 
@@ -1889,6 +1946,8 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			assert.True(t, gotLower.Equal(tc.wantLower), "lower: got %v want %v", gotLower, tc.wantLower)
 			assert.True(t, gotUpper.Equal(tc.wantUpper), "upper: got %v want %v", gotUpper, tc.wantUpper)
 			assert.Equal(t, 0, gotBufferLen, "pending inject buffer should be empty after prefetch")
+
+			assertPrefetchMetrics(t, deps.metricsScope.Snapshot(), tc.wantOutcomeMetricName, tc.wantLatencyMetric, tc.wantWindowSpanMetric)
 		})
 	}
 }
