@@ -35,11 +35,13 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	"github.com/uber/cadence/environment"
+	schemamysql "github.com/uber/cadence/schema/mysql"
 )
 
 const (
@@ -75,6 +77,17 @@ func (p *plugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
 // CreateAdminDB initialize the adminDb object
 func (p *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
 	return p.createDB(cfg)
+}
+
+func (p *plugin) GetSchema(dbType persistence.DBType) (persistence.Schema, error) {
+	switch dbType {
+	case persistence.DBTypeDefault:
+		return schemamysql.DefaultSchema, nil
+	case persistence.DBTypeVisibility:
+		return schemamysql.VisibilitySchema, nil
+	default:
+		return nil, fmt.Errorf("unknown db type: %v", dbType)
+	}
 }
 
 func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
@@ -235,10 +248,6 @@ func sanitizeAttr(inkey string, invalue string) (string, string) {
 	}
 }
 
-const (
-	testSchemaDir = "schema/mysql/v8"
-)
-
 // GetTestClusterOption return test options
 func GetTestClusterOption() (*pt.TestBaseOptions, error) {
 	port, err := environment.GetMySQLPort()
@@ -251,7 +260,5 @@ func GetTestClusterOption() (*pt.TestBaseOptions, error) {
 		DBPassword:   environment.GetMySQLPassword(),
 		DBHost:       environment.GetMySQLAddress(),
 		DBPort:       port,
-		SchemaDir:    testSchemaDir,
-		StoreType:    config.StoreTypeSQL,
 	}, nil
 }

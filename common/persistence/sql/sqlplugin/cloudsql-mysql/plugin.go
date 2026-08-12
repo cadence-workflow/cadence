@@ -35,12 +35,14 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	mysqlplugin "github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 	"github.com/uber/cadence/environment"
+	schemamysql "github.com/uber/cadence/schema/mysql"
 )
 
 const (
@@ -83,6 +85,17 @@ func (p *plugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
 // CreateAdminDB initialize the adminDb object
 func (p *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
 	return createDB(cfg)
+}
+
+func (p *plugin) GetSchema(dbType persistence.DBType) (persistence.Schema, error) {
+	switch dbType {
+	case persistence.DBTypeDefault:
+		return schemamysql.DefaultSchema, nil
+	case persistence.DBTypeVisibility:
+		return schemamysql.VisibilitySchema, nil
+	default:
+		return nil, fmt.Errorf("unknown db type: %v", dbType)
+	}
 }
 
 // The CloudSQL driver has a different lifecycle compared to typical database/sql connectors:
@@ -247,10 +260,6 @@ func sanitizeAttr(inkey string, invalue string) (string, string) {
 	}
 }
 
-const (
-	testSchemaDir = "schema/mysql/v8"
-)
-
 // GetTestClusterOption return test options
 func GetTestClusterOption() (*pt.TestBaseOptions, error) {
 	return &pt.TestBaseOptions{
@@ -258,7 +267,5 @@ func GetTestClusterOption() (*pt.TestBaseOptions, error) {
 		DBUsername:   environment.GetMySQLUser(),
 		DBHost:       environment.GetMySQLAddress(),
 		DBPort:       -1,
-		SchemaDir:    testSchemaDir,
-		StoreType:    config.StoreTypeSQL,
 	}, nil
 }

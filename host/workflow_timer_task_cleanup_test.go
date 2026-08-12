@@ -59,9 +59,8 @@ func TestWorkflowTimerTaskCleanupIntegrationSuite(t *testing.T) {
 
 	s := &WorkflowTimerTaskCleanupSuite{}
 	params := IntegrationBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		TestClusterConfig:     clusterConfig,
+		PersistenceConfig: testCluster,
+		TestClusterConfig: clusterConfig,
 	}
 	s.IntegrationBase = NewIntegrationBase(params)
 	suite.Run(t, s)
@@ -220,7 +219,7 @@ func (s *WorkflowTimerTaskCleanupSuite) isWorkflowDeleted(domainID string, execu
 // newExecutionManager creates a fresh ExecutionManager from the test cluster's
 // persistence config — the same keyspace the history service uses.
 func (s *WorkflowTimerTaskCleanupSuite) newExecutionManager() persistence.ExecutionManager {
-	pConfig := s.TestCluster.testBase.DefaultTestCluster.Config()
+	pConfig := s.PersistenceConfig
 	factory := client.NewFactory(
 		&pConfig,
 		func() float64 { return 1000 },
@@ -252,9 +251,8 @@ func TestWorkflowTimerTaskCleanupDisabledIntegrationSuite(t *testing.T) {
 
 	s := &WorkflowTimerTaskCleanupDisabledSuite{}
 	params := IntegrationBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		TestClusterConfig:     clusterConfig,
+		PersistenceConfig: testCluster,
+		TestClusterConfig: clusterConfig,
 	}
 	s.IntegrationBase = NewIntegrationBase(params)
 	suite.Run(t, s)
@@ -399,7 +397,7 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) isWorkflowDeleted(domainID strin
 // newExecutionManager creates a fresh ExecutionManager from the test cluster's
 // persistence config — the same keyspace the history service uses.
 func (s *WorkflowTimerTaskCleanupDisabledSuite) newExecutionManager() persistence.ExecutionManager {
-	pConfig := s.TestCluster.testBase.DefaultTestCluster.Config()
+	pConfig := s.PersistenceConfig
 	factory := client.NewFactory(
 		&pConfig,
 		func() float64 { return 1000 },

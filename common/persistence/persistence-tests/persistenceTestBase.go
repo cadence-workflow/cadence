@@ -49,7 +49,6 @@ import (
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/persistence/nosql"
-	"github.com/uber/cadence/common/persistence/persistence-tests/testcluster"
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
@@ -69,8 +68,6 @@ type (
 		DBPassword      string
 		DBHost          string
 		DBPort          int              `yaml:"-"`
-		StoreType       string           `yaml:"-"`
-		SchemaDir       string           `yaml:"-"`
 		ClusterMetadata cluster.Metadata `yaml:"-"`
 		ProtoVersion    int              `yaml:"-"`
 		Replicas        int              `yaml:"-"`
@@ -80,10 +77,12 @@ type (
 	// TestBase wraps the base setup needed to create workflows over persistence layer.
 	TestBase struct {
 		*suite.Suite
+		PersistenceConfig         config.Persistence
 		Controller                *gomock.Controller
 		ShardMgr                  persistence.ShardManager
 		PersistenceFactory        client.Factory
 		ExecutionManager          persistence.ExecutionManager
+		AdminDBs                  []persistence.AdminDB
 		TaskMgr                   persistence.TaskManager
 		HistoryV2Mgr              persistence.HistoryManager
 		DomainManager             persistence.DomainManager
@@ -91,8 +90,6 @@ type (
 		ShardInfo                 *persistence.ShardInfo
 		TaskIDGenerator           TransferTaskIDGenerator
 		ClusterMetadata           cluster.Metadata
-		DefaultTestCluster        testcluster.PersistenceTestCluster
-		VisibilityTestCluster     testcluster.PersistenceTestCluster
 		Logger                    log.Logger
 		PayloadSerializer         persistence.PayloadSerializer
 		ConfigStoreManager        persistence.ConfigStoreManager
@@ -101,10 +98,9 @@ type (
 
 	// TestBaseParams defines the input of TestBase
 	TestBaseParams struct {
-		DefaultTestCluster    testcluster.PersistenceTestCluster
-		VisibilityTestCluster testcluster.PersistenceTestCluster
-		ClusterMetadata       cluster.Metadata
-		DynamicConfiguration  persistence.DynamicConfiguration
+		PersistenceConfig    config.Persistence
+		ClusterMetadata      cluster.Metadata
+		DynamicConfiguration persistence.DynamicConfiguration
 	}
 
 	// TestTransferTaskIDGenerator helper
@@ -117,15 +113,21 @@ const (
 	defaultScheduleToStartTimeout = 111
 )
 
+// DBSetupOptions is the common set of options passed to SetupDB.Setup
+// It's a hacky way to propagate settings that aren't present in the persistence config but are needed to create
+// the appropriate databases or keyspaces
+var DBSetupOptions = map[string]string{
+	"replication_factor": "1",
+}
+
 // NewTestBaseFromParams returns a customized test base from given input
 func NewTestBaseFromParams(t *testing.T, params TestBaseParams) *TestBase {
 	res := &TestBase{
-		Suite:                 &suite.Suite{},
-		DefaultTestCluster:    params.DefaultTestCluster,
-		VisibilityTestCluster: params.VisibilityTestCluster,
-		ClusterMetadata:       params.ClusterMetadata,
-		PayloadSerializer:     persistence.NewPayloadSerializer(),
-		DynamicConfiguration:  params.DynamicConfiguration,
+		Suite:                &suite.Suite{},
+		PersistenceConfig:    params.PersistenceConfig,
+		ClusterMetadata:      params.ClusterMetadata,
+		PayloadSerializer:    persistence.NewPayloadSerializer(),
+		DynamicConfiguration: params.DynamicConfiguration,
 	}
 	res.SetT(t)
 	return res
@@ -136,7 +138,7 @@ func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 	if options.DBName == "" {
 		options.DBName = "test_" + GenerateRandomDBName(10)
 	}
-	testCluster := nosql.NewTestCluster(t, nosql.TestClusterParams{
+	testClusterCfg := nosql.NewTestCluster(t, nosql.TestClusterParams{
 		PluginName:   options.DBPluginName,
 		KeySpace:     options.DBName,
 		Username:     options.DBUsername,
@@ -164,10 +166,9 @@ func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		EnableWorkflowTimerTaskCleanup:           dynamicproperties.GetBoolPropertyFn(true),
 	}
 	params := TestBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		ClusterMetadata:       metadata,
-		DynamicConfiguration:  dc,
+		PersistenceConfig:    testClusterCfg,
+		ClusterMetadata:      metadata,
+		DynamicConfiguration: dc,
 	}
 	return NewTestBaseFromParams(t, params)
 }
@@ -177,7 +178,7 @@ func NewTestBaseWithSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 	if options.DBName == "" {
 		options.DBName = "test_" + GenerateRandomDBName(10)
 	}
-	testCluster, err := sql.NewTestCluster(options.DBPluginName, options.DBName, options.DBUsername, options.DBPassword, options.DBHost, options.DBPort, options.SchemaDir)
+	testConfig, err := sql.NewTestCluster(options.DBPluginName, options.DBName, options.DBUsername, options.DBPassword, options.DBHost, options.DBPort)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,24 +199,11 @@ func NewTestBaseWithSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		EnableWorkflowTimerTaskCleanup:           dynamicproperties.GetBoolPropertyFn(false),
 	}
 	params := TestBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		ClusterMetadata:       metadata,
-		DynamicConfiguration:  dc,
+		PersistenceConfig:    testConfig,
+		ClusterMetadata:      metadata,
+		DynamicConfiguration: dc,
 	}
 	return NewTestBaseFromParams(t, params)
-}
-
-// Config returns the persistence configuration for this test
-func (s *TestBase) Config() config.Persistence {
-	cfg := s.DefaultTestCluster.Config()
-	if s.DefaultTestCluster == s.VisibilityTestCluster {
-		return cfg
-	}
-	vCfg := s.VisibilityTestCluster.Config()
-	cfg.VisibilityStore = "visibility_ " + vCfg.VisibilityStore
-	cfg.DataStores[cfg.VisibilityStore] = vCfg.DataStores[vCfg.VisibilityStore]
-	return cfg
 }
 
 // Setup sets up the test base, must be called as part of SetupSuite
@@ -227,12 +215,14 @@ func (s *TestBase) Setup() {
 	s.Controller = gomock.NewController(s.T())
 	s.Logger = testlogger.New(s.T())
 
-	s.DefaultTestCluster.SetupTestDatabase()
-
-	cfg := s.DefaultTestCluster.Config()
+	cfg := s.PersistenceConfig
 	scope := tally.NewTestScope(service.History, make(map[string]string))
 	metricsClient := metrics.NewClient(scope, service.GetMetricsServiceIdx(service.History, s.Logger), metrics.MigrationConfig{})
 	factory := client.NewFactory(&cfg, nil, clusterName, metricsClient, s.Logger, &s.DynamicConfiguration)
+	s.AdminDBs, err = factory.NewAdminDBs()
+	s.fatalOnError("NewAdminDBs ", err)
+
+	s.SetupPersistence()
 
 	s.TaskMgr, err = factory.NewTaskManager()
 	s.fatalOnError("NewTaskManager", err)
@@ -299,6 +289,45 @@ func (s *TestBase) Setup() {
 	queue, err := factory.NewDomainReplicationQueueManager()
 	s.fatalOnError("Create DomainReplicationQueue", err)
 	s.DomainReplicationQueueMgr = queue
+}
+
+func (s *TestBase) SetupPersistence() {
+	for _, adminDB := range s.AdminDBs {
+		s.SetupDB(adminDB)
+	}
+}
+
+func (s *TestBase) SetupDB(adminDB persistence.AdminDB) {
+	setup, err := adminDB.CreateSetupDB()
+	if err != nil {
+		s.fatalOnError("Failed to connect to DB", err)
+		return
+	}
+	defer setup.Close()
+	alreadySetup, err := setup.IsSetup(s.T().Context())
+	if err != nil {
+		s.fatalOnError("Failed to check for DB", err)
+	}
+	// We might have multiple AdminDBs pointing to the same physical DB, that's okay
+	if !alreadySetup {
+		err = setup.Setup(s.T().Context(), DBSetupOptions)
+		s.fatalOnError("Failed to setup DB", err)
+	}
+	// If the AdminDB supports schema management we need to install it, even if the DB already exists
+	if adminDB.SupportsSchema() {
+		schemaDB, err := adminDB.CreateSchemaDB()
+		s.fatalOnError("Failed to get schemaDB", err)
+		defer schemaDB.Close()
+		// In tests we skip setting up schema versioning and just want to install the "current" schema
+		// We therefore get the update that skips to the latest version, and we force apply it.
+		// It's not possible to do schema versioning within persistence tests because we run both the execution
+		// and visibility stores in the same DB, which isn't supported in production because the schema versioning
+		// is keyed by DB name.
+		latest, err := schemaDB.LatestSchema().SkipToLatest()
+		s.fatalOnError("Failed to get latest schema", err)
+		err = schemaDB.ForceApplySchema(s.T().Context(), latest)
+		s.fatalOnError("Failed to force apply schema", err)
+	}
 }
 
 func (s *TestBase) fatalOnError(msg string, err error) {
@@ -1882,7 +1911,17 @@ func (s *TestBase) CompleteTask(ctx context.Context, domainID, taskList string, 
 func (s *TestBase) TearDownWorkflowStore() {
 	s.PersistenceFactory.Close()
 
-	s.DefaultTestCluster.TearDownTestDatabase()
+	for _, adminDB := range s.AdminDBs {
+		setup, err := adminDB.CreateSetupDB()
+		if err != nil {
+			s.Logger.Warn("Failed to connect to DB", tag.Error(err))
+			continue
+		}
+		err = setup.Teardown(s.T().Context())
+		if err != nil {
+			s.Logger.Warn("Failed to tear down DB", tag.Error(err))
+		}
+	}
 }
 
 // GetNextSequenceNumber generates a unique sequence number for can be used for transfer queue taskId

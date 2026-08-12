@@ -701,6 +701,25 @@ func (c *Config) fillDefaults() {
 	}
 }
 
+func (s *SQL) SplitMultipleDatabases() []*SQL {
+	if !s.UseMultipleDatabases {
+		return []*SQL{s}
+	}
+	result := make([]*SQL, 0, len(s.MultipleDatabasesConfig))
+	for _, config := range s.MultipleDatabasesConfig {
+		baseCopy := *s
+		baseCopy.NumShards = 1
+		baseCopy.UseMultipleDatabases = false
+		baseCopy.MultipleDatabasesConfig = nil
+		baseCopy.DatabaseName = config.DatabaseName
+		baseCopy.ConnectAddr = config.ConnectAddr
+		baseCopy.User = config.User
+		baseCopy.Password = config.Password
+		result = append(result, &baseCopy)
+	}
+	return result
+}
+
 // String converts the config object into a string
 func (c *Config) String() string {
 	out, _ := json.MarshalIndent(c, "", "    ")

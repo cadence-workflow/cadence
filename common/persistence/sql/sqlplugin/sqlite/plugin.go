@@ -32,10 +32,12 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
+	"github.com/uber/cadence/schema/sqlite"
 )
 
 const (
@@ -62,6 +64,17 @@ func (p *plugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
 // CreateAdminDB wraps createDB to return an instance of sqlplugin.AdminDB
 func (p *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
 	return p.createDB(cfg)
+}
+
+func (p *plugin) GetSchema(dbType persistence.DBType) (persistence.Schema, error) {
+	switch dbType {
+	case persistence.DBTypeDefault:
+		return sqlite.DefaultSchema, nil
+	case persistence.DBTypeVisibility:
+		return sqlite.VisibilitySchema, nil
+	default:
+		return nil, fmt.Errorf("unknown db type: %v", dbType)
+	}
 }
 
 // createDB create a new instance of DB
@@ -118,15 +131,11 @@ func (p *plugin) createDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 	return db, nil
 }
 
-const testSchemaDir = "schema/sqlite"
-
 // GetTestClusterOption returns a test cluster option for sqlite plugin
 // It uses a temporary directory for the database name
 func GetTestClusterOption() *pt.TestBaseOptions {
 	return &pt.TestBaseOptions{
 		DBPluginName: PluginName,
 		DBName:       path.Join(os.TempDir(), uuid.New().String()),
-		SchemaDir:    testSchemaDir,
-		StoreType:    config.StoreTypeSQL,
 	}
 }

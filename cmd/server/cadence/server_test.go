@@ -90,7 +90,7 @@ func (s *ServerSuite) TestServerStartup() {
 
 	// set up sqlite persistence layer and apply schema to sqlite db
 	testBase := pt.NewTestBaseWithSQL(s.T(), sqlite.GetTestClusterOption())
-	cfg.Persistence = testBase.Config()
+	cfg.Persistence = testBase.PersistenceConfig
 	testBase.Setup()
 
 	s.T().Logf("config=\n%v\n", cfg.String())

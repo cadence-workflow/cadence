@@ -68,9 +68,8 @@ func TestNDCIntegrationTestSuite(t *testing.T) {
 	clusterConfigs[1].WorkerConfig = &host.WorkerConfig{}
 	testCluster := host.NewPersistenceTestCluster(t, clusterConfigs[0])
 	params := NDCIntegrationTestSuiteParams{
-		ClusterConfigs:        clusterConfigs,
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
+		ClusterConfigs:    clusterConfigs,
+		PersistenceConfig: testCluster,
 	}
 	s := NewNDCIntegrationTestSuite(params)
 	suite.Run(t, s)
@@ -107,10 +106,9 @@ func (s *NDCIntegrationTestSuite) SetupSuite() {
 		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
 	}
 	params := pt.TestBaseParams{
-		DefaultTestCluster:    s.defaultTestCluster,
-		VisibilityTestCluster: s.VisibilityTestCluster,
-		ClusterMetadata:       clusterMetadata,
-		DynamicConfiguration:  dc,
+		PersistenceConfig:    s.persistenceConfig,
+		ClusterMetadata:      clusterMetadata,
+		DynamicConfiguration: dc,
 	}
 	cluster, err := host.NewCluster(s.T(), s.clusterConfigs[0], s.logger.WithTags(tag.ClusterName(clusterName[0])), params)
 	s.Require().NoError(err)

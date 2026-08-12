@@ -35,13 +35,8 @@ type (
 	// Plugin defines the interface for any NoSQL database that needs to implement
 	Plugin interface {
 		CreateDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (DB, error)
-		CreateAdminDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (AdminDB, error)
-	}
-
-	// AdminDB is for tooling and testing
-	AdminDB interface {
-		SetupTestDatabase(schemaBaseDir string, replicas int) error
-		TeardownTestDatabase() error
+		SetupDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (persistence.SetupDB, error)
+		SchemaDB(dbType persistence.DBType, cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (persistence.SchemaDB, error)
 	}
 
 	// DB defines the API for regular NoSQL operations of a Cadence server

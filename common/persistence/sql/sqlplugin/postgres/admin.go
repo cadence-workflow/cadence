@@ -29,6 +29,10 @@ import (
 )
 
 const (
+	schemaVersionTableName       = "schema_version"
+	schemaUpdateHistoryTableName = "schema_update_history"
+	hasTableQuery                = `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name=$1`
+
 	readSchemaVersionQuery = `SELECT curr_version from schema_version where db_name=$1`
 
 	writeSchemaVersionQuery = `INSERT into schema_version(db_name, creation_time, curr_version, min_compatible_version) VALUES ($1,$2,$3,$4)
@@ -39,12 +43,12 @@ const (
 
 	writeSchemaUpdateHistoryQuery = `INSERT into schema_update_history(year, month, update_time, old_version, new_version, manifest_md5, description) VALUES($1,$2,$3,$4,$5,$6,$7)`
 
-	createSchemaVersionTableQuery = `CREATE TABLE schema_version(db_name VARCHAR(255) not null PRIMARY KEY, ` +
+	createSchemaVersionTableQuery = `CREATE TABLE IF NOT EXISTS schema_version(db_name VARCHAR(255) not null PRIMARY KEY, ` +
 		`creation_time TIMESTAMP, ` +
 		`curr_version VARCHAR(64), ` +
 		`min_compatible_version VARCHAR(64));`
 
-	createSchemaUpdateHistoryTableQuery = `CREATE TABLE schema_update_history(` +
+	createSchemaUpdateHistoryTableQuery = `CREATE TABLE IF NOT EXISTS schema_update_history(` +
 		`year int not null, ` +
 		`month int not null, ` +
 		`update_time TIMESTAMP not null, ` +
@@ -59,12 +63,38 @@ const (
 	// TODO https://github.com/uber/cadence/issues/2893
 	createDatabaseQuery = "CREATE database %v"
 
-	dropDatabaseQuery = "Drop database %v"
+	hasDatabaseQuery = "SELECT COUNT(*) FROM pg_catalog.pg_database WHERE datname=$1"
+
+	dropDatabaseQuery = "DROP DATABASE IF EXISTS %v"
 
 	listTablesQuery = "select table_name from information_schema.tables where table_schema='public'"
 
-	dropTableQuery = "DROP TABLE %v"
+	dropTableQuery = "DROP TABLE IF EXISTS %v"
 )
+
+// HasSchemaVersionTables checks if schema metadata tables exist.
+func (pdb *db) HasSchemaVersionTables() (bool, error) {
+	hasVersionTable, err := pdb.hasTable(schemaVersionTableName)
+	if err != nil || !hasVersionTable {
+		return false, err
+	}
+
+	hasHistoryTable, err := pdb.hasTable(schemaUpdateHistoryTableName)
+	if err != nil || !hasHistoryTable {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (pdb *db) hasTable(name string) (bool, error) {
+	var count int
+	err := pdb.driver.GetForSchemaQuery(sqlplugin.DbShardUndefined, &count, hasTableQuery, name)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
 
 // CreateSchemaVersionTables sets up the schema version tables
 func (pdb *db) CreateSchemaVersionTables() error {
@@ -128,6 +158,15 @@ func (pdb *db) DropAllTables(database string) error {
 // CreateDatabase creates a database if it doesn't exist
 func (pdb *db) CreateDatabase(name string) error {
 	return pdb.ExecSchemaOperationQuery(context.Background(), fmt.Sprintf(createDatabaseQuery, name))
+}
+
+func (pdb *db) DatabaseExists(name string) (bool, error) {
+	var count int
+	err := pdb.driver.GetForSchemaQuery(sqlplugin.DbShardUndefined, &count, hasDatabaseQuery, name)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // DropDatabase drops a database

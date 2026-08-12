@@ -75,6 +75,21 @@ func (mr *MockPluginMockRecorder) CreateDB(cfg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDB", reflect.TypeOf((*MockPlugin)(nil).CreateDB), cfg)
 }
 
+// GetSchema mocks base method.
+func (m *MockPlugin) GetSchema(dbType persistence.DBType) (persistence.Schema, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSchema", dbType)
+	ret0, _ := ret[0].(persistence.Schema)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSchema indicates an expected call of GetSchema.
+func (mr *MockPluginMockRecorder) GetSchema(dbType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchema", reflect.TypeOf((*MockPlugin)(nil).GetSchema), dbType)
+}
+
 // MocktableCRUD is a mock of tableCRUD interface.
 type MocktableCRUD struct {
 	ctrl     *gomock.Controller
@@ -1810,6 +1825,21 @@ func (mr *MockadminCRUDMockRecorder) CreateSchemaVersionTables() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSchemaVersionTables", reflect.TypeOf((*MockadminCRUD)(nil).CreateSchemaVersionTables))
 }
 
+// DatabaseExists mocks base method.
+func (m *MockadminCRUD) DatabaseExists(database string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DatabaseExists", database)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DatabaseExists indicates an expected call of DatabaseExists.
+func (mr *MockadminCRUDMockRecorder) DatabaseExists(database any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseExists", reflect.TypeOf((*MockadminCRUD)(nil).DatabaseExists), database)
+}
+
 // DropAllTables mocks base method.
 func (m *MockadminCRUD) DropAllTables(database string) error {
 	m.ctrl.T.Helper()
@@ -1869,6 +1899,21 @@ func (mr *MockadminCRUDMockRecorder) ExecSchemaOperationQuery(ctx, stmt any, arg
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, stmt}, args...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecSchemaOperationQuery", reflect.TypeOf((*MockadminCRUD)(nil).ExecSchemaOperationQuery), varargs...)
+}
+
+// HasSchemaVersionTables mocks base method.
+func (m *MockadminCRUD) HasSchemaVersionTables() (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasSchemaVersionTables")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasSchemaVersionTables indicates an expected call of HasSchemaVersionTables.
+func (mr *MockadminCRUDMockRecorder) HasSchemaVersionTables() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSchemaVersionTables", reflect.TypeOf((*MockadminCRUD)(nil).HasSchemaVersionTables))
 }
 
 // ListTables mocks base method.
@@ -5558,6 +5603,21 @@ func (mr *MockAdminDBMockRecorder) CreateSchemaVersionTables() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSchemaVersionTables", reflect.TypeOf((*MockAdminDB)(nil).CreateSchemaVersionTables))
 }
 
+// DatabaseExists mocks base method.
+func (m *MockAdminDB) DatabaseExists(database string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DatabaseExists", database)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DatabaseExists indicates an expected call of DatabaseExists.
+func (mr *MockAdminDBMockRecorder) DatabaseExists(database any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseExists", reflect.TypeOf((*MockAdminDB)(nil).DatabaseExists), database)
+}
+
 // DropAllTables mocks base method.
 func (m *MockAdminDB) DropAllTables(database string) error {
 	m.ctrl.T.Helper()
@@ -5617,6 +5677,21 @@ func (mr *MockAdminDBMockRecorder) ExecSchemaOperationQuery(ctx, stmt any, args 
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, stmt}, args...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecSchemaOperationQuery", reflect.TypeOf((*MockAdminDB)(nil).ExecSchemaOperationQuery), varargs...)
+}
+
+// HasSchemaVersionTables mocks base method.
+func (m *MockAdminDB) HasSchemaVersionTables() (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasSchemaVersionTables")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasSchemaVersionTables indicates an expected call of HasSchemaVersionTables.
+func (mr *MockAdminDBMockRecorder) HasSchemaVersionTables() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSchemaVersionTables", reflect.TypeOf((*MockAdminDB)(nil).HasSchemaVersionTables))
 }
 
 // ListTables mocks base method.
