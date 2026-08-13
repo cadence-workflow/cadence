@@ -204,7 +204,7 @@ func (s *IntegrationBase) waitForDomains(domains []string) error {
 	defer cancel()
 	for _, domain := range domains {
 		for {
-			_, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(domain)})
+			_, err := s.TestCluster.host.GetDomainCache().GetDomain(domain)
 			if err == nil {
 				break
 			}
@@ -317,8 +317,34 @@ func (s *IntegrationBase) RegisterDomain(
 }
 
 func (s *IntegrationBase) domainCacheRefresh(domainNames ...string) {
+	// get current notification versions
+	versions := make(map[string]int64)
+	for _, domain := range domainNames {
+		if entry, err := s.TestCluster.host.GetDomainCache().GetDomain(domain); err == nil {
+			versions[domain] = entry.GetNotificationVersion()
+		} else {
+			versions[domain] = -1
+		}
+	}
+
 	s.TestClusterConfig.TimeSource.Advance(cache.DomainCacheRefreshInterval + time.Second)
-	s.Require().NoError(s.waitForDomains(domainNames))
+
+	// poll until versions are greater
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	for _, domain := range domainNames {
+		expected := versions[domain]
+		for {
+			entry, err := s.TestCluster.host.GetDomainCache().GetDomain(domain)
+			if err == nil && entry.GetNotificationVersion() > expected {
+				break
+			}
+			if ctx.Err() != nil {
+				s.Require().NoError(ctx.Err(), "timeout waiting for domain cache refresh for domain %s", domain)
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 }
 
 func (s *IntegrationBase) RandomizeStr(id string) string {
