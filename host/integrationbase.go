@@ -314,8 +314,9 @@ func (s *IntegrationBase) RegisterDomain(
 		ActiveClusters:                         activeClusters,
 		IsGlobalDomain:                         isGlobalDomain,
 	})
-}
-
+// domainCacheRefresh forces the in-memory domain cache to refresh from persistence by advancing the mock clock.
+// Note: This helper polls until the domain's NotificationVersion strictly increases. It must only be called
+// when an underlying domain change (e.g. registration or UpdateDomain) has occurred; otherwise, it will time out.
 func (s *IntegrationBase) domainCacheRefresh(domainNames ...string) {
 	// get current notification versions
 	versions := make(map[string]int64)
