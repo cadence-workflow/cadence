@@ -96,7 +96,7 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) SetupSuite() {
 	s.DomainName = s.RandomizeStr("integration-test-domain")
 	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
-	s.domainCacheRefresh()
+	s.domainCacheRefresh(s.DomainName)
 }
 
 func (s *WorkflowIDInternalRateLimitIntegrationSuite) SetupTest() {

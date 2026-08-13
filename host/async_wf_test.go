@@ -117,7 +117,7 @@ func (s *AsyncWFIntegrationSuite) SetupSuite() {
 	s.SecondaryDomainName = s.RandomizeStr("unused-test-domain")
 	s.Require().NoError(s.RegisterDomain(s.SecondaryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
-	s.domainCacheRefresh()
+	s.domainCacheRefresh(s.DomainName, s.SecondaryDomainName)
 }
 
 func (s *AsyncWFIntegrationSuite) SetupTest() {
@@ -185,7 +185,7 @@ func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync_SLOW() {
 					t.Fatalf("UpdateDomainAsyncWorkflowConfiguraton() failed: %v", err)
 				}
 
-				s.domainCacheRefresh()
+				s.domainCacheRefresh(s.DomainName)
 			}
 
 			if tc.secondaryCfg != nil {
@@ -197,7 +197,7 @@ func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync_SLOW() {
 					t.Fatalf("UpdateDomainAsyncWorkflowConfiguraton() failed: %v", err)
 				}
 
-				s.domainCacheRefresh()
+				s.domainCacheRefresh(s.DomainName)
 			}
 
 			startTime := s.TestClusterConfig.TimeSource.Now().UnixNano()

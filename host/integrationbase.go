@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"go.uber.org/yarpc/transport/tchannel"
 	"gopkg.in/yaml.v2"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
@@ -142,34 +144,77 @@ func (s *IntegrationBase) setupSuite() {
 	}
 	s.TestRawHistoryDomainName = "TestRawHistoryDomain"
 	s.DomainName = s.RandomizeStr("integration-test-domain")
-	s.Require().NoError(
-		s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
-	s.Require().NoError(
-		s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 	s.ForeignDomainName = s.RandomizeStr("integration-foreign-test-domain")
-	s.Require().NoError(
-		s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
-
-	s.Require().NoError(s.registerArchivalDomain())
 	s.ActiveActiveDomainName = s.RandomizeStr("integration-active-active-test-domain")
-	s.Require().NoError(s.RegisterDomain(s.ActiveActiveDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", &types.ActiveClusters{
-		AttributeScopes: map[string]types.ClusterAttributeScope{
-			"region": {
-				ClusterAttributes: map[string]types.ActiveClusterInfo{
-					"us-east": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
-				},
-			},
-			"city": {
-				ClusterAttributes: map[string]types.ActiveClusterInfo{
-					"tokyo": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
-				},
-			},
-		},
-	}))
 
-	// this sleep is necessary because domainv2 cache gets refreshed in the
-	// background only every domainCacheRefreshInterval period
-	time.Sleep(cache.DomainCacheRefreshInterval + time.Second)
+	var wg sync.WaitGroup
+	errCh := make(chan error, 5)
+
+	registerDomain := func(name string, f func() error) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := f(); err != nil {
+				errCh <- fmt.Errorf("failed to register domain %s: %w", name, err)
+			}
+		}()
+	}
+
+	registerDomain(s.DomainName, func() error {
+		return s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain(s.TestRawHistoryDomainName, func() error {
+		return s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain(s.ForeignDomainName, func() error {
+		return s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain("ArchivalDomain", func() error {
+		return s.registerArchivalDomain()
+	})
+	registerDomain(s.ActiveActiveDomainName, func() error {
+		return s.RegisterDomain(s.ActiveActiveDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", &types.ActiveClusters{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-east": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
+					},
+				},
+				"city": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"tokyo": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
+					},
+				},
+			},
+		})
+	})
+
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		s.Require().NoError(err)
+	}
+
+	domains := []string{s.DomainName, s.TestRawHistoryDomainName, s.ForeignDomainName, s.ArchivalDomainName, s.ActiveActiveDomainName}
+	s.Require().NoError(s.waitForDomains(domains))
+}
+
+func (s *IntegrationBase) waitForDomains(domains []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	for _, domain := range domains {
+		for {
+			_, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(domain)})
+			if err == nil {
+				break
+			}
+			if ctx.Err() != nil {
+				return fmt.Errorf("timeout waiting for domain %s: %w", domain, err)
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	return nil
 }
 
 func (s *IntegrationBase) SetupLogger() {
@@ -271,10 +316,9 @@ func (s *IntegrationBase) RegisterDomain(
 	})
 }
 
-func (s *IntegrationBase) domainCacheRefresh() {
+func (s *IntegrationBase) domainCacheRefresh(domainNames ...string) {
 	s.TestClusterConfig.TimeSource.Advance(cache.DomainCacheRefreshInterval + time.Second)
-	// this sleep is necessary to yield execution to other goroutines. not 100% guaranteed to work
-	time.Sleep(2 * time.Second)
+	s.Require().NoError(s.waitForDomains(domainNames))
 }
 
 func (s *IntegrationBase) RandomizeStr(id string) string {
