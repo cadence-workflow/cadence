@@ -782,6 +782,21 @@ func (q *cachedQueueReader) emitInjectStatusCount(status string, count int64) {
 	q.metrics.Tagged(metrics.StatusTag(status)).AddCounter(metrics.CachedQueueInjectAttemptCounter, count)
 }
 
+// resolveInclusiveMinTaskKey returns the effective InclusiveMinTaskKey for req, accounting for
+// the NextPageToken/NextTaskKey pagination-continuation override in GetTaskProgress. The second
+// return value is false only when NextPageToken is set but NextTaskKey was never populated — an
+// edge case callers should handle by delegating to the base reader.
+func resolveInclusiveMinTaskKey(req *GetTaskRequest) (persistence.HistoryTaskKey, bool) {
+	inclusiveMinTaskKey := req.Progress.Range.InclusiveMinTaskKey
+	if req.Progress.NextPageToken != nil {
+		if req.Progress.NextTaskKey.Equal(persistence.MinimumHistoryTaskKey) {
+			return persistence.HistoryTaskKey{}, false
+		}
+		inclusiveMinTaskKey = req.Progress.NextTaskKey
+	}
+	return inclusiveMinTaskKey, true
+}
+
 // GetTask serves tasks from the cache when the starting key is covered.
 // Disabled mode bypasses the cache entirely.
 func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*GetTaskResponse, error) {
@@ -794,18 +809,12 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 		return q.base.GetTask(ctx, req)
 	}
 
-	inclusiveMinTaskKey := req.Progress.Range.InclusiveMinTaskKey
-	exclusiveMaxTaskKey := req.Progress.Range.ExclusiveMaxTaskKey
-
-	// When NextPageToken is set, we need to use NextTaskKey as the starting point
-	if req.Progress.NextPageToken != nil {
-		// If NextTaskKey is not set, it delegates to the base reader to handle this edge case
-		if req.Progress.NextTaskKey.Equal(persistence.MinimumHistoryTaskKey) {
-			q.logger.Info("NextPageToken is set but NextTaskKey is not set, delegating to base reader", tag.Dynamic("getTaskRequest", req))
-			return q.base.GetTask(ctx, req)
-		}
-		inclusiveMinTaskKey = req.Progress.NextTaskKey
+	inclusiveMinTaskKey, ok := resolveInclusiveMinTaskKey(req)
+	if !ok {
+		q.logger.Info("NextPageToken is set but NextTaskKey is not set, delegating to base reader", tag.Dynamic("getTaskRequest", req))
+		return q.base.GetTask(ctx, req)
 	}
+	exclusiveMaxTaskKey := req.Progress.Range.ExclusiveMaxTaskKey
 
 	q.mu.RLock()
 	covered := q.isRangeCovered(inclusiveMinTaskKey, exclusiveMaxTaskKey)
@@ -955,7 +964,7 @@ func (q *cachedQueueReader) getTaskInShadow(
 		)
 		return dbResp, err
 	}
-	result := q.findMismatchesInShadow(cacheResp, dbResp)
+	result := q.findMismatchesInShadow(cacheResp, dbResp, req)
 	q.reportShadowComparison(result, logTags)
 	return dbResp, nil
 }
@@ -994,6 +1003,13 @@ type TaskMismatches struct {
 	Extra []shadowMismatchTaskInfo `json:"extra,omitempty"`
 	// Missed holds tasks present in the DB response but absent from the cache snapshot.
 	Missed []shadowMismatchTaskInfo `json:"missed,omitempty"`
+	// TaskIDBoundaryNoise holds DB-only tasks that are not real mismatches: Cassandra's timer
+	// task query range-filters only on scheduledTime, never taskID, so at a shared boundary
+	// timestamp the DB can return tasks below the requested floor's taskID that the (correctly,
+	// more strictly filtered) cache excludes. A task's rangeID is independent of this check, so
+	// it is bucketed the same way Missed/Extra are. Kept separate from Missed so it doesn't
+	// affect mismatch severity or CachedQueueShadowMismatchCounter, while remaining visible.
+	TaskIDBoundaryNoise []shadowMismatchTaskInfo `json:"taskIDBoundaryNoise,omitempty"`
 }
 
 func (m TaskMismatches) isEmpty() bool {
@@ -1004,6 +1020,7 @@ func (m TaskMismatches) cap() TaskMismatches {
 	m.RangeIDs = capShadowMismatchSlice(m.RangeIDs)
 	m.Extra = capShadowMismatchSlice(m.Extra)
 	m.Missed = capShadowMismatchSlice(m.Missed)
+	m.TaskIDBoundaryNoise = capShadowMismatchSlice(m.TaskIDBoundaryNoise)
 	return m
 }
 
@@ -1094,10 +1111,28 @@ func (q *cachedQueueReader) emitShadowMismatchMetrics(result findMismatchesInSha
 // at creation and immutable) against the shard's CurrentRangeID: greater into NewRange,
 // equal into CurrentRange, less into PreviousRange. DB tasks missing from the cache land
 // in the bucket's Missed field; cache tasks missing from the DB response land in Extra.
+//
+// A DB task missing from the cache is first checked against req's effective InclusiveMinTaskKey
+// (resolved the same way GetTask resolves it, via resolveInclusiveMinTaskKey): Cassandra's timer
+// task query enforces scheduledTime >= that floor's scheduledTime as a hard bound but never
+// filters on taskID, so the only way a DB task's key can compare less than the floor is a shared
+// boundary timestamp with a lower taskID — the cache correctly excludes it under its own
+// (taskID-inclusive) filtering, and it is not a real mismatch. Such tasks land in the same
+// rangeID bucket's TaskIDBoundaryNoise field instead of its Missed field: the boundary-noise
+// check is orthogonal to which range the task's taskID encodes, so it can occur in any bucket.
 func (q *cachedQueueReader) findMismatchesInShadow(
 	cacheResp *GetTaskResponse,
 	dbResp *GetTaskResponse,
+	req *GetTaskRequest,
 ) findMismatchesInShadowResult {
+	inclusiveMinTaskKey, ok := resolveInclusiveMinTaskKey(req)
+	if !ok {
+		// Unreachable in practice: GetTask already returned early via the base reader for this
+		// same req before getTaskInShadow could be reached. Fall back to the safe default of
+		// never suppressing a mismatch as boundary noise.
+		inclusiveMinTaskKey = persistence.MinimumHistoryTaskKey
+	}
+
 	cacheTaskKeys := make(map[int64]struct{}, len(cacheResp.Tasks))
 	for _, t := range cacheResp.Tasks {
 		cacheTaskKeys[t.GetTaskID()] = struct{}{}
@@ -1136,6 +1171,10 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 		}
 
 		b := bucket(q.getTaskRangeID(t.GetTaskID()))
+		if t.GetTaskKey().Less(inclusiveMinTaskKey) {
+			b.TaskIDBoundaryNoise = append(b.TaskIDBoundaryNoise, toShadowMismatchTaskInfo(t))
+			continue
+		}
 		b.Missed = append(b.Missed, toShadowMismatchTaskInfo(t))
 	}
 
