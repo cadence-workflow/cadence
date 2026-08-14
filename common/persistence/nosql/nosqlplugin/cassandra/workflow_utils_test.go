@@ -1879,19 +1879,19 @@ func TestUpdateTimerInfos(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc        string
-		shardID     int
-		domainID    string
-		workflowID  string
-		runID       string
-		timerInfos  map[string]*persistence.TimerInfo
+		desc             string
+		shardID          int
+		domainID         string
+		workflowID       string
+		runID            string
+		timerInfos       map[string]*persistence.TimerInfo
 		deleteInfos      []string
 		rewriteThreshold int
 		// expectations
 		wantQueries []string
 	}{
 		{
-			desc:       "update and delete timer infos with sentinel",			shardID:    1000,
+			desc: "update and delete timer infos with sentinel", shardID: 1000,
 			domainID:   "domain1",
 			workflowID: "workflow1",
 			runID:      "runid1",
@@ -1904,7 +1904,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 					TaskStatus: 1,
 				},
 			},
-			deleteInfos: []string{"timer2"},
+			deleteInfos:      []string{"timer2"},
 			rewriteThreshold: 100,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
@@ -1933,7 +1933,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 					TaskStatus: 1,
 				},
 			},
-			deleteInfos: []string{"timer2"},
+			deleteInfos:      []string{"timer2"},
 			rewriteThreshold: 0,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
@@ -2090,12 +2090,12 @@ func TestUpdateActivityInfos(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc          string
-		shardID       int
-		domainID      string
-		workflowID    string
-		runID         string
-		activityInfos map[int64]*persistence.InternalActivityInfo
+		desc             string
+		shardID          int
+		domainID         string
+		workflowID       string
+		runID            string
+		activityInfos    map[int64]*persistence.InternalActivityInfo
 		deleteInfos      []int64
 		rewriteThreshold int
 		// expectations
@@ -2134,7 +2134,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					LastFailureReason:      "retry reason",
 				},
 			},
-			deleteInfos: []int64{2},
+			deleteInfos:      []int64{2},
 			rewriteThreshold: 100,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
@@ -2191,7 +2191,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					LastFailureReason:      "retry reason",
 				},
 			},
-			deleteInfos: []int64{2},
+			deleteInfos:      []int64{2},
 			rewriteThreshold: 0,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
@@ -2239,7 +2239,7 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc                string
+		desc       string
 		shardID    int
 		domainID   string
 		workflowID string
@@ -2431,7 +2431,7 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 					},
 				},
 			},
-			wantQueries:         3,
+			wantQueries: 3,
 		},
 	}
 
@@ -2555,7 +2555,7 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 		t.Fatal(err)
 	}
 	tests := []struct {
-		desc                string
+		desc       string
 		shardID    int
 		domainID   string
 		workflowID string
@@ -2683,10 +2683,10 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 			wantQueries: 8,
 		},
 		{
-			desc:                "ok with sentinel deletes",
-			shardID:             1000,
-			domainID:            "domain1",
-			workflowID:          "workflow1",
+			desc:       "ok with sentinel deletes",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
 			execution: &nosqlplugin.WorkflowExecutionRequest{
 				EventBufferWriteMode: nosqlplugin.EventBufferWriteModeClear,
 				MapsWriteMode:        nosqlplugin.WorkflowExecutionMapsWriteModeUpdate,

@@ -743,11 +743,11 @@ func TestSelectWorkflowExecution(t *testing.T) {
 				TimerInfos: map[string]*persistence.TimerInfo{
 					"t1": {TimerID: "t1", StartedID: 5},
 				},
-				ChildExecutionInfos:    map[int64]*persistence.InternalChildExecutionInfo{},
-				RequestCancelInfos:     map[int64]*persistence.RequestCancelInfo{},
-				SignalInfos:            map[int64]*persistence.SignalInfo{},
-				SignalRequestedIDs:     map[string]struct{}{},
-				BufferedEvents:         []*persistence.DataBlob{},
+				ChildExecutionInfos: map[int64]*persistence.InternalChildExecutionInfo{},
+				RequestCancelInfos:  map[int64]*persistence.RequestCancelInfo{},
+				SignalInfos:         map[int64]*persistence.SignalInfo{},
+				SignalRequestedIDs:  map[string]struct{}{},
+				BufferedEvents:      []*persistence.DataBlob{},
 			},
 		},
 	}
