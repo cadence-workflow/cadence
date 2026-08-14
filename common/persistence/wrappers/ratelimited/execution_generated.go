@@ -126,8 +126,8 @@ func (c *ratelimitedExecutionManager) GetActiveClusterSelectionPolicy(ctx contex
 	return c.wrapped.GetActiveClusterSelectionPolicy(ctx, request)
 }
 
-func (c *ratelimitedExecutionManager) GetActivityMapRewriteProbabilityRate() (i1 int) {
-	return c.wrapped.GetActivityMapRewriteProbabilityRate()
+func (c *ratelimitedExecutionManager) GetActivityMapRewriteSampleRate() (i1 int) {
+	return c.wrapped.GetActivityMapRewriteSampleRate()
 }
 
 func (c *ratelimitedExecutionManager) GetCurrentExecution(ctx context.Context, request *_sourcePersistence.GetCurrentExecutionRequest) (gp1 *_sourcePersistence.GetCurrentExecutionResponse, err error) {
@@ -166,8 +166,8 @@ func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Con
 	return c.wrapped.GetReplicationTasksFromDLQ(ctx, request)
 }
 
-func (c *ratelimitedExecutionManager) GetTimerMapRewriteProbabilityRate() (i1 int) {
-	return c.wrapped.GetTimerMapRewriteProbabilityRate()
+func (c *ratelimitedExecutionManager) GetTimerMapRewriteSampleRate() (i1 int) {
+	return c.wrapped.GetTimerMapRewriteSampleRate()
 }
 
 func (c *ratelimitedExecutionManager) GetWorkflowExecution(ctx context.Context, request *_sourcePersistence.GetWorkflowExecutionRequest) (gp1 *_sourcePersistence.GetWorkflowExecutionResponse, err error) {

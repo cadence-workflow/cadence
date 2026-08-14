@@ -1879,15 +1879,15 @@ func TestUpdateTimerInfos(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc                   string
-		shardID                int
-		domainID               string
-		workflowID             string
-		runID                  string
-		timerInfos             map[string]*persistence.TimerInfo
-		deleteInfos            []string
-		rewriteInfos           map[string]*persistence.TimerInfo
-		rewriteProbabilityRate int
+		desc              string
+		shardID           int
+		domainID          string
+		workflowID        string
+		runID             string
+		timerInfos        map[string]*persistence.TimerInfo
+		deleteInfos       []string
+		rewriteInfos      map[string]*persistence.TimerInfo
+		rewriteSampleRate int
 		// expectations
 		wantQueries []string
 	}{
@@ -1905,8 +1905,8 @@ func TestUpdateTimerInfos(t *testing.T) {
 					TaskStatus: 1,
 				},
 			},
-			deleteInfos:            []string{"timer2"},
-			rewriteProbabilityRate: 100,
+			deleteInfos:       []string{"timer2"},
+			rewriteSampleRate: 100,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
 					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
@@ -1934,8 +1934,8 @@ func TestUpdateTimerInfos(t *testing.T) {
 					TaskStatus: 1,
 				},
 			},
-			deleteInfos:            []string{"timer2"},
-			rewriteProbabilityRate: 0,
+			deleteInfos:       []string{"timer2"},
+			rewriteSampleRate: 0,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
 					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
@@ -1972,7 +1972,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 					TaskStatus: 1,
 				},
 			},
-			rewriteProbabilityRate: 100,
+			rewriteSampleRate: 100,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map = map[` +
 					`timer1:map[expiry_time:2023-12-19 22:08:41 +0000 UTC started_id:2 task_id:1 timer_id:timer1 version:1]` +
@@ -1987,7 +1987,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, tc.rewriteInfos, tc.rewriteProbabilityRate, FixedTime)
+			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, tc.rewriteInfos, tc.rewriteSampleRate, FixedTime)
 			if err != nil {
 				t.Fatalf("updateTimerInfos() error = %v", err)
 			}
@@ -2125,15 +2125,15 @@ func TestUpdateActivityInfos(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc                   string
-		shardID                int
-		domainID               string
-		workflowID             string
-		runID                  string
-		activityInfos          map[int64]*persistence.InternalActivityInfo
-		deleteInfos            []int64
-		rewriteInfos           map[int64]*persistence.InternalActivityInfo
-		rewriteProbabilityRate int
+		desc              string
+		shardID           int
+		domainID          string
+		workflowID        string
+		runID             string
+		activityInfos     map[int64]*persistence.InternalActivityInfo
+		deleteInfos       []int64
+		rewriteInfos      map[int64]*persistence.InternalActivityInfo
+		rewriteSampleRate int
 		// expectations
 		wantQueries []string
 	}{
@@ -2170,8 +2170,8 @@ func TestUpdateActivityInfos(t *testing.T) {
 					LastFailureReason:      "retry reason",
 				},
 			},
-			deleteInfos:            []int64{2},
-			rewriteProbabilityRate: 100,
+			deleteInfos:       []int64{2},
+			rewriteSampleRate: 100,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
 					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
@@ -2188,7 +2188,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
-				`UPDATE executions SET activity_map[ 2 ] = {schedule_id: 0} ` +
+				`UPDATE executions SET activity_map[ 2 ] = {schedule_id: -1} ` +
 					`, last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -2227,8 +2227,8 @@ func TestUpdateActivityInfos(t *testing.T) {
 					LastFailureReason:      "retry reason",
 				},
 			},
-			deleteInfos:            []int64{2},
-			rewriteProbabilityRate: 0,
+			deleteInfos:       []int64{2},
+			rewriteSampleRate: 0,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
 					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
@@ -2309,7 +2309,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					LastFailureReason:      "retry reason",
 				},
 			},
-			rewriteProbabilityRate: 100,
+			rewriteSampleRate: 100,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map = map[` +
 					`1:map[` +
@@ -2334,7 +2334,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, tc.rewriteInfos, tc.rewriteProbabilityRate, FixedTime)
+			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, tc.rewriteInfos, tc.rewriteSampleRate, FixedTime)
 			if err != nil {
 				t.Fatalf("updateActivityInfos() error = %v", err)
 			}

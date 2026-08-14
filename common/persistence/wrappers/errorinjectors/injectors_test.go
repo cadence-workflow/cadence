@@ -40,11 +40,11 @@ import (
 )
 
 var _staticMethods = map[string]bool{
-	"Close":                                true,
-	"GetName":                              true,
-	"GetShardID":                           true,
-	"GetActivityMapRewriteProbabilityRate": true,
-	"GetTimerMapRewriteProbabilityRate":    true,
+	"Close":                           true,
+	"GetName":                         true,
+	"GetShardID":                      true,
+	"GetActivityMapRewriteSampleRate": true,
+	"GetTimerMapRewriteSampleRate":    true,
 }
 
 var wrappers = []any{

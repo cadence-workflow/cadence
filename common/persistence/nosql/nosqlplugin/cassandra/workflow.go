@@ -161,7 +161,7 @@ func (db *CDB) UpdateWorkflowExecutionWithTasks(
 	}
 
 	if mutatedExecution != nil {
-		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, db.GetActivityMapRewriteProbabilityRate(), db.GetTimerMapRewriteProbabilityRate(), timeStamp)
+		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, db.GetActivityMapRewriteSampleRate(), db.GetTimerMapRewriteSampleRate(), timeStamp)
 		if err != nil {
 			return err
 		}
@@ -225,7 +225,7 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	aMap := result["activity_map"].(map[int64]map[string]interface{})
 	for key, value := range aMap {
 		info := parseActivityInfo(domainID, value)
-		if info.ScheduleID == 0 {
+		if info.ScheduleID == activitySentinelScheduleID {
 			continue
 		}
 		activityInfos[key] = info
@@ -236,7 +236,7 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	tMap := result["timer_map"].(map[string]map[string]interface{})
 	for key, value := range tMap {
 		info := parseTimerInfo(value)
-		if info.TimerID == "" {
+		if info.TimerID == timerSentinelTimerID {
 			continue
 		}
 		timerInfos[key] = info

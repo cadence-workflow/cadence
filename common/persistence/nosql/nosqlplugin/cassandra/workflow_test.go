@@ -559,8 +559,8 @@ func TestUpdateWorkflowExecutionWithTasks_SentinelBehavior(t *testing.T) {
 			logger := testlogger.New(t)
 			thresholdFn := func(...dynamicproperties.FilterOption) int { return tc.threshold }
 			dc := &persistence.DynamicConfiguration{
-				ActivityMapRewriteProbabilityRate: thresholdFn,
-				TimerMapRewriteProbabilityRate:    thresholdFn,
+				ActivityMapRewriteSampleRate: thresholdFn,
+				TimerMapRewriteSampleRate:    thresholdFn,
 			}
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
@@ -717,8 +717,8 @@ func TestSelectWorkflowExecution(t *testing.T) {
 					m["replication_state"] = map[string]interface{}{}
 					m["activity_map"] = map[int64]map[string]interface{}{
 						1:  {"schedule_id": int64(1)},
-						10: {"schedule_id": int64(0)},
-						20: {"schedule_id": int64(0)},
+						10: {"schedule_id": activitySentinelScheduleID},
+						20: {"schedule_id": activitySentinelScheduleID},
 					}
 					m["timer_map"] = map[string]map[string]interface{}{
 						"t1": {"timer_id": "t1", "started_id": int64(5)},

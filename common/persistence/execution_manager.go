@@ -69,12 +69,12 @@ func (m *executionManagerImpl) GetName() string {
 	return m.persistence.GetName()
 }
 
-func (m *executionManagerImpl) GetActivityMapRewriteProbabilityRate() int {
-	return m.persistence.GetActivityMapRewriteProbabilityRate()
+func (m *executionManagerImpl) GetActivityMapRewriteSampleRate() int {
+	return m.persistence.GetActivityMapRewriteSampleRate()
 }
 
-func (m *executionManagerImpl) GetTimerMapRewriteProbabilityRate() int {
-	return m.persistence.GetTimerMapRewriteProbabilityRate()
+func (m *executionManagerImpl) GetTimerMapRewriteSampleRate() int {
+	return m.persistence.GetTimerMapRewriteSampleRate()
 }
 
 // The below three APIs are related to serialization/deserialization
@@ -723,8 +723,8 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 	var rewriteTimerInfos []*TimerInfo
 	deleteActivityInfos := input.DeleteActivityInfos
 	deleteTimerInfos := input.DeleteTimerInfos
-	activityRate := m.persistence.GetActivityMapRewriteProbabilityRate()
-	timerRate := m.persistence.GetTimerMapRewriteProbabilityRate()
+	activityRate := m.persistence.GetActivityMapRewriteSampleRate()
+	timerRate := m.persistence.GetTimerMapRewriteSampleRate()
 	if input.RewriteActivityInfos != nil && activityRate > 0 && rand.Intn(activityRate) == 0 {
 		serializedRewriteActivityInfos, err = m.SerializeUpsertActivityInfos(input.RewriteActivityInfos, encoding)
 		if err != nil {

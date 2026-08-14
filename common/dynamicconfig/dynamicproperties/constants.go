@@ -1663,23 +1663,25 @@ const (
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
 
-	// ActivityMapRewriteProbabilityRate is the inverse probability of triggering a full
-	// activity map rewrite on each transaction with deletes (e.g., 100 = 1/100 chance).
-	// A value of 0 disables the optimization. 1 means rewrite every time.
+	// ActivityMapRewriteSampleRate controls how often a full activity map rewrite
+	// is triggered on transactions with deletes. A value of N means a 1-in-N chance
+	// per transaction (e.g., 100 = rewrite roughly every 100th transaction).
+	// 0 disables the optimization. 1 means rewrite every time.
 	// Currently only implemented for Cassandra.
-	// KeyName: history.activityMapRewriteProbabilityRate
+	// KeyName: history.activityMapRewriteSampleRate
 	// Value type: Int
 	// Default value: 0
-	ActivityMapRewriteProbabilityRate
+	ActivityMapRewriteSampleRate
 
-	// TimerMapRewriteProbabilityRate is the inverse probability of triggering a full
-	// timer map rewrite on each transaction with deletes (e.g., 100 = 1/100 chance).
-	// A value of 0 disables the optimization. 1 means rewrite every time.
+	// TimerMapRewriteSampleRate controls how often a full timer map rewrite
+	// is triggered on transactions with deletes. A value of N means a 1-in-N chance
+	// per transaction (e.g., 100 = rewrite roughly every 100th transaction).
+	// 0 disables the optimization. 1 means rewrite every time.
 	// Currently only implemented for Cassandra.
-	// KeyName: history.timerMapRewriteProbabilityRate
+	// KeyName: history.timerMapRewriteSampleRate
 	// Value type: Int
 	// Default value: 0
-	TimerMapRewriteProbabilityRate
+	TimerMapRewriteSampleRate
 
 	// LastIntKey must be the last one in this const group
 	LastIntKey
@@ -4599,14 +4601,14 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
 	},
-	ActivityMapRewriteProbabilityRate: {
-		KeyName:      "history.activityMapRewriteProbabilityRate",
-		Description:  "Inverse probability of triggering a full activity map rewrite per transaction with deletes (e.g. 100 = 1/100 chance). 0 disables. Cassandra only.",
+	ActivityMapRewriteSampleRate: {
+		KeyName:      "history.activityMapRewriteSampleRate",
+		Description:  "How often a full activity map rewrite is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction). 0 disables. Cassandra only.",
 		DefaultValue: 0,
 	},
-	TimerMapRewriteProbabilityRate: {
-		KeyName:      "history.timerMapRewriteProbabilityRate",
-		Description:  "Inverse probability of triggering a full timer map rewrite per transaction with deletes (e.g. 100 = 1/100 chance). 0 disables. Cassandra only.",
+	TimerMapRewriteSampleRate: {
+		KeyName:      "history.timerMapRewriteSampleRate",
+		Description:  "How often a full timer map rewrite is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction). 0 disables. Cassandra only.",
 		DefaultValue: 0,
 	},
 }

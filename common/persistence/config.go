@@ -40,8 +40,8 @@ type (
 		DomainAuditLogTTL                        dynamicproperties.DurationPropertyFnWithDomainIDFilter
 		HistoryNodeDeleteBatchSize               dynamicproperties.IntPropertyFn
 		RateLimiterBypassCallerTypes             dynamicproperties.ListPropertyFn
-		ActivityMapRewriteProbabilityRate        dynamicproperties.IntPropertyFn
-		TimerMapRewriteProbabilityRate           dynamicproperties.IntPropertyFn
+		ActivityMapRewriteSampleRate             dynamicproperties.IntPropertyFn
+		TimerMapRewriteSampleRate                dynamicproperties.IntPropertyFn
 	}
 )
 
@@ -60,7 +60,7 @@ func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration
 		DomainAuditLogTTL:                        dc.GetDurationPropertyFilteredByDomainID(dynamicproperties.DomainAuditLogTTL),
 		HistoryNodeDeleteBatchSize:               dc.GetIntProperty(dynamicproperties.HistoryNodeDeleteBatchSize),
 		RateLimiterBypassCallerTypes:             dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes),
-		ActivityMapRewriteProbabilityRate:        dc.GetIntProperty(dynamicproperties.ActivityMapRewriteProbabilityRate),
-		TimerMapRewriteProbabilityRate:           dc.GetIntProperty(dynamicproperties.TimerMapRewriteProbabilityRate),
+		ActivityMapRewriteSampleRate:             dc.GetIntProperty(dynamicproperties.ActivityMapRewriteSampleRate),
+		TimerMapRewriteSampleRate:                dc.GetIntProperty(dynamicproperties.TimerMapRewriteSampleRate),
 	}
 }

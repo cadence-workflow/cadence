@@ -121,16 +121,16 @@ func (db *CDB) executeWithConsistencyAll(q gocql.Query) error {
 	return q.Exec()
 }
 
-func (db *CDB) GetActivityMapRewriteProbabilityRate() int {
-	if db.dc != nil && db.dc.ActivityMapRewriteProbabilityRate != nil {
-		return db.dc.ActivityMapRewriteProbabilityRate()
+func (db *CDB) GetActivityMapRewriteSampleRate() int {
+	if db.dc != nil && db.dc.ActivityMapRewriteSampleRate != nil {
+		return db.dc.ActivityMapRewriteSampleRate()
 	}
 	return 0
 }
 
-func (db *CDB) GetTimerMapRewriteProbabilityRate() int {
-	if db.dc != nil && db.dc.TimerMapRewriteProbabilityRate != nil {
-		return db.dc.TimerMapRewriteProbabilityRate()
+func (db *CDB) GetTimerMapRewriteSampleRate() int {
+	if db.dc != nil && db.dc.TimerMapRewriteSampleRate != nil {
+		return db.dc.TimerMapRewriteSampleRate()
 	}
 	return 0
 }

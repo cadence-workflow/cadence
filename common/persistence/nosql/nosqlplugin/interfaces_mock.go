@@ -373,18 +373,18 @@ func (mr *MockDBMockRecorder) DeleteWorkflowExecution(ctx, shardID, domainID, wo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockDB)(nil).DeleteWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
 }
 
-// GetActivityMapRewriteProbabilityRate mocks base method.
-func (m *MockDB) GetActivityMapRewriteProbabilityRate() int {
+// GetActivityMapRewriteSampleRate mocks base method.
+func (m *MockDB) GetActivityMapRewriteSampleRate() int {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetActivityMapRewriteProbabilityRate")
+	ret := m.ctrl.Call(m, "GetActivityMapRewriteSampleRate")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// GetActivityMapRewriteProbabilityRate indicates an expected call of GetActivityMapRewriteProbabilityRate.
-func (mr *MockDBMockRecorder) GetActivityMapRewriteProbabilityRate() *gomock.Call {
+// GetActivityMapRewriteSampleRate indicates an expected call of GetActivityMapRewriteSampleRate.
+func (mr *MockDBMockRecorder) GetActivityMapRewriteSampleRate() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapRewriteProbabilityRate", reflect.TypeOf((*MockDB)(nil).GetActivityMapRewriteProbabilityRate))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapRewriteSampleRate", reflect.TypeOf((*MockDB)(nil).GetActivityMapRewriteSampleRate))
 }
 
 // GetQueueSize mocks base method.
@@ -417,18 +417,18 @@ func (mr *MockDBMockRecorder) GetTasksCount(ctx, filter any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTasksCount", reflect.TypeOf((*MockDB)(nil).GetTasksCount), ctx, filter)
 }
 
-// GetTimerMapRewriteProbabilityRate mocks base method.
-func (m *MockDB) GetTimerMapRewriteProbabilityRate() int {
+// GetTimerMapRewriteSampleRate mocks base method.
+func (m *MockDB) GetTimerMapRewriteSampleRate() int {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTimerMapRewriteProbabilityRate")
+	ret := m.ctrl.Call(m, "GetTimerMapRewriteSampleRate")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// GetTimerMapRewriteProbabilityRate indicates an expected call of GetTimerMapRewriteProbabilityRate.
-func (mr *MockDBMockRecorder) GetTimerMapRewriteProbabilityRate() *gomock.Call {
+// GetTimerMapRewriteSampleRate indicates an expected call of GetTimerMapRewriteSampleRate.
+func (mr *MockDBMockRecorder) GetTimerMapRewriteSampleRate() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapRewriteProbabilityRate", reflect.TypeOf((*MockDB)(nil).GetTimerMapRewriteProbabilityRate))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapRewriteSampleRate", reflect.TypeOf((*MockDB)(nil).GetTimerMapRewriteSampleRate))
 }
 
 // InsertConfig mocks base method.

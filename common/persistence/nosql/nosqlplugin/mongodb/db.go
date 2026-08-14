@@ -48,6 +48,6 @@ func (db *mdb) PluginName() string {
 	return PluginName
 }
 
-func (db *mdb) GetActivityMapRewriteProbabilityRate() int { return 0 }
+func (db *mdb) GetActivityMapRewriteSampleRate() int { return 0 }
 
-func (db *mdb) GetTimerMapRewriteProbabilityRate() int { return 0 }
+func (db *mdb) GetTimerMapRewriteSampleRate() int { return 0 }

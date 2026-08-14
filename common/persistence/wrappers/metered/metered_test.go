@@ -48,10 +48,10 @@ import (
 )
 
 var _staticMethods = map[string]bool{
-	"Close":                                true,
-	"GetName":                              true,
-	"GetActivityMapRewriteProbabilityRate": true,
-	"GetTimerMapRewriteProbabilityRate":    true,
+	"Close":                           true,
+	"GetName":                         true,
+	"GetActivityMapRewriteSampleRate": true,
+	"GetTimerMapRewriteSampleRate":    true,
 }
 
 // TestPersistenceMetricsLabelConsistency exercises every method of every metered

@@ -129,11 +129,11 @@ func (m *sqlExecutionStore) txExecuteShardLocked(
 	})
 }
 
-func (m *sqlExecutionStore) GetActivityMapRewriteProbabilityRate() int {
+func (m *sqlExecutionStore) GetActivityMapRewriteSampleRate() int {
 	return 0
 }
 
-func (m *sqlExecutionStore) GetTimerMapRewriteProbabilityRate() int {
+func (m *sqlExecutionStore) GetTimerMapRewriteSampleRate() int {
 	return 0
 }
 

@@ -58,14 +58,14 @@ func newNoSQLExecutionStore(
 	}, nil
 }
 
-func (d *nosqlExecutionStore) GetActivityMapRewriteProbabilityRate() int {
+func (d *nosqlExecutionStore) GetActivityMapRewriteSampleRate() int {
 	s := d.GetDefaultShard()
-	return s.db.GetActivityMapRewriteProbabilityRate()
+	return s.db.GetActivityMapRewriteSampleRate()
 }
 
-func (d *nosqlExecutionStore) GetTimerMapRewriteProbabilityRate() int {
+func (d *nosqlExecutionStore) GetTimerMapRewriteSampleRate() int {
 	s := d.GetDefaultShard()
-	return s.db.GetTimerMapRewriteProbabilityRate()
+	return s.db.GetTimerMapRewriteSampleRate()
 }
 
 func resolveRequestShardID(requestShardID *int, operation string, logger log.Logger) (int, error) {

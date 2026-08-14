@@ -965,7 +965,7 @@ func updateTimerInfos(
 	timerInfos map[string]*persistence.TimerInfo,
 	deleteInfos []string,
 	rewriteInfos map[string]*persistence.TimerInfo,
-	rewriteProbabilityRate int,
+	rewriteSampleRate int,
 	timeStamp time.Time,
 ) error {
 	if len(deleteInfos) > 0 && rewriteInfos != nil {
@@ -995,7 +995,7 @@ func updateTimerInfos(
 	}
 
 	for _, deleteInfo := range deleteInfos {
-		if rewriteProbabilityRate > 0 {
+		if rewriteSampleRate > 0 {
 			writeTimerInfoSentinel(batch, deleteInfo, shardID, domainID, workflowID, runID, timeStamp)
 		} else {
 			batch.Query(templateDeleteTimerInfoQuery,
@@ -1154,7 +1154,7 @@ func updateActivityInfos(
 	activityInfos map[int64]*persistence.InternalActivityInfo,
 	deleteInfos []int64,
 	rewriteInfos map[int64]*persistence.InternalActivityInfo,
-	rewriteProbabilityRate int,
+	rewriteSampleRate int,
 	timeStamp time.Time,
 ) error {
 	if len(deleteInfos) > 0 && rewriteInfos != nil {
@@ -1215,7 +1215,7 @@ func updateActivityInfos(
 	}
 
 	for _, deleteInfo := range deleteInfos {
-		if rewriteProbabilityRate > 0 {
+		if rewriteSampleRate > 0 {
 			writeActivityInfoSentinel(batch, deleteInfo, shardID, domainID, workflowID, runID, timeStamp)
 		} else {
 			batch.Query(templateDeleteActivityInfoQuery,
@@ -1416,8 +1416,8 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 	domainID string,
 	workflowID string,
 	execution *nosqlplugin.WorkflowExecutionRequest,
-	activityRewriteProbabilityRate int,
-	timerRewriteProbabilityRate int,
+	activityRewriteSampleRate int,
+	timerRewriteSampleRate int,
 	timeStamp time.Time,
 ) error {
 	err := updateWorkflowExecution(batch, shardID, domainID, workflowID, execution, timeStamp)
@@ -1443,11 +1443,11 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 
 	// In certain cases, some of the execution update cycles update particular columns asynchronously before reaching the final cycle.
 	// Each of these functions are updating a non-frozen column type in Cassandra table.
-	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete, execution.RewriteActivityInfos, activityRewriteProbabilityRate, timeStamp)
+	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete, execution.RewriteActivityInfos, activityRewriteSampleRate, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, execution.RewriteTimerInfos, timerRewriteProbabilityRate, timeStamp)
+	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, execution.RewriteTimerInfos, timerRewriteSampleRate, timeStamp)
 	if err != nil {
 		return err
 	}

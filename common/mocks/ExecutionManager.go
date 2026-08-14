@@ -744,12 +744,12 @@ func (_c *ExecutionManager_GetActiveClusterSelectionPolicy_Call) RunAndReturn(ru
 	return _c
 }
 
-// GetActivityMapRewriteProbabilityRate provides a mock function for the type ExecutionManager
-func (_mock *ExecutionManager) GetActivityMapRewriteProbabilityRate() int {
+// GetActivityMapRewriteSampleRate provides a mock function for the type ExecutionManager
+func (_mock *ExecutionManager) GetActivityMapRewriteSampleRate() int {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetActivityMapRewriteProbabilityRate")
+		panic("no return value specified for GetActivityMapRewriteSampleRate")
 	}
 
 	var r0 int
@@ -761,29 +761,29 @@ func (_mock *ExecutionManager) GetActivityMapRewriteProbabilityRate() int {
 	return r0
 }
 
-// ExecutionManager_GetActivityMapRewriteProbabilityRate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetActivityMapRewriteProbabilityRate'
-type ExecutionManager_GetActivityMapRewriteProbabilityRate_Call struct {
+// ExecutionManager_GetActivityMapRewriteSampleRate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetActivityMapRewriteSampleRate'
+type ExecutionManager_GetActivityMapRewriteSampleRate_Call struct {
 	*mock.Call
 }
 
-// GetActivityMapRewriteProbabilityRate is a helper method to define mock.On call
-func (_e *ExecutionManager_Expecter) GetActivityMapRewriteProbabilityRate() *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call {
-	return &ExecutionManager_GetActivityMapRewriteProbabilityRate_Call{Call: _e.mock.On("GetActivityMapRewriteProbabilityRate")}
+// GetActivityMapRewriteSampleRate is a helper method to define mock.On call
+func (_e *ExecutionManager_Expecter) GetActivityMapRewriteSampleRate() *ExecutionManager_GetActivityMapRewriteSampleRate_Call {
+	return &ExecutionManager_GetActivityMapRewriteSampleRate_Call{Call: _e.mock.On("GetActivityMapRewriteSampleRate")}
 }
 
-func (_c *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call) Run(run func()) *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call {
+func (_c *ExecutionManager_GetActivityMapRewriteSampleRate_Call) Run(run func()) *ExecutionManager_GetActivityMapRewriteSampleRate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run()
 	})
 	return _c
 }
 
-func (_c *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call) Return(n int) *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call {
+func (_c *ExecutionManager_GetActivityMapRewriteSampleRate_Call) Return(n int) *ExecutionManager_GetActivityMapRewriteSampleRate_Call {
 	_c.Call.Return(n)
 	return _c
 }
 
-func (_c *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call) RunAndReturn(run func() int) *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call {
+func (_c *ExecutionManager_GetActivityMapRewriteSampleRate_Call) RunAndReturn(run func() int) *ExecutionManager_GetActivityMapRewriteSampleRate_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1104,12 +1104,12 @@ func (_c *ExecutionManager_GetReplicationTasksFromDLQ_Call) RunAndReturn(run fun
 	return _c
 }
 
-// GetTimerMapRewriteProbabilityRate provides a mock function for the type ExecutionManager
-func (_mock *ExecutionManager) GetTimerMapRewriteProbabilityRate() int {
+// GetTimerMapRewriteSampleRate provides a mock function for the type ExecutionManager
+func (_mock *ExecutionManager) GetTimerMapRewriteSampleRate() int {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetTimerMapRewriteProbabilityRate")
+		panic("no return value specified for GetTimerMapRewriteSampleRate")
 	}
 
 	var r0 int
@@ -1121,29 +1121,29 @@ func (_mock *ExecutionManager) GetTimerMapRewriteProbabilityRate() int {
 	return r0
 }
 
-// ExecutionManager_GetTimerMapRewriteProbabilityRate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTimerMapRewriteProbabilityRate'
-type ExecutionManager_GetTimerMapRewriteProbabilityRate_Call struct {
+// ExecutionManager_GetTimerMapRewriteSampleRate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTimerMapRewriteSampleRate'
+type ExecutionManager_GetTimerMapRewriteSampleRate_Call struct {
 	*mock.Call
 }
 
-// GetTimerMapRewriteProbabilityRate is a helper method to define mock.On call
-func (_e *ExecutionManager_Expecter) GetTimerMapRewriteProbabilityRate() *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call {
-	return &ExecutionManager_GetTimerMapRewriteProbabilityRate_Call{Call: _e.mock.On("GetTimerMapRewriteProbabilityRate")}
+// GetTimerMapRewriteSampleRate is a helper method to define mock.On call
+func (_e *ExecutionManager_Expecter) GetTimerMapRewriteSampleRate() *ExecutionManager_GetTimerMapRewriteSampleRate_Call {
+	return &ExecutionManager_GetTimerMapRewriteSampleRate_Call{Call: _e.mock.On("GetTimerMapRewriteSampleRate")}
 }
 
-func (_c *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call) Run(run func()) *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call {
+func (_c *ExecutionManager_GetTimerMapRewriteSampleRate_Call) Run(run func()) *ExecutionManager_GetTimerMapRewriteSampleRate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run()
 	})
 	return _c
 }
 
-func (_c *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call) Return(n int) *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call {
+func (_c *ExecutionManager_GetTimerMapRewriteSampleRate_Call) Return(n int) *ExecutionManager_GetTimerMapRewriteSampleRate_Call {
 	_c.Call.Return(n)
 	return _c
 }
 
-func (_c *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call) RunAndReturn(run func() int) *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call {
+func (_c *ExecutionManager_GetTimerMapRewriteSampleRate_Call) RunAndReturn(run func() int) *ExecutionManager_GetTimerMapRewriteSampleRate_Call {
 	_c.Call.Return(run)
 	return _c
 }

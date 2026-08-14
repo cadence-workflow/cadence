@@ -393,8 +393,8 @@ func (c *meteredExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Co
 	return
 }
 
-func (c *meteredExecutionManager) GetActivityMapRewriteProbabilityRate() (i1 int) {
-	return c.wrapped.GetActivityMapRewriteProbabilityRate()
+func (c *meteredExecutionManager) GetActivityMapRewriteSampleRate() (i1 int) {
+	return c.wrapped.GetActivityMapRewriteSampleRate()
 }
 
 func (c *meteredExecutionManager) GetCurrentExecution(ctx context.Context, request *_sourcePersistence.GetCurrentExecutionRequest) (gp1 *_sourcePersistence.GetCurrentExecutionResponse, err error) {
@@ -529,8 +529,8 @@ func (c *meteredExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context
 	return
 }
 
-func (c *meteredExecutionManager) GetTimerMapRewriteProbabilityRate() (i1 int) {
-	return c.wrapped.GetTimerMapRewriteProbabilityRate()
+func (c *meteredExecutionManager) GetTimerMapRewriteSampleRate() (i1 int) {
+	return c.wrapped.GetTimerMapRewriteSampleRate()
 }
 
 func (c *meteredExecutionManager) GetWorkflowExecution(ctx context.Context, request *_sourcePersistence.GetWorkflowExecutionRequest) (gp1 *_sourcePersistence.GetWorkflowExecutionResponse, err error) {
