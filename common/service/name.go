@@ -34,7 +34,7 @@ const (
 	// Worker is the name of the worker service
 	Worker = "cadence-worker"
 	// ShardDistributor is the name of the shard distributor service
-	ShardDistributor = "cadence-shard-distributor"
+	ShardDistributor = "shard-distributor"
 )
 
 // ListWithRing contains the list of all cadence services that has a hash ring
