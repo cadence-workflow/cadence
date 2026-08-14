@@ -1,28 +1,9 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
 package sql
 
 import (
 	"errors"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,6 +22,14 @@ func sqliteTestCfg(dbPath string) config.SQL {
 		MaxIdleConns: 1,
 		AutoSetup:    true,
 	}
+}
+
+func resetSQLiteAutoSetupForTest(t *testing.T) {
+	t.Helper()
+	autoSetup = struct {
+		once sync.Once
+		err  error
+	}{}
 }
 
 func TestDoSQLiteAutoSetup_FreshDatabase(t *testing.T) {
@@ -83,6 +72,7 @@ func TestDoSQLiteAutoSetup_Idempotent(t *testing.T) {
 }
 
 func TestMaybeAutoSetupSQLiteSchema_BothStores(t *testing.T) {
+	resetSQLiteAutoSetupForTest(t)
 	tmpDir := t.TempDir()
 	defaultDB := filepath.Join(tmpDir, "cadence.db")
 	visibilityDB := filepath.Join(tmpDir, "cadence_visibility.db")
@@ -126,6 +116,7 @@ func TestMaybeAutoSetupSQLiteSchema_BothStores(t *testing.T) {
 }
 
 func TestMaybeAutoSetupSQLiteSchema_SkipsNonSQLitePlugin(t *testing.T) {
+	resetSQLiteAutoSetupForTest(t)
 	// Non-SQLite stores must be silently skipped (no connection attempted).
 	cfg := config.Persistence{
 		DefaultStore: "default",
@@ -140,6 +131,7 @@ func TestMaybeAutoSetupSQLiteSchema_SkipsNonSQLitePlugin(t *testing.T) {
 }
 
 func TestMaybeAutoSetupSQLiteSchema_SkipsWhenAutoSetupDisabled(t *testing.T) {
+	resetSQLiteAutoSetupForTest(t)
 	tmpDir := t.TempDir()
 	cfg := config.Persistence{
 		DefaultStore: "default",
@@ -163,6 +155,54 @@ func TestMaybeAutoSetupSQLiteSchema_SkipsWhenAutoSetupDisabled(t *testing.T) {
 	conn.Close()
 	require.Error(t, err)
 	assert.True(t, isSQLiteNoSuchTableError(err))
+}
+
+func TestMaybeAutoSetupSQLiteSchema_OnceRetainsError(t *testing.T) {
+	resetSQLiteAutoSetupForTest(t)
+	t.Cleanup(func() { resetSQLiteAutoSetupForTest(t) })
+
+	tmpDir := t.TempDir()
+	cfg := config.Persistence{
+		DefaultStore: "default",
+		DataStores: map[string]config.DataStore{
+			"default": {SQL: &config.SQL{
+				PluginName:   sqlite_db.PluginName,
+				DatabaseName: tmpDir, // existing directory, not a database file
+				MaxConns:     1,
+				MaxIdleConns: 1,
+				AutoSetup:    true,
+			}},
+		},
+	}
+
+	err1 := MaybeAutoSetupSQLiteSchema(cfg)
+	require.Error(t, err1)
+
+	err2 := MaybeAutoSetupSQLiteSchema(cfg)
+	require.Error(t, err2)
+	assert.Equal(t, err1, err2)
+}
+
+func TestMaybeAutoSetupSQLiteSchema_OnceRetainsSuccess(t *testing.T) {
+	resetSQLiteAutoSetupForTest(t)
+	t.Cleanup(func() { resetSQLiteAutoSetupForTest(t) })
+
+	tmpDir := t.TempDir()
+	cfg := config.Persistence{
+		DefaultStore: "default",
+		DataStores: map[string]config.DataStore{
+			"default": {SQL: &config.SQL{
+				PluginName:   sqlite_db.PluginName,
+				DatabaseName: filepath.Join(tmpDir, "cadence.db"),
+				MaxConns:     1,
+				MaxIdleConns: 1,
+				AutoSetup:    true,
+			}},
+		},
+	}
+
+	require.NoError(t, MaybeAutoSetupSQLiteSchema(cfg))
+	require.NoError(t, MaybeAutoSetupSQLiteSchema(cfg))
 }
 
 func TestIsSQLiteNoSuchTableError_FreshDB(t *testing.T) {
