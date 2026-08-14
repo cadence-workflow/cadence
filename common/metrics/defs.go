@@ -344,6 +344,8 @@ const (
 	HashringScope
 	// ShardManagerOnboardingScope is a metrics scope for the matching → shard-manager onboarding percentage gauge.
 	ShardManagerOnboardingScope
+	// ShardDistributorResolverScope is a metrics scope for matching routing decisions.
+	ShardDistributorResolverScope
 	// HistoryClientStartWorkflowExecutionScope tracks RPC calls to history service
 	HistoryClientStartWorkflowExecutionScope
 	// HistoryClientDescribeHistoryHostScope tracks RPC calls to history service
@@ -1951,12 +1953,13 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 
 		GetAvailableIsolationGroupsScope: {operation: "GetAvailableIsolationGroups"},
 
-		DomainFailoverScope:         {operation: "DomainFailover"},
-		TaskValidatorScope:          {operation: "TaskValidation"},
-		DomainReplicationQueueScope: {operation: "DomainReplicationQueue"},
-		ClusterMetadataScope:        {operation: "ClusterMetadata"},
-		HashringScope:               {operation: "Hashring"},
-		ShardManagerOnboardingScope: {operation: "ShardManagerOnboarding"},
+		DomainFailoverScope:           {operation: "DomainFailover"},
+		TaskValidatorScope:            {operation: "TaskValidation"},
+		DomainReplicationQueueScope:   {operation: "DomainReplicationQueue"},
+		ClusterMetadataScope:          {operation: "ClusterMetadata"},
+		HashringScope:                 {operation: "Hashring"},
+		ShardManagerOnboardingScope:   {operation: "ShardManagerOnboarding"},
+		ShardDistributorResolverScope: {operation: "ShardDistributorResolver"},
 
 		// currently used by both frontend and history, but may grow to other limiting-host-services.
 		GlobalRatelimiter:           {operation: "GlobalRatelimiter"},
@@ -2559,8 +2562,9 @@ const (
 	TaskListPartitionConfigNumReadGauge
 	TaskListPartitionConfigNumWriteGauge
 
-	// operational dynamic config migration metric
+	// shard manager onboarding metrics
 	PercentageOnboardedToShardManagerGauge
+	ShardDistributorResolverLookups
 
 	// base cache metrics
 	BaseCacheByteSize
@@ -3555,6 +3559,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskListPartitionConfigNumReadGauge:    {metricName: "task_list_partition_config_num_read", metricType: Gauge},
 		TaskListPartitionConfigNumWriteGauge:   {metricName: "task_list_partition_config_num_write", metricType: Gauge},
 		PercentageOnboardedToShardManagerGauge: {metricName: "percentage_onboarded_to_shard_manager", metricType: Gauge},
+		ShardDistributorResolverLookups:        {metricName: "shard_distributor_resolver_lookups", metricType: Counter},
 
 		BaseCacheByteSize:           {metricName: "cache_byte_size", metricType: Gauge},
 		BaseCacheByteSizeLimitGauge: {metricName: "cache_byte_size_limit", metricType: Gauge},
