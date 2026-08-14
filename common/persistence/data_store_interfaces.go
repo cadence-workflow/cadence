@@ -118,6 +118,8 @@ type (
 	ExecutionStore interface {
 		Closeable
 		GetName() string
+		GetActivityMapRewriteProbabilityRate() int
+		GetTimerMapRewriteProbabilityRate() int
 		// The below three APIs are related to serialization/deserialization
 		GetWorkflowExecution(ctx context.Context, request *InternalGetWorkflowExecutionRequest) (*InternalGetWorkflowExecutionResponse, error)
 		UpdateWorkflowExecution(ctx context.Context, request *InternalUpdateWorkflowExecutionRequest) error

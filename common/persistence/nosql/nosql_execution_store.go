@@ -58,6 +58,16 @@ func newNoSQLExecutionStore(
 	}, nil
 }
 
+func (d *nosqlExecutionStore) GetActivityMapRewriteProbabilityRate() int {
+	s := d.GetDefaultShard()
+	return s.db.GetActivityMapRewriteProbabilityRate()
+}
+
+func (d *nosqlExecutionStore) GetTimerMapRewriteProbabilityRate() int {
+	s := d.GetDefaultShard()
+	return s.db.GetTimerMapRewriteProbabilityRate()
+}
+
 func resolveRequestShardID(requestShardID *int, operation string, logger log.Logger) (int, error) {
 	if requestShardID == nil {
 		err := &types.BadRequestError{Message: "execution persistence request missing shard ID"}

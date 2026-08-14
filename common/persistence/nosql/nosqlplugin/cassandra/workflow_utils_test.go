@@ -1879,14 +1879,14 @@ func TestUpdateTimerInfos(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc             string
-		shardID          int
-		domainID         string
-		workflowID       string
-		runID            string
-		timerInfos       map[string]*persistence.TimerInfo
-		deleteInfos      []string
-		rewriteThreshold int
+		desc                   string
+		shardID                int
+		domainID               string
+		workflowID             string
+		runID                  string
+		timerInfos             map[string]*persistence.TimerInfo
+		deleteInfos            []string
+		rewriteProbabilityRate int
 		// expectations
 		wantQueries []string
 	}{
@@ -1904,8 +1904,8 @@ func TestUpdateTimerInfos(t *testing.T) {
 					TaskStatus: 1,
 				},
 			},
-			deleteInfos:      []string{"timer2"},
-			rewriteThreshold: 100,
+			deleteInfos:            []string{"timer2"},
+			rewriteProbabilityRate: 100,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
 					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
@@ -1933,8 +1933,8 @@ func TestUpdateTimerInfos(t *testing.T) {
 					TaskStatus: 1,
 				},
 			},
-			deleteInfos:      []string{"timer2"},
-			rewriteThreshold: 0,
+			deleteInfos:            []string{"timer2"},
+			rewriteProbabilityRate: 0,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
 					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
@@ -1952,7 +1952,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, nil, tc.rewriteThreshold, FixedTime)
+			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, nil, tc.rewriteProbabilityRate, FixedTime)
 			if err != nil {
 				t.Fatalf("updateTimerInfos() error = %v", err)
 			}
@@ -2090,14 +2090,14 @@ func TestUpdateActivityInfos(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc             string
-		shardID          int
-		domainID         string
-		workflowID       string
-		runID            string
-		activityInfos    map[int64]*persistence.InternalActivityInfo
-		deleteInfos      []int64
-		rewriteThreshold int
+		desc                   string
+		shardID                int
+		domainID               string
+		workflowID             string
+		runID                  string
+		activityInfos          map[int64]*persistence.InternalActivityInfo
+		deleteInfos            []int64
+		rewriteProbabilityRate int
 		// expectations
 		wantQueries []string
 	}{
@@ -2134,8 +2134,8 @@ func TestUpdateActivityInfos(t *testing.T) {
 					LastFailureReason:      "retry reason",
 				},
 			},
-			deleteInfos:      []int64{2},
-			rewriteThreshold: 100,
+			deleteInfos:            []int64{2},
+			rewriteProbabilityRate: 100,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
 					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
@@ -2191,8 +2191,8 @@ func TestUpdateActivityInfos(t *testing.T) {
 					LastFailureReason:      "retry reason",
 				},
 			},
-			deleteInfos:      []int64{2},
-			rewriteThreshold: 0,
+			deleteInfos:            []int64{2},
+			rewriteProbabilityRate: 0,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
 					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
@@ -2220,7 +2220,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, nil, tc.rewriteThreshold, FixedTime)
+			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, nil, tc.rewriteProbabilityRate, FixedTime)
 			if err != nil {
 				t.Fatalf("updateActivityInfos() error = %v", err)
 			}

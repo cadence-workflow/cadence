@@ -129,6 +129,14 @@ func (m *sqlExecutionStore) txExecuteShardLocked(
 	})
 }
 
+func (m *sqlExecutionStore) GetActivityMapRewriteProbabilityRate() int {
+	return 0
+}
+
+func (m *sqlExecutionStore) GetTimerMapRewriteProbabilityRate() int {
+	return 0
+}
+
 func (m *sqlExecutionStore) CreateWorkflowExecution(
 	ctx context.Context,
 	request *p.InternalCreateWorkflowExecutionRequest,

@@ -559,8 +559,8 @@ func TestUpdateWorkflowExecutionWithTasks_SentinelBehavior(t *testing.T) {
 			logger := testlogger.New(t)
 			thresholdFn := func(...dynamicproperties.FilterOption) int { return tc.threshold }
 			dc := &persistence.DynamicConfiguration{
-				ActivityMapDeleteRewriteThreshold: thresholdFn,
-				TimerMapDeleteRewriteThreshold:    thresholdFn,
+				ActivityMapRewriteProbabilityRate: thresholdFn,
+				TimerMapRewriteProbabilityRate:    thresholdFn,
 			}
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))

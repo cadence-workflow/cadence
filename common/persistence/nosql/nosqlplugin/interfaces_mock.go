@@ -373,18 +373,18 @@ func (mr *MockDBMockRecorder) DeleteWorkflowExecution(ctx, shardID, domainID, wo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockDB)(nil).DeleteWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
 }
 
-// GetActivityMapDeleteRewriteThreshold mocks base method.
-func (m *MockDB) GetActivityMapDeleteRewriteThreshold() int {
+// GetActivityMapRewriteProbabilityRate mocks base method.
+func (m *MockDB) GetActivityMapRewriteProbabilityRate() int {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetActivityMapDeleteRewriteThreshold")
+	ret := m.ctrl.Call(m, "GetActivityMapRewriteProbabilityRate")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// GetActivityMapDeleteRewriteThreshold indicates an expected call of GetActivityMapDeleteRewriteThreshold.
-func (mr *MockDBMockRecorder) GetActivityMapDeleteRewriteThreshold() *gomock.Call {
+// GetActivityMapRewriteProbabilityRate indicates an expected call of GetActivityMapRewriteProbabilityRate.
+func (mr *MockDBMockRecorder) GetActivityMapRewriteProbabilityRate() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapDeleteRewriteThreshold", reflect.TypeOf((*MockDB)(nil).GetActivityMapDeleteRewriteThreshold))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapRewriteProbabilityRate", reflect.TypeOf((*MockDB)(nil).GetActivityMapRewriteProbabilityRate))
 }
 
 // GetQueueSize mocks base method.
@@ -417,18 +417,18 @@ func (mr *MockDBMockRecorder) GetTasksCount(ctx, filter any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTasksCount", reflect.TypeOf((*MockDB)(nil).GetTasksCount), ctx, filter)
 }
 
-// GetTimerMapDeleteRewriteThreshold mocks base method.
-func (m *MockDB) GetTimerMapDeleteRewriteThreshold() int {
+// GetTimerMapRewriteProbabilityRate mocks base method.
+func (m *MockDB) GetTimerMapRewriteProbabilityRate() int {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTimerMapDeleteRewriteThreshold")
+	ret := m.ctrl.Call(m, "GetTimerMapRewriteProbabilityRate")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// GetTimerMapDeleteRewriteThreshold indicates an expected call of GetTimerMapDeleteRewriteThreshold.
-func (mr *MockDBMockRecorder) GetTimerMapDeleteRewriteThreshold() *gomock.Call {
+// GetTimerMapRewriteProbabilityRate indicates an expected call of GetTimerMapRewriteProbabilityRate.
+func (mr *MockDBMockRecorder) GetTimerMapRewriteProbabilityRate() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapDeleteRewriteThreshold", reflect.TypeOf((*MockDB)(nil).GetTimerMapDeleteRewriteThreshold))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapRewriteProbabilityRate", reflect.TypeOf((*MockDB)(nil).GetTimerMapRewriteProbabilityRate))
 }
 
 // InsertConfig mocks base method.

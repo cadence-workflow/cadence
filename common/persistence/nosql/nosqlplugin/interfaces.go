@@ -52,14 +52,14 @@ type (
 		ClientErrorChecker
 		tableCRUD
 
-		// GetActivityMapDeleteRewriteThreshold returns the threshold of activity map
-		// deletes before triggering a full map rewrite to consolidate tombstones.
+		// GetActivityMapRewriteProbabilityRate returns the inverse probability of triggering
+		// a full activity map rewrite per transaction with deletes (e.g. 100 = 1/100 chance).
 		// Returns 0 if the feature is not supported or disabled.
-		GetActivityMapDeleteRewriteThreshold() int
-		// GetTimerMapDeleteRewriteThreshold returns the threshold of timer map
-		// deletes before triggering a full map rewrite to consolidate tombstones.
+		GetActivityMapRewriteProbabilityRate() int
+		// GetTimerMapRewriteProbabilityRate returns the inverse probability of triggering
+		// a full timer map rewrite per transaction with deletes (e.g. 100 = 1/100 chance).
 		// Returns 0 if the feature is not supported or disabled.
-		GetTimerMapDeleteRewriteThreshold() int
+		GetTimerMapRewriteProbabilityRate() int
 	}
 	// tableCRUD defines the API for interacting with the database tables
 	// NOTE 1: All SELECT interfaces require strong consistency (eventual consistency will not work) unless specify in the method.

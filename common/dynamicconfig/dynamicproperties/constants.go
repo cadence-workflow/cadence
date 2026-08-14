@@ -1663,21 +1663,23 @@ const (
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
 
-	// ActivityMapDeleteRewriteThreshold is the number of map key deletions before
-	// triggering a full map rewrite. A value of 0 disables the optimization.
+	// ActivityMapRewriteProbabilityRate is the inverse probability of triggering a full
+	// activity map rewrite on each transaction with deletes (e.g., 100 = 1/100 chance).
+	// A value of 0 disables the optimization. 1 means rewrite every time.
 	// Currently only implemented for Cassandra.
-	// KeyName: history.activityMapDeleteRewriteThreshold
+	// KeyName: history.activityMapRewriteProbabilityRate
 	// Value type: Int
 	// Default value: 0
-	ActivityMapDeleteRewriteThreshold
+	ActivityMapRewriteProbabilityRate
 
-	// TimerMapDeleteRewriteThreshold is the number of map key deletions before
-	// triggering a full map rewrite. A value of 0 disables the optimization.
+	// TimerMapRewriteProbabilityRate is the inverse probability of triggering a full
+	// timer map rewrite on each transaction with deletes (e.g., 100 = 1/100 chance).
+	// A value of 0 disables the optimization. 1 means rewrite every time.
 	// Currently only implemented for Cassandra.
-	// KeyName: history.timerMapDeleteRewriteThreshold
+	// KeyName: history.timerMapRewriteProbabilityRate
 	// Value type: Int
 	// Default value: 0
-	TimerMapDeleteRewriteThreshold
+	TimerMapRewriteProbabilityRate
 
 	// LastIntKey must be the last one in this const group
 	LastIntKey
@@ -4597,14 +4599,14 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
 	},
-	ActivityMapDeleteRewriteThreshold: {
-		KeyName:      "history.activityMapDeleteRewriteThreshold",
-		Description:  "Number of map key deletions before triggering a full map rewrite. Currently only implemented for Cassandra.",
+	ActivityMapRewriteProbabilityRate: {
+		KeyName:      "history.activityMapRewriteProbabilityRate",
+		Description:  "Inverse probability of triggering a full activity map rewrite per transaction with deletes (e.g. 100 = 1/100 chance). 0 disables. Cassandra only.",
 		DefaultValue: 0,
 	},
-	TimerMapDeleteRewriteThreshold: {
-		KeyName:      "history.timerMapDeleteRewriteThreshold",
-		Description:  "Number of map key deletions before triggering a full map rewrite. Currently only implemented for Cassandra.",
+	TimerMapRewriteProbabilityRate: {
+		KeyName:      "history.timerMapRewriteProbabilityRate",
+		Description:  "Inverse probability of triggering a full timer map rewrite per transaction with deletes (e.g. 100 = 1/100 chance). 0 disables. Cassandra only.",
 		DefaultValue: 0,
 	},
 }

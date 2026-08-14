@@ -161,7 +161,7 @@ func (db *CDB) UpdateWorkflowExecutionWithTasks(
 	}
 
 	if mutatedExecution != nil {
-		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, db.GetActivityMapDeleteRewriteThreshold(), db.GetTimerMapDeleteRewriteThreshold(), timeStamp)
+		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, db.GetActivityMapRewriteProbabilityRate(), db.GetTimerMapRewriteProbabilityRate(), timeStamp)
 		if err != nil {
 			return err
 		}

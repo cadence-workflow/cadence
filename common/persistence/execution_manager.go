@@ -23,6 +23,7 @@ package persistence
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/uber/cadence/common"
@@ -66,6 +67,14 @@ func NewExecutionManagerImpl(
 
 func (m *executionManagerImpl) GetName() string {
 	return m.persistence.GetName()
+}
+
+func (m *executionManagerImpl) GetActivityMapRewriteProbabilityRate() int {
+	return m.persistence.GetActivityMapRewriteProbabilityRate()
+}
+
+func (m *executionManagerImpl) GetTimerMapRewriteProbabilityRate() int {
+	return m.persistence.GetTimerMapRewriteProbabilityRate()
 }
 
 // The below three APIs are related to serialization/deserialization
@@ -711,7 +720,10 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		return nil, err
 	}
 	var serializedRewriteActivityInfos []*InternalActivityInfo
-	if input.RewriteActivityInfos != nil {
+	var rewriteTimerInfos []*TimerInfo
+	activityRate := m.persistence.GetActivityMapRewriteProbabilityRate()
+	timerRate := m.persistence.GetTimerMapRewriteProbabilityRate()
+	if input.RewriteActivityInfos != nil && activityRate > 0 && rand.Intn(activityRate) == 0 {
 		serializedRewriteActivityInfos, err = m.SerializeUpsertActivityInfos(input.RewriteActivityInfos, encoding)
 		if err != nil {
 			return nil, err
@@ -719,8 +731,15 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		if serializedRewriteActivityInfos == nil {
 			serializedRewriteActivityInfos = []*InternalActivityInfo{}
 		}
+		input.DeleteActivityInfos = nil
 	}
-	rewriteTimerInfos := input.RewriteTimerInfos
+	if input.RewriteTimerInfos != nil && timerRate > 0 && rand.Intn(timerRate) == 0 {
+		rewriteTimerInfos = input.RewriteTimerInfos
+		if rewriteTimerInfos == nil {
+			rewriteTimerInfos = []*TimerInfo{}
+		}
+		input.DeleteTimerInfos = nil
+	}
 	serializedUpsertChildExecutionInfos, err := m.SerializeUpsertChildExecutionInfos(input.UpsertChildExecutionInfos, encoding)
 	if err != nil {
 		return nil, err

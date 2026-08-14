@@ -121,16 +121,16 @@ func (db *CDB) executeWithConsistencyAll(q gocql.Query) error {
 	return q.Exec()
 }
 
-func (db *CDB) GetActivityMapDeleteRewriteThreshold() int {
-	if db.dc != nil && db.dc.ActivityMapDeleteRewriteThreshold != nil {
-		return db.dc.ActivityMapDeleteRewriteThreshold()
+func (db *CDB) GetActivityMapRewriteProbabilityRate() int {
+	if db.dc != nil && db.dc.ActivityMapRewriteProbabilityRate != nil {
+		return db.dc.ActivityMapRewriteProbabilityRate()
 	}
 	return 0
 }
 
-func (db *CDB) GetTimerMapDeleteRewriteThreshold() int {
-	if db.dc != nil && db.dc.TimerMapDeleteRewriteThreshold != nil {
-		return db.dc.TimerMapDeleteRewriteThreshold()
+func (db *CDB) GetTimerMapRewriteProbabilityRate() int {
+	if db.dc != nil && db.dc.TimerMapRewriteProbabilityRate != nil {
+		return db.dc.TimerMapRewriteProbabilityRate()
 	}
 	return 0
 }

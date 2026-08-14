@@ -744,6 +744,50 @@ func (_c *ExecutionManager_GetActiveClusterSelectionPolicy_Call) RunAndReturn(ru
 	return _c
 }
 
+// GetActivityMapRewriteProbabilityRate provides a mock function for the type ExecutionManager
+func (_mock *ExecutionManager) GetActivityMapRewriteProbabilityRate() int {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetActivityMapRewriteProbabilityRate")
+	}
+
+	var r0 int
+	if returnFunc, ok := ret.Get(0).(func() int); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+	return r0
+}
+
+// ExecutionManager_GetActivityMapRewriteProbabilityRate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetActivityMapRewriteProbabilityRate'
+type ExecutionManager_GetActivityMapRewriteProbabilityRate_Call struct {
+	*mock.Call
+}
+
+// GetActivityMapRewriteProbabilityRate is a helper method to define mock.On call
+func (_e *ExecutionManager_Expecter) GetActivityMapRewriteProbabilityRate() *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call {
+	return &ExecutionManager_GetActivityMapRewriteProbabilityRate_Call{Call: _e.mock.On("GetActivityMapRewriteProbabilityRate")}
+}
+
+func (_c *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call) Run(run func()) *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call) Return(n int) *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call {
+	_c.Call.Return(n)
+	return _c
+}
+
+func (_c *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call) RunAndReturn(run func() int) *ExecutionManager_GetActivityMapRewriteProbabilityRate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetCurrentExecution provides a mock function for the type ExecutionManager
 func (_mock *ExecutionManager) GetCurrentExecution(ctx context.Context, request *persistence.GetCurrentExecutionRequest) (*persistence.GetCurrentExecutionResponse, error) {
 	ret := _mock.Called(ctx, request)
@@ -1056,6 +1100,50 @@ func (_c *ExecutionManager_GetReplicationTasksFromDLQ_Call) Return(getReplicatio
 }
 
 func (_c *ExecutionManager_GetReplicationTasksFromDLQ_Call) RunAndReturn(run func(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetReplicationDLQTasksResponse, error)) *ExecutionManager_GetReplicationTasksFromDLQ_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetTimerMapRewriteProbabilityRate provides a mock function for the type ExecutionManager
+func (_mock *ExecutionManager) GetTimerMapRewriteProbabilityRate() int {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetTimerMapRewriteProbabilityRate")
+	}
+
+	var r0 int
+	if returnFunc, ok := ret.Get(0).(func() int); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+	return r0
+}
+
+// ExecutionManager_GetTimerMapRewriteProbabilityRate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTimerMapRewriteProbabilityRate'
+type ExecutionManager_GetTimerMapRewriteProbabilityRate_Call struct {
+	*mock.Call
+}
+
+// GetTimerMapRewriteProbabilityRate is a helper method to define mock.On call
+func (_e *ExecutionManager_Expecter) GetTimerMapRewriteProbabilityRate() *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call {
+	return &ExecutionManager_GetTimerMapRewriteProbabilityRate_Call{Call: _e.mock.On("GetTimerMapRewriteProbabilityRate")}
+}
+
+func (_c *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call) Run(run func()) *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call) Return(n int) *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call {
+	_c.Call.Return(n)
+	return _c
+}
+
+func (_c *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call) RunAndReturn(run func() int) *ExecutionManager_GetTimerMapRewriteProbabilityRate_Call {
 	_c.Call.Return(run)
 	return _c
 }

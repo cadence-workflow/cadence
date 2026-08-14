@@ -77,6 +77,6 @@ func (db *ddb) IsConditionFailedError(err error) bool {
 	return err == errConditionFailed
 }
 
-func (db *ddb) GetActivityMapDeleteRewriteThreshold() int { return 0 }
+func (db *ddb) GetActivityMapRewriteProbabilityRate() int { return 0 }
 
-func (db *ddb) GetTimerMapDeleteRewriteThreshold() int { return 0 }
+func (db *ddb) GetTimerMapRewriteProbabilityRate() int { return 0 }

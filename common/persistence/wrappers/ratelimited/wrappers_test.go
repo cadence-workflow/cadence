@@ -45,8 +45,8 @@ var _staticMethods = map[string]bool{
 	"Close":                                true,
 	"GetName":                              true,
 	"GetShardID":                           true,
-	"GetActivityMapDeleteRewriteThreshold": true,
-	"GetTimerMapDeleteRewriteThreshold":    true,
+	"GetActivityMapRewriteProbabilityRate": true,
+	"GetTimerMapRewriteProbabilityRate":    true,
 }
 
 var wrappers = []any{

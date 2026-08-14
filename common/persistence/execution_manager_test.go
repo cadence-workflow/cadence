@@ -300,6 +300,9 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 
 	expectedInfo := sampleInternalWorkflowMutation()
 
+	mockedStore.EXPECT().GetActivityMapRewriteProbabilityRate().Return(0).AnyTimes()
+	mockedStore.EXPECT().GetTimerMapRewriteProbabilityRate().Return(0).AnyTimes()
+
 	mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(expectedInfo.ExecutionInfo.CompletionEvent, nil).Times(2)
 	mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 	mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
@@ -351,6 +354,131 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 		TaskCountByCategory: map[HistoryTaskCategory]int{},
 	}
 	assert.Equal(t, stats, res.MutableStateUpdateSessionStats)
+}
+
+func TestSerializeWorkflowMutation_RewriteProbability(t *testing.T) {
+	tests := []struct {
+		name                   string
+		activityRate           int
+		timerRate              int
+		rewriteActivityInfos   []*ActivityInfo
+		rewriteTimerInfos      []*TimerInfo
+		deleteActivityInfos    []int64
+		deleteTimerInfos       []string
+		expectRewriteActivity  bool
+		expectRewriteTimer     bool
+		expectDeletesCleared   bool
+	}{
+		{
+			name:         "rate 1 with deletes triggers rewrite and clears deletes",
+			activityRate: 1,
+			timerRate:    1,
+			rewriteActivityInfos: []*ActivityInfo{
+				{Version: 1, ScheduleID: 10, ScheduledEvent: activityScheduledEvent(), StartedEvent: activityStartedEvent()},
+			},
+			rewriteTimerInfos:    []*TimerInfo{{TimerID: "t1"}},
+			deleteActivityInfos:  []int64{5},
+			deleteTimerInfos:     []string{"t2"},
+			expectRewriteActivity: true,
+			expectRewriteTimer:    true,
+			expectDeletesCleared:  true,
+		},
+		{
+			name:         "rate 0 disables rewrite and preserves deletes",
+			activityRate: 0,
+			timerRate:    0,
+			rewriteActivityInfos: []*ActivityInfo{
+				{Version: 1, ScheduleID: 10, ScheduledEvent: activityScheduledEvent(), StartedEvent: activityStartedEvent()},
+			},
+			rewriteTimerInfos:    []*TimerInfo{{TimerID: "t1"}},
+			deleteActivityInfos:  []int64{5},
+			deleteTimerInfos:     []string{"t2"},
+			expectRewriteActivity: false,
+			expectRewriteTimer:    false,
+			expectDeletesCleared:  false,
+		},
+		{
+			name:         "nil rewrite infos skips rewrite even with rate 1",
+			activityRate: 1,
+			timerRate:    1,
+			rewriteActivityInfos: nil,
+			rewriteTimerInfos:    nil,
+			deleteActivityInfos:  []int64{5},
+			deleteTimerInfos:     []string{"t2"},
+			expectRewriteActivity: false,
+			expectRewriteTimer:    false,
+			expectDeletesCleared:  false,
+		},
+		{
+			name:         "empty rewrite infos produces empty slice marker and clears deletes",
+			activityRate: 1,
+			timerRate:    1,
+			rewriteActivityInfos: []*ActivityInfo{},
+			rewriteTimerInfos:    []*TimerInfo{},
+			deleteActivityInfos:  []int64{5},
+			deleteTimerInfos:     []string{"t2"},
+			expectRewriteActivity: true,
+			expectRewriteTimer:    true,
+			expectDeletesCleared:  true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockedStore := NewMockExecutionStore(ctrl)
+			mockedSerializer := NewMockPayloadSerializer(ctrl)
+
+			mockedStore.EXPECT().GetActivityMapRewriteProbabilityRate().Return(tc.activityRate).AnyTimes()
+			mockedStore.EXPECT().GetTimerMapRewriteProbabilityRate().Return(tc.timerRate).AnyTimes()
+
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
+
+			mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+			mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).AnyTimes()
+			mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).AnyTimes()
+			mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
+
+			mockedStore.EXPECT().UpdateWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, req *InternalUpdateWorkflowExecutionRequest) error {
+					mut := req.UpdateWorkflowMutation
+					if tc.expectRewriteActivity {
+						assert.NotNil(t, mut.RewriteActivityInfos, "rewrite activity infos should be set")
+					} else {
+						assert.Nil(t, mut.RewriteActivityInfos, "rewrite activity infos should be nil")
+					}
+					if tc.expectRewriteTimer {
+						assert.NotNil(t, mut.RewriteTimerInfos, "rewrite timer infos should be set")
+					} else {
+						assert.Nil(t, mut.RewriteTimerInfos, "rewrite timer infos should be nil")
+					}
+					if tc.expectDeletesCleared {
+						assert.Nil(t, mut.DeleteActivityInfos, "delete activity infos should be cleared on rewrite")
+						assert.Nil(t, mut.DeleteTimerInfos, "delete timer infos should be cleared on rewrite")
+					} else {
+						assert.Equal(t, tc.deleteActivityInfos, mut.DeleteActivityInfos)
+						assert.Equal(t, tc.deleteTimerInfos, mut.DeleteTimerInfos)
+					}
+					return nil
+				}).Times(1)
+
+			mutation := sampleWorkflowMutation()
+			mutation.RewriteActivityInfos = tc.rewriteActivityInfos
+			mutation.RewriteTimerInfos = tc.rewriteTimerInfos
+			mutation.DeleteActivityInfos = tc.deleteActivityInfos
+			mutation.DeleteTimerInfos = tc.deleteTimerInfos
+
+			_, err := manager.UpdateWorkflowExecution(context.Background(), &UpdateWorkflowExecutionRequest{
+				RangeID:                1,
+				Mode:                   UpdateWorkflowModeBypassCurrent,
+				UpdateWorkflowMutation: *mutation,
+				Encoding:               constants.EncodingTypeThriftRW,
+			})
+			assert.NoError(t, err)
+		})
+	}
 }
 
 func TestSerializeWorkflowSnapshot(t *testing.T) {
@@ -1182,6 +1310,9 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				CurrentWorkflowMutation: sampleWorkflowMutation(),
 			},
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
+				mockedStore.EXPECT().GetActivityMapRewriteProbabilityRate().Return(0).AnyTimes()
+				mockedStore.EXPECT().GetTimerMapRewriteProbabilityRate().Return(0).AnyTimes()
+
 				expectedRequest := &InternalConflictResolveWorkflowExecutionRequest{
 					RangeID:                 1,
 					Mode:                    ConflictResolveWorkflowModeBypassCurrent,
@@ -1797,6 +1928,8 @@ func TestUpdateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 		},
 	}
 
+	mockedStore.EXPECT().GetActivityMapRewriteProbabilityRate().Return(0).AnyTimes()
+	mockedStore.EXPECT().GetTimerMapRewriteProbabilityRate().Return(0).AnyTimes()
 	mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
 	mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
 	mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).AnyTimes()
@@ -1912,6 +2045,8 @@ func TestUpdateWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T) {
 		},
 	}
 
+	mockedStore.EXPECT().GetActivityMapRewriteProbabilityRate().Return(0).AnyTimes()
+	mockedStore.EXPECT().GetTimerMapRewriteProbabilityRate().Return(0).AnyTimes()
 	mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
 	mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
 	mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).AnyTimes()
@@ -2020,6 +2155,8 @@ func TestConflictResolveWorkflowExecution_TimerTaskTracking(t *testing.T) {
 		HistoryTaskCategoryTimer: {makeTimerTask(newTaskID)},
 	}
 
+	mockedStore.EXPECT().GetActivityMapRewriteProbabilityRate().Return(0).AnyTimes()
+	mockedStore.EXPECT().GetTimerMapRewriteProbabilityRate().Return(0).AnyTimes()
 	mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
 	mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
 	mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
