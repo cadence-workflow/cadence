@@ -633,9 +633,6 @@ type (
 		VersionHistories    *VersionHistories
 		ReplicationState    *ReplicationState // TODO: remove this after all 2DC workflows complete
 		Checksum            checksum.Checksum
-
-		ActivityMapDeleteCount int
-		TimerMapDeleteCount    int
 	}
 
 	// ActivityInfo details.
@@ -909,24 +906,22 @@ type (
 		ExecutionStats   *ExecutionStats
 		VersionHistories *VersionHistories
 
-		UpsertActivityInfos         []*ActivityInfo
-		DeleteActivityInfos         []int64
-		RewriteActivityInfos        []*ActivityInfo
-		RewriteActivityMapTriggered bool // triggers full activity_map rewrite, even if RewriteActivityInfos is empty
-		UpsertTimerInfos            []*TimerInfo
-		DeleteTimerInfos            []string
-		RewriteTimerInfos           []*TimerInfo
-		RewriteTimerMapTriggered    bool // triggers full timer_map rewrite, even if RewriteTimerInfos is empty
-		UpsertChildExecutionInfos   []*ChildExecutionInfo
-		DeleteChildExecutionInfos   []int64
-		UpsertRequestCancelInfos    []*RequestCancelInfo
-		DeleteRequestCancelInfos    []int64
-		UpsertSignalInfos           []*SignalInfo
-		DeleteSignalInfos           []int64
-		UpsertSignalRequestedIDs    []string
-		DeleteSignalRequestedIDs    []string
-		NewBufferedEvents           []*types.HistoryEvent
-		ClearBufferedEvents         bool
+		UpsertActivityInfos       []*ActivityInfo
+		DeleteActivityInfos       []int64
+		RewriteActivityInfos      []*ActivityInfo
+		UpsertTimerInfos          []*TimerInfo
+		DeleteTimerInfos          []string
+		RewriteTimerInfos         []*TimerInfo
+		UpsertChildExecutionInfos []*ChildExecutionInfo
+		DeleteChildExecutionInfos []int64
+		UpsertRequestCancelInfos  []*RequestCancelInfo
+		DeleteRequestCancelInfos  []int64
+		UpsertSignalInfos         []*SignalInfo
+		DeleteSignalInfos         []int64
+		UpsertSignalRequestedIDs  []string
+		DeleteSignalRequestedIDs  []string
+		NewBufferedEvents         []*types.HistoryEvent
+		ClearBufferedEvents       bool
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
@@ -1693,8 +1688,6 @@ type (
 	ExecutionManager interface {
 		Closeable
 		GetName() string
-		GetActivityMapDeleteRewriteThreshold() int
-		GetTimerMapDeleteRewriteThreshold() int
 
 		CreateWorkflowExecution(ctx context.Context, request *CreateWorkflowExecutionRequest) (*CreateWorkflowExecutionResponse, error)
 		GetWorkflowExecution(ctx context.Context, request *GetWorkflowExecutionRequest) (*GetWorkflowExecutionResponse, error)

@@ -748,8 +748,6 @@ func TestSelectWorkflowExecution(t *testing.T) {
 				SignalInfos:            map[int64]*persistence.SignalInfo{},
 				SignalRequestedIDs:     map[string]struct{}{},
 				BufferedEvents:         []*persistence.DataBlob{},
-				ActivityMapDeleteCount: 2,
-				TimerMapDeleteCount:    3,
 			},
 		},
 	}

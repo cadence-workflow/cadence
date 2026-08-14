@@ -1885,14 +1885,13 @@ func TestUpdateTimerInfos(t *testing.T) {
 		workflowID  string
 		runID       string
 		timerInfos  map[string]*persistence.TimerInfo
-		deleteInfos []string
-		useSentinel bool
+		deleteInfos      []string
+		rewriteThreshold int
 		// expectations
 		wantQueries []string
 	}{
 		{
-			desc:       "update and delete timer infos with sentinel",
-			shardID:    1000,
+			desc:       "update and delete timer infos with sentinel",			shardID:    1000,
 			domainID:   "domain1",
 			workflowID: "workflow1",
 			runID:      "runid1",
@@ -1906,7 +1905,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 				},
 			},
 			deleteInfos: []string{"timer2"},
-			useSentinel: true,
+			rewriteThreshold: 100,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
 					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
@@ -1935,7 +1934,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 				},
 			},
 			deleteInfos: []string{"timer2"},
-			useSentinel: false,
+			rewriteThreshold: 0,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
 					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
@@ -1953,7 +1952,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, nil, tc.useSentinel, FixedTime)
+			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, nil, tc.rewriteThreshold, FixedTime)
 			if err != nil {
 				t.Fatalf("updateTimerInfos() error = %v", err)
 			}
@@ -2097,8 +2096,8 @@ func TestUpdateActivityInfos(t *testing.T) {
 		workflowID    string
 		runID         string
 		activityInfos map[int64]*persistence.InternalActivityInfo
-		deleteInfos   []int64
-		useSentinel   bool
+		deleteInfos      []int64
+		rewriteThreshold int
 		// expectations
 		wantQueries []string
 	}{
@@ -2136,7 +2135,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 				},
 			},
 			deleteInfos: []int64{2},
-			useSentinel: true,
+			rewriteThreshold: 100,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
 					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
@@ -2193,7 +2192,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 				},
 			},
 			deleteInfos: []int64{2},
-			useSentinel: false,
+			rewriteThreshold: 0,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
 					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
@@ -2221,7 +2220,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, nil, tc.useSentinel, FixedTime)
+			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, nil, tc.rewriteThreshold, FixedTime)
 			if err != nil {
 				t.Fatalf("updateActivityInfos() error = %v", err)
 			}
@@ -2241,12 +2240,10 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 
 	tests := []struct {
 		desc                string
-		shardID             int
-		domainID            string
-		workflowID          string
-		execution           *nosqlplugin.WorkflowExecutionRequest
-		useActivitySentinel bool
-		useTimerSentinel    bool
+		shardID    int
+		domainID   string
+		workflowID string
+		execution  *nosqlplugin.WorkflowExecutionRequest
 		// expectations
 		wantQueries int
 		wantErr     bool
@@ -2434,8 +2431,6 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 					},
 				},
 			},
-			useActivitySentinel: true,
-			useTimerSentinel:    true,
 			wantQueries:         3,
 		},
 	}
@@ -2444,7 +2439,7 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := createWorkflowExecutionWithMergeMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, tc.useActivitySentinel, tc.useTimerSentinel, FixedTime)
+			err := createWorkflowExecutionWithMergeMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)
@@ -2561,12 +2556,10 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 	}
 	tests := []struct {
 		desc                string
-		shardID             int
-		domainID            string
-		workflowID          string
-		execution           *nosqlplugin.WorkflowExecutionRequest
-		useActivitySentinel bool
-		useTimerSentinel    bool
+		shardID    int
+		domainID   string
+		workflowID string
+		execution  *nosqlplugin.WorkflowExecutionRequest
 		// expectations
 		wantQueries int
 		wantErr     bool
@@ -2694,8 +2687,6 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 			shardID:             1000,
 			domainID:            "domain1",
 			workflowID:          "workflow1",
-			useActivitySentinel: true,
-			useTimerSentinel:    true,
 			execution: &nosqlplugin.WorkflowExecutionRequest{
 				EventBufferWriteMode: nosqlplugin.EventBufferWriteModeClear,
 				MapsWriteMode:        nosqlplugin.WorkflowExecutionMapsWriteModeUpdate,
@@ -2721,7 +2712,7 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, tc.useActivitySentinel, tc.useTimerSentinel, FixedTime)
+			err := updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, 0, 0, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)

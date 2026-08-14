@@ -593,20 +593,6 @@ func (mr *MockExecutionManagerMockRecorder) GetActiveClusterSelectionPolicy(ctx,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterSelectionPolicy", reflect.TypeOf((*MockExecutionManager)(nil).GetActiveClusterSelectionPolicy), ctx, request)
 }
 
-// GetActivityMapDeleteRewriteThreshold mocks base method.
-func (m *MockExecutionManager) GetActivityMapDeleteRewriteThreshold() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetActivityMapDeleteRewriteThreshold")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// GetActivityMapDeleteRewriteThreshold indicates an expected call of GetActivityMapDeleteRewriteThreshold.
-func (mr *MockExecutionManagerMockRecorder) GetActivityMapDeleteRewriteThreshold() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapDeleteRewriteThreshold", reflect.TypeOf((*MockExecutionManager)(nil).GetActivityMapDeleteRewriteThreshold))
-}
-
 // GetCurrentExecution mocks base method.
 func (m *MockExecutionManager) GetCurrentExecution(ctx context.Context, request *GetCurrentExecutionRequest) (*GetCurrentExecutionResponse, error) {
 	m.ctrl.T.Helper()
@@ -679,20 +665,6 @@ func (m *MockExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, r
 func (mr *MockExecutionManagerMockRecorder) GetReplicationTasksFromDLQ(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationTasksFromDLQ", reflect.TypeOf((*MockExecutionManager)(nil).GetReplicationTasksFromDLQ), ctx, request)
-}
-
-// GetTimerMapDeleteRewriteThreshold mocks base method.
-func (m *MockExecutionManager) GetTimerMapDeleteRewriteThreshold() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTimerMapDeleteRewriteThreshold")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// GetTimerMapDeleteRewriteThreshold indicates an expected call of GetTimerMapDeleteRewriteThreshold.
-func (mr *MockExecutionManagerMockRecorder) GetTimerMapDeleteRewriteThreshold() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapDeleteRewriteThreshold", reflect.TypeOf((*MockExecutionManager)(nil).GetTimerMapDeleteRewriteThreshold))
 }
 
 // GetWorkflowExecution mocks base method.

@@ -393,10 +393,6 @@ func (c *meteredExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Co
 	return
 }
 
-func (c *meteredExecutionManager) GetActivityMapDeleteRewriteThreshold() (i1 int) {
-	return c.wrapped.GetActivityMapDeleteRewriteThreshold()
-}
-
 func (c *meteredExecutionManager) GetCurrentExecution(ctx context.Context, request *_sourcePersistence.GetCurrentExecutionRequest) (gp1 *_sourcePersistence.GetCurrentExecutionResponse, err error) {
 	op := func() error {
 		gp1, err = c.wrapped.GetCurrentExecution(ctx, request)
@@ -527,10 +523,6 @@ func (c *meteredExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context
 	err = c.callWithoutDomainTag(metrics.PersistenceGetReplicationTasksFromDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 
 	return
-}
-
-func (c *meteredExecutionManager) GetTimerMapDeleteRewriteThreshold() (i1 int) {
-	return c.wrapped.GetTimerMapDeleteRewriteThreshold()
 }
 
 func (c *meteredExecutionManager) GetWorkflowExecution(ctx context.Context, request *_sourcePersistence.GetWorkflowExecutionRequest) (gp1 *_sourcePersistence.GetWorkflowExecutionResponse, err error) {

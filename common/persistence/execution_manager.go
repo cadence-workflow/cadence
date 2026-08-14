@@ -68,14 +68,6 @@ func (m *executionManagerImpl) GetName() string {
 	return m.persistence.GetName()
 }
 
-func (m *executionManagerImpl) GetActivityMapDeleteRewriteThreshold() int {
-	return m.persistence.GetActivityMapDeleteRewriteThreshold()
-}
-
-func (m *executionManagerImpl) GetTimerMapDeleteRewriteThreshold() int {
-	return m.persistence.GetTimerMapDeleteRewriteThreshold()
-}
-
 // The below three APIs are related to serialization/deserialization
 
 func (m *executionManagerImpl) GetWorkflowExecution(
@@ -95,14 +87,12 @@ func (m *executionManagerImpl) GetWorkflowExecution(
 	}
 	newResponse := &GetWorkflowExecutionResponse{
 		State: &WorkflowMutableState{
-			TimerInfos:             response.State.TimerInfos,
-			RequestCancelInfos:     response.State.RequestCancelInfos,
-			SignalInfos:            response.State.SignalInfos,
-			SignalRequestedIDs:     response.State.SignalRequestedIDs,
-			ReplicationState:       response.State.ReplicationState, // TODO: remove this after all 2DC workflows complete
-			Checksum:               response.State.Checksum,
-			ActivityMapDeleteCount: response.State.ActivityMapDeleteCount,
-			TimerMapDeleteCount:    response.State.TimerMapDeleteCount,
+			TimerInfos:         response.State.TimerInfos,
+			RequestCancelInfos: response.State.RequestCancelInfos,
+			SignalInfos:        response.State.SignalInfos,
+			SignalRequestedIDs: response.State.SignalRequestedIDs,
+			ReplicationState:   response.State.ReplicationState, // TODO: remove this after all 2DC workflows complete
+			Checksum:           response.State.Checksum,
 		},
 	}
 
@@ -721,7 +711,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		return nil, err
 	}
 	var serializedRewriteActivityInfos []*InternalActivityInfo
-	if input.RewriteActivityMapTriggered {
+	if input.RewriteActivityInfos != nil {
 		serializedRewriteActivityInfos, err = m.SerializeUpsertActivityInfos(input.RewriteActivityInfos, encoding)
 		if err != nil {
 			return nil, err
@@ -731,9 +721,6 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		}
 	}
 	rewriteTimerInfos := input.RewriteTimerInfos
-	if input.RewriteTimerMapTriggered && rewriteTimerInfos == nil {
-		rewriteTimerInfos = []*TimerInfo{}
-	}
 	serializedUpsertChildExecutionInfos, err := m.SerializeUpsertChildExecutionInfos(input.UpsertChildExecutionInfos, encoding)
 	if err != nil {
 		return nil, err
@@ -765,25 +752,23 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		StartVersion:     startVersion,
 		LastWriteVersion: lastWriteVersion,
 
-		UpsertActivityInfos:         serializedUpsertActivityInfos,
-		DeleteActivityInfos:         input.DeleteActivityInfos,
-		RewriteActivityInfos:        serializedRewriteActivityInfos,
-		RewriteActivityMapTriggered: input.RewriteActivityMapTriggered,
-		UpsertTimerInfos:            input.UpsertTimerInfos,
-		DeleteTimerInfos:            input.DeleteTimerInfos,
-		RewriteTimerInfos:           rewriteTimerInfos,
-		RewriteTimerMapTriggered:    input.RewriteTimerMapTriggered,
-		WorkflowTimerTasks:          m.syncTimerTaskTrackingKeys(input.TasksByCategory),
-		UpsertChildExecutionInfos:   serializedUpsertChildExecutionInfos,
-		DeleteChildExecutionInfos:   input.DeleteChildExecutionInfos,
-		UpsertRequestCancelInfos:    input.UpsertRequestCancelInfos,
-		DeleteRequestCancelInfos:    input.DeleteRequestCancelInfos,
-		UpsertSignalInfos:           input.UpsertSignalInfos,
-		DeleteSignalInfos:           input.DeleteSignalInfos,
-		UpsertSignalRequestedIDs:    input.UpsertSignalRequestedIDs,
-		DeleteSignalRequestedIDs:    input.DeleteSignalRequestedIDs,
-		NewBufferedEvents:           serializedNewBufferedEvents,
-		ClearBufferedEvents:         input.ClearBufferedEvents,
+		UpsertActivityInfos:       serializedUpsertActivityInfos,
+		DeleteActivityInfos:       input.DeleteActivityInfos,
+		RewriteActivityInfos:      serializedRewriteActivityInfos,
+		UpsertTimerInfos:          input.UpsertTimerInfos,
+		DeleteTimerInfos:          input.DeleteTimerInfos,
+		RewriteTimerInfos:         rewriteTimerInfos,
+		WorkflowTimerTasks:        m.syncTimerTaskTrackingKeys(input.TasksByCategory),
+		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
+		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,
+		UpsertRequestCancelInfos:  input.UpsertRequestCancelInfos,
+		DeleteRequestCancelInfos:  input.DeleteRequestCancelInfos,
+		UpsertSignalInfos:         input.UpsertSignalInfos,
+		DeleteSignalInfos:         input.DeleteSignalInfos,
+		UpsertSignalRequestedIDs:  input.UpsertSignalRequestedIDs,
+		DeleteSignalRequestedIDs:  input.DeleteSignalRequestedIDs,
+		NewBufferedEvents:         serializedNewBufferedEvents,
+		ClearBufferedEvents:       input.ClearBufferedEvents,
 
 		TasksByCategory: input.TasksByCategory,
 

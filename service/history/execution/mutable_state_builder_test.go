@@ -1970,10 +1970,6 @@ func TestMutableStateBuilder_CopyToPersistence_roundtrip(t *testing.T) {
 		assert.Equal(t, execution.ReplicationState, out.ReplicationState, "replication state mismatch")
 		assert.Equal(t, execution.ExecutionStats, out.ExecutionStats, "execution stats mismatch")
 
-		// Delete counts are storage-layer metadata set during Load() but not
-		// emitted by CopyToPersistence(), so zero them before the full-struct comparison.
-		execution.ActivityMapDeleteCount = 0
-		execution.TimerMapDeleteCount = 0
 		assert.Equal(t, execution, out)
 
 	}
@@ -3514,78 +3510,13 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			expectedEvent: nil,
 			expectedErr:   nil,
 		},
-		"sentinel rewrite with empty pending maps": {
+		"pending maps passed when there are deletes": {
 			mutableStateSetup: func(ms *mutableStateBuilder) {
 				ms.executionInfo.DomainID = "some-domain-id"
 				ms.executionInfo.NextEventID = 10
 				ms.executionInfo.LastProcessedEvent = 5
 				ms.executionInfo.State = persistence.WorkflowStateRunning
 				ms.executionInfo.CloseStatus = persistence.WorkflowCloseStatusNone
-				ms.activityMapDeleteCount = 100
-				ms.timerMapDeleteCount = 100
-			},
-			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GetConfig().Return(&config.Config{
-					NumberOfShards:                        2,
-					IsAdvancedVisConfigExist:              false,
-					MaxResponseSize:                       0,
-					MutableStateChecksumInvalidateBefore:  dynamicproperties.GetFloatPropertyFn(10),
-					MutableStateChecksumVerifyProbability: dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
-					HostName:                              "test-host",
-					EnableReplicationTaskGeneration:       func(string, string) bool { return true },
-					MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
-				}).Times(2)
-
-				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
-				mockDomainCache.EXPECT().GetDomainByID("some-domain-id").Return(mockDomain, nil)
-			},
-			expectedMutation: &persistence.WorkflowMutation{
-				ExecutionInfo: &persistence.WorkflowExecutionInfo{
-					DomainID:             "some-domain-id",
-					NextEventID:          10,
-					LastProcessedEvent:   5,
-					State:                persistence.WorkflowStateRunning,
-					CloseStatus:          persistence.WorkflowCloseStatusNone,
-					LastUpdatedTimestamp: now,
-					DecisionVersion:      commonconstants.EmptyVersion,
-					DecisionScheduleID:   commonconstants.EmptyEventID,
-					DecisionRequestID:    commonconstants.EmptyUUID,
-					DecisionStartedID:    commonconstants.EmptyEventID,
-				},
-				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
-					persistence.HistoryTaskCategoryTransfer:    nil,
-					persistence.HistoryTaskCategoryTimer:       nil,
-					persistence.HistoryTaskCategoryReplication: nil,
-				},
-				UpsertActivityInfos:         []*persistence.ActivityInfo{},
-				DeleteActivityInfos:         nil,
-				RewriteActivityMapTriggered: true,
-				UpsertTimerInfos:            []*persistence.TimerInfo{},
-				DeleteTimerInfos:            nil,
-				RewriteTimerMapTriggered:    true,
-				UpsertChildExecutionInfos:   []*persistence.ChildExecutionInfo{},
-				UpsertRequestCancelInfos:    []*persistence.RequestCancelInfo{},
-				DeleteRequestCancelInfos:    []int64{},
-				UpsertSignalInfos:           []*persistence.SignalInfo{},
-				DeleteSignalInfos:           []int64{},
-				UpsertSignalRequestedIDs:    []string{},
-				DeleteSignalRequestedIDs:    []string{},
-				DeleteChildExecutionInfos:   []int64{},
-				WorkflowRequests:            []*persistence.WorkflowRequest{},
-				Condition:                   0,
-			},
-			expectedEvent: nil,
-			expectedErr:   nil,
-		},
-		"sentinel rewrite with pending activities and timers": {
-			mutableStateSetup: func(ms *mutableStateBuilder) {
-				ms.executionInfo.DomainID = "some-domain-id"
-				ms.executionInfo.NextEventID = 10
-				ms.executionInfo.LastProcessedEvent = 5
-				ms.executionInfo.State = persistence.WorkflowStateRunning
-				ms.executionInfo.CloseStatus = persistence.WorkflowCloseStatusNone
-				ms.activityMapDeleteCount = 100
-				ms.timerMapDeleteCount = 100
 				ms.pendingActivityInfoIDs = map[int64]*persistence.ActivityInfo{
 					1: {ScheduleID: 1, ActivityID: "activity-1"},
 					2: {ScheduleID: 2, ActivityID: "activity-2"},
@@ -3622,10 +3553,8 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			},
 			validateMutation: func(t *testing.T, mutation *persistence.WorkflowMutation) {
 				require.NotNil(t, mutation, "mutation should not be nil")
-				assert.True(t, mutation.RewriteActivityMapTriggered)
-				assert.True(t, mutation.RewriteTimerMapTriggered)
-				assert.Nil(t, mutation.DeleteActivityInfos)
-				assert.Nil(t, mutation.DeleteTimerInfos)
+				assert.Equal(t, []int64{99}, mutation.DeleteActivityInfos)
+				assert.Equal(t, []string{"old-timer"}, mutation.DeleteTimerInfos)
 
 				assert.Len(t, mutation.RewriteActivityInfos, 2)
 				activityIDs := make(map[int64]string)
@@ -3752,11 +3681,6 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
-
-			mockExecManager := persistence.NewMockExecutionManager(ctrl)
-			mockExecManager.EXPECT().GetActivityMapDeleteRewriteThreshold().Return(100).AnyTimes()
-			mockExecManager.EXPECT().GetTimerMapDeleteRewriteThreshold().Return(100).AnyTimes()
-			shardContext.EXPECT().GetExecutionManager().Return(mockExecManager).AnyTimes()
 
 			ms := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 			td.mutableStateSetup(ms)
