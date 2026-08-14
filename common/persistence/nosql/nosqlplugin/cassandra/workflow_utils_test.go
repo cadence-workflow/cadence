@@ -1886,6 +1886,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 		runID                  string
 		timerInfos             map[string]*persistence.TimerInfo
 		deleteInfos            []string
+		rewriteInfos           map[string]*persistence.TimerInfo
 		rewriteProbabilityRate int
 		// expectations
 		wantQueries []string
@@ -1946,13 +1947,47 @@ func TestUpdateTimerInfos(t *testing.T) {
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 			},
 		},
+		{
+			desc:       "rewrite replaces full map skipping upserts and deletes",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
+			runID:      "runid1",
+			timerInfos: map[string]*persistence.TimerInfo{
+				"timer1": {
+					TimerID:    "timer1",
+					Version:    1,
+					StartedID:  2,
+					ExpiryTime: ts.UTC(),
+					TaskStatus: 1,
+				},
+			},
+			deleteInfos: []string{"timer2"},
+			rewriteInfos: map[string]*persistence.TimerInfo{
+				"timer1": {
+					TimerID:    "timer1",
+					Version:    1,
+					StartedID:  2,
+					ExpiryTime: ts.UTC(),
+					TaskStatus: 1,
+				},
+			},
+			rewriteProbabilityRate: 100,
+			wantQueries: []string{
+				`UPDATE executions SET timer_map = map[` +
+					`timer1:map[expiry_time:2023-12-19 22:08:41 +0000 UTC started_id:2 task_id:1 timer_id:timer1 version:1]` +
+					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, nil, tc.rewriteProbabilityRate, FixedTime)
+			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, tc.rewriteInfos, tc.rewriteProbabilityRate, FixedTime)
 			if err != nil {
 				t.Fatalf("updateTimerInfos() error = %v", err)
 			}
@@ -2097,6 +2132,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 		runID                  string
 		activityInfos          map[int64]*persistence.InternalActivityInfo
 		deleteInfos            []int64
+		rewriteInfos           map[int64]*persistence.InternalActivityInfo
 		rewriteProbabilityRate int
 		// expectations
 		wantQueries []string
@@ -2214,13 +2250,91 @@ func TestUpdateActivityInfos(t *testing.T) {
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 			},
 		},
+		{
+			desc:       "rewrite replaces full map skipping upserts and deletes",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
+			runID:      "runid1",
+			activityInfos: map[int64]*persistence.InternalActivityInfo{
+				1: {
+					Version: 1,
+					ScheduledEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-scheduled-event-data"),
+					},
+					ScheduledTime: ts.UTC(),
+					ScheduleID:    1,
+					StartedID:     2,
+					StartedEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-started-event-data"),
+					},
+					ActivityID:             "activity1",
+					ScheduleToStartTimeout: 1 * time.Minute,
+					ScheduleToCloseTimeout: 2 * time.Minute,
+					StartToCloseTimeout:    3 * time.Minute,
+					HeartbeatTimeout:       1 * time.Minute,
+					Attempt:                3,
+					MaximumAttempts:        5,
+					TaskList:               "tasklist1",
+					HasRetryPolicy:         true,
+					LastFailureReason:      "retry reason",
+				},
+			},
+			deleteInfos: []int64{2},
+			rewriteInfos: map[int64]*persistence.InternalActivityInfo{
+				1: {
+					Version: 1,
+					ScheduledEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-scheduled-event-data"),
+					},
+					ScheduledTime: ts.UTC(),
+					ScheduleID:    1,
+					StartedID:     2,
+					StartedEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-started-event-data"),
+					},
+					ActivityID:             "activity1",
+					ScheduleToStartTimeout: 1 * time.Minute,
+					ScheduleToCloseTimeout: 2 * time.Minute,
+					StartToCloseTimeout:    3 * time.Minute,
+					HeartbeatTimeout:       1 * time.Minute,
+					Attempt:                3,
+					MaximumAttempts:        5,
+					TaskList:               "tasklist1",
+					HasRetryPolicy:         true,
+					LastFailureReason:      "retry reason",
+				},
+			},
+			rewriteProbabilityRate: 100,
+			wantQueries: []string{
+				`UPDATE executions SET activity_map = map[` +
+					`1:map[` +
+					`activity_id:activity1 attempt:3 backoff_coefficient:0 cancel_request_id:0 cancel_requested:false ` +
+					`details:[] event_data_encoding:thriftrw expiration_time:0001-01-01 00:00:00 +0000 UTC has_retry_policy:true ` +
+					`heart_beat_timeout:60 init_interval:0 last_failure_category:0 last_failure_details:[] last_failure_reason:retry reason ` +
+					`last_hb_updated_time:0001-01-01 00:00:00 +0000 UTC last_retry_interval_seconds:0 last_worker_identity: max_attempts:5 max_interval:0 ` +
+					`non_retriable_errors:[] request_id: schedule_id:1 schedule_to_close_timeout:120 schedule_to_start_timeout:60 ` +
+					`scheduled_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
+					`scheduled_event_batch_id:0 scheduled_time:2023-12-19 22:08:41 +0000 UTC start_to_close_timeout:180 ` +
+					`started_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
+					`started_id:2 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 timer_task_status:0 version:1` +
+					`]` +
+					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, nil, tc.rewriteProbabilityRate, FixedTime)
+			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, tc.rewriteInfos, tc.rewriteProbabilityRate, FixedTime)
 			if err != nil {
 				t.Fatalf("updateActivityInfos() error = %v", err)
 			}

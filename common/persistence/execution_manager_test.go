@@ -358,16 +358,16 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 
 func TestSerializeWorkflowMutation_RewriteProbability(t *testing.T) {
 	tests := []struct {
-		name                   string
-		activityRate           int
-		timerRate              int
-		rewriteActivityInfos   []*ActivityInfo
-		rewriteTimerInfos      []*TimerInfo
-		deleteActivityInfos    []int64
-		deleteTimerInfos       []string
-		expectRewriteActivity  bool
-		expectRewriteTimer     bool
-		expectDeletesCleared   bool
+		name                  string
+		activityRate          int
+		timerRate             int
+		rewriteActivityInfos  []*ActivityInfo
+		rewriteTimerInfos     []*TimerInfo
+		deleteActivityInfos   []int64
+		deleteTimerInfos      []string
+		expectRewriteActivity bool
+		expectRewriteTimer    bool
+		expectDeletesCleared  bool
 	}{
 		{
 			name:         "rate 1 with deletes triggers rewrite and clears deletes",
@@ -376,9 +376,9 @@ func TestSerializeWorkflowMutation_RewriteProbability(t *testing.T) {
 			rewriteActivityInfos: []*ActivityInfo{
 				{Version: 1, ScheduleID: 10, ScheduledEvent: activityScheduledEvent(), StartedEvent: activityStartedEvent()},
 			},
-			rewriteTimerInfos:    []*TimerInfo{{TimerID: "t1"}},
-			deleteActivityInfos:  []int64{5},
-			deleteTimerInfos:     []string{"t2"},
+			rewriteTimerInfos:     []*TimerInfo{{TimerID: "t1"}},
+			deleteActivityInfos:   []int64{5},
+			deleteTimerInfos:      []string{"t2"},
 			expectRewriteActivity: true,
 			expectRewriteTimer:    true,
 			expectDeletesCleared:  true,
@@ -390,33 +390,33 @@ func TestSerializeWorkflowMutation_RewriteProbability(t *testing.T) {
 			rewriteActivityInfos: []*ActivityInfo{
 				{Version: 1, ScheduleID: 10, ScheduledEvent: activityScheduledEvent(), StartedEvent: activityStartedEvent()},
 			},
-			rewriteTimerInfos:    []*TimerInfo{{TimerID: "t1"}},
-			deleteActivityInfos:  []int64{5},
-			deleteTimerInfos:     []string{"t2"},
+			rewriteTimerInfos:     []*TimerInfo{{TimerID: "t1"}},
+			deleteActivityInfos:   []int64{5},
+			deleteTimerInfos:      []string{"t2"},
 			expectRewriteActivity: false,
 			expectRewriteTimer:    false,
 			expectDeletesCleared:  false,
 		},
 		{
-			name:         "nil rewrite infos skips rewrite even with rate 1",
-			activityRate: 1,
-			timerRate:    1,
-			rewriteActivityInfos: nil,
-			rewriteTimerInfos:    nil,
-			deleteActivityInfos:  []int64{5},
-			deleteTimerInfos:     []string{"t2"},
+			name:                  "nil rewrite infos skips rewrite even with rate 1",
+			activityRate:          1,
+			timerRate:             1,
+			rewriteActivityInfos:  nil,
+			rewriteTimerInfos:     nil,
+			deleteActivityInfos:   []int64{5},
+			deleteTimerInfos:      []string{"t2"},
 			expectRewriteActivity: false,
 			expectRewriteTimer:    false,
 			expectDeletesCleared:  false,
 		},
 		{
-			name:         "empty rewrite infos produces empty slice marker and clears deletes",
-			activityRate: 1,
-			timerRate:    1,
-			rewriteActivityInfos: []*ActivityInfo{},
-			rewriteTimerInfos:    []*TimerInfo{},
-			deleteActivityInfos:  []int64{5},
-			deleteTimerInfos:     []string{"t2"},
+			name:                  "empty rewrite infos produces empty slice marker and clears deletes",
+			activityRate:          1,
+			timerRate:             1,
+			rewriteActivityInfos:  []*ActivityInfo{},
+			rewriteTimerInfos:     []*TimerInfo{},
+			deleteActivityInfos:   []int64{5},
+			deleteTimerInfos:      []string{"t2"},
 			expectRewriteActivity: true,
 			expectRewriteTimer:    true,
 			expectDeletesCleared:  true,

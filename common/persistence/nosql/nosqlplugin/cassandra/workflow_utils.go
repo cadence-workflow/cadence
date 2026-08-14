@@ -968,6 +968,10 @@ func updateTimerInfos(
 	rewriteProbabilityRate int,
 	timeStamp time.Time,
 ) error {
+	if len(deleteInfos) > 0 && rewriteInfos != nil {
+		return resetTimerInfos(batch, shardID, domainID, workflowID, runID, rewriteInfos, timeStamp)
+	}
+
 	for _, timerInfo := range timerInfos {
 		batch.Query(templateUpdateTimerInfoQuery,
 			timerInfo.TimerID,
@@ -988,10 +992,6 @@ func updateTimerInfos(
 
 	if len(deleteInfos) == 0 {
 		return nil
-	}
-
-	if rewriteInfos != nil {
-		return resetTimerInfos(batch, shardID, domainID, workflowID, runID, rewriteInfos, timeStamp)
 	}
 
 	for _, deleteInfo := range deleteInfos {
@@ -1157,6 +1157,10 @@ func updateActivityInfos(
 	rewriteProbabilityRate int,
 	timeStamp time.Time,
 ) error {
+	if len(deleteInfos) > 0 && rewriteInfos != nil {
+		return resetActivityInfos(batch, shardID, domainID, workflowID, runID, rewriteInfos, timeStamp)
+	}
+
 	for _, a := range activityInfos {
 		batch.Query(templateUpdateActivityInfoQuery,
 			a.ScheduleID,
@@ -1208,10 +1212,6 @@ func updateActivityInfos(
 
 	if len(deleteInfos) == 0 {
 		return nil
-	}
-
-	if rewriteInfos != nil {
-		return resetActivityInfos(batch, shardID, domainID, workflowID, runID, rewriteInfos, timeStamp)
 	}
 
 	for _, deleteInfo := range deleteInfos {
