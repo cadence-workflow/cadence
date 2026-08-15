@@ -27,7 +27,9 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -54,6 +56,7 @@ type (
 	activityReplicatorImpl struct {
 		executionCache  execution.Cache
 		clusterMetadata cluster.Metadata
+		domainCache     cache.DomainCache
 		logger          log.Logger
 	}
 )
@@ -70,6 +73,7 @@ func NewActivityReplicator(
 	return &activityReplicatorImpl{
 		executionCache:  executionCache,
 		clusterMetadata: shard.GetService().GetClusterMetadata(),
+		domainCache:     shard.GetDomainCache(),
 		logger:          logger.WithTags(tag.ComponentHistoryReplicator),
 	}
 }
@@ -79,11 +83,10 @@ func (r *activityReplicatorImpl) SyncActivity(
 	request *types.SyncActivityRequest,
 ) (retError error) {
 
-	// sync activity info will only be sent from active side, when
-	// 1. activity has retry policy and activity got started
-	// 2. activity heart beat
-	// no sync activity task will be sent when active side fail / timeout activity,
-	// since standby side does not have activity retry timer
+	// Sync activity info is sent from the active side when an activity starts,
+	// heartbeats, or has a retriable failure. For an unstarted retry, this apply
+	// path regenerates the retry backoff timer locally because timer tasks are not
+	// replicated.
 	domainID := request.GetDomainID()
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: request.WorkflowID,
@@ -189,6 +192,27 @@ func (r *activityReplicatorImpl) SyncActivity(
 		mutableState,
 	).CreateNextActivityTimer(); err != nil {
 		return err
+	}
+
+	// The retry backoff timer only exists in the cluster that recorded the
+	// activity failure; timer tasks are never replicated. If the synced state
+	// is an unstarted retry, regenerate the retry timer locally so a failover
+	// to this cluster before the backoff elapses does not strand the retry in
+	// SCHEDULED state. Regeneration is skipped when activity cancellation was
+	// requested, mirroring the guard in RetryActivity. This is intentionally
+	// not gated on this cluster being active: a cluster that stays standby
+	// no-ops the task in its standby timer executor, and duplicates on the
+	// active side are dropped by the attempt / started-state checks in
+	// executeActivityRetryTimerTask.
+	if request.GetStartedID() == constants.EmptyEventID && request.GetAttempt() > 0 && !ai.CancelRequested {
+		if err := execution.NewMutableStateTaskGenerator(
+			r.logger,
+			r.clusterMetadata,
+			r.domainCache,
+			mutableState,
+		).GenerateActivityRetryTasks(scheduleID); err != nil {
+			return err
+		}
 	}
 
 	updateMode := persistence.UpdateWorkflowModeUpdateCurrent
