@@ -5,6 +5,7 @@ import (
 	"github.com/uber/cadence/simulation/replication/workflows/childactivityloop"
 	"github.com/uber/cadence/simulation/replication/workflows/query"
 	"github.com/uber/cadence/simulation/replication/workflows/retryactivityfailover"
+	"github.com/uber/cadence/simulation/replication/workflows/retryactivitystress"
 	"github.com/uber/cadence/simulation/replication/workflows/timeractivityloop"
 )
 
@@ -18,11 +19,13 @@ var (
 			"query-workflow":                   queryWFRunner.Workflow,
 			"child-activity-loop-workflow":     childactivityloop.Workflow,
 			"activity-retry-failover-workflow": retryactivityfailover.Workflow,
+			"activity-retry-stress-workflow":   retryactivitystress.Workflow,
 		}
 	}
 	Activities = map[string]any{
 		"timer-activity-loop-format-string-activity": timeractivityloop.FormatStringActivity,
 		"activity-loop-format-string-activity":       activityloop.FormatStringActivity,
 		"fail-on-first-attempt-activity":             retryactivityfailover.FailOnFirstAttemptActivity,
+		"fail-until-attempt-activity":                retryactivitystress.FailUntilAttemptActivity,
 	}
 )

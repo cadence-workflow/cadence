@@ -1,0 +1,208 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulations can be run via ./simulation/replication/run.sh --scenario activityretryfailoverstress
+#
+# Volume/race stress companion to the deterministic activityretryfailover scenario.
+# 5 workflows x 10 parallel activities each = 50 concurrent activity retry chains. Every
+# activity fails with a retriable error on attempts 0-14 (running ~1s per attempt, 8s flat
+# retry backoff) and succeeds at attempt 15, so every chain is still mid-flight (~t+150)
+# when the last failover lands, and at any instant most chains are mid-BACKOFF — the state
+# a failover strands. Four forced failovers land at t+30/60/90/120 while retries are
+# continuously in flight, so:
+#   - many retry backoffs straddle a failover: the retry timer lives only in the cluster
+#     that recorded the failure, which silently drops it as standby at fire time, and the
+#     new active cluster never generates one (the deterministic lost-retry mechanism), and
+#   - many RespondActivityTaskFailed calls land in the just-demoted cluster inside its
+#     domain-cache staleness window (DomainCacheRefreshInterval is a hardcoded 10s,
+#     common/cache/domainCache.go), reproducing the production stale-accept race.
+# Either path strands an activity in SCHEDULED forever (its ScheduleToStart timeout is
+# capped at the 600s workflow timeout, far beyond the assertion window), so its workflow
+# cannot complete.
+#
+# The first failover(s) can partially rescue stranded retries: an ActivityTaskScheduled
+# transfer task not yet retired in the newly-active cluster is replayed on failover and
+# re-pushes the activity (see the activityretryfailover scenario header for the full
+# mechanics). Each replay also completes that transfer task, and this scenario's dynamic
+# config lowers the queue poll/update-ack intervals so replayed tasks are retired within
+# seconds. By the later failovers (t+90, t+120) both clusters' schedule transfer tasks are
+# retired, so retries stranded then STAY stranded. Stranding at a given failover is
+# per-chain probabilistic (the chain must be mid-backoff with the failure recorded in the
+# outgoing active cluster); with 50 chains ~85% mid-backoff at each of two late failovers,
+# at least one stranded workflow is a near-certainty on master.
+#
+# The assertions encode the EXPECTED (post-fix) behavior: every retry is re-dispatched after
+# failover and all workflows complete. The scenario therefore FAILS on master today. Once the
+# fix lands it passes unchanged — at that point add "activityretryfailoverstress" to the
+# scenario matrix in .github/workflows/replication-simulation.yml. It is intentionally NOT in
+# the CI matrix until then.
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+domains:
+  test-domain:
+    activeClusterName: cluster0
+
+operations:
+  - op: start_workflow
+    at: 0s
+    workflowType: activity-retry-stress-workflow
+    workflowID: activity-retry-stress-workflow1
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 600s
+    workflowDuration: 60s
+    activityCount: 10
+
+  - op: start_workflow
+    at: 1s
+    workflowType: activity-retry-stress-workflow
+    workflowID: activity-retry-stress-workflow2
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 600s
+    workflowDuration: 60s
+    activityCount: 10
+
+  - op: start_workflow
+    at: 2s
+    workflowType: activity-retry-stress-workflow
+    workflowID: activity-retry-stress-workflow3
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 600s
+    workflowDuration: 60s
+    activityCount: 10
+
+  - op: start_workflow
+    at: 3s
+    workflowType: activity-retry-stress-workflow
+    workflowID: activity-retry-stress-workflow4
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 600s
+    workflowDuration: 60s
+    activityCount: 10
+
+  - op: start_workflow
+    at: 4s
+    workflowType: activity-retry-stress-workflow
+    workflowID: activity-retry-stress-workflow5
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 600s
+    workflowDuration: 60s
+    activityCount: 10
+
+  # Repeated forced failovers while all 50 activities are mid-retry-chain.
+  - op: change_active_clusters
+    at: 30s
+    domain: test-domain
+    newActiveCluster: cluster1
+
+  - op: change_active_clusters
+    at: 60s
+    domain: test-domain
+    newActiveCluster: cluster0
+
+  - op: change_active_clusters
+    at: 90s
+    domain: test-domain
+    newActiveCluster: cluster1
+
+  - op: change_active_clusters
+    at: 120s
+    domain: test-domain
+    newActiveCluster: cluster0
+
+  # Post-fix: every stranded retry gets re-dispatched; healthy chains finish ~t+150, with
+  # StartToClose-timeout recoveries adding up to ~20s per crossed failover (worst ~t+230).
+  # t+300s leaves generous slack while staying far below the 600s timeouts. On master, the
+  # early failovers partially rescue (transfer-task replay) but by t+90/t+120 both clusters'
+  # schedule transfer tasks are retired, so retries stranded by the late failovers stay
+  # stranded and these checks fail.
+  - op: validate_pending_activity
+    at: 300s
+    workflowID: activity-retry-stress-workflow1
+    cluster: cluster0
+    domain: test-domain
+    want:
+      activityDispatched: true
+
+  - op: validate_pending_activity
+    at: 301s
+    workflowID: activity-retry-stress-workflow2
+    cluster: cluster0
+    domain: test-domain
+    want:
+      activityDispatched: true
+
+  - op: validate_pending_activity
+    at: 302s
+    workflowID: activity-retry-stress-workflow3
+    cluster: cluster0
+    domain: test-domain
+    want:
+      activityDispatched: true
+
+  - op: validate_pending_activity
+    at: 303s
+    workflowID: activity-retry-stress-workflow4
+    cluster: cluster0
+    domain: test-domain
+    want:
+      activityDispatched: true
+
+  - op: validate_pending_activity
+    at: 304s
+    workflowID: activity-retry-stress-workflow5
+    cluster: cluster0
+    domain: test-domain
+    want:
+      activityDispatched: true
+
+  - op: validate
+    at: 310s
+    workflowID: activity-retry-stress-workflow1
+    cluster: cluster0
+    domain: test-domain
+    want:
+      status: completed
+
+  - op: validate
+    at: 311s
+    workflowID: activity-retry-stress-workflow2
+    cluster: cluster0
+    domain: test-domain
+    want:
+      status: completed
+
+  - op: validate
+    at: 312s
+    workflowID: activity-retry-stress-workflow3
+    cluster: cluster0
+    domain: test-domain
+    want:
+      status: completed
+
+  - op: validate
+    at: 313s
+    workflowID: activity-retry-stress-workflow4
+    cluster: cluster0
+    domain: test-domain
+    want:
+      status: completed
+
+  - op: validate
+    at: 314s
+    workflowID: activity-retry-stress-workflow5
+    cluster: cluster0
+    domain: test-domain
+    want:
+      status: completed
