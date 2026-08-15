@@ -51,6 +51,7 @@ const (
 	ReplicationSimulationOperationQueryWorkflow               ReplicationSimulationOperation = "query_workflow"
 	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
 	ReplicationSimulationOperationValidateWorkflowReplication ReplicationSimulationOperation = "validate_workflow_replication"
+	ReplicationSimulationOperationValidatePendingActivity     ReplicationSimulationOperation = "validate_pending_activity"
 )
 
 type ReplicationSimulationConfig struct {
@@ -126,6 +127,17 @@ type Validation struct {
 	CompletedByWorkersInCluster string `yaml:"completedByWorkersInCluster"`
 	Error                       string `yaml:"error"`
 	QueryResult                 any    `yaml:"queryResult"`
+
+	// PendingActivityState asserts the workflow has exactly one pending activity
+	// in the given state. Supported values: "scheduled", "started".
+	PendingActivityState string `yaml:"pendingActivityState"`
+	// PendingActivityAttempt asserts the pending activity's attempt count.
+	// Only checked when PendingActivityState is set.
+	PendingActivityAttempt *int32 `yaml:"pendingActivityAttempt"`
+	// ActivityDispatched=true asserts that no pending activity is stuck in
+	// SCHEDULED state at attempt > 0 past its scheduled time, i.e. any recorded
+	// activity retry has actually been dispatched to a worker.
+	ActivityDispatched *bool `yaml:"activityDispatched"`
 }
 
 type Cluster struct {
