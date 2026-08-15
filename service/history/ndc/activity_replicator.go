@@ -82,8 +82,8 @@ func (r *activityReplicatorImpl) SyncActivity(
 	// sync activity info will only be sent from active side, when
 	// 1. activity has retry policy and activity got started
 	// 2. activity heart beat
-	// no sync activity task will be sent when active side fail / timeout activity,
-	// since standby side does not have activity retry timer
+	// 3. activity fails with a retriable error (triggers retry backoff)
+	// Terminal failures and timeouts are replicated as history events instead.
 	domainID := request.GetDomainID()
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: request.WorkflowID,

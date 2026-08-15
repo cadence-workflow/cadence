@@ -125,8 +125,15 @@ func (t *timerStandbyTaskExecutor) Execute(task Task) (ExecuteResponse, error) {
 		defer cancel()
 		return executeResponse, t.executeWorkflowTimeoutTask(ctx, timerTask)
 	case *persistence.ActivityRetryTimerTask:
-		// retry backoff timer should not get created on passive cluster
-		// TODO: add error logs
+		t.logger.Warn("Activity retry timer task on standby cluster will be dropped",
+			tag.WorkflowDomainID(timerTask.DomainID),
+			tag.WorkflowID(timerTask.WorkflowID),
+			tag.WorkflowRunID(timerTask.RunID),
+			tag.WorkflowScheduleID(timerTask.EventID),
+			tag.ScheduleAttempt(timerTask.Attempt),
+			tag.TaskVisibilityTimestamp(timerTask.VisibilityTimestamp.UnixNano()),
+		)
+		scope.IncCounter(metrics.TaskDiscarded)
 		return executeResponse, nil
 	case *persistence.WorkflowBackoffTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
