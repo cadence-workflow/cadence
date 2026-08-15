@@ -127,3 +127,11 @@ func TestCassandraHistoryTaskDLQPersistence(t *testing.T) {
 	s.Setup()
 	suite.Run(t, s)
 }
+
+func TestCassandraSemaphoreMetadataPersistence(t *testing.T) {
+	testflags.RequireCassandra(t)
+	s := new(persistencetests.SemaphoreMetadataPersistenceSuite)
+	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
+	s.Setup()
+	suite.Run(t, s)
+}

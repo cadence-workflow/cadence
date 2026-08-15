@@ -67,6 +67,7 @@ type (
 		WorkflowCRUD
 		ConfigStoreCRUD
 		DomainAuditLogCRUD
+		SemaphoreMetadataCRUD
 		HistoryDLQTaskCRUD
 	}
 
@@ -547,6 +548,26 @@ type (
 		// SelectDomainAuditLogs returns audit log entries for a domain and operation type
 		// Returns paginated results ordered by created_time DESC, event_id ASC
 		SelectDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, []byte, error)
+	}
+
+	/***
+	* SemaphoreMetadataCRUD is for distributed semaphore metadata (config) storage
+	*
+	* Recommendation: use one table
+	*
+	* Significant columns:
+	* semaphore_metadata: partition key(domainID), range key(semaphoreName)
+	 */
+	SemaphoreMetadataCRUD interface {
+		// InsertSemaphoreMetadata creates a semaphore's metadata idempotently (INSERT ... IF NOT EXISTS).
+		// Returns a ConditionFailure if the semaphore already exists.
+		InsertSemaphoreMetadata(ctx context.Context, row *SemaphoreMetadataRow) error
+
+		// SelectSemaphoreMetadata returns a single semaphore's metadata by (domainID, semaphoreName).
+		SelectSemaphoreMetadata(ctx context.Context, domainID, semaphoreName string) (*SemaphoreMetadataRow, error)
+
+		// SelectSemaphoreMetadataByDomain returns the semaphores in a domain, paginated.
+		SelectSemaphoreMetadataByDomain(ctx context.Context, filter *SemaphoreMetadataFilter) ([]*SemaphoreMetadataRow, []byte, error)
 	}
 
 	/***

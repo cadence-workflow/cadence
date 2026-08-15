@@ -82,6 +82,11 @@ func (f *Factory) NewDomainAuditStore() (persistence.DomainAuditStore, error) {
 	return newNoSQLDomainAuditStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
+// NewSemaphoreMetadataStore returns a semaphore metadata store
+func (f *Factory) NewSemaphoreMetadataStore() (persistence.SemaphoreMetadataStore, error) {
+	return newNoSQLSemaphoreMetadataStore(f.cfg, f.logger, f.metricsClient, f.dc)
+}
+
 // NewHistoryDLQTaskStore returns a history DLQ task store
 func (f *Factory) NewHistoryDLQTaskStore() (persistence.HistoryDLQTaskStore, error) {
 	return newNoSQLHistoryDLQTaskStore(f.cfg, f.logger, f.metricsClient, f.dc)

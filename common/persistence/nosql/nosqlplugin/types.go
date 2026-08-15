@@ -281,6 +281,22 @@ type (
 		NextPageToken  []byte
 	}
 
+	// SemaphoreMetadataRow defines the row struct for distributed semaphore metadata
+	SemaphoreMetadataRow struct {
+		DomainID      string
+		SemaphoreName string
+		Size          int
+		BucketSize    int
+		CreatedTime   time.Time
+	}
+
+	// SemaphoreMetadataFilter contains the filter criteria for listing semaphores in a domain
+	SemaphoreMetadataFilter struct {
+		DomainID      string
+		PageSize      int
+		NextPageToken []byte
+	}
+
 	// HistoryDLQTaskRow defines the row struct for history task dead-letter queue entries.
 	HistoryDLQTaskRow struct {
 		ShardID               int

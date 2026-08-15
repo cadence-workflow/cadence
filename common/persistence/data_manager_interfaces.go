@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Generate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -1404,6 +1404,52 @@ type (
 		Comment         string
 	}
 
+	// SemaphoreMetadata is the identity and configuration of a distributed semaphore
+	SemaphoreMetadata struct {
+		DomainID      string
+		SemaphoreName string
+		Size          int
+		BucketSize    int
+		CreatedTime   time.Time
+	}
+
+	// CreateSemaphoreRequest is used to create a semaphore's metadata
+	CreateSemaphoreRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Size          int
+		BucketSize    int
+	}
+
+	// CreateSemaphoreResponse is the response for CreateSemaphore
+	CreateSemaphoreResponse struct {
+		Semaphore *SemaphoreMetadata
+	}
+
+	// GetSemaphoreRequest is used to read a semaphore's metadata
+	GetSemaphoreRequest struct {
+		DomainID      string
+		SemaphoreName string
+	}
+
+	// GetSemaphoreResponse is the response for GetSemaphore
+	GetSemaphoreResponse struct {
+		Semaphore *SemaphoreMetadata
+	}
+
+	// ListSemaphoresRequest lists the semaphores in a domain
+	ListSemaphoresRequest struct {
+		DomainID      string
+		PageSize      int
+		NextPageToken []byte
+	}
+
+	// ListSemaphoresResponse is the response for ListSemaphores
+	ListSemaphoresResponse struct {
+		Semaphores    []*SemaphoreMetadata
+		NextPageToken []byte
+	}
+
 	// MutableStateStats is the size stats for MutableState
 	MutableStateStats struct {
 		// Total size of mutable state
@@ -1786,6 +1832,15 @@ type (
 		GetName() string
 		CreateDomainAuditLog(ctx context.Context, request *CreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error)
 		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*GetDomainAuditLogsResponse, error)
+	}
+
+	// SemaphoreMetadataManager is used to manage distributed semaphore metadata (config)
+	SemaphoreMetadataManager interface {
+		Closeable
+		GetName() string
+		CreateSemaphore(ctx context.Context, request *CreateSemaphoreRequest) (*CreateSemaphoreResponse, error)
+		GetSemaphore(ctx context.Context, request *GetSemaphoreRequest) (*GetSemaphoreResponse, error)
+		ListSemaphores(ctx context.Context, request *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
 	}
 
 	// HistoryTaskDLQManager is the manager-level interface for the history task DLQ.

@@ -534,6 +534,20 @@ func (mr *MockDBMockRecorder) InsertReplicationTask(ctx, tasks, condition any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertReplicationTask", reflect.TypeOf((*MockDB)(nil).InsertReplicationTask), ctx, tasks, condition)
 }
 
+// InsertSemaphoreMetadata mocks base method.
+func (m *MockDB) InsertSemaphoreMetadata(ctx context.Context, row *SemaphoreMetadataRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreMetadata", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreMetadata indicates an expected call of InsertSemaphoreMetadata.
+func (mr *MockDBMockRecorder) InsertSemaphoreMetadata(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreMetadata", reflect.TypeOf((*MockDB)(nil).InsertSemaphoreMetadata), ctx, row)
+}
+
 // InsertShard mocks base method.
 func (m *MockDB) InsertShard(ctx context.Context, row *ShardRow) error {
 	m.ctrl.T.Helper()
@@ -1126,6 +1140,37 @@ func (m *MockDB) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardI
 func (mr *MockDBMockRecorder) SelectReplicationTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationTasksOrderByTaskID", reflect.TypeOf((*MockDB)(nil).SelectReplicationTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+}
+
+// SelectSemaphoreMetadata mocks base method.
+func (m *MockDB) SelectSemaphoreMetadata(ctx context.Context, domainID, semaphoreName string) (*SemaphoreMetadataRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreMetadata", ctx, domainID, semaphoreName)
+	ret0, _ := ret[0].(*SemaphoreMetadataRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreMetadata indicates an expected call of SelectSemaphoreMetadata.
+func (mr *MockDBMockRecorder) SelectSemaphoreMetadata(ctx, domainID, semaphoreName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreMetadata", reflect.TypeOf((*MockDB)(nil).SelectSemaphoreMetadata), ctx, domainID, semaphoreName)
+}
+
+// SelectSemaphoreMetadataByDomain mocks base method.
+func (m *MockDB) SelectSemaphoreMetadataByDomain(ctx context.Context, filter *SemaphoreMetadataFilter) ([]*SemaphoreMetadataRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreMetadataByDomain", ctx, filter)
+	ret0, _ := ret[0].([]*SemaphoreMetadataRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectSemaphoreMetadataByDomain indicates an expected call of SelectSemaphoreMetadataByDomain.
+func (mr *MockDBMockRecorder) SelectSemaphoreMetadataByDomain(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreMetadataByDomain", reflect.TypeOf((*MockDB)(nil).SelectSemaphoreMetadataByDomain), ctx, filter)
 }
 
 // SelectShard mocks base method.
@@ -1795,6 +1840,20 @@ func (mr *MocktableCRUDMockRecorder) InsertReplicationTask(ctx, tasks, condition
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertReplicationTask", reflect.TypeOf((*MocktableCRUD)(nil).InsertReplicationTask), ctx, tasks, condition)
 }
 
+// InsertSemaphoreMetadata mocks base method.
+func (m *MocktableCRUD) InsertSemaphoreMetadata(ctx context.Context, row *SemaphoreMetadataRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreMetadata", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreMetadata indicates an expected call of InsertSemaphoreMetadata.
+func (mr *MocktableCRUDMockRecorder) InsertSemaphoreMetadata(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreMetadata", reflect.TypeOf((*MocktableCRUD)(nil).InsertSemaphoreMetadata), ctx, row)
+}
+
 // InsertShard mocks base method.
 func (m *MocktableCRUD) InsertShard(ctx context.Context, row *ShardRow) error {
 	m.ctrl.T.Helper()
@@ -2317,6 +2376,37 @@ func (m *MocktableCRUD) SelectReplicationTasksOrderByTaskID(ctx context.Context,
 func (mr *MocktableCRUDMockRecorder) SelectReplicationTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationTasksOrderByTaskID", reflect.TypeOf((*MocktableCRUD)(nil).SelectReplicationTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+}
+
+// SelectSemaphoreMetadata mocks base method.
+func (m *MocktableCRUD) SelectSemaphoreMetadata(ctx context.Context, domainID, semaphoreName string) (*SemaphoreMetadataRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreMetadata", ctx, domainID, semaphoreName)
+	ret0, _ := ret[0].(*SemaphoreMetadataRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreMetadata indicates an expected call of SelectSemaphoreMetadata.
+func (mr *MocktableCRUDMockRecorder) SelectSemaphoreMetadata(ctx, domainID, semaphoreName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreMetadata", reflect.TypeOf((*MocktableCRUD)(nil).SelectSemaphoreMetadata), ctx, domainID, semaphoreName)
+}
+
+// SelectSemaphoreMetadataByDomain mocks base method.
+func (m *MocktableCRUD) SelectSemaphoreMetadataByDomain(ctx context.Context, filter *SemaphoreMetadataFilter) ([]*SemaphoreMetadataRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreMetadataByDomain", ctx, filter)
+	ret0, _ := ret[0].([]*SemaphoreMetadataRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectSemaphoreMetadataByDomain indicates an expected call of SelectSemaphoreMetadataByDomain.
+func (mr *MocktableCRUDMockRecorder) SelectSemaphoreMetadataByDomain(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreMetadataByDomain", reflect.TypeOf((*MocktableCRUD)(nil).SelectSemaphoreMetadataByDomain), ctx, filter)
 }
 
 // SelectShard mocks base method.
@@ -3928,6 +4018,75 @@ func (m *MockDomainAuditLogCRUD) SelectDomainAuditLogs(ctx context.Context, filt
 func (mr *MockDomainAuditLogCRUDMockRecorder) SelectDomainAuditLogs(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectDomainAuditLogs", reflect.TypeOf((*MockDomainAuditLogCRUD)(nil).SelectDomainAuditLogs), ctx, filter)
+}
+
+// MockSemaphoreMetadataCRUD is a mock of SemaphoreMetadataCRUD interface.
+type MockSemaphoreMetadataCRUD struct {
+	ctrl     *gomock.Controller
+	recorder *MockSemaphoreMetadataCRUDMockRecorder
+	isgomock struct{}
+}
+
+// MockSemaphoreMetadataCRUDMockRecorder is the mock recorder for MockSemaphoreMetadataCRUD.
+type MockSemaphoreMetadataCRUDMockRecorder struct {
+	mock *MockSemaphoreMetadataCRUD
+}
+
+// NewMockSemaphoreMetadataCRUD creates a new mock instance.
+func NewMockSemaphoreMetadataCRUD(ctrl *gomock.Controller) *MockSemaphoreMetadataCRUD {
+	mock := &MockSemaphoreMetadataCRUD{ctrl: ctrl}
+	mock.recorder = &MockSemaphoreMetadataCRUDMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSemaphoreMetadataCRUD) EXPECT() *MockSemaphoreMetadataCRUDMockRecorder {
+	return m.recorder
+}
+
+// InsertSemaphoreMetadata mocks base method.
+func (m *MockSemaphoreMetadataCRUD) InsertSemaphoreMetadata(ctx context.Context, row *SemaphoreMetadataRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreMetadata", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreMetadata indicates an expected call of InsertSemaphoreMetadata.
+func (mr *MockSemaphoreMetadataCRUDMockRecorder) InsertSemaphoreMetadata(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreMetadata", reflect.TypeOf((*MockSemaphoreMetadataCRUD)(nil).InsertSemaphoreMetadata), ctx, row)
+}
+
+// SelectSemaphoreMetadata mocks base method.
+func (m *MockSemaphoreMetadataCRUD) SelectSemaphoreMetadata(ctx context.Context, domainID, semaphoreName string) (*SemaphoreMetadataRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreMetadata", ctx, domainID, semaphoreName)
+	ret0, _ := ret[0].(*SemaphoreMetadataRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreMetadata indicates an expected call of SelectSemaphoreMetadata.
+func (mr *MockSemaphoreMetadataCRUDMockRecorder) SelectSemaphoreMetadata(ctx, domainID, semaphoreName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreMetadata", reflect.TypeOf((*MockSemaphoreMetadataCRUD)(nil).SelectSemaphoreMetadata), ctx, domainID, semaphoreName)
+}
+
+// SelectSemaphoreMetadataByDomain mocks base method.
+func (m *MockSemaphoreMetadataCRUD) SelectSemaphoreMetadataByDomain(ctx context.Context, filter *SemaphoreMetadataFilter) ([]*SemaphoreMetadataRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreMetadataByDomain", ctx, filter)
+	ret0, _ := ret[0].([]*SemaphoreMetadataRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectSemaphoreMetadataByDomain indicates an expected call of SelectSemaphoreMetadataByDomain.
+func (mr *MockSemaphoreMetadataCRUDMockRecorder) SelectSemaphoreMetadataByDomain(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreMetadataByDomain", reflect.TypeOf((*MockSemaphoreMetadataCRUD)(nil).SelectSemaphoreMetadataByDomain), ctx, filter)
 }
 
 // MockHistoryDLQTaskCRUD is a mock of HistoryDLQTaskCRUD interface.
