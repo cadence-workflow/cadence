@@ -450,6 +450,9 @@ func (s *BeanImpl) Close() {
 	if s.domainAuditManager != nil {
 		s.domainAuditManager.Close()
 	}
+	if s.semaphoreMetadataManager != nil {
+		s.semaphoreMetadataManager.Close()
+	}
 	s.taskManager.Close()
 	if s.visibilityManager != nil {
 		// visibilityManager can be nil
