@@ -111,7 +111,7 @@ func (s *SemaphoreMetadataPersistenceSuite) TestCreateSemaphoreDefaultBucketSize
 	s.Equal(persistence.DefaultSemaphoreBucketSize, createResp.Semaphore.BucketSize)
 }
 
-func (s *SemaphoreMetadataPersistenceSuite) TestCreateSemaphoreIdempotency() {
+func (s *SemaphoreMetadataPersistenceSuite) TestCreateSemaphoreConflict() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 

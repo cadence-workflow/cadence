@@ -559,7 +559,8 @@ type (
 	* semaphore_metadata: partition key(domainID), range key(semaphoreName)
 	 */
 	SemaphoreMetadataCRUD interface {
-		// InsertSemaphoreMetadata creates a semaphore's metadata idempotently (INSERT ... IF NOT EXISTS).
+		// InsertSemaphoreMetadata creates a semaphore's metadata with a conflict-detecting
+		// INSERT ... IF NOT EXISTS; it must return a ConditionFailure if the semaphore already exists.
 		// Returns a ConditionFailure if the semaphore already exists.
 		InsertSemaphoreMetadata(ctx context.Context, row *SemaphoreMetadataRow) error
 

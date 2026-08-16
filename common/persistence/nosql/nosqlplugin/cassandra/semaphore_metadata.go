@@ -43,8 +43,9 @@ const (
 		`WHERE domain_id = ?`
 )
 
-// InsertSemaphoreMetadata creates a semaphore's metadata idempotently (INSERT ... IF NOT EXISTS).
-// Returns a ConditionFailure if the semaphore already exists.
+// InsertSemaphoreMetadata creates a semaphore's metadata with a conflict-detecting
+// INSERT ... IF NOT EXISTS (LWT). It does not overwrite: if a row with the same
+// (domain_id, semaphore_name) already exists, it returns a ConditionFailure.
 func (db *CDB) InsertSemaphoreMetadata(ctx context.Context, row *nosqlplugin.SemaphoreMetadataRow) error {
 	query := db.session.Query(templateInsertSemaphoreMetadataQuery,
 		row.DomainID,

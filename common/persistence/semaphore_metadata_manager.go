@@ -69,8 +69,12 @@ func (m *semaphoreMetadataManagerImpl) CreateSemaphore(
 		return nil, fmt.Errorf("Size must be positive, got %d", request.Size)
 	}
 
+	if request.BucketSize < 0 {
+		return nil, fmt.Errorf("BucketSize must not be negative, got %d", request.BucketSize)
+	}
+	// BucketSize is optional: an unset (zero) value falls back to the default.
 	bucketSize := request.BucketSize
-	if bucketSize <= 0 {
+	if bucketSize == 0 {
 		bucketSize = DefaultSemaphoreBucketSize
 	}
 

@@ -129,6 +129,17 @@ func TestSemaphoreManagerCreateSemaphore(t *testing.T) {
 			wantErr:   true,
 		},
 		{
+			name: "negative bucket size",
+			request: &CreateSemaphoreRequest{
+				DomainID:      "domain-1",
+				SemaphoreName: "sem-1",
+				Size:          100,
+				BucketSize:    -1,
+			},
+			setupMock: func(store *MockSemaphoreMetadataStore) {},
+			wantErr:   true,
+		},
+		{
 			name: "store error is propagated",
 			request: &CreateSemaphoreRequest{
 				DomainID:      "domain-1",

@@ -51,7 +51,9 @@ func newNoSQLSemaphoreMetadataStore(
 	}, nil
 }
 
-// CreateSemaphore creates a new semaphore metadata entry idempotently
+// CreateSemaphore creates a new semaphore metadata entry. It is conflict-detecting:
+// if a semaphore with the same (DomainID, SemaphoreName) already exists, it returns
+// a *persistence.ConditionFailedError rather than succeeding or overwriting.
 func (m *nosqlSemaphoreMetadataStore) CreateSemaphore(
 	ctx context.Context,
 	semaphore *persistence.SemaphoreMetadata,
