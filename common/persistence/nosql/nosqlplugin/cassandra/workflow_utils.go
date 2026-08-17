@@ -968,7 +968,7 @@ func updateTimerInfos(
 	rewriteSampleRate int,
 	timeStamp time.Time,
 ) error {
-	if len(deleteInfos) > 0 && rewriteInfos != nil {
+	if rewriteInfos != nil {
 		return resetTimerInfos(batch, shardID, domainID, workflowID, runID, rewriteInfos, timeStamp)
 	}
 
@@ -1157,7 +1157,7 @@ func updateActivityInfos(
 	rewriteSampleRate int,
 	timeStamp time.Time,
 ) error {
-	if len(deleteInfos) > 0 && rewriteInfos != nil {
+	if rewriteInfos != nil {
 		return resetActivityInfos(batch, shardID, domainID, workflowID, runID, rewriteInfos, timeStamp)
 	}
 
