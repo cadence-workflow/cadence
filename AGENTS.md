@@ -49,6 +49,49 @@ go test -race -run TestFoo ./path/to/pkg/...  # run a specific test
   - Files in `.gen/` are generated from IDL — do not edit manually.
   - Never use yarpcerrors directly in handler logic; instead, create an new Error type in IDL and map to internal ones under common/type/errors.go.
 
+## Architecture Guidelines
+
+**Core Principle**: Cadence must support both the standard open-source build and custom builds from a single codebase. Different builds may use different libraries (e.g., open-source Kafka client vs. company-internal Kafka library). This requires strict separation between core logic and proprietary implementations.
+
+- **Interface-based abstraction**:
+  - Core server logic must depend only on interfaces, never on concrete infrastructure implementations.
+  - Define clear interface boundaries that isolate core logic from external dependencies.
+  - Example: `common/membership/resolver.go` defines a `PeerProvider` interface that abstracts peer discovery, allowing different implementations (e.g., Ringpop from open source, custom peer providers using proprietary libraries) without changing core membership logic.
+
+- **Dependency injection with Fx**:
+  - **CRITICAL**: Do NOT add NEW initialization or dependency wiring logic to `cmd/server/cadence/server.go`.
+    - The codebase is gradually migrating from manual initialization to Fx-based dependency injection.
+    - `cmd/server/cadence/server.go` currently contains substantial initialization logic that is being refactored over time.
+    - **New infrastructure dependencies must use Fx modules**, not add to the existing manual initialization.
+  - Create Fx modules to wire dependencies and select implementations for each build.
+  - Core components should provide Fx modules that accept interface dependencies.
+  - Proprietary implementations should provide Fx modules that bind their concrete implementations.
+  - Examples of Fx modules: `common/archiver/archiverfx/`, `common/log/logfx/`, `common/metrics/metricsfx/`
+  - Wire Fx modules in `cmd/server/cadence/fx.go`, not in `cmd/server/cadence/server.go`
+
+- **Where to place code**:
+  - **Core logic** → `service/*/`: business logic, algorithms, coordination — must depend only on interfaces
+  - **Common packages** → `common/*`: mix of core utilities, shared interfaces, and implementations
+  - **Interfaces** → Define in the package where core logic lives (e.g., `PeerProvider` in `common/membership/hashring.go`)
+  - **Proprietary implementations** → Can live in `common/*/` or separate packages, but must implement well-defined interfaces
+  - **Fx wiring** → Each implementation provides its own Fx module; core code should not know which implementation is selected
+
+- **When adding new infrastructure dependencies**:
+  1. Define an interface in the appropriate package (e.g., `type PeerProvider interface { ... }`)
+  2. Have core logic in `service/*/` depend on the interface, not concrete implementations
+  3. Provide Fx modules that bind different implementations for different builds
+  4. Never import proprietary packages or libraries not available in the open-source build into `service/*/`
+
+- **Red flags** (avoid these patterns):
+  - **CRITICAL**: Adding NEW initialization or dependency wiring logic in `cmd/server/cadence/server.go`
+    - Small bug fixes to existing code are fine, but NEW infrastructure initialization must use Fx modules
+    - See `common/*/fx.go` files for examples of the Fx module pattern
+  - Importing packages/libraries that are not available in all builds in `service/*/`
+  - Hard-coding infrastructure choices in `service/*/` business logic
+  - Adding conditional logic to select implementations in `service/*/` (use interface injection instead)
+
+Following these guidelines allows custom builds to be maintained alongside the open-source build without duplicating or forking core logic.
+
 ## Pull Request Guidelines
 
 PRs must follow the template in `.github/pull_request_guidance.md`.
