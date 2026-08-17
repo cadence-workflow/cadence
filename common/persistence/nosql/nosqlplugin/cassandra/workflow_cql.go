@@ -22,10 +22,6 @@
 package cassandra
 
 const (
-	// Sentinel values written as tombstone-free placeholders when map entries are deleted.
-	activitySentinelScheduleID int64 = -1
-	timerSentinelTimerID             = ""
-
 	templateWorkflowExecutionType = `{` +
 		`domain_id: ?, ` +
 		`workflow_id: ?, ` +

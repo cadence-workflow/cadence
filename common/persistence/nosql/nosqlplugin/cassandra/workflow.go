@@ -34,6 +34,12 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
+// Sentinel values written as tombstone-free placeholders when map entries are deleted.
+const (
+	activitySentinelScheduleID int64 = -1
+	timerSentinelTimerID             = ""
+)
+
 var _ nosqlplugin.WorkflowCRUD = (*CDB)(nil)
 
 // keep batch under Cassandra's default 50KB fail threshold.
