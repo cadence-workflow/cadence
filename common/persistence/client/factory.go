@@ -77,6 +77,7 @@ type (
 		NewDomainReplicationQueueManager() (p.QueueManager, error)
 		// NewConfigStoreManager returns a new config store manager
 		NewConfigStoreManager() (p.ConfigStoreManager, error)
+		NewAdminDBs() ([]p.AdminDB, error)
 	}
 	// DataStoreFactory is a low level interface to be implemented by a datastore
 	// Examples of datastores are cassandra, mysql etc
@@ -104,6 +105,7 @@ type (
 		NewQueue(queueType p.QueueType) (p.QueueStore, error)
 		// NewConfigStore returns a new config store
 		NewConfigStore() (p.ConfigStore, error)
+		NewAdminDBs(pType p.DBType) ([]p.AdminDB, error)
 	}
 
 	// Datastore represents a datastore
@@ -558,6 +560,27 @@ func (f *factoryImpl) NewConfigStoreManager() (p.ConfigStoreManager, error) {
 	}
 
 	return result, nil
+}
+
+func (f *factoryImpl) NewAdminDBs() ([]p.AdminDB, error) {
+	ds := f.datastores[storeTypeExecution]
+	dbs, err := ds.factory.NewAdminDBs(p.DBTypeDefault)
+	if err != nil {
+		return nil, err
+	}
+	// init sets this value in the map only if we're using DB based visibility
+	visibility, ok := f.datastores[storeTypeVisibility]
+	if ok {
+		vDBs, vErr := visibility.factory.NewAdminDBs(p.DBTypeVisibility)
+		if vErr != nil {
+			return nil, vErr
+		}
+		dbs = append(dbs, vDBs...)
+	}
+	// TODO: Support advanced visibility
+	// It doesn't have versioned schema support but we can do the setup
+
+	return dbs, nil
 }
 
 // Close closes this factory

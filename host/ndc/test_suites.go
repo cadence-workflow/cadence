@@ -25,9 +25,9 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/client/admin"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/persistence/persistence-tests/testcluster"
 	"github.com/uber/cadence/common/testing"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/host"
@@ -55,22 +55,19 @@ type (
 		standByReplicationTasksChan chan *types.ReplicationTask
 		standByTaskID               int64
 
-		clusterConfigs        []*host.TestClusterConfig
-		defaultTestCluster    testcluster.PersistenceTestCluster
-		VisibilityTestCluster testcluster.PersistenceTestCluster
+		clusterConfigs    []*host.TestClusterConfig
+		persistenceConfig config.Persistence
 	}
 
 	NDCIntegrationTestSuiteParams struct {
-		ClusterConfigs        []*host.TestClusterConfig
-		DefaultTestCluster    testcluster.PersistenceTestCluster
-		VisibilityTestCluster testcluster.PersistenceTestCluster
+		ClusterConfigs    []*host.TestClusterConfig
+		PersistenceConfig config.Persistence
 	}
 )
 
 func NewNDCIntegrationTestSuite(params NDCIntegrationTestSuiteParams) *NDCIntegrationTestSuite {
 	return &NDCIntegrationTestSuite{
-		clusterConfigs:        params.ClusterConfigs,
-		defaultTestCluster:    params.DefaultTestCluster,
-		VisibilityTestCluster: params.VisibilityTestCluster,
+		clusterConfigs:    params.ClusterConfigs,
+		persistenceConfig: params.PersistenceConfig,
 	}
 }

@@ -150,9 +150,8 @@ func TestMatchingSimulation(t *testing.T) {
 
 	s := new(MatchingSimulationSuite)
 	params := host.IntegrationBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		TestClusterConfig:     clusterConfig,
+		PersistenceConfig: testCluster,
+		TestClusterConfig: clusterConfig,
 	}
 	s.IntegrationBase = host.NewIntegrationBase(params)
 	suite.Run(t, s)
@@ -170,10 +169,9 @@ func (s *MatchingSimulationSuite) SetupSuite() {
 		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 	}
 	params := pt.TestBaseParams{
-		DefaultTestCluster:    s.DefaultTestCluster,
-		VisibilityTestCluster: s.VisibilityTestCluster,
-		ClusterMetadata:       clusterMetadata,
-		DynamicConfiguration:  dc,
+		PersistenceConfig:    s.PersistenceConfig,
+		ClusterMetadata:      clusterMetadata,
+		DynamicConfiguration: dc,
 	}
 	cluster, err := host.NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)

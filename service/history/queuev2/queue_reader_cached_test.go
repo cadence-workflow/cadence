@@ -1294,6 +1294,14 @@ func TestFindMismatchesInShadow(t *testing.T) {
 	// the default mock's currentRangeID=0: PreviousRange. Synthetic, but exercises the bucket
 	// without needing to reconfigure the mocked shard's rangeID.
 	tPrevRange := newTask(-1, now.Add(10*time.Minute))
+	// tBoundary shares its scheduledTime with a floor used below (newTaskKey(now, 5)) but has a
+	// lower taskID, simulating what Cassandra's timer task query returns at a shared boundary
+	// timestamp since it never filters by taskID.
+	tBoundary := newTask(3, now)
+	// tBoundaryPrevRange is the same boundary-noise scenario as tBoundary, but its taskID also
+	// encodes a previous rangeID, proving the check applies regardless of which bucket the task
+	// would otherwise land in.
+	tBoundaryPrevRange := newTask(-1, now)
 
 	info := func(t persistence.Task) shadowMismatchTaskInfo { return toShadowMismatchTaskInfo(t) }
 
@@ -1301,6 +1309,7 @@ func TestFindMismatchesInShadow(t *testing.T) {
 		name         string
 		snapshotResp *GetTaskResponse
 		dbResp       *GetTaskResponse
+		req          *GetTaskRequest
 		wantResult   findMismatchesInShadowResult
 	}{
 		{
@@ -1463,13 +1472,63 @@ func TestFindMismatchesInShadow(t *testing.T) {
 				DBTaskCount:    1,
 			},
 		},
+		{
+			// Cassandra's timer task query enforces scheduledTime >= inclusiveMinTaskKey's floor
+			// but never filters by taskID. tBoundary shares its scheduledTime with the floor and
+			// has a lower taskID, so the DB returns it even though the cache (which filters by the
+			// full key) correctly excludes it. This is not a real mismatch, and it's still bucketed
+			// by rangeID like any other Missed/Extra task (here, CurrentRange).
+			name:         "DB task below taskID floor at shared boundary timestamp: not a mismatch",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{tBoundary, t1}},
+			req:          &GetTaskRequest{Progress: newProgress(newTaskKey(now, 5), persistence.MaximumHistoryTaskKey)},
+			wantResult: findMismatchesInShadowResult{
+				CurrentRange: TaskMismatches{
+					TaskIDBoundaryNoise: []shadowMismatchTaskInfo{info(tBoundary)},
+				},
+				CacheTaskCount: 1,
+				DBTaskCount:    2,
+			},
+		},
+		{
+			// The boundary-noise check is orthogonal to which range a task's taskID encodes: a
+			// task from an older range can just as easily land at a shared boundary timestamp.
+			name:         "DB task below taskID floor from a previous range: not a mismatch, still bucketed by rangeID",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{tBoundaryPrevRange, t1}},
+			req:          &GetTaskRequest{Progress: newProgress(newTaskKey(now, 5), persistence.MaximumHistoryTaskKey)},
+			wantResult: findMismatchesInShadowResult{
+				PreviousRange: TaskMismatches{
+					RangeIDs:            []int64{-1},
+					TaskIDBoundaryNoise: []shadowMismatchTaskInfo{info(tBoundaryPrevRange)},
+				},
+				CacheTaskCount: 1,
+				DBTaskCount:    2,
+			},
+		},
+		{
+			// A genuinely missed task at a later scheduledTime than the floor is unaffected by the
+			// boundary-noise check and still counts as a real mismatch.
+			name:         "DB task missing from cache after floor: still a real mismatch",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t2}},
+			req:          &GetTaskRequest{Progress: newProgress(newTaskKey(now, 5), persistence.MaximumHistoryTaskKey)},
+			wantResult: findMismatchesInShadowResult{
+				CurrentRange: TaskMismatches{Missed: []shadowMismatchTaskInfo{info(t2)}},
+				DBTaskCount:  1,
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			r, _ := setupMocksForCachedQueueReader(t, ctrl)
-			got := r.findMismatchesInShadow(tc.snapshotResp, tc.dbResp)
+			req := tc.req
+			if req == nil {
+				req = &GetTaskRequest{Progress: &GetTaskProgress{}}
+			}
+			got := r.findMismatchesInShadow(tc.snapshotResp, tc.dbResp, req)
 			slices.Sort(got.NewRange.RangeIDs)
 			slices.Sort(got.PreviousRange.RangeIDs)
 			require.Equal(t, tc.wantResult, got)

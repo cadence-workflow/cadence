@@ -54,6 +54,21 @@ func (mr *MockFactoryMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockFactory)(nil).Close))
 }
 
+// NewAdminDBs mocks base method.
+func (m *MockFactory) NewAdminDBs() ([]persistence.AdminDB, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewAdminDBs")
+	ret0, _ := ret[0].([]persistence.AdminDB)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewAdminDBs indicates an expected call of NewAdminDBs.
+func (mr *MockFactoryMockRecorder) NewAdminDBs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAdminDBs", reflect.TypeOf((*MockFactory)(nil).NewAdminDBs))
+}
+
 // NewConfigStoreManager mocks base method.
 func (m *MockFactory) NewConfigStoreManager() (persistence.ConfigStoreManager, error) {
 	m.ctrl.T.Helper()
@@ -238,6 +253,21 @@ func (m *MockDataStoreFactory) Close() {
 func (mr *MockDataStoreFactoryMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDataStoreFactory)(nil).Close))
+}
+
+// NewAdminDBs mocks base method.
+func (m *MockDataStoreFactory) NewAdminDBs(pType persistence.DBType) ([]persistence.AdminDB, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewAdminDBs", pType)
+	ret0, _ := ret[0].([]persistence.AdminDB)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewAdminDBs indicates an expected call of NewAdminDBs.
+func (mr *MockDataStoreFactoryMockRecorder) NewAdminDBs(pType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAdminDBs", reflect.TypeOf((*MockDataStoreFactory)(nil).NewAdminDBs), pType)
 }
 
 // NewConfigStore mocks base method.
