@@ -86,22 +86,18 @@ func (s shardDistributorResolver) Stop() {
 func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 	excludeTaskList := TaskListExcludedFromShardDistributor(key, uint64(s.percentageOnboarded.Value()), s.excludeShortLivedTaskLists())
 	if excludeTaskList {
-		s.recordRoutingPath(routingPathHashRing)
+		s.emitRoutingPathMetric(routingPathHashRing)
 		return s.ring.Lookup(key)
 	}
 
 	if s.spectator == nil {
 		s.logger.Warn("No shard distributor client, defaulting to hash ring")
-		s.recordRoutingPath(routingPathHashRing)
+		s.emitRoutingPathMetric(routingPathHashRing)
 		return s.ring.Lookup(key)
 	}
 
-	s.recordRoutingPath(routingPathShardDistributor)
+	s.emitRoutingPathMetric(routingPathShardDistributor)
 	return s.lookUpInShardDistributor(key)
-}
-
-func (s shardDistributorResolver) recordRoutingPath(path string) {
-	s.metricsScope.Tagged(metrics.RoutingPathTag(path)).IncCounter(metrics.ShardDistributorResolverLookups)
 }
 
 // LookupN delegates to the underlying hash ring; the shard distributor does
@@ -170,4 +166,8 @@ func (s shardDistributorResolver) lookUpInShardDistributor(key string) (HostInfo
 
 	hostInfo := NewDetailedHostInfo(address, owner.ExecutorID, portMap)
 	return hostInfo, nil
+}
+
+func (s shardDistributorResolver) emitRoutingPathMetric(path string) {
+	s.metricsScope.Tagged(metrics.RoutingPathTag(path)).IncCounter(metrics.ShardDistributorResolverLookups)
 }
