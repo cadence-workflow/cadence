@@ -154,11 +154,11 @@ func (s *oauthSuite) TestEmptyToken() {
 	s.NoError(err)
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authenticated", gomock.Cond(func(t []tag.Tag) bool {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is not set in header"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
-	s.Equal(result.Decision, DecisionDeny)
+	s.Equal(result.Decision, DecisionUnauthenticated)
 }
 
 func (s *oauthSuite) TestGetDomainError() {
@@ -188,11 +188,11 @@ func (s *oauthSuite) TestMaxTTLLargerInToken() {
 	s.cfg.MaxJwtTTL = 1
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authenticated", gomock.Cond(func(t []tag.Tag) bool {
 		return strings.HasPrefix(fmt.Sprintf("%v", t[0].Field().Interface), "token TTL:")
 	}))
 	result, _ := authorizer.Authorize(s.ctx, &s.att)
-	s.Equal(result.Decision, DecisionDeny)
+	s.Equal(result.Decision, DecisionUnauthenticated)
 }
 
 func (s *oauthSuite) TestIncorrectToken() {
@@ -204,11 +204,11 @@ func (s *oauthSuite) TestIncorrectToken() {
 	s.NoError(err)
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authenticated", gomock.Cond(func(t []tag.Tag) bool {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is malformed: token contains an invalid number of segments"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
-	s.Equal(result.Decision, DecisionDeny)
+	s.Equal(result.Decision, DecisionUnauthenticated)
 }
 
 func (s *oauthSuite) TestIatExpiredToken() {
@@ -222,11 +222,25 @@ func (s *oauthSuite) TestIatExpiredToken() {
 	s.NoError(err)
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authenticated", gomock.Cond(func(t []tag.Tag) bool {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is expired"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
-	s.Equal(result.Decision, DecisionDeny)
+	s.Equal(result.Decision, DecisionUnauthenticated)
+}
+
+func (s *oauthSuite) TestListDomainsAuthorizationProbe() {
+	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
+	s.NoError(err)
+
+	result, err := authorizer.Authorize(s.ctx, &Attributes{
+		APIName:            "ListDomains",
+		Permission:         PermissionRead,
+		AuthenticationOnly: true,
+	})
+
+	s.NoError(err)
+	s.Equal(DecisionAllow, result.Decision)
 }
 
 func (s *oauthSuite) TestDifferentGroup() {

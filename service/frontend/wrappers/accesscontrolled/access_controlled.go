@@ -47,6 +47,18 @@ func (a *apiHandler) isAuthorized(
 	attr *authorization.Attributes,
 	scope metrics.Scope,
 ) (bool, error) {
+	result, err := a.authorize(ctx, attr, scope)
+	if err != nil {
+		return false, err
+	}
+	return result.Decision == authorization.DecisionAllow, nil
+}
+
+func (a *apiHandler) authorize(
+	ctx context.Context,
+	attr *authorization.Attributes,
+	scope metrics.Scope,
+) (authorization.Result, error) {
 	authStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceAuthorizationLatency)
 	defer func() {
@@ -57,13 +69,47 @@ func (a *apiHandler) isAuthorized(
 	result, err := a.authorizer.Authorize(ctx, attr)
 	if err != nil {
 		scope.IncCounter(metrics.CadenceErrAuthorizeFailedCounter)
-		return false, err
+		return authorization.Result{}, err
 	}
-	isAuth := result.Decision == authorization.DecisionAllow
-	if !isAuth {
+	if result.Decision != authorization.DecisionAllow {
 		scope.IncCounter(metrics.CadenceErrUnauthorizedCounter)
 	}
-	return isAuth, nil
+	return result, nil
+}
+
+func (a *apiHandler) listAuthorizedDomains(
+	ctx context.Context,
+	listRequest *types.ListDomainsRequest,
+	scope metrics.Scope,
+) (*types.ListDomainsResponse, error) {
+	response, err := a.handler.ListDomains(ctx, listRequest)
+	if err != nil || response == nil {
+		return response, err
+	}
+
+	requestBody := authorization.NewFilteredRequestBody(listRequest)
+	authorizedDomains := make([]*types.DescribeDomainResponse, 0, len(response.GetDomains()))
+	for _, domain := range response.GetDomains() {
+		result, err := a.authorize(ctx, &authorization.Attributes{
+			APIName:     "ListDomains",
+			Permission:  authorization.PermissionRead,
+			RequestBody: requestBody,
+			DomainName:  domain.GetDomainInfo().GetName(),
+		}, scope)
+		if err != nil {
+			return nil, err
+		}
+
+		switch result.Decision {
+		case authorization.DecisionAllow:
+			authorizedDomains = append(authorizedDomains, domain)
+		case authorization.DecisionUnauthenticated:
+			return nil, errUnauthorized
+		}
+	}
+
+	response.Domains = authorizedDomains
+	return response, nil
 }
 
 // getMetricsScopeWithDomain return metrics scope with domain tag
