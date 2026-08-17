@@ -1887,7 +1887,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 		timerInfos        map[string]*persistence.TimerInfo
 		deleteInfos       []string
 		rewriteInfos      map[string]*persistence.TimerInfo
-		rewriteSampleRate int
+		sentinelWriteEnabled bool
 		// expectations
 		wantQueries []string
 	}{
@@ -1906,7 +1906,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 				},
 			},
 			deleteInfos:       []string{"timer2"},
-			rewriteSampleRate: 100,
+			sentinelWriteEnabled: true,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
 					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
@@ -1935,7 +1935,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 				},
 			},
 			deleteInfos:       []string{"timer2"},
-			rewriteSampleRate: 0,
+			sentinelWriteEnabled: false,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
 					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
@@ -1971,7 +1971,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 					TaskStatus: 1,
 				},
 			},
-			rewriteSampleRate: 100,
+			sentinelWriteEnabled: true,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map = map[` +
 					`timer1:map[expiry_time:2023-12-19 22:08:41 +0000 UTC started_id:2 task_id:1 timer_id:timer1 version:1]` +
@@ -1986,7 +1986,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, tc.rewriteInfos, tc.rewriteSampleRate, FixedTime)
+			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, tc.rewriteInfos, tc.sentinelWriteEnabled, FixedTime)
 			if err != nil {
 				t.Fatalf("updateTimerInfos() error = %v", err)
 			}
@@ -2132,7 +2132,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 		activityInfos     map[int64]*persistence.InternalActivityInfo
 		deleteInfos       []int64
 		rewriteInfos      map[int64]*persistence.InternalActivityInfo
-		rewriteSampleRate int
+		sentinelWriteEnabled bool
 		// expectations
 		wantQueries []string
 	}{
@@ -2170,7 +2170,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 				},
 			},
 			deleteInfos:       []int64{2},
-			rewriteSampleRate: 100,
+			sentinelWriteEnabled: true,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
 					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
@@ -2227,7 +2227,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 				},
 			},
 			deleteInfos:       []int64{2},
-			rewriteSampleRate: 0,
+			sentinelWriteEnabled: false,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
 					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
@@ -2307,7 +2307,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					LastFailureReason:      "retry reason",
 				},
 			},
-			rewriteSampleRate: 100,
+			sentinelWriteEnabled: true,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map = map[` +
 					`1:map[` +
@@ -2332,7 +2332,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, tc.rewriteInfos, tc.rewriteSampleRate, FixedTime)
+			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, tc.rewriteInfos, tc.sentinelWriteEnabled, FixedTime)
 			if err != nil {
 				t.Fatalf("updateActivityInfos() error = %v", err)
 			}

@@ -965,7 +965,7 @@ func updateTimerInfos(
 	timerInfos map[string]*persistence.TimerInfo,
 	deleteInfos []string,
 	rewriteInfos map[string]*persistence.TimerInfo,
-	rewriteSampleRate int,
+	sentinelWriteEnabled bool,
 	timeStamp time.Time,
 ) error {
 	if rewriteInfos != nil {
@@ -995,7 +995,7 @@ func updateTimerInfos(
 	}
 
 	for _, deleteInfo := range deleteInfos {
-		if rewriteSampleRate > 0 {
+		if sentinelWriteEnabled {
 			writeTimerInfoSentinel(batch, deleteInfo, shardID, domainID, workflowID, runID, timeStamp)
 		} else {
 			batch.Query(templateDeleteTimerInfoQuery,
@@ -1154,7 +1154,7 @@ func updateActivityInfos(
 	activityInfos map[int64]*persistence.InternalActivityInfo,
 	deleteInfos []int64,
 	rewriteInfos map[int64]*persistence.InternalActivityInfo,
-	rewriteSampleRate int,
+	sentinelWriteEnabled bool,
 	timeStamp time.Time,
 ) error {
 	if rewriteInfos != nil {
@@ -1215,7 +1215,7 @@ func updateActivityInfos(
 	}
 
 	for _, deleteInfo := range deleteInfos {
-		if rewriteSampleRate > 0 {
+		if sentinelWriteEnabled {
 			writeActivityInfoSentinel(batch, deleteInfo, shardID, domainID, workflowID, runID, timeStamp)
 		} else {
 			batch.Query(templateDeleteActivityInfoQuery,
@@ -1288,11 +1288,11 @@ func createWorkflowExecutionWithMergeMaps(
 		return fmt.Errorf("should only support WorkflowExecutionMapsWriteModeCreate")
 	}
 
-	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, nil, nil, 0, timeStamp)
+	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, nil, nil, false, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, nil, nil, 0, timeStamp)
+	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, nil, nil, false, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1443,11 +1443,11 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 
 	// In certain cases, some of the execution update cycles update particular columns asynchronously before reaching the final cycle.
 	// Each of these functions are updating a non-frozen column type in Cassandra table.
-	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete, execution.RewriteActivityInfos, activityRewriteSampleRate, timeStamp)
+	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete, execution.RewriteActivityInfos, activityRewriteSampleRate > 0, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, execution.RewriteTimerInfos, timerRewriteSampleRate, timeStamp)
+	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, execution.RewriteTimerInfos, timerRewriteSampleRate > 0, timeStamp)
 	if err != nil {
 		return err
 	}
