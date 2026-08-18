@@ -174,7 +174,7 @@ func (r *activityReplicatorImpl) SyncActivity(
 	}
 	// capture whether this sync advances the retry attempt before
 	// ReplicateActivityInfo overwrites the activity info in place
-	attemptIncremented := ai.Attempt < request.GetAttempt()
+	attemptIncremented := ai.Attempt < request.GetAttempt() && !ai.CancelRequested
 
 	err = mutableState.ReplicateActivityInfo(request, resetActivityTimerTaskStatus)
 	if err != nil {
@@ -198,18 +198,11 @@ func (r *activityReplicatorImpl) SyncActivity(
 		return err
 	}
 
-	// The retry backoff timer only exists in the cluster that recorded the
-	// activity failure; timer tasks are never replicated. If the synced state
-	// is an unstarted retry, regenerate the retry timer locally so a failover
-	// to this cluster before the backoff elapses does not strand the retry in
-	// SCHEDULED state. The timer is only generated when the sync increments the
-	// retry attempt, so redelivered sync messages for an already-applied attempt
-	// do not queue redundant timer tasks. Regeneration is skipped when activity
-	// cancellation was requested, mirroring the guard in RetryActivity. This is
-	// intentionally not gated on this cluster being active: a cluster that stays
-	// standby no-ops the task in its standby timer executor, and duplicates on
-	// the active side are dropped by the attempt / started-state checks in
-	// executeActivityRetryTimerTask.
+	// ActivityRetryTimers are only generated in the cluster that recorded the activity failure.
+	// With a race between the activity failure, failover, and domain cache refresh, this can
+	// mean the timer is processed by both clusters as a 'passive' task.
+	// When this occurs, the timer is dropped. Ensure that syncActivity generates a timer whenever
+	// the attempt is incremented to prevent this race condition.
 	if attemptIncremented && request.GetStartedID() == constants.EmptyEventID && request.GetAttempt() > 0 && !ai.CancelRequested {
 		if err := execution.NewMutableStateTaskGenerator(
 			r.logger,
