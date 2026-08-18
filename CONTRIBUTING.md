@@ -240,7 +240,6 @@ Every issue goes through three triage states tracked by `triage/*` labels:
 
 | Label | Criteria | Who acts |
 |---|---|---|
-| `triage/needs-info` | Reporter must supply a reproduction case, version info, or logs before the issue can be understood. | Reporter |
 | `triage/needs-info` | Reporter must supply additional details. These may be reproduction steps or logs (for bugs), or clear acceptance criteria and behaviour (for features), etc. | Reporter |
 | `triage/needs-decision` | The issue is understood but needs a TSC or area-owner decision on whether/when to address it. | TSC / maintainers |
 | `triage/accepted` | Approved and ready to be picked up for implementation. | Contributors |
