@@ -807,10 +807,10 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 	}
 
 	var nosqlTasks []*nosqlplugin.HistoryMigrationTask
-	for _, task := range request.Markers {
-		ts := []persistence.Task{task}
+	for _, marker := range request.Markers {
+		ts := []persistence.Task{marker}
 
-		tasks, err := d.prepareReplicationTasksForWorkflowTxn(task.DomainID, rowTypeReplicationWorkflowID, rowTypeReplicationRunID, ts)
+		tasks, err := d.prepareReplicationTasksForWorkflowTxn(marker.DomainID, rowTypeReplicationWorkflowID, rowTypeReplicationRunID, ts)
 		if err != nil {
 			return err
 		}
