@@ -26,6 +26,8 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/host"
 	"github.com/uber/cadence/simulation/history/workflow"
+
+	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra" // register cassandra plugin for tests
 )
 
 const (

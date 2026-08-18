@@ -69,6 +69,7 @@ require (
 
 require (
 	github.com/cadence-workflow/shard-manager v0.0.0-20260610143419-4bef35311802
+	github.com/ncruces/go-sqlite3 v0.23.3
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/common/archiver/gcloud v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/common/dynamicconfig/openfeatureprovider/unleash v0.0.0-00010101000000-000000000000
@@ -103,7 +104,6 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/ncruces/go-sqlite3 v0.23.3 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/open-feature/go-sdk v1.17.1 // indirect
 	github.com/open-feature/go-sdk-contrib/providers/unleash v0.1.1-alpha // indirect

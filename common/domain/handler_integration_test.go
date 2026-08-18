@@ -49,6 +49,9 @@ import (
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
+
+	_ "github.com/ncruces/go-sqlite3/driver" // register sqlite3 driver for tests
+	_ "github.com/ncruces/go-sqlite3/embed"  // embed sqlite db for tests
 )
 
 type (
