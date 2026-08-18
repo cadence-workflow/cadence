@@ -28,6 +28,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc/api/encoding"
@@ -61,6 +62,47 @@ type (
 
 func TestOAuthSuite(t *testing.T) {
 	suite.Run(t, new(oauthSuite))
+}
+
+func TestOAuthAuthorizerAuthenticationOnly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	privateKey, err := common.LoadRSAPrivateKey("../../config/credentials/keytest")
+	require.NoError(t, err)
+
+	now := time.Now()
+	token, err := jwt.NewWithClaims(jwt.SigningMethodRS256, JWTClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    jwtInternalIssuer,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Minute)),
+		},
+		Name: "non-admin-user",
+	}).SignedString(privateKey)
+	require.NoError(t, err)
+
+	ctx, call := encoding.NewInboundCall(context.Background())
+	require.NoError(t, call.ReadFromRequest(&transport.Request{
+		Headers: transport.NewHeaders().With(common.AuthorizationTokenHeaderName, token),
+	}))
+
+	authorizer, err := NewOAuthAuthorizer(config.OAuthAuthorizer{
+		Enable: true,
+		JwtCredentials: &config.JwtCredentials{
+			Algorithm: jwt.SigningMethodRS256.Name,
+			PublicKey: "../../config/credentials/keytest.pub",
+		},
+		MaxJwtTTL: 60,
+	}, log.NewMockLogger(ctrl), cache.NewMockDomainCache(ctrl))
+	require.NoError(t, err)
+
+	result, err := authorizer.Authorize(ctx, &Attributes{
+		APIName:            "ListDomains",
+		Permission:         PermissionRead,
+		AuthenticationOnly: true,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, DecisionAllow, result.Decision)
 }
 
 func (s *oauthSuite) SetupTest() {
@@ -227,20 +269,6 @@ func (s *oauthSuite) TestIatExpiredToken() {
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
 	s.Equal(result.Decision, DecisionUnauthenticated)
-}
-
-func (s *oauthSuite) TestListDomainsAuthorizationProbe() {
-	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
-	s.NoError(err)
-
-	result, err := authorizer.Authorize(s.ctx, &Attributes{
-		APIName:            "ListDomains",
-		Permission:         PermissionRead,
-		AuthenticationOnly: true,
-	})
-
-	s.NoError(err)
-	s.Equal(DecisionAllow, result.Decision)
 }
 
 func (s *oauthSuite) TestDifferentGroup() {

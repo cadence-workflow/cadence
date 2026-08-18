@@ -51,7 +51,11 @@ func (a *apiHandler) isAuthorized(
 	if err != nil {
 		return false, err
 	}
-	return result.Decision == authorization.DecisionAllow, nil
+	isAuthorized := result.Decision == authorization.DecisionAllow
+	if !isAuthorized {
+		scope.IncCounter(metrics.CadenceErrUnauthorizedCounter)
+	}
+	return isAuthorized, nil
 }
 
 func (a *apiHandler) authorize(
@@ -70,9 +74,6 @@ func (a *apiHandler) authorize(
 	if err != nil {
 		scope.IncCounter(metrics.CadenceErrAuthorizeFailedCounter)
 		return authorization.Result{}, err
-	}
-	if result.Decision != authorization.DecisionAllow {
-		scope.IncCounter(metrics.CadenceErrUnauthorizedCounter)
 	}
 	return result, nil
 }
@@ -104,6 +105,7 @@ func (a *apiHandler) listAuthorizedDomains(
 		case authorization.DecisionAllow:
 			authorizedDomains = append(authorizedDomains, domain)
 		case authorization.DecisionUnauthenticated:
+			scope.IncCounter(metrics.CadenceErrUnauthorizedCounter)
 			return nil, errUnauthorized
 		}
 	}
