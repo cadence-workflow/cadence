@@ -3510,7 +3510,7 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			expectedEvent: nil,
 			expectedErr:   nil,
 		},
-		"pending maps passed when there are deletes": {
+		"CloseTransactionAsMutation populates rewrite maps with remaining pending infos when there are deletes": {
 			mutableStateSetup: func(ms *mutableStateBuilder) {
 				ms.executionInfo.DomainID = "some-domain-id"
 				ms.executionInfo.NextEventID = 10

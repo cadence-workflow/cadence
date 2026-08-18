@@ -410,7 +410,7 @@ func TestSerializeWorkflowMutation_RewriteProbability(t *testing.T) {
 			expectDeletesCleared:  false,
 		},
 		{
-			name:                  "empty rewrite infos produces empty slice marker and clears deletes",
+			name:                  "all activities deleted triggers rewrite with empty map and no deletes",
 			activityRate:          1,
 			timerRate:             1,
 			rewriteActivityInfos:  []*ActivityInfo{},
