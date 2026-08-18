@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Generate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,SemaphoreTokenManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -1450,6 +1450,106 @@ type (
 		NextPageToken []byte
 	}
 
+	// SemaphoreToken is a single row of the semaphore_tokens table. A bucket
+	// (DomainID, SemaphoreName, Bucket) is one Cassandra partition holding two
+	// row kinds: a forward "token" row per slot (TokenID -> Holder) and a
+	// reverse "owner" row per hold (OwnerID -> HeldToken).
+	SemaphoreToken struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenID       int
+		OwnerID       string
+		Holder        string
+		HeldToken     int
+		UpdatedTime   time.Time
+	}
+
+	// SeedSemaphoreTokensRequest seeds a bucket with free token rows for the
+	// given slot ids (idempotent; never clobbers an already-held slot).
+	SeedSemaphoreTokensRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenIDs      []int
+	}
+
+	// GrantSemaphoreTokenRequest claims a slot for an owner via a conditional
+	// batch (grant only if the slot is currently free).
+	GrantSemaphoreTokenRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenID       int
+		OwnerID       string
+	}
+
+	// GrantSemaphoreTokenResponse reports whether the conditional grant applied.
+	// Applied == false means the slot was not free (a stale hint); the caller
+	// retries another slot. It is not an error.
+	GrantSemaphoreTokenResponse struct {
+		Applied bool
+	}
+
+	// ReleaseSemaphoreTokenRequest frees a slot via a guarded batch (clear only
+	// if the slot is still held by this owner).
+	ReleaseSemaphoreTokenRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenID       int
+		OwnerID       string
+	}
+
+	// ReleaseSemaphoreTokenResponse reports whether the guarded release applied.
+	// Applied == false is a best-effort no-op (something else already touched
+	// the slot); it is not an error.
+	ReleaseSemaphoreTokenResponse struct {
+		Applied bool
+	}
+
+	// GetSemaphoreTokenByIDRequest reads a slot's forward row by token id.
+	GetSemaphoreTokenByIDRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenID       int
+	}
+
+	// GetSemaphoreTokenByIDResponse is the response for GetSemaphoreTokenByID.
+	GetSemaphoreTokenByIDResponse struct {
+		Token *SemaphoreToken
+	}
+
+	// GetSemaphoreTokenByOwnerRequest reads a hold's reverse row by owner id.
+	GetSemaphoreTokenByOwnerRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		OwnerID       string
+	}
+
+	// GetSemaphoreTokenByOwnerResponse is the response for GetSemaphoreTokenByOwner.
+	GetSemaphoreTokenByOwnerResponse struct {
+		Token *SemaphoreToken
+	}
+
+	// ListSemaphoreTokensByBucketRequest scans a bucket partition (both row
+	// kinds), paginated, so a bucket owner can rebuild its in-memory state.
+	ListSemaphoreTokensByBucketRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		PageSize      int
+		NextPageToken []byte
+	}
+
+	// ListSemaphoreTokensByBucketResponse is the response for ListSemaphoreTokensByBucket.
+	ListSemaphoreTokensByBucketResponse struct {
+		Tokens        []*SemaphoreToken
+		NextPageToken []byte
+	}
+
 	// MutableStateStats is the size stats for MutableState
 	MutableStateStats struct {
 		// Total size of mutable state
@@ -1841,6 +1941,24 @@ type (
 		CreateSemaphore(ctx context.Context, request *CreateSemaphoreRequest) (*CreateSemaphoreResponse, error)
 		GetSemaphore(ctx context.Context, request *GetSemaphoreRequest) (*GetSemaphoreResponse, error)
 		ListSemaphores(ctx context.Context, request *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
+	}
+
+	// SemaphoreTokenManager is used to manage distributed semaphore token ownership
+	SemaphoreTokenManager interface {
+		Closeable
+		GetName() string
+		// SeedSemaphoreTokens seeds a bucket with free token rows (idempotent).
+		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest) error
+		// GrantSemaphoreToken claims a slot for an owner if it is currently free.
+		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest) (*GrantSemaphoreTokenResponse, error)
+		// ReleaseSemaphoreToken frees a slot if it is still held by the owner.
+		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest) (*ReleaseSemaphoreTokenResponse, error)
+		// GetSemaphoreTokenByID reads a slot's forward row (holder) by token id.
+		GetSemaphoreTokenByID(ctx context.Context, request *GetSemaphoreTokenByIDRequest) (*GetSemaphoreTokenByIDResponse, error)
+		// GetSemaphoreTokenByOwner reads a hold's reverse row (held token) by owner id.
+		GetSemaphoreTokenByOwner(ctx context.Context, request *GetSemaphoreTokenByOwnerRequest) (*GetSemaphoreTokenByOwnerResponse, error)
+		// ListSemaphoreTokensByBucket scans a bucket partition (both row kinds), paginated.
+		ListSemaphoreTokensByBucket(ctx context.Context, request *ListSemaphoreTokensByBucketRequest) (*ListSemaphoreTokensByBucketResponse, error)
 	}
 
 	// HistoryTaskDLQManager is the manager-level interface for the history task DLQ.

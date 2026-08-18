@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,SemaphoreMetadataStore,HistoryDLQTaskStore
+//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,SemaphoreMetadataStore,SemaphoreTokenStore,HistoryDLQTaskStore
 //go:generate mockgen -package $GOPACKAGE -destination visibility_store_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence VisibilityStore
 
 type (
@@ -111,6 +111,20 @@ type (
 		CreateSemaphore(ctx context.Context, semaphore *SemaphoreMetadata) error
 		GetSemaphore(ctx context.Context, request *GetSemaphoreRequest) (*SemaphoreMetadata, error)
 		ListSemaphores(ctx context.Context, request *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
+	}
+
+	// SemaphoreTokenStore is a lower level of SemaphoreTokenManager. Columns are
+	// plain typed values, so it operates on the public request/record types
+	// directly. The manager stamps updatedTime and passes it to the write methods.
+	SemaphoreTokenStore interface {
+		Closeable
+		GetName() string
+		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest, updatedTime time.Time) error
+		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest, updatedTime time.Time) (bool, error)
+		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest, updatedTime time.Time) (bool, error)
+		GetSemaphoreTokenByID(ctx context.Context, request *GetSemaphoreTokenByIDRequest) (*SemaphoreToken, error)
+		GetSemaphoreTokenByOwner(ctx context.Context, request *GetSemaphoreTokenByOwnerRequest) (*SemaphoreToken, error)
+		ListSemaphoreTokensByBucket(ctx context.Context, request *ListSemaphoreTokensByBucketRequest) (*ListSemaphoreTokensByBucketResponse, error)
 	}
 
 	// HistoryDLQTaskStore is the store-level interface for history task DLQ operations.

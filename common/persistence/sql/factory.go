@@ -129,6 +129,16 @@ func (f *Factory) NewSemaphoreMetadataStore() (p.SemaphoreMetadataStore, error) 
 	return newSQLSemaphoreMetadataStore(conn, f.logger, f.parser)
 }
 
+// NewSemaphoreTokenStore returns a semaphore token store.
+// Distributed semaphore is only supported on NoSQL; this is a not-supported stub.
+func (f *Factory) NewSemaphoreTokenStore() (p.SemaphoreTokenStore, error) {
+	conn, err := f.dbConn.get()
+	if err != nil {
+		return nil, err
+	}
+	return newSQLSemaphoreTokenStore(conn, f.logger, f.parser)
+}
+
 // NewHistoryDLQTaskStore returns a history DLQ task store.
 func (f *Factory) NewHistoryDLQTaskStore() (p.HistoryDLQTaskStore, error) {
 	return &sqlHistoryDLQTaskStore{}, nil
