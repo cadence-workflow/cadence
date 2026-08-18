@@ -1947,7 +1947,11 @@ type (
 	SemaphoreTokenManager interface {
 		Closeable
 		GetName() string
-		// SeedSemaphoreTokens seeds a bucket with free token rows (idempotent).
+		// SeedSemaphoreTokens seeds a bucket with free token rows. Callers must
+		// supply the bucket's full, immutable id set: a fresh bucket is fully
+		// seeded, and re-seeding the same set is an idempotent no-op that never
+		// clobbers a held slot. Growing an existing bucket's id set is unsupported
+		// (to resize, create a new semaphore name).
 		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest) error
 		// GrantSemaphoreToken claims a slot for an owner if it is currently free.
 		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest) (*GrantSemaphoreTokenResponse, error)

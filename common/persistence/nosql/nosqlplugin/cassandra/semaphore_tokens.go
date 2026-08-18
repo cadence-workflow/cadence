@@ -100,9 +100,24 @@ const (
 )
 
 // InsertSemaphoreTokens seeds a bucket with free token rows for the given rows'
-// TokenIDs. It uses INSERT ... IF NOT EXISTS so it never clobbers an already-held
-// slot: on a fresh bucket all rows are inserted; on an already-seeded bucket the
-// conditional batch is a no-op. The applied flag is intentionally ignored.
+// TokenIDs, using a single conditional (LWT) batch of INSERT ... IF NOT EXISTS.
+//
+// Contract: callers must supply a bucket's FULL, IMMUTABLE id set. A bucket's id
+// range is fixed at semaphore creation and never grows (to change size/bucket_size
+// you create a new semaphore name), so seeding is only ever a fresh insert or a
+// re-seed of the exact same set — never a superset. Within those two cases:
+//   - fresh bucket: no rows exist, all conditions pass, all rows are inserted;
+//   - re-seed of the same set: every row already exists, so every condition fails
+//     and the batch is a deliberate no-op that never clobbers an already-held slot.
+//
+// The applied flag is therefore intentionally ignored: for a same-set re-seed
+// "not applied" is the desired outcome, not an error.
+//
+// This relies on the immutability contract. A conditional batch is all-or-nothing:
+// if it were ever called with a partial superset (a subset of the ids already
+// present), the existing rows' failed conditions would reject the WHOLE batch, so
+// the brand-new ids would be silently NOT inserted. Growing a bucket is unsupported
+// by design.
 func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.SemaphoreTokenRow) error {
 	if len(rows) == 0 {
 		return nil
