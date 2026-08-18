@@ -1009,6 +1009,30 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			expectedError: nil,
 		},
 		{
+			name:    "success with multiple markers",
+			rangeID: 123,
+			markers: []*persistence.FailoverMarkerTask{
+				{
+					TaskData: persistence.TaskData{},
+					DomainID: "testDomainID1",
+				},
+				{
+					TaskData: persistence.TaskData{},
+					DomainID: "testDomainID2",
+				},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
+					Data:     []byte("1"),
+					Encoding: commonconstants.EncodingTypeThriftRW,
+				}, nil).Times(2)
+				mockDB.EXPECT().
+					InsertReplicationTask(ctx, gomock.Len(2), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 123}).
+					Return(nil)
+			},
+			expectedError: nil,
+		},
+		{
 			name:    "serialization error",
 			rangeID: 123,
 			markers: []*persistence.FailoverMarkerTask{
