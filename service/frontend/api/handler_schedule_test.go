@@ -400,7 +400,7 @@ func TestCreateSchedule(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		"initial_state with paused=true starts schedule paused": {
+		"state with paused=true starts schedule paused": {
 			request: &types.CreateScheduleRequest{
 				Domain:     testDomain,
 				ScheduleID: "my-schedule",
@@ -411,7 +411,7 @@ func TestCreateSchedule(t *testing.T) {
 						TaskList:     &types.TaskList{Name: "my-tasklist"},
 					},
 				},
-				InitialState: &types.ScheduleState{
+				State: &types.ScheduleState{
 					Paused:    true,
 					PauseInfo: &types.SchedulePauseInfo{Reason: "initial pause", PausedBy: "test-user"},
 				},

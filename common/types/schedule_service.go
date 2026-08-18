@@ -69,9 +69,9 @@ type CreateScheduleRequest struct {
 	Policies         *SchedulePolicies `json:"policies,omitempty"`
 	Memo             *Memo             `json:"-"` // Filtering PII
 	SearchAttributes *SearchAttributes `json:"-"` // Filtering PII
-	// InitialState, if set and Paused is true, creates the schedule in a paused
-	// state immediately instead of requiring a subsequent PauseSchedule call.
-	InitialState *ScheduleState `json:"initialState,omitempty"`
+	// State, if set and Paused is true, creates the schedule in a paused state
+	// immediately instead of requiring a subsequent PauseSchedule call.
+	State *ScheduleState `json:"state,omitempty"`
 }
 
 func (v *CreateScheduleRequest) GetDomain() (o string) {
@@ -123,9 +123,9 @@ func (v *CreateScheduleRequest) GetSearchAttributes() *SearchAttributes {
 	return nil
 }
 
-func (v *CreateScheduleRequest) GetInitialState() *ScheduleState {
+func (v *CreateScheduleRequest) GetState() *ScheduleState {
 	if v != nil {
-		return v.InitialState
+		return v.State
 	}
 	return nil
 }

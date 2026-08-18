@@ -231,7 +231,7 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if request.GetPolicies() != nil {
 		workflowInput.Policies = *request.GetPolicies()
 	}
-	if s := request.GetInitialState(); s != nil && s.Paused {
+	if s := request.GetState(); s != nil && s.Paused {
 		workflowInput.State.Paused = true
 		if info := s.GetPauseInfo(); info != nil {
 			workflowInput.State.PauseReason = info.Reason

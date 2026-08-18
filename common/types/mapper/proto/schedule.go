@@ -378,7 +378,7 @@ func FromCreateScheduleRequest(t *types.CreateScheduleRequest) *apiv1.CreateSche
 		Policies:         FromSchedulePolicies(t.Policies),
 		Memo:             FromMemo(t.Memo),
 		SearchAttributes: FromSearchAttributes(t.SearchAttributes),
-		InitialState:     FromScheduleState(t.InitialState),
+		State:            FromScheduleState(t.State),
 	}
 }
 
@@ -394,7 +394,7 @@ func ToCreateScheduleRequest(t *apiv1.CreateScheduleRequest) *types.CreateSchedu
 		Policies:         ToSchedulePolicies(t.Policies),
 		Memo:             ToMemo(t.Memo),
 		SearchAttributes: ToSearchAttributes(t.SearchAttributes),
-		InitialState:     ToScheduleState(t.InitialState),
+		State:            ToScheduleState(t.State),
 	}
 }
 
