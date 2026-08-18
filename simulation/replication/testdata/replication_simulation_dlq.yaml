@@ -1,0 +1,343 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario dlq
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_dlq.yml
+#
+# Tests the history-task DLQ fill + drain-via-failover flow:
+#   1. Many active-active workflows run active in region0 (cluster0). While they run, the standby
+#      cluster (cluster1) processes standby timer tasks; the dynamic config forces the DLQ-fill
+#      race (standbyClusterDelay ~0 + resendDelay 0s + discardDelay 0s + throttled replication),
+#      so some unverifiable standby timer tasks are written to cluster1's history-task DLQ. Heavy
+#      load raises the chance at least one task lands in the DLQ.
+#   2. validate_dlq asserts the standby DLQ (cluster1 keyspace) has filled up.
+#   3. The domain fails over region0 -> cluster1, making cluster1 active for the workflows.
+#   4. The history-task DLQ processor on cluster1 re-injects the DLQ tasks into the executions
+#      table and advances the ack level, draining the DLQ.
+#   5. validate_dlq asserts the DLQ has drained to zero; validate_dlq_ack_level asserts the ack
+#      level advanced past the fill-time sentinel; and validate asserts workflows completed successfully
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+domains:
+  test-domain-aa:
+    activeClusterName: cluster0
+    clusterAttributes:
+      region:
+        region0: cluster0
+        region1: cluster1
+
+operations:
+  # Start many long-running workflows active in region0 (cluster0). They keep generating transfer
+  # and timer tasks, so the standby (cluster1) has many chances to accumulate history-task DLQ rows.
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf1
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf2
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf3
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf4
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf5
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf6
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf7
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf8
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf9
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf10
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf11
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf12
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf13
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf14
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf15
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf16
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf17
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf18
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf19
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+  - op: start_workflow
+    at: 0s
+    workflowID: dlq-wf20
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 180s
+    workflowDuration: 120s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+
+  # Assert that the standby cluster (cluster1) has accumulated DLQ rows for the
+  # domain.
+  - op: validate_dlq
+    at: 40s
+    cluster: cluster1
+    domain: test-domain-aa
+    want:
+      dlqCountAtLeast: 1
+
+  # Failover region0 from cluster0 to cluster1. cluster1 becomes active for the workflows,
+  # so its DLQ processor can re-inject and drain the DLQ tasks.
+  - op: change_active_clusters
+    at: 45s
+    domain: test-domain-aa
+    newClusterAttributes:
+      region:
+        region0: cluster1 # changed from cluster0 to cluster1
+        region1: cluster1
+
+  # Assert that after failover + a couple of DLQ processor intervals, the DLQ on cluster1
+  # has drained back to zero.
+  - op: validate_dlq
+    at: 130s
+    cluster: cluster1
+    domain: test-domain-aa
+    want:
+      dlqCountAtMost: 0
+
+  # Assert that the ack level has advanced past the fill-time sentinel. 
+  - op: validate_dlq_ack_level
+    at: 132s
+    cluster: cluster1
+    domain: test-domain-aa
+    want:
+      dlqClusterAttributeScope: region
+      dlqClusterAttributeName: region0
+      dlqAckLevelTaskIDAtLeast: 1
+
+  # Validation that a sample of the workflows have completed, and the completing worker
+  # should be on cluster1.
+  - op: validate
+    at: 170s
+    workflowID: dlq-wf1
+    cluster: cluster1
+    domain: test-domain-aa
+    want:
+      status: completed
+      completedByWorkersInCluster: cluster1
+  - op: validate
+    at: 171s
+    workflowID: dlq-wf10
+    cluster: cluster1
+    domain: test-domain-aa
+    want:
+      status: completed
+      completedByWorkersInCluster: cluster1
+  - op: validate
+    at: 172s
+    workflowID: dlq-wf20
+    cluster: cluster1
+    domain: test-domain-aa
+    want:
+      status: completed
+      completedByWorkersInCluster: cluster1
