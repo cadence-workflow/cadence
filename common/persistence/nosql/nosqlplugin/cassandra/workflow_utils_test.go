@@ -1879,14 +1879,14 @@ func TestUpdateTimerInfos(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc              string
-		shardID           int
-		domainID          string
-		workflowID        string
-		runID             string
-		timerInfos        map[string]*persistence.TimerInfo
-		deleteInfos       []string
-		rewriteInfos      map[string]*persistence.TimerInfo
+		desc                 string
+		shardID              int
+		domainID             string
+		workflowID           string
+		runID                string
+		timerInfos           map[string]*persistence.TimerInfo
+		deleteInfos          []string
+		rewriteInfos         map[string]*persistence.TimerInfo
 		sentinelWriteEnabled bool
 		// expectations
 		wantQueries []string
@@ -1905,7 +1905,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 					TaskStatus: 1,
 				},
 			},
-			deleteInfos:       []string{"timer2"},
+			deleteInfos:          []string{"timer2"},
 			sentinelWriteEnabled: true,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
@@ -1934,7 +1934,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 					TaskStatus: 1,
 				},
 			},
-			deleteInfos:       []string{"timer2"},
+			deleteInfos:          []string{"timer2"},
 			sentinelWriteEnabled: false,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
@@ -2124,14 +2124,14 @@ func TestUpdateActivityInfos(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc              string
-		shardID           int
-		domainID          string
-		workflowID        string
-		runID             string
-		activityInfos     map[int64]*persistence.InternalActivityInfo
-		deleteInfos       []int64
-		rewriteInfos      map[int64]*persistence.InternalActivityInfo
+		desc                 string
+		shardID              int
+		domainID             string
+		workflowID           string
+		runID                string
+		activityInfos        map[int64]*persistence.InternalActivityInfo
+		deleteInfos          []int64
+		rewriteInfos         map[int64]*persistence.InternalActivityInfo
 		sentinelWriteEnabled bool
 		// expectations
 		wantQueries []string
@@ -2169,7 +2169,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					LastFailureReason:      "retry reason",
 				},
 			},
-			deleteInfos:       []int64{2},
+			deleteInfos:          []int64{2},
 			sentinelWriteEnabled: true,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
@@ -2226,7 +2226,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					LastFailureReason:      "retry reason",
 				},
 			},
-			deleteInfos:       []int64{2},
+			deleteInfos:          []int64{2},
 			sentinelWriteEnabled: false,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
