@@ -86,6 +86,7 @@ func TestSyncActivity_RetryTimerTaskGeneration(t *testing.T) {
 		name            string
 		startedID       int64
 		attempt         int32
+		localAttempt    int32
 		cancelRequested bool
 		wantRetryTimer  bool
 	}{
@@ -93,26 +94,37 @@ func TestSyncActivity_RetryTimerTaskGeneration(t *testing.T) {
 			name:           "unstarted retry generates ActivityRetryTimerTask",
 			startedID:      commonconstants.EmptyEventID,
 			attempt:        attempt,
+			localAttempt:   attempt - 1,
 			wantRetryTimer: true,
 		},
 		{
 			name:           "started activity does not generate retry timer",
 			startedID:      scheduleID + 1,
 			attempt:        attempt,
+			localAttempt:   attempt - 1,
 			wantRetryTimer: false,
 		},
 		{
 			name:           "first attempt does not generate retry timer",
 			startedID:      commonconstants.EmptyEventID,
 			attempt:        0,
+			localAttempt:   0,
 			wantRetryTimer: false,
 		},
 		{
 			name:            "cancel-requested activity does not generate retry timer",
 			startedID:       commonconstants.EmptyEventID,
 			attempt:         attempt,
+			localAttempt:    attempt - 1,
 			cancelRequested: true,
 			wantRetryTimer:  false,
+		},
+		{
+			name:           "redelivered sync for already-applied attempt does not generate retry timer",
+			startedID:      commonconstants.EmptyEventID,
+			attempt:        attempt,
+			localAttempt:   attempt,
+			wantRetryTimer: false,
 		},
 	}
 
@@ -191,7 +203,7 @@ func TestSyncActivity_RetryTimerTaskGeneration(t *testing.T) {
 			activityInfo := &persistence.ActivityInfo{
 				Version:         version,
 				ScheduleID:      scheduleID,
-				Attempt:         tc.attempt - 1,
+				Attempt:         tc.localAttempt,
 				StartedID:       commonconstants.EmptyEventID,
 				TaskList:        "some random task list",
 				CancelRequested: tc.cancelRequested,
