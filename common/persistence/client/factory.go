@@ -69,6 +69,8 @@ type (
 		NewDomainAuditManager() (p.DomainAuditManager, error)
 		// NewSemaphoreMetadataManager returns a new semaphore metadata manager
 		NewSemaphoreMetadataManager() (p.SemaphoreMetadataManager, error)
+		// NewSemaphoreTokenManager returns a new semaphore token manager
+		NewSemaphoreTokenManager() (p.SemaphoreTokenManager, error)
 		// NewHistoryTaskDLQManager returns a new history task DLQ manager
 		NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error)
 		// NewExecutionManager returns a new execution manager
@@ -98,6 +100,8 @@ type (
 		NewDomainAuditStore() (p.DomainAuditStore, error)
 		// NewSemaphoreMetadataStore returns a new semaphore metadata store
 		NewSemaphoreMetadataStore() (p.SemaphoreMetadataStore, error)
+		// NewSemaphoreTokenStore returns a new semaphore token store
+		NewSemaphoreTokenStore() (p.SemaphoreTokenStore, error)
 		// NewHistoryDLQTaskStore returns a new history DLQ task store
 		NewHistoryDLQTaskStore() (p.HistoryDLQTaskStore, error)
 		// NewExecutionStore returns an execution store
@@ -292,6 +296,23 @@ func (f *factoryImpl) NewSemaphoreMetadataManager() (p.SemaphoreMetadataManager,
 		return nil, nil
 	}
 	result := p.NewSemaphoreMetadataManagerImpl(store, f.logger)
+	return result, nil
+}
+
+// NewSemaphoreTokenManager returns a new semaphore token manager
+func (f *factoryImpl) NewSemaphoreTokenManager() (p.SemaphoreTokenManager, error) {
+	var err error
+	var store p.SemaphoreTokenStore
+
+	ds := f.datastores[storeTypeMetadata]
+	store, err = ds.factory.NewSemaphoreTokenStore()
+	if err != nil {
+		return nil, err
+	}
+	if store == nil {
+		return nil, nil
+	}
+	result := p.NewSemaphoreTokenManagerImpl(store, f.logger)
 	return result, nil
 }
 

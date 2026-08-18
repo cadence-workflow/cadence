@@ -297,6 +297,30 @@ type (
 		NextPageToken []byte
 	}
 
+	// SemaphoreTokenRow defines a row of the semaphore_tokens table. It carries
+	// the real key/value fields; the Cassandra impl fills the not-applicable
+	// columns and the type discriminator with its internal sentinels.
+	SemaphoreTokenRow struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenID       int
+		OwnerID       string
+		Holder        string
+		HeldToken     int
+		UpdatedTime   time.Time
+	}
+
+	// SemaphoreTokenFilter contains the filter criteria for scanning a bucket's
+	// token partition (both row kinds), paginated.
+	SemaphoreTokenFilter struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		PageSize      int
+		NextPageToken []byte
+	}
+
 	// HistoryDLQTaskRow defines the row struct for history task dead-letter queue entries.
 	HistoryDLQTaskRow struct {
 		ShardID               int
