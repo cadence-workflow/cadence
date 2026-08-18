@@ -753,12 +753,6 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 		return err
 	}
 	if !shouldPush {
-		t.logger.Warn("Activity retry timer task skipped: not pushing to matching",
-			tag.WorkflowID(task.WorkflowID),
-			tag.WorkflowRunID(task.RunID),
-			tag.WorkflowDomainID(task.DomainID),
-			tag.WorkflowScheduleID(scheduledID),
-		)
 		return nil
 	}
 
