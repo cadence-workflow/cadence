@@ -47,6 +47,10 @@ type InMemQueue interface {
 	// Returns the key just past the last kept task and true if any tasks were
 	// removed, or the zero key and false if the queue was already within bounds.
 	RTrimBySize(maxSize int) (persistence.HistoryTaskKey, bool)
+	// LTrimBySize drops the OLDEST tasks from the head until Len() <= maxSize.
+	// Returns the key of the new head (the new inclusive lower bound) and true if any
+	// tasks were removed, or the zero key and false if already within bounds.
+	LTrimBySize(maxSize int) (persistence.HistoryTaskKey, bool)
 	// Clear removes all tasks.
 	Clear()
 	// Len returns the number of tasks currently in the queue.
@@ -181,6 +185,43 @@ func (q *inMemQueueImpl) RTrimBySize(maxSize int) (persistence.HistoryTaskKey, b
 	}
 
 	return q.tasks[len(q.tasks)-1].GetTaskKey().Next(), trimmed
+}
+
+// LTrimBySize truncates the queue to at most maxSize elements by dropping
+// the oldest tasks from the head, keeping the newest.
+// Returns the key of the new head (the new inclusive lower bound) or
+// MinimumHistoryTaskKey if the queue ends up empty, and true if any tasks
+// were removed, or false if the queue was already within bounds.
+func (q *inMemQueueImpl) LTrimBySize(maxSize int) (persistence.HistoryTaskKey, bool) {
+	if len(q.tasks) == 0 {
+		return persistence.MinimumHistoryTaskKey, false
+	}
+
+	if maxSize <= 0 {
+		q.tasks = nil
+		return persistence.MinimumHistoryTaskKey, true
+	}
+
+	if len(q.tasks) <= maxSize {
+		return persistence.MinimumHistoryTaskKey, false
+	}
+
+	drop := len(q.tasks) - maxSize
+	// Nil out the dropped head elements so the backing array releases references to
+	// the removed Task interface values before reslicing past them.
+	for i := 0; i < drop; i++ {
+		q.tasks[i] = nil
+	}
+	// Reslice in place rather than copy-to-a-fresh-slice (as LTrim does): the cap
+	// guard runs on every write, so copying up to maxSize retained tasks per call
+	// would cost O(maxSize) per insert instead of O(drop) (usually 1). The nil loop
+	// above already makes the dropped entries GC-eligible, so the only price paid
+	// for skipping the copy is deferred capacity reuse: the freed head slots stay
+	// part of this backing array until a future append grows past its capacity,
+	// rather than being reclaimed immediately.
+	q.tasks = q.tasks[drop:]
+
+	return q.tasks[0].GetTaskKey(), true
 }
 
 // Clear removes all tasks from the queue.

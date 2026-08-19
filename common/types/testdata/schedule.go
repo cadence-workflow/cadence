@@ -97,6 +97,7 @@ var (
 		Policies:         &SchedulePolicies,
 		Memo:             &Memo,
 		SearchAttributes: &SearchAttributes,
+		State:            &ScheduleStateThrift,
 	}
 
 	DescribeScheduleResponseThrift = types.DescribeScheduleResponse{
@@ -219,6 +220,7 @@ var (
 		Policies:         &SchedulePolicies,
 		Memo:             &Memo,
 		SearchAttributes: &SearchAttributes,
+		State:            &ScheduleState,
 	}
 
 	CreateScheduleResponse = types.CreateScheduleResponse{

@@ -8,10 +8,23 @@ import (
 )
 
 type nosqlAdmin struct {
-	logger log.Logger
-	plugin nosqlplugin.Plugin
-	dbType persistence.DBType
-	cfg    *config.NoSQL
+	logger     log.Logger
+	plugin     nosqlplugin.Plugin
+	dbType     persistence.DBType
+	identifier string
+	cfg        *config.NoSQL
+}
+
+func (n *nosqlAdmin) PluginName() string {
+	return n.cfg.PluginName
+}
+
+func (n *nosqlAdmin) DBType() persistence.DBType {
+	return n.dbType
+}
+
+func (n *nosqlAdmin) Identifier() string {
+	return n.identifier
 }
 
 func (n *nosqlAdmin) CreateSetupDB() (persistence.SetupDB, error) {

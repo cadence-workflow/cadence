@@ -183,6 +183,7 @@ func (f *Factory) NewAdminDBs(dbType p.DBType) ([]p.AdminDB, error) {
 		result = append(result, &sqlAdmin{
 			logger: f.logger,
 			plugin: plugin,
+			dbType: dbType,
 			schema: schema,
 			cfg:    db,
 		})

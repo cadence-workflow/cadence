@@ -43,7 +43,7 @@ require (
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally v3.5.8+incompatible
-	github.com/uber/cadence-idl v0.0.0-20260701181909-ee96c0aebffa
+	github.com/uber/cadence-idl v0.0.0-20260818192101-d6d4d81fa739
 	github.com/uber/ringpop-go v0.10.0 // indirect
 	github.com/uber/tchannel-go v1.34.4 // indirect
 	github.com/valyala/fastjson v1.4.1 // indirect
@@ -69,6 +69,7 @@ require (
 
 require (
 	github.com/cadence-workflow/shard-manager v0.0.0-20260610143419-4bef35311802
+	github.com/ncruces/go-sqlite3 v0.23.3
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/common/archiver/gcloud v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/common/dynamicconfig/openfeatureprovider/unleash v0.0.0-00010101000000-000000000000
@@ -103,7 +104,6 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/ncruces/go-sqlite3 v0.23.3 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/open-feature/go-sdk v1.17.1 // indirect
 	github.com/open-feature/go-sdk-contrib/providers/unleash v0.1.1-alpha // indirect

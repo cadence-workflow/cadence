@@ -49,6 +49,22 @@ go test -race -run TestFoo ./path/to/pkg/...  # run a specific test
   - Files in `.gen/` are generated from IDL — do not edit manually.
   - Never use yarpcerrors directly in handler logic; instead, create an new Error type in IDL and map to internal ones under common/type/errors.go.
 
+- **Blank Imports (Side-Effect Imports)**:
+  - **NEVER** use blank imports (`import _`) in library code under `common/`, `service/`, or any package that gets imported transitively.
+  - Blank imports execute `init()` functions with global side effects (driver registration, flag registration, global state mutation).
+  - These cause problems: registration conflicts ("driver already registered"), order-of-initialization bugs, implicit dependencies, and issues in custom builds.
+  - **Blank imports are ONLY allowed in:**
+    - `cmd/**/main.go` — entry points with explicit control over initialization
+    - `*_test.go` — test setup (use sparingly, prefer explicit setup)
+    - `internal/tools.go` — build tool dependencies pinned in `go.mod`
+  - **Examples of prohibited blank imports in library code:**
+    - Database drivers: `_ "github.com/lib/pq"`, `_ "github.com/ncruces/go-sqlite3/driver"`
+    - Profilers: `_ "net/http/pprof"`
+    - Flag packages: `_ "github.com/some/flags"`
+    - Any package that registers global state in `init()`
+  - **What to do instead:** Move the blank import to `cmd/server/main.go` or the appropriate entry point.
+  - **Example:** `common/persistence/sql/sqlplugin/sqlite/db.go` should NOT import drivers. Instead, `cmd/server/main.go` imports both the plugin package AND the driver.
+
 ## Architecture Guidelines
 
 **Core Principle**: Cadence must support both the standard open-source build and custom builds from a single codebase. Different builds may use different libraries (e.g., open-source Kafka client vs. company-internal Kafka library). This requires strict separation between core logic and proprietary implementations.

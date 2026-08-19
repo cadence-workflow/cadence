@@ -231,6 +231,13 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if request.GetPolicies() != nil {
 		workflowInput.Policies = *request.GetPolicies()
 	}
+	if s := request.GetState(); s != nil && s.Paused {
+		workflowInput.State.Paused = true
+		if info := s.GetPauseInfo(); info != nil {
+			workflowInput.State.PauseReason = info.Reason
+			workflowInput.State.PausedBy = info.PausedBy
+		}
+	}
 
 	inputBytes, err := json.Marshal(workflowInput)
 	if err != nil {

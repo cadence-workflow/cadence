@@ -114,16 +114,17 @@ func (f *Factory) NewConfigStore() (persistence.ConfigStore, error) {
 
 func (f *Factory) NewAdminDBs(dbType persistence.DBType) ([]persistence.AdminDB, error) {
 	var result []persistence.AdminDB
-	for _, conn := range f.cfg.Connections {
+	for connectionID, conn := range f.cfg.Connections {
 		plugin, ok := supportedPlugins[conn.NoSQLPlugin.PluginName]
 		if !ok {
 			return nil, fmt.Errorf("unsupported plugin: %v", conn.NoSQLPlugin.PluginName)
 		}
 		result = append(result, &nosqlAdmin{
-			logger: f.logger,
-			plugin: plugin,
-			dbType: dbType,
-			cfg:    conn.NoSQLPlugin,
+			logger:     f.logger,
+			plugin:     plugin,
+			dbType:     dbType,
+			identifier: connectionID,
+			cfg:        conn.NoSQLPlugin,
 		})
 	}
 	return result, nil

@@ -24,8 +24,6 @@ import (
 	"testing"
 
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
-
-	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra" // needed to load cassandra plugin
 )
 
 // NewTestBaseWithPublicCassandra returns a persistence test base backed by cassandra datastore

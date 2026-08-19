@@ -8,17 +8,26 @@ import (
 	"strings"
 )
 
+//go:generate mockgen -package $GOPACKAGE -destination admin_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence AdminDB,SetupDB,SchemaDB,Schema
+
 type DBType string
 
 const (
-	DBTypeDefault    DBType = "Default"
-	DBTypeVisibility DBType = "Visibility"
+	DBTypeDefault    DBType = "default"
+	DBTypeVisibility DBType = "visibility"
 )
 
 type (
 	// AdminDB represents the configuration required to connect to a backing persistence technology for admin operations
 	// outside of general Cadence usage.
 	AdminDB interface {
+		// PluginName returns the persistence plugin name (for example, mysql or cassandra).
+		PluginName() string
+		// DBType returns whether this admin DB is for default or visibility persistence.
+		DBType() DBType
+		// Identifier returns an identifier that distinguishes this admin DB instance
+		// from other admin DB instances of the same plugin/type.
+		Identifier() string
 		// CreateSetupDB establishes a connection to the database that can be used to create the necessary database/keyspaces
 		// and any minimum required tables.
 		CreateSetupDB() (SetupDB, error)

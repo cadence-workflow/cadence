@@ -85,7 +85,7 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/uber-go/mapdecode v1.0.0 // indirect
 	github.com/uber-go/tally v3.5.8+incompatible // indirect
-	github.com/uber/cadence-idl v0.0.0-20260701181909-ee96c0aebffa // indirect
+	github.com/uber/cadence-idl v0.0.0-20260818192101-d6d4d81fa739 // indirect
 	github.com/uber/ringpop-go v0.10.0 // indirect
 	github.com/uber/tchannel-go v1.34.4 // indirect
 	github.com/valyala/fastjson v1.4.1 // indirect

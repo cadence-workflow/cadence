@@ -705,6 +705,14 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 	}
 	ok, err = verifyTaskVersion(t.shard, t.logger, task.DomainID, activityInfo.Version, task.Version, task)
 	if err != nil || !ok {
+		if err == nil {
+			t.logger.Debug("Activity retry timer task skipped: version mismatch",
+				tag.WorkflowID(task.WorkflowID),
+				tag.WorkflowRunID(task.RunID),
+				tag.WorkflowDomainID(task.DomainID),
+				tag.WorkflowScheduleID(scheduledID),
+			)
+		}
 		return err
 	}
 
