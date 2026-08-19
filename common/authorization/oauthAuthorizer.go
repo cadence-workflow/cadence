@@ -118,36 +118,39 @@ func (a *oauthAuthority) Authorize(ctx context.Context, attributes *Attributes) 
 
 	token := call.Header(common.AuthorizationTokenHeaderName)
 	if token == "" {
-		a.log.Debug("request is not authorized", tag.Error(errors.New("token is not set in header")))
-		return Result{Decision: DecisionDeny}, nil
+		a.log.Debug("request is not authenticated", tag.Error(errors.New("token is not set in header")))
+		return Result{Decision: DecisionUnauthenticated}, nil
 	}
 
 	var claims JWTClaims
 	parsedToken, err := a.parser.ParseWithClaims(token, &claims, a.keyFunc)
 	if err != nil {
-		a.log.Debug("request is not authorized", tag.Error(err))
-		return Result{Decision: DecisionDeny}, nil
+		a.log.Debug("request is not authenticated", tag.Error(err))
+		return Result{Decision: DecisionUnauthenticated}, nil
 	}
 
 	if !isTokenInternal(parsedToken) {
 		parsed, _, err := a.parser.ParseUnverified(token, jwt.MapClaims{})
 		if err != nil {
-			a.log.Debug("request is not authorized", tag.Error(err))
-			return Result{Decision: DecisionDeny}, nil
+			a.log.Debug("request is not authenticated", tag.Error(err))
+			return Result{Decision: DecisionUnauthenticated}, nil
 		}
 
 		if err := a.parseExternal(parsed.Claims.(jwt.MapClaims), &claims); err != nil {
-			a.log.Debug("request is not authorized", tag.Error(err))
-			return Result{Decision: DecisionDeny}, nil
+			a.log.Debug("request is not authenticated", tag.Error(err))
+			return Result{Decision: DecisionUnauthenticated}, nil
 		}
 	}
 
 	if err := a.validateTTL(&claims); err != nil {
-		a.log.Debug("request is not authorized", tag.Error(err))
-		return Result{Decision: DecisionDeny}, nil
+		a.log.Debug("request is not authenticated", tag.Error(err))
+		return Result{Decision: DecisionUnauthenticated}, nil
 	}
 
 	if claims.Admin {
+		return Result{Decision: DecisionAllow}, nil
+	}
+	if attributes.AuthenticationOnly {
 		return Result{Decision: DecisionAllow}, nil
 	}
 
