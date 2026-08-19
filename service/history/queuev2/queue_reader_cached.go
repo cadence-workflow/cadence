@@ -964,8 +964,8 @@ func (q *cachedQueueReader) getTaskInShadow(
 		)
 		return dbResp, err
 	}
-	result := q.findMismatchesInShadow(cacheResp, dbResp, req)
-	q.reportShadowComparison(result, logTags)
+	result := findMismatchesInShadow(cacheResp, dbResp, req, q.shard.GetRangeID(), q.shard.GetConfig().RangeSizeBits)
+	reportShadowComparison(result, q.metrics, q.logger, logTags)
 	return dbResp, nil
 }
 
@@ -1045,8 +1045,8 @@ type findMismatchesInShadowResult struct {
 }
 
 // getTaskRangeID extracts the rangeID encoded in taskID, which is assigned at task creation time and immutable.
-func (q *cachedQueueReader) getTaskRangeID(taskID int64) int64 {
-	return taskID >> int64(q.shard.GetConfig().RangeSizeBits)
+func getTaskRangeID(taskID int64, rangeSizeBits uint) int64 {
+	return taskID >> int64(rangeSizeBits)
 }
 
 // reportShadowComparison logs exactly one line describing the outcome of a shadow comparison,
@@ -1056,10 +1056,10 @@ func (q *cachedQueueReader) getTaskRangeID(taskID int64) int64 {
 //  3. CurrentRange.Extra, or anything in PreviousRange: a benign or inconclusive finding, logged
 //     for visibility only.
 //  4. Otherwise: cache and DB agreed.
-func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadowResult, logTags []tag.Tag) {
+func reportShadowComparison(result findMismatchesInShadowResult, metricsScope metrics.Scope, logger log.Logger, logTags []tag.Tag) {
 	// Metric emission must run before capping below: capping truncates the slices for
 	// logging, which would undercount the metric for large comparisons.
-	q.emitShadowMismatchMetrics(result)
+	emitShadowMismatchMetrics(result, metricsScope)
 
 	// Cap the number of mismatched task keys logged to avoid excessively large logs.
 	result.NewRange = result.NewRange.cap()
@@ -1070,13 +1070,13 @@ func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadow
 
 	switch {
 	case !result.NewRange.isEmpty():
-		q.logger.Info("stale shard owner, no check for mismatches", logTags...)
+		logger.Info("stale shard owner, no check for mismatches", logTags...)
 	case len(result.CurrentRange.Missed) > 0:
-		q.logger.Warn("potential severe mismatch between db and cache states", logTags...)
+		logger.Warn("potential severe mismatch between db and cache states", logTags...)
 	case len(result.CurrentRange.Extra) > 0 || !result.PreviousRange.isEmpty():
-		q.logger.Info("potential non-critical mismatch between db and cache states", logTags...)
+		logger.Info("potential non-critical mismatch between db and cache states", logTags...)
 	default:
-		q.logger.Debug("shadow comparison matched", logTags...)
+		logger.Debug("shadow comparison matched", logTags...)
 	}
 }
 
@@ -1084,16 +1084,16 @@ func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadow
 // and previous-range missed-task buckets, tagged by which bucket they came from so the two never
 // mix into one series. Skipped entirely when NewRange is non-empty: a stale shard owner makes the
 // whole comparison untrustworthy, not just the log severity.
-func (q *cachedQueueReader) emitShadowMismatchMetrics(result findMismatchesInShadowResult) {
+func emitShadowMismatchMetrics(result findMismatchesInShadowResult, metricsScope metrics.Scope) {
 	if !result.NewRange.isEmpty() {
 		return
 	}
 	if len(result.CurrentRange.Missed) > 0 {
-		q.metrics.Tagged(metrics.Range("current")).
+		metricsScope.Tagged(metrics.Range("current")).
 			AddCounter(metrics.CachedQueueShadowMismatchCounter, int64(len(result.CurrentRange.Missed)))
 	}
 	if len(result.PreviousRange.Missed) > 0 {
-		q.metrics.Tagged(metrics.Range("previous")).
+		metricsScope.Tagged(metrics.Range("previous")).
 			AddCounter(metrics.CachedQueueShadowMismatchCounter, int64(len(result.PreviousRange.Missed)))
 	}
 }
@@ -1120,10 +1120,12 @@ func (q *cachedQueueReader) emitShadowMismatchMetrics(result findMismatchesInSha
 // (taskID-inclusive) filtering, and it is not a real mismatch. Such tasks land in the same
 // rangeID bucket's TaskIDBoundaryNoise field instead of its Missed field: the boundary-noise
 // check is orthogonal to which range the task's taskID encodes, so it can occur in any bucket.
-func (q *cachedQueueReader) findMismatchesInShadow(
+func findMismatchesInShadow(
 	cacheResp *GetTaskResponse,
 	dbResp *GetTaskResponse,
 	req *GetTaskRequest,
+	currentRangeID int64,
+	rangeSizeBits uint,
 ) findMismatchesInShadowResult {
 	inclusiveMinTaskKey, ok := resolveInclusiveMinTaskKey(req)
 	if !ok {
@@ -1144,7 +1146,6 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 
 	var (
 		result           findMismatchesInShadowResult
-		currentRangeID   = q.shard.GetRangeID()
 		newRangeIDs      = map[int64]struct{}{}
 		previousRangeIDs = map[int64]struct{}{}
 	)
@@ -1170,7 +1171,7 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 			continue
 		}
 
-		b := bucket(q.getTaskRangeID(t.GetTaskID()))
+		b := bucket(getTaskRangeID(t.GetTaskID(), rangeSizeBits))
 		if t.GetTaskKey().Less(inclusiveMinTaskKey) {
 			b.TaskIDBoundaryNoise = append(b.TaskIDBoundaryNoise, toShadowMismatchTaskInfo(t))
 			continue
@@ -1184,7 +1185,7 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 			continue
 		}
 
-		b := bucket(q.getTaskRangeID(t.GetTaskID()))
+		b := bucket(getTaskRangeID(t.GetTaskID(), rangeSizeBits))
 		b.Extra = append(b.Extra, toShadowMismatchTaskInfo(t))
 	}
 

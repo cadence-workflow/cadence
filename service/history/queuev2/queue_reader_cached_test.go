@@ -1528,7 +1528,7 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			if req == nil {
 				req = &GetTaskRequest{Progress: &GetTaskProgress{}}
 			}
-			got := r.findMismatchesInShadow(tc.snapshotResp, tc.dbResp, req)
+			got := findMismatchesInShadow(tc.snapshotResp, tc.dbResp, req, r.shard.GetRangeID(), r.shard.GetConfig().RangeSizeBits)
 			slices.Sort(got.NewRange.RangeIDs)
 			slices.Sort(got.PreviousRange.RangeIDs)
 			require.Equal(t, tc.wantResult, got)
