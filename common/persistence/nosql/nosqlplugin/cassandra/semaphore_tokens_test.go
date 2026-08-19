@@ -100,34 +100,87 @@ func TestGrantSemaphoreToken(t *testing.T) {
 	t.Run("applied", func(t *testing.T) {
 		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
 		db := newTestSemaphoreTokenDB(t, session)
-		applied, err := db.GrantSemaphoreToken(context.Background(), row)
+		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.NoError(t, err)
-		assert.True(t, applied)
+		assert.True(t, result.Applied)
+		assert.Zero(t, result.AlreadyHeldToken)
 		assert.Len(t, session.batches, 1)
 		assert.Equal(t, []string{
 			`UPDATE semaphore_tokens SET holder = owner-abc, updated_time = ` + now.UTC().Format(time.RFC3339) + ` ` +
 				`WHERE domain_id = 10000000-1000-f000-f000-000000000000 AND semaphore_name = sem-1 AND bucket = 0 ` +
 				`AND type = 0 AND token_id = 5 AND owner_id = __NONE__ IF holder = __FREE__`,
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, -1, owner-abc, __NONE__, 5, ` + now.UTC().Format(time.RFC3339) + `)`,
+				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, -1, owner-abc, __NONE__, 5, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 		}, session.batches[0].queries)
 		assert.True(t, session.iter.closed)
 	})
 
-	t.Run("not applied", func(t *testing.T) {
-		session := &fakeSession{mapExecuteBatchCASApplied: false, iter: &fakeIter{}}
+	t.Run("not applied - slot taken by someone else", func(t *testing.T) {
+		// The conflicting row is the token row (someone else holds it); no owner
+		// row is returned, so AlreadyHeldToken stays 0 (retry another slot).
+		session := &fakeSession{
+			mapExecuteBatchCASApplied: false,
+			mapExecuteBatchCASPrev: map[string]any{
+				"type":   rowTypeSemaphoreToken,
+				"holder": "owner-xyz",
+			},
+			iter: &fakeIter{},
+		}
 		db := newTestSemaphoreTokenDB(t, session)
-		applied, err := db.GrantSemaphoreToken(context.Background(), row)
+		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.NoError(t, err)
-		assert.False(t, applied)
+		assert.False(t, result.Applied)
+		assert.Zero(t, result.AlreadyHeldToken)
+		assert.True(t, session.iter.closed)
+	})
+
+	t.Run("not applied - owner already holds a token (previous row)", func(t *testing.T) {
+		// The owner row is the first conflicting row, returned in `previous`.
+		session := &fakeSession{
+			mapExecuteBatchCASApplied: false,
+			mapExecuteBatchCASPrev: map[string]any{
+				"type":       rowTypeSemaphoreOwner,
+				"held_token": 7,
+			},
+			iter: &fakeIter{},
+		}
+		db := newTestSemaphoreTokenDB(t, session)
+		result, err := db.GrantSemaphoreToken(context.Background(), row)
+		assert.NoError(t, err)
+		assert.False(t, result.Applied)
+		assert.Equal(t, 7, result.AlreadyHeldToken)
+		assert.True(t, session.iter.closed)
+	})
+
+	t.Run("not applied - owner already holds a token (iterator row)", func(t *testing.T) {
+		// The token conflict comes back first in `previous`; the owner row is
+		// returned through the iterator and must still be found.
+		session := &fakeSession{
+			mapExecuteBatchCASApplied: false,
+			mapExecuteBatchCASPrev: map[string]any{
+				"type":   rowTypeSemaphoreToken,
+				"holder": "owner-abc",
+			},
+			iter: &fakeIter{
+				mapScanInputs: []map[string]interface{}{
+					{"type": rowTypeSemaphoreOwner, "held_token": 9},
+				},
+			},
+		}
+		db := newTestSemaphoreTokenDB(t, session)
+		result, err := db.GrantSemaphoreToken(context.Background(), row)
+		assert.NoError(t, err)
+		assert.False(t, result.Applied)
+		assert.Equal(t, 9, result.AlreadyHeldToken)
+		assert.True(t, session.iter.closed)
 	})
 
 	t.Run("error", func(t *testing.T) {
 		session := &fakeSession{mapExecuteBatchCASErr: errors.New("boom"), iter: &fakeIter{}}
 		db := newTestSemaphoreTokenDB(t, session)
-		applied, err := db.GrantSemaphoreToken(context.Background(), row)
+		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.Error(t, err)
-		assert.False(t, applied)
+		assert.False(t, result.Applied)
 	})
 }
 

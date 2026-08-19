@@ -141,6 +141,57 @@ func (s *SemaphoreTokenPersistenceSuite) TestGrantAndRelease() {
 	s.Error(err)
 }
 
+// TestGrantSameOwnerDifferentTokenIsRejected verifies the IF NOT EXISTS owner
+// guard: once an owner holds a token, a second grant of a different token to the
+// same owner_id does not apply and surfaces the already-held token for reuse.
+func (s *SemaphoreTokenPersistenceSuite) TestGrantSameOwnerDifferentTokenIsRejected() {
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	manager, err := s.PersistenceFactory.NewSemaphoreTokenManager()
+	s.NoError(err)
+	defer manager.Close()
+
+	domainID := uuid.NewString()
+	semaphoreName := "sem-" + uuid.NewString()
+	bucket := 0
+	firstToken := 1
+	secondToken := 2
+	owner := "owner-" + uuid.NewString()
+
+	// seed two free slots
+	s.NoError(manager.SeedSemaphoreTokens(ctx, &persistence.SeedSemaphoreTokensRequest{
+		DomainID:      domainID,
+		SemaphoreName: semaphoreName,
+		Bucket:        bucket,
+		TokenIDs:      []int{firstToken, secondToken},
+	}))
+
+	// the owner claims the first token
+	grantResp, err := manager.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
+		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: firstToken, OwnerID: owner,
+	})
+	s.NoError(err)
+	s.True(grantResp.Applied)
+	s.Zero(grantResp.AlreadyHeldToken)
+
+	// a second grant of a different token to the same owner is rejected by the
+	// owner guard, and reports the token the owner already holds.
+	grantSecond, err := manager.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
+		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: secondToken, OwnerID: owner,
+	})
+	s.NoError(err)
+	s.False(grantSecond.Applied)
+	s.Equal(firstToken, grantSecond.AlreadyHeldToken)
+
+	// the second slot was never claimed and is still free
+	byID, err := manager.GetSemaphoreTokenByID(ctx, &persistence.GetSemaphoreTokenByIDRequest{
+		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: secondToken,
+	})
+	s.NoError(err)
+	s.Equal("", byID.Token.Holder)
+}
+
 // TestSeedIsIdempotent verifies that re-seeding a bucket never clobbers a held slot.
 func (s *SemaphoreTokenPersistenceSuite) TestSeedIsIdempotent() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)

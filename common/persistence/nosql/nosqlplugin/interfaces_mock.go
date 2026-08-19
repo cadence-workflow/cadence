@@ -367,10 +367,10 @@ func (mr *MockDBMockRecorder) GetTasksCount(ctx, filter any) *gomock.Call {
 }
 
 // GrantSemaphoreToken mocks base method.
-func (m *MockDB) GrantSemaphoreToken(ctx context.Context, row *SemaphoreTokenRow) (bool, error) {
+func (m *MockDB) GrantSemaphoreToken(ctx context.Context, row *SemaphoreTokenRow) (SemaphoreGrantResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GrantSemaphoreToken", ctx, row)
-	ret0, _ := ret[0].(bool)
+	ret0, _ := ret[0].(SemaphoreGrantResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1763,10 +1763,10 @@ func (mr *MocktableCRUDMockRecorder) GetTasksCount(ctx, filter any) *gomock.Call
 }
 
 // GrantSemaphoreToken mocks base method.
-func (m *MocktableCRUD) GrantSemaphoreToken(ctx context.Context, row *SemaphoreTokenRow) (bool, error) {
+func (m *MocktableCRUD) GrantSemaphoreToken(ctx context.Context, row *SemaphoreTokenRow) (SemaphoreGrantResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GrantSemaphoreToken", ctx, row)
-	ret0, _ := ret[0].(bool)
+	ret0, _ := ret[0].(SemaphoreGrantResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -4294,10 +4294,10 @@ func (m *MockSemaphoreTokenCRUD) EXPECT() *MockSemaphoreTokenCRUDMockRecorder {
 }
 
 // GrantSemaphoreToken mocks base method.
-func (m *MockSemaphoreTokenCRUD) GrantSemaphoreToken(ctx context.Context, row *SemaphoreTokenRow) (bool, error) {
+func (m *MockSemaphoreTokenCRUD) GrantSemaphoreToken(ctx context.Context, row *SemaphoreTokenRow) (SemaphoreGrantResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GrantSemaphoreToken", ctx, row)
-	ret0, _ := ret[0].(bool)
+	ret0, _ := ret[0].(SemaphoreGrantResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

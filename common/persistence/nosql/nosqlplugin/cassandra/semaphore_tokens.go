@@ -66,9 +66,13 @@ const (
 		`IF holder = ?`
 
 	// ... plus the matching owner (reverse-index) row INSERT, in the same batch.
+	// IF NOT EXISTS makes this a second condition on the batch: it enforces
+	// one-token-per-hold (owner_id), so a same-owner_id double-grant cannot
+	// overwrite an existing hold. When it fails, the CAS result carries the owner
+	// row's current held_token, which we surface for reuse.
 	templateGrantSemaphoreOwnerInsertQuery = `INSERT INTO semaphore_tokens (` +
 		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
 
 	// Release: guarded in-place UPDATE of the token row (clear only if still held
 	// by this owner) ...
@@ -143,11 +147,23 @@ func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.Se
 	return err
 }
 
-// GrantSemaphoreToken claims row.TokenID for row.OwnerID via one atomic batch:
-// the token row's holder is set to the owner only if it is currently free, and
-// the matching owner row is inserted. Returns applied == false (not an error)
-// when the slot was not free.
-func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (bool, error) {
+// GrantSemaphoreToken claims row.TokenID for row.OwnerID via one atomic batch of
+// two conditional statements: the token row's holder is set to the owner only if
+// it is currently free (IF holder = FREE), and the matching owner row is inserted
+// only if it does not already exist (IF NOT EXISTS). Because a conditional batch
+// is all-or-nothing, both conditions must pass for the grant to apply.
+//
+// The IF NOT EXISTS owner guard enforces one-token-per-hold: a same-owner_id
+// double-grant (two hosts racing during an ownership handoff, or a caller bug)
+// cannot overwrite an owner's existing hold. When the batch does not apply, the
+// CAS result carries the conflicting rows' current values; if the owner row
+// already existed we surface its held_token so the caller can reuse that hold
+// instead of retrying.
+//
+// Returns Applied == false (not an error) when the grant did not apply:
+//   - AlreadyHeldToken > 0: this owner already holds that token (reuse it);
+//   - AlreadyHeldToken == 0: the slot is taken by someone else (retry another).
+func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (nosqlplugin.SemaphoreGrantResult, error) {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	batch.Query(templateGrantSemaphoreTokenUpdateQuery,
 		row.OwnerID,     // SET holder = owner_id
@@ -171,14 +187,63 @@ func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.Semapho
 		row.TokenID,       // held_token
 		row.UpdatedTime,
 	)
-	applied, iter, err := db.session.MapExecuteBatchCAS(batch, make(map[string]interface{}))
+	previous := make(map[string]interface{})
+	applied, iter, err := db.session.MapExecuteBatchCAS(batch, previous)
+	if err != nil {
+		if iter != nil {
+			_ = iter.Close()
+		}
+		return nosqlplugin.SemaphoreGrantResult{}, err
+	}
+	if applied {
+		if iter != nil {
+			_ = iter.Close()
+		}
+		return nosqlplugin.SemaphoreGrantResult{Applied: true}, nil
+	}
+	// Not applied: walk the returned rows (first in `previous`, the rest via the
+	// iterator) to find the owner row and read the token it already holds.
+	heldToken := grantOwnerConflictHeldToken(previous, iter)
 	if iter != nil {
 		_ = iter.Close()
 	}
-	if err != nil {
-		return false, err
+	return nosqlplugin.SemaphoreGrantResult{Applied: false, AlreadyHeldToken: heldToken}, nil
+}
+
+// grantOwnerConflictHeldToken inspects the CAS result of a not-applied grant
+// batch and returns the held_token of the pre-existing owner row, or 0 if the
+// only conflict was the token slot already being taken. MapExecuteBatchCAS
+// returns the first conflicting row in `previous` and the remaining rows through
+// the iterator; either may be the owner row, so we check both.
+func grantOwnerConflictHeldToken(previous map[string]interface{}, iter gocql.Iter) int {
+	if heldToken, ok := ownerRowHeldToken(previous); ok {
+		return heldToken
 	}
-	return applied, nil
+	if iter == nil {
+		return 0
+	}
+	row := make(map[string]interface{})
+	for iter.MapScan(row) {
+		if heldToken, ok := ownerRowHeldToken(row); ok {
+			return heldToken
+		}
+		row = make(map[string]interface{})
+	}
+	return 0
+}
+
+// ownerRowHeldToken reports whether the given CAS row is an owner (reverse-index)
+// row and, if so, the held_token it carries normalized to 0 when absent.
+func ownerRowHeldToken(row map[string]interface{}) (int, bool) {
+	rowType, ok := row["type"].(int)
+	if !ok || rowType != rowTypeSemaphoreOwner {
+		return 0, false
+	}
+	heldToken, _ := row["held_token"].(int)
+	if heldToken == emptyHeldToken {
+		heldToken = 0
+	}
+	return heldToken, true
 }
 
 // ReleaseSemaphoreToken frees row.TokenID via one atomic batch: the token row's

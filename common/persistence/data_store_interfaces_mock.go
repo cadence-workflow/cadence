@@ -1318,12 +1318,13 @@ func (mr *MockSemaphoreTokenStoreMockRecorder) GetSemaphoreTokenByOwner(ctx, req
 }
 
 // GrantSemaphoreToken mocks base method.
-func (m *MockSemaphoreTokenStore) GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest, updatedTime time.Time) (bool, error) {
+func (m *MockSemaphoreTokenStore) GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest, updatedTime time.Time) (bool, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GrantSemaphoreToken", ctx, request, updatedTime)
 	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // GrantSemaphoreToken indicates an expected call of GrantSemaphoreToken.

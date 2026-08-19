@@ -30,7 +30,7 @@ func (db *ddb) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.Se
 	panic("TODO: InsertSemaphoreTokens is not implemented")
 }
 
-func (db *ddb) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (bool, error) {
+func (db *ddb) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (nosqlplugin.SemaphoreGrantResult, error) {
 	panic("TODO: GrantSemaphoreToken is not implemented")
 }
 

@@ -99,28 +99,37 @@ func TestNoSQLGrantSemaphoreToken(t *testing.T) {
 	now := time.Unix(1234567890, 0).UTC()
 
 	tests := map[string]struct {
-		setupMock   func(*nosqlplugin.MockDB)
-		expectErr   bool
-		wantApplied bool
+		setupMock           func(*nosqlplugin.MockDB)
+		expectErr           bool
+		wantApplied         bool
+		wantAlreadyHeldTokn int
 	}{
 		"applied passes through": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				expectedRow := &nosqlplugin.SemaphoreTokenRow{
 					DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, OwnerID: "owner-abc", UpdatedTime: now,
 				}
-				dbMock.EXPECT().GrantSemaphoreToken(ctx, expectedRow).Return(true, nil).Times(1)
+				dbMock.EXPECT().GrantSemaphoreToken(ctx, expectedRow).Return(nosqlplugin.SemaphoreGrantResult{Applied: true}, nil).Times(1)
 			},
 			wantApplied: true,
 		},
-		"not applied passes through": {
+		"not applied - slot taken passes through": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
-				dbMock.EXPECT().GrantSemaphoreToken(ctx, gomock.Any()).Return(false, nil).Times(1)
+				dbMock.EXPECT().GrantSemaphoreToken(ctx, gomock.Any()).Return(nosqlplugin.SemaphoreGrantResult{Applied: false}, nil).Times(1)
 			},
-			wantApplied: false,
+			wantApplied:         false,
+			wantAlreadyHeldTokn: 0,
+		},
+		"not applied - owner already holds passes through": {
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				dbMock.EXPECT().GrantSemaphoreToken(ctx, gomock.Any()).Return(nosqlplugin.SemaphoreGrantResult{Applied: false, AlreadyHeldToken: 7}, nil).Times(1)
+			},
+			wantApplied:         false,
+			wantAlreadyHeldTokn: 7,
 		},
 		"error propagates": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
-				dbMock.EXPECT().GrantSemaphoreToken(ctx, gomock.Any()).Return(false, errors.New("db error")).Times(1)
+				dbMock.EXPECT().GrantSemaphoreToken(ctx, gomock.Any()).Return(nosqlplugin.SemaphoreGrantResult{}, errors.New("db error")).Times(1)
 				expectNotACommonError(dbMock)
 			},
 			expectErr: true,
@@ -132,17 +141,19 @@ func TestNoSQLGrantSemaphoreToken(t *testing.T) {
 			store, dbMock := setUpMocksForSemaphoreTokenStore(t)
 			tc.setupMock(dbMock)
 
-			applied, err := store.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
+			applied, alreadyHeldToken, err := store.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
 				DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, OwnerID: "owner-abc",
 			}, now)
 
 			if tc.expectErr {
 				assert.Error(t, err)
 				assert.False(t, applied)
+				assert.Zero(t, alreadyHeldToken)
 				return
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, tc.wantApplied, applied)
+			assert.Equal(t, tc.wantAlreadyHeldTokn, alreadyHeldToken)
 		})
 	}
 }
