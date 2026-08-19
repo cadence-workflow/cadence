@@ -36,15 +36,13 @@ const (
 
 // Sentinels stored in the columns that do not apply to a given row kind.
 //
-// The int sentinels are negative / out-of-range (real slot ids are >= 1),
-// matching the executions/tasks convention (rowTypeExecutionTaskID=-10,
-// taskListTaskID=-12345) rather than 0.
+// The int sentinels are negative / out-of-range so they can never collide with a
+// real slot id (which is >= 1).
 //
-// The text sentinels are PROVISIONAL. Their final literals are co-designed with
-// the owner_id encoding, which must guarantee a real owner_id can never equal
-// freeSentinel (the one LWT-compared value). ownerNoneSentinel is only a
-// type-protected placeholder (a token row can never collide with an owner row),
-// so its value is not load-bearing.
+// The text sentinels are PROVISIONAL. freeSentinel is the only value ever
+// LWT-compared, so its final literal must be one the owner_id encoding can never
+// produce. ownerNoneSentinel's value does not matter: the row type already keeps
+// a token row from colliding with an owner row.
 // TODO(semaphore, Phase 2): finalize freeSentinel/ownerNoneSentinel with the owner_id encoding.
 const (
 	emptyTokenID   = -1 // token_id on owner rows
