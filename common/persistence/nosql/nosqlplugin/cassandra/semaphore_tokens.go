@@ -43,7 +43,7 @@ const (
 // LWT-compared, so its final literal must be one the owner_id encoding can never
 // produce. ownerNoneSentinel's value does not matter: the row type already keeps
 // a token row from colliding with an owner row.
-// TODO(semaphore, Phase 2): finalize freeSentinel/ownerNoneSentinel with the owner_id encoding.
+// TODO: finalize freeSentinel/ownerNoneSentinel with the owner_id encoding.
 const (
 	emptyTokenID   = -1 // token_id on owner rows
 	emptyHeldToken = -1 // held_token on token rows
@@ -201,20 +201,20 @@ func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.Semapho
 	}
 	// Not applied: walk the returned rows (first in `previous`, the rest via the
 	// iterator) to find the owner row and read the token it already holds.
-	heldToken := grantOwnerConflictHeldToken(previous, iter)
+	heldToken := parseAlreadyHeldTokenFromCAS(previous, iter)
 	if iter != nil {
 		_ = iter.Close()
 	}
 	return nosqlplugin.SemaphoreGrantResult{Applied: false, AlreadyHeldToken: heldToken}, nil
 }
 
-// grantOwnerConflictHeldToken inspects the CAS result of a not-applied grant
-// batch and returns the held_token of the pre-existing owner row, or 0 if the
-// only conflict was the token slot already being taken. MapExecuteBatchCAS
-// returns the first conflicting row in `previous` and the remaining rows through
-// the iterator; either may be the owner row, so we check both.
-func grantOwnerConflictHeldToken(previous map[string]interface{}, iter gocql.Iter) int {
-	if heldToken, ok := ownerRowHeldToken(previous); ok {
+// parseAlreadyHeldTokenFromCAS inspects the CAS result of a not-applied grant
+// batch and returns the token this owner already holds, or 0 if the only conflict
+// was the slot already being taken. MapExecuteBatchCAS returns the first
+// conflicting row in `previous` and the remaining rows through the iterator;
+// either may be the owner row, so we check both.
+func parseAlreadyHeldTokenFromCAS(previous map[string]interface{}, iter gocql.Iter) int {
+	if heldToken, ok := parseHeldTokenIfOwnerRow(previous); ok {
 		return heldToken
 	}
 	if iter == nil {
@@ -222,7 +222,7 @@ func grantOwnerConflictHeldToken(previous map[string]interface{}, iter gocql.Ite
 	}
 	row := make(map[string]interface{})
 	for iter.MapScan(row) {
-		if heldToken, ok := ownerRowHeldToken(row); ok {
+		if heldToken, ok := parseHeldTokenIfOwnerRow(row); ok {
 			return heldToken
 		}
 		row = make(map[string]interface{})
@@ -230,9 +230,10 @@ func grantOwnerConflictHeldToken(previous map[string]interface{}, iter gocql.Ite
 	return 0
 }
 
-// ownerRowHeldToken reports whether the given CAS row is an owner (reverse-index)
-// row and, if so, the held_token it carries normalized to 0 when absent.
-func ownerRowHeldToken(row map[string]interface{}) (int, bool) {
+// parseHeldTokenIfOwnerRow is a helper for parseAlreadyHeldTokenFromCAS: it
+// returns the held_token of the given CAS row when it is an owner (reverse-index)
+// row, normalized to 0 when absent; ok is false for any other row kind.
+func parseHeldTokenIfOwnerRow(row map[string]interface{}) (int, bool) {
 	rowType, ok := row["type"].(int)
 	if !ok || rowType != rowTypeSemaphoreOwner {
 		return 0, false
