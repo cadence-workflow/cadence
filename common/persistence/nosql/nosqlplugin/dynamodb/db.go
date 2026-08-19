@@ -76,3 +76,7 @@ func (db *ddb) IsDBUnavailableError(err error) bool {
 func (db *ddb) IsConditionFailedError(err error) bool {
 	return err == errConditionFailed
 }
+
+func (db *ddb) GetActivityMapRewriteSampleRate() int { return 0 }
+
+func (db *ddb) GetTimerMapRewriteSampleRate() int { return 0 }

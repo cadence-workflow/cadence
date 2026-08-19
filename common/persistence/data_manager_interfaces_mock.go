@@ -593,6 +593,20 @@ func (mr *MockExecutionManagerMockRecorder) GetActiveClusterSelectionPolicy(ctx,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterSelectionPolicy", reflect.TypeOf((*MockExecutionManager)(nil).GetActiveClusterSelectionPolicy), ctx, request)
 }
 
+// GetActivityMapRewriteSampleRate mocks base method.
+func (m *MockExecutionManager) GetActivityMapRewriteSampleRate() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActivityMapRewriteSampleRate")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetActivityMapRewriteSampleRate indicates an expected call of GetActivityMapRewriteSampleRate.
+func (mr *MockExecutionManagerMockRecorder) GetActivityMapRewriteSampleRate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapRewriteSampleRate", reflect.TypeOf((*MockExecutionManager)(nil).GetActivityMapRewriteSampleRate))
+}
+
 // GetCurrentExecution mocks base method.
 func (m *MockExecutionManager) GetCurrentExecution(ctx context.Context, request *GetCurrentExecutionRequest) (*GetCurrentExecutionResponse, error) {
 	m.ctrl.T.Helper()
@@ -665,6 +679,20 @@ func (m *MockExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, r
 func (mr *MockExecutionManagerMockRecorder) GetReplicationTasksFromDLQ(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationTasksFromDLQ", reflect.TypeOf((*MockExecutionManager)(nil).GetReplicationTasksFromDLQ), ctx, request)
+}
+
+// GetTimerMapRewriteSampleRate mocks base method.
+func (m *MockExecutionManager) GetTimerMapRewriteSampleRate() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTimerMapRewriteSampleRate")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetTimerMapRewriteSampleRate indicates an expected call of GetTimerMapRewriteSampleRate.
+func (mr *MockExecutionManagerMockRecorder) GetTimerMapRewriteSampleRate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapRewriteSampleRate", reflect.TypeOf((*MockExecutionManager)(nil).GetTimerMapRewriteSampleRate))
 }
 
 // GetWorkflowExecution mocks base method.

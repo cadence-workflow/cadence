@@ -46,6 +46,15 @@ type (
 
 		ClientErrorChecker
 		tableCRUD
+
+		// GetActivityMapRewriteSampleRate returns how often a full activity map rewrite
+		// is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction).
+		// Returns 0 if the feature is not supported or disabled.
+		GetActivityMapRewriteSampleRate() int
+		// GetTimerMapRewriteSampleRate returns how often a full timer map rewrite
+		// is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction).
+		// Returns 0 if the feature is not supported or disabled.
+		GetTimerMapRewriteSampleRate() int
 	}
 	// tableCRUD defines the API for interacting with the database tables
 	// NOTE 1: All SELECT interfaces require strong consistency (eventual consistency will not work) unless specify in the method.

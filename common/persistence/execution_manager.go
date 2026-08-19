@@ -23,6 +23,7 @@ package persistence
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/uber/cadence/common"
@@ -66,6 +67,14 @@ func NewExecutionManagerImpl(
 
 func (m *executionManagerImpl) GetName() string {
 	return m.persistence.GetName()
+}
+
+func (m *executionManagerImpl) GetActivityMapRewriteSampleRate() int {
+	return m.persistence.GetActivityMapRewriteSampleRate()
+}
+
+func (m *executionManagerImpl) GetTimerMapRewriteSampleRate() int {
+	return m.persistence.GetTimerMapRewriteSampleRate()
 }
 
 // The below three APIs are related to serialization/deserialization
@@ -710,6 +719,26 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 	if err != nil {
 		return nil, err
 	}
+	var serializedRewriteActivityInfos []*InternalActivityInfo
+	var rewriteTimerInfos []*TimerInfo
+	deleteActivityInfos := input.DeleteActivityInfos
+	deleteTimerInfos := input.DeleteTimerInfos
+	activityRate := m.persistence.GetActivityMapRewriteSampleRate()
+	timerRate := m.persistence.GetTimerMapRewriteSampleRate()
+	if input.RewriteActivityInfos != nil && activityRate > 0 && rand.Intn(activityRate) == 0 {
+		serializedRewriteActivityInfos, err = m.SerializeUpsertActivityInfos(input.RewriteActivityInfos, encoding)
+		if err != nil {
+			return nil, err
+		}
+		if serializedRewriteActivityInfos == nil {
+			serializedRewriteActivityInfos = []*InternalActivityInfo{}
+		}
+		deleteActivityInfos = nil
+	}
+	if input.RewriteTimerInfos != nil && timerRate > 0 && rand.Intn(timerRate) == 0 {
+		rewriteTimerInfos = input.RewriteTimerInfos
+		deleteTimerInfos = nil
+	}
 	serializedUpsertChildExecutionInfos, err := m.SerializeUpsertChildExecutionInfos(input.UpsertChildExecutionInfos, encoding)
 	if err != nil {
 		return nil, err
@@ -742,9 +771,11 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		LastWriteVersion: lastWriteVersion,
 
 		UpsertActivityInfos:       serializedUpsertActivityInfos,
-		DeleteActivityInfos:       input.DeleteActivityInfos,
+		DeleteActivityInfos:       deleteActivityInfos,
+		RewriteActivityInfos:      serializedRewriteActivityInfos,
 		UpsertTimerInfos:          input.UpsertTimerInfos,
-		DeleteTimerInfos:          input.DeleteTimerInfos,
+		DeleteTimerInfos:          deleteTimerInfos,
+		RewriteTimerInfos:         rewriteTimerInfos,
 		WorkflowTimerTasks:        m.syncTimerTaskTrackingKeys(input.TasksByCategory),
 		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
 		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,

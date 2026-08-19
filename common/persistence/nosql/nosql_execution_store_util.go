@@ -197,6 +197,18 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 	// delete from maps
 	executionRequest.ActivityInfoKeysToDelete = workflowMutation.DeleteActivityInfos
 	executionRequest.TimerInfoKeysToDelete = workflowMutation.DeleteTimerInfos
+	if workflowMutation.RewriteActivityInfos != nil {
+		executionRequest.RewriteActivityInfos, err = d.prepareActivityInfosForWorkflowTxn(workflowMutation.RewriteActivityInfos)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if workflowMutation.RewriteTimerInfos != nil {
+		executionRequest.RewriteTimerInfos, err = d.prepareTimerInfosForWorkflowTxn(workflowMutation.RewriteTimerInfos)
+		if err != nil {
+			return nil, err
+		}
+	}
 	executionRequest.ChildWorkflowInfoKeysToDelete = workflowMutation.DeleteChildExecutionInfos
 	executionRequest.RequestCancelInfoKeysToDelete = workflowMutation.DeleteRequestCancelInfos
 	executionRequest.SignalInfoKeysToDelete = workflowMutation.DeleteSignalInfos

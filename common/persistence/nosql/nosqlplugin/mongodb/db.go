@@ -47,3 +47,7 @@ func (db *mdb) Close() {
 func (db *mdb) PluginName() string {
 	return PluginName
 }
+
+func (db *mdb) GetActivityMapRewriteSampleRate() int { return 0 }
+
+func (db *mdb) GetTimerMapRewriteSampleRate() int { return 0 }

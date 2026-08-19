@@ -908,8 +908,10 @@ type (
 
 		UpsertActivityInfos       []*ActivityInfo
 		DeleteActivityInfos       []int64
+		RewriteActivityInfos      []*ActivityInfo
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		RewriteTimerInfos         []*TimerInfo
 		UpsertChildExecutionInfos []*ChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -1732,6 +1734,8 @@ type (
 	ExecutionManager interface {
 		Closeable
 		GetName() string
+		GetActivityMapRewriteSampleRate() int
+		GetTimerMapRewriteSampleRate() int
 
 		CreateWorkflowExecution(ctx context.Context, request *CreateWorkflowExecutionRequest) (*CreateWorkflowExecutionResponse, error)
 		GetWorkflowExecution(ctx context.Context, request *GetWorkflowExecutionRequest) (*GetWorkflowExecutionResponse, error)

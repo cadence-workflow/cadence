@@ -1663,6 +1663,26 @@ const (
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
 
+	// ActivityMapRewriteSampleRate controls how often a full activity map rewrite
+	// is triggered on transactions with deletes. A value of N means a 1-in-N chance
+	// per transaction (e.g., 100 = rewrite roughly every 100th transaction).
+	// 0 disables the optimization. 1 means rewrite every time.
+	// Currently only implemented for Cassandra.
+	// KeyName: history.activityMapRewriteSampleRate
+	// Value type: Int
+	// Default value: 0
+	ActivityMapRewriteSampleRate
+
+	// TimerMapRewriteSampleRate controls how often a full timer map rewrite
+	// is triggered on transactions with deletes. A value of N means a 1-in-N chance
+	// per transaction (e.g., 100 = rewrite roughly every 100th transaction).
+	// 0 disables the optimization. 1 means rewrite every time.
+	// Currently only implemented for Cassandra.
+	// KeyName: history.timerMapRewriteSampleRate
+	// Value type: Int
+	// Default value: 0
+	TimerMapRewriteSampleRate
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -4591,6 +4611,16 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
+	},
+	ActivityMapRewriteSampleRate: {
+		KeyName:      "history.activityMapRewriteSampleRate",
+		Description:  "How often a full activity map rewrite is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction). 0 disables. Cassandra only.",
+		DefaultValue: 0,
+	},
+	TimerMapRewriteSampleRate: {
+		KeyName:      "history.timerMapRewriteSampleRate",
+		Description:  "How often a full timer map rewrite is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction). 0 disables. Cassandra only.",
+		DefaultValue: 0,
 	},
 }
 

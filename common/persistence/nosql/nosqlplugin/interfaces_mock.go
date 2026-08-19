@@ -336,6 +336,20 @@ func (mr *MockDBMockRecorder) DeleteWorkflowExecution(ctx, shardID, domainID, wo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockDB)(nil).DeleteWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
 }
 
+// GetActivityMapRewriteSampleRate mocks base method.
+func (m *MockDB) GetActivityMapRewriteSampleRate() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActivityMapRewriteSampleRate")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetActivityMapRewriteSampleRate indicates an expected call of GetActivityMapRewriteSampleRate.
+func (mr *MockDBMockRecorder) GetActivityMapRewriteSampleRate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapRewriteSampleRate", reflect.TypeOf((*MockDB)(nil).GetActivityMapRewriteSampleRate))
+}
+
 // GetQueueSize mocks base method.
 func (m *MockDB) GetQueueSize(ctx context.Context, queueType persistence.QueueType) (int64, error) {
 	m.ctrl.T.Helper()
@@ -364,6 +378,20 @@ func (m *MockDB) GetTasksCount(ctx context.Context, filter *TasksFilter) (int64,
 func (mr *MockDBMockRecorder) GetTasksCount(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTasksCount", reflect.TypeOf((*MockDB)(nil).GetTasksCount), ctx, filter)
+}
+
+// GetTimerMapRewriteSampleRate mocks base method.
+func (m *MockDB) GetTimerMapRewriteSampleRate() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTimerMapRewriteSampleRate")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetTimerMapRewriteSampleRate indicates an expected call of GetTimerMapRewriteSampleRate.
+func (mr *MockDBMockRecorder) GetTimerMapRewriteSampleRate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapRewriteSampleRate", reflect.TypeOf((*MockDB)(nil).GetTimerMapRewriteSampleRate))
 }
 
 // InsertConfig mocks base method.

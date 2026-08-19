@@ -129,6 +129,8 @@ type (
 	ExecutionStore interface {
 		Closeable
 		GetName() string
+		GetActivityMapRewriteSampleRate() int
+		GetTimerMapRewriteSampleRate() int
 		// The below three APIs are related to serialization/deserialization
 		GetWorkflowExecution(ctx context.Context, request *InternalGetWorkflowExecutionRequest) (*InternalGetWorkflowExecutionResponse, error)
 		UpdateWorkflowExecution(ctx context.Context, request *InternalUpdateWorkflowExecutionRequest) error
@@ -578,8 +580,10 @@ type (
 
 		UpsertActivityInfos       []*InternalActivityInfo
 		DeleteActivityInfos       []int64
+		RewriteActivityInfos      []*InternalActivityInfo
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		RewriteTimerInfos         []*TimerInfo
 		WorkflowTimerTasks        []HistoryTaskKey
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64

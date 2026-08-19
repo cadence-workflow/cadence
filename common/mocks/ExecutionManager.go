@@ -744,6 +744,50 @@ func (_c *ExecutionManager_GetActiveClusterSelectionPolicy_Call) RunAndReturn(ru
 	return _c
 }
 
+// GetActivityMapRewriteSampleRate provides a mock function for the type ExecutionManager
+func (_mock *ExecutionManager) GetActivityMapRewriteSampleRate() int {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetActivityMapRewriteSampleRate")
+	}
+
+	var r0 int
+	if returnFunc, ok := ret.Get(0).(func() int); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+	return r0
+}
+
+// ExecutionManager_GetActivityMapRewriteSampleRate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetActivityMapRewriteSampleRate'
+type ExecutionManager_GetActivityMapRewriteSampleRate_Call struct {
+	*mock.Call
+}
+
+// GetActivityMapRewriteSampleRate is a helper method to define mock.On call
+func (_e *ExecutionManager_Expecter) GetActivityMapRewriteSampleRate() *ExecutionManager_GetActivityMapRewriteSampleRate_Call {
+	return &ExecutionManager_GetActivityMapRewriteSampleRate_Call{Call: _e.mock.On("GetActivityMapRewriteSampleRate")}
+}
+
+func (_c *ExecutionManager_GetActivityMapRewriteSampleRate_Call) Run(run func()) *ExecutionManager_GetActivityMapRewriteSampleRate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ExecutionManager_GetActivityMapRewriteSampleRate_Call) Return(n int) *ExecutionManager_GetActivityMapRewriteSampleRate_Call {
+	_c.Call.Return(n)
+	return _c
+}
+
+func (_c *ExecutionManager_GetActivityMapRewriteSampleRate_Call) RunAndReturn(run func() int) *ExecutionManager_GetActivityMapRewriteSampleRate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetCurrentExecution provides a mock function for the type ExecutionManager
 func (_mock *ExecutionManager) GetCurrentExecution(ctx context.Context, request *persistence.GetCurrentExecutionRequest) (*persistence.GetCurrentExecutionResponse, error) {
 	ret := _mock.Called(ctx, request)
@@ -1056,6 +1100,50 @@ func (_c *ExecutionManager_GetReplicationTasksFromDLQ_Call) Return(getReplicatio
 }
 
 func (_c *ExecutionManager_GetReplicationTasksFromDLQ_Call) RunAndReturn(run func(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetReplicationDLQTasksResponse, error)) *ExecutionManager_GetReplicationTasksFromDLQ_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetTimerMapRewriteSampleRate provides a mock function for the type ExecutionManager
+func (_mock *ExecutionManager) GetTimerMapRewriteSampleRate() int {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetTimerMapRewriteSampleRate")
+	}
+
+	var r0 int
+	if returnFunc, ok := ret.Get(0).(func() int); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+	return r0
+}
+
+// ExecutionManager_GetTimerMapRewriteSampleRate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTimerMapRewriteSampleRate'
+type ExecutionManager_GetTimerMapRewriteSampleRate_Call struct {
+	*mock.Call
+}
+
+// GetTimerMapRewriteSampleRate is a helper method to define mock.On call
+func (_e *ExecutionManager_Expecter) GetTimerMapRewriteSampleRate() *ExecutionManager_GetTimerMapRewriteSampleRate_Call {
+	return &ExecutionManager_GetTimerMapRewriteSampleRate_Call{Call: _e.mock.On("GetTimerMapRewriteSampleRate")}
+}
+
+func (_c *ExecutionManager_GetTimerMapRewriteSampleRate_Call) Run(run func()) *ExecutionManager_GetTimerMapRewriteSampleRate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ExecutionManager_GetTimerMapRewriteSampleRate_Call) Return(n int) *ExecutionManager_GetTimerMapRewriteSampleRate_Call {
+	_c.Call.Return(n)
+	return _c
+}
+
+func (_c *ExecutionManager_GetTimerMapRewriteSampleRate_Call) RunAndReturn(run func() int) *ExecutionManager_GetTimerMapRewriteSampleRate_Call {
 	_c.Call.Return(run)
 	return _c
 }
