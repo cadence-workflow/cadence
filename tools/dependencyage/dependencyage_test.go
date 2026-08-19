@@ -1,7 +1,6 @@
 package dependencyage
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -184,22 +183,21 @@ func TestFindViolations(t *testing.T) {
 		}
 		got, err := FindViolations(ctx,
 			[]ModuleVersion{{"a.com/young", "v1.0.0"}, {"a.com/old", "v1.0.0"}},
-			14, now, fetch, &bytes.Buffer{})
+			14, now, fetch)
 		require.NoError(t, err)
 		require.Len(t, got, 1)
 		assert.Equal(t, ModuleVersion{"a.com/young", "v1.0.0"}, got[0].ModuleVersion)
 	})
 
-	t.Run("not-found with no pseudo-version warns but does not violate", func(t *testing.T) {
-		var warn bytes.Buffer
+	t.Run("not-found tagged version fails closed", func(t *testing.T) {
 		fetch := func(_ context.Context, m, v string) (time.Time, error) {
 			return time.Time{}, fmt.Errorf("%s@%s: %w", m, v, ErrVersionNotFound)
 		}
-		got, err := FindViolations(ctx,
-			[]ModuleVersion{{"a.com/unknown", "v1.0.0"}}, 14, now, fetch, &warn)
-		require.NoError(t, err)
-		assert.Empty(t, got)
-		assert.Contains(t, warn.String(), "WARN")
+		_, err := FindViolations(ctx,
+			[]ModuleVersion{{"a.com/unknown", "v1.0.0"}}, 14, now, fetch)
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, nil)
+		assert.Contains(t, err.Error(), "a.com/unknown@v1.0.0")
 	})
 
 	t.Run("not-found with pseudo-version falls back to its timestamp", func(t *testing.T) {
@@ -208,7 +206,7 @@ func TestFindViolations(t *testing.T) {
 		}
 		got, err := FindViolations(ctx,
 			[]ModuleVersion{{"a.com/pseudo", "v0.0.0-20260815000000-abcdef123456"}},
-			14, now, fetch, &bytes.Buffer{})
+			14, now, fetch)
 		require.NoError(t, err)
 		assert.Len(t, got, 1)
 	})
@@ -218,7 +216,7 @@ func TestFindViolations(t *testing.T) {
 			return time.Time{}, errors.New("network sadness")
 		}
 		_, err := FindViolations(ctx,
-			[]ModuleVersion{{"a.com/x", "v1.0.0"}}, 14, now, fetch, &bytes.Buffer{})
+			[]ModuleVersion{{"a.com/x", "v1.0.0"}}, 14, now, fetch)
 		require.Error(t, err)
 	})
 }

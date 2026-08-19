@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"sort"
 	"time"
 
@@ -143,15 +142,14 @@ func NewReplacements(baseContent, headContent string) ([]ModuleVersion, error) {
 }
 
 // FindViolations returns introduced module versions younger than thresholdDays.
-// Unknown publish times fall back to pseudo-version timestamps; pairs with no
-// available time are warned about and skipped. Fetch errors abort the check.
+// Unknown publish times fall back to pseudo-version timestamps. If no timestamp
+// is available, or if fetching fails, the check aborts.
 func FindViolations(
 	ctx context.Context,
 	pairs []ModuleVersion,
 	thresholdDays int,
 	now time.Time,
 	fetch TimeFetcher,
-	warnW io.Writer,
 ) ([]Violation, error) {
 	sortedPairs := append([]ModuleVersion(nil), pairs...)
 	sortModuleVersions(sortedPairs)
@@ -161,15 +159,16 @@ func FindViolations(
 	for _, pair := range sortedPairs {
 		published, err := fetch(ctx, pair.Module, pair.Version)
 		if errors.Is(err, ErrVersionNotFound) {
-			published, err = module.PseudoVersionTime(pair.Version)
-			if err != nil {
-				_, _ = fmt.Fprintf(
-					warnW,
-					"WARN could not determine publish time for %s@%s; skipping\n",
+			var pseudoErr error
+			published, pseudoErr = module.PseudoVersionTime(pair.Version)
+			if pseudoErr != nil {
+				return nil, fmt.Errorf(
+					"determine publish time for %s@%s: %w; pseudo-version fallback: %v",
 					pair.Module,
 					pair.Version,
+					err,
+					pseudoErr,
 				)
-				continue
 			}
 		} else if err != nil {
 			return nil, fmt.Errorf("fetch publish time for %s@%s: %w", pair.Module, pair.Version, err)

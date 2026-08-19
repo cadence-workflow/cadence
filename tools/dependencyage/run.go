@@ -81,7 +81,6 @@ func Run(ctx context.Context, cfg Config) int {
 		cfg.ThresholdDays,
 		cfg.Now,
 		cfg.Fetch,
-		errW,
 	)
 	if err != nil {
 		_, _ = fmt.Fprintf(

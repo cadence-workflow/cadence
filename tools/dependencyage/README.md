@@ -1,13 +1,17 @@
 # Dependency age check
 
-Dependencyage compares changed `go.mod` files with their merge base and rejects dependency versions published more recently than the configured minimum age. An introduced version is a new requirement, a requirement version bump, or a new versioned replacement target; filesystem replacements are skipped. Unknown versions, including 404 and 410 responses, fall back to a pseudo-version timestamp when available, while all other lookup errors fail closed.
+Dependencyage compares changed `go.mod` files with their merge base and rejects dependency versions published more recently than the configured minimum age. An introduced version is a new requirement, a requirement version bump, or a new versioned replacement target; filesystem replacements are skipped. Unknown versions, including 404 and 410 responses, fall back to a pseudo-version timestamp when available and otherwise fail the run with exit code 2. All other lookup errors also fail closed.
 
 ## Local usage
 
 ```bash
-go run ./tools/dependencyage/cmd/dependencyage --base-ref origin/master
-MIN_DEPENDENCY_AGE_DAYS=30 go run ./tools/dependencyage/cmd/dependencyage --base-ref origin/master
+go run ./cmd/tools/dependencyage --base-ref origin/master
+MIN_DEPENDENCY_AGE_DAYS=30 go run ./cmd/tools/dependencyage --base-ref origin/master
 ```
+
+## Indirect dependencies
+
+Indirect requirements are checked deliberately: they resolve into the build just like direct requirements, and a dependency bump that brings in a too-fresh indirect version is precisely what this gate is intended to catch. If the gate fires on a pull request, wait out the minimum-age window or override it with `MIN_DEPENDENCY_AGE_DAYS`.
 
 ## Exit codes
 
