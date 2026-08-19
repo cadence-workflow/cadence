@@ -673,6 +673,9 @@ test: ## Build and run all tests locally
 test_dirs:
 	echo $(PKG_TEST_DIRS)
 
+test_scripts: ## Run bash test suites under scripts/tests/
+	$Q ./scripts/tests/check-too-fresh-deps/run_tests.sh
+
 test_e2e:
 	$Q rm -f test
 	$Q rm -f test.log

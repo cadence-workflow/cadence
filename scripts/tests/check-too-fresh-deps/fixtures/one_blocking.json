@@ -1,0 +1,3 @@
+{"Path":"github.com/uber/cadence","Main":true}
+{"Path":"github.com/foo/bar","Version":"v1.2.3","Time":"2023-11-09T22:13:20Z"}
+{"Path":"github.com/bar/ancient","Version":"v2.0.0","Time":"2022-10-10T22:13:20Z"}
