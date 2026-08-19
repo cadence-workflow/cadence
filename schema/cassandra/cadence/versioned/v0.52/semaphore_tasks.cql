@@ -15,7 +15,7 @@ CREATE TABLE semaphore_tasks (
     range_id          bigint,        -- single-writer fence, carried on the control row
     task              frozen<task>,  -- the queued acquire (reuses the Matching task UDT)
     acquire_deadline  timestamp,     -- the time this waiter gives up if still not granted
-                                     -- No deadline meas no skip and no TTL
+                                     -- No deadline means no skip and no TTL
     created_time      timestamp,
     PRIMARY KEY ((domain_id, semaphore_name, bucket), type, task_id)
 ) WITH compaction = {
