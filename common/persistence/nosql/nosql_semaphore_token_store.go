@@ -73,10 +73,10 @@ func (m *nosqlSemaphoreTokenStore) SeedSemaphoreTokens(
 	return nil
 }
 
-// GrantSemaphoreToken claims a slot for an owner if it is currently free. The
-// applied bool is control flow, not an error: applied == false means the grant
-// did not apply. alreadyHeldToken disambiguates a not-applied grant: > 0 means
-// this owner already holds that token (reuse), 0 means the slot was taken.
+// GrantSemaphoreToken claims a free slot for an owner. A false applied is
+// control flow, not an error, and alreadyHeldToken says why the grant was
+// refused: > 0 is the token this owner already holds (reuse it), 0 means the
+// slot is taken by someone else (try another).
 func (m *nosqlSemaphoreTokenStore) GrantSemaphoreToken(
 	ctx context.Context,
 	request *persistence.GrantSemaphoreTokenRequest,
