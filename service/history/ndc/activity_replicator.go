@@ -174,7 +174,8 @@ func (r *activityReplicatorImpl) SyncActivity(
 	}
 	// capture whether this sync advances the retry attempt before
 	// ReplicateActivityInfo overwrites the activity info in place
-	attemptIncremented := ai.Attempt < request.GetAttempt() && !ai.CancelRequested
+	attemptIncremented := ai.Attempt < request.GetAttempt()
+	activityNotStarted := request.GetStartedID() == constants.EmptyEventID
 
 	err = mutableState.ReplicateActivityInfo(request, resetActivityTimerTaskStatus)
 	if err != nil {
@@ -203,7 +204,7 @@ func (r *activityReplicatorImpl) SyncActivity(
 	// mean the timer is processed by both clusters as a 'passive' task.
 	// When this occurs, the timer is dropped. Ensure that syncActivity generates a timer whenever
 	// the attempt is incremented to prevent this race condition.
-	if attemptIncremented && request.GetStartedID() == constants.EmptyEventID && request.GetAttempt() > 0 && !ai.CancelRequested {
+	if attemptIncremented && activityNotStarted && !ai.CancelRequested {
 		if err := execution.NewMutableStateTaskGenerator(
 			r.logger,
 			r.clusterMetadata,
