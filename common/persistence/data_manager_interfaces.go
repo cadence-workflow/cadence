@@ -1485,10 +1485,14 @@ type (
 	}
 
 	// GrantSemaphoreTokenResponse reports whether the conditional grant applied.
-	// Applied == false means the slot was not free (a stale hint); the caller
-	// retries another slot. It is not an error.
+	// Applied == false is not an error; AlreadyHeldToken disambiguates why:
+	//   - AlreadyHeldToken > 0: this owner already holds that token; the caller
+	//     can reuse the existing hold instead of retrying.
+	//   - AlreadyHeldToken == 0: the slot was taken by someone else (a stale
+	//     hint); the caller retries another slot.
 	GrantSemaphoreTokenResponse struct {
-		Applied bool
+		Applied          bool
+		AlreadyHeldToken int
 	}
 
 	// ReleaseSemaphoreTokenRequest frees a slot via a guarded batch (clear only

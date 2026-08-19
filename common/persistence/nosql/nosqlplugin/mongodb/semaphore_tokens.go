@@ -31,8 +31,8 @@ func (db *mdb) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.Se
 	return fmt.Errorf("InsertSemaphoreTokens is not implemented")
 }
 
-func (db *mdb) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (bool, error) {
-	return false, fmt.Errorf("GrantSemaphoreToken is not implemented")
+func (db *mdb) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (nosqlplugin.SemaphoreGrantResult, error) {
+	return nosqlplugin.SemaphoreGrantResult{}, fmt.Errorf("GrantSemaphoreToken is not implemented")
 }
 
 func (db *mdb) ReleaseSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (bool, error) {

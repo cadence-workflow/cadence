@@ -311,6 +311,18 @@ type (
 		UpdatedTime   time.Time
 	}
 
+	// SemaphoreGrantResult reports the outcome of a conditional grant batch.
+	// Applied == true means the slot was claimed. When Applied == false the grant
+	// did not apply; AlreadyHeldToken disambiguates why:
+	//   - AlreadyHeldToken > 0: this owner already holds that token (the owner row
+	//     already existed). The caller can reuse the existing hold rather than retry.
+	//   - AlreadyHeldToken == 0: the slot was taken by someone else. The caller
+	//     retries another slot.
+	SemaphoreGrantResult struct {
+		Applied          bool
+		AlreadyHeldToken int
+	}
+
 	// SemaphoreTokenFilter contains the filter criteria for scanning a bucket's
 	// token partition (both row kinds), paginated.
 	SemaphoreTokenFilter struct {

@@ -120,7 +120,7 @@ type (
 		Closeable
 		GetName() string
 		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest, updatedTime time.Time) error
-		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest, updatedTime time.Time) (bool, error)
+		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest, updatedTime time.Time) (applied bool, alreadyHeldToken int, err error)
 		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest, updatedTime time.Time) (bool, error)
 		GetSemaphoreTokenByID(ctx context.Context, request *GetSemaphoreTokenByIDRequest) (*SemaphoreToken, error)
 		GetSemaphoreTokenByOwner(ctx context.Context, request *GetSemaphoreTokenByOwnerRequest) (*SemaphoreToken, error)

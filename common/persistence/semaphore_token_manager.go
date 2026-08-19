@@ -82,11 +82,11 @@ func (m *semaphoreTokenManagerImpl) GrantSemaphoreToken(
 	if request.OwnerID == "" {
 		return nil, fmt.Errorf("OwnerID is required")
 	}
-	applied, err := m.persistence.GrantSemaphoreToken(ctx, request, m.timeSrc.Now().UTC())
+	applied, alreadyHeldToken, err := m.persistence.GrantSemaphoreToken(ctx, request, m.timeSrc.Now().UTC())
 	if err != nil {
 		return nil, err
 	}
-	return &GrantSemaphoreTokenResponse{Applied: applied}, nil
+	return &GrantSemaphoreTokenResponse{Applied: applied, AlreadyHeldToken: alreadyHeldToken}, nil
 }
 
 func (m *semaphoreTokenManagerImpl) ReleaseSemaphoreToken(

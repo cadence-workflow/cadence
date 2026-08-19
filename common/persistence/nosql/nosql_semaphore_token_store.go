@@ -74,13 +74,14 @@ func (m *nosqlSemaphoreTokenStore) SeedSemaphoreTokens(
 }
 
 // GrantSemaphoreToken claims a slot for an owner if it is currently free. The
-// applied bool is control flow, not an error: applied == false means the slot
-// was not free.
+// applied bool is control flow, not an error: applied == false means the grant
+// did not apply. alreadyHeldToken disambiguates a not-applied grant: > 0 means
+// this owner already holds that token (reuse), 0 means the slot was taken.
 func (m *nosqlSemaphoreTokenStore) GrantSemaphoreToken(
 	ctx context.Context,
 	request *persistence.GrantSemaphoreTokenRequest,
 	updatedTime time.Time,
-) (bool, error) {
+) (bool, int, error) {
 	row := &nosqlplugin.SemaphoreTokenRow{
 		DomainID:      request.DomainID,
 		SemaphoreName: request.SemaphoreName,
@@ -89,11 +90,11 @@ func (m *nosqlSemaphoreTokenStore) GrantSemaphoreToken(
 		OwnerID:       request.OwnerID,
 		UpdatedTime:   updatedTime,
 	}
-	applied, err := m.db.GrantSemaphoreToken(ctx, row)
+	result, err := m.db.GrantSemaphoreToken(ctx, row)
 	if err != nil {
-		return false, convertCommonErrors(m.db, "GrantSemaphoreToken", err)
+		return false, 0, convertCommonErrors(m.db, "GrantSemaphoreToken", err)
 	}
-	return applied, nil
+	return result.Applied, result.AlreadyHeldToken, nil
 }
 
 // ReleaseSemaphoreToken frees a slot if it is still held by the owner. The

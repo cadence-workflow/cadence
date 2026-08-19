@@ -586,9 +586,12 @@ type (
 
 		// GrantSemaphoreToken claims a slot for an owner via a conditional batch:
 		// it sets the token row's holder only if the slot is currently free, and
-		// writes the matching owner (reverse-index) row in the same atomic batch.
-		// Returns applied == false (not an error) if the slot was not free.
-		GrantSemaphoreToken(ctx context.Context, row *SemaphoreTokenRow) (bool, error)
+		// inserts the matching owner (reverse-index) row (IF NOT EXISTS) in the
+		// same atomic batch. The returned SemaphoreGrantResult reports whether the
+		// batch applied and, when it did not, whether this owner already holds a
+		// token (for reuse) versus the slot being taken. A not-applied batch is not
+		// an error.
+		GrantSemaphoreToken(ctx context.Context, row *SemaphoreTokenRow) (SemaphoreGrantResult, error)
 
 		// ReleaseSemaphoreToken frees a slot via a guarded batch: it clears the
 		// token row's holder only if the slot is still held by this owner, and

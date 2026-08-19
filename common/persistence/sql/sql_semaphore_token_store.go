@@ -64,8 +64,8 @@ func (m *sqlSemaphoreTokenStore) GrantSemaphoreToken(
 	ctx context.Context,
 	request *persistence.GrantSemaphoreTokenRequest,
 	updatedTime time.Time,
-) (bool, error) {
-	return false, errSemaphoreNotSupportedOnSQL()
+) (bool, int, error) {
+	return false, 0, errSemaphoreNotSupportedOnSQL()
 }
 
 func (m *sqlSemaphoreTokenStore) ReleaseSemaphoreToken(
