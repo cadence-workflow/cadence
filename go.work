@@ -1,5 +1,7 @@
 go 1.25.0
 
+toolchain go1.25.12
+
 // This file is primarily for gopls and IDEs it supports, as it does not
 // understand submodules correctly without it.
 //
