@@ -10,14 +10,14 @@ now=1700000000
 
 failures=0
 
-# args: name, fixture, expected_exit, extra_script_args, expect_substring, unexpect_substring
+# args: name, fixture, expected_exit, expect_substring, unexpect_substring, [extra script args...]
 run_case() {
-	local name="$1" fixture="$2" expected_exit="$3" extra_args="$4" expect="$5" unexpect="$6"
+	local name="$1" fixture="$2" expected_exit="$3" expect="$4" unexpect="$5"
+	shift 5
 	local input output actual_exit
 
 	input="$(cat "$fixtures_dir/$fixture")"
-	# shellcheck disable=SC2086
-	output="$("$script" --now "$now" --input "$input" $extra_args 2>&1)"
+	output="$("$script" --now "$now" --input "$input" "$@" 2>&1)"
 	actual_exit=$?
 
 	local ok=1
@@ -48,31 +48,37 @@ run_case() {
 }
 
 run_case "no fresh deps -> passes" \
-	"no_fresh_deps.json" 0 "" "" ""
+	"no_fresh_deps.json" 0 "" ""
 
 run_case "one blocking fresh dep -> fails" \
-	"one_blocking.json" 1 "" "module: github.com/foo/bar" ""
+	"one_blocking.json" 1 "module: github.com/foo/bar" ""
 
 run_case "exempted fresh dep -> passes but reported" \
-	"one_exempt.json" 0 "" "module: github.com/cadence-workflow/somepkg" ""
+	"one_exempt.json" 0 "module: github.com/cadence-workflow/somepkg" ""
 
 run_case "mixed blocking and exempt -> fails, both reported" \
-	"mixed.json" 1 "" "module: github.com/foo/bar" ""
+	"mixed.json" 1 "module: github.com/foo/bar" ""
 run_case "mixed blocking and exempt -> exempt section reported" \
-	"mixed.json" 1 "" "module: github.com/cadence-workflow/somepkg" ""
+	"mixed.json" 1 "module: github.com/cadence-workflow/somepkg" ""
 
 run_case "days override: below default threshold -> passes" \
-	"days_override.json" 0 "" "" "module: github.com/foo/baz"
+	"days_override.json" 0 "" "module: github.com/foo/baz"
 run_case "days override: raised threshold catches it -> fails" \
-	"days_override.json" 1 "--days 30" "module: github.com/foo/baz" ""
+	"days_override.json" 1 "module: github.com/foo/baz" "" \
+	--days 30
 
 run_case "exempt-prefix override: default prefix does not match -> fails" \
-	"exempt_prefix_override.json" 1 "" "module: github.com/acme/pkg1" ""
+	"exempt_prefix_override.json" 1 "module: github.com/acme/pkg1" ""
 run_case "exempt-prefix override: custom prefixes exempt both -> passes" \
-	"exempt_prefix_override.json" 0 "--exempt-prefix github.com/acme/,github.com/other/" "module: github.com/acme/pkg1" ""
+	"exempt_prefix_override.json" 0 "module: github.com/acme/pkg1" "" \
+	--exempt-prefix "github.com/acme/,github.com/other/"
+
+run_case "empty --exempt-prefix disables exemptions" \
+	"one_exempt.json" 1 "module: github.com/cadence-workflow/somepkg" "" \
+	--exempt-prefix ""
 
 run_case "malformed input -> fails without hanging" \
-	"malformed.json" nonzero "" "" ""
+	"malformed.json" nonzero "" ""
 
 if [[ "$failures" -gt 0 ]]; then
 	echo "$failures test case(s) failed"

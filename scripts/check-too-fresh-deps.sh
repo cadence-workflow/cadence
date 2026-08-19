@@ -12,7 +12,7 @@ freshly-published (and potentially compromised) dependencies.
 Options:
   --days N              Age threshold in days (default: 14)
   --input JSON          JSON input to check, in the stream format produced
-                         by `go list -m -u -json all`. Defaults to running
+                         by `go list -m -json all`. Defaults to running
                          that command live.
   --exempt-prefix LIST  Comma-separated module path prefixes exempted from
                          blocking (still reported, just not blocking).
@@ -60,14 +60,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$input" ]]; then
-	input="$(go list -m -u -json all)"
+	input="$(go list -m -json all)"
 fi
 
 if [[ -z "$now" ]]; then
 	now="$(date -u +%s)"
 fi
 
-exempt_json="$(printf '%s' "$exempt_prefixes" | jq -R 'split(",") | map(select(length > 0))')"
+exempt_json="$(jq -cn --arg s "$exempt_prefixes" '$s | split(",") | map(select(length > 0))')"
 
 flagged_json="$(jq -s \
 	--argjson days "$days" \
