@@ -6,14 +6,9 @@ CREATE TYPE semaphore_task (
     schedule_id  bigint
 );
 
--- Distributed semaphore: per-bucket FIFO queue of ungranted acquires. Each full bucket
--- (domain_id, semaphore_name, bucket) enqueues acquires as waiters ordered by task_id; the bucket's
--- single owning Matching host drains the head on each release, reusing the tasks range_id fence.
---
--- `type` tells the two row kinds apart (ints match the tasks rowType convention):
---   control row (type = 1): holds range_id (the fence every waiter write CAS-checks, rejecting a
---          stale host after an owner handoff) and ack_level (the completed-through read cursor).
---   waiter row  (type = 0): one queued acquire.
+-- Distributed semaphore: per-bucket FIFO queue of ungranted acquires, ordered by task_id.
+-- Each bucket (domain_id, semaphore_name, bucket) is owned by a single Matching host that
+-- drains the head on each release, reusing the tasks range_id fence.
 CREATE TABLE semaphore_tasks (
     domain_id         uuid,
     semaphore_name    text,
@@ -23,7 +18,7 @@ CREATE TABLE semaphore_tasks (
     range_id          bigint,                 -- single-writer fence, carried on the control row
     ack_level         bigint,                 -- control row: waiters with task_id <= this are granted/expired and
                                               -- range-deleted; the reader reads above it, never scanning acked tombstones
-    task              frozen<semaphore_task>, -- the queued acquire's identity (owner_id parts + acquire handle)
+    task              frozen<semaphore_task>,
     acquire_deadline  timestamp,              -- the time this waiter gives up if still not granted
                                               -- No deadline means no skip and no TTL
     created_time      timestamp,
