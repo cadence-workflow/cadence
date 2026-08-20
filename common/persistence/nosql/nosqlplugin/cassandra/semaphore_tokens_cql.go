@@ -25,29 +25,29 @@ const (
 		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
 		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
 
-	// Grant: conditional in-place UPDATE of the token row (claim only if free) ...
+	// Grant runs the next two statements as one atomic batch.
+	// (1) Claim the token row in place, only if it is currently free.
 	templateGrantSemaphoreTokenUpdateQuery = `UPDATE semaphore_tokens ` +
 		`SET holder = ?, updated_time = ? ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ? ` +
 		`IF holder = ?`
 
-	// ... plus the matching owner (reverse-index) row INSERT, in the same batch.
-	// IF NOT EXISTS makes this a second condition on the batch: it enforces
-	// one-token-per-hold (owner_id), so a same-owner_id double-grant cannot
-	// overwrite an existing hold. When it fails, the CAS result carries the owner
-	// row's current held_token, which we surface for reuse.
+	// (2) Insert the matching owner (reverse-index) row, only if absent.
+	// IF NOT EXISTS enforces one-token-per-hold: a same-owner_id double-grant cannot
+	// overwrite an existing hold. On failure the CAS result carries the owner row's
+	// held_token, which we surface for reuse.
 	templateGrantSemaphoreOwnerInsertQuery = `INSERT INTO semaphore_tokens (` +
 		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
 		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
 
-	// Release: guarded in-place UPDATE of the token row (clear only if still held
-	// by this owner) ...
+	// Release runs the next two statements as one atomic batch.
+	// (1) Clear the token row in place, only if still held by this owner.
 	templateReleaseSemaphoreTokenUpdateQuery = `UPDATE semaphore_tokens ` +
 		`SET holder = ?, updated_time = ? ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ? ` +
 		`IF holder = ?`
 
-	// ... plus the matching owner row DELETE, in the same batch.
+	// (2) Delete the matching owner row.
 	templateReleaseSemaphoreOwnerDeleteQuery = `DELETE FROM semaphore_tokens ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ?`
 
