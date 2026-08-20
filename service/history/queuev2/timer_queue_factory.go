@@ -152,7 +152,7 @@ func (f *timerQueueFactory) createQueuev2(
 		MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
 	}
 
-	var cachedReader CachedQueueReader
+	var cachedReader CachedQueueReaderDaemon
 	reader := NewQueueReader(
 		shard,
 		persistence.HistoryTaskCategoryTimer,

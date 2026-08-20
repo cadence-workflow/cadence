@@ -42,9 +42,11 @@ import (
 	"github.com/uber/cadence/service/history/shard"
 )
 
-//go:generate mockgen -package $GOPACKAGE -destination queue_reader_cached_mock.go github.com/uber/cadence/service/history/queuev2 CachedQueueReader
+//go:generate mockgen -package $GOPACKAGE -destination queue_reader_cached_mock.go github.com/uber/cadence/service/history/queuev2 CachedQueueReader,CachedQueueReaderDaemon
 
-// CachedQueueReader extends QueueReader with cache injection and lifecycle control.
+// CachedQueueReader extends QueueReader with cache injection and eviction control.
+// It carries no background lifecycle; readers that run a background loop implement
+// CachedQueueReaderDaemon instead.
 type CachedQueueReader interface {
 	QueueReader
 	// Inject adds tasks that have just been persisted into the in-memory cache.
@@ -56,10 +58,14 @@ type CachedQueueReader interface {
 	// UpdateReadLevel advances the eviction lower bound to readLevel,
 	// dropping tasks the processor has already passed.
 	UpdateReadLevel(readLevel persistence.HistoryTaskKey)
-	// Start anchors the eviction window and launches background loops.
-	Start()
-	// Stop cancels background goroutines and waits for them to finish.
-	Stop()
+}
+
+// CachedQueueReaderDaemon is a CachedQueueReader with a background lifecycle.
+// Start anchors the eviction window and launches background loops; Stop cancels
+// them and waits for them to finish.
+type CachedQueueReaderDaemon interface {
+	CachedQueueReader
+	common.Daemon
 }
 
 // cachedQueueReaderOptions is the dynamic configuration for the cached queue reader.
