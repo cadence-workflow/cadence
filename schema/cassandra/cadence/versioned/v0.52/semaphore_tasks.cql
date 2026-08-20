@@ -2,8 +2,7 @@
 CREATE TYPE semaphore_task (
     workflow_id  text,
     run_id       uuid,
-    hold_id      bigint,  -- identifies this specific hold
-    schedule_id  bigint
+    hold_id      bigint  -- identifies this hold
 );
 
 -- Distributed semaphore: per-bucket FIFO queue of ungranted acquires, ordered by task_id.

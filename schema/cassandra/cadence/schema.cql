@@ -363,8 +363,7 @@ CREATE TYPE checksum (
 CREATE TYPE semaphore_task (
     workflow_id  text,
     run_id       uuid,
-    hold_id      bigint,  -- identifies this specific hold
-    schedule_id  bigint
+    hold_id      bigint  -- identifies this hold
 );
 
 CREATE TABLE executions (
