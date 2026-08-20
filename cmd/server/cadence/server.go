@@ -295,8 +295,6 @@ func (s *server) startService() common.Daemon {
 
 	params.ArchivalMetadata = s.archivalMetadata
 	params.ArchiverProvider = s.archiverProvider
-	params.PersistenceConfig.TransactionSizeLimit = s.dynamicCollection.GetIntProperty(dynamicproperties.TransactionSizeLimit)
-	params.PersistenceConfig.ErrorInjectionRate = s.dynamicCollection.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate)
 	params.AuthorizationConfig = s.cfg.Authorization
 	params.BlobstoreClient, err = filestore.NewFilestoreClient(s.cfg.Blobstore.Filestore)
 	if err != nil {

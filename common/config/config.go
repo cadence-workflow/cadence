@@ -35,7 +35,6 @@ import (
 	"github.com/uber/cadence/common/config/yaml"
 	"github.com/uber/cadence/common/dynamicconfig"
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	openfeatureclientconfig "github.com/uber/cadence/common/dynamicconfig/openfeatureclient/config"
 	"github.com/uber/cadence/common/metrics"
 	ringpopprovider "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
@@ -213,12 +212,6 @@ type (
 		NumHistoryShards int `yaml:"numHistoryShards" validate:"nonzero"`
 		// DataStores contains the configuration for all datastores
 		DataStores map[string]DataStore `yaml:"datastores"`
-		// TODO: move dynamic config out of static config
-		// TransactionSizeLimit is the largest allowed transaction size
-		TransactionSizeLimit dynamicproperties.IntPropertyFn `yaml:"-" json:"-"`
-		// TODO: move dynamic config out of static config
-		// ErrorInjectionRate is the the rate for injecting random error
-		ErrorInjectionRate dynamicproperties.FloatPropertyFn `yaml:"-" json:"-"`
 		// HostName for emitting per-host metrics
 		HostName string `yaml:"-" json:"-"`
 	}

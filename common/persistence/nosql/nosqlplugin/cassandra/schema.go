@@ -64,7 +64,7 @@ func (db *CDB) GetSchemaVersion(ctx context.Context) (persistence.Version, error
 	var version string
 	if !iter.Scan(&version) {
 		err := iter.Close()
-		return persistence.Version{}, fmt.Errorf("reading schemaDB version: %w", err)
+		return persistence.Version{}, err
 	}
 	if err := iter.Close(); err != nil {
 		return persistence.Version{}, err

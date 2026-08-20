@@ -24,8 +24,6 @@ import (
 	"testing"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 // TestClusterParams are params for test cluster initialization.
@@ -63,8 +61,6 @@ func NewTestCluster(_ *testing.T, params TestClusterParams) config.Persistence {
 		DataStores: map[string]config.DataStore{
 			"test": {NoSQL: &cfg},
 		},
-		TransactionSizeLimit: dynamicproperties.GetIntPropertyFn(constants.DefaultTransactionSizeLimit),
-		ErrorInjectionRate:   dynamicproperties.GetFloatPropertyFn(0),
 	}
 }
 

@@ -187,7 +187,7 @@ func (f *factoryImpl) NewTaskManager() (p.TaskManager, error) {
 		return nil, err
 	}
 	result := p.NewTaskManager(store)
-	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewTaskManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -207,7 +207,7 @@ func (f *factoryImpl) NewShardManager() (p.ShardManager, error) {
 		return nil, err
 	}
 	result := p.NewShardManager(store, f.dc)
-	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewShardManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -226,8 +226,8 @@ func (f *factoryImpl) NewHistoryManager() (p.HistoryManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := p.NewHistoryV2ManagerImpl(store, f.logger, p.NewPayloadSerializer(), codec.NewThriftRWEncoder(), f.config.TransactionSizeLimit)
-	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
+	result := p.NewHistoryV2ManagerImpl(store, f.logger, p.NewPayloadSerializer(), codec.NewThriftRWEncoder(), f.dc.TransactionSizeLimit)
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewHistoryManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -249,7 +249,7 @@ func (f *factoryImpl) NewDomainManager() (p.DomainManager, error) {
 		return nil, err
 	}
 	result := p.NewDomainManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
-	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewDomainManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -322,7 +322,7 @@ func (f *factoryImpl) NewExecutionManager() (p.ExecutionManager, error) {
 		return nil, err
 	}
 	result := p.NewExecutionManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
-	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewExecutionManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -517,7 +517,7 @@ func (f *factoryImpl) newDBVisibilityManager(
 		return nil, err
 	}
 	result := p.NewVisibilityManagerImpl(store, f.logger, f.dc)
-	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewVisibilityManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -550,7 +550,7 @@ func (f *factoryImpl) NewDomainReplicationQueueManager() (p.QueueManager, error)
 		return nil, err
 	}
 	result := p.NewQueueManager(store)
-	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewQueueManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -570,7 +570,7 @@ func (f *factoryImpl) NewConfigStoreManager() (p.ConfigStoreManager, error) {
 		return nil, err
 	}
 	result := p.NewConfigStoreManagerImpl(store, f.logger)
-	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewConfigStoreManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {

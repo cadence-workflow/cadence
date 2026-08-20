@@ -33,8 +33,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	cassandra_db "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/environment"
@@ -90,8 +88,6 @@ func (s *VersionTestSuite) TestVerifyCompatibleVersion() {
 			"default":    {NoSQL: &defaultCfg},
 			"visibility": {NoSQL: &visibilityCfg},
 		},
-		TransactionSizeLimit: dynamicproperties.GetIntPropertyFn(constants.DefaultTransactionSizeLimit),
-		ErrorInjectionRate:   dynamicproperties.GetFloatPropertyFn(0),
 	}
 	s.NoError(cassandra.VerifyCompatibleVersion(cfg, gocql.All))
 }

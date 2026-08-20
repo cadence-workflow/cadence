@@ -30,12 +30,12 @@ import (
 	"strings"
 	"sync"
 
+	cliflag "github.com/uber/cadence/tools/common/flag"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/fx"
 	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/common/client"
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/service"
 
@@ -112,11 +112,32 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 					Value:   strings.Join(defaultServices, ","),
 					Usage:   "list of services to start",
 				},
+				&cli.BoolFlag{
+					Name:  "auto-setup",
+					Value: false,
+					Usage: "Automatically setup the schema if it is not already set up. This is only intended for development and testing environments made up of one instance.",
+				},
+				&cli.StringFlag{
+					Name:  "default-domain",
+					Value: "",
+					Usage: "Domain to create as part of auto-setup. If not specified, no domain will be created.",
+				},
+				&cli.GenericFlag{
+					Name:  "schema-option",
+					Value: &cliflag.StringMap{},
+					Usage: "schema options for DB setup (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
+				},
 			},
 			Action: func(c *cli.Context) error {
 				host, err := os.Hostname()
 				if err != nil {
 					return fmt.Errorf("get hostname: %w", err)
+				}
+				if isAutoSetup(c) {
+					err = setupSchema(c)
+					if err != nil {
+						return fmt.Errorf("setup schema: %w", err)
+					}
 				}
 
 				appCtx := appContext{
@@ -150,26 +171,15 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 			},
 		},
 		{
-			Name:  "update-schema",
-			Usage: "update the persistence schema to the latest version",
-			Action: func(c *cli.Context) error {
-				configDir := getConfigDir(c)
-				env := getEnvironment(c)
-				zone := getZone(c)
-
-				var cfg config.Config
-				if err := config.Load(env, configDir, zone, &cfg); err != nil {
-					return fmt.Errorf("load config: %w", err)
-				}
-				if err := cfg.ValidateAndFillDefaults(); err != nil {
-					return fmt.Errorf("validate config: %w", err)
-				}
-
-				logger := newUpdateSchemaLogger()
-				factory := newPersistenceFactory(cfg, logger)
-				defer factory.Close()
-
-				return runUpdateSchema(c.Context, factory, logger, clock.NewRealTimeSource())
+			Name:   "update-schema",
+			Usage:  "update the persistence schema to the latest version",
+			Action: setupSchema,
+			Flags: []cli.Flag{
+				&cli.GenericFlag{
+					Name:  "schema-option",
+					Value: &cliflag.StringMap{},
+					Usage: "schema options for DB setup (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
+				},
 			},
 		},
 	}
@@ -239,6 +249,27 @@ type appContext struct {
 	HostName   string `name:"hostname"`
 }
 
+func setupSchema(c *cli.Context) error {
+	configDir := getConfigDir(c)
+	env := getEnvironment(c)
+	zone := getZone(c)
+	domain := getDefaultDomain(c)
+	schemaOptions, err := getSchemaOption(c)
+	if err != nil {
+		return err
+	}
+
+	var cfg config.Config
+	if err := config.Load(env, configDir, zone, &cfg); err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	if err := cfg.ValidateAndFillDefaults(); err != nil {
+		return fmt.Errorf("validate config: %w", err)
+	}
+
+	return UpdateSchema(c.Context, cfg, schemaOptions, domain)
+}
+
 func getEnvironment(c *cli.Context) string {
 	return strings.TrimSpace(c.String("env"))
 }
@@ -280,6 +311,22 @@ func getRootDir(c *cli.Context) string {
 		return cwd
 	}
 	return dirpath
+}
+
+func isAutoSetup(c *cli.Context) bool {
+	return c.Bool("auto-setup")
+}
+
+func getDefaultDomain(c *cli.Context) string {
+	return c.String("default-domain")
+}
+
+func getSchemaOption(c *cli.Context) (map[string]string, error) {
+	options, ok := c.Generic("schema-option").(*cliflag.StringMap)
+	if c.IsSet("schema-option") && !ok {
+		return nil, fmt.Errorf("failed to parse schema-option")
+	}
+	return options.Value(), nil
 }
 
 // constructPathIfNeed would append the dir as the root dir

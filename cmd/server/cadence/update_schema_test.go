@@ -167,7 +167,7 @@ func TestEnsureSetup(t *testing.T) {
 				setupDB:    setupDB,
 			}}
 
-			err := ensureSetup(context.Background(), logger, tasks)
+			err := ensureSetup(context.Background(), logger, tasks, nil)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 			} else {
@@ -489,13 +489,17 @@ func TestRunUpdateSchema(t *testing.T) {
 	schema := persistence.NewMockSchema(ctrl)
 	update := &persistence.SchemaUpdate{Version: persistence.Version{Major: 2, Minor: 0}}
 
+	setupOptions := map[string]string{
+		"replication_factor": "1",
+	}
+
 	// Happy path e2e
 
 	factory.EXPECT().NewAdminDBs().Return([]persistence.AdminDB{adminDB}, nil)
 	// Setup
 	adminDB.EXPECT().CreateSetupDB().Return(setupDB, nil)
 	setupDB.EXPECT().IsSetup(gomock.Any()).Return(false, nil)
-	setupDB.EXPECT().Setup(gomock.Any(), nil).Return(nil)
+	setupDB.EXPECT().Setup(gomock.Any(), setupOptions).Return(nil)
 	// Schema planning
 	adminDB.EXPECT().SupportsSchema().Return(true)
 	adminDB.EXPECT().CreateSchemaDB().Return(schemaDB, nil)
@@ -509,7 +513,7 @@ func TestRunUpdateSchema(t *testing.T) {
 	setupDB.EXPECT().Close()
 	schemaDB.EXPECT().Close()
 
-	err := runUpdateSchema(context.Background(), factory, logger, timeSource)
+	err := runUpdateSchema(context.Background(), factory, setupOptions, logger, timeSource)
 	require.NoError(t, err)
 }
 

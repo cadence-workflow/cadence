@@ -29,7 +29,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
@@ -249,9 +248,6 @@ func (f *defaultManagerFactory) initPersistenceFactory(c *cli.Context) (client.F
 		return nil, fmt.Errorf("Error in init persistence factory: %w", err)
 	}
 	cfg.Persistence.DataStores[cfg.Persistence.DefaultStore] = defaultStore
-
-	cfg.Persistence.TransactionSizeLimit = dynamicproperties.GetIntPropertyFn(constants.DefaultTransactionSizeLimit)
-	cfg.Persistence.ErrorInjectionRate = dynamicproperties.GetFloatPropertyFn(0.0)
 
 	rps := c.Float64(FlagRPS)
 

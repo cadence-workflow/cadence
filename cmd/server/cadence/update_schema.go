@@ -23,10 +23,14 @@ package cadence
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
 
+	"github.com/pborman/uuid"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/types"
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/clock"
@@ -62,6 +66,52 @@ type schemaUpdateTask struct {
 	update     *persistence.SchemaUpdate
 }
 
+// UpdateSchema updates the schema for all DBs referenced in the specified config
+func UpdateSchema(ctx context.Context, cfg config.Config, dbOpts map[string]string, defaultDomain string) error {
+	logger := newUpdateSchemaLogger()
+	factory := newPersistenceFactory(cfg, logger)
+	defer factory.Close()
+
+	err := runUpdateSchema(ctx, factory, dbOpts, logger, clock.NewRealTimeSource())
+	if err != nil {
+		return err
+	}
+	if defaultDomain != "" {
+		return createDefaultDomain(ctx, factory, defaultDomain)
+	}
+	return nil
+}
+
+func createDefaultDomain(ctx context.Context, factory persistenceClient.Factory, defaultDomain string) error {
+	domains, err := factory.NewDomainManager()
+	if err != nil {
+		return err
+	}
+	_, err = domains.CreateDomain(ctx, &persistence.CreateDomainRequest{
+		Info: &persistence.DomainInfo{
+			ID:          uuid.New(),
+			Name:        defaultDomain,
+			Status:      persistence.DomainStatusRegistered,
+			Description: "Example Domain",
+		},
+		Config: &persistence.DomainConfig{
+			Retention:                1,
+			HistoryArchivalStatus:    types.ArchivalStatusDisabled,
+			VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+		},
+		ReplicationConfig: &persistence.DomainReplicationConfig{},
+		FailoverVersion:   constants.EmptyVersion,
+	})
+	if err != nil {
+		var domainAlreadyExistsError *types.DomainAlreadyExistsError
+		if errors.As(err, &domainAlreadyExistsError) {
+			return nil
+		}
+		return fmt.Errorf("failed to create domain: %w", err)
+	}
+	return nil
+}
+
 // newPersistenceFactory constructs a persistence factory from the provided config. It doesn't support dynamic config
 // or the more complex features of a full server.
 func newPersistenceFactory(cfg config.Config, logger log.Logger) persistenceClient.Factory {
@@ -95,7 +145,7 @@ func newUpdateSchemaLogger() log.Logger {
 //     the current schema version against the latest, and collect any updates that need
 //     to be applied.
 //  4. Sort the collected updates by (PluginName/DBType, Version) and apply them in that order.
-func runUpdateSchema(ctx context.Context, factory persistenceClient.Factory, logger log.Logger, timeSource clock.TimeSource) error {
+func runUpdateSchema(ctx context.Context, factory persistenceClient.Factory, schemaOptions map[string]string, logger log.Logger, timeSource clock.TimeSource) error {
 	adminDBs, err := factory.NewAdminDBs()
 	if err != nil {
 		return fmt.Errorf("get admin DBs: %w", err)
@@ -107,7 +157,7 @@ func runUpdateSchema(ctx context.Context, factory persistenceClient.Factory, log
 		return err
 	}
 
-	if err = ensureSetup(ctx, logger, setupTasks); err != nil {
+	if err = ensureSetup(ctx, logger, setupTasks, schemaOptions); err != nil {
 		return err
 	}
 
@@ -164,7 +214,7 @@ func retryUntilConnected(ctx context.Context, logger log.Logger, adminDB persist
 }
 
 // ensureSetup calls Setup on any SetupDB that reports IsSetup() == false.
-func ensureSetup(ctx context.Context, logger log.Logger, tasks []setupTask) error {
+func ensureSetup(ctx context.Context, logger log.Logger, tasks []setupTask, schemaOptions map[string]string) error {
 	for _, t := range tasks {
 		isSetup, err := t.setupDB.IsSetup(ctx)
 		if err != nil {
@@ -183,7 +233,7 @@ func ensureSetup(ctx context.Context, logger log.Logger, tasks []setupTask) erro
 			tag.PersistenceDBType(string(t.dbType)),
 			tag.PersistenceDBIdentifier(t.identifier),
 		)
-		if err = t.setupDB.Setup(ctx, nil); err != nil {
+		if err = t.setupDB.Setup(ctx, schemaOptions); err != nil {
 			return fmt.Errorf("setting up %s: %w", setupTarget(t), err)
 		}
 		logger.Info("Database set up successfully",

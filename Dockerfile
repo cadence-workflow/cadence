@@ -111,24 +111,10 @@ CMD /start-cadence.sh
 # All-in-one Cadence server (~450mb)
 FROM cadence-server AS cadence-auto-setup
 
-USER root
-
-RUN apk add --update --no-cache ca-certificates py3-pip mysql-client \
-    gcc musl-dev python3-dev libev-dev
-RUN pip3 install --break-system-packages setuptools wheel
-RUN pip3 install --break-system-packages cqlsh==6.2.2 && \
-    cqlsh --version
-
-COPY --chown=cadence:cadence docker/start.sh /start.sh
-COPY --chown=cadence:cadence docker/domain /etc/cadence/domain
-
-# Set execute permission for owner only (cadence user)
-RUN chmod 0700 /start.sh
-
 # Switch back to non-root user
 USER cadence
 
-CMD /start.sh
+CMD /start-cadence.sh --auto-setup --default-domain default --schema-option replication_factor=1
 
 # Cadence CLI
 FROM alpine-nonroot AS cadence-cli

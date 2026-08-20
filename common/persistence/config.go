@@ -40,6 +40,8 @@ type (
 		DomainAuditLogTTL                        dynamicproperties.DurationPropertyFnWithDomainIDFilter
 		HistoryNodeDeleteBatchSize               dynamicproperties.IntPropertyFn
 		RateLimiterBypassCallerTypes             dynamicproperties.ListPropertyFn
+		TransactionSizeLimit                     dynamicproperties.IntPropertyFn
+		ErrorInjectionRate                       dynamicproperties.FloatPropertyFn
 	}
 )
 
@@ -58,5 +60,7 @@ func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration
 		DomainAuditLogTTL:                        dc.GetDurationPropertyFilteredByDomainID(dynamicproperties.DomainAuditLogTTL),
 		HistoryNodeDeleteBatchSize:               dc.GetIntProperty(dynamicproperties.HistoryNodeDeleteBatchSize),
 		RateLimiterBypassCallerTypes:             dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes),
+		TransactionSizeLimit:                     dc.GetIntProperty(dynamicproperties.TransactionSizeLimit),
+		ErrorInjectionRate:                       dc.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate),
 	}
 }

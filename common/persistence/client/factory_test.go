@@ -28,6 +28,7 @@ import (
 
 	"github.com/IBM/sarama/mocks"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
@@ -262,8 +263,9 @@ func makeFactoryWithMetrics(t *testing.T, withMetrics bool) Factory {
 	if withMetrics {
 		met = metrics.NewClient(tally.NewTestScope("", nil), service.GetMetricsServiceIdx(service.Frontend, logger), metrics.MigrationConfig{})
 	}
-	ctrl := gomock.NewController(t)
-	dc := dynamicconfig.NewCollection(dynamicconfig.NewMockClient(ctrl), logger)
+	client := dynamicconfig.NewInMemoryClient()
+	require.NoError(t, client.UpdateValue(dynamicproperties.PersistenceErrorInjectionRate, 0.5))
+	dc := dynamicconfig.NewCollection(client, logger)
 	pdc := persistence.NewDynamicConfiguration(dc)
 
 	cfg := &config.Persistence{
@@ -277,10 +279,6 @@ func makeFactoryWithMetrics(t *testing.T, withMetrics bool) Factory {
 				ElasticSearch: &config.ElasticSearchConfig{},   // fields are unused but must be non-nil
 				Pinot:         &config.PinotVisibilityConfig{}, // fields are unused but must be non-nil
 			},
-		},
-		TransactionSizeLimit: nil,
-		ErrorInjectionRate: func(opts ...dynamicproperties.FilterOption) float64 {
-			return 0.5 // half errors, unused in these tests beyond "nonzero" so it wraps with the error injector
 		},
 	}
 
