@@ -34,15 +34,14 @@ const (
 	rowTypeSemaphoreOwner        // reverse index row, keyed by owner_id (owner_id -> held_token)
 )
 
-// Sentinels stored in the columns that do not apply to a given row kind.
+// Sentinels stored in columns that do not apply to a given row kind.
 //
-// The int sentinels are negative / out-of-range so they can never collide with a
-// real slot id (which is >= 1).
+// The int sentinels are negative so they can never collide with a real slot id (>= 1).
 //
-// The text sentinels are PROVISIONAL. freeSentinel is the only value ever
-// LWT-compared, so its final literal must be one the owner_id encoding can never
-// produce. ownerNoneSentinel's value does not matter: the row type already keeps
-// a token row from colliding with an owner row.
+// The text sentinels are PROVISIONAL. freeSentinel is the only value ever LWT-compared,
+// so its final literal must be one the owner_id encoding can never produce;
+// ownerNoneSentinel's value does not matter (the row type already separates token and
+// owner rows).
 // TODO: finalize freeSentinel/ownerNoneSentinel with the owner_id encoding.
 const (
 	emptyTokenID   = -1 // token_id on owner rows
@@ -52,74 +51,22 @@ const (
 	freeSentinel      = "__FREE__" // holder of an unheld token row
 )
 
-const (
-	templateSeedSemaphoreTokenQuery = `INSERT INTO semaphore_tokens (` +
-		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
-
-	// Grant: conditional in-place UPDATE of the token row (claim only if free) ...
-	templateGrantSemaphoreTokenUpdateQuery = `UPDATE semaphore_tokens ` +
-		`SET holder = ?, updated_time = ? ` +
-		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ? ` +
-		`IF holder = ?`
-
-	// ... plus the matching owner (reverse-index) row INSERT, in the same batch.
-	// IF NOT EXISTS makes this a second condition on the batch: it enforces
-	// one-token-per-hold (owner_id), so a same-owner_id double-grant cannot
-	// overwrite an existing hold. When it fails, the CAS result carries the owner
-	// row's current held_token, which we surface for reuse.
-	templateGrantSemaphoreOwnerInsertQuery = `INSERT INTO semaphore_tokens (` +
-		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
-
-	// Release: guarded in-place UPDATE of the token row (clear only if still held
-	// by this owner) ...
-	templateReleaseSemaphoreTokenUpdateQuery = `UPDATE semaphore_tokens ` +
-		`SET holder = ?, updated_time = ? ` +
-		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ? ` +
-		`IF holder = ?`
-
-	// ... plus the matching owner row DELETE, in the same batch.
-	templateReleaseSemaphoreOwnerDeleteQuery = `DELETE FROM semaphore_tokens ` +
-		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ?`
-
-	// Forward read: owner_id is the trailing clustering column, so it is omitted.
-	templateSelectSemaphoreTokenByIDQuery = `SELECT ` +
-		`domain_id, semaphore_name, bucket, token_id, owner_id, holder, held_token, updated_time ` +
-		`FROM semaphore_tokens ` +
-		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ?`
-
-	// Reverse read: token_id (a middle clustering column) must be pinned to reach owner_id.
-	templateSelectSemaphoreTokenByOwnerQuery = `SELECT ` +
-		`domain_id, semaphore_name, bucket, token_id, owner_id, holder, held_token, updated_time ` +
-		`FROM semaphore_tokens ` +
-		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ?`
-
-	templateSelectSemaphoreTokensByBucketQuery = `SELECT ` +
-		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time ` +
-		`FROM semaphore_tokens ` +
-		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ?`
-)
-
-// InsertSemaphoreTokens seeds a bucket with free token rows for the given rows'
+// InsertSemaphoreTokens seeds a bucket with free token rows for the given
 // TokenIDs, using a single conditional (LWT) batch of INSERT ... IF NOT EXISTS.
 //
-// Contract: callers must supply a bucket's FULL, IMMUTABLE id set. A bucket's id
-// range is fixed at semaphore creation and never grows (to change size/bucket_size
-// you create a new semaphore name), so seeding is only ever a fresh insert or a
-// re-seed of the exact same set — never a superset. Within those two cases:
-//   - fresh bucket: no rows exist, all conditions pass, all rows are inserted;
-//   - re-seed of the same set: every row already exists, so every condition fails
-//     and the batch is a deliberate no-op that never clobbers an already-held slot.
+// Contract: callers must supply a bucket's FULL id set. A bucket's id range is
+// fixed at semaphore creation and never grows (to change size/bucket_size you
+// create a new semaphore name), so seeding is only ever one of two cases:
+//   - fresh bucket: no rows exist, so all rows are inserted;
+//   - re-seed of the same set: every row exists, so the batch is a deliberate
+//     no-op that never clobbers an already-held slot.
+// The applied flag is intentionally ignored: "not applied" is the expected
+// outcome of a same-set re-seed, not an error.
 //
-// The applied flag is therefore intentionally ignored: for a same-set re-seed
-// "not applied" is the desired outcome, not an error.
-//
-// This relies on the immutability contract. A conditional batch is all-or-nothing:
-// if it were ever called with a partial superset (a subset of the ids already
-// present), the existing rows' failed conditions would reject the WHOLE batch, so
-// the brand-new ids would be silently NOT inserted. Growing a bucket is unsupported
-// by design.
+// Growing a bucket is unsupported by design, and this relies on it: a conditional
+// batch is all-or-nothing, so a partial superset (some ids already present) would
+// have its existing rows' guards reject the WHOLE batch, silently dropping the
+// brand-new ids.
 func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.SemaphoreTokenRow) error {
 	if len(rows) == 0 {
 		return nil
@@ -145,18 +92,13 @@ func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.Se
 	return err
 }
 
-// GrantSemaphoreToken claims row.TokenID for row.OwnerID via one atomic batch of
-// two conditional statements: the token row's holder is set to the owner only if
-// it is currently free (IF holder = FREE), and the matching owner row is inserted
-// only if it does not already exist (IF NOT EXISTS). Because a conditional batch
-// is all-or-nothing, both conditions must pass for the grant to apply.
+// GrantSemaphoreToken claims row.TokenID for row.OwnerID with one atomic batch of
+// two guarded writes: set the token row's holder to the owner only if it is free
+// (IF holder = FREE), and insert the owner row only if it is absent (IF NOT EXISTS).
+// The batch is all-or-nothing, so the grant applies only if both guards pass.
 //
-// The IF NOT EXISTS owner guard enforces one-token-per-hold: a same-owner_id
-// double-grant (two hosts racing during an ownership handoff, or a caller bug)
-// cannot overwrite an owner's existing hold. When the batch does not apply, the
-// CAS result carries the conflicting rows' current values; if the owner row
-// already existed we surface its held_token so the caller can reuse that hold
-// instead of retrying.
+// The IF NOT EXISTS guard enforces one-token-per-hold: a same-owner_id double-grant
+// (racing hosts during a handoff, or a caller bug) cannot overwrite an existing hold.
 //
 // Returns Applied == false (not an error) when the grant did not apply:
 //   - AlreadyHeldToken > 0: this owner already holds that token (reuse it);
