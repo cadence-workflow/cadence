@@ -51,22 +51,18 @@ const (
 	freeSentinel      = "__FREE__" // holder of an unheld token row
 )
 
-// InsertSemaphoreTokens seeds a bucket with free token rows for the given
-// TokenIDs, using a single conditional (LWT) batch of INSERT ... IF NOT EXISTS.
+// InsertSemaphoreTokens seeds a bucket with free token rows for the given TokenIDs
+// via one conditional (LWT) batch of INSERT ... IF NOT EXISTS.
 //
-// Contract: callers must supply a bucket's FULL id set. A bucket's id range is
-// fixed at semaphore creation and never grows (to change size/bucket_size you
-// create a new semaphore name), so seeding is only ever one of two cases:
-//   - fresh bucket: no rows exist, so all rows are inserted;
-//   - re-seed of the same set: every row exists, so the batch is a deliberate
-//     no-op that never clobbers an already-held slot.
-// The applied flag is intentionally ignored: "not applied" is the expected
-// outcome of a same-set re-seed, not an error.
+// Callers must pass the bucket's FULL id set, which is fixed at semaphore creation
+// and never grows (to resize, create a new semaphore name). So this is only ever a
+// fresh insert (no rows exist, all applied) or a re-seed of the same set (every
+// IF NOT EXISTS fails, a deliberate no-op that never clobbers a held slot); the
+// applied flag is therefore ignored.
 //
-// Growing a bucket is unsupported by design, and this relies on it: a conditional
-// batch is all-or-nothing, so a partial superset (some ids already present) would
-// have its existing rows' guards reject the WHOLE batch, silently dropping the
-// brand-new ids.
+// Growing a bucket is unsupported: the batch is all-or-nothing, so a partial superset
+// would have its existing rows' guards reject the whole batch, silently dropping the
+// new ids.
 func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.SemaphoreTokenRow) error {
 	if len(rows) == 0 {
 		return nil
