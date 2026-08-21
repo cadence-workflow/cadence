@@ -150,6 +150,22 @@ const (
 	ConflictResolveWorkflowModeBypassCurrent
 )
 
+// SemaphoreGrantOutcome says whether a conditional semaphore grant applied, and if not, why
+type SemaphoreGrantOutcome int
+
+// Semaphore Grant Outcome
+const (
+	// SemaphoreGrantUnknown is the zero value and is never returned. It exists so an
+	// uninitialized response cannot read as a successful grant.
+	SemaphoreGrantUnknown SemaphoreGrantOutcome = iota
+	// SemaphoreGrantApplied the slot was claimed
+	SemaphoreGrantApplied
+	// SemaphoreGrantAlreadyHeld this owner already holds HeldToken; reuse it instead of retrying
+	SemaphoreGrantAlreadyHeld
+	// SemaphoreGrantSlotTaken another owner holds the slot; retry a different one
+	SemaphoreGrantSlotTaken
+)
+
 // Workflow execution states
 const (
 	WorkflowStateCreated = iota
@@ -1484,15 +1500,12 @@ type (
 		OwnerID       string
 	}
 
-	// GrantSemaphoreTokenResponse reports whether the conditional grant applied.
-	// Applied == false is not an error; AlreadyHeldToken disambiguates why:
-	//   - AlreadyHeldToken > 0: this owner already holds that token; the caller
-	//     can reuse the existing hold instead of retrying.
-	//   - AlreadyHeldToken == 0: the slot was taken by someone else (a stale
-	//     hint); the caller retries another slot.
+	// GrantSemaphoreTokenResponse reports the outcome of a conditional grant. A
+	// grant that does not apply is not an error; Outcome says why.
 	GrantSemaphoreTokenResponse struct {
-		Applied          bool
-		AlreadyHeldToken int
+		Outcome SemaphoreGrantOutcome
+		// HeldToken is set only when Outcome is SemaphoreGrantAlreadyHeld.
+		HeldToken int
 	}
 
 	// ReleaseSemaphoreTokenRequest frees a slot via a guarded batch (clear only

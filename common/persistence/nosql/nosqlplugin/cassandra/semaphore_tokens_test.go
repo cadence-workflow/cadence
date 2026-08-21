@@ -102,8 +102,8 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.NoError(t, err)
-		assert.True(t, result.Applied)
-		assert.Zero(t, result.AlreadyHeldToken)
+		assert.Equal(t, nosqlplugin.SemaphoreGrantApplied, result.Outcome)
+		assert.Zero(t, result.HeldToken)
 		assert.Len(t, session.batches, 1)
 		assert.Equal(t, []string{
 			`UPDATE semaphore_tokens SET holder = owner-abc, updated_time = ` + now.UTC().Format(time.RFC3339) + ` ` +
@@ -117,7 +117,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 
 	t.Run("not applied - slot taken by someone else", func(t *testing.T) {
 		// The conflicting row is the token row (someone else holds it); no owner
-		// row is returned, so AlreadyHeldToken stays 0 (retry another slot).
+		// row is returned, so the outcome is SlotTaken (retry another slot).
 		session := &fakeSession{
 			mapExecuteBatchCASApplied: false,
 			mapExecuteBatchCASPrev: map[string]any{
@@ -129,8 +129,8 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.NoError(t, err)
-		assert.False(t, result.Applied)
-		assert.Zero(t, result.AlreadyHeldToken)
+		assert.Equal(t, nosqlplugin.SemaphoreGrantSlotTaken, result.Outcome)
+		assert.Zero(t, result.HeldToken)
 		assert.True(t, session.iter.closed)
 	})
 
@@ -147,8 +147,8 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.NoError(t, err)
-		assert.False(t, result.Applied)
-		assert.Equal(t, 7, result.AlreadyHeldToken)
+		assert.Equal(t, nosqlplugin.SemaphoreGrantAlreadyHeld, result.Outcome)
+		assert.Equal(t, 7, result.HeldToken)
 		assert.True(t, session.iter.closed)
 	})
 
@@ -170,8 +170,8 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.NoError(t, err)
-		assert.False(t, result.Applied)
-		assert.Equal(t, 9, result.AlreadyHeldToken)
+		assert.Equal(t, nosqlplugin.SemaphoreGrantAlreadyHeld, result.Outcome)
+		assert.Equal(t, 9, result.HeldToken)
 		assert.True(t, session.iter.closed)
 	})
 
@@ -180,7 +180,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.Error(t, err)
-		assert.False(t, result.Applied)
+		assert.Equal(t, nosqlplugin.SemaphoreGrantUnknown, result.Outcome)
 	})
 }
 

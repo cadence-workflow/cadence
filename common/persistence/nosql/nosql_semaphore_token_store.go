@@ -22,6 +22,7 @@ package nosql
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/uber/cadence/common/config"
@@ -73,15 +74,13 @@ func (m *nosqlSemaphoreTokenStore) SeedSemaphoreTokens(
 	return nil
 }
 
-// GrantSemaphoreToken claims a free slot for an owner. A false applied is
-// control flow, not an error, and alreadyHeldToken says why the grant was
-// refused: > 0 is the token this owner already holds (reuse it), 0 means the
-// slot is taken by someone else (try another).
+// GrantSemaphoreToken claims a free slot for an owner. A grant that does not
+// apply is control flow, not an error; the returned Outcome says why.
 func (m *nosqlSemaphoreTokenStore) GrantSemaphoreToken(
 	ctx context.Context,
 	request *persistence.GrantSemaphoreTokenRequest,
 	updatedTime time.Time,
-) (bool, int, error) {
+) (*persistence.GrantSemaphoreTokenResponse, error) {
 	row := &nosqlplugin.SemaphoreTokenRow{
 		DomainID:      request.DomainID,
 		SemaphoreName: request.SemaphoreName,
@@ -92,9 +91,31 @@ func (m *nosqlSemaphoreTokenStore) GrantSemaphoreToken(
 	}
 	result, err := m.db.GrantSemaphoreToken(ctx, row)
 	if err != nil {
-		return false, 0, convertCommonErrors(m.db, "GrantSemaphoreToken", err)
+		return nil, convertCommonErrors(m.db, "GrantSemaphoreToken", err)
 	}
-	return result.Applied, result.AlreadyHeldToken, nil
+	outcome, err := toPersistenceGrantOutcome(result.Outcome)
+	if err != nil {
+		return nil, err
+	}
+	return &persistence.GrantSemaphoreTokenResponse{
+		Outcome:   outcome,
+		HeldToken: result.HeldToken,
+	}, nil
+}
+
+// toPersistenceGrantOutcome maps the plugin's grant outcome to the persistence one.
+// The two enums are declared separately because persistence cannot import nosqlplugin.
+func toPersistenceGrantOutcome(outcome nosqlplugin.SemaphoreGrantOutcome) (persistence.SemaphoreGrantOutcome, error) {
+	switch outcome {
+	case nosqlplugin.SemaphoreGrantApplied:
+		return persistence.SemaphoreGrantApplied, nil
+	case nosqlplugin.SemaphoreGrantAlreadyHeld:
+		return persistence.SemaphoreGrantAlreadyHeld, nil
+	case nosqlplugin.SemaphoreGrantSlotTaken:
+		return persistence.SemaphoreGrantSlotTaken, nil
+	default:
+		return persistence.SemaphoreGrantUnknown, fmt.Errorf("unknown semaphore grant outcome: %v", outcome)
+	}
 }
 
 // ReleaseSemaphoreToken frees a slot if it is still held by the owner. The
