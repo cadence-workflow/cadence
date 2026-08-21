@@ -1,0 +1,17 @@
+name: Scripts tests
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+
+jobs:
+  test-scripts:
+    name: Test scripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run scripts test suite
+        run: make test_scripts
