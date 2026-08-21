@@ -75,7 +75,7 @@ func setupMocksForCachedQueueReader(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	overrides ...func(*cachedQueueReaderOptions),
-) (*cachedQueueReader, *cachedQueueReaderMockDeps) {
+) (*cachedScheduledQueueReader, *cachedQueueReaderMockDeps) {
 	t.Helper()
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetRangeID().Return(int64(0)).AnyTimes()
@@ -90,7 +90,7 @@ func setupMocksForCachedQueueReader(
 		metricsScope: metricsScope,
 	}
 
-	r := newCachedQueueReaderWithOptions(
+	r := newCachedScheduledQueueReaderWithOptions(
 		deps.mockBase,
 		deps.mockQueue,
 		deps.mockShard,
@@ -103,7 +103,7 @@ func setupMocksForCachedQueueReader(
 	return r, deps
 }
 
-func setBounds(r *cachedQueueReader, lower, upper persistence.HistoryTaskKey) {
+func setBounds(r *cachedScheduledQueueReader, lower, upper persistence.HistoryTaskKey) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.inclusiveLowerBound = lower
@@ -1252,7 +1252,7 @@ func TestCachedQueueReader_GetTask_PeriodicShadowSample(t *testing.T) {
 				mockShard: mockShard,
 				clock:     clock.NewMockedTimeSource(),
 			}
-			r := newCachedQueueReaderWithOptions(
+			r := newCachedScheduledQueueReaderWithOptions(
 				deps.mockBase,
 				deps.mockQueue,
 				deps.mockShard,
@@ -1735,7 +1735,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 		initLower             persistence.HistoryTaskKey
 		initUpper             persistence.HistoryTaskKey
 		initBuffer            []persistence.Task
-		setupMocks            func(base *MockQueueReader, queue *MockInMemQueue, r *cachedQueueReader)
+		setupMocks            func(base *MockQueueReader, queue *MockInMemQueue, r *cachedScheduledQueueReader)
 		wantErr               bool
 		wantLower             persistence.HistoryTaskKey
 		wantUpper             persistence.HistoryTaskKey
@@ -1750,7 +1750,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			},
 			initLower:  persistence.MinimumHistoryTaskKey,
 			initUpper:  persistence.MinimumHistoryTaskKey,
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedScheduledQueueReader) {},
 			wantLower:  persistence.MinimumHistoryTaskKey,
 			wantUpper:  persistence.MinimumHistoryTaskKey,
 		},
@@ -1761,7 +1761,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			},
 			initLower: someLower,
 			initUpper: someUpper,
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedScheduledQueueReader) {
 				queue.EXPECT().Clear()
 				queue.EXPECT().Len().Return(0).AnyTimes()
 			},
@@ -1772,7 +1772,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			name:      "cache full: skips DB fetch, bounds unchanged",
 			initLower: someLower,
 			initUpper: someUpper,
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedScheduledQueueReader) {
 				queue.EXPECT().Len().Return(maxSize).AnyTimes()
 			},
 			wantLower: someLower,
@@ -1782,7 +1782,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			name:      "DB error: returns error, bounds unchanged",
 			initLower: someLower,
 			initUpper: someUpper,
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedScheduledQueueReader) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
 			},
@@ -1796,7 +1796,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			name:      "clear cache, first prefetch, no tasks",
 			initLower: persistence.MinimumHistoryTaskKey,
 			initUpper: persistence.MinimumHistoryTaskKey,
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedScheduledQueueReader) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
 					Tasks:    nil,
@@ -1813,7 +1813,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			name:      "clear cache, first prefetch, tasks returned",
 			initLower: persistence.MinimumHistoryTaskKey,
 			initUpper: persistence.MinimumHistoryTaskKey,
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedScheduledQueueReader) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
 					Tasks:    []persistence.Task{t1, t2},
@@ -1832,7 +1832,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			name:      "subsequent prefetch, no tasks",
 			initLower: someLower,
 			initUpper: someUpper,
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedScheduledQueueReader) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
 					Tasks:    nil,
@@ -1849,7 +1849,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			name:      "subsequent prefetch, tasks returned, tasks inserted",
 			initLower: someLower,
 			initUpper: someUpper,
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedScheduledQueueReader) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
 					Tasks:    []persistence.Task{t3, t4},
@@ -1871,7 +1871,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			},
 			initLower: someLower,
 			initUpper: someUpper,
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedScheduledQueueReader) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
 					Tasks:    []persistence.Task{t3},
@@ -1893,7 +1893,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			name:      "gap detected: upper changed during fetch, returns error, bounds unchanged",
 			initLower: someLower,
 			initUpper: someUpper,
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, r *cachedQueueReader) {
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, r *cachedScheduledQueueReader) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ *GetTaskRequest) (*GetTaskResponse, error) {
@@ -1925,7 +1925,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 				// scheduled at someUpper+1min; will fall within [someUpper, maxKey) after prefetch
 				newTask(99, someUpper.GetScheduledTime().Add(time.Minute)),
 			},
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedScheduledQueueReader) {
 				tBuf := newTask(99, someUpper.GetScheduledTime().Add(time.Minute))
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
@@ -1949,7 +1949,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			initBuffer: []persistence.Task{
 				newTask(99, someUpper.GetScheduledTime().Add(time.Minute)),
 			},
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, r *cachedQueueReader) {
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, r *cachedScheduledQueueReader) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ *GetTaskRequest) (*GetTaskResponse, error) {

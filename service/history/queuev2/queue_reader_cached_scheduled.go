@@ -95,7 +95,7 @@ type cachedQueueReaderOptions struct {
 	ShadowSampleInterval dynamicproperties.DurationPropertyFn
 }
 
-type cachedQueueReader struct {
+type cachedScheduledQueueReader struct {
 	status  int32 // DaemonStatusInitialized / Started / Stopped
 	base    QueueReader
 	shard   shard.Context
@@ -157,14 +157,14 @@ type cachedQueueReader struct {
 	lastShadowSampleUnixNano atomic.Int64
 }
 
-func newCachedQueueReader(
+func newCachedScheduledQueueReader(
 	base QueueReader,
 	queue InMemQueue,
 	shard shard.Context,
 	metricsScope metrics.Scope,
-) *cachedQueueReader {
+) *cachedScheduledQueueReader {
 	config := shard.GetConfig()
-	return newCachedQueueReaderWithOptions(
+	return newCachedScheduledQueueReaderWithOptions(
 		base,
 		queue,
 		shard,
@@ -185,7 +185,7 @@ func newCachedQueueReader(
 	)
 }
 
-func newCachedQueueReaderWithOptions(
+func newCachedScheduledQueueReaderWithOptions(
 	base QueueReader,
 	queue InMemQueue,
 	shard shard.Context,
@@ -193,9 +193,9 @@ func newCachedQueueReaderWithOptions(
 	logger log.Logger,
 	metricsScope metrics.Scope,
 	options *cachedQueueReaderOptions,
-) *cachedQueueReader {
+) *cachedScheduledQueueReader {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &cachedQueueReader{
+	return &cachedScheduledQueueReader{
 		status:              common.DaemonStatusInitialized,
 		base:                base,
 		shard:               shard,
@@ -214,7 +214,7 @@ func newCachedQueueReaderWithOptions(
 }
 
 // Start anchors the initial eviction window and launches the background loops.
-func (q *cachedQueueReader) Start() {
+func (q *cachedScheduledQueueReader) Start() {
 	if !atomic.CompareAndSwapInt32(&q.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
@@ -224,7 +224,7 @@ func (q *cachedQueueReader) Start() {
 }
 
 // Stop cancels background goroutines and waits for them to finish.
-func (q *cachedQueueReader) Stop() {
+func (q *cachedScheduledQueueReader) Stop() {
 	if !atomic.CompareAndSwapInt32(&q.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
 		return
 	}
@@ -237,7 +237,7 @@ func (q *cachedQueueReader) Stop() {
 // prefetchLoop fetches tasks into the look-ahead window on a timer. It fires
 // shortly after Start, then re-arms based on the result or when the upper
 // bound changes via notifyPrefetch.
-func (q *cachedQueueReader) prefetchLoop() {
+func (q *cachedScheduledQueueReader) prefetchLoop() {
 	defer q.wg.Done()
 
 	timer := q.clock.NewTimer(time.Millisecond)
@@ -266,7 +266,7 @@ func (q *cachedQueueReader) prefetchLoop() {
 
 // notifyPrefetch signals the prefetchLoop to recompute its timer. Non-blocking;
 // drops the signal if one is already pending, the loop reads current state on wake.
-func (q *cachedQueueReader) notifyPrefetch() {
+func (q *cachedScheduledQueueReader) notifyPrefetch() {
 	select {
 	case q.prefetchCh <- struct{}{}:
 	default:
@@ -276,7 +276,7 @@ func (q *cachedQueueReader) notifyPrefetch() {
 // nextPrefetchDelay returns how long to wait before the next prefetch. It
 // computes the trigger window relative to exclusiveUpperBound, clamped to
 // MinPrefetchInterval.
-func (q *cachedQueueReader) nextPrefetchDelay() time.Duration {
+func (q *cachedScheduledQueueReader) nextPrefetchDelay() time.Duration {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 
@@ -293,13 +293,15 @@ func (q *cachedQueueReader) nextPrefetchDelay() time.Duration {
 }
 
 // isEnabled returns true if the cache is fully enabled
-func (q *cachedQueueReader) isEnabled() bool {
+func (q *cachedScheduledQueueReader) isEnabled() bool {
 	return q.options.Mode(q.shard.GetShardID()) == "enabled"
 }
 
 // isShadow returns true when cache runs in shadow mode — results are compared
 // against the DB but the DB result is returned to the processor.
-func (q *cachedQueueReader) isShadow() bool { return q.options.Mode(q.shard.GetShardID()) == "shadow" }
+func (q *cachedScheduledQueueReader) isShadow() bool {
+	return q.options.Mode(q.shard.GetShardID()) == "shadow"
+}
 
 // isCachedQueueReaderDisabled reports whether the given mode disables the cached queue reader.
 func isCachedQueueReaderDisabled(mode string) bool {
@@ -312,26 +314,26 @@ func isCachedQueueReaderDisabled(mode string) bool {
 }
 
 // isDisabled returns true for the "disabled" mode and for any unrecognised value
-func (q *cachedQueueReader) isDisabled() bool {
+func (q *cachedScheduledQueueReader) isDisabled() bool {
 	return isCachedQueueReaderDisabled(q.options.Mode(q.shard.GetShardID()))
 }
 
 // IsEmpty reports whether the cache queue reader is empty
-func (q *cachedQueueReader) IsEmpty() bool {
+func (q *cachedScheduledQueueReader) IsEmpty() bool {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 	return q.exclusiveUpperBound.Equal(persistence.MinimumHistoryTaskKey)
 }
 
 // clearIfNotEmpty clears cached state only when the cache has data
-func (q *cachedQueueReader) clearIfNotEmpty() {
+func (q *cachedScheduledQueueReader) clearIfNotEmpty() {
 	if !q.IsEmpty() {
 		q.Clear()
 	}
 }
 
 // Clear wipes all cached state and triggers a fresh prefetch from the DB.
-func (q *cachedQueueReader) Clear() {
+func (q *cachedScheduledQueueReader) Clear() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -343,7 +345,7 @@ func (q *cachedQueueReader) Clear() {
 }
 
 // clearLocked wipes all cached state. Caller must hold q.mu for writing.
-func (q *cachedQueueReader) clearLocked() {
+func (q *cachedScheduledQueueReader) clearLocked() {
 	q.queue.Clear()
 	q.pendingInjectBuffer = q.pendingInjectBuffer[:0]
 	q.prefetchTargetUpper = persistence.MinimumHistoryTaskKey
@@ -353,13 +355,13 @@ func (q *cachedQueueReader) clearLocked() {
 
 // isRangeIDChangedLocked reports whether the shard's current rangeID differs
 // from the last observed value. Caller must hold q.mu (read or write).
-func (q *cachedQueueReader) isRangeIDChangedLocked() bool {
+func (q *cachedScheduledQueueReader) isRangeIDChangedLocked() bool {
 	return q.shard.GetRangeID() != q.lastRangeID
 }
 
 // isRangeIDChanged reports whether the shard's current rangeID differs
 // from the last observed value.
-func (q *cachedQueueReader) isRangeIDChanged() bool {
+func (q *cachedScheduledQueueReader) isRangeIDChanged() bool {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 	return q.isRangeIDChangedLocked()
@@ -369,7 +371,7 @@ func (q *cachedQueueReader) isRangeIDChanged() bool {
 // (shard moved away and was re-acquired). A change of exactly 1 means the same
 // host reacquired the shard — cache remains valid.
 // Returns true if cache was cleared.
-func (q *cachedQueueReader) fallbackIfRangeIDChanged() bool {
+func (q *cachedScheduledQueueReader) fallbackIfRangeIDChanged() bool {
 	if !q.isRangeIDChanged() {
 		return false
 	}
@@ -406,7 +408,7 @@ func (q *cachedQueueReader) fallbackIfRangeIDChanged() bool {
 // prefetch fetches one page of tasks into the look-ahead window. Returns nil
 // on success (including no-op cases); non-nil on any failure. The caller
 // (prefetchLoop) schedules the next attempt.
-func (q *cachedQueueReader) prefetch() error {
+func (q *cachedScheduledQueueReader) prefetch() error {
 	if q.isDisabled() {
 		// Clear stale cache so re-enabling starts with a fresh prefetch
 		// instead of serving outdated boundaries that cause cache misses.
@@ -533,20 +535,20 @@ func (q *cachedQueueReader) prefetch() error {
 // isRangeCovered reports whether [inclusiveMin, exclusiveMax) falls fully
 // within the cached window [inclusiveLowerBound, exclusiveUpperBound).
 // Caller must hold q.mu (read or write).
-func (q *cachedQueueReader) isRangeCovered(inclusiveMin, exclusiveMax persistence.HistoryTaskKey) bool {
+func (q *cachedScheduledQueueReader) isRangeCovered(inclusiveMin, exclusiveMax persistence.HistoryTaskKey) bool {
 	return !inclusiveMin.Less(q.inclusiveLowerBound) && !exclusiveMax.Greater(q.exclusiveUpperBound)
 }
 
 // isTaskCovered reports whether the given task key falls within the cached window.
 // Caller must hold q.mu (read or write).
-func (q *cachedQueueReader) isTaskCovered(key persistence.HistoryTaskKey) bool {
+func (q *cachedScheduledQueueReader) isTaskCovered(key persistence.HistoryTaskKey) bool {
 	return !key.Less(q.inclusiveLowerBound) && key.Less(q.exclusiveUpperBound)
 }
 
 // isToBufferTask reports whether the given task key should be placed in pendingInjectBuffer
 // and within [exclusiveUpperBound, prefetchTargetUpper) and if a prefetch is in-flight
 // Caller must hold q.mu (read or write).
-func (q *cachedQueueReader) isToBufferTask(key persistence.HistoryTaskKey) bool {
+func (q *cachedScheduledQueueReader) isToBufferTask(key persistence.HistoryTaskKey) bool {
 	// there is no in-flight prefetch, so no tasks should be buffered.
 	if q.prefetchTargetUpper.Equal(persistence.MinimumHistoryTaskKey) {
 		return false
@@ -559,7 +561,7 @@ func (q *cachedQueueReader) isToBufferTask(key persistence.HistoryTaskKey) bool 
 // Returns true if RTrimBySize fired and updated exclusiveUpperBound,
 // meaning the caller must not re-advance the bound.
 // Caller must hold q.mu.
-func (q *cachedQueueReader) putTasks(tasks []persistence.Task) bool {
+func (q *cachedScheduledQueueReader) putTasks(tasks []persistence.Task) bool {
 	if len(tasks) == 0 {
 		return false
 	}
@@ -585,7 +587,7 @@ func (q *cachedQueueReader) putTasks(tasks []persistence.Task) bool {
 
 // insertBufferedTasks drains pendingInjectBuffer into the cache for tasks now
 // covered by the updated exclusiveUpperBound. Must be called under q.mu (write lock).
-func (q *cachedQueueReader) insertBufferedTasks() {
+func (q *cachedScheduledQueueReader) insertBufferedTasks() {
 	if len(q.pendingInjectBuffer) == 0 {
 		return
 	}
@@ -601,7 +603,7 @@ func (q *cachedQueueReader) insertBufferedTasks() {
 
 // updateExclusiveUpperBound sets the upper bound and trigger prefetch if needed.
 // Caller must hold q.mu.
-func (q *cachedQueueReader) updateExclusiveUpperBound(newKey persistence.HistoryTaskKey) {
+func (q *cachedScheduledQueueReader) updateExclusiveUpperBound(newKey persistence.HistoryTaskKey) {
 	if q.logger.DebugOn() {
 		q.logger.Debug("upper bound is updated",
 			tag.Dynamic("cacheState", q.getState()),
@@ -616,7 +618,7 @@ func (q *cachedQueueReader) updateExclusiveUpperBound(newKey persistence.History
 
 // updateInclusiveLowerBound sets the lower bound
 // Caller must hold q.mu.
-func (q *cachedQueueReader) updateInclusiveLowerBound(newKey persistence.HistoryTaskKey) {
+func (q *cachedScheduledQueueReader) updateInclusiveLowerBound(newKey persistence.HistoryTaskKey) {
 	if q.logger.DebugOn() {
 		q.logger.Debug("lower bound is updated",
 			tag.Dynamic("cacheState", q.getState()),
@@ -632,7 +634,7 @@ func (q *cachedQueueReader) updateInclusiveLowerBound(newKey persistence.History
 // ahead, trimming evicted tasks. Caps at exclusiveUpperBound when set to
 // preserve the lower <= upper invariant.
 // Caller must hold q.mu (write).
-func (q *cachedQueueReader) advanceInclusiveLowerBound(newKey persistence.HistoryTaskKey) {
+func (q *cachedScheduledQueueReader) advanceInclusiveLowerBound(newKey persistence.HistoryTaskKey) {
 	if !newKey.Greater(q.inclusiveLowerBound) {
 		return
 	}
@@ -648,7 +650,7 @@ func (q *cachedQueueReader) advanceInclusiveLowerBound(newKey persistence.Histor
 // tryTimeEvict evicts tasks older than TimeEvictionWindow if adding extraTasks
 // would exceed MaxSize.
 // Caller must hold q.mu (write).
-func (q *cachedQueueReader) tryTimeEvict(extraTasks int) {
+func (q *cachedScheduledQueueReader) tryTimeEvict(extraTasks int) {
 	if q.queue.Len()+extraTasks < q.options.MaxSize() {
 		return
 	}
@@ -657,7 +659,7 @@ func (q *cachedQueueReader) tryTimeEvict(extraTasks int) {
 }
 
 // tryTimeEvictIfCacheFull evicts tasks older than TimeEvictionWindow if the cache is full
-func (q *cachedQueueReader) tryTimeEvictIfCacheFull() {
+func (q *cachedScheduledQueueReader) tryTimeEvictIfCacheFull() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -666,7 +668,7 @@ func (q *cachedQueueReader) tryTimeEvictIfCacheFull() {
 
 // UpdateReadLevel advances the lower bound to the processor's ack position.
 // MaximumHistoryTaskKey means "no valid read level" and skipped
-func (q *cachedQueueReader) UpdateReadLevel(readLevel persistence.HistoryTaskKey) {
+func (q *cachedScheduledQueueReader) UpdateReadLevel(readLevel persistence.HistoryTaskKey) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -691,7 +693,7 @@ const (
 // fall in [exclusiveUpperBound, prefetchTargetUpper) while a prefetch is
 // in-flight are buffered and drained once the prefetch completes. All other
 // tasks are dropped. No-op when the cache is off.
-func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
+func (q *cachedScheduledQueueReader) Inject(tasks []persistence.Task) {
 	if q.isDisabled() {
 		// Clear stale cache so re-enabling starts with a fresh prefetch
 		// instead of serving outdated boundaries that cause cache misses.
@@ -775,7 +777,7 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 
 // emitInjectStatusCount records the number of injected tasks that took the given
 // outcome path, tagged by status. Zero counts are skipped to avoid emitting empty series.
-func (q *cachedQueueReader) emitInjectStatusCount(status string, count int64) {
+func (q *cachedScheduledQueueReader) emitInjectStatusCount(status string, count int64) {
 	if count == 0 {
 		return
 	}
@@ -799,7 +801,7 @@ func resolveInclusiveMinTaskKey(req *GetTaskRequest) (persistence.HistoryTaskKey
 
 // GetTask serves tasks from the cache when the starting key is covered.
 // Disabled mode bypasses the cache entirely.
-func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*GetTaskResponse, error) {
+func (q *cachedScheduledQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*GetTaskResponse, error) {
 	if q.isDisabled() {
 		return q.base.GetTask(ctx, req)
 	}
@@ -874,7 +876,7 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 // an ongoing signal that the cache still agrees with the DB after promotion out of
 // "shadow" mode. Remove once CachedQueueReader is enabled by default and "shadow"
 // mode rollouts (and this periodic variant of it) are no longer needed.
-func (q *cachedQueueReader) isPeriodicShadowSample() bool {
+func (q *cachedScheduledQueueReader) isPeriodicShadowSample() bool {
 	interval := q.options.ShadowSampleInterval()
 	if interval <= 0 {
 		return false
@@ -895,7 +897,7 @@ func (q *cachedQueueReader) isPeriodicShadowSample() bool {
 // from cache when the request falls within the prefetched window. Bypasses
 // cache when disabled or in shadow mode. Shadow mode bypasses because in-flight
 // inject notifications make cache/DB comparison unreliable for look-ahead.
-func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest) (*LookAHeadResponse, error) {
+func (q *cachedScheduledQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest) (*LookAHeadResponse, error) {
 	if q.isDisabled() || q.isShadow() {
 		return q.base.LookAHead(ctx, req)
 	}
@@ -931,7 +933,7 @@ func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest
 
 // getState returns a snapshot of the cached queue reader's key state variables for logging and debugging.
 // Caller must hold q.mu (read or write).
-func (q *cachedQueueReader) getState() cachedQueueReaderState {
+func (q *cachedScheduledQueueReader) getState() cachedQueueReaderState {
 	return cachedQueueReaderState{
 		InclusiveLowerBound: q.inclusiveLowerBound,
 		ExclusiveUpperBound: q.exclusiveUpperBound,
@@ -951,7 +953,7 @@ type cachedQueueReaderState struct {
 // getTaskInShadow queries the DB for the same request, compares the result
 // against the cache snapshot, and returns the DB result. Mismatches are
 // logged but do not affect processing.
-func (q *cachedQueueReader) getTaskInShadow(
+func (q *cachedScheduledQueueReader) getTaskInShadow(
 	ctx context.Context,
 	req *GetTaskRequest,
 	cacheResp *GetTaskResponse,
@@ -1045,7 +1047,7 @@ type findMismatchesInShadowResult struct {
 }
 
 // getTaskRangeID extracts the rangeID encoded in taskID, which is assigned at task creation time and immutable.
-func (q *cachedQueueReader) getTaskRangeID(taskID int64) int64 {
+func (q *cachedScheduledQueueReader) getTaskRangeID(taskID int64) int64 {
 	return taskID >> int64(q.shard.GetConfig().RangeSizeBits)
 }
 
@@ -1056,7 +1058,7 @@ func (q *cachedQueueReader) getTaskRangeID(taskID int64) int64 {
 //  3. CurrentRange.Extra, or anything in PreviousRange: a benign or inconclusive finding, logged
 //     for visibility only.
 //  4. Otherwise: cache and DB agreed.
-func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadowResult, logTags []tag.Tag) {
+func (q *cachedScheduledQueueReader) reportShadowComparison(result findMismatchesInShadowResult, logTags []tag.Tag) {
 	// Metric emission must run before capping below: capping truncates the slices for
 	// logging, which would undercount the metric for large comparisons.
 	q.emitShadowMismatchMetrics(result)
@@ -1084,7 +1086,7 @@ func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadow
 // and previous-range missed-task buckets, tagged by which bucket they came from so the two never
 // mix into one series. Skipped entirely when NewRange is non-empty: a stale shard owner makes the
 // whole comparison untrustworthy, not just the log severity.
-func (q *cachedQueueReader) emitShadowMismatchMetrics(result findMismatchesInShadowResult) {
+func (q *cachedScheduledQueueReader) emitShadowMismatchMetrics(result findMismatchesInShadowResult) {
 	if !result.NewRange.isEmpty() {
 		return
 	}
@@ -1120,7 +1122,7 @@ func (q *cachedQueueReader) emitShadowMismatchMetrics(result findMismatchesInSha
 // (taskID-inclusive) filtering, and it is not a real mismatch. Such tasks land in the same
 // rangeID bucket's TaskIDBoundaryNoise field instead of its Missed field: the boundary-noise
 // check is orthogonal to which range the task's taskID encodes, so it can occur in any bucket.
-func (q *cachedQueueReader) findMismatchesInShadow(
+func (q *cachedScheduledQueueReader) findMismatchesInShadow(
 	cacheResp *GetTaskResponse,
 	dbResp *GetTaskResponse,
 	req *GetTaskRequest,
