@@ -124,7 +124,7 @@ type (
 		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest, updatedTime time.Time) (bool, error)
 		GetSemaphoreTokenByID(ctx context.Context, request *GetSemaphoreTokenByIDRequest) (*SemaphoreToken, error)
 		GetSemaphoreTokenByOwner(ctx context.Context, request *GetSemaphoreTokenByOwnerRequest) (*SemaphoreToken, error)
-		ListSemaphoreTokensByBucket(ctx context.Context, request *ListSemaphoreTokensByBucketRequest) (*ListSemaphoreTokensByBucketResponse, error)
+		ScanSemaphoreBucket(ctx context.Context, request *ScanSemaphoreBucketRequest) (*ScanSemaphoreBucketResponse, error)
 	}
 
 	// HistoryDLQTaskStore is the store-level interface for history task DLQ operations.

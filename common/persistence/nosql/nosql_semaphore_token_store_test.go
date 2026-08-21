@@ -307,14 +307,14 @@ func TestNoSQLGetSemaphoreTokenByOwner(t *testing.T) {
 	}
 }
 
-func TestNoSQLListSemaphoreTokensByBucket(t *testing.T) {
+func TestNoSQLScanSemaphoreBucket(t *testing.T) {
 	ctx := context.Background()
 
 	tests := map[string]struct {
 		setupMock     func(*nosqlplugin.MockDB)
 		expectErr     bool
 		expectedCount int
-		validate      func(*testing.T, *persistence.ListSemaphoreTokensByBucketResponse)
+		validate      func(*testing.T, *persistence.ScanSemaphoreBucketResponse)
 	}{
 		"success maps rows and token": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
@@ -329,31 +329,31 @@ func TestNoSQLListSemaphoreTokensByBucket(t *testing.T) {
 					PageSize:      10,
 					NextPageToken: []byte("cur"),
 				}
-				dbMock.EXPECT().SelectSemaphoreTokensByBucket(ctx, expectedFilter).
+				dbMock.EXPECT().SelectSemaphoreBucketRows(ctx, expectedFilter).
 					Return(rows, []byte("next"), nil).Times(1)
 			},
 			expectedCount: 2,
-			validate: func(t *testing.T, resp *persistence.ListSemaphoreTokensByBucketResponse) {
-				assert.Equal(t, 5, resp.Tokens[0].TokenID)
-				assert.Equal(t, "owner-abc", resp.Tokens[1].OwnerID)
+			validate: func(t *testing.T, resp *persistence.ScanSemaphoreBucketResponse) {
+				assert.Equal(t, 5, resp.Rows[0].TokenID)
+				assert.Equal(t, "owner-abc", resp.Rows[1].OwnerID)
 				assert.Equal(t, []byte("next"), resp.NextPageToken)
 			},
 		},
 		"empty result returns empty slice": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
-				dbMock.EXPECT().SelectSemaphoreTokensByBucket(ctx, gomock.Any()).
+				dbMock.EXPECT().SelectSemaphoreBucketRows(ctx, gomock.Any()).
 					Return(nil, nil, nil).Times(1)
 			},
 			expectedCount: 0,
-			validate: func(t *testing.T, resp *persistence.ListSemaphoreTokensByBucketResponse) {
-				assert.NotNil(t, resp.Tokens)
-				assert.Empty(t, resp.Tokens)
+			validate: func(t *testing.T, resp *persistence.ScanSemaphoreBucketResponse) {
+				assert.NotNil(t, resp.Rows)
+				assert.Empty(t, resp.Rows)
 				assert.Nil(t, resp.NextPageToken)
 			},
 		},
 		"error propagates": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
-				dbMock.EXPECT().SelectSemaphoreTokensByBucket(ctx, gomock.Any()).
+				dbMock.EXPECT().SelectSemaphoreBucketRows(ctx, gomock.Any()).
 					Return(nil, nil, errors.New("db error")).Times(1)
 				expectNotACommonError(dbMock)
 			},
@@ -366,7 +366,7 @@ func TestNoSQLListSemaphoreTokensByBucket(t *testing.T) {
 			store, dbMock := setUpMocksForSemaphoreTokenStore(t)
 			tc.setupMock(dbMock)
 
-			resp, err := store.ListSemaphoreTokensByBucket(ctx, &persistence.ListSemaphoreTokensByBucketRequest{
+			resp, err := store.ScanSemaphoreBucket(ctx, &persistence.ScanSemaphoreBucketRequest{
 				DomainID:      "domain-1",
 				SemaphoreName: "sem-1",
 				Bucket:        0,
@@ -381,7 +381,7 @@ func TestNoSQLListSemaphoreTokensByBucket(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			require.NotNil(t, resp)
-			assert.Len(t, resp.Tokens, tc.expectedCount)
+			assert.Len(t, resp.Rows, tc.expectedCount)
 			if tc.validate != nil {
 				tc.validate(t, resp)
 			}

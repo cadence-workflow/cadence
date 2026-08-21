@@ -605,8 +605,8 @@ type (
 		// SelectSemaphoreTokenByOwner reads a hold's reverse row (held token) by owner id.
 		SelectSemaphoreTokenByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*SemaphoreTokenRow, error)
 
-		// SelectSemaphoreTokensByBucket scans a bucket partition (both row kinds), paginated.
-		SelectSemaphoreTokensByBucket(ctx context.Context, filter *SemaphoreTokenFilter) ([]*SemaphoreTokenRow, []byte, error)
+		// SelectSemaphoreBucketRows scans a bucket partition (both row kinds), paginated.
+		SelectSemaphoreBucketRows(ctx context.Context, filter *SemaphoreTokenFilter) ([]*SemaphoreTokenRow, []byte, error)
 	}
 
 	/***

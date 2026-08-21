@@ -46,6 +46,6 @@ func (db *ddb) SelectSemaphoreTokenByOwner(ctx context.Context, domainID, semaph
 	panic("TODO: SelectSemaphoreTokenByOwner is not implemented")
 }
 
-func (db *ddb) SelectSemaphoreTokensByBucket(ctx context.Context, filter *nosqlplugin.SemaphoreTokenFilter) ([]*nosqlplugin.SemaphoreTokenRow, []byte, error) {
-	panic("TODO: SelectSemaphoreTokensByBucket is not implemented")
+func (db *ddb) SelectSemaphoreBucketRows(ctx context.Context, filter *nosqlplugin.SemaphoreTokenFilter) ([]*nosqlplugin.SemaphoreTokenRow, []byte, error) {
+	panic("TODO: SelectSemaphoreBucketRows is not implemented")
 }

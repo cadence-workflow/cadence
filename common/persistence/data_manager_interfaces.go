@@ -1538,9 +1538,9 @@ type (
 		Token *SemaphoreToken
 	}
 
-	// ListSemaphoreTokensByBucketRequest scans a bucket partition (both row
+	// ScanSemaphoreBucketRequest scans a bucket partition (both row
 	// kinds), paginated, so a bucket owner can rebuild its in-memory state.
-	ListSemaphoreTokensByBucketRequest struct {
+	ScanSemaphoreBucketRequest struct {
 		DomainID      string
 		SemaphoreName string
 		Bucket        int
@@ -1548,9 +1548,11 @@ type (
 		NextPageToken []byte
 	}
 
-	// ListSemaphoreTokensByBucketResponse is the response for ListSemaphoreTokensByBucket.
-	ListSemaphoreTokensByBucketResponse struct {
-		Tokens        []*SemaphoreToken
+	// ScanSemaphoreBucketResponse is the response for ScanSemaphoreBucket.
+	// Rows holds both row kinds interleaved by the partition's clustering order:
+	// token rows first, then owner rows.
+	ScanSemaphoreBucketResponse struct {
+		Rows          []*SemaphoreToken
 		NextPageToken []byte
 	}
 
@@ -1965,8 +1967,8 @@ type (
 		GetSemaphoreTokenByID(ctx context.Context, request *GetSemaphoreTokenByIDRequest) (*GetSemaphoreTokenByIDResponse, error)
 		// GetSemaphoreTokenByOwner reads a hold's reverse row (held token) by owner id.
 		GetSemaphoreTokenByOwner(ctx context.Context, request *GetSemaphoreTokenByOwnerRequest) (*GetSemaphoreTokenByOwnerResponse, error)
-		// ListSemaphoreTokensByBucket scans a bucket partition (both row kinds), paginated.
-		ListSemaphoreTokensByBucket(ctx context.Context, request *ListSemaphoreTokensByBucketRequest) (*ListSemaphoreTokensByBucketResponse, error)
+		// ScanSemaphoreBucket scans a bucket partition (both row kinds), paginated.
+		ScanSemaphoreBucket(ctx context.Context, request *ScanSemaphoreBucketRequest) (*ScanSemaphoreBucketResponse, error)
 	}
 
 	// HistoryTaskDLQManager is the manager-level interface for the history task DLQ.

@@ -392,7 +392,7 @@ func TestSelectSemaphoreTokenByOwner(t *testing.T) {
 	}
 }
 
-func TestSelectSemaphoreTokensByBucket(t *testing.T) {
+func TestSelectSemaphoreBucketRows(t *testing.T) {
 	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -522,7 +522,7 @@ func TestSelectSemaphoreTokensByBucket(t *testing.T) {
 			session := &fakeSession{query: query}
 			db := newTestSemaphoreTokenDB(t, session)
 
-			rows, token, err := db.SelectSemaphoreTokensByBucket(context.Background(), tc.filter)
+			rows, token, err := db.SelectSemaphoreBucketRows(context.Background(), tc.filter)
 			if tc.wantErr {
 				assert.Error(t, err)
 				return

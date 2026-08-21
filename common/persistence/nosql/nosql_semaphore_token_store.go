@@ -143,11 +143,11 @@ func (m *nosqlSemaphoreTokenStore) GetSemaphoreTokenByOwner(
 	return semaphoreTokenRowToToken(row), nil
 }
 
-// ListSemaphoreTokensByBucket scans a bucket partition (both row kinds), paginated.
-func (m *nosqlSemaphoreTokenStore) ListSemaphoreTokensByBucket(
+// ScanSemaphoreBucket scans a bucket partition (both row kinds), paginated.
+func (m *nosqlSemaphoreTokenStore) ScanSemaphoreBucket(
 	ctx context.Context,
-	request *persistence.ListSemaphoreTokensByBucketRequest,
-) (*persistence.ListSemaphoreTokensByBucketResponse, error) {
+	request *persistence.ScanSemaphoreBucketRequest,
+) (*persistence.ScanSemaphoreBucketResponse, error) {
 	filter := &nosqlplugin.SemaphoreTokenFilter{
 		DomainID:      request.DomainID,
 		SemaphoreName: request.SemaphoreName,
@@ -156,9 +156,9 @@ func (m *nosqlSemaphoreTokenStore) ListSemaphoreTokensByBucket(
 		NextPageToken: request.NextPageToken,
 	}
 
-	rows, nextPageToken, err := m.db.SelectSemaphoreTokensByBucket(ctx, filter)
+	rows, nextPageToken, err := m.db.SelectSemaphoreBucketRows(ctx, filter)
 	if err != nil {
-		return nil, convertCommonErrors(m.db, "ListSemaphoreTokensByBucket", err)
+		return nil, convertCommonErrors(m.db, "ScanSemaphoreBucket", err)
 	}
 
 	tokens := make([]*persistence.SemaphoreToken, 0, len(rows))
@@ -166,8 +166,8 @@ func (m *nosqlSemaphoreTokenStore) ListSemaphoreTokensByBucket(
 		tokens = append(tokens, semaphoreTokenRowToToken(row))
 	}
 
-	return &persistence.ListSemaphoreTokensByBucketResponse{
-		Tokens:        tokens,
+	return &persistence.ScanSemaphoreBucketResponse{
+		Rows:          tokens,
 		NextPageToken: nextPageToken,
 	}, nil
 }

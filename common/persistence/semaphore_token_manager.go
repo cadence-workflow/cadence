@@ -143,14 +143,14 @@ func (m *semaphoreTokenManagerImpl) GetSemaphoreTokenByOwner(
 	return &GetSemaphoreTokenByOwnerResponse{Token: token}, nil
 }
 
-func (m *semaphoreTokenManagerImpl) ListSemaphoreTokensByBucket(
+func (m *semaphoreTokenManagerImpl) ScanSemaphoreBucket(
 	ctx context.Context,
-	request *ListSemaphoreTokensByBucketRequest,
-) (*ListSemaphoreTokensByBucketResponse, error) {
+	request *ScanSemaphoreBucketRequest,
+) (*ScanSemaphoreBucketResponse, error) {
 	if err := validateSemaphoreTokenKey(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
-	return m.persistence.ListSemaphoreTokensByBucket(ctx, request)
+	return m.persistence.ScanSemaphoreBucket(ctx, request)
 }
 
 func validateSemaphoreTokenKey(domainID, semaphoreName string, bucket int) error {
