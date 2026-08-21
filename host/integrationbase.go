@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"go.uber.org/yarpc/transport/tchannel"
 	"gopkg.in/yaml.v2"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
@@ -135,34 +137,77 @@ func (s *IntegrationBase) setupSuite() {
 	}
 	s.TestRawHistoryDomainName = "TestRawHistoryDomain"
 	s.DomainName = s.RandomizeStr("integration-test-domain")
-	s.Require().NoError(
-		s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
-	s.Require().NoError(
-		s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 	s.ForeignDomainName = s.RandomizeStr("integration-foreign-test-domain")
-	s.Require().NoError(
-		s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
-
-	s.Require().NoError(s.registerArchivalDomain())
 	s.ActiveActiveDomainName = s.RandomizeStr("integration-active-active-test-domain")
-	s.Require().NoError(s.RegisterDomain(s.ActiveActiveDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", &types.ActiveClusters{
-		AttributeScopes: map[string]types.ClusterAttributeScope{
-			"region": {
-				ClusterAttributes: map[string]types.ActiveClusterInfo{
-					"us-east": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
-				},
-			},
-			"city": {
-				ClusterAttributes: map[string]types.ActiveClusterInfo{
-					"tokyo": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
-				},
-			},
-		},
-	}))
 
-	// this sleep is necessary because domainv2 cache gets refreshed in the
-	// background only every domainCacheRefreshInterval period
-	time.Sleep(cache.DomainCacheRefreshInterval + time.Second)
+	var wg sync.WaitGroup
+	errCh := make(chan error, 5)
+
+	registerDomain := func(name string, f func() error) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := f(); err != nil {
+				errCh <- fmt.Errorf("failed to register domain %s: %w", name, err)
+			}
+		}()
+	}
+
+	registerDomain(s.DomainName, func() error {
+		return s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain(s.TestRawHistoryDomainName, func() error {
+		return s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain(s.ForeignDomainName, func() error {
+		return s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain("ArchivalDomain", func() error {
+		return s.registerArchivalDomain()
+	})
+	registerDomain(s.ActiveActiveDomainName, func() error {
+		return s.RegisterDomain(s.ActiveActiveDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", &types.ActiveClusters{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-east": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
+					},
+				},
+				"city": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"tokyo": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
+					},
+				},
+			},
+		})
+	})
+
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		s.Require().NoError(err)
+	}
+
+	domains := []string{s.DomainName, s.TestRawHistoryDomainName, s.ForeignDomainName, s.ArchivalDomainName, s.ActiveActiveDomainName}
+	s.Require().NoError(s.waitForDomains(domains))
+}
+
+func (s *IntegrationBase) waitForDomains(domains []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	for _, domain := range domains {
+		for {
+			_, err := s.TestCluster.host.GetDomainCache().GetDomain(domain)
+			if err == nil {
+				break
+			}
+			if ctx.Err() != nil {
+				return fmt.Errorf("timeout waiting for domain %s: %w", domain, err)
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	return nil
 }
 
 func (s *IntegrationBase) SetupLogger() {
@@ -262,12 +307,38 @@ func (s *IntegrationBase) RegisterDomain(
 		ActiveClusters:                         activeClusters,
 		IsGlobalDomain:                         isGlobalDomain,
 	})
-}
+// domainCacheRefresh forces the in-memory domain cache to refresh from persistence by advancing the mock clock.
+// Note: This helper polls until the domain's NotificationVersion strictly increases. It must only be called
+// when an underlying domain change (e.g. registration or UpdateDomain) has occurred; otherwise, it will time out.
+func (s *IntegrationBase) domainCacheRefresh(domainNames ...string) {
+	// get current notification versions
+	versions := make(map[string]int64)
+	for _, domain := range domainNames {
+		if entry, err := s.TestCluster.host.GetDomainCache().GetDomain(domain); err == nil {
+			versions[domain] = entry.GetNotificationVersion()
+		} else {
+			versions[domain] = -1
+		}
+	}
 
-func (s *IntegrationBase) domainCacheRefresh() {
 	s.TestClusterConfig.TimeSource.Advance(cache.DomainCacheRefreshInterval + time.Second)
-	// this sleep is necessary to yield execution to other goroutines. not 100% guaranteed to work
-	time.Sleep(2 * time.Second)
+
+	// poll until versions are greater
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	for _, domain := range domainNames {
+		expected := versions[domain]
+		for {
+			entry, err := s.TestCluster.host.GetDomainCache().GetDomain(domain)
+			if err == nil && entry.GetNotificationVersion() > expected {
+				break
+			}
+			if ctx.Err() != nil {
+				s.Require().NoError(ctx.Err(), "timeout waiting for domain cache refresh for domain %s", domain)
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 }
 
 func (s *IntegrationBase) RandomizeStr(id string) string {

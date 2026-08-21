@@ -93,11 +93,12 @@ type Cadence interface {
 	GetMatchingClient() matchingClient.Client
 	GetMatchingClients() []matchingClient.Client
 	GetExecutionManager() persistence.ExecutionManager
+	GetDomainCache() cache.DomainCache
 }
 
 type (
 	cadenceImpl struct {
-		frontendService  common.Daemon
+		frontendService  resource.Resource
 		matchingServices []common.Daemon
 		historyServices  []common.Daemon
 
@@ -1200,6 +1201,10 @@ func (c *cadenceImpl) createSystemDomain() error {
 
 func (c *cadenceImpl) GetExecutionManager() persistence.ExecutionManager {
 	return c.executionMgr
+}
+
+func (c *cadenceImpl) GetDomainCache() cache.DomainCache {
+	return c.frontendService.GetDomainCache()
 }
 
 func (c *cadenceImpl) overrideHistoryDynamicConfig(client *dynamicClient) {
