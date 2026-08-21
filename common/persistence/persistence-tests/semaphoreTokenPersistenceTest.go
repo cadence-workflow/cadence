@@ -90,14 +90,14 @@ func (s *SemaphoreTokenPersistenceSuite) TestGrantAndRelease() {
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: tokenID, OwnerID: owner,
 	})
 	s.NoError(err)
-	s.True(grantResp.Applied)
+	s.Equal(persistence.SemaphoreGrantApplied, grantResp.Outcome)
 
 	// re-granting the same slot does not apply
 	grantAgain, err := manager.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: tokenID, OwnerID: "someone-else",
 	})
 	s.NoError(err)
-	s.False(grantAgain.Applied)
+	s.Equal(persistence.SemaphoreGrantSlotTaken, grantAgain.Outcome)
 
 	// forward read shows the holder
 	byID, err = manager.GetSemaphoreTokenByID(ctx, &persistence.GetSemaphoreTokenByIDRequest{
@@ -172,8 +172,8 @@ func (s *SemaphoreTokenPersistenceSuite) TestGrantSameOwnerDifferentTokenIsRejec
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: firstToken, OwnerID: owner,
 	})
 	s.NoError(err)
-	s.True(grantResp.Applied)
-	s.Zero(grantResp.AlreadyHeldToken)
+	s.Equal(persistence.SemaphoreGrantApplied, grantResp.Outcome)
+	s.Zero(grantResp.HeldToken)
 
 	// a second grant of a different token to the same owner is rejected by the
 	// owner guard, and reports the token the owner already holds.
@@ -181,8 +181,8 @@ func (s *SemaphoreTokenPersistenceSuite) TestGrantSameOwnerDifferentTokenIsRejec
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: secondToken, OwnerID: owner,
 	})
 	s.NoError(err)
-	s.False(grantSecond.Applied)
-	s.Equal(firstToken, grantSecond.AlreadyHeldToken)
+	s.Equal(persistence.SemaphoreGrantAlreadyHeld, grantSecond.Outcome)
+	s.Equal(firstToken, grantSecond.HeldToken)
 
 	// the second slot was never claimed and is still free
 	byID, err := manager.GetSemaphoreTokenByID(ctx, &persistence.GetSemaphoreTokenByIDRequest{
@@ -216,7 +216,7 @@ func (s *SemaphoreTokenPersistenceSuite) TestSeedIsIdempotent() {
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: tokenID, OwnerID: owner,
 	})
 	s.NoError(err)
-	s.True(grantResp.Applied)
+	s.Equal(persistence.SemaphoreGrantApplied, grantResp.Outcome)
 
 	// re-seed: must not reset the held slot back to free
 	s.NoError(manager.SeedSemaphoreTokens(ctx, seed))
@@ -258,7 +258,7 @@ func (s *SemaphoreTokenPersistenceSuite) TestScanSemaphoreBucket() {
 			DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: i, OwnerID: "owner-" + uuid.NewString(),
 		})
 		s.NoError(err)
-		s.True(grantResp.Applied)
+		s.Equal(persistence.SemaphoreGrantApplied, grantResp.Outcome)
 	}
 
 	// scan the whole partition: numTokens token rows + numGranted owner rows

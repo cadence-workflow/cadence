@@ -297,9 +297,7 @@ type (
 		NextPageToken []byte
 	}
 
-	// SemaphoreTokenRow defines a row of the semaphore_tokens table. It carries
-	// the real key/value fields; the Cassandra impl fills the not-applicable
-	// columns and the type discriminator with its internal sentinels.
+	// SemaphoreTokenRow defines a row of the semaphore_tokens table.
 	SemaphoreTokenRow struct {
 		DomainID      string
 		SemaphoreName string
@@ -311,16 +309,14 @@ type (
 		UpdatedTime   time.Time
 	}
 
+	// SemaphoreGrantOutcome says whether a conditional grant applied, and if not, why
+	SemaphoreGrantOutcome int
+
 	// SemaphoreGrantResult reports the outcome of a conditional grant batch.
-	// Applied == true means the slot was claimed. When Applied == false the grant
-	// did not apply; AlreadyHeldToken disambiguates why:
-	//   - AlreadyHeldToken > 0: this owner already holds that token (the owner row
-	//     already existed). The caller can reuse the existing hold rather than retry.
-	//   - AlreadyHeldToken == 0: the slot was taken by someone else. The caller
-	//     retries another slot.
 	SemaphoreGrantResult struct {
-		Applied          bool
-		AlreadyHeldToken int
+		Outcome SemaphoreGrantOutcome
+		// HeldToken is set only when Outcome is SemaphoreGrantAlreadyHeld.
+		HeldToken int
 	}
 
 	// SemaphoreTokenFilter contains the filter criteria for scanning a bucket's
@@ -521,6 +517,20 @@ const (
 const (
 	WorkflowRequestWriteModeInsert WorkflowRequestWriteMode = iota
 	WorkflowRequestWriteModeUpsert
+)
+
+// enums of SemaphoreGrantOutcome
+const (
+	// SemaphoreGrantUnknown is the zero value and is never returned. It exists so an
+	// uninitialized result cannot read as a successful grant.
+	SemaphoreGrantUnknown SemaphoreGrantOutcome = iota
+	// SemaphoreGrantApplied means the slot was claimed
+	SemaphoreGrantApplied
+	// SemaphoreGrantAlreadyHeld means this owner already holds HeldToken; reuse it
+	// instead of retrying
+	SemaphoreGrantAlreadyHeld
+	// SemaphoreGrantSlotTaken means another owner holds the slot; retry a different one
+	SemaphoreGrantSlotTaken
 )
 
 // GetCurrentRunID returns the current runID

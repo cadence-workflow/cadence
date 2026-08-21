@@ -147,12 +147,12 @@ func TestSemaphoreTokenManagerGrantSemaphoreToken(t *testing.T) {
 	fixedTime := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		name            string
-		request         *GrantSemaphoreTokenRequest
-		setupMock       func(store *MockSemaphoreTokenStore)
-		wantErr         bool
-		wantApplied     bool
-		wantAlreadyHeld int
+		name          string
+		request       *GrantSemaphoreTokenRequest
+		setupMock     func(store *MockSemaphoreTokenStore)
+		wantErr       bool
+		wantOutcome   SemaphoreGrantOutcome
+		wantHeldToken int
 	}{
 		{
 			name: "applied",
@@ -160,9 +160,9 @@ func TestSemaphoreTokenManagerGrantSemaphoreToken(t *testing.T) {
 				DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, OwnerID: "owner-abc",
 			},
 			setupMock: func(store *MockSemaphoreTokenStore) {
-				store.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any(), fixedTime).Return(true, 0, nil).Times(1)
+				store.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any(), fixedTime).Return(&GrantSemaphoreTokenResponse{Outcome: SemaphoreGrantApplied}, nil).Times(1)
 			},
-			wantApplied: true,
+			wantOutcome: SemaphoreGrantApplied,
 		},
 		{
 			name: "not applied - slot taken is not an error",
@@ -170,9 +170,9 @@ func TestSemaphoreTokenManagerGrantSemaphoreToken(t *testing.T) {
 				DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, OwnerID: "owner-abc",
 			},
 			setupMock: func(store *MockSemaphoreTokenStore) {
-				store.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any(), fixedTime).Return(false, 0, nil).Times(1)
+				store.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any(), fixedTime).Return(&GrantSemaphoreTokenResponse{Outcome: SemaphoreGrantSlotTaken}, nil).Times(1)
 			},
-			wantApplied: false,
+			wantOutcome: SemaphoreGrantSlotTaken,
 		},
 		{
 			name: "not applied - owner already holds surfaces the held token",
@@ -180,10 +180,10 @@ func TestSemaphoreTokenManagerGrantSemaphoreToken(t *testing.T) {
 				DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, OwnerID: "owner-abc",
 			},
 			setupMock: func(store *MockSemaphoreTokenStore) {
-				store.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any(), fixedTime).Return(false, 7, nil).Times(1)
+				store.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any(), fixedTime).Return(&GrantSemaphoreTokenResponse{Outcome: SemaphoreGrantAlreadyHeld, HeldToken: 7}, nil).Times(1)
 			},
-			wantApplied:     false,
-			wantAlreadyHeld: 7,
+			wantOutcome:   SemaphoreGrantAlreadyHeld,
+			wantHeldToken: 7,
 		},
 		{
 			name: "missing token id",
@@ -207,7 +207,7 @@ func TestSemaphoreTokenManagerGrantSemaphoreToken(t *testing.T) {
 				DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, OwnerID: "owner-abc",
 			},
 			setupMock: func(store *MockSemaphoreTokenStore) {
-				store.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any(), fixedTime).Return(false, 0, errors.New("boom")).Times(1)
+				store.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any(), fixedTime).Return(nil, errors.New("boom")).Times(1)
 			},
 			wantErr: true,
 		},
@@ -228,8 +228,8 @@ func TestSemaphoreTokenManagerGrantSemaphoreToken(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
-			assert.Equal(t, tc.wantApplied, resp.Applied)
-			assert.Equal(t, tc.wantAlreadyHeld, resp.AlreadyHeldToken)
+			assert.Equal(t, tc.wantOutcome, resp.Outcome)
+			assert.Equal(t, tc.wantHeldToken, resp.HeldToken)
 		})
 	}
 }

@@ -94,9 +94,7 @@ func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.Se
 // The IF NOT EXISTS guard enforces one-token-per-hold: a same-owner_id double-grant
 // (racing hosts during a handoff, or a caller bug) cannot overwrite an existing hold.
 //
-// Returns Applied == false (not an error) when the grant did not apply:
-//   - AlreadyHeldToken > 0: this owner already holds that token (reuse it);
-//   - AlreadyHeldToken == 0: the slot is taken by someone else (retry another).
+// A grant that does not apply is not an error; the returned Outcome says why.
 func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (nosqlplugin.SemaphoreGrantResult, error) {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	batch.Query(templateGrantSemaphoreTokenUpdateQuery,
@@ -133,7 +131,7 @@ func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.Semapho
 		if iter != nil {
 			_ = iter.Close()
 		}
-		return nosqlplugin.SemaphoreGrantResult{Applied: true}, nil
+		return nosqlplugin.SemaphoreGrantResult{Outcome: nosqlplugin.SemaphoreGrantApplied}, nil
 	}
 	// Not applied: walk the returned rows (first in `previous`, the rest via the
 	// iterator) to find the owner row and read the token it already holds.
@@ -141,7 +139,13 @@ func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.Semapho
 	if iter != nil {
 		_ = iter.Close()
 	}
-	return nosqlplugin.SemaphoreGrantResult{Applied: false, AlreadyHeldToken: heldToken}, nil
+	if heldToken > 0 {
+		return nosqlplugin.SemaphoreGrantResult{
+			Outcome:   nosqlplugin.SemaphoreGrantAlreadyHeld,
+			HeldToken: heldToken,
+		}, nil
+	}
+	return nosqlplugin.SemaphoreGrantResult{Outcome: nosqlplugin.SemaphoreGrantSlotTaken}, nil
 }
 
 // parseAlreadyHeldTokenFromCAS inspects the CAS result of a not-applied grant
