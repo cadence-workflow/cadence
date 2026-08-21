@@ -190,6 +190,12 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if domainName == "" {
 		return nil, validate.ErrDomainNotSet
 	}
+	if !wh.config.EnableScheduler(domainName) {
+		return nil, &types.BadRequestError{Message: fmt.Sprintf(
+			"Schedules are not enabled for domain %q. Set dynamic config worker.enableScheduler=true for this domain to enable them.",
+			domainName,
+		)}
+	}
 	scheduleID := request.GetScheduleID()
 	if scheduleID == "" {
 		return nil, &types.BadRequestError{Message: "ScheduleID is not set on request."}
