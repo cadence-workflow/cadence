@@ -309,7 +309,7 @@ func TestSemaphoreTokenManagerGetSemaphoreTokenByID(t *testing.T) {
 	store := NewMockSemaphoreTokenStore(ctrl)
 
 	req := &GetSemaphoreTokenByIDRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5}
-	want := &SemaphoreToken{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, Holder: "owner-abc"}
+	want := &SemaphoreBucketRow{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, Holder: "owner-abc"}
 	store.EXPECT().GetSemaphoreTokenByID(gomock.Any(), req).Return(want, nil).Times(1)
 
 	m := newTestSemaphoreTokenManager(store, clock.NewMockedTimeSource(), t)
@@ -332,7 +332,7 @@ func TestSemaphoreTokenManagerGetSemaphoreTokenByOwner(t *testing.T) {
 	store := NewMockSemaphoreTokenStore(ctrl)
 
 	req := &GetSemaphoreTokenByOwnerRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc"}
-	want := &SemaphoreToken{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc", HeldToken: 5}
+	want := &SemaphoreBucketRow{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc", HeldToken: 5}
 	store.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), req).Return(want, nil).Times(1)
 
 	m := newTestSemaphoreTokenManager(store, clock.NewMockedTimeSource(), t)
@@ -356,7 +356,7 @@ func TestSemaphoreTokenManagerScanSemaphoreBucket(t *testing.T) {
 
 	req := &ScanSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, PageSize: 10}
 	want := &ScanSemaphoreBucketResponse{
-		Rows:          []*SemaphoreToken{{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 1}},
+		Rows:          []*SemaphoreBucketRow{{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 1}},
 		NextPageToken: []byte("token"),
 	}
 	store.EXPECT().ScanSemaphoreBucket(gomock.Any(), req).Return(want, nil).Times(1)
