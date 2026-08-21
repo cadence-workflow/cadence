@@ -1288,10 +1288,10 @@ func (mr *MockSemaphoreTokenStoreMockRecorder) GetName() *gomock.Call {
 }
 
 // GetSemaphoreTokenByID mocks base method.
-func (m *MockSemaphoreTokenStore) GetSemaphoreTokenByID(ctx context.Context, request *GetSemaphoreTokenByIDRequest) (*SemaphoreToken, error) {
+func (m *MockSemaphoreTokenStore) GetSemaphoreTokenByID(ctx context.Context, request *GetSemaphoreTokenByIDRequest) (*SemaphoreBucketRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSemaphoreTokenByID", ctx, request)
-	ret0, _ := ret[0].(*SemaphoreToken)
+	ret0, _ := ret[0].(*SemaphoreBucketRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1303,10 +1303,10 @@ func (mr *MockSemaphoreTokenStoreMockRecorder) GetSemaphoreTokenByID(ctx, reques
 }
 
 // GetSemaphoreTokenByOwner mocks base method.
-func (m *MockSemaphoreTokenStore) GetSemaphoreTokenByOwner(ctx context.Context, request *GetSemaphoreTokenByOwnerRequest) (*SemaphoreToken, error) {
+func (m *MockSemaphoreTokenStore) GetSemaphoreTokenByOwner(ctx context.Context, request *GetSemaphoreTokenByOwnerRequest) (*SemaphoreBucketRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSemaphoreTokenByOwner", ctx, request)
-	ret0, _ := ret[0].(*SemaphoreToken)
+	ret0, _ := ret[0].(*SemaphoreBucketRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

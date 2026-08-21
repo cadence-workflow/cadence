@@ -144,24 +144,24 @@ func (m *nosqlSemaphoreTokenStore) ReleaseSemaphoreToken(
 func (m *nosqlSemaphoreTokenStore) GetSemaphoreTokenByID(
 	ctx context.Context,
 	request *persistence.GetSemaphoreTokenByIDRequest,
-) (*persistence.SemaphoreToken, error) {
+) (*persistence.SemaphoreBucketRow, error) {
 	row, err := m.db.SelectSemaphoreTokenByID(ctx, request.DomainID, request.SemaphoreName, request.Bucket, request.TokenID)
 	if err != nil {
 		return nil, convertCommonErrors(m.db, "GetSemaphoreTokenByID", err)
 	}
-	return semaphoreTokenRowToToken(row), nil
+	return toSemaphoreBucketRow(row), nil
 }
 
 // GetSemaphoreTokenByOwner reads a hold's reverse row (held token) by owner id.
 func (m *nosqlSemaphoreTokenStore) GetSemaphoreTokenByOwner(
 	ctx context.Context,
 	request *persistence.GetSemaphoreTokenByOwnerRequest,
-) (*persistence.SemaphoreToken, error) {
+) (*persistence.SemaphoreBucketRow, error) {
 	row, err := m.db.SelectSemaphoreTokenByOwner(ctx, request.DomainID, request.SemaphoreName, request.Bucket, request.OwnerID)
 	if err != nil {
 		return nil, convertCommonErrors(m.db, "GetSemaphoreTokenByOwner", err)
 	}
-	return semaphoreTokenRowToToken(row), nil
+	return toSemaphoreBucketRow(row), nil
 }
 
 // ScanSemaphoreBucket scans a bucket partition (both row kinds), paginated.
@@ -182,19 +182,19 @@ func (m *nosqlSemaphoreTokenStore) ScanSemaphoreBucket(
 		return nil, convertCommonErrors(m.db, "ScanSemaphoreBucket", err)
 	}
 
-	tokens := make([]*persistence.SemaphoreToken, 0, len(rows))
+	bucketRows := make([]*persistence.SemaphoreBucketRow, 0, len(rows))
 	for _, row := range rows {
-		tokens = append(tokens, semaphoreTokenRowToToken(row))
+		bucketRows = append(bucketRows, toSemaphoreBucketRow(row))
 	}
 
 	return &persistence.ScanSemaphoreBucketResponse{
-		Rows:          tokens,
+		Rows:          bucketRows,
 		NextPageToken: nextPageToken,
 	}, nil
 }
 
-func semaphoreTokenRowToToken(row *nosqlplugin.SemaphoreTokenRow) *persistence.SemaphoreToken {
-	return &persistence.SemaphoreToken{
+func toSemaphoreBucketRow(row *nosqlplugin.SemaphoreTokenRow) *persistence.SemaphoreBucketRow {
+	return &persistence.SemaphoreBucketRow{
 		DomainID:      row.DomainID,
 		SemaphoreName: row.SemaphoreName,
 		Bucket:        row.Bucket,

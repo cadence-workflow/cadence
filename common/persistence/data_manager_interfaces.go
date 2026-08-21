@@ -1466,11 +1466,11 @@ type (
 		NextPageToken []byte
 	}
 
-	// SemaphoreToken is a single row of the semaphore_tokens table. A bucket
+	// SemaphoreBucketRow is a single row of the semaphore_tokens table. A bucket
 	// (DomainID, SemaphoreName, Bucket) is one Cassandra partition holding two
 	// row kinds: a forward "token" row per slot (TokenID -> Holder) and a
 	// reverse "owner" row per hold (OwnerID -> HeldToken).
-	SemaphoreToken struct {
+	SemaphoreBucketRow struct {
 		DomainID      string
 		SemaphoreName string
 		Bucket        int
@@ -1535,7 +1535,7 @@ type (
 
 	// GetSemaphoreTokenByIDResponse is the response for GetSemaphoreTokenByID.
 	GetSemaphoreTokenByIDResponse struct {
-		Token *SemaphoreToken
+		Token *SemaphoreBucketRow
 	}
 
 	// GetSemaphoreTokenByOwnerRequest reads a hold's reverse row by owner id.
@@ -1548,7 +1548,7 @@ type (
 
 	// GetSemaphoreTokenByOwnerResponse is the response for GetSemaphoreTokenByOwner.
 	GetSemaphoreTokenByOwnerResponse struct {
-		Token *SemaphoreToken
+		Token *SemaphoreBucketRow
 	}
 
 	// ScanSemaphoreBucketRequest scans a bucket partition (both row
@@ -1565,7 +1565,7 @@ type (
 	// Rows holds both row kinds interleaved by the partition's clustering order:
 	// token rows first, then owner rows.
 	ScanSemaphoreBucketResponse struct {
-		Rows          []*SemaphoreToken
+		Rows          []*SemaphoreBucketRow
 		NextPageToken []byte
 	}
 

@@ -225,7 +225,7 @@ func TestNoSQLGetSemaphoreTokenByID(t *testing.T) {
 	tests := map[string]struct {
 		setupMock func(*nosqlplugin.MockDB)
 		expectErr bool
-		expected  *persistence.SemaphoreToken
+		expected  *persistence.SemaphoreBucketRow
 	}{
 		"success maps row to token": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
@@ -234,7 +234,7 @@ func TestNoSQLGetSemaphoreTokenByID(t *testing.T) {
 				}
 				dbMock.EXPECT().SelectSemaphoreTokenByID(ctx, "domain-1", "sem-1", 0, 5).Return(row, nil).Times(1)
 			},
-			expected: &persistence.SemaphoreToken{
+			expected: &persistence.SemaphoreBucketRow{
 				DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, Holder: "owner-abc",
 			},
 		},
@@ -273,7 +273,7 @@ func TestNoSQLGetSemaphoreTokenByOwner(t *testing.T) {
 	tests := map[string]struct {
 		setupMock func(*nosqlplugin.MockDB)
 		expectErr bool
-		expected  *persistence.SemaphoreToken
+		expected  *persistence.SemaphoreBucketRow
 	}{
 		"success maps row to token": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
@@ -282,7 +282,7 @@ func TestNoSQLGetSemaphoreTokenByOwner(t *testing.T) {
 				}
 				dbMock.EXPECT().SelectSemaphoreTokenByOwner(ctx, "domain-1", "sem-1", 0, "owner-abc").Return(row, nil).Times(1)
 			},
-			expected: &persistence.SemaphoreToken{
+			expected: &persistence.SemaphoreBucketRow{
 				DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc", HeldToken: 5,
 			},
 		},
