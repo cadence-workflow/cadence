@@ -22,7 +22,6 @@ package history
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"go.uber.org/cadence/activity"
@@ -128,21 +127,10 @@ func (s *Scavenger) Run(ctx context.Context) (ScavengerHeartbeatDetails, error) 
 	taskCh := make(chan taskDetail, pageSize)
 	respCh := make(chan error, pageSize)
 	concurrency := s.rps/rpsPerConcurrency + 1
-	processorCtx, cancelProcessors := context.WithCancel(ctx)
-	var processors sync.WaitGroup
 
-	processors.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
-		go func() {
-			defer processors.Done()
-			s.startTaskProcessor(processorCtx, taskCh, respCh)
-		}()
+		go s.startTaskProcessor(ctx, taskCh, respCh)
 	}
-	defer func() {
-		cancelProcessors()
-		close(taskCh)
-		processors.Wait()
-	}()
 
 	for {
 		resp, err := s.db.GetAllHistoryTreeBranches(ctx, &p.GetAllHistoryTreeBranchesRequest{
@@ -234,10 +222,7 @@ func (s *Scavenger) startTaskProcessor(
 		select {
 		case <-ctx.Done():
 			return
-		case task, ok := <-taskCh:
-			if !ok {
-				return
-			}
+		case task := <-taskCh:
 			if isDone(ctx) {
 				return
 			}
