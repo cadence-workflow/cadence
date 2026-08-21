@@ -72,9 +72,9 @@ func TestInsertSemaphoreTokens(t *testing.T) {
 		assert.Len(t, session.batches, 1)
 		assert.Equal(t, []string{
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 1, __NONE__, __FREE__, -1, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
+				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 1, __NONE__, __FREE__, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 2, __NONE__, __FREE__, -1, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
+				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 2, __NONE__, __FREE__, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 		}, session.batches[0].queries)
 		assert.True(t, session.iter.closed)
 	})
@@ -110,7 +110,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 				`WHERE domain_id = 10000000-1000-f000-f000-000000000000 AND semaphore_name = sem-1 AND bucket = 0 ` +
 				`AND type = 0 AND token_id = 5 AND owner_id = __NONE__ IF holder = __FREE__`,
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, -1, owner-abc, __NONE__, 5, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
+				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, -1, owner-abc, {}, 5, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 		}, session.batches[0].queries)
 		assert.True(t, session.iter.closed)
 	})
@@ -251,7 +251,7 @@ func TestSelectSemaphoreTokenByID(t *testing.T) {
 						*args[3].(*int) = 5
 						*args[4].(*string) = ownerNoneSentinel // token row owner_id key
 						*args[5].(*string) = "owner-abc"       // holder
-						*args[6].(*int) = emptyHeldToken       // held_token N/A on token row
+						*args[6].(*int) = 0                    // held_token unset on token rows -> reads as 0
 						*args[7].(*time.Time) = now
 						return nil
 					}).Times(1)
@@ -279,7 +279,7 @@ func TestSelectSemaphoreTokenByID(t *testing.T) {
 						*args[3].(*int) = 5
 						*args[4].(*string) = ownerNoneSentinel
 						*args[5].(*string) = freeSentinel
-						*args[6].(*int) = emptyHeldToken
+						*args[6].(*int) = 0
 						*args[7].(*time.Time) = now
 						return nil
 					}).Times(1)
@@ -343,10 +343,10 @@ func TestSelectSemaphoreTokenByOwner(t *testing.T) {
 						*args[0].(*string) = testSemaphoreDomainID
 						*args[1].(*string) = testSemaphoreName
 						*args[2].(*int) = 0
-						*args[3].(*int) = emptyTokenID         // token_id N/A on owner row
-						*args[4].(*string) = "owner-abc"       // owner_id
-						*args[5].(*string) = ownerNoneSentinel // holder N/A on owner row
-						*args[6].(*int) = 5                    // held_token
+						*args[3].(*int) = emptyTokenID   // token_id N/A on owner row
+						*args[4].(*string) = "owner-abc" // owner_id
+						*args[5].(*string) = ""          // holder unset on owner rows -> reads as ""
+						*args[6].(*int) = 5              // held_token
 						*args[7].(*time.Time) = now
 						return nil
 					}).Times(1)
@@ -422,7 +422,7 @@ func TestSelectSemaphoreBucketRows(t *testing.T) {
 						*args[4].(*int) = 5
 						*args[5].(*string) = ownerNoneSentinel
 						*args[6].(*string) = "owner-abc"
-						*args[7].(*int) = emptyHeldToken
+						*args[7].(*int) = 0
 						*args[8].(*time.Time) = now
 						return true
 					}).Times(1)
@@ -435,7 +435,7 @@ func TestSelectSemaphoreBucketRows(t *testing.T) {
 						*args[3].(*int) = rowTypeSemaphoreOwner
 						*args[4].(*int) = emptyTokenID
 						*args[5].(*string) = "owner-abc"
-						*args[6].(*string) = ownerNoneSentinel
+						*args[6].(*string) = ""
 						*args[7].(*int) = 5
 						*args[8].(*time.Time) = now
 						return true
@@ -468,7 +468,7 @@ func TestSelectSemaphoreBucketRows(t *testing.T) {
 						*args[4].(*int) = 5
 						*args[5].(*string) = ownerNoneSentinel
 						*args[6].(*string) = freeSentinel
-						*args[7].(*int) = emptyHeldToken
+						*args[7].(*int) = 0
 						*args[8].(*time.Time) = now
 						return true
 					}).Times(1)
