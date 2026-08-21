@@ -242,9 +242,9 @@ func (db *CDB) SelectSemaphoreTokenByOwner(ctx context.Context, domainID, semaph
 	return row, nil
 }
 
-// SelectSemaphoreTokensByBucket scans a bucket partition (both row kinds), paginated.
-func (db *CDB) SelectSemaphoreTokensByBucket(ctx context.Context, filter *nosqlplugin.SemaphoreTokenFilter) ([]*nosqlplugin.SemaphoreTokenRow, []byte, error) {
-	query := db.session.Query(templateSelectSemaphoreTokensByBucketQuery,
+// SelectSemaphoreBucketRows scans a bucket partition (both row kinds), paginated.
+func (db *CDB) SelectSemaphoreBucketRows(ctx context.Context, filter *nosqlplugin.SemaphoreTokenFilter) ([]*nosqlplugin.SemaphoreTokenRow, []byte, error) {
+	query := db.session.Query(templateSelectSemaphoreBucketRowsQuery,
 		filter.DomainID, filter.SemaphoreName, filter.Bucket,
 	).WithContext(ctx)
 
@@ -258,7 +258,7 @@ func (db *CDB) SelectSemaphoreTokensByBucket(ctx context.Context, filter *nosqlp
 	iter := query.Iter()
 	if iter == nil {
 		return nil, nil, &types.InternalServiceError{
-			Message: "SelectSemaphoreTokensByBucket operation failed. Not able to create query iterator.",
+			Message: "SelectSemaphoreBucketRows operation failed. Not able to create query iterator.",
 		}
 	}
 

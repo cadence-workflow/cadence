@@ -90,9 +90,9 @@ func (m *sqlSemaphoreTokenStore) GetSemaphoreTokenByOwner(
 	return nil, errSemaphoreNotSupportedOnSQL()
 }
 
-func (m *sqlSemaphoreTokenStore) ListSemaphoreTokensByBucket(
+func (m *sqlSemaphoreTokenStore) ScanSemaphoreBucket(
 	ctx context.Context,
-	request *persistence.ListSemaphoreTokensByBucketRequest,
-) (*persistence.ListSemaphoreTokensByBucketResponse, error) {
+	request *persistence.ScanSemaphoreBucketRequest,
+) (*persistence.ScanSemaphoreBucketResponse, error) {
 	return nil, errSemaphoreNotSupportedOnSQL()
 }

@@ -1333,21 +1333,6 @@ func (mr *MockSemaphoreTokenStoreMockRecorder) GrantSemaphoreToken(ctx, request,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrantSemaphoreToken", reflect.TypeOf((*MockSemaphoreTokenStore)(nil).GrantSemaphoreToken), ctx, request, updatedTime)
 }
 
-// ListSemaphoreTokensByBucket mocks base method.
-func (m *MockSemaphoreTokenStore) ListSemaphoreTokensByBucket(ctx context.Context, request *ListSemaphoreTokensByBucketRequest) (*ListSemaphoreTokensByBucketResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListSemaphoreTokensByBucket", ctx, request)
-	ret0, _ := ret[0].(*ListSemaphoreTokensByBucketResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListSemaphoreTokensByBucket indicates an expected call of ListSemaphoreTokensByBucket.
-func (mr *MockSemaphoreTokenStoreMockRecorder) ListSemaphoreTokensByBucket(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSemaphoreTokensByBucket", reflect.TypeOf((*MockSemaphoreTokenStore)(nil).ListSemaphoreTokensByBucket), ctx, request)
-}
-
 // ReleaseSemaphoreToken mocks base method.
 func (m *MockSemaphoreTokenStore) ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest, updatedTime time.Time) (bool, error) {
 	m.ctrl.T.Helper()
@@ -1361,6 +1346,21 @@ func (m *MockSemaphoreTokenStore) ReleaseSemaphoreToken(ctx context.Context, req
 func (mr *MockSemaphoreTokenStoreMockRecorder) ReleaseSemaphoreToken(ctx, request, updatedTime any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseSemaphoreToken", reflect.TypeOf((*MockSemaphoreTokenStore)(nil).ReleaseSemaphoreToken), ctx, request, updatedTime)
+}
+
+// ScanSemaphoreBucket mocks base method.
+func (m *MockSemaphoreTokenStore) ScanSemaphoreBucket(ctx context.Context, request *ScanSemaphoreBucketRequest) (*ScanSemaphoreBucketResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ScanSemaphoreBucket", ctx, request)
+	ret0, _ := ret[0].(*ScanSemaphoreBucketResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ScanSemaphoreBucket indicates an expected call of ScanSemaphoreBucket.
+func (mr *MockSemaphoreTokenStoreMockRecorder) ScanSemaphoreBucket(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanSemaphoreBucket", reflect.TypeOf((*MockSemaphoreTokenStore)(nil).ScanSemaphoreBucket), ctx, request)
 }
 
 // SeedSemaphoreTokens mocks base method.

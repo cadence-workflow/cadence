@@ -350,19 +350,19 @@ func TestSemaphoreTokenManagerGetSemaphoreTokenByOwnerValidation(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestSemaphoreTokenManagerListSemaphoreTokensByBucket(t *testing.T) {
+func TestSemaphoreTokenManagerScanSemaphoreBucket(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := NewMockSemaphoreTokenStore(ctrl)
 
-	req := &ListSemaphoreTokensByBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, PageSize: 10}
-	want := &ListSemaphoreTokensByBucketResponse{
-		Tokens:        []*SemaphoreToken{{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 1}},
+	req := &ScanSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, PageSize: 10}
+	want := &ScanSemaphoreBucketResponse{
+		Rows:          []*SemaphoreToken{{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 1}},
 		NextPageToken: []byte("token"),
 	}
-	store.EXPECT().ListSemaphoreTokensByBucket(gomock.Any(), req).Return(want, nil).Times(1)
+	store.EXPECT().ScanSemaphoreBucket(gomock.Any(), req).Return(want, nil).Times(1)
 
 	m := newTestSemaphoreTokenManager(store, clock.NewMockedTimeSource(), t)
-	resp, err := m.ListSemaphoreTokensByBucket(context.Background(), req)
+	resp, err := m.ScanSemaphoreBucket(context.Background(), req)
 	assert.NoError(t, err)
 	assert.Equal(t, want, resp)
 }

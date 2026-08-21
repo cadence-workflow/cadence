@@ -63,7 +63,11 @@ const (
 		`FROM semaphore_tokens ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ?`
 
-	templateSelectSemaphoreTokensByBucketQuery = `SELECT ` +
+	// Full-partition read: no type predicate, so this deliberately returns BOTH row
+	// kinds - token rows first, then owner rows, per the type clustering order.
+	// It rebuilds a bucket's forward and reverse indexes in one pass, for cache
+	// warm-up on host start and on ownership transfer
+	templateSelectSemaphoreBucketRowsQuery = `SELECT ` +
 		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time ` +
 		`FROM semaphore_tokens ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ?`

@@ -228,9 +228,9 @@ func (s *SemaphoreTokenPersistenceSuite) TestSeedIsIdempotent() {
 	s.Equal(owner, byID.Token.Holder)
 }
 
-// TestListSemaphoreTokensByBucket verifies a bucket scan returns both row kinds,
+// TestScanSemaphoreBucket verifies a bucket scan returns both row kinds,
 // paginated.
-func (s *SemaphoreTokenPersistenceSuite) TestListSemaphoreTokensByBucket() {
+func (s *SemaphoreTokenPersistenceSuite) TestScanSemaphoreBucket() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
@@ -266,7 +266,7 @@ func (s *SemaphoreTokenPersistenceSuite) TestListSemaphoreTokensByBucket() {
 	total := 0
 	var nextPageToken []byte
 	for {
-		listResp, err := manager.ListSemaphoreTokensByBucket(ctx, &persistence.ListSemaphoreTokensByBucketRequest{
+		listResp, err := manager.ScanSemaphoreBucket(ctx, &persistence.ScanSemaphoreBucketRequest{
 			DomainID:      domainID,
 			SemaphoreName: semaphoreName,
 			Bucket:        bucket,
@@ -275,7 +275,7 @@ func (s *SemaphoreTokenPersistenceSuite) TestListSemaphoreTokensByBucket() {
 		})
 		s.NoError(err)
 		s.NotNil(listResp)
-		total += len(listResp.Tokens)
+		total += len(listResp.Rows)
 		if len(listResp.NextPageToken) == 0 {
 			break
 		}

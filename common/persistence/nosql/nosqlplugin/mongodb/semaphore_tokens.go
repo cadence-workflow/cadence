@@ -47,6 +47,6 @@ func (db *mdb) SelectSemaphoreTokenByOwner(ctx context.Context, domainID, semaph
 	return nil, fmt.Errorf("SelectSemaphoreTokenByOwner is not implemented")
 }
 
-func (db *mdb) SelectSemaphoreTokensByBucket(ctx context.Context, filter *nosqlplugin.SemaphoreTokenFilter) ([]*nosqlplugin.SemaphoreTokenRow, []byte, error) {
-	return nil, nil, fmt.Errorf("SelectSemaphoreTokensByBucket is not implemented")
+func (db *mdb) SelectSemaphoreBucketRows(ctx context.Context, filter *nosqlplugin.SemaphoreTokenFilter) ([]*nosqlplugin.SemaphoreTokenRow, []byte, error) {
+	return nil, nil, fmt.Errorf("SelectSemaphoreBucketRows is not implemented")
 }
