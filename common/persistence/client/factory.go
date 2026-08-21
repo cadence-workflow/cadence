@@ -308,6 +308,12 @@ func (f *factoryImpl) NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error
 	}
 	taskSerializer := serialization.NewTaskSerializer(parser)
 	result := p.NewHistoryTaskDLQManager(store, taskSerializer, f.logger)
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+		result = errorinjectors.NewHistoryTaskDLQManager(result, errorRate, f.logger, time.Now())
+	}
+	if ds.ratelimit != nil {
+		result = ratelimited.NewHistoryTaskDLQManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
+	}
 	if f.metricsClient != nil {
 		result = metered.NewHistoryTaskDLQManager(result, f.metricsClient, f.logger, f.config)
 	}
