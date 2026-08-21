@@ -23,6 +23,8 @@ package cassandra
 import (
 	"context"
 
+	gogocql "github.com/gocql/gocql"
+
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/types"
@@ -34,21 +36,17 @@ const (
 	rowTypeSemaphoreOwner        // reverse index row, keyed by owner_id (owner_id -> held_token)
 )
 
-// Sentinels stored in columns that do not apply to a given row kind.
+// Placeholders for key columns that do not apply to a given row kind. Non-key columns
+// that do not apply are bound to gogocql.UnsetValue instead.
 //
-// The int sentinels are negative so they can never collide with a real slot id (>= 1).
-//
-// The text sentinels are PROVISIONAL. freeSentinel is the only value ever LWT-compared,
-// so its final literal must be one the owner_id encoding can never produce;
-// ownerNoneSentinel's value does not matter (the row type already separates token and
-// owner rows).
-// TODO: finalize freeSentinel/ownerNoneSentinel with the owner_id encoding.
+// The text values are PROVISIONAL: only freeSentinel is LWT-compared, so only its literal
+// must be one the owner_id encoding can never produce.
+// TODO: finalize the text sentinels with the owner_id encoding.
 const (
-	emptyTokenID   = -1 // token_id on owner rows
-	emptyHeldToken = -1 // held_token on token rows
+	emptyTokenID = -1 // token_id on owner rows (key); negative, never a real slot id
 
-	ownerNoneSentinel = "__NONE__" // owner_id on token rows; holder on owner rows
-	freeSentinel      = "__FREE__" // holder of an unheld token row
+	ownerNoneSentinel = "__NONE__" // owner_id on token rows (key)
+	freeSentinel      = "__FREE__" // holder of an unheld token row (LWT-compared)
 )
 
 // InsertSemaphoreTokens seeds a bucket with free token rows for the given TokenIDs
@@ -75,9 +73,9 @@ func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.Se
 			row.Bucket,
 			rowTypeSemaphoreToken, // type = 0 (forward "token" row)
 			row.TokenID,
-			ownerNoneSentinel, // owner_id key = __NONE__
-			freeSentinel,      // holder = __FREE__, the slot is unheld
-			emptyHeldToken,
+			ownerNoneSentinel,  // owner_id key = __NONE__
+			freeSentinel,       // holder = __FREE__, the slot is unheld
+			gogocql.UnsetValue, // held_token does not apply to a token row
 			row.UpdatedTime,
 		)
 	}
@@ -119,8 +117,8 @@ func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.Semapho
 		rowTypeSemaphoreOwner,
 		emptyTokenID,
 		row.OwnerID,
-		ownerNoneSentinel, // owner row's holder placeholder
-		row.TokenID,       // held_token
+		gogocql.UnsetValue, // holder does not apply to an owner row
+		row.TokenID,        // held_token
 		row.UpdatedTime,
 	)
 	previous := make(map[string]interface{})
@@ -170,16 +168,13 @@ func parseAlreadyHeldTokenFromCAS(previous map[string]interface{}, iter gocql.It
 
 // parseHeldTokenIfOwnerRow is a helper for parseAlreadyHeldTokenFromCAS: it
 // returns the held_token of the given CAS row when it is an owner (reverse-index)
-// row, normalized to 0 when absent; ok is false for any other row kind.
+// row, or 0 when absent; ok is false for any other row kind.
 func parseHeldTokenIfOwnerRow(row map[string]interface{}) (int, bool) {
 	rowType, ok := row["type"].(int)
 	if !ok || rowType != rowTypeSemaphoreOwner {
 		return 0, false
 	}
 	heldToken, _ := row["held_token"].(int)
-	if heldToken == emptyHeldToken {
-		heldToken = 0
-	}
 	return heldToken, true
 }
 
@@ -313,19 +308,19 @@ func scanSemaphoreTokenRow(query gocql.Query, row *nosqlplugin.SemaphoreTokenRow
 }
 
 // normalizeSemaphoreTokenRow maps the plugin's internal sentinels back to zero
-// values so they never leak past this package: an unheld/absent holder or
-// owner_id becomes "", and a not-applicable token id / held token becomes 0.
+// values so they never leak past this package: an absent owner_id becomes "",
+// an unheld holder becomes "", and a not-applicable token id becomes 0.
+//
+// Columns bound to gogocql.UnsetValue on write (held_token on token rows, holder
+// on owner rows) already read back as the zero value, so they need no mapping.
 func normalizeSemaphoreTokenRow(row *nosqlplugin.SemaphoreTokenRow) {
 	if row.OwnerID == ownerNoneSentinel {
 		row.OwnerID = ""
 	}
-	if row.Holder == freeSentinel || row.Holder == ownerNoneSentinel {
+	if row.Holder == freeSentinel {
 		row.Holder = ""
 	}
 	if row.TokenID == emptyTokenID {
 		row.TokenID = 0
-	}
-	if row.HeldToken == emptyHeldToken {
-		row.HeldToken = 0
 	}
 }
