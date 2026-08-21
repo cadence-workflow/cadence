@@ -31,33 +31,36 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/service/history/constants"
 )
 
-type mockStaleChecker struct {
-	CheckAgeFunc func(response *persistence.GetWorkflowExecutionResponse) (bool, error)
+type fakeStaleChecker struct {
+	stale  bool
+	result invariant.CheckResult
 }
 
-func (m *mockStaleChecker) CheckAge(response *persistence.GetWorkflowExecutionResponse) (bool, error) {
-	return m.CheckAgeFunc(response)
+func (f *fakeStaleChecker) CheckAge(response *persistence.GetWorkflowExecutionResponse) (bool, invariant.CheckResult) {
+	result := f.result
+	if result.CheckResultType == "" {
+		result.CheckResultType = invariant.CheckResultTypeHealthy
+	}
+	return f.stale, result
 }
 
-func TestWorkflowCheckforValidation(t *testing.T) {
+func TestNewWfChecker(t *testing.T) {
 	testCases := []struct {
-		name          string
-		workflowID    string
-		domainID      string
-		domainName    string
-		runID         string
-		isStale       bool
-		simulateError bool
+		name      string
+		numShards int
+		wantErr   string
 	}{
-		{"NonStaleWorkflow", "workflow-1", "domain-1", "domain-name-1", "run-1", false, false},
-		{"StaleWorkflow", "workflow-2", "domain-2", "domain-name-2", "run-2", true, false},
-		{"ErrorInGetWorkflowExecution", "workflow-3", "domain-3", "domain-name-3", "run-3", false, true},
+		{"ValidNumShards", 4, ""},
+		{"ZeroNumShards", 0, "numShards must be greater than 0"},
+		{"NegativeNumShards", -1, "numShards must be greater than 0"},
 	}
 
 	for _, tc := range testCases {
@@ -71,15 +74,69 @@ func TestWorkflowCheckforValidation(t *testing.T) {
 			mockExecutionManager := persistence.NewMockExecutionManager(mockCtrl)
 			mockHistoryManager := persistence.NewMockHistoryManager(mockCtrl)
 
-			checker, err := NewWfChecker(mockLogger, mockMetricsClient, mockDomainCache, mockExecutionManager, mockHistoryManager)
-			assert.NoError(t, err, "Failed to create checker")
+			checker, err := NewWfChecker(mockLogger, mockMetricsClient, mockDomainCache, mockExecutionManager, mockHistoryManager, tc.numShards)
 
-			mockDomainCache.EXPECT().GetDomainByID(tc.domainID).Return(constants.TestGlobalDomainEntry, nil).AnyTimes()
-			mockDomainCache.EXPECT().GetDomainName(tc.domainID).Return(tc.domainName, nil).AnyTimes()
+			if tc.wantErr != "" {
+				assert.EqualError(t, err, tc.wantErr)
+				assert.Nil(t, checker)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, checker)
+			}
+		})
+	}
+}
+
+func TestWorkflowCheckforValidation(t *testing.T) {
+	testCases := []struct {
+		name          string
+		workflowID    string
+		domainID      string
+		domainName    string
+		runID         string
+		isStale       bool
+		simulateError bool
+		numShards     int
+		checkResult   invariant.CheckResult
+		wantErr       string
+	}{
+		{"NonStaleWorkflow", "workflow-1", "domain-1", "domain-name-1", "run-1", false, false, 4, invariant.CheckResult{}, ""},
+		{"StaleWorkflow", "workflow-2", "domain-2", "domain-name-2", "run-2", true, false, 4, invariant.CheckResult{}, ""},
+		{"ErrorInGetWorkflowExecution", "workflow-3", "domain-3", "domain-name-3", "run-3", false, true, 4, invariant.CheckResult{}, ""},
+		{"ZeroNumShardsFallsBackToRetryerShard", "workflow-4", "domain-4", "domain-name-4", "run-4", false, false, 0, invariant.CheckResult{}, ""},
+		{
+			"FailedCheckWithEmptyInfoUsesDetailsFallback",
+			"workflow-5", "domain-5", "domain-name-5", "run-5", false, false, 4,
+			invariant.CheckResult{CheckResultType: invariant.CheckResultTypeFailed, InfoDetails: "no branch token"},
+			"stale workflow check failed: no branch token",
+		},
+		{
+			"FailedCheckWithInfoUsesInfo",
+			"workflow-6", "domain-6", "domain-name-6", "run-6", false, false, 4,
+			invariant.CheckResult{CheckResultType: invariant.CheckResultTypeFailed, Info: "explicit failure"},
+			"explicit failure",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			mockLogger := zap.NewNop()
+			mockMetricsClient := metrics.NewNoopMetricsClient()
+			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
+			mockExecutionManager := persistence.NewMockExecutionManager(mockCtrl)
+
+			mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(constants.TestGlobalDomainEntry, nil).AnyTimes()
+			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(tc.domainName, nil).AnyTimes()
 
 			if tc.isStale {
 				mockExecutionManager.EXPECT().DeleteWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 				mockExecutionManager.EXPECT().DeleteCurrentWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			}
+			if tc.numShards == 0 {
+				mockExecutionManager.EXPECT().GetShardID().Return(0).AnyTimes()
 			}
 
 			mockExecutionManager.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, request *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
@@ -96,12 +153,24 @@ func TestWorkflowCheckforValidation(t *testing.T) {
 				}, nil
 			}).AnyTimes()
 
-			ctx := context.Background()
-			err = checker.WorkflowCheckforValidation(ctx, tc.workflowID, tc.domainID, tc.domainName, tc.runID)
+			checker := &checkerImpl{
+				logger:        mockLogger,
+				metricsClient: mockMetricsClient,
+				dc:            mockDomainCache,
+				pr:            persistence.NewPersistenceRetryer(mockExecutionManager, nil, backoff.NewExponentialRetryPolicy(0)),
+				staleCheck:    &fakeStaleChecker{stale: tc.isStale, result: tc.checkResult},
+				numShards:     tc.numShards,
+			}
 
-			if tc.simulateError {
+			ctx := context.Background()
+			err := checker.WorkflowCheckforValidation(ctx, tc.workflowID, tc.domainID, tc.domainName, tc.runID)
+
+			switch {
+			case tc.simulateError:
 				assert.Error(t, err, "Expected error when GetWorkflowExecution fails")
-			} else {
+			case tc.wantErr != "":
+				assert.EqualError(t, err, tc.wantErr)
+			default:
 				assert.NoError(t, err, "Expected no error for valid workflow execution")
 			}
 		})
