@@ -160,8 +160,10 @@ func NewProcessor(params ProcessorParams) *ProcessorImpl {
 // it to an exclusive bound (the shard's immediate-task level is inclusive;
 // scheduled levels are already exclusive).
 func NewShardMaxReadLevelFn(shard shard.Context) MaxReadLevelFn {
+	// The current cluster name is static for the process lifetime, so capture it once.
+	currentClusterName := shard.GetClusterMetadata().GetCurrentClusterName()
 	return func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
-		maxReadLevel := shard.UpdateIfNeededAndGetQueueMaxReadLevel(category, shard.GetClusterMetadata().GetCurrentClusterName())
+		maxReadLevel := shard.UpdateIfNeededAndGetQueueMaxReadLevel(category, currentClusterName)
 		if category.Type() == persistence.HistoryTaskCategoryTypeImmediate {
 			return persistence.NewImmediateTaskKey(maxReadLevel.GetTaskID() + 1)
 		}

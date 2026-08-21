@@ -53,6 +53,14 @@ func newMockTask(ctrl *gomock.Controller, taskID int64) *persistence.MockTask {
 	return t
 }
 
+// newMockTimerTask creates a mock persistence.Task whose GetTaskKey returns a
+// scheduled (timer) key at the given visibility timestamp and taskID.
+func newMockTimerTask(ctrl *gomock.Controller, ts time.Time, taskID int64) *persistence.MockTask {
+	task := persistence.NewMockTask(ctrl)
+	task.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(ts, taskID)).AnyTimes()
+	return task
+}
+
 type newProcessorParams struct {
 	ShardID           int
 	Manager           persistence.HistoryTaskDLQManager
@@ -114,6 +122,16 @@ func baseAckLevel(shardID int) persistence.HistoryDLQAckLevel {
 		AckLevelVisibilityTS:  time.Unix(0, 0).UTC(),
 		AckLevelTaskID:        -1,
 	}
+}
+
+// timerAckLevel returns a timer-category ack level for the given visibility timestamp and
+// task ID, on the same test partition as baseAckLevel.
+func timerAckLevel(shardID int, ts time.Time, taskID int64) persistence.HistoryDLQAckLevel {
+	al := baseAckLevel(shardID)
+	al.TaskCategory = persistence.HistoryTaskCategoryTimer
+	al.AckLevelVisibilityTS = ts
+	al.AckLevelTaskID = taskID
+	return al
 }
 
 // TestProcessShard_BoundsReadByMaxReadLevel verifies each processing round reads DLQ tasks
@@ -184,6 +202,145 @@ func TestProcessShard_WhenAckLevelAtMaxReadLevel_SkipsRead(t *testing.T) {
 
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
 		Return([]persistence.HistoryDLQAckLevel{al}, nil)
+
+	require.NoError(t, proc.ProcessShard(context.Background()))
+}
+
+// TestProcessShard_WhenMaxReadLevelBelowAckLevel_SkipsRead verifies that a partition whose
+// ack level is already past the shard's max read level (e.g. right after a shard moved and
+// the new owner's snapshot lags the persisted ack level) is skipped without a DB read and
+// without touching the ack level. No GetHistoryDLQTasks/UpdateHistoryDLQAckLevel
+// expectations are set, so gomock fails the test if either is called.
+func TestProcessShard_WhenMaxReadLevelBelowAckLevel_SkipsRead(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+	al := baseAckLevel(1)
+	al.AckLevelTaskID = 100
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        reinjector,
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+		MaxReadLevel: func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
+			return persistence.NewImmediateTaskKey(50)
+		},
+	})
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{al}, nil)
+
+	require.NoError(t, proc.ProcessShard(context.Background()))
+}
+
+// TestProcessShard_WhenAckLevelAndMaxReadLevelZero_SkipsRead verifies the zero/zero corner:
+// an ack level at task ID 0 and a max read level of 0 must skip (min key is task ID 1,
+// which is at or past the exclusive bound 0), not read or advance anything.
+func TestProcessShard_WhenAckLevelAndMaxReadLevelZero_SkipsRead(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+	al := baseAckLevel(1)
+	al.AckLevelTaskID = 0
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        reinjector,
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+		MaxReadLevel: func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
+			return persistence.NewImmediateTaskKey(0)
+		},
+	})
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{al}, nil)
+
+	require.NoError(t, proc.ProcessShard(context.Background()))
+}
+
+// TestProcessShard_TimerPartition_WhenMaxReadLevelAtAckTimestamp_SkipsRead verifies timer
+// exclusive-bound semantics: a timer max read level key (T, 0) sorts below every real task
+// at timestamp T, so a partition whose ack level already sits at T must skip without a read
+// even though its ack task ID is greater than zero.
+func TestProcessShard_TimerPartition_WhenMaxReadLevelAtAckTimestamp_SkipsRead(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+	ackTS := time.Unix(100, 0).UTC()
+	al := timerAckLevel(1, ackTS, 7)
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        reinjector,
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+		MaxReadLevel: func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
+			return persistence.NewHistoryTaskKey(ackTS, 0)
+		},
+	})
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{al}, nil)
+
+	require.NoError(t, proc.ProcessShard(context.Background()))
+}
+
+// TestProcessShard_TimerPartition_BoundsReadByTimerMaxReadLevel verifies a timer partition
+// reads with visibility-timestamp bounds — min key just past the ack position, exclusive max
+// key at the snapshot — and advances the ack level to the last reinjected timer key.
+func TestProcessShard_TimerPartition_BoundsReadByTimerMaxReadLevel(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+	ackTS := time.Unix(100, 0).UTC()
+	maxTS := time.Unix(200, 0).UTC()
+	maxKey := persistence.NewHistoryTaskKey(maxTS, 0)
+	al := timerAckLevel(1, ackTS, 7)
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        reinjector,
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+		MaxReadLevel: func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
+			return maxKey
+		},
+	})
+
+	taskTS := time.Unix(150, 0).UTC()
+	tasks := []persistence.Task{newMockTimerTask(ctrl, taskTS, 9)}
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), persistence.HistoryDLQGetTasksRequest{
+		ShardID:               al.ShardID,
+		DomainID:              al.DomainID,
+		ClusterAttributeScope: al.ClusterAttributeScope,
+		ClusterAttributeName:  al.ClusterAttributeName,
+		TaskCategory:          persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey:   persistence.NewHistoryTaskKey(ackTS, 7).Next(),
+		ExclusiveMaxTaskKey:   maxKey,
+		PageSize:              10,
+	}).Return(persistence.HistoryDLQGetTasksResponse{Tasks: tasks}, nil)
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), tasks).Return(nil)
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), persistence.HistoryDLQUpdateAckLevelRequest{
+		ShardID:                   al.ShardID,
+		DomainID:                  al.DomainID,
+		ClusterAttributeScope:     al.ClusterAttributeScope,
+		ClusterAttributeName:      al.ClusterAttributeName,
+		TaskCategory:              persistence.HistoryTaskCategoryTimer,
+		UpdatedInclusiveReadLevel: persistence.NewHistoryTaskKey(taskTS, 9),
+	}).Return(nil)
+	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
 
 	require.NoError(t, proc.ProcessShard(context.Background()))
 }
