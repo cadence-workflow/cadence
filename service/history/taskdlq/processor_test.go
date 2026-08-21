@@ -135,7 +135,7 @@ func timerAckLevel(shardID int, ts time.Time, taskID int64) persistence.HistoryD
 }
 
 // TestProcessShard_BoundsReadByMaxReadLevel verifies each processing round reads DLQ tasks
-// only up to the shard's max read level snapshot, not persistence.MaximumHistoryTaskKey.
+// only up to the shard's max read level snapshot.
 func TestProcessShard_BoundsReadByMaxReadLevel(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -175,9 +175,8 @@ func TestProcessShard_BoundsReadByMaxReadLevel(t *testing.T) {
 	require.NoError(t, proc.ProcessShard(context.Background()))
 }
 
-// TestProcessShard_WhenAckLevelAtMaxReadLevel_SkipsRead verifies that a partition whose ack
-// level has already reached the max read level snapshot is skipped without a DB read (no
-// GetHistoryDLQTasks expectation is set, so gomock fails the test if it is called).
+// TestProcessShard_WhenAckLevelAtMaxReadLevel_SkipsRead validates that a partition whose ack
+// level has already reached the max read level snapshot is skipped without a DB read.
 func TestProcessShard_WhenAckLevelAtMaxReadLevel_SkipsRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -206,11 +205,8 @@ func TestProcessShard_WhenAckLevelAtMaxReadLevel_SkipsRead(t *testing.T) {
 	require.NoError(t, proc.ProcessShard(context.Background()))
 }
 
-// TestProcessShard_WhenMaxReadLevelBelowAckLevel_SkipsRead verifies that a partition whose
-// ack level is already past the shard's max read level (e.g. right after a shard moved and
-// the new owner's snapshot lags the persisted ack level) is skipped without a DB read and
-// without touching the ack level. No GetHistoryDLQTasks/UpdateHistoryDLQAckLevel
-// expectations are set, so gomock fails the test if either is called.
+// TestProcessShard_WhenMaxReadLevelBelowAckLevel_SkipsRead validates that a partition whose
+// ack level is already past the shard's max read level is skipped without a DB read.
 func TestProcessShard_WhenMaxReadLevelBelowAckLevel_SkipsRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -236,9 +232,7 @@ func TestProcessShard_WhenMaxReadLevelBelowAckLevel_SkipsRead(t *testing.T) {
 	require.NoError(t, proc.ProcessShard(context.Background()))
 }
 
-// TestProcessShard_WhenAckLevelAndMaxReadLevelZero_SkipsRead verifies the zero/zero corner:
-// an ack level at task ID 0 and a max read level of 0 must skip (min key is task ID 1,
-// which is at or past the exclusive bound 0), not read or advance anything.
+// TestProcessShard_WhenAckLevelAndMaxReadLevelZero_SkipsRead validates the zero/zero edge case.
 func TestProcessShard_WhenAckLevelAndMaxReadLevelZero_SkipsRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -264,10 +258,8 @@ func TestProcessShard_WhenAckLevelAndMaxReadLevelZero_SkipsRead(t *testing.T) {
 	require.NoError(t, proc.ProcessShard(context.Background()))
 }
 
-// TestProcessShard_TimerPartition_WhenMaxReadLevelAtAckTimestamp_SkipsRead verifies timer
-// exclusive-bound semantics: a timer max read level key (T, 0) sorts below every real task
-// at timestamp T, so a partition whose ack level already sits at T must skip without a read
-// even though its ack task ID is greater than zero.
+// TestProcessShard_TimerPartition_WhenMaxReadLevelAtAckTimestamp_SkipsRead validates that a timer
+// partition whose ack level already sits at the max read level timestamp is skipped without a DB read.
 func TestProcessShard_TimerPartition_WhenMaxReadLevelAtAckTimestamp_SkipsRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -293,9 +285,8 @@ func TestProcessShard_TimerPartition_WhenMaxReadLevelAtAckTimestamp_SkipsRead(t 
 	require.NoError(t, proc.ProcessShard(context.Background()))
 }
 
-// TestProcessShard_TimerPartition_BoundsReadByTimerMaxReadLevel verifies a timer partition
-// reads with visibility-timestamp bounds — min key just past the ack position, exclusive max
-// key at the snapshot — and advances the ack level to the last reinjected timer key.
+// TestProcessShard_TimerPartition_BoundsReadByTimerMaxReadLevel validates that a timer partition
+// only reads up to the max read level timestamp.
 func TestProcessShard_TimerPartition_BoundsReadByTimerMaxReadLevel(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -345,9 +336,7 @@ func TestProcessShard_TimerPartition_BoundsReadByTimerMaxReadLevel(t *testing.T)
 	require.NoError(t, proc.ProcessShard(context.Background()))
 }
 
-// TestNewShardMaxReadLevelFn verifies the shard wiring: the immediate-task (transfer) level
-// is converted from inclusive to exclusive (+1), and the scheduled (timer) level passes
-// through unchanged, both resolved for the current cluster.
+// TestNewShardMaxReadLevelFn validates that the dlq can pull the max read level for each task category from the shards context.
 func TestNewShardMaxReadLevelFn(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
