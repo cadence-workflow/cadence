@@ -189,6 +189,21 @@ func (mr *MockFactoryMockRecorder) NewSemaphoreMetadataManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSemaphoreMetadataManager", reflect.TypeOf((*MockFactory)(nil).NewSemaphoreMetadataManager))
 }
 
+// NewSemaphoreTokenManager mocks base method.
+func (m *MockFactory) NewSemaphoreTokenManager() (persistence.SemaphoreTokenManager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewSemaphoreTokenManager")
+	ret0, _ := ret[0].(persistence.SemaphoreTokenManager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSemaphoreTokenManager indicates an expected call of NewSemaphoreTokenManager.
+func (mr *MockFactoryMockRecorder) NewSemaphoreTokenManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSemaphoreTokenManager", reflect.TypeOf((*MockFactory)(nil).NewSemaphoreTokenManager))
+}
+
 // NewShardManager mocks base method.
 func (m *MockFactory) NewShardManager() (persistence.ShardManager, error) {
 	m.ctrl.T.Helper()
@@ -403,6 +418,21 @@ func (m *MockDataStoreFactory) NewSemaphoreMetadataStore() (persistence.Semaphor
 func (mr *MockDataStoreFactoryMockRecorder) NewSemaphoreMetadataStore() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSemaphoreMetadataStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewSemaphoreMetadataStore))
+}
+
+// NewSemaphoreTokenStore mocks base method.
+func (m *MockDataStoreFactory) NewSemaphoreTokenStore() (persistence.SemaphoreTokenStore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewSemaphoreTokenStore")
+	ret0, _ := ret[0].(persistence.SemaphoreTokenStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSemaphoreTokenStore indicates an expected call of NewSemaphoreTokenStore.
+func (mr *MockDataStoreFactoryMockRecorder) NewSemaphoreTokenStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSemaphoreTokenStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewSemaphoreTokenStore))
 }
 
 // NewShardStore mocks base method.

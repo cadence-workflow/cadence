@@ -48,6 +48,9 @@ type (
 		GetSemaphoreMetadataManager() persistence.SemaphoreMetadataManager
 		SetSemaphoreMetadataManager(persistence.SemaphoreMetadataManager)
 
+		GetSemaphoreTokenManager() persistence.SemaphoreTokenManager
+		SetSemaphoreTokenManager(persistence.SemaphoreTokenManager)
+
 		GetTaskManager() persistence.TaskManager
 		SetTaskManager(persistence.TaskManager)
 
@@ -78,6 +81,7 @@ type (
 		domainManager                 persistence.DomainManager
 		domainAuditManager            persistence.DomainAuditManager
 		semaphoreMetadataManager      persistence.SemaphoreMetadataManager
+		semaphoreTokenManager         persistence.SemaphoreTokenManager
 		taskManager                   persistence.TaskManager
 		visibilityManager             persistence.VisibilityManager
 		domainReplicationQueueManager persistence.QueueManager
@@ -130,6 +134,11 @@ func NewBeanFromFactory(
 		return nil, err
 	}
 
+	semaphoreTokenMgr, err := factory.NewSemaphoreTokenManager()
+	if err != nil {
+		return nil, err
+	}
+
 	taskMgr, err := factory.NewTaskManager()
 	if err != nil {
 		return nil, err
@@ -177,6 +186,7 @@ func NewBeanFromFactory(
 		metadataMgr,
 		domainAuditMgr,
 		semaphoreMetadataMgr,
+		semaphoreTokenMgr,
 		taskMgr,
 		visibilityMgr,
 		domainReplicationQueue,
@@ -196,6 +206,7 @@ func NewBean(
 	domainManager persistence.DomainManager,
 	domainAuditManager persistence.DomainAuditManager,
 	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
+	semaphoreTokenManager persistence.SemaphoreTokenManager,
 	taskManager persistence.TaskManager,
 	visibilityManager persistence.VisibilityManager,
 	domainReplicationQueueManager persistence.QueueManager,
@@ -209,6 +220,7 @@ func NewBean(
 		domainManager:                 domainManager,
 		domainAuditManager:            domainAuditManager,
 		semaphoreMetadataManager:      semaphoreMetadataManager,
+		semaphoreTokenManager:         semaphoreTokenManager,
 		taskManager:                   taskManager,
 		visibilityManager:             visibilityManager,
 		domainReplicationQueueManager: domainReplicationQueueManager,
@@ -278,6 +290,26 @@ func (s *BeanImpl) SetSemaphoreMetadataManager(
 	defer s.Unlock()
 
 	s.semaphoreMetadataManager = semaphoreMetadataManager
+}
+
+// GetSemaphoreTokenManager get SemaphoreTokenManager
+func (s *BeanImpl) GetSemaphoreTokenManager() persistence.SemaphoreTokenManager {
+
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.semaphoreTokenManager
+}
+
+// SetSemaphoreTokenManager set SemaphoreTokenManager
+func (s *BeanImpl) SetSemaphoreTokenManager(
+	semaphoreTokenManager persistence.SemaphoreTokenManager,
+) {
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.semaphoreTokenManager = semaphoreTokenManager
 }
 
 // GetTaskManager get TaskManager
@@ -452,6 +484,9 @@ func (s *BeanImpl) Close() {
 	}
 	if s.semaphoreMetadataManager != nil {
 		s.semaphoreMetadataManager.Close()
+	}
+	if s.semaphoreTokenManager != nil {
+		s.semaphoreTokenManager.Close()
 	}
 	s.taskManager.Close()
 	if s.visibilityManager != nil {

@@ -297,6 +297,38 @@ type (
 		NextPageToken []byte
 	}
 
+	// SemaphoreTokenRow defines a row of the semaphore_tokens table.
+	SemaphoreTokenRow struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenID       int
+		OwnerID       string
+		Holder        string
+		HeldToken     int
+		UpdatedTime   time.Time
+	}
+
+	// SemaphoreGrantOutcome says whether a conditional grant applied, and if not, why
+	SemaphoreGrantOutcome int
+
+	// SemaphoreGrantResult reports the outcome of a conditional grant batch.
+	SemaphoreGrantResult struct {
+		Outcome SemaphoreGrantOutcome
+		// HeldToken is set only when Outcome is SemaphoreGrantAlreadyHeld.
+		HeldToken int
+	}
+
+	// SemaphoreTokenFilter contains the filter criteria for scanning a bucket's
+	// token partition (both row kinds), paginated.
+	SemaphoreTokenFilter struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		PageSize      int
+		NextPageToken []byte
+	}
+
 	// HistoryDLQTaskRow defines the row struct for history task dead-letter queue entries.
 	HistoryDLQTaskRow struct {
 		ShardID               int
@@ -485,6 +517,20 @@ const (
 const (
 	WorkflowRequestWriteModeInsert WorkflowRequestWriteMode = iota
 	WorkflowRequestWriteModeUpsert
+)
+
+// enums of SemaphoreGrantOutcome
+const (
+	// SemaphoreGrantUnknown is the zero value and is never returned. It exists so an
+	// uninitialized result cannot read as a successful grant.
+	SemaphoreGrantUnknown SemaphoreGrantOutcome = iota
+	// SemaphoreGrantApplied means the slot was claimed
+	SemaphoreGrantApplied
+	// SemaphoreGrantAlreadyHeld means this owner already holds HeldToken; reuse it
+	// instead of retrying
+	SemaphoreGrantAlreadyHeld
+	// SemaphoreGrantSlotTaken means another owner holds the slot; retry a different one
+	SemaphoreGrantSlotTaken
 )
 
 // GetCurrentRunID returns the current runID
