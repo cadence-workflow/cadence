@@ -242,6 +242,13 @@ var (
 	StoreOperationDeleteActiveClusterSelectionPolicy = storeOperation("delete-active-cluster-selection-policy")
 	StoreOperationFetchWorkflowTimerTasksForCleanup  = storeOperation("fetch-workflow-timer-tasks-for-cleanup")
 
+	StoreOperationCreateHistoryDLQTask                = storeOperation("create-history-dlq-task")
+	StoreOperationCreateHistoryDLQAckLevelIfNotExists = storeOperation("create-history-dlq-ack-level-if-not-exists")
+	StoreOperationGetHistoryDLQAckLevels              = storeOperation("get-history-dlq-ack-levels")
+	StoreOperationGetHistoryDLQTasks                  = storeOperation("get-history-dlq-tasks")
+	StoreOperationUpdateHistoryDLQAckLevel            = storeOperation("update-history-dlq-ack-level")
+	StoreOperationDeleteHistoryDLQTasks               = storeOperation("delete-history-dlq-tasks")
+
 	StoreOperationCreateTasks           = storeOperation("create-tasks")
 	StoreOperationGetTasks              = storeOperation("get-tasks")
 	StoreOperationGetOrphanTasks        = storeOperation("get-orphan-tasks")

@@ -24,6 +24,7 @@ package client
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/IBM/sarama/mocks"
@@ -143,6 +144,22 @@ func TestFactoryMethods(t *testing.T) {
 		ds.EXPECT().NewHistoryDLQTaskStore().Return(nil, storeErr).MinTimes(1)
 		_, err := fact.NewHistoryTaskDLQManager()
 		assert.ErrorIs(t, err, storeErr)
+	})
+	t.Run("NewHistoryTaskDLQManager is rate limited", func(t *testing.T) {
+		// makeFactoryWithMetrics uses a non-zero qpsFn, so ds.ratelimit is set, and a
+		// non-zero ErrorInjectionRate. With metrics disabled, the outermost wrapper of a
+		// correctly wired manager (error injection -> rate limited -> metered) must be
+		// the ratelimited client. Regression test for issue #8449, where DLQ persistence
+		// traffic bypassed datastore QPS quotas.
+		fact := makeFactoryWithMetrics(t, false)
+		ds := mockDatastore(t, fact, storeTypeExecution)
+		ds.EXPECT().NewHistoryDLQTaskStore().Return(nil, nil).MinTimes(1)
+
+		mgr, err := fact.NewHistoryTaskDLQManager()
+		assert.NoError(t, err)
+		assert.NotNil(t, mgr)
+		assert.Contains(t, reflect.TypeOf(mgr).String(), "ratelimited.",
+			"history task DLQ manager must be wrapped with the ratelimited client")
 	})
 	t.Run("NewVisibilityManager_TripleVisibilityManager_Pinot", func(t *testing.T) {
 		fact := makeFactory(t)

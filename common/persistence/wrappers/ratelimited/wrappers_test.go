@@ -51,6 +51,7 @@ var wrappers = []any{
 	&ratelimitedConfigStoreManager{},
 	&ratelimitedDomainManager{},
 	&ratelimitedHistoryManager{},
+	&ratelimitedHistoryTaskDLQManager{},
 	&ratelimitedQueueManager{},
 	&ratelimitedShardManager{},
 	&ratelimitedTaskManager{},
@@ -191,6 +192,17 @@ func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, e
 			mocked.EXPECT().DeleteHistoryBranch(gomock.Any(), gomock.Any()).Return(expectedErr)
 			mocked.EXPECT().GetHistoryTree(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTreeResponse{}, expectedErr)
 			mocked.EXPECT().GetAllHistoryTreeBranches(gomock.Any(), gomock.Any()).Return(&persistence.GetAllHistoryTreeBranchesResponse{}, expectedErr)
+		}
+	case *ratelimitedHistoryTaskDLQManager:
+		mocked := persistence.NewMockHistoryTaskDLQManager(ctrl)
+		object = NewHistoryTaskDLQManager(mocked, limiter, callerBypass)
+		if expectCalls {
+			mocked.EXPECT().CreateHistoryDLQTask(gomock.Any(), gomock.Any()).Return(expectedErr)
+			mocked.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).Return(expectedErr)
+			mocked.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).Return([]persistence.HistoryDLQAckLevel{}, expectedErr)
+			mocked.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, expectedErr)
+			mocked.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(expectedErr)
+			mocked.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(expectedErr)
 		}
 	case *ratelimitedQueueManager:
 		mocked := persistence.NewMockQueueManager(ctrl)
