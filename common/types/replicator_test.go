@@ -1245,3 +1245,65 @@ func TestReplicationTask_ByteSize(t *testing.T) {
 	AssertReachablesImplementByteSize(t, (*ReplicationTask)(nil))
 	AssertByteSizeMatchesReflect(t, &ReplicationTask{})
 }
+
+func TestReplicationTask_GetWorkflowIdentifiers(t *testing.T) {
+	tests := []struct {
+		name           string
+		task           *ReplicationTask
+		wantDomainID   string
+		wantWorkflowID string
+		wantRunID      string
+	}{
+		{
+			name: "sync activity",
+			task: &ReplicationTask{
+				SyncActivityTaskAttributes: &SyncActivityTaskAttributes{
+					DomainID:   "domain-1",
+					WorkflowID: "wf-1",
+					RunID:      "run-1",
+				},
+			},
+			wantDomainID:   "domain-1",
+			wantWorkflowID: "wf-1",
+			wantRunID:      "run-1",
+		},
+		{
+			name: "history v2",
+			task: &ReplicationTask{
+				HistoryTaskV2Attributes: &HistoryTaskV2Attributes{
+					DomainID:   "domain-2",
+					WorkflowID: "wf-2",
+					RunID:      "run-2",
+				},
+			},
+			wantDomainID:   "domain-2",
+			wantWorkflowID: "wf-2",
+			wantRunID:      "run-2",
+		},
+		{
+			name: "failover marker — only domain",
+			task: &ReplicationTask{
+				FailoverMarkerAttributes: &FailoverMarkerAttributes{
+					DomainID: "domain-3",
+				},
+			},
+			wantDomainID: "domain-3",
+		},
+		{
+			name: "no attributes",
+			task: &ReplicationTask{},
+		},
+		{
+			name: "nil task",
+			task: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, w, r := tt.task.GetWorkflowIdentifiers()
+			assert.Equal(t, tt.wantDomainID, d)
+			assert.Equal(t, tt.wantWorkflowID, w)
+			assert.Equal(t, tt.wantRunID, r)
+		})
+	}
+}
