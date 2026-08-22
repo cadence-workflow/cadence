@@ -112,7 +112,6 @@ func TestIsolationGroupConfigurationDeepCopy(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got := tc.input.DeepCopy()
 			assert.Equal(t, tc.input, got)
@@ -157,7 +156,6 @@ func TestAsyncWorkflowConfigurationDeepCopy(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got := tc.input.DeepCopy()
 			assert.Equal(t, tc.input, got)
