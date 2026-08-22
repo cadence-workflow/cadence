@@ -61,20 +61,46 @@ func NewPerMemberDynamicRateLimiterFactory(
 	}
 }
 
+// NewPerMemberDynamicRateLimiterFactoryWithBurst is NewPerMemberDynamicRateLimiterFactory
+// with a per-key burst multiplier: each limiter's token-bucket burst size is rps*burstMultiplier(key)
+// instead of just rps.  Non-positive or non-finite multiplier values are treated as 1.
+func NewPerMemberDynamicRateLimiterFactoryWithBurst(
+	service string,
+	globalRPS func(key string) int,
+	instanceRPS func(key string) int,
+	burstMultiplier func(key string) float64,
+	resolver membership.Resolver,
+) quotas.LimiterFactory[string] {
+	return perMemberFactory{
+		service:         service,
+		globalRPS:       globalRPS,
+		instanceRPS:     instanceRPS,
+		burstMultiplier: burstMultiplier,
+		resolver:        resolver,
+	}
+}
+
 type perMemberFactory struct {
-	service     string
-	globalRPS   func(key string) int
-	instanceRPS func(key string) int
-	resolver    membership.Resolver
+	service         string
+	globalRPS       func(key string) int
+	instanceRPS     func(key string) int
+	burstMultiplier func(key string) float64 // optional, nil means burst == rps
+	resolver        membership.Resolver
 }
 
 func (f perMemberFactory) GetLimiter(key string) quotas.Limiter {
-	return quotas.NewDynamicRateLimiter(func() float64 {
+	rps := func() float64 {
 		return PerMember(
 			f.service,
 			float64(f.globalRPS(key)),
 			float64(f.instanceRPS(key)),
 			f.resolver,
 		)
-	})
+	}
+	if f.burstMultiplier == nil {
+		return quotas.NewDynamicRateLimiter(rps)
+	}
+	opts := quotas.DefaultDynamicRateLimiterOpts()
+	opts.BurstMultiplier = func() float64 { return f.burstMultiplier(key) }
+	return quotas.NewDynamicRateLimiterWithOpts(rps, opts)
 }

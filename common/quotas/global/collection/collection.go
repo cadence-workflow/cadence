@@ -85,6 +85,12 @@ type (
 		// keyModes is a small type-casting wrapper around dynamicconfig.StringPropertyWithRatelimitKeyFilter
 		// to prevent accidentally using the wrong key type.
 		keyModes func(gkey shared.GlobalKey) string
+		// burstMultiplier scales each key's token-bucket burst size relative to its RPS,
+		// a small type-casting wrapper around dynamicconfig.FloatPropertyWithRatelimitKeyFilter.
+		burstMultiplier func(gkey shared.GlobalKey) float64
+		// boostCapMultiplier scales the boostRPS cap relative to each key's fallback limit,
+		// a small type-casting wrapper around dynamicconfig.FloatPropertyWithRatelimitKeyFilter.
+		boostCapMultiplier func(gkey shared.GlobalKey) float64
 
 		logger log.Logger
 		scope  metrics.Scope
@@ -171,6 +177,8 @@ func New(
 	updateInterval dynamicproperties.DurationPropertyFn,
 	targetRPS func(key string) int,
 	keyModes dynamicproperties.StringPropertyWithRatelimitKeyFilter,
+	burstMultiplier dynamicproperties.FloatPropertyWithRatelimitKeyFilter,
+	boostCapMultiplier dynamicproperties.FloatPropertyWithRatelimitKeyFilter,
 	aggs rpc.Client,
 	logger log.Logger,
 	met metrics.Client,
@@ -212,6 +220,12 @@ func New(
 			// to use this same strategy, to keep user-facing limits together and
 			// easier to notice.
 			return keyModes(string(gkey))
+		},
+		burstMultiplier: func(gkey shared.GlobalKey) float64 {
+			return burstMultiplier(string(gkey))
+		},
+		boostCapMultiplier: func(gkey shared.GlobalKey) float64 {
+			return boostCapMultiplier(string(gkey))
 		},
 		km: shared.PrefixKey(name + ":"),
 
@@ -473,8 +487,9 @@ func (c *Collection) doUpdate(since time.Duration, usage map[shared.GlobalKey]rp
 		target := rate.Limit(c.targetRPS(lkey))
 		limiter := c.global.Load(lkey)
 		fallbackTarget := limiter.FallbackLimit()
-		boosted := boostRPS(target, fallbackTarget, info.Weight, info.UsedRPS)
-		limiter.Update(boosted)
+		boosted := boostRPS(target, fallbackTarget, info.Weight, info.UsedRPS, sanitizeMultiplier(c.boostCapMultiplier(gkey)))
+		burst := int(float64(boosted) * sanitizeMultiplier(c.burstMultiplier(gkey)))
+		limiter.Update(boosted, burst)
 	}
 
 	// mark all non-returned limits as failures.
@@ -496,7 +511,7 @@ func (c *Collection) doUpdate(since time.Duration, usage map[shared.GlobalKey]rp
 	}
 }
 
-func boostRPS(target, fallback rate.Limit, weight float64, usedRPS float64) rate.Limit {
+func boostRPS(target, fallback rate.Limit, weight float64, usedRPS float64, boostCapMultiplier float64) rate.Limit {
 	baseline := target * rate.Limit(weight)
 
 	// low weights lead to low per-host overage allowed, and this can lead to
@@ -505,10 +520,17 @@ func boostRPS(target, fallback rate.Limit, weight float64, usedRPS float64) rate
 	//
 	// as a partial mitigation, "boost" low-weight values, allowing them to use
 	// more of the unused RPS than their weight would normally imply, up to the
-	// fallback's limit.
+	// fallback's limit (scaled by boostCapMultiplier).
 	// as overall usage increases, this "allowed overage" will shrink, helping
 	// ensure it keeps converging towards the global target RPS.
-	if baseline < fallback {
+	// the cap is the local fallback value scaled by the configured multiplier,
+	// but never beyond the whole-cluster target: a single host must not be
+	// allowed to exceed the entire configured limit on its own.
+	// at the default multiplier of 1 the cap is just the fallback value, which
+	// is also what would be allowed if this limit was garbage collected, so
+	// it's already established as a "safe enough" value.
+	boostCap := math.Min(float64(fallback)*boostCapMultiplier, float64(target))
+	if float64(baseline) < boostCap {
 		// unused should not go below zero, e.g. if target was lowered,
 		// so this cannot reduce below the fair baseline.
 		unused := math.Max(0, float64(target)-usedRPS)
@@ -517,16 +539,23 @@ func boostRPS(target, fallback rate.Limit, weight float64, usedRPS float64) rate
 			// currently this isn't really a concern, but this could be adjusted
 			// by num-of-low-hosts or something if needed.
 			float64(baseline)+unused,
-			// can't exceed the local fallback value though.
-			// this is also what would be allowed if this limit was garbage collected,
-			// so it's already established as a "safe enough" value.
-			float64(fallback),
+			// can't exceed the cap though, see above.
+			boostCap,
 		)
 		return rate.Limit(boosted)
 	}
 
-	// any host with a weighted target higher than the fallback will already be
+	// any host with a weighted target higher than the boost cap will already be
 	// allowing a relatively large "growth room" on top of its actual usage, so
 	// they don't need this boost.
 	return baseline
+}
+
+// sanitizeMultiplier guards against bad dynamic config values: multipliers must be
+// positive and finite, anything else is treated as the no-op value (1).
+func sanitizeMultiplier(m float64) float64 {
+	if m <= 0 || math.IsNaN(m) || math.IsInf(m, 0) {
+		return 1
+	}
+	return m
 }

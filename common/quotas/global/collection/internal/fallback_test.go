@@ -79,7 +79,7 @@ func TestFallbackRegression(t *testing.T) {
 		}, before)
 
 		// update: this should set limits, and either fill the bucket or cause it to be filled on the next request
-		rl.Update(limit)
+		rl.Update(limit, int(limit))
 
 		// call again: should be allowed, as this is the first time-touching request since it was created,
 		// and the token bucket should have filled to match the first-update value.
@@ -120,7 +120,7 @@ func TestLimiter(t *testing.T) {
 	})
 	t.Run("uses primary after update", func(t *testing.T) {
 		lim := NewFallbackLimiter(allowlimiter{})
-		lim.Update(1_000_000) // large enough to allow millisecond sleeps to refill
+		lim.Update(1_000_000, 1_000_000) // large enough to allow millisecond sleeps to refill
 
 		time.Sleep(time.Millisecond) // allow some tokens to fill
 		assert.True(t, lim.Allow(), "limiter allows after enough time has passed")
@@ -134,7 +134,7 @@ func TestLimiter(t *testing.T) {
 
 	t.Run("collecting usage data resets counts", func(t *testing.T) {
 		lim := NewFallbackLimiter(allowlimiter{})
-		lim.Update(1)
+		lim.Update(1, 1)
 		lim.Allow()
 		limit, _, _ := lim.Collect()
 		assert.Equal(t, 1, limit.Allowed+limit.Rejected, "should count one request")
@@ -153,7 +153,7 @@ func TestLimiter(t *testing.T) {
 
 		t.Run("falls back after too many failures", func(t *testing.T) {
 			lim := NewFallbackLimiter(allowlimiter{}) // fallback behavior is ignored
-			lim.Update(1)
+			lim.Update(1, 1)
 			_, startup, failing := lim.Collect()
 			require.False(t, failing, "should not be using fallback")
 			require.False(t, startup, "should not be starting up, has had an update")
@@ -188,8 +188,29 @@ func TestLimiter(t *testing.T) {
 	t.Run("coverage", func(t *testing.T) {
 		// easy line to cover to bring to 100%
 		lim := NewFallbackLimiter(nil)
-		lim.Update(1)
-		lim.Update(1) // should go down "no changes needed, return early" path
+		lim.Update(1, 1)
+		lim.Update(1, 1) // should go down "no changes needed, return early" path
+	})
+
+	t.Run("burst", func(t *testing.T) {
+		tests := map[string]struct {
+			limit     rate.Limit
+			burst     int
+			wantBurst int
+		}{
+			"burst is set independently from limit": {limit: 10, burst: 50, wantBurst: 50},
+			"burst below limit is allowed":          {limit: 10, burst: 5, wantBurst: 5},
+			"zero burst is raised to 1":             {limit: 10, burst: 0, wantBurst: 1}, // 0 burst would block all requests
+			"negative burst is raised to 1":         {limit: 10, burst: -3, wantBurst: 1},
+		}
+		for name, tc := range tests {
+			t.Run(name, func(t *testing.T) {
+				lim := NewFallbackLimiter(allowlimiter{})
+				lim.Update(tc.limit, tc.burst)
+				assert.Equal(t, tc.limit, lim.primary.Limit(), "limit should be set as given")
+				assert.Equal(t, tc.wantBurst, lim.primary.Burst(), "unexpected burst size")
+			})
+		}
 	})
 }
 
@@ -209,7 +230,7 @@ func TestLimiterNotRacy(t *testing.T) {
 		// this should randomly clear occasionally via failures.
 		if rand.Intn(10) == 0 {
 			g.Go(func() error {
-				lim.Update(rate.Limit(1 / rand.Float64())) // essentially never exercises "same value, do nothing" logic
+				lim.Update(rate.Limit(1/rand.Float64()), 1) // essentially never exercises "same value, do nothing" logic
 				return nil
 			})
 		} else {
