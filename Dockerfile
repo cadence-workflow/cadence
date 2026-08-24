@@ -8,7 +8,7 @@ FROM golang:1.25.12-trixie AS builder
 
 ARG RELEASE_VERSION
 
-RUN apk add --update --no-cache ca-certificates make git curl mercurial unzip bash
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates make git curl mercurial unzip bash && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /cadence
 
