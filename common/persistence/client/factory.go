@@ -275,6 +275,15 @@ func (f *factoryImpl) NewDomainAuditManager() (p.DomainAuditManager, error) {
 		return nil, nil
 	}
 	result := p.NewDomainAuditManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+		result = errorinjectors.NewDomainAuditManager(result, errorRate, f.logger, time.Now())
+	}
+	if ds.ratelimit != nil {
+		result = ratelimited.NewDomainAuditManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
+	}
+	if f.metricsClient != nil {
+		result = metered.NewDomainAuditManager(result, f.metricsClient, f.logger, f.config)
+	}
 	return result, nil
 }
 
@@ -292,6 +301,15 @@ func (f *factoryImpl) NewSemaphoreMetadataManager() (p.SemaphoreMetadataManager,
 		return nil, nil
 	}
 	result := p.NewSemaphoreMetadataManagerImpl(store, f.logger)
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+		result = errorinjectors.NewSemaphoreMetadataManager(result, errorRate, f.logger, time.Now())
+	}
+	if ds.ratelimit != nil {
+		result = ratelimited.NewSemaphoreMetadataManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
+	}
+	if f.metricsClient != nil {
+		result = metered.NewSemaphoreMetadataManager(result, f.metricsClient, f.logger, f.config)
+	}
 	return result, nil
 }
 
