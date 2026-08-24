@@ -55,7 +55,7 @@ func (m *semaphoreTokenManagerImpl) SeedSemaphoreTokens(
 	ctx context.Context,
 	request *SeedSemaphoreTokensRequest,
 ) error {
-	if err := validateSemaphoreTokenKey(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return err
 	}
 	if len(request.TokenIDs) == 0 {
@@ -73,7 +73,7 @@ func (m *semaphoreTokenManagerImpl) GrantSemaphoreToken(
 	ctx context.Context,
 	request *GrantSemaphoreTokenRequest,
 ) (*GrantSemaphoreTokenResponse, error) {
-	if err := validateSemaphoreTokenKey(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	if request.TokenID < 1 {
@@ -89,7 +89,7 @@ func (m *semaphoreTokenManagerImpl) ReleaseSemaphoreToken(
 	ctx context.Context,
 	request *ReleaseSemaphoreTokenRequest,
 ) (*ReleaseSemaphoreTokenResponse, error) {
-	if err := validateSemaphoreTokenKey(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	if request.TokenID < 1 {
@@ -105,51 +105,51 @@ func (m *semaphoreTokenManagerImpl) ReleaseSemaphoreToken(
 	return &ReleaseSemaphoreTokenResponse{Applied: applied}, nil
 }
 
-func (m *semaphoreTokenManagerImpl) GetSemaphoreTokenByID(
+func (m *semaphoreTokenManagerImpl) GetSemaphoreOwnershipByToken(
 	ctx context.Context,
-	request *GetSemaphoreTokenByIDRequest,
-) (*GetSemaphoreTokenByIDResponse, error) {
-	if err := validateSemaphoreTokenKey(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	request *GetSemaphoreOwnershipByTokenRequest,
+) (*GetSemaphoreOwnershipByTokenResponse, error) {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	if request.TokenID < 1 {
 		return nil, fmt.Errorf("TokenID must be positive, got %d", request.TokenID)
 	}
-	token, err := m.persistence.GetSemaphoreTokenByID(ctx, request)
+	ownership, err := m.persistence.GetSemaphoreOwnershipByToken(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-	return &GetSemaphoreTokenByIDResponse{Token: token}, nil
+	return &GetSemaphoreOwnershipByTokenResponse{Ownership: ownership}, nil
 }
 
-func (m *semaphoreTokenManagerImpl) GetSemaphoreTokenByOwner(
+func (m *semaphoreTokenManagerImpl) GetSemaphoreOwnershipByOwner(
 	ctx context.Context,
-	request *GetSemaphoreTokenByOwnerRequest,
-) (*GetSemaphoreTokenByOwnerResponse, error) {
-	if err := validateSemaphoreTokenKey(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	request *GetSemaphoreOwnershipByOwnerRequest,
+) (*GetSemaphoreOwnershipByOwnerResponse, error) {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	if request.OwnerID == "" {
 		return nil, fmt.Errorf("OwnerID is required")
 	}
-	token, err := m.persistence.GetSemaphoreTokenByOwner(ctx, request)
+	ownership, err := m.persistence.GetSemaphoreOwnershipByOwner(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-	return &GetSemaphoreTokenByOwnerResponse{Token: token}, nil
+	return &GetSemaphoreOwnershipByOwnerResponse{Ownership: ownership}, nil
 }
 
 func (m *semaphoreTokenManagerImpl) ScanSemaphoreBucket(
 	ctx context.Context,
 	request *ScanSemaphoreBucketRequest,
 ) (*ScanSemaphoreBucketResponse, error) {
-	if err := validateSemaphoreTokenKey(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	return m.persistence.ScanSemaphoreBucket(ctx, request)
 }
 
-func validateSemaphoreTokenKey(domainID, semaphoreName string, bucket int) error {
+func validateSemaphoreBucket(domainID, semaphoreName string, bucket int) error {
 	if domainID == "" {
 		return fmt.Errorf("DomainID is required")
 	}

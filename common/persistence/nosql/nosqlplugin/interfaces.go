@@ -582,7 +582,7 @@ type (
 		// InsertSemaphoreTokens seeds a bucket with free token rows for the given
 		// rows' TokenIDs. It is conflict-avoiding (INSERT ... IF NOT EXISTS), so
 		// re-seeding never clobbers an already-held slot.
-		InsertSemaphoreTokens(ctx context.Context, rows []*SemaphoreTokenRow) error
+		InsertSemaphoreTokens(ctx context.Context, rows []*SemaphoreOwnershipRow) error
 
 		// GrantSemaphoreToken claims a slot for an owner via a conditional batch:
 		// it sets the token row's holder only if the slot is currently free, and
@@ -591,22 +591,22 @@ type (
 		// batch applied and, when it did not, whether this owner already holds a
 		// token (for reuse) versus the slot being taken. A not-applied batch is not
 		// an error.
-		GrantSemaphoreToken(ctx context.Context, row *SemaphoreTokenRow) (SemaphoreGrantResult, error)
+		GrantSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (SemaphoreGrantResult, error)
 
 		// ReleaseSemaphoreToken frees a slot via a guarded batch: it clears the
 		// token row's holder only if the slot is still held by this owner, and
 		// deletes the matching owner row in the same atomic batch. Returns
 		// applied == false (not an error) for a best-effort no-op.
-		ReleaseSemaphoreToken(ctx context.Context, row *SemaphoreTokenRow) (bool, error)
+		ReleaseSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (bool, error)
 
-		// SelectSemaphoreTokenByID reads a slot's forward row (holder) by token id.
-		SelectSemaphoreTokenByID(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*SemaphoreTokenRow, error)
+		// SelectSemaphoreOwnershipByToken reads a slot's forward row (holder) by token id.
+		SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*SemaphoreOwnershipRow, error)
 
-		// SelectSemaphoreTokenByOwner reads a hold's reverse row (held token) by owner id.
-		SelectSemaphoreTokenByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*SemaphoreTokenRow, error)
+		// SelectSemaphoreOwnershipByOwner reads a hold's reverse row (held token) by owner id.
+		SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*SemaphoreOwnershipRow, error)
 
-		// SelectSemaphoreBucketRows scans a bucket partition (both row kinds), paginated.
-		SelectSemaphoreBucketRows(ctx context.Context, filter *SemaphoreTokenFilter) ([]*SemaphoreTokenRow, []byte, error)
+		// SelectSemaphoreOwnershipsByBucket scans a bucket partition (both row kinds), paginated.
+		SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *SemaphoreOwnershipFilter) ([]*SemaphoreOwnershipRow, []byte, error)
 	}
 
 	/***

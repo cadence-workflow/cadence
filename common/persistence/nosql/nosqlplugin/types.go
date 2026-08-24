@@ -297,8 +297,9 @@ type (
 		NextPageToken []byte
 	}
 
-	// SemaphoreTokenRow defines a row of the semaphore_tokens table.
-	SemaphoreTokenRow struct {
+	// SemaphoreOwnershipRow defines a row of the semaphore_tokens table, in either
+	// of its two kinds: a forward "token" row or a reverse "owner" row.
+	SemaphoreOwnershipRow struct {
 		DomainID      string
 		SemaphoreName string
 		Bucket        int
@@ -319,9 +320,9 @@ type (
 		HeldToken int
 	}
 
-	// SemaphoreTokenFilter contains the filter criteria for scanning a bucket's
-	// token partition (both row kinds), paginated.
-	SemaphoreTokenFilter struct {
+	// SemaphoreOwnershipFilter contains the filter criteria for scanning a bucket
+	// partition (both row kinds), paginated.
+	SemaphoreOwnershipFilter struct {
 		DomainID      string
 		SemaphoreName string
 		Bucket        int

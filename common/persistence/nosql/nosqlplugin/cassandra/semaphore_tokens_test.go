@@ -52,7 +52,7 @@ func newTestSemaphoreTokenDB(t *testing.T, session gocql.Session) *CDB {
 
 func TestInsertSemaphoreTokens(t *testing.T) {
 	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
-	rows := []*nosqlplugin.SemaphoreTokenRow{
+	rows := []*nosqlplugin.SemaphoreOwnershipRow{
 		{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 1, UpdatedTime: now},
 		{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 2, UpdatedTime: now},
 	}
@@ -88,7 +88,7 @@ func TestInsertSemaphoreTokens(t *testing.T) {
 
 func TestGrantSemaphoreToken(t *testing.T) {
 	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
-	row := &nosqlplugin.SemaphoreTokenRow{
+	row := &nosqlplugin.SemaphoreOwnershipRow{
 		DomainID:      testSemaphoreDomainID,
 		SemaphoreName: testSemaphoreName,
 		Bucket:        0,
@@ -186,7 +186,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 
 func TestReleaseSemaphoreToken(t *testing.T) {
 	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
-	row := &nosqlplugin.SemaphoreTokenRow{
+	row := &nosqlplugin.SemaphoreOwnershipRow{
 		DomainID:      testSemaphoreDomainID,
 		SemaphoreName: testSemaphoreName,
 		Bucket:        0,
@@ -230,13 +230,13 @@ func TestReleaseSemaphoreToken(t *testing.T) {
 	})
 }
 
-func TestSelectSemaphoreTokenByID(t *testing.T) {
+func TestSelectSemaphoreOwnershipByToken(t *testing.T) {
 	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name        string
 		queryMockFn func(query *gocql.MockQuery)
-		wantRow     *nosqlplugin.SemaphoreTokenRow
+		wantRow     *nosqlplugin.SemaphoreOwnershipRow
 		wantErr     bool
 	}{
 		{
@@ -256,7 +256,7 @@ func TestSelectSemaphoreTokenByID(t *testing.T) {
 						return nil
 					}).Times(1)
 			},
-			wantRow: &nosqlplugin.SemaphoreTokenRow{
+			wantRow: &nosqlplugin.SemaphoreOwnershipRow{
 				DomainID:      testSemaphoreDomainID,
 				SemaphoreName: testSemaphoreName,
 				Bucket:        0,
@@ -284,7 +284,7 @@ func TestSelectSemaphoreTokenByID(t *testing.T) {
 						return nil
 					}).Times(1)
 			},
-			wantRow: &nosqlplugin.SemaphoreTokenRow{
+			wantRow: &nosqlplugin.SemaphoreOwnershipRow{
 				DomainID:      testSemaphoreDomainID,
 				SemaphoreName: testSemaphoreName,
 				Bucket:        0,
@@ -314,7 +314,7 @@ func TestSelectSemaphoreTokenByID(t *testing.T) {
 			session := &fakeSession{query: query}
 			db := newTestSemaphoreTokenDB(t, session)
 
-			row, err := db.SelectSemaphoreTokenByID(context.Background(), testSemaphoreDomainID, testSemaphoreName, 0, 5)
+			row, err := db.SelectSemaphoreOwnershipByToken(context.Background(), testSemaphoreDomainID, testSemaphoreName, 0, 5)
 			if tc.wantErr {
 				assert.Error(t, err)
 				return
@@ -325,13 +325,13 @@ func TestSelectSemaphoreTokenByID(t *testing.T) {
 	}
 }
 
-func TestSelectSemaphoreTokenByOwner(t *testing.T) {
+func TestSelectSemaphoreOwnershipByOwner(t *testing.T) {
 	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name        string
 		queryMockFn func(query *gocql.MockQuery)
-		wantRow     *nosqlplugin.SemaphoreTokenRow
+		wantRow     *nosqlplugin.SemaphoreOwnershipRow
 		wantErr     bool
 	}{
 		{
@@ -351,7 +351,7 @@ func TestSelectSemaphoreTokenByOwner(t *testing.T) {
 						return nil
 					}).Times(1)
 			},
-			wantRow: &nosqlplugin.SemaphoreTokenRow{
+			wantRow: &nosqlplugin.SemaphoreOwnershipRow{
 				DomainID:      testSemaphoreDomainID,
 				SemaphoreName: testSemaphoreName,
 				Bucket:        0,
@@ -381,7 +381,7 @@ func TestSelectSemaphoreTokenByOwner(t *testing.T) {
 			session := &fakeSession{query: query}
 			db := newTestSemaphoreTokenDB(t, session)
 
-			row, err := db.SelectSemaphoreTokenByOwner(context.Background(), testSemaphoreDomainID, testSemaphoreName, 0, "owner-abc")
+			row, err := db.SelectSemaphoreOwnershipByOwner(context.Background(), testSemaphoreDomainID, testSemaphoreName, 0, "owner-abc")
 			if tc.wantErr {
 				assert.Error(t, err)
 				return
@@ -392,22 +392,22 @@ func TestSelectSemaphoreTokenByOwner(t *testing.T) {
 	}
 }
 
-func TestSelectSemaphoreBucketRows(t *testing.T) {
+func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name        string
-		filter      *nosqlplugin.SemaphoreTokenFilter
+		filter      *nosqlplugin.SemaphoreOwnershipFilter
 		queryMockFn func(query *gocql.MockQuery)
 		iterMockFn  func(iter *gocql.MockIter)
 		nilIter     bool
-		wantRows    []*nosqlplugin.SemaphoreTokenRow
+		wantRows    []*nosqlplugin.SemaphoreOwnershipRow
 		wantToken   []byte
 		wantErr     bool
 	}{
 		{
 			name:   "mixed rows normalized",
-			filter: &nosqlplugin.SemaphoreTokenFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0},
+			filter: &nosqlplugin.SemaphoreOwnershipFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
 			},
@@ -445,7 +445,7 @@ func TestSelectSemaphoreBucketRows(t *testing.T) {
 				iter.EXPECT().PageState().Return([]byte(nil)).Times(1)
 				iter.EXPECT().Close().Return(nil).Times(1)
 			},
-			wantRows: []*nosqlplugin.SemaphoreTokenRow{
+			wantRows: []*nosqlplugin.SemaphoreOwnershipRow{
 				{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 5, OwnerID: "", Holder: "owner-abc", HeldToken: 0, UpdatedTime: now},
 				{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 0, OwnerID: "owner-abc", Holder: "", HeldToken: 5, UpdatedTime: now},
 			},
@@ -453,7 +453,7 @@ func TestSelectSemaphoreBucketRows(t *testing.T) {
 		},
 		{
 			name:   "page size limits and returns token",
-			filter: &nosqlplugin.SemaphoreTokenFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, PageSize: 1},
+			filter: &nosqlplugin.SemaphoreOwnershipFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, PageSize: 1},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
 				query.EXPECT().PageSize(1).Return(query).Times(1)
@@ -475,14 +475,14 @@ func TestSelectSemaphoreBucketRows(t *testing.T) {
 				iter.EXPECT().PageState().Return([]byte("next")).Times(1)
 				iter.EXPECT().Close().Return(nil).Times(1)
 			},
-			wantRows: []*nosqlplugin.SemaphoreTokenRow{
+			wantRows: []*nosqlplugin.SemaphoreOwnershipRow{
 				{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 5, OwnerID: "", Holder: "", HeldToken: 0, UpdatedTime: now},
 			},
 			wantToken: []byte("next"),
 		},
 		{
 			name:    "iterator is nil",
-			filter:  &nosqlplugin.SemaphoreTokenFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0},
+			filter:  &nosqlplugin.SemaphoreOwnershipFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0},
 			nilIter: true,
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -493,7 +493,7 @@ func TestSelectSemaphoreBucketRows(t *testing.T) {
 		},
 		{
 			name:   "iterator close fails",
-			filter: &nosqlplugin.SemaphoreTokenFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0},
+			filter: &nosqlplugin.SemaphoreOwnershipFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
 			},
@@ -522,7 +522,7 @@ func TestSelectSemaphoreBucketRows(t *testing.T) {
 			session := &fakeSession{query: query}
 			db := newTestSemaphoreTokenDB(t, session)
 
-			rows, token, err := db.SelectSemaphoreBucketRows(context.Background(), tc.filter)
+			rows, token, err := db.SelectSemaphoreOwnershipsByBucket(context.Background(), tc.filter)
 			if tc.wantErr {
 				assert.Error(t, err)
 				return

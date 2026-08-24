@@ -61,7 +61,7 @@ const (
 // Growing a bucket is unsupported: the batch is all-or-nothing, so a partial superset
 // would have its existing rows' guards reject the whole batch, silently dropping the
 // new ids.
-func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.SemaphoreTokenRow) error {
+func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.SemaphoreOwnershipRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -95,7 +95,7 @@ func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.Se
 // (racing hosts during a handoff, or a caller bug) cannot overwrite an existing hold.
 //
 // A grant that does not apply is not an error; the returned Outcome says why.
-func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (nosqlplugin.SemaphoreGrantResult, error) {
+func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreOwnershipRow) (nosqlplugin.SemaphoreGrantResult, error) {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	batch.Query(templateGrantSemaphoreTokenUpdateQuery,
 		row.OwnerID,     // SET holder = owner_id
@@ -186,7 +186,7 @@ func parseHeldTokenIfOwnerRow(row map[string]interface{}) (int, bool) {
 // holder is reset to free only if it is still held by row.OwnerID, and the
 // matching owner row is deleted. Returns applied == false (not an error) for a
 // best-effort no-op (something else already touched the slot).
-func (db *CDB) ReleaseSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (bool, error) {
+func (db *CDB) ReleaseSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreOwnershipRow) (bool, error) {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	batch.Query(templateReleaseSemaphoreTokenUpdateQuery,
 		freeSentinel,    // SET holder = FREE
@@ -217,33 +217,33 @@ func (db *CDB) ReleaseSemaphoreToken(ctx context.Context, row *nosqlplugin.Semap
 	return applied, nil
 }
 
-// SelectSemaphoreTokenByID reads a slot's forward (token) row by token id.
-func (db *CDB) SelectSemaphoreTokenByID(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*nosqlplugin.SemaphoreTokenRow, error) {
-	row := &nosqlplugin.SemaphoreTokenRow{}
-	query := db.session.Query(templateSelectSemaphoreTokenByIDQuery,
+// SelectSemaphoreOwnershipByToken reads a slot's forward (token) row by token id.
+func (db *CDB) SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*nosqlplugin.SemaphoreOwnershipRow, error) {
+	row := &nosqlplugin.SemaphoreOwnershipRow{}
+	query := db.session.Query(templateSelectSemaphoreOwnershipByTokenQuery,
 		domainID, semaphoreName, bucket, rowTypeSemaphoreToken, tokenID,
 	).WithContext(ctx)
-	if err := scanSemaphoreTokenRow(query, row); err != nil {
+	if err := scanSemaphoreOwnershipRow(query, row); err != nil {
 		return nil, err
 	}
 	return row, nil
 }
 
-// SelectSemaphoreTokenByOwner reads a hold's reverse (owner) row by owner id.
-func (db *CDB) SelectSemaphoreTokenByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*nosqlplugin.SemaphoreTokenRow, error) {
-	row := &nosqlplugin.SemaphoreTokenRow{}
-	query := db.session.Query(templateSelectSemaphoreTokenByOwnerQuery,
+// SelectSemaphoreOwnershipByOwner reads a hold's reverse (owner) row by owner id.
+func (db *CDB) SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*nosqlplugin.SemaphoreOwnershipRow, error) {
+	row := &nosqlplugin.SemaphoreOwnershipRow{}
+	query := db.session.Query(templateSelectSemaphoreOwnershipByOwnerQuery,
 		domainID, semaphoreName, bucket, rowTypeSemaphoreOwner, emptyTokenID, ownerID,
 	).WithContext(ctx)
-	if err := scanSemaphoreTokenRow(query, row); err != nil {
+	if err := scanSemaphoreOwnershipRow(query, row); err != nil {
 		return nil, err
 	}
 	return row, nil
 }
 
-// SelectSemaphoreBucketRows scans a bucket partition (both row kinds), paginated.
-func (db *CDB) SelectSemaphoreBucketRows(ctx context.Context, filter *nosqlplugin.SemaphoreTokenFilter) ([]*nosqlplugin.SemaphoreTokenRow, []byte, error) {
-	query := db.session.Query(templateSelectSemaphoreBucketRowsQuery,
+// SelectSemaphoreOwnershipsByBucket scans a bucket partition (both row kinds), paginated.
+func (db *CDB) SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *nosqlplugin.SemaphoreOwnershipFilter) ([]*nosqlplugin.SemaphoreOwnershipRow, []byte, error) {
+	query := db.session.Query(templateSelectSemaphoreOwnershipsByBucketQuery,
 		filter.DomainID, filter.SemaphoreName, filter.Bucket,
 	).WithContext(ctx)
 
@@ -257,13 +257,13 @@ func (db *CDB) SelectSemaphoreBucketRows(ctx context.Context, filter *nosqlplugi
 	iter := query.Iter()
 	if iter == nil {
 		return nil, nil, &types.InternalServiceError{
-			Message: "SelectSemaphoreBucketRows operation failed. Not able to create query iterator.",
+			Message: "SelectSemaphoreOwnershipsByBucket operation failed. Not able to create query iterator.",
 		}
 	}
 
-	var rows []*nosqlplugin.SemaphoreTokenRow
+	var rows []*nosqlplugin.SemaphoreOwnershipRow
 	var rowType int
-	row := &nosqlplugin.SemaphoreTokenRow{}
+	row := &nosqlplugin.SemaphoreOwnershipRow{}
 	for iter.Scan(
 		&row.DomainID,
 		&row.SemaphoreName,
@@ -275,9 +275,9 @@ func (db *CDB) SelectSemaphoreBucketRows(ctx context.Context, filter *nosqlplugi
 		&row.HeldToken,
 		&row.UpdatedTime,
 	) {
-		normalizeSemaphoreTokenRow(row)
+		normalizeSemaphoreOwnershipRow(row)
 		rows = append(rows, row)
-		row = &nosqlplugin.SemaphoreTokenRow{}
+		row = &nosqlplugin.SemaphoreOwnershipRow{}
 
 		if filter.PageSize > 0 && len(rows) >= filter.PageSize {
 			break
@@ -292,9 +292,9 @@ func (db *CDB) SelectSemaphoreBucketRows(ctx context.Context, filter *nosqlplugi
 	return rows, nextPageToken, nil
 }
 
-// scanSemaphoreTokenRow scans a single-row read (forward or reverse) into row and
+// scanSemaphoreOwnershipRow scans a single-row read (forward or reverse) into row and
 // normalizes the sentinel columns to zero values.
-func scanSemaphoreTokenRow(query gocql.Query, row *nosqlplugin.SemaphoreTokenRow) error {
+func scanSemaphoreOwnershipRow(query gocql.Query, row *nosqlplugin.SemaphoreOwnershipRow) error {
 	if err := query.Scan(
 		&row.DomainID,
 		&row.SemaphoreName,
@@ -307,17 +307,17 @@ func scanSemaphoreTokenRow(query gocql.Query, row *nosqlplugin.SemaphoreTokenRow
 	); err != nil {
 		return err
 	}
-	normalizeSemaphoreTokenRow(row)
+	normalizeSemaphoreOwnershipRow(row)
 	return nil
 }
 
-// normalizeSemaphoreTokenRow maps the plugin's internal sentinels back to zero
+// normalizeSemaphoreOwnershipRow maps the plugin's internal sentinels back to zero
 // values so they never leak past this package: an absent owner_id becomes "",
 // an unheld holder becomes "", and a not-applicable token id becomes 0.
 //
 // Columns bound to gogocql.UnsetValue on write (held_token on token rows, holder
 // on owner rows) already read back as the zero value, so they need no mapping.
-func normalizeSemaphoreTokenRow(row *nosqlplugin.SemaphoreTokenRow) {
+func normalizeSemaphoreOwnershipRow(row *nosqlplugin.SemaphoreOwnershipRow) {
 	if row.OwnerID == ownerNoneSentinel {
 		row.OwnerID = ""
 	}

@@ -1466,11 +1466,11 @@ type (
 		NextPageToken []byte
 	}
 
-	// SemaphoreBucketRow is a single row of the semaphore_tokens table. A bucket
-	// (DomainID, SemaphoreName, Bucket) is one Cassandra partition holding two
-	// row kinds: a forward "token" row per slot (TokenID -> Holder) and a
-	// reverse "owner" row per hold (OwnerID -> HeldToken).
-	SemaphoreBucketRow struct {
+	// SemaphoreOwnership is one ownership record of the semaphore_tokens table,
+	// in either of its two forms: a forward "token" row per slot
+	// (TokenID -> Holder, empty when the slot is free) or a reverse "owner" row
+	// per hold (OwnerID -> HeldToken).
+	SemaphoreOwnership struct {
 		DomainID      string
 		SemaphoreName string
 		Bucket        int
@@ -1525,30 +1525,30 @@ type (
 		Applied bool
 	}
 
-	// GetSemaphoreTokenByIDRequest reads a slot's forward row by token id.
-	GetSemaphoreTokenByIDRequest struct {
+	// GetSemaphoreOwnershipByTokenRequest reads a slot's forward row by token id.
+	GetSemaphoreOwnershipByTokenRequest struct {
 		DomainID      string
 		SemaphoreName string
 		Bucket        int
 		TokenID       int
 	}
 
-	// GetSemaphoreTokenByIDResponse is the response for GetSemaphoreTokenByID.
-	GetSemaphoreTokenByIDResponse struct {
-		Token *SemaphoreBucketRow
+	// GetSemaphoreOwnershipByTokenResponse is the response for GetSemaphoreOwnershipByToken.
+	GetSemaphoreOwnershipByTokenResponse struct {
+		Ownership *SemaphoreOwnership
 	}
 
-	// GetSemaphoreTokenByOwnerRequest reads a hold's reverse row by owner id.
-	GetSemaphoreTokenByOwnerRequest struct {
+	// GetSemaphoreOwnershipByOwnerRequest reads a hold's reverse row by owner id.
+	GetSemaphoreOwnershipByOwnerRequest struct {
 		DomainID      string
 		SemaphoreName string
 		Bucket        int
 		OwnerID       string
 	}
 
-	// GetSemaphoreTokenByOwnerResponse is the response for GetSemaphoreTokenByOwner.
-	GetSemaphoreTokenByOwnerResponse struct {
-		Token *SemaphoreBucketRow
+	// GetSemaphoreOwnershipByOwnerResponse is the response for GetSemaphoreOwnershipByOwner.
+	GetSemaphoreOwnershipByOwnerResponse struct {
+		Ownership *SemaphoreOwnership
 	}
 
 	// ScanSemaphoreBucketRequest scans a bucket partition (both row
@@ -1562,10 +1562,10 @@ type (
 	}
 
 	// ScanSemaphoreBucketResponse is the response for ScanSemaphoreBucket.
-	// Rows holds both row kinds interleaved by the partition's clustering order:
+	// Ownerships holds both row kinds interleaved by the partition's clustering order:
 	// token rows first, then owner rows.
 	ScanSemaphoreBucketResponse struct {
-		Rows          []*SemaphoreBucketRow
+		Ownerships    []*SemaphoreOwnership
 		NextPageToken []byte
 	}
 
@@ -1976,10 +1976,10 @@ type (
 		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest) (*GrantSemaphoreTokenResponse, error)
 		// ReleaseSemaphoreToken frees a slot if it is still held by the owner.
 		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest) (*ReleaseSemaphoreTokenResponse, error)
-		// GetSemaphoreTokenByID reads a slot's forward row (holder) by token id.
-		GetSemaphoreTokenByID(ctx context.Context, request *GetSemaphoreTokenByIDRequest) (*GetSemaphoreTokenByIDResponse, error)
-		// GetSemaphoreTokenByOwner reads a hold's reverse row (held token) by owner id.
-		GetSemaphoreTokenByOwner(ctx context.Context, request *GetSemaphoreTokenByOwnerRequest) (*GetSemaphoreTokenByOwnerResponse, error)
+		// GetSemaphoreOwnershipByToken reads a slot's forward row (holder) by token id.
+		GetSemaphoreOwnershipByToken(ctx context.Context, request *GetSemaphoreOwnershipByTokenRequest) (*GetSemaphoreOwnershipByTokenResponse, error)
+		// GetSemaphoreOwnershipByOwner reads a hold's reverse row (held token) by owner id.
+		GetSemaphoreOwnershipByOwner(ctx context.Context, request *GetSemaphoreOwnershipByOwnerRequest) (*GetSemaphoreOwnershipByOwnerResponse, error)
 		// ScanSemaphoreBucket scans a bucket partition (both row kinds), paginated.
 		ScanSemaphoreBucket(ctx context.Context, request *ScanSemaphoreBucketRequest) (*ScanSemaphoreBucketResponse, error)
 	}

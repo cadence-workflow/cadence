@@ -26,26 +26,26 @@ import (
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
-func (db *ddb) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.SemaphoreTokenRow) error {
+func (db *ddb) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.SemaphoreOwnershipRow) error {
 	panic("TODO: InsertSemaphoreTokens is not implemented")
 }
 
-func (db *ddb) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (nosqlplugin.SemaphoreGrantResult, error) {
+func (db *ddb) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreOwnershipRow) (nosqlplugin.SemaphoreGrantResult, error) {
 	panic("TODO: GrantSemaphoreToken is not implemented")
 }
 
-func (db *ddb) ReleaseSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (bool, error) {
+func (db *ddb) ReleaseSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreOwnershipRow) (bool, error) {
 	panic("TODO: ReleaseSemaphoreToken is not implemented")
 }
 
-func (db *ddb) SelectSemaphoreTokenByID(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*nosqlplugin.SemaphoreTokenRow, error) {
-	panic("TODO: SelectSemaphoreTokenByID is not implemented")
+func (db *ddb) SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*nosqlplugin.SemaphoreOwnershipRow, error) {
+	panic("TODO: SelectSemaphoreOwnershipByToken is not implemented")
 }
 
-func (db *ddb) SelectSemaphoreTokenByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*nosqlplugin.SemaphoreTokenRow, error) {
-	panic("TODO: SelectSemaphoreTokenByOwner is not implemented")
+func (db *ddb) SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*nosqlplugin.SemaphoreOwnershipRow, error) {
+	panic("TODO: SelectSemaphoreOwnershipByOwner is not implemented")
 }
 
-func (db *ddb) SelectSemaphoreBucketRows(ctx context.Context, filter *nosqlplugin.SemaphoreTokenFilter) ([]*nosqlplugin.SemaphoreTokenRow, []byte, error) {
-	panic("TODO: SelectSemaphoreBucketRows is not implemented")
+func (db *ddb) SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *nosqlplugin.SemaphoreOwnershipFilter) ([]*nosqlplugin.SemaphoreOwnershipRow, []byte, error) {
+	panic("TODO: SelectSemaphoreOwnershipsByBucket is not implemented")
 }

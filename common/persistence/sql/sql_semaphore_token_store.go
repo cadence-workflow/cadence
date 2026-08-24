@@ -76,17 +76,17 @@ func (m *sqlSemaphoreTokenStore) ReleaseSemaphoreToken(
 	return false, errSemaphoreNotSupportedOnSQL()
 }
 
-func (m *sqlSemaphoreTokenStore) GetSemaphoreTokenByID(
+func (m *sqlSemaphoreTokenStore) GetSemaphoreOwnershipByToken(
 	ctx context.Context,
-	request *persistence.GetSemaphoreTokenByIDRequest,
-) (*persistence.SemaphoreBucketRow, error) {
+	request *persistence.GetSemaphoreOwnershipByTokenRequest,
+) (*persistence.SemaphoreOwnership, error) {
 	return nil, errSemaphoreNotSupportedOnSQL()
 }
 
-func (m *sqlSemaphoreTokenStore) GetSemaphoreTokenByOwner(
+func (m *sqlSemaphoreTokenStore) GetSemaphoreOwnershipByOwner(
 	ctx context.Context,
-	request *persistence.GetSemaphoreTokenByOwnerRequest,
-) (*persistence.SemaphoreBucketRow, error) {
+	request *persistence.GetSemaphoreOwnershipByOwnerRequest,
+) (*persistence.SemaphoreOwnership, error) {
 	return nil, errSemaphoreNotSupportedOnSQL()
 }
 

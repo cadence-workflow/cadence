@@ -1545,34 +1545,34 @@ func (mr *MockSemaphoreTokenManagerMockRecorder) GetName() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetName", reflect.TypeOf((*MockSemaphoreTokenManager)(nil).GetName))
 }
 
-// GetSemaphoreTokenByID mocks base method.
-func (m *MockSemaphoreTokenManager) GetSemaphoreTokenByID(ctx context.Context, request *GetSemaphoreTokenByIDRequest) (*GetSemaphoreTokenByIDResponse, error) {
+// GetSemaphoreOwnershipByOwner mocks base method.
+func (m *MockSemaphoreTokenManager) GetSemaphoreOwnershipByOwner(ctx context.Context, request *GetSemaphoreOwnershipByOwnerRequest) (*GetSemaphoreOwnershipByOwnerResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSemaphoreTokenByID", ctx, request)
-	ret0, _ := ret[0].(*GetSemaphoreTokenByIDResponse)
+	ret := m.ctrl.Call(m, "GetSemaphoreOwnershipByOwner", ctx, request)
+	ret0, _ := ret[0].(*GetSemaphoreOwnershipByOwnerResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetSemaphoreTokenByID indicates an expected call of GetSemaphoreTokenByID.
-func (mr *MockSemaphoreTokenManagerMockRecorder) GetSemaphoreTokenByID(ctx, request any) *gomock.Call {
+// GetSemaphoreOwnershipByOwner indicates an expected call of GetSemaphoreOwnershipByOwner.
+func (mr *MockSemaphoreTokenManagerMockRecorder) GetSemaphoreOwnershipByOwner(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTokenByID", reflect.TypeOf((*MockSemaphoreTokenManager)(nil).GetSemaphoreTokenByID), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreOwnershipByOwner", reflect.TypeOf((*MockSemaphoreTokenManager)(nil).GetSemaphoreOwnershipByOwner), ctx, request)
 }
 
-// GetSemaphoreTokenByOwner mocks base method.
-func (m *MockSemaphoreTokenManager) GetSemaphoreTokenByOwner(ctx context.Context, request *GetSemaphoreTokenByOwnerRequest) (*GetSemaphoreTokenByOwnerResponse, error) {
+// GetSemaphoreOwnershipByToken mocks base method.
+func (m *MockSemaphoreTokenManager) GetSemaphoreOwnershipByToken(ctx context.Context, request *GetSemaphoreOwnershipByTokenRequest) (*GetSemaphoreOwnershipByTokenResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSemaphoreTokenByOwner", ctx, request)
-	ret0, _ := ret[0].(*GetSemaphoreTokenByOwnerResponse)
+	ret := m.ctrl.Call(m, "GetSemaphoreOwnershipByToken", ctx, request)
+	ret0, _ := ret[0].(*GetSemaphoreOwnershipByTokenResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetSemaphoreTokenByOwner indicates an expected call of GetSemaphoreTokenByOwner.
-func (mr *MockSemaphoreTokenManagerMockRecorder) GetSemaphoreTokenByOwner(ctx, request any) *gomock.Call {
+// GetSemaphoreOwnershipByToken indicates an expected call of GetSemaphoreOwnershipByToken.
+func (mr *MockSemaphoreTokenManagerMockRecorder) GetSemaphoreOwnershipByToken(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTokenByOwner", reflect.TypeOf((*MockSemaphoreTokenManager)(nil).GetSemaphoreTokenByOwner), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreOwnershipByToken", reflect.TypeOf((*MockSemaphoreTokenManager)(nil).GetSemaphoreOwnershipByToken), ctx, request)
 }
 
 // GrantSemaphoreToken mocks base method.

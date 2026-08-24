@@ -58,9 +58,9 @@ func (m *nosqlSemaphoreTokenStore) SeedSemaphoreTokens(
 	request *persistence.SeedSemaphoreTokensRequest,
 	updatedTime time.Time,
 ) error {
-	rows := make([]*nosqlplugin.SemaphoreTokenRow, 0, len(request.TokenIDs))
+	rows := make([]*nosqlplugin.SemaphoreOwnershipRow, 0, len(request.TokenIDs))
 	for _, tokenID := range request.TokenIDs {
-		rows = append(rows, &nosqlplugin.SemaphoreTokenRow{
+		rows = append(rows, &nosqlplugin.SemaphoreOwnershipRow{
 			DomainID:      request.DomainID,
 			SemaphoreName: request.SemaphoreName,
 			Bucket:        request.Bucket,
@@ -81,7 +81,7 @@ func (m *nosqlSemaphoreTokenStore) GrantSemaphoreToken(
 	request *persistence.GrantSemaphoreTokenRequest,
 	updatedTime time.Time,
 ) (*persistence.GrantSemaphoreTokenResponse, error) {
-	row := &nosqlplugin.SemaphoreTokenRow{
+	row := &nosqlplugin.SemaphoreOwnershipRow{
 		DomainID:      request.DomainID,
 		SemaphoreName: request.SemaphoreName,
 		Bucket:        request.Bucket,
@@ -125,7 +125,7 @@ func (m *nosqlSemaphoreTokenStore) ReleaseSemaphoreToken(
 	request *persistence.ReleaseSemaphoreTokenRequest,
 	updatedTime time.Time,
 ) (bool, error) {
-	row := &nosqlplugin.SemaphoreTokenRow{
+	row := &nosqlplugin.SemaphoreOwnershipRow{
 		DomainID:      request.DomainID,
 		SemaphoreName: request.SemaphoreName,
 		Bucket:        request.Bucket,
@@ -140,28 +140,28 @@ func (m *nosqlSemaphoreTokenStore) ReleaseSemaphoreToken(
 	return applied, nil
 }
 
-// GetSemaphoreTokenByID reads a slot's forward row (holder) by token id.
-func (m *nosqlSemaphoreTokenStore) GetSemaphoreTokenByID(
+// GetSemaphoreOwnershipByToken reads a slot's forward row (holder) by token id.
+func (m *nosqlSemaphoreTokenStore) GetSemaphoreOwnershipByToken(
 	ctx context.Context,
-	request *persistence.GetSemaphoreTokenByIDRequest,
-) (*persistence.SemaphoreBucketRow, error) {
-	row, err := m.db.SelectSemaphoreTokenByID(ctx, request.DomainID, request.SemaphoreName, request.Bucket, request.TokenID)
+	request *persistence.GetSemaphoreOwnershipByTokenRequest,
+) (*persistence.SemaphoreOwnership, error) {
+	row, err := m.db.SelectSemaphoreOwnershipByToken(ctx, request.DomainID, request.SemaphoreName, request.Bucket, request.TokenID)
 	if err != nil {
-		return nil, convertCommonErrors(m.db, "GetSemaphoreTokenByID", err)
+		return nil, convertCommonErrors(m.db, "GetSemaphoreOwnershipByToken", err)
 	}
-	return toSemaphoreBucketRow(row), nil
+	return toSemaphoreOwnership(row), nil
 }
 
-// GetSemaphoreTokenByOwner reads a hold's reverse row (held token) by owner id.
-func (m *nosqlSemaphoreTokenStore) GetSemaphoreTokenByOwner(
+// GetSemaphoreOwnershipByOwner reads a hold's reverse row (held token) by owner id.
+func (m *nosqlSemaphoreTokenStore) GetSemaphoreOwnershipByOwner(
 	ctx context.Context,
-	request *persistence.GetSemaphoreTokenByOwnerRequest,
-) (*persistence.SemaphoreBucketRow, error) {
-	row, err := m.db.SelectSemaphoreTokenByOwner(ctx, request.DomainID, request.SemaphoreName, request.Bucket, request.OwnerID)
+	request *persistence.GetSemaphoreOwnershipByOwnerRequest,
+) (*persistence.SemaphoreOwnership, error) {
+	row, err := m.db.SelectSemaphoreOwnershipByOwner(ctx, request.DomainID, request.SemaphoreName, request.Bucket, request.OwnerID)
 	if err != nil {
-		return nil, convertCommonErrors(m.db, "GetSemaphoreTokenByOwner", err)
+		return nil, convertCommonErrors(m.db, "GetSemaphoreOwnershipByOwner", err)
 	}
-	return toSemaphoreBucketRow(row), nil
+	return toSemaphoreOwnership(row), nil
 }
 
 // ScanSemaphoreBucket scans a bucket partition (both row kinds), paginated.
@@ -169,7 +169,7 @@ func (m *nosqlSemaphoreTokenStore) ScanSemaphoreBucket(
 	ctx context.Context,
 	request *persistence.ScanSemaphoreBucketRequest,
 ) (*persistence.ScanSemaphoreBucketResponse, error) {
-	filter := &nosqlplugin.SemaphoreTokenFilter{
+	filter := &nosqlplugin.SemaphoreOwnershipFilter{
 		DomainID:      request.DomainID,
 		SemaphoreName: request.SemaphoreName,
 		Bucket:        request.Bucket,
@@ -177,24 +177,24 @@ func (m *nosqlSemaphoreTokenStore) ScanSemaphoreBucket(
 		NextPageToken: request.NextPageToken,
 	}
 
-	rows, nextPageToken, err := m.db.SelectSemaphoreBucketRows(ctx, filter)
+	rows, nextPageToken, err := m.db.SelectSemaphoreOwnershipsByBucket(ctx, filter)
 	if err != nil {
 		return nil, convertCommonErrors(m.db, "ScanSemaphoreBucket", err)
 	}
 
-	bucketRows := make([]*persistence.SemaphoreBucketRow, 0, len(rows))
+	ownerships := make([]*persistence.SemaphoreOwnership, 0, len(rows))
 	for _, row := range rows {
-		bucketRows = append(bucketRows, toSemaphoreBucketRow(row))
+		ownerships = append(ownerships, toSemaphoreOwnership(row))
 	}
 
 	return &persistence.ScanSemaphoreBucketResponse{
-		Rows:          bucketRows,
+		Ownerships:    ownerships,
 		NextPageToken: nextPageToken,
 	}, nil
 }
 
-func toSemaphoreBucketRow(row *nosqlplugin.SemaphoreTokenRow) *persistence.SemaphoreBucketRow {
-	return &persistence.SemaphoreBucketRow{
+func toSemaphoreOwnership(row *nosqlplugin.SemaphoreOwnershipRow) *persistence.SemaphoreOwnership {
+	return &persistence.SemaphoreOwnership{
 		DomainID:      row.DomainID,
 		SemaphoreName: row.SemaphoreName,
 		Bucket:        row.Bucket,

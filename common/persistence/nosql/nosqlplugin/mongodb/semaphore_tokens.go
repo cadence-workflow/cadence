@@ -27,26 +27,26 @@ import (
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
-func (db *mdb) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.SemaphoreTokenRow) error {
+func (db *mdb) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.SemaphoreOwnershipRow) error {
 	return fmt.Errorf("InsertSemaphoreTokens is not implemented")
 }
 
-func (db *mdb) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (nosqlplugin.SemaphoreGrantResult, error) {
+func (db *mdb) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreOwnershipRow) (nosqlplugin.SemaphoreGrantResult, error) {
 	return nosqlplugin.SemaphoreGrantResult{}, fmt.Errorf("GrantSemaphoreToken is not implemented")
 }
 
-func (db *mdb) ReleaseSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreTokenRow) (bool, error) {
+func (db *mdb) ReleaseSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreOwnershipRow) (bool, error) {
 	return false, fmt.Errorf("ReleaseSemaphoreToken is not implemented")
 }
 
-func (db *mdb) SelectSemaphoreTokenByID(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*nosqlplugin.SemaphoreTokenRow, error) {
-	return nil, fmt.Errorf("SelectSemaphoreTokenByID is not implemented")
+func (db *mdb) SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*nosqlplugin.SemaphoreOwnershipRow, error) {
+	return nil, fmt.Errorf("SelectSemaphoreOwnershipByToken is not implemented")
 }
 
-func (db *mdb) SelectSemaphoreTokenByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*nosqlplugin.SemaphoreTokenRow, error) {
-	return nil, fmt.Errorf("SelectSemaphoreTokenByOwner is not implemented")
+func (db *mdb) SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*nosqlplugin.SemaphoreOwnershipRow, error) {
+	return nil, fmt.Errorf("SelectSemaphoreOwnershipByOwner is not implemented")
 }
 
-func (db *mdb) SelectSemaphoreBucketRows(ctx context.Context, filter *nosqlplugin.SemaphoreTokenFilter) ([]*nosqlplugin.SemaphoreTokenRow, []byte, error) {
-	return nil, nil, fmt.Errorf("SelectSemaphoreBucketRows is not implemented")
+func (db *mdb) SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *nosqlplugin.SemaphoreOwnershipFilter) ([]*nosqlplugin.SemaphoreOwnershipRow, []byte, error) {
+	return nil, nil, fmt.Errorf("SelectSemaphoreOwnershipsByBucket is not implemented")
 }

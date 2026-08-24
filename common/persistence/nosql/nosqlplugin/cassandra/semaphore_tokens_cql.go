@@ -52,13 +52,13 @@ const (
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ?`
 
 	// Forward read: owner_id is the trailing clustering column, so it is omitted.
-	templateSelectSemaphoreTokenByIDQuery = `SELECT ` +
+	templateSelectSemaphoreOwnershipByTokenQuery = `SELECT ` +
 		`domain_id, semaphore_name, bucket, token_id, owner_id, holder, held_token, updated_time ` +
 		`FROM semaphore_tokens ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ?`
 
 	// Reverse read: token_id (a middle clustering column) must be pinned to reach owner_id.
-	templateSelectSemaphoreTokenByOwnerQuery = `SELECT ` +
+	templateSelectSemaphoreOwnershipByOwnerQuery = `SELECT ` +
 		`domain_id, semaphore_name, bucket, token_id, owner_id, holder, held_token, updated_time ` +
 		`FROM semaphore_tokens ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ?`
@@ -67,7 +67,7 @@ const (
 	// kinds - token rows first, then owner rows, per the type clustering order.
 	// It rebuilds a bucket's forward and reverse indexes in one pass, for cache
 	// warm-up on host start and on ownership transfer
-	templateSelectSemaphoreBucketRowsQuery = `SELECT ` +
+	templateSelectSemaphoreOwnershipsByBucketQuery = `SELECT ` +
 		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time ` +
 		`FROM semaphore_tokens ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ?`

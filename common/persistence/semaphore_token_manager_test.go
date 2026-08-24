@@ -304,49 +304,49 @@ func TestSemaphoreTokenManagerReleaseSemaphoreToken(t *testing.T) {
 	}
 }
 
-func TestSemaphoreTokenManagerGetSemaphoreTokenByID(t *testing.T) {
+func TestSemaphoreTokenManagerGetSemaphoreOwnershipByToken(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := NewMockSemaphoreTokenStore(ctrl)
 
-	req := &GetSemaphoreTokenByIDRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5}
-	want := &SemaphoreBucketRow{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, Holder: "owner-abc"}
-	store.EXPECT().GetSemaphoreTokenByID(gomock.Any(), req).Return(want, nil).Times(1)
+	req := &GetSemaphoreOwnershipByTokenRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5}
+	want := &SemaphoreOwnership{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, Holder: "owner-abc"}
+	store.EXPECT().GetSemaphoreOwnershipByToken(gomock.Any(), req).Return(want, nil).Times(1)
 
 	m := newTestSemaphoreTokenManager(store, clock.NewMockedTimeSource(), t)
-	resp, err := m.GetSemaphoreTokenByID(context.Background(), req)
+	resp, err := m.GetSemaphoreOwnershipByToken(context.Background(), req)
 	assert.NoError(t, err)
-	assert.Equal(t, want, resp.Token)
+	assert.Equal(t, want, resp.Ownership)
 }
 
-func TestSemaphoreTokenManagerGetSemaphoreTokenByIDValidation(t *testing.T) {
+func TestSemaphoreTokenManagerGetSemaphoreOwnershipByTokenValidation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := NewMockSemaphoreTokenStore(ctrl)
 
 	m := newTestSemaphoreTokenManager(store, clock.NewMockedTimeSource(), t)
-	_, err := m.GetSemaphoreTokenByID(context.Background(), &GetSemaphoreTokenByIDRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 0})
+	_, err := m.GetSemaphoreOwnershipByToken(context.Background(), &GetSemaphoreOwnershipByTokenRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 0})
 	assert.Error(t, err)
 }
 
-func TestSemaphoreTokenManagerGetSemaphoreTokenByOwner(t *testing.T) {
+func TestSemaphoreTokenManagerGetSemaphoreOwnershipByOwner(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := NewMockSemaphoreTokenStore(ctrl)
 
-	req := &GetSemaphoreTokenByOwnerRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc"}
-	want := &SemaphoreBucketRow{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc", HeldToken: 5}
-	store.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), req).Return(want, nil).Times(1)
+	req := &GetSemaphoreOwnershipByOwnerRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc"}
+	want := &SemaphoreOwnership{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc", HeldToken: 5}
+	store.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), req).Return(want, nil).Times(1)
 
 	m := newTestSemaphoreTokenManager(store, clock.NewMockedTimeSource(), t)
-	resp, err := m.GetSemaphoreTokenByOwner(context.Background(), req)
+	resp, err := m.GetSemaphoreOwnershipByOwner(context.Background(), req)
 	assert.NoError(t, err)
-	assert.Equal(t, want, resp.Token)
+	assert.Equal(t, want, resp.Ownership)
 }
 
-func TestSemaphoreTokenManagerGetSemaphoreTokenByOwnerValidation(t *testing.T) {
+func TestSemaphoreTokenManagerGetSemaphoreOwnershipByOwnerValidation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := NewMockSemaphoreTokenStore(ctrl)
 
 	m := newTestSemaphoreTokenManager(store, clock.NewMockedTimeSource(), t)
-	_, err := m.GetSemaphoreTokenByOwner(context.Background(), &GetSemaphoreTokenByOwnerRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: ""})
+	_, err := m.GetSemaphoreOwnershipByOwner(context.Background(), &GetSemaphoreOwnershipByOwnerRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: ""})
 	assert.Error(t, err)
 }
 
@@ -356,7 +356,7 @@ func TestSemaphoreTokenManagerScanSemaphoreBucket(t *testing.T) {
 
 	req := &ScanSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, PageSize: 10}
 	want := &ScanSemaphoreBucketResponse{
-		Rows:          []*SemaphoreBucketRow{{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 1}},
+		Ownerships:    []*SemaphoreOwnership{{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 1}},
 		NextPageToken: []byte("token"),
 	}
 	store.EXPECT().ScanSemaphoreBucket(gomock.Any(), req).Return(want, nil).Times(1)
