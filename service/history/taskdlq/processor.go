@@ -115,9 +115,10 @@ type (
 
 	// ProcessorParams are the dependencies needed to build a Processor.
 	ProcessorParams struct {
-		ShardID       int
-		Manager       persistence.HistoryTaskDLQManager
-		Reinjector    TaskReinjector
+		ShardID    int
+		Manager    persistence.HistoryTaskDLQManager
+		Reinjector TaskReinjector
+		// MaxReadLevel is required; NewProcessor panics when it is nil.
 		MaxReadLevel  MaxReadLevelFn
 		PageSize      int
 		Interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
@@ -136,6 +137,12 @@ var _ Processor = (*ProcessorImpl)(nil)
 // The processor will periodically process the DLQ for the entire shard,
 // and will process a domain/clusterAttribute pair on demand.
 func NewProcessor(params ProcessorParams) *ProcessorImpl {
+	if params.MaxReadLevel == nil {
+		// Fail fast: a nil MaxReadLevel would otherwise nil-panic on the first sweep, and
+		// silently defaulting to an unbounded scan would reintroduce the churn this
+		// dependency exists to prevent.
+		panic("taskdlq.NewProcessor: ProcessorParams.MaxReadLevel is required")
+	}
 	return &ProcessorImpl{
 		shardID:         params.ShardID,
 		mgr:             params.Manager,
