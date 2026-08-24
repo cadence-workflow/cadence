@@ -57,12 +57,12 @@ func newNoSQLSemaphoreTaskStore(
 	}, nil
 }
 
-// LeaseSemaphoreBucket claims or renews single-writer ownership of a bucket by bumping the control
+// ClaimSemaphoreTaskBucket claims or renews single-writer ownership of a bucket by bumping the control
 // row's range_id, creating the control row if the bucket is used for the first time.
-func (m *nosqlSemaphoreTaskStore) LeaseSemaphoreBucket(
+func (m *nosqlSemaphoreTaskStore) ClaimSemaphoreTaskBucket(
 	ctx context.Context,
-	request *persistence.LeaseSemaphoreBucketRequest,
-) (*persistence.LeaseSemaphoreBucketResponse, error) {
+	request *persistence.ClaimSemaphoreTaskBucketRequest,
+) (*persistence.ClaimSemaphoreTaskBucketResponse, error) {
 	now := time.Now().UTC()
 	current, selectErr := m.db.SelectSemaphoreTaskControlRow(ctx, &nosqlplugin.SemaphoreTaskControlFilter{
 		DomainID:      request.DomainID,
@@ -81,14 +81,24 @@ func (m *nosqlSemaphoreTaskStore) LeaseSemaphoreBucket(
 				CreatedTime:   now,
 			}
 			if err := m.db.InsertSemaphoreTaskControlRow(ctx, newRow); err != nil {
-				return nil, m.toConditionOrCommonError("LeaseSemaphoreBucket", err)
+				return nil, m.toConditionOrCommonError("ClaimSemaphoreTaskBucket", err)
 			}
-			return &persistence.LeaseSemaphoreBucketResponse{
+			return &persistence.ClaimSemaphoreTaskBucketResponse{
 				RangeID:  newRow.RangeID,
 				AckLevel: newRow.AckLevel,
 			}, nil
 		}
-		return nil, convertCommonErrors(m.db, "LeaseSemaphoreBucket", selectErr)
+		return nil, convertCommonErrors(m.db, "ClaimSemaphoreTaskBucket", selectErr)
+	}
+
+	// A caller that claims a range_id must still hold it. Without this the bucket would always
+	// change hands, so an owner that already lost it would take it straight back and the two
+	// hosts would trade the bucket instead of one of them standing down.
+	if request.RangeID > 0 && request.RangeID != current.RangeID {
+		return nil, &persistence.ConditionFailedError{
+			Msg: fmt.Sprintf("ClaimSemaphoreTaskBucket:renew failed: semaphore:%v, bucket:%v, haveRangeID:%v, gotRangeID:%v",
+				request.SemaphoreName, request.Bucket, request.RangeID, current.RangeID),
+		}
 	}
 
 	newRangeID := current.RangeID + 1
@@ -100,38 +110,38 @@ func (m *nosqlSemaphoreTaskStore) LeaseSemaphoreBucket(
 		AckLevel:         current.AckLevel,
 		CurrentTimeStamp: now,
 	}, current.RangeID); err != nil {
-		return nil, m.toConditionOrCommonError("LeaseSemaphoreBucket", err)
+		return nil, m.toConditionOrCommonError("ClaimSemaphoreTaskBucket", err)
 	}
-	return &persistence.LeaseSemaphoreBucketResponse{
+	return &persistence.ClaimSemaphoreTaskBucketResponse{
 		RangeID:  newRangeID,
 		AckLevel: current.AckLevel,
 	}, nil
 }
 
-// GetSemaphoreBucket reads a bucket's control row (range_id, ack_level).
-func (m *nosqlSemaphoreTaskStore) GetSemaphoreBucket(
+// GetSemaphoreTaskBucketState reads a bucket's control row (range_id, ack_level).
+func (m *nosqlSemaphoreTaskStore) GetSemaphoreTaskBucketState(
 	ctx context.Context,
-	request *persistence.GetSemaphoreBucketRequest,
-) (*persistence.GetSemaphoreBucketResponse, error) {
+	request *persistence.GetSemaphoreTaskBucketStateRequest,
+) (*persistence.GetSemaphoreTaskBucketStateResponse, error) {
 	row, err := m.db.SelectSemaphoreTaskControlRow(ctx, &nosqlplugin.SemaphoreTaskControlFilter{
 		DomainID:      request.DomainID,
 		SemaphoreName: request.SemaphoreName,
 		Bucket:        request.Bucket,
 	})
 	if err != nil {
-		return nil, convertCommonErrors(m.db, "GetSemaphoreBucket", err)
+		return nil, convertCommonErrors(m.db, "GetSemaphoreTaskBucketState", err)
 	}
-	return &persistence.GetSemaphoreBucketResponse{
+	return &persistence.GetSemaphoreTaskBucketStateResponse{
 		RangeID:  row.RangeID,
 		AckLevel: row.AckLevel,
 	}, nil
 }
 
-// UpdateSemaphoreBucket advances the ack_level cursor, fenced by the current RangeID.
-func (m *nosqlSemaphoreTaskStore) UpdateSemaphoreBucket(
+// UpdateSemaphoreTaskBucketState advances the ack_level cursor, fenced by the current RangeID.
+func (m *nosqlSemaphoreTaskStore) UpdateSemaphoreTaskBucketState(
 	ctx context.Context,
-	request *persistence.UpdateSemaphoreBucketRequest,
-) (*persistence.UpdateSemaphoreBucketResponse, error) {
+	request *persistence.UpdateSemaphoreTaskBucketStateRequest,
+) (*persistence.UpdateSemaphoreTaskBucketStateResponse, error) {
 	if err := m.db.UpdateSemaphoreTaskControlRow(ctx, &nosqlplugin.SemaphoreTaskControlRow{
 		DomainID:         request.DomainID,
 		SemaphoreName:    request.SemaphoreName,
@@ -140,9 +150,9 @@ func (m *nosqlSemaphoreTaskStore) UpdateSemaphoreBucket(
 		AckLevel:         request.AckLevel,
 		CurrentTimeStamp: time.Now().UTC(),
 	}, request.RangeID); err != nil {
-		return nil, m.toConditionOrCommonError("UpdateSemaphoreBucket", err)
+		return nil, m.toConditionOrCommonError("UpdateSemaphoreTaskBucketState", err)
 	}
-	return &persistence.UpdateSemaphoreBucketResponse{}, nil
+	return &persistence.UpdateSemaphoreTaskBucketStateResponse{}, nil
 }
 
 // CreateSemaphoreTasks enqueues task rows, fenced by the bucket's RangeID.

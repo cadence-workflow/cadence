@@ -51,34 +51,38 @@ func (m *semaphoreTaskManagerImpl) Close() {
 	m.persistence.Close()
 }
 
-func (m *semaphoreTaskManagerImpl) LeaseSemaphoreBucket(
+func (m *semaphoreTaskManagerImpl) ClaimSemaphoreTaskBucket(
 	ctx context.Context,
-	request *LeaseSemaphoreBucketRequest,
-) (*LeaseSemaphoreBucketResponse, error) {
+	request *ClaimSemaphoreTaskBucketRequest,
+) (*ClaimSemaphoreTaskBucketResponse, error) {
 	if err := validateBucketIdentity(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
-	return m.persistence.LeaseSemaphoreBucket(ctx, request)
+	// Zero is the "I hold nothing, take the bucket" case; negative is never a real range_id.
+	if request.RangeID < 0 {
+		return nil, fmt.Errorf("RangeID must not be negative, got %d", request.RangeID)
+	}
+	return m.persistence.ClaimSemaphoreTaskBucket(ctx, request)
 }
 
-func (m *semaphoreTaskManagerImpl) GetSemaphoreBucket(
+func (m *semaphoreTaskManagerImpl) GetSemaphoreTaskBucketState(
 	ctx context.Context,
-	request *GetSemaphoreBucketRequest,
-) (*GetSemaphoreBucketResponse, error) {
+	request *GetSemaphoreTaskBucketStateRequest,
+) (*GetSemaphoreTaskBucketStateResponse, error) {
 	if err := validateBucketIdentity(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
-	return m.persistence.GetSemaphoreBucket(ctx, request)
+	return m.persistence.GetSemaphoreTaskBucketState(ctx, request)
 }
 
-// UpdateSemaphoreBucket writes AckLevel as given. The RangeID fence proves the caller still owns
+// UpdateSemaphoreTaskBucketState writes AckLevel as given. The RangeID fence proves the caller still owns
 // the bucket but does not constrain AckLevel: a value below the persisted one rewinds the cursor
 // and re-reads acked tasks. Monotonicity is enforced by the bucket owner's in-memory cursor, not
 // at this layer; see messaging.AckManager.SetAckLevel.
-func (m *semaphoreTaskManagerImpl) UpdateSemaphoreBucket(
+func (m *semaphoreTaskManagerImpl) UpdateSemaphoreTaskBucketState(
 	ctx context.Context,
-	request *UpdateSemaphoreBucketRequest,
-) (*UpdateSemaphoreBucketResponse, error) {
+	request *UpdateSemaphoreTaskBucketStateRequest,
+) (*UpdateSemaphoreTaskBucketStateResponse, error) {
 	if err := validateBucketIdentity(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
@@ -88,7 +92,7 @@ func (m *semaphoreTaskManagerImpl) UpdateSemaphoreBucket(
 	if request.AckLevel < 0 {
 		return nil, fmt.Errorf("AckLevel must not be negative, got %d", request.AckLevel)
 	}
-	return m.persistence.UpdateSemaphoreBucket(ctx, request)
+	return m.persistence.UpdateSemaphoreTaskBucketState(ctx, request)
 }
 
 func (m *semaphoreTaskManagerImpl) CreateSemaphoreTasks(

@@ -54,8 +54,8 @@ func (s *SemaphoreTaskPersistenceSuite) TearDownSuite() {
 	s.TearDownWorkflowStore()
 }
 
-// TestLeaseSemaphoreBucket covers the first lease of a new bucket and the range_id bump on re-lease.
-func (s *SemaphoreTaskPersistenceSuite) TestLeaseSemaphoreBucket() {
+// TestClaimSemaphoreTaskBucket covers the first claim of a new bucket and the range_id bump on a re-claim.
+func (s *SemaphoreTaskPersistenceSuite) TestClaimSemaphoreTaskBucket() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
@@ -67,8 +67,8 @@ func (s *SemaphoreTaskPersistenceSuite) TestLeaseSemaphoreBucket() {
 	domainID := uuid.NewString()
 	semaphoreName := "sem-" + uuid.NewString()
 
-	// first lease creates the control row
-	first, err := manager.LeaseSemaphoreBucket(ctx, &persistence.LeaseSemaphoreBucketRequest{
+	// first claim creates the control row
+	first, err := manager.ClaimSemaphoreTaskBucket(ctx, &persistence.ClaimSemaphoreTaskBucketRequest{
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        0,
@@ -77,8 +77,8 @@ func (s *SemaphoreTaskPersistenceSuite) TestLeaseSemaphoreBucket() {
 	s.Equal(int64(1), first.RangeID)
 	s.Equal(int64(0), first.AckLevel)
 
-	// second lease bumps range_id and preserves ack_level
-	second, err := manager.LeaseSemaphoreBucket(ctx, &persistence.LeaseSemaphoreBucketRequest{
+	// second claim bumps range_id and preserves ack_level
+	second, err := manager.ClaimSemaphoreTaskBucket(ctx, &persistence.ClaimSemaphoreTaskBucketRequest{
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        0,
@@ -87,7 +87,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestLeaseSemaphoreBucket() {
 	s.Equal(int64(2), second.RangeID)
 	s.Equal(int64(0), second.AckLevel)
 
-	got, err := manager.GetSemaphoreBucket(ctx, &persistence.GetSemaphoreBucketRequest{
+	got, err := manager.GetSemaphoreTaskBucketState(ctx, &persistence.GetSemaphoreTaskBucketStateRequest{
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        0,
@@ -97,7 +97,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestLeaseSemaphoreBucket() {
 	s.Equal(int64(0), got.AckLevel)
 }
 
-func (s *SemaphoreTaskPersistenceSuite) TestGetSemaphoreBucketNotFound() {
+func (s *SemaphoreTaskPersistenceSuite) TestGetSemaphoreTaskBucketStateNotFound() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
@@ -105,7 +105,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestGetSemaphoreBucketNotFound() {
 	s.NoError(err)
 	defer manager.Close()
 
-	_, err = manager.GetSemaphoreBucket(ctx, &persistence.GetSemaphoreBucketRequest{
+	_, err = manager.GetSemaphoreTaskBucketState(ctx, &persistence.GetSemaphoreTaskBucketStateRequest{
 		DomainID:      uuid.NewString(),
 		SemaphoreName: "does-not-exist",
 		Bucket:        0,
@@ -114,7 +114,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestGetSemaphoreBucketNotFound() {
 }
 
 // TestTaskQueueLifecycle walks the full bucket-owner flow:
-// lease -> enqueue tasks -> read above ack -> advance ack -> range-delete -> count.
+// claim -> enqueue tasks -> read above ack -> advance ack -> range-delete -> count.
 func (s *SemaphoreTaskPersistenceSuite) TestTaskQueueLifecycle() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
@@ -127,7 +127,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestTaskQueueLifecycle() {
 	semaphoreName := "sem-" + uuid.NewString()
 	bucket := 1
 
-	lease, err := manager.LeaseSemaphoreBucket(ctx, &persistence.LeaseSemaphoreBucketRequest{
+	claim, err := manager.ClaimSemaphoreTaskBucket(ctx, &persistence.ClaimSemaphoreTaskBucketRequest{
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        bucket,
@@ -144,7 +144,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestTaskQueueLifecycle() {
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        bucket,
-		RangeID:       lease.RangeID,
+		RangeID:       claim.RangeID,
 		Tasks:         tasks,
 	})
 	s.NoError(err)
@@ -154,7 +154,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestTaskQueueLifecycle() {
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        bucket,
-		ReadLevel:     lease.AckLevel,
+		ReadLevel:     claim.AckLevel,
 		MaxReadLevel:  100,
 		BatchSize:     10,
 	})
@@ -172,17 +172,17 @@ func (s *SemaphoreTaskPersistenceSuite) TestTaskQueueLifecycle() {
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        bucket,
-		ReadLevel:     lease.AckLevel,
+		ReadLevel:     claim.AckLevel,
 	})
 	s.NoError(err)
 	s.Equal(int64(3), countResp.Count)
 
 	// grant the first two: advance ack_level then drain the granted rows
-	_, err = manager.UpdateSemaphoreBucket(ctx, &persistence.UpdateSemaphoreBucketRequest{
+	_, err = manager.UpdateSemaphoreTaskBucketState(ctx, &persistence.UpdateSemaphoreTaskBucketStateRequest{
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        bucket,
-		RangeID:       lease.RangeID,
+		RangeID:       claim.RangeID,
 		AckLevel:      2,
 	})
 	s.NoError(err)
@@ -208,7 +208,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestTaskQueueLifecycle() {
 	s.Len(afterResp.Tasks, 1)
 	s.Equal(int64(3), afterResp.Tasks[0].TaskID)
 
-	bucketResp, err := manager.GetSemaphoreBucket(ctx, &persistence.GetSemaphoreBucketRequest{
+	bucketResp, err := manager.GetSemaphoreTaskBucketState(ctx, &persistence.GetSemaphoreTaskBucketStateRequest{
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        bucket,
@@ -231,7 +231,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestStaleRangeIDIsFencedOut() {
 	semaphoreName := "sem-" + uuid.NewString()
 	bucket := 2
 
-	stale, err := manager.LeaseSemaphoreBucket(ctx, &persistence.LeaseSemaphoreBucketRequest{
+	stale, err := manager.ClaimSemaphoreTaskBucket(ctx, &persistence.ClaimSemaphoreTaskBucketRequest{
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        bucket,
@@ -239,7 +239,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestStaleRangeIDIsFencedOut() {
 	s.NoError(err)
 
 	// a new owner takes over the bucket
-	_, err = manager.LeaseSemaphoreBucket(ctx, &persistence.LeaseSemaphoreBucketRequest{
+	_, err = manager.ClaimSemaphoreTaskBucket(ctx, &persistence.ClaimSemaphoreTaskBucketRequest{
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        bucket,
@@ -259,7 +259,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestStaleRangeIDIsFencedOut() {
 	_, ok := err.(*persistence.ConditionFailedError)
 	s.True(ok, "expected ConditionFailedError, got %T: %v", err, err)
 
-	_, err = manager.UpdateSemaphoreBucket(ctx, &persistence.UpdateSemaphoreBucketRequest{
+	_, err = manager.UpdateSemaphoreTaskBucketState(ctx, &persistence.UpdateSemaphoreTaskBucketStateRequest{
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        bucket,
@@ -284,17 +284,17 @@ func (s *SemaphoreTaskPersistenceSuite) TestBucketsAreIndependent() {
 	domainID := uuid.NewString()
 	semaphoreName := "sem-" + uuid.NewString()
 
-	leaseA, err := manager.LeaseSemaphoreBucket(ctx, &persistence.LeaseSemaphoreBucketRequest{
+	claimA, err := manager.ClaimSemaphoreTaskBucket(ctx, &persistence.ClaimSemaphoreTaskBucketRequest{
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: 0,
 	})
 	s.NoError(err)
-	leaseB, err := manager.LeaseSemaphoreBucket(ctx, &persistence.LeaseSemaphoreBucketRequest{
+	claimB, err := manager.ClaimSemaphoreTaskBucket(ctx, &persistence.ClaimSemaphoreTaskBucketRequest{
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: 1,
 	})
 	s.NoError(err)
 
 	_, err = manager.CreateSemaphoreTasks(ctx, &persistence.CreateSemaphoreTasksRequest{
-		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: 0, RangeID: leaseA.RangeID,
+		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: 0, RangeID: claimA.RangeID,
 		Tasks: []*persistence.SemaphoreTask{
 			{TaskID: 1, WorkflowID: "wf-1", RunID: uuid.NewString(), HoldID: 11},
 		},
@@ -312,5 +312,5 @@ func (s *SemaphoreTaskPersistenceSuite) TestBucketsAreIndependent() {
 	})
 	s.NoError(err)
 	s.Equal(int64(0), countB.Count)
-	s.Equal(leaseB.RangeID, int64(1))
+	s.Equal(claimB.RangeID, int64(1))
 }

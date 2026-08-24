@@ -42,46 +42,64 @@ func newTestSemaphoreTaskManager(store SemaphoreTaskStore, timeSrc clock.TimeSou
 	}
 }
 
-func TestSemaphoreTaskManagerLeaseSemaphoreBucket(t *testing.T) {
+func TestSemaphoreTaskManagerClaimSemaphoreTaskBucket(t *testing.T) {
 	tests := []struct {
 		name      string
-		request   *LeaseSemaphoreBucketRequest
+		request   *ClaimSemaphoreTaskBucketRequest
 		setupMock func(store *MockSemaphoreTaskStore)
 		wantErr   bool
-		want      *LeaseSemaphoreBucketResponse
+		want      *ClaimSemaphoreTaskBucketResponse
 	}{
 		{
 			name:    "success",
-			request: &LeaseSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3},
+			request: &ClaimSemaphoreTaskBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3},
 			setupMock: func(store *MockSemaphoreTaskStore) {
-				store.EXPECT().LeaseSemaphoreBucket(gomock.Any(), gomock.Any()).
-					Return(&LeaseSemaphoreBucketResponse{RangeID: 8, AckLevel: 42}, nil).Times(1)
+				store.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).
+					Return(&ClaimSemaphoreTaskBucketResponse{RangeID: 8, AckLevel: 42}, nil).Times(1)
 			},
-			want: &LeaseSemaphoreBucketResponse{RangeID: 8, AckLevel: 42},
+			want: &ClaimSemaphoreTaskBucketResponse{RangeID: 8, AckLevel: 42},
+		},
+		{
+			name:    "renew passes the held range id through",
+			request: &ClaimSemaphoreTaskBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 7},
+			setupMock: func(store *MockSemaphoreTaskStore) {
+				store.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *ClaimSemaphoreTaskBucketRequest) (*ClaimSemaphoreTaskBucketResponse, error) {
+						assert.Equal(t, int64(7), req.RangeID)
+						return &ClaimSemaphoreTaskBucketResponse{RangeID: 8, AckLevel: 42}, nil
+					}).Times(1)
+			},
+			want: &ClaimSemaphoreTaskBucketResponse{RangeID: 8, AckLevel: 42},
+		},
+		{
+			name:      "negative range id",
+			request:   &ClaimSemaphoreTaskBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: -1},
+			setupMock: func(store *MockSemaphoreTaskStore) {},
+			wantErr:   true,
 		},
 		{
 			name:      "missing domain id",
-			request:   &LeaseSemaphoreBucketRequest{SemaphoreName: "sem-1", Bucket: 3},
+			request:   &ClaimSemaphoreTaskBucketRequest{SemaphoreName: "sem-1", Bucket: 3},
 			setupMock: func(store *MockSemaphoreTaskStore) {},
 			wantErr:   true,
 		},
 		{
 			name:      "missing semaphore name",
-			request:   &LeaseSemaphoreBucketRequest{DomainID: "domain-1", Bucket: 3},
+			request:   &ClaimSemaphoreTaskBucketRequest{DomainID: "domain-1", Bucket: 3},
 			setupMock: func(store *MockSemaphoreTaskStore) {},
 			wantErr:   true,
 		},
 		{
 			name:      "negative bucket",
-			request:   &LeaseSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: -1},
+			request:   &ClaimSemaphoreTaskBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: -1},
 			setupMock: func(store *MockSemaphoreTaskStore) {},
 			wantErr:   true,
 		},
 		{
 			name:    "store error is propagated",
-			request: &LeaseSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3},
+			request: &ClaimSemaphoreTaskBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3},
 			setupMock: func(store *MockSemaphoreTaskStore) {
-				store.EXPECT().LeaseSemaphoreBucket(gomock.Any(), gomock.Any()).
+				store.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("store failed")).Times(1)
 			},
 			wantErr: true,
@@ -95,7 +113,7 @@ func TestSemaphoreTaskManagerLeaseSemaphoreBucket(t *testing.T) {
 			tc.setupMock(store)
 
 			m := newTestSemaphoreTaskManager(store, clock.NewMockedTimeSource(), t)
-			resp, err := m.LeaseSemaphoreBucket(context.Background(), tc.request)
+			resp, err := m.ClaimSemaphoreTaskBucket(context.Background(), tc.request)
 
 			if tc.wantErr {
 				assert.Error(t, err)
@@ -108,24 +126,24 @@ func TestSemaphoreTaskManagerLeaseSemaphoreBucket(t *testing.T) {
 	}
 }
 
-func TestSemaphoreTaskManagerGetSemaphoreBucket(t *testing.T) {
+func TestSemaphoreTaskManagerGetSemaphoreTaskBucketState(t *testing.T) {
 	tests := []struct {
 		name      string
-		request   *GetSemaphoreBucketRequest
+		request   *GetSemaphoreTaskBucketStateRequest
 		setupMock func(store *MockSemaphoreTaskStore)
 		wantErr   bool
 	}{
 		{
 			name:    "success",
-			request: &GetSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3},
+			request: &GetSemaphoreTaskBucketStateRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3},
 			setupMock: func(store *MockSemaphoreTaskStore) {
-				store.EXPECT().GetSemaphoreBucket(gomock.Any(), gomock.Any()).
-					Return(&GetSemaphoreBucketResponse{RangeID: 5, AckLevel: 20}, nil).Times(1)
+				store.EXPECT().GetSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).
+					Return(&GetSemaphoreTaskBucketStateResponse{RangeID: 5, AckLevel: 20}, nil).Times(1)
 			},
 		},
 		{
 			name:      "missing domain id",
-			request:   &GetSemaphoreBucketRequest{SemaphoreName: "sem-1"},
+			request:   &GetSemaphoreTaskBucketStateRequest{SemaphoreName: "sem-1"},
 			setupMock: func(store *MockSemaphoreTaskStore) {},
 			wantErr:   true,
 		},
@@ -138,7 +156,7 @@ func TestSemaphoreTaskManagerGetSemaphoreBucket(t *testing.T) {
 			tc.setupMock(store)
 
 			m := newTestSemaphoreTaskManager(store, clock.NewMockedTimeSource(), t)
-			resp, err := m.GetSemaphoreBucket(context.Background(), tc.request)
+			resp, err := m.GetSemaphoreTaskBucketState(context.Background(), tc.request)
 
 			if tc.wantErr {
 				assert.Error(t, err)
@@ -146,50 +164,50 @@ func TestSemaphoreTaskManagerGetSemaphoreBucket(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
-			assert.Equal(t, &GetSemaphoreBucketResponse{RangeID: 5, AckLevel: 20}, resp)
+			assert.Equal(t, &GetSemaphoreTaskBucketStateResponse{RangeID: 5, AckLevel: 20}, resp)
 		})
 	}
 }
 
-func TestSemaphoreTaskManagerUpdateSemaphoreBucket(t *testing.T) {
+func TestSemaphoreTaskManagerUpdateSemaphoreTaskBucketState(t *testing.T) {
 	tests := []struct {
 		name      string
-		request   *UpdateSemaphoreBucketRequest
+		request   *UpdateSemaphoreTaskBucketStateRequest
 		setupMock func(store *MockSemaphoreTaskStore)
 		wantErr   bool
 	}{
 		{
 			name:    "success",
-			request: &UpdateSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 7, AckLevel: 100},
+			request: &UpdateSemaphoreTaskBucketStateRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 7, AckLevel: 100},
 			setupMock: func(store *MockSemaphoreTaskStore) {
-				store.EXPECT().UpdateSemaphoreBucket(gomock.Any(), gomock.Any()).
-					Return(&UpdateSemaphoreBucketResponse{}, nil).Times(1)
+				store.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).
+					Return(&UpdateSemaphoreTaskBucketStateResponse{}, nil).Times(1)
 			},
 		},
 		{
 			// A bucket that has acked nothing yet sits at 0, so 0 is a legal cursor.
 			name:    "zero ack level",
-			request: &UpdateSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 7, AckLevel: 0},
+			request: &UpdateSemaphoreTaskBucketStateRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 7, AckLevel: 0},
 			setupMock: func(store *MockSemaphoreTaskStore) {
-				store.EXPECT().UpdateSemaphoreBucket(gomock.Any(), gomock.Any()).
-					Return(&UpdateSemaphoreBucketResponse{}, nil).Times(1)
+				store.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).
+					Return(&UpdateSemaphoreTaskBucketStateResponse{}, nil).Times(1)
 			},
 		},
 		{
 			name:      "non-positive range id",
-			request:   &UpdateSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 0},
+			request:   &UpdateSemaphoreTaskBucketStateRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 0},
 			setupMock: func(store *MockSemaphoreTaskStore) {},
 			wantErr:   true,
 		},
 		{
 			name:      "negative ack level",
-			request:   &UpdateSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 7, AckLevel: -1},
+			request:   &UpdateSemaphoreTaskBucketStateRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 7, AckLevel: -1},
 			setupMock: func(store *MockSemaphoreTaskStore) {},
 			wantErr:   true,
 		},
 		{
 			name:      "missing semaphore name",
-			request:   &UpdateSemaphoreBucketRequest{DomainID: "domain-1", Bucket: 3, RangeID: 7},
+			request:   &UpdateSemaphoreTaskBucketStateRequest{DomainID: "domain-1", Bucket: 3, RangeID: 7},
 			setupMock: func(store *MockSemaphoreTaskStore) {},
 			wantErr:   true,
 		},
@@ -202,7 +220,7 @@ func TestSemaphoreTaskManagerUpdateSemaphoreBucket(t *testing.T) {
 			tc.setupMock(store)
 
 			m := newTestSemaphoreTaskManager(store, clock.NewMockedTimeSource(), t)
-			resp, err := m.UpdateSemaphoreBucket(context.Background(), tc.request)
+			resp, err := m.UpdateSemaphoreTaskBucketState(context.Background(), tc.request)
 
 			if tc.wantErr {
 				assert.Error(t, err)
