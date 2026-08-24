@@ -430,8 +430,8 @@ func retrieveTimeoutRiskIssues(issues []invariant.InvariantCheckResult) ([]*time
 					ActivityMissingHeartbeatTimeout: &metadata,
 				},
 			})
-		case timeoutrisk.ActivityLongScheduleToStartWithRetries.String():
-			var metadata timeoutrisk.ActivityLongScheduleToStartWithRetriesMetadata
+		case timeoutrisk.ActivityRetryWindowExceedsStandbyDiscardDelay.String():
+			var metadata timeoutrisk.ActivityRetryWindowExceedsStandbyDiscardDelayMetadata
 			err := json.Unmarshal(issue.Metadata, &metadata)
 			if err != nil {
 				return nil, err
@@ -441,7 +441,7 @@ func retrieveTimeoutRiskIssues(issues []invariant.InvariantCheckResult) ([]*time
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
 				Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
-					ActivityLongScheduleToStartWithRetries: &metadata,
+					ActivityRetryWindowExceedsStandbyDiscardDelay: &metadata,
 				},
 			})
 		}

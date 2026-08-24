@@ -503,18 +503,18 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 	}
 	missingHeartbeatMetadataInBytes, err := json.Marshal(missingHeartbeatMetadata)
 	s.NoError(err)
-	longScheduleToStartMetadata := timeoutrisk.ActivityLongScheduleToStartWithRetriesMetadata{
-		EventID:                4,
-		ActivityID:             "103",
-		ActivityType:           "test-activity",
-		ScheduleToStartTimeout: 600 * time.Second,
-		Threshold:              300 * time.Second,
+	retryWindowMetadata := timeoutrisk.ActivityRetryWindowExceedsStandbyDiscardDelayMetadata{
+		EventID:              4,
+		ActivityID:           "103",
+		ActivityType:         "test-activity",
+		EstimatedRetryWindow: 1800 * time.Second,
+		Threshold:            1500 * time.Second,
 		RetryPolicy: &types.RetryPolicy{
 			InitialIntervalInSeconds: 1,
 			MaximumAttempts:          0,
 		},
 	}
-	longScheduleToStartMetadataInBytes, err := json.Marshal(longScheduleToStartMetadata)
+	retryWindowMetadataInBytes, err := json.Marshal(retryWindowMetadata)
 	s.NoError(err)
 	issues := []invariant.InvariantCheckResult{
 		{
@@ -531,9 +531,9 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 		},
 		{
 			IssueID:       2,
-			InvariantType: timeoutrisk.ActivityLongScheduleToStartWithRetries.String(),
-			Reason:        timeoutrisk.LongScheduleToStartWithMultipleRetries.String(),
-			Metadata:      longScheduleToStartMetadataInBytes,
+			InvariantType: timeoutrisk.ActivityRetryWindowExceedsStandbyDiscardDelay.String(),
+			Reason:        timeoutrisk.RetryWindowExceedsStandbyDiscardDelay.String(),
+			Metadata:      retryWindowMetadataInBytes,
 		},
 	}
 	timeoutRiskIssues := []*timeoutRiskIssuesResult{
@@ -555,10 +555,10 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 		},
 		{
 			IssueID:       2,
-			InvariantType: timeoutrisk.ActivityLongScheduleToStartWithRetries.String(),
-			Reason:        timeoutrisk.LongScheduleToStartWithMultipleRetries.String(),
+			InvariantType: timeoutrisk.ActivityRetryWindowExceedsStandbyDiscardDelay.String(),
+			Reason:        timeoutrisk.RetryWindowExceedsStandbyDiscardDelay.String(),
 			Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
-				ActivityLongScheduleToStartWithRetries: &longScheduleToStartMetadata,
+				ActivityRetryWindowExceedsStandbyDiscardDelay: &retryWindowMetadata,
 			},
 		},
 	}
