@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -173,16 +174,25 @@ func (db *CDB) SelectSemaphoreTasks(ctx context.Context, filter *nosqlplugin.Sem
 	var response []*nosqlplugin.SemaphoreTaskRow
 	row := make(map[string]interface{})
 	for iter.MapScan(row) {
-		taskID, ok := row["task_id"]
-		if !ok { // static column-only record, no task
+		taskID, ok := row["task_id"].(int64)
+		if !ok { // no clustering key, so nothing identifies a task
+			continue
+		}
+		taskMap, ok := row["task"].(map[string]interface{})
+		if !ok {
+			// The `task` column is null, so there is no payload to read. A plain assertion
+			// panics here; an error would stall the bucket, since the reader keeps retrying
+			// the same row. Skipping drops a queued acquire, so log it.
+			db.logger.Warn("skipping semaphore task row with no task UDT",
+				tag.WorkflowDomainID(filter.DomainID), tag.TaskID(taskID))
 			continue
 		}
 
-		w := createSemaphoreTaskInfo(row["task"].(map[string]interface{}))
+		w := createSemaphoreTaskInfo(taskMap)
 		w.DomainID = filter.DomainID
 		w.SemaphoreName = filter.SemaphoreName
 		w.Bucket = filter.Bucket
-		w.TaskID = taskID.(int64)
+		w.TaskID = taskID
 		if deadline, ok := row["acquire_deadline"].(time.Time); ok && !deadline.IsZero() {
 			d := deadline
 			w.AcquireDeadline = &d

@@ -167,8 +167,23 @@ func TestSemaphoreTaskManagerUpdateSemaphoreBucket(t *testing.T) {
 			},
 		},
 		{
+			// A bucket that has acked nothing yet sits at 0, so 0 is a legal cursor.
+			name:    "zero ack level",
+			request: &UpdateSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 7, AckLevel: 0},
+			setupMock: func(store *MockSemaphoreTaskStore) {
+				store.EXPECT().UpdateSemaphoreBucket(gomock.Any(), gomock.Any()).
+					Return(&UpdateSemaphoreBucketResponse{}, nil).Times(1)
+			},
+		},
+		{
 			name:      "non-positive range id",
 			request:   &UpdateSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 0},
+			setupMock: func(store *MockSemaphoreTaskStore) {},
+			wantErr:   true,
+		},
+		{
+			name:      "negative ack level",
+			request:   &UpdateSemaphoreBucketRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, RangeID: 7, AckLevel: -1},
 			setupMock: func(store *MockSemaphoreTaskStore) {},
 			wantErr:   true,
 		},

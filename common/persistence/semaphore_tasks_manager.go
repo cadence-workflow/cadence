@@ -71,6 +71,10 @@ func (m *semaphoreTaskManagerImpl) GetSemaphoreBucket(
 	return m.persistence.GetSemaphoreBucket(ctx, request)
 }
 
+// UpdateSemaphoreBucket writes AckLevel as given. The RangeID fence proves the caller still owns
+// the bucket but does not constrain AckLevel: a value below the persisted one rewinds the cursor
+// and re-reads acked tasks. Monotonicity is enforced by the bucket owner's in-memory cursor, not
+// at this layer; see messaging.AckManager.SetAckLevel.
 func (m *semaphoreTaskManagerImpl) UpdateSemaphoreBucket(
 	ctx context.Context,
 	request *UpdateSemaphoreBucketRequest,
@@ -80,6 +84,9 @@ func (m *semaphoreTaskManagerImpl) UpdateSemaphoreBucket(
 	}
 	if request.RangeID <= 0 {
 		return nil, fmt.Errorf("RangeID must be positive, got %d", request.RangeID)
+	}
+	if request.AckLevel < 0 {
+		return nil, fmt.Errorf("AckLevel must not be negative, got %d", request.AckLevel)
 	}
 	return m.persistence.UpdateSemaphoreBucket(ctx, request)
 }
