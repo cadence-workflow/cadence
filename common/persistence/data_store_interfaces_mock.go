@@ -1260,6 +1260,21 @@ func (m *MockSemaphoreTaskStore) EXPECT() *MockSemaphoreTaskStoreMockRecorder {
 	return m.recorder
 }
 
+// ClaimSemaphoreTaskBucket mocks base method.
+func (m *MockSemaphoreTaskStore) ClaimSemaphoreTaskBucket(ctx context.Context, request *ClaimSemaphoreTaskBucketRequest) (*ClaimSemaphoreTaskBucketResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimSemaphoreTaskBucket", ctx, request)
+	ret0, _ := ret[0].(*ClaimSemaphoreTaskBucketResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimSemaphoreTaskBucket indicates an expected call of ClaimSemaphoreTaskBucket.
+func (mr *MockSemaphoreTaskStoreMockRecorder) ClaimSemaphoreTaskBucket(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimSemaphoreTaskBucket", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).ClaimSemaphoreTaskBucket), ctx, request)
+}
+
 // Close mocks base method.
 func (m *MockSemaphoreTaskStore) Close() {
 	m.ctrl.T.Helper()
@@ -1316,19 +1331,19 @@ func (mr *MockSemaphoreTaskStoreMockRecorder) GetName() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetName", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).GetName))
 }
 
-// GetSemaphoreBucket mocks base method.
-func (m *MockSemaphoreTaskStore) GetSemaphoreBucket(ctx context.Context, request *GetSemaphoreBucketRequest) (*GetSemaphoreBucketResponse, error) {
+// GetSemaphoreTaskBucketState mocks base method.
+func (m *MockSemaphoreTaskStore) GetSemaphoreTaskBucketState(ctx context.Context, request *GetSemaphoreTaskBucketStateRequest) (*GetSemaphoreTaskBucketStateResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSemaphoreBucket", ctx, request)
-	ret0, _ := ret[0].(*GetSemaphoreBucketResponse)
+	ret := m.ctrl.Call(m, "GetSemaphoreTaskBucketState", ctx, request)
+	ret0, _ := ret[0].(*GetSemaphoreTaskBucketStateResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetSemaphoreBucket indicates an expected call of GetSemaphoreBucket.
-func (mr *MockSemaphoreTaskStoreMockRecorder) GetSemaphoreBucket(ctx, request any) *gomock.Call {
+// GetSemaphoreTaskBucketState indicates an expected call of GetSemaphoreTaskBucketState.
+func (mr *MockSemaphoreTaskStoreMockRecorder) GetSemaphoreTaskBucketState(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreBucket", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).GetSemaphoreBucket), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTaskBucketState", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).GetSemaphoreTaskBucketState), ctx, request)
 }
 
 // GetSemaphoreTasks mocks base method.
@@ -1361,34 +1376,19 @@ func (mr *MockSemaphoreTaskStoreMockRecorder) GetSemaphoreTasksCount(ctx, reques
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTasksCount", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).GetSemaphoreTasksCount), ctx, request)
 }
 
-// LeaseSemaphoreBucket mocks base method.
-func (m *MockSemaphoreTaskStore) LeaseSemaphoreBucket(ctx context.Context, request *LeaseSemaphoreBucketRequest) (*LeaseSemaphoreBucketResponse, error) {
+// UpdateSemaphoreTaskBucketState mocks base method.
+func (m *MockSemaphoreTaskStore) UpdateSemaphoreTaskBucketState(ctx context.Context, request *UpdateSemaphoreTaskBucketStateRequest) (*UpdateSemaphoreTaskBucketStateResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LeaseSemaphoreBucket", ctx, request)
-	ret0, _ := ret[0].(*LeaseSemaphoreBucketResponse)
+	ret := m.ctrl.Call(m, "UpdateSemaphoreTaskBucketState", ctx, request)
+	ret0, _ := ret[0].(*UpdateSemaphoreTaskBucketStateResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// LeaseSemaphoreBucket indicates an expected call of LeaseSemaphoreBucket.
-func (mr *MockSemaphoreTaskStoreMockRecorder) LeaseSemaphoreBucket(ctx, request any) *gomock.Call {
+// UpdateSemaphoreTaskBucketState indicates an expected call of UpdateSemaphoreTaskBucketState.
+func (mr *MockSemaphoreTaskStoreMockRecorder) UpdateSemaphoreTaskBucketState(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaseSemaphoreBucket", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).LeaseSemaphoreBucket), ctx, request)
-}
-
-// UpdateSemaphoreBucket mocks base method.
-func (m *MockSemaphoreTaskStore) UpdateSemaphoreBucket(ctx context.Context, request *UpdateSemaphoreBucketRequest) (*UpdateSemaphoreBucketResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSemaphoreBucket", ctx, request)
-	ret0, _ := ret[0].(*UpdateSemaphoreBucketResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateSemaphoreBucket indicates an expected call of UpdateSemaphoreBucket.
-func (mr *MockSemaphoreTaskStoreMockRecorder) UpdateSemaphoreBucket(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSemaphoreBucket", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).UpdateSemaphoreBucket), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSemaphoreTaskBucketState", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).UpdateSemaphoreTaskBucketState), ctx, request)
 }
 
 // MockHistoryDLQTaskStore is a mock of HistoryDLQTaskStore interface.

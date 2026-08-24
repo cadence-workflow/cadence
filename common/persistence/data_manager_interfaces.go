@@ -1461,35 +1461,40 @@ type (
 		CreatedTime     time.Time
 	}
 
-	// LeaseSemaphoreBucketRequest claims (or renews) single-writer ownership of a bucket by
+	// ClaimSemaphoreTaskBucketRequest claims (or renews) single-writer ownership of a bucket by
 	// bumping the control row's range_id. It creates the control row if the bucket is new.
-	LeaseSemaphoreBucketRequest struct {
+	ClaimSemaphoreTaskBucketRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		// RangeID is the range_id the caller believes it currently holds. Zero means the caller
+		// holds nothing and is taking the bucket from whoever has it. A non-zero value that no
+		// longer matches the control row returns ConditionFailedError instead of taking it back,
+		// which is how an owner that has already lost the bucket finds out.
+		RangeID int64
+	}
+
+	// ClaimSemaphoreTaskBucketResponse returns the bucket's fence and cursor after the claim.
+	ClaimSemaphoreTaskBucketResponse struct {
+		RangeID  int64
+		AckLevel int64
+	}
+
+	// GetSemaphoreTaskBucketStateRequest reads a bucket's control row.
+	GetSemaphoreTaskBucketStateRequest struct {
 		DomainID      string
 		SemaphoreName string
 		Bucket        int
 	}
 
-	// LeaseSemaphoreBucketResponse returns the bucket's current fence and cursor after the lease.
-	LeaseSemaphoreBucketResponse struct {
+	// GetSemaphoreTaskBucketStateResponse is the response for GetSemaphoreTaskBucketState.
+	GetSemaphoreTaskBucketStateResponse struct {
 		RangeID  int64
 		AckLevel int64
 	}
 
-	// GetSemaphoreBucketRequest reads a bucket's control row.
-	GetSemaphoreBucketRequest struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-	}
-
-	// GetSemaphoreBucketResponse is the response for GetSemaphoreBucket.
-	GetSemaphoreBucketResponse struct {
-		RangeID  int64
-		AckLevel int64
-	}
-
-	// UpdateSemaphoreBucketRequest advances the ack_level cursor, fenced by the current RangeID.
-	UpdateSemaphoreBucketRequest struct {
+	// UpdateSemaphoreTaskBucketStateRequest advances the ack_level cursor, fenced by the current RangeID.
+	UpdateSemaphoreTaskBucketStateRequest struct {
 		DomainID      string
 		SemaphoreName string
 		Bucket        int
@@ -1497,8 +1502,8 @@ type (
 		AckLevel      int64
 	}
 
-	// UpdateSemaphoreBucketResponse is the response for UpdateSemaphoreBucket.
-	UpdateSemaphoreBucketResponse struct{}
+	// UpdateSemaphoreTaskBucketStateResponse is the response for UpdateSemaphoreTaskBucketState.
+	UpdateSemaphoreTaskBucketStateResponse struct{}
 
 	// CreateSemaphoreTasksRequest enqueues task rows, fenced by the bucket's RangeID.
 	CreateSemaphoreTasksRequest struct {
@@ -1956,9 +1961,9 @@ type (
 	SemaphoreTaskManager interface {
 		Closeable
 		GetName() string
-		LeaseSemaphoreBucket(ctx context.Context, request *LeaseSemaphoreBucketRequest) (*LeaseSemaphoreBucketResponse, error)
-		GetSemaphoreBucket(ctx context.Context, request *GetSemaphoreBucketRequest) (*GetSemaphoreBucketResponse, error)
-		UpdateSemaphoreBucket(ctx context.Context, request *UpdateSemaphoreBucketRequest) (*UpdateSemaphoreBucketResponse, error)
+		ClaimSemaphoreTaskBucket(ctx context.Context, request *ClaimSemaphoreTaskBucketRequest) (*ClaimSemaphoreTaskBucketResponse, error)
+		GetSemaphoreTaskBucketState(ctx context.Context, request *GetSemaphoreTaskBucketStateRequest) (*GetSemaphoreTaskBucketStateResponse, error)
+		UpdateSemaphoreTaskBucketState(ctx context.Context, request *UpdateSemaphoreTaskBucketStateRequest) (*UpdateSemaphoreTaskBucketStateResponse, error)
 		CreateSemaphoreTasks(ctx context.Context, request *CreateSemaphoreTasksRequest) (*CreateSemaphoreTasksResponse, error)
 		GetSemaphoreTasks(ctx context.Context, request *GetSemaphoreTasksRequest) (*GetSemaphoreTasksResponse, error)
 		CompleteSemaphoreTasksLessThan(ctx context.Context, request *CompleteSemaphoreTasksLessThanRequest) (*CompleteSemaphoreTasksLessThanResponse, error)

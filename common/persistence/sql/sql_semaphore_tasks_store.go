@@ -51,24 +51,24 @@ func newSQLSemaphoreTaskStore(
 	}, nil
 }
 
-func (m *sqlSemaphoreTaskStore) LeaseSemaphoreBucket(
+func (m *sqlSemaphoreTaskStore) ClaimSemaphoreTaskBucket(
 	ctx context.Context,
-	request *persistence.LeaseSemaphoreBucketRequest,
-) (*persistence.LeaseSemaphoreBucketResponse, error) {
+	request *persistence.ClaimSemaphoreTaskBucketRequest,
+) (*persistence.ClaimSemaphoreTaskBucketResponse, error) {
 	return nil, errSemaphoreNotSupportedOnSQL()
 }
 
-func (m *sqlSemaphoreTaskStore) GetSemaphoreBucket(
+func (m *sqlSemaphoreTaskStore) GetSemaphoreTaskBucketState(
 	ctx context.Context,
-	request *persistence.GetSemaphoreBucketRequest,
-) (*persistence.GetSemaphoreBucketResponse, error) {
+	request *persistence.GetSemaphoreTaskBucketStateRequest,
+) (*persistence.GetSemaphoreTaskBucketStateResponse, error) {
 	return nil, errSemaphoreNotSupportedOnSQL()
 }
 
-func (m *sqlSemaphoreTaskStore) UpdateSemaphoreBucket(
+func (m *sqlSemaphoreTaskStore) UpdateSemaphoreTaskBucketState(
 	ctx context.Context,
-	request *persistence.UpdateSemaphoreBucketRequest,
-) (*persistence.UpdateSemaphoreBucketResponse, error) {
+	request *persistence.UpdateSemaphoreTaskBucketStateRequest,
+) (*persistence.UpdateSemaphoreTaskBucketStateResponse, error) {
 	return nil, errSemaphoreNotSupportedOnSQL()
 }
 

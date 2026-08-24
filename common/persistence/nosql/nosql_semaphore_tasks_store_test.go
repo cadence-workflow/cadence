@@ -49,18 +49,20 @@ func setUpMocksForSemaphoreTaskStore(t *testing.T) (*nosqlSemaphoreTaskStore, *n
 	return store, dbMock
 }
 
-func TestNoSQLLeaseSemaphoreBucket(t *testing.T) {
+func TestNoSQLClaimSemaphoreTaskBucket(t *testing.T) {
 	ctx := context.Background()
-	req := &persistence.LeaseSemaphoreBucketRequest{
+	req := &persistence.ClaimSemaphoreTaskBucketRequest{
 		DomainID:      testSemTaskDomainID,
 		SemaphoreName: testSemTaskName,
 		Bucket:        testSemTaskBucket,
 	}
 
 	tests := map[string]struct {
+		// request overrides the shared req; nil means a steal (RangeID 0).
+		request   *persistence.ClaimSemaphoreTaskBucketRequest
 		setupMock func(*nosqlplugin.MockDB)
 		expectErr bool
-		expected  *persistence.LeaseSemaphoreBucketResponse
+		expected  *persistence.ClaimSemaphoreTaskBucketResponse
 	}{
 		"first use - control row created": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
@@ -74,7 +76,7 @@ func TestNoSQLLeaseSemaphoreBucket(t *testing.T) {
 						return nil
 					}).Times(1)
 			},
-			expected: &persistence.LeaseSemaphoreBucketResponse{RangeID: 1, AckLevel: 0},
+			expected: &persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1, AckLevel: 0},
 		},
 		"existing bucket - range_id bumped": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
@@ -87,7 +89,31 @@ func TestNoSQLLeaseSemaphoreBucket(t *testing.T) {
 						return nil
 					}).Times(1)
 			},
-			expected: &persistence.LeaseSemaphoreBucketResponse{RangeID: 8, AckLevel: 42},
+			expected: &persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 8, AckLevel: 42},
+		},
+		"renew - caller still holds the claimed range_id": {
+			request: &persistence.ClaimSemaphoreTaskBucketRequest{
+				DomainID: testSemTaskDomainID, SemaphoreName: testSemTaskName, Bucket: testSemTaskBucket, RangeID: 7,
+			},
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				dbMock.EXPECT().SelectSemaphoreTaskControlRow(ctx, gomock.Any()).
+					Return(&nosqlplugin.SemaphoreTaskControlRow{RangeID: 7, AckLevel: 42}, nil).Times(1)
+				dbMock.EXPECT().UpdateSemaphoreTaskControlRow(ctx, gomock.Any(), int64(7)).
+					Return(nil).Times(1)
+			},
+			expected: &persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 8, AckLevel: 42},
+		},
+		"renew - caller lost the bucket, no write attempted": {
+			request: &persistence.ClaimSemaphoreTaskBucketRequest{
+				DomainID: testSemTaskDomainID, SemaphoreName: testSemTaskName, Bucket: testSemTaskBucket, RangeID: 7,
+			},
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				// Another host already claimed the bucket at 8. No UpdateSemaphoreTaskControlRow is expected:
+				// the caller must be told it lost rather than take the bucket back.
+				dbMock.EXPECT().SelectSemaphoreTaskControlRow(ctx, gomock.Any()).
+					Return(&nosqlplugin.SemaphoreTaskControlRow{RangeID: 8, AckLevel: 42}, nil).Times(1)
+			},
+			expectErr: true,
 		},
 		"insert fence conflict maps to ConditionFailedError": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
@@ -124,7 +150,11 @@ func TestNoSQLLeaseSemaphoreBucket(t *testing.T) {
 			store, dbMock := setUpMocksForSemaphoreTaskStore(t)
 			tc.setupMock(dbMock)
 
-			resp, err := store.LeaseSemaphoreBucket(ctx, req)
+			request := tc.request
+			if request == nil {
+				request = req
+			}
+			resp, err := store.ClaimSemaphoreTaskBucket(ctx, request)
 
 			if tc.expectErr {
 				require.Error(t, err)
@@ -137,34 +167,51 @@ func TestNoSQLLeaseSemaphoreBucket(t *testing.T) {
 	}
 }
 
-func TestNoSQLLeaseSemaphoreBucketConditionType(t *testing.T) {
+// Both ways a claim can be refused must surface as the same error type, since callers branch on
+// it to unload the bucket: the CAS losing a race, and the renew check rejecting a stale claim.
+func TestNoSQLClaimSemaphoreTaskBucketConditionType(t *testing.T) {
 	ctx := context.Background()
-	req := &persistence.LeaseSemaphoreBucketRequest{DomainID: testSemTaskDomainID, SemaphoreName: testSemTaskName, Bucket: testSemTaskBucket}
+	req := &persistence.ClaimSemaphoreTaskBucketRequest{DomainID: testSemTaskDomainID, SemaphoreName: testSemTaskName, Bucket: testSemTaskBucket}
 
-	store, dbMock := setUpMocksForSemaphoreTaskStore(t)
-	dbMock.EXPECT().SelectSemaphoreTaskControlRow(ctx, gomock.Any()).
-		Return(&nosqlplugin.SemaphoreTaskControlRow{RangeID: 7}, nil).Times(1)
-	dbMock.EXPECT().UpdateSemaphoreTaskControlRow(ctx, gomock.Any(), int64(7)).
-		Return(&nosqlplugin.TaskOperationConditionFailure{RangeID: 9}).Times(1)
+	t.Run("CAS conflict", func(t *testing.T) {
+		store, dbMock := setUpMocksForSemaphoreTaskStore(t)
+		dbMock.EXPECT().SelectSemaphoreTaskControlRow(ctx, gomock.Any()).
+			Return(&nosqlplugin.SemaphoreTaskControlRow{RangeID: 7}, nil).Times(1)
+		dbMock.EXPECT().UpdateSemaphoreTaskControlRow(ctx, gomock.Any(), int64(7)).
+			Return(&nosqlplugin.TaskOperationConditionFailure{RangeID: 9}).Times(1)
 
-	_, err := store.LeaseSemaphoreBucket(ctx, req)
-	require.Error(t, err)
-	_, ok := err.(*persistence.ConditionFailedError)
-	assert.True(t, ok, "expected *persistence.ConditionFailedError, got %T", err)
+		_, err := store.ClaimSemaphoreTaskBucket(ctx, req)
+		require.Error(t, err)
+		_, ok := err.(*persistence.ConditionFailedError)
+		assert.True(t, ok, "expected *persistence.ConditionFailedError, got %T", err)
+	})
+
+	t.Run("stale renew claim", func(t *testing.T) {
+		store, dbMock := setUpMocksForSemaphoreTaskStore(t)
+		dbMock.EXPECT().SelectSemaphoreTaskControlRow(ctx, gomock.Any()).
+			Return(&nosqlplugin.SemaphoreTaskControlRow{RangeID: 9}, nil).Times(1)
+
+		renew := *req
+		renew.RangeID = 7
+		_, err := store.ClaimSemaphoreTaskBucket(ctx, &renew)
+		require.Error(t, err)
+		_, ok := err.(*persistence.ConditionFailedError)
+		assert.True(t, ok, "expected *persistence.ConditionFailedError, got %T", err)
+	})
 }
 
-func TestNoSQLGetSemaphoreBucket(t *testing.T) {
+func TestNoSQLGetSemaphoreTaskBucketState(t *testing.T) {
 	ctx := context.Background()
-	req := &persistence.GetSemaphoreBucketRequest{DomainID: testSemTaskDomainID, SemaphoreName: testSemTaskName, Bucket: testSemTaskBucket}
+	req := &persistence.GetSemaphoreTaskBucketStateRequest{DomainID: testSemTaskDomainID, SemaphoreName: testSemTaskName, Bucket: testSemTaskBucket}
 
 	t.Run("success", func(t *testing.T) {
 		store, dbMock := setUpMocksForSemaphoreTaskStore(t)
 		dbMock.EXPECT().SelectSemaphoreTaskControlRow(ctx, gomock.Any()).
 			Return(&nosqlplugin.SemaphoreTaskControlRow{RangeID: 5, AckLevel: 20}, nil).Times(1)
 
-		resp, err := store.GetSemaphoreBucket(ctx, req)
+		resp, err := store.GetSemaphoreTaskBucketState(ctx, req)
 		assert.NoError(t, err)
-		assert.Equal(t, &persistence.GetSemaphoreBucketResponse{RangeID: 5, AckLevel: 20}, resp)
+		assert.Equal(t, &persistence.GetSemaphoreTaskBucketStateResponse{RangeID: 5, AckLevel: 20}, resp)
 	})
 
 	t.Run("error propagates", func(t *testing.T) {
@@ -173,15 +220,15 @@ func TestNoSQLGetSemaphoreBucket(t *testing.T) {
 			Return(nil, errors.New("db error")).Times(1)
 		expectNotACommonError(dbMock)
 
-		resp, err := store.GetSemaphoreBucket(ctx, req)
+		resp, err := store.GetSemaphoreTaskBucketState(ctx, req)
 		assert.Error(t, err)
 		assert.Nil(t, resp)
 	})
 }
 
-func TestNoSQLUpdateSemaphoreBucket(t *testing.T) {
+func TestNoSQLUpdateSemaphoreTaskBucketState(t *testing.T) {
 	ctx := context.Background()
-	req := &persistence.UpdateSemaphoreBucketRequest{
+	req := &persistence.UpdateSemaphoreTaskBucketStateRequest{
 		DomainID: testSemTaskDomainID, SemaphoreName: testSemTaskName, Bucket: testSemTaskBucket,
 		RangeID: 7, AckLevel: 100,
 	}
@@ -195,9 +242,9 @@ func TestNoSQLUpdateSemaphoreBucket(t *testing.T) {
 				return nil
 			}).Times(1)
 
-		resp, err := store.UpdateSemaphoreBucket(ctx, req)
+		resp, err := store.UpdateSemaphoreTaskBucketState(ctx, req)
 		assert.NoError(t, err)
-		assert.Equal(t, &persistence.UpdateSemaphoreBucketResponse{}, resp)
+		assert.Equal(t, &persistence.UpdateSemaphoreTaskBucketStateResponse{}, resp)
 	})
 
 	t.Run("fence conflict maps to ConditionFailedError", func(t *testing.T) {
@@ -205,7 +252,7 @@ func TestNoSQLUpdateSemaphoreBucket(t *testing.T) {
 		dbMock.EXPECT().UpdateSemaphoreTaskControlRow(ctx, gomock.Any(), int64(7)).
 			Return(&nosqlplugin.TaskOperationConditionFailure{RangeID: 8}).Times(1)
 
-		resp, err := store.UpdateSemaphoreBucket(ctx, req)
+		resp, err := store.UpdateSemaphoreTaskBucketState(ctx, req)
 		require.Error(t, err)
 		assert.Nil(t, resp)
 		_, ok := err.(*persistence.ConditionFailedError)
