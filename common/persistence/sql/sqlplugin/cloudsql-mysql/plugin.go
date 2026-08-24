@@ -63,6 +63,12 @@ const (
 	driverFormat                 = "cloudsql-mysql-%d"
 )
 
+// Attributes that are used for driver options and should not be included in the DSN
+var excludedDSNAttrs = map[string]bool{
+	"iamAuthN": true,
+	"ipType":   true,
+}
+
 var dsnAttrOverrides = map[string]string{
 	"parseTime":       "true",
 	"clientFoundRows": "true",
@@ -246,6 +252,10 @@ func getServiceAccountUsername() (string, error) {
 func buildDSNAttrs(cfg *config.SQL) string {
 	attrs := make(map[string]string, len(dsnAttrOverrides)+len(cfg.ConnectAttributes)+1)
 	for k, v := range cfg.ConnectAttributes {
+		// Skip attributes that are used for driver options
+		if excludedDSNAttrs[k] {
+			continue
+		}
 		k1, v1 := sanitizeAttr(k, v)
 		attrs[k1] = v1
 	}
