@@ -303,8 +303,7 @@ func NewEngineWithShardContext(
 		config.HistoryTaskDLQProcessorEnabled,
 	)
 	if err != nil {
-		// The engine constructor cannot return an error. Run the shard without DLQ
-		// re-injection rather than failing it — writes to the DLQ are unaffected.
+		// Run the shard without a history task DLQ processor if construction fails
 		logger.Error("Failed to create history task DLQ processor; DLQ re-injection disabled for this shard",
 			tag.ShardID(shard.GetShardID()),
 			tag.Error(err),

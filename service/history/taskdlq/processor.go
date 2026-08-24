@@ -123,8 +123,7 @@ type (
 		ShardID    int
 		Manager    persistence.HistoryTaskDLQManager
 		Reinjector TaskReinjector
-		// MaxReadLevel bounds each processing round; NewProcessor returns
-		// ErrMaxReadLevelRequired when it is nil.
+		// MaxReadLevelFn provides the exclusive upper bound for processing tasks in the current round.
 		MaxReadLevel  MaxReadLevelFn
 		PageSize      int
 		Interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
@@ -143,9 +142,7 @@ var _ Processor = (*ProcessorImpl)(nil)
 // The processor will periodically process the DLQ for the entire shard,
 // and will process a domain/clusterAttribute pair on demand.
 //
-// Returns ErrMaxReadLevelRequired when params.MaxReadLevel is nil; the caller
-// decides whether that is fatal. (A processor running without a MaxReadLevelFn
-// would fall back to unbounded reads — see processAckLevel.)
+// Returns ErrMaxReadLevelRequired when params.MaxReadLevel is nil
 func NewProcessor(params ProcessorParams) (*ProcessorImpl, error) {
 	if params.MaxReadLevel == nil {
 		return nil, ErrMaxReadLevelRequired
@@ -169,10 +166,8 @@ func NewProcessor(params ProcessorParams) (*ProcessorImpl, error) {
 	}, nil
 }
 
-// NewShardMaxReadLevelFn builds a MaxReadLevelFn from the shard context. It
-// snapshots the shard's max read level for the current cluster and converts
-// it to an exclusive bound (the shard's immediate-task level is inclusive;
-// scheduled levels are already exclusive).
+// NewShardMaxReadLevelFn builds a MaxReadLevelFn from the shard context.
+// It converts the shard's max read level to an exclusive upper bound for processing.
 func NewShardMaxReadLevelFn(shard shard.Context) MaxReadLevelFn {
 	// The current cluster name is static for the process lifetime, so capture it once.
 	currentClusterName := shard.GetClusterMetadata().GetCurrentClusterName()
@@ -445,11 +440,8 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 	)
 	// Start just past the current ack position.
 	minKey := persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
-	// Bound the round by the shard's max read level snapshot so we never chase
-	// concurrent writes; later tasks are picked up by the next sweep. A processor
-	// without a MaxReadLevelFn (constructed directly, bypassing NewProcessor's
-	// validation) degrades to the unbounded pre-snapshot behavior rather than
-	// panicking mid-sweep.
+	// Bound the round by the shard's max read level snapshot so we never reinject tasks
+	// beyond the shard's current max read level. Default to the maximum possible task key.
 	maxKey := persistence.MaximumHistoryTaskKey
 	if p.maxReadLevel != nil {
 		maxKey = p.maxReadLevel(al.TaskCategory)
