@@ -24,6 +24,7 @@ package taskdlq
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -40,6 +41,10 @@ import (
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/shard"
 )
+
+// ErrMaxReadLevelRequired is returned by NewProcessor when
+// ProcessorParams.MaxReadLevel is nil.
+var ErrMaxReadLevelRequired = errors.New("taskdlq: ProcessorParams.MaxReadLevel is required")
 
 type (
 	// Processor reads tasks from the history task DLQ and executes them synchronously.
@@ -118,7 +123,8 @@ type (
 		ShardID    int
 		Manager    persistence.HistoryTaskDLQManager
 		Reinjector TaskReinjector
-		// MaxReadLevel is required; NewProcessor panics when it is nil.
+		// MaxReadLevel bounds each processing round; NewProcessor returns
+		// ErrMaxReadLevelRequired when it is nil.
 		MaxReadLevel  MaxReadLevelFn
 		PageSize      int
 		Interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
@@ -136,12 +142,13 @@ var _ Processor = (*ProcessorImpl)(nil)
 //
 // The processor will periodically process the DLQ for the entire shard,
 // and will process a domain/clusterAttribute pair on demand.
-func NewProcessor(params ProcessorParams) *ProcessorImpl {
+//
+// Returns ErrMaxReadLevelRequired when params.MaxReadLevel is nil; the caller
+// decides whether that is fatal. (A processor running without a MaxReadLevelFn
+// would fall back to unbounded reads — see processAckLevel.)
+func NewProcessor(params ProcessorParams) (*ProcessorImpl, error) {
 	if params.MaxReadLevel == nil {
-		// Fail fast: a nil MaxReadLevel would otherwise nil-panic on the first sweep, and
-		// silently defaulting to an unbounded scan would reintroduce the churn this
-		// dependency exists to prevent.
-		panic("taskdlq.NewProcessor: ProcessorParams.MaxReadLevel is required")
+		return nil, ErrMaxReadLevelRequired
 	}
 	return &ProcessorImpl{
 		shardID:         params.ShardID,
@@ -159,7 +166,7 @@ func NewProcessor(params ProcessorParams) *ProcessorImpl {
 		cancel:          func() {}, // no-op until Start() sets the real cancel
 		pendingFailover: make(map[string]Partition),
 		failoverSignal:  make(chan struct{}, 1),
-	}
+	}, nil
 }
 
 // NewShardMaxReadLevelFn builds a MaxReadLevelFn from the shard context. It
@@ -188,7 +195,7 @@ func NewProcessorFromShard(
 	interval dynamicproperties.DurationPropertyFnWithShardIDFilter,
 	domainMode dynamicproperties.StringPropertyFnWithDomainFilter,
 	enabled dynamicproperties.BoolPropertyFn,
-) *ProcessorImpl {
+) (*ProcessorImpl, error) {
 	return NewProcessor(ProcessorParams{
 		ShardID:       shard.GetShardID(),
 		Manager:       shard.GetService().GetHistoryTaskDLQManager(),
@@ -439,8 +446,14 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 	// Start just past the current ack position.
 	minKey := persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
 	// Bound the round by the shard's max read level snapshot so we never chase
-	// concurrent writes; later tasks are picked up by the next sweep.
-	maxKey := p.maxReadLevel(al.TaskCategory)
+	// concurrent writes; later tasks are picked up by the next sweep. A processor
+	// without a MaxReadLevelFn (constructed directly, bypassing NewProcessor's
+	// validation) degrades to the unbounded pre-snapshot behavior rather than
+	// panicking mid-sweep.
+	maxKey := persistence.MaximumHistoryTaskKey
+	if p.maxReadLevel != nil {
+		maxKey = p.maxReadLevel(al.TaskCategory)
+	}
 	if minKey.Compare(maxKey) >= 0 {
 		return nil
 	}
