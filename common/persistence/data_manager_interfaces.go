@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Generate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,SemaphoreTaskManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -1450,6 +1450,115 @@ type (
 		NextPageToken []byte
 	}
 
+	// SemaphoreTask is one queued acquire waiting for a token, in a semaphore bucket's FIFO queue.
+	SemaphoreTask struct {
+		TaskID     int64
+		WorkflowID string
+		RunID      string
+		HoldID     int64
+		// AcquireDeadline is nil when the task has no deadline (never skipped, no expiry).
+		AcquireDeadline *time.Time
+		CreatedTime     time.Time
+	}
+
+	// LeaseSemaphoreBucketRequest claims (or renews) single-writer ownership of a bucket by
+	// bumping the control row's range_id. It creates the control row if the bucket is new.
+	LeaseSemaphoreBucketRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+	}
+
+	// LeaseSemaphoreBucketResponse returns the bucket's current fence and cursor after the lease.
+	LeaseSemaphoreBucketResponse struct {
+		RangeID  int64
+		AckLevel int64
+	}
+
+	// GetSemaphoreBucketRequest reads a bucket's control row.
+	GetSemaphoreBucketRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+	}
+
+	// GetSemaphoreBucketResponse is the response for GetSemaphoreBucket.
+	GetSemaphoreBucketResponse struct {
+		RangeID  int64
+		AckLevel int64
+	}
+
+	// UpdateSemaphoreBucketRequest advances the ack_level cursor, fenced by the current RangeID.
+	UpdateSemaphoreBucketRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		RangeID       int64
+		AckLevel      int64
+	}
+
+	// UpdateSemaphoreBucketResponse is the response for UpdateSemaphoreBucket.
+	UpdateSemaphoreBucketResponse struct{}
+
+	// CreateSemaphoreTasksRequest enqueues task rows, fenced by the bucket's RangeID.
+	CreateSemaphoreTasksRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		RangeID       int64
+		Tasks         []*SemaphoreTask
+	}
+
+	// CreateSemaphoreTasksResponse is the response for CreateSemaphoreTasks.
+	CreateSemaphoreTasksResponse struct{}
+
+	// GetSemaphoreTasksRequest reads task rows in (ReadLevel, MaxReadLevel].
+	GetSemaphoreTasksRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		// ReadLevel is the exclusive lower bound (typically the ack_level).
+		ReadLevel int64
+		// MaxReadLevel is the inclusive upper bound.
+		MaxReadLevel int64
+		BatchSize    int
+	}
+
+	// GetSemaphoreTasksResponse is the response for GetSemaphoreTasks.
+	GetSemaphoreTasksResponse struct {
+		Tasks []*SemaphoreTask
+	}
+
+	// CompleteSemaphoreTasksLessThanRequest range-deletes granted/expired tasks in (ReadLevel, AckLevel].
+	CompleteSemaphoreTasksLessThanRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		// ReadLevel is the exclusive lower bound of the delete range.
+		ReadLevel int64
+		// AckLevel is the inclusive upper bound of the delete range.
+		AckLevel int64
+	}
+
+	// CompleteSemaphoreTasksLessThanResponse reports how many rows were deleted, or
+	// UnknownNumRowsAffected when the backend cannot report it.
+	CompleteSemaphoreTasksLessThanResponse struct {
+		RowsDeleted int
+	}
+
+	// GetSemaphoreTasksCountRequest counts task rows with task_id > ReadLevel.
+	GetSemaphoreTasksCountRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		ReadLevel     int64
+	}
+
+	// GetSemaphoreTasksCountResponse is the response for GetSemaphoreTasksCount.
+	GetSemaphoreTasksCountResponse struct {
+		Count int64
+	}
+
 	// MutableStateStats is the size stats for MutableState
 	MutableStateStats struct {
 		// Total size of mutable state
@@ -1841,6 +1950,19 @@ type (
 		CreateSemaphore(ctx context.Context, request *CreateSemaphoreRequest) (*CreateSemaphoreResponse, error)
 		GetSemaphore(ctx context.Context, request *GetSemaphoreRequest) (*GetSemaphoreResponse, error)
 		ListSemaphores(ctx context.Context, request *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
+	}
+
+	// SemaphoreTaskManager manages a distributed semaphore's per-bucket FIFO task queue.
+	SemaphoreTaskManager interface {
+		Closeable
+		GetName() string
+		LeaseSemaphoreBucket(ctx context.Context, request *LeaseSemaphoreBucketRequest) (*LeaseSemaphoreBucketResponse, error)
+		GetSemaphoreBucket(ctx context.Context, request *GetSemaphoreBucketRequest) (*GetSemaphoreBucketResponse, error)
+		UpdateSemaphoreBucket(ctx context.Context, request *UpdateSemaphoreBucketRequest) (*UpdateSemaphoreBucketResponse, error)
+		CreateSemaphoreTasks(ctx context.Context, request *CreateSemaphoreTasksRequest) (*CreateSemaphoreTasksResponse, error)
+		GetSemaphoreTasks(ctx context.Context, request *GetSemaphoreTasksRequest) (*GetSemaphoreTasksResponse, error)
+		CompleteSemaphoreTasksLessThan(ctx context.Context, request *CompleteSemaphoreTasksLessThanRequest) (*CompleteSemaphoreTasksLessThanResponse, error)
+		GetSemaphoreTasksCount(ctx context.Context, request *GetSemaphoreTasksCountRequest) (*GetSemaphoreTasksCountResponse, error)
 	}
 
 	// HistoryTaskDLQManager is the manager-level interface for the history task DLQ.

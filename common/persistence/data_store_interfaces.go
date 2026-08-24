@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,SemaphoreMetadataStore,HistoryDLQTaskStore
+//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,SemaphoreMetadataStore,SemaphoreTaskStore,HistoryDLQTaskStore
 //go:generate mockgen -package $GOPACKAGE -destination visibility_store_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence VisibilityStore
 
 type (
@@ -111,6 +111,21 @@ type (
 		CreateSemaphore(ctx context.Context, semaphore *SemaphoreMetadata) error
 		GetSemaphore(ctx context.Context, request *GetSemaphoreRequest) (*SemaphoreMetadata, error)
 		ListSemaphores(ctx context.Context, request *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
+	}
+
+	// SemaphoreTaskStore is a lower level of SemaphoreTaskManager: the per-bucket FIFO task queue.
+	// Columns are plain typed values (no serialized blobs), so it operates on the public
+	// request/record types directly rather than Internal* variants.
+	SemaphoreTaskStore interface {
+		Closeable
+		GetName() string
+		LeaseSemaphoreBucket(ctx context.Context, request *LeaseSemaphoreBucketRequest) (*LeaseSemaphoreBucketResponse, error)
+		GetSemaphoreBucket(ctx context.Context, request *GetSemaphoreBucketRequest) (*GetSemaphoreBucketResponse, error)
+		UpdateSemaphoreBucket(ctx context.Context, request *UpdateSemaphoreBucketRequest) (*UpdateSemaphoreBucketResponse, error)
+		CreateSemaphoreTasks(ctx context.Context, request *CreateSemaphoreTasksRequest) (*CreateSemaphoreTasksResponse, error)
+		GetSemaphoreTasks(ctx context.Context, request *GetSemaphoreTasksRequest) (*GetSemaphoreTasksResponse, error)
+		CompleteSemaphoreTasksLessThan(ctx context.Context, request *CompleteSemaphoreTasksLessThanRequest) (*CompleteSemaphoreTasksLessThanResponse, error)
+		GetSemaphoreTasksCount(ctx context.Context, request *GetSemaphoreTasksCountRequest) (*GetSemaphoreTasksCountResponse, error)
 	}
 
 	// HistoryDLQTaskStore is the store-level interface for history task DLQ operations.
