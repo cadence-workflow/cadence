@@ -35,10 +35,11 @@ import (
 )
 
 const (
-	linkToTimeoutsRunbook = "https://cadenceworkflow.io/docs/workflow-troubleshooting/timeouts/"
-	linkToFailuresRunbook = "https://cadenceworkflow.io/docs/workflow-troubleshooting/activity-failures/"
-	linkToRetriesRunbook  = "https://cadenceworkflow.io/docs/workflow-troubleshooting/retries"
-	WfDiagnosticsAppName  = "workflow-diagnostics"
+	linkToTimeoutsRunbook     = "https://cadenceworkflow.io/docs/workflow-troubleshooting/timeouts/"
+	linkToFailuresRunbook     = "https://cadenceworkflow.io/docs/workflow-troubleshooting/activity-failures/"
+	linkToRetriesRunbook      = "https://cadenceworkflow.io/docs/workflow-troubleshooting/retries"
+	linkToTimeoutRisksRunbook = "https://cadenceworkflow.io/docs/workflow-troubleshooting/timeouts/"
+	WfDiagnosticsAppName      = "workflow-diagnostics"
 
 	_maxPageSize           = 1000            // current maximum page size for fetching workflow history
 	_contextTimeout        = 1 * time.Minute // timeout to fetch the whole execution history
