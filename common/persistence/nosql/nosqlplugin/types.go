@@ -327,6 +327,52 @@ type (
 		NextPageToken []byte
 	}
 
+	// SemaphoreTaskControlRow is the control row of a semaphore bucket (type=1, sentinel task_id).
+	// It carries the range_id single-writer fence and the ack_level cursor for the task queue.
+	SemaphoreTaskControlRow struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		RangeID       int64
+		AckLevel      int64
+		// CurrentTimeStamp is the write-time stamp (mirrors TaskListRow.CurrentTimeStamp).
+		CurrentTimeStamp time.Time
+		CreatedTime      time.Time
+	}
+
+	// SemaphoreTaskControlFilter identifies a single bucket's control row.
+	SemaphoreTaskControlFilter struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+	}
+
+	// SemaphoreTaskRow is one queued acquire waiting for a token (type=0). It maps the
+	// frozen<semaphore_task> UDT (workflow_id, run_id, hold_id) plus the top-level columns.
+	SemaphoreTaskRow struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TaskID        int64
+
+		WorkflowID string
+		RunID      string
+		HoldID     int64
+		// AcquireDeadline is nil when the task has no deadline (never skipped, no expiry).
+		AcquireDeadline *time.Time
+		CreatedTime     time.Time
+	}
+
+	// SemaphoreTasksFilter bounds a task range read/delete/count within a bucket.
+	SemaphoreTasksFilter struct {
+		SemaphoreTaskControlFilter
+		// ExclusiveMinTaskID: task_id >
+		ExclusiveMinTaskID int64
+		// InclusiveMaxTaskID: task_id <= (unused for count)
+		InclusiveMaxTaskID int64
+		BatchSize          int
+	}
+
 	// HistoryDLQTaskRow defines the row struct for history task dead-letter queue entries.
 	HistoryDLQTaskRow struct {
 		ShardID               int

@@ -41,6 +41,7 @@ type beanmocks struct {
 	domainAuditManager       *persistence.MockDomainAuditManager
 	semaphoreMetadataManager *persistence.MockSemaphoreMetadataManager
 	semaphoreTokenManager    *persistence.MockSemaphoreTokenManager
+	semaphoreTaskManager     *persistence.MockSemaphoreTaskManager
 	taskManager              *persistence.MockTaskManager
 	visibilityManager        *persistence.MockVisibilityManager
 	replicationManager       *persistence.MockQueueManager
@@ -59,6 +60,7 @@ func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) 
 		domainAuditManager:       persistence.NewMockDomainAuditManager(ctrl),
 		semaphoreMetadataManager: persistence.NewMockSemaphoreMetadataManager(ctrl),
 		semaphoreTokenManager:    persistence.NewMockSemaphoreTokenManager(ctrl),
+		semaphoreTaskManager:     persistence.NewMockSemaphoreTaskManager(ctrl),
 		taskManager:              persistence.NewMockTaskManager(ctrl),
 		visibilityManager:        persistence.NewMockVisibilityManager(ctrl),
 		replicationManager:       persistence.NewMockQueueManager(ctrl),
@@ -75,6 +77,7 @@ func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) 
 		f.EXPECT().NewDomainAuditManager().Return(m.domainAuditManager, nil).MaxTimes(1)
 		f.EXPECT().NewSemaphoreMetadataManager().Return(m.semaphoreMetadataManager, nil).MaxTimes(1)
 		f.EXPECT().NewSemaphoreTokenManager().Return(m.semaphoreTokenManager, nil).MaxTimes(1)
+		f.EXPECT().NewSemaphoreTaskManager().Return(m.semaphoreTaskManager, nil).MaxTimes(1)
 		f.EXPECT().NewTaskManager().Return(m.taskManager, nil).MaxTimes(1)
 		f.EXPECT().NewVisibilityManager(gomock.Any(), gomock.Any()).Return(m.visibilityManager, nil).MaxTimes(1)
 		f.EXPECT().NewDomainReplicationQueueManager().Return(m.replicationManager, nil).MaxTimes(1)
@@ -119,6 +122,12 @@ func TestBeanCoverage(t *testing.T) {
 					f.EXPECT().NewSemaphoreTokenManager().Return(nil, fmt.Errorf("no semaphore token manager"))
 				},
 				err: "no semaphore token manager",
+			},
+			"semaphore task manager error": {
+				mockSetup: func(t *testing.T, f *MockFactory) {
+					f.EXPECT().NewSemaphoreTaskManager().Return(nil, fmt.Errorf("no semaphore task manager"))
+				},
+				err: "no semaphore task manager",
 			},
 			"task manager error": {
 				mockSetup: func(t *testing.T, f *MockFactory) {
@@ -199,6 +208,7 @@ func TestBeanCoverage(t *testing.T) {
 		g.Go(errgroupAssertEqual(t, m.domainAuditManager, impl.GetDomainAuditManager))
 		g.Go(errgroupAssertEqual(t, m.semaphoreMetadataManager, impl.GetSemaphoreMetadataManager))
 		g.Go(errgroupAssertEqual(t, m.semaphoreTokenManager, impl.GetSemaphoreTokenManager))
+		g.Go(errgroupAssertEqual(t, m.semaphoreTaskManager, impl.GetSemaphoreTaskManager))
 		g.Go(errgroupAssertEqual(t, m.taskManager, impl.GetTaskManager))
 		g.Go(errgroupAssertEqual(t, m.visibilityManager, impl.GetVisibilityManager))
 		g.Go(errgroupAssertEqual(t, m.replicationManager, impl.GetDomainReplicationQueueManager))
@@ -224,6 +234,7 @@ func TestBeanCoverage(t *testing.T) {
 		g.Go(errgroupAssertSets(t, m2.domainAuditManager, impl.SetDomainAuditManager, impl.GetDomainAuditManager))
 		g.Go(errgroupAssertSets(t, m2.semaphoreMetadataManager, impl.SetSemaphoreMetadataManager, impl.GetSemaphoreMetadataManager))
 		g.Go(errgroupAssertSets(t, m2.semaphoreTokenManager, impl.SetSemaphoreTokenManager, impl.GetSemaphoreTokenManager))
+		g.Go(errgroupAssertSets(t, m2.semaphoreTaskManager, impl.SetSemaphoreTaskManager, impl.GetSemaphoreTaskManager))
 		g.Go(errgroupAssertSets(t, m2.taskManager, impl.SetTaskManager, impl.GetTaskManager))
 		g.Go(errgroupAssertSets(t, m2.visibilityManager, impl.SetVisibilityManager, impl.GetVisibilityManager))
 		g.Go(errgroupAssertSets(t, m2.replicationManager, impl.SetDomainReplicationQueueManager, impl.GetDomainReplicationQueueManager))
@@ -288,6 +299,7 @@ func TestBeanCoverage(t *testing.T) {
 		m.domainAuditManager.EXPECT().Close().Return().Times(1)
 		m.semaphoreMetadataManager.EXPECT().Close().Return().Times(1)
 		m.semaphoreTokenManager.EXPECT().Close().Return().Times(1)
+		m.semaphoreTaskManager.EXPECT().Close().Return().Times(1)
 		m.taskManager.EXPECT().Close().Return().Times(1)
 		m.visibilityManager.EXPECT().Close().Return().Times(1)
 		m.replicationManager.EXPECT().Close().Return().Times(1)

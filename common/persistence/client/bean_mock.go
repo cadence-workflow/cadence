@@ -165,6 +165,20 @@ func (mr *MockBeanMockRecorder) GetSemaphoreMetadataManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreMetadataManager", reflect.TypeOf((*MockBean)(nil).GetSemaphoreMetadataManager))
 }
 
+// GetSemaphoreTaskManager mocks base method.
+func (m *MockBean) GetSemaphoreTaskManager() persistence.SemaphoreTaskManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreTaskManager")
+	ret0, _ := ret[0].(persistence.SemaphoreTaskManager)
+	return ret0
+}
+
+// GetSemaphoreTaskManager indicates an expected call of GetSemaphoreTaskManager.
+func (mr *MockBeanMockRecorder) GetSemaphoreTaskManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTaskManager", reflect.TypeOf((*MockBean)(nil).GetSemaphoreTaskManager))
+}
+
 // GetSemaphoreTokenManager mocks base method.
 func (m *MockBean) GetSemaphoreTokenManager() persistence.SemaphoreTokenManager {
 	m.ctrl.T.Helper()
@@ -315,6 +329,18 @@ func (m *MockBean) SetSemaphoreMetadataManager(arg0 persistence.SemaphoreMetadat
 func (mr *MockBeanMockRecorder) SetSemaphoreMetadataManager(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSemaphoreMetadataManager", reflect.TypeOf((*MockBean)(nil).SetSemaphoreMetadataManager), arg0)
+}
+
+// SetSemaphoreTaskManager mocks base method.
+func (m *MockBean) SetSemaphoreTaskManager(arg0 persistence.SemaphoreTaskManager) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSemaphoreTaskManager", arg0)
+}
+
+// SetSemaphoreTaskManager indicates an expected call of SetSemaphoreTaskManager.
+func (mr *MockBeanMockRecorder) SetSemaphoreTaskManager(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSemaphoreTaskManager", reflect.TypeOf((*MockBean)(nil).SetSemaphoreTaskManager), arg0)
 }
 
 // SetSemaphoreTokenManager mocks base method.
