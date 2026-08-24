@@ -80,10 +80,8 @@ func TestInsertSemaphoreTokens(t *testing.T) {
 	})
 
 	t.Run("re-seeding an already seeded bucket is a no-op, not an error", func(t *testing.T) {
-		// Every IF NOT EXISTS fails, so the batch does not apply and nothing is written.
-		// InsertSemaphoreTokens ignores the applied flag on purpose: re-seeding the full
-		// id set is idempotent by design. `previous` carries a currently held slot to pin
-		// down the guarantee that matters most - a re-seed never clobbers a live holder.
+		// Every IF NOT EXISTS fails, so nothing is written; ignoring the applied flag is
+		// deliberate. The held slot in `previous` shows a re-seed cannot clobber a holder.
 		session := &fakeSession{
 			mapExecuteBatchCASApplied: false,
 			mapExecuteBatchCASPrev: map[string]any{
