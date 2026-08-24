@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -39,11 +40,39 @@ import (
 	"github.com/uber/cadence/service/history/shard"
 )
 
+// scheduledCacheQueueReaderOptions holds the tuning knobs used only by the scheduled (timer)
+// cached reader. The immediate (transfer) reader uses none of them.
+type scheduledCacheQueueReaderOptions struct {
+	// MaxLookAheadWindow is how far into the future from now the cache prefetches.
+	// Tasks with scheduled time beyond now+MaxLookAheadWindow are not fetched.
+	MaxLookAheadWindow dynamicproperties.DurationPropertyFn
+	// PrefetchTriggerWindow defines how close to the upper-bound a task must be
+	// before the next prefetch is scheduled. A prefetch fires when the nearest
+	// upcoming task is within PrefetchTriggerWindow of the current upper bound.
+	PrefetchTriggerWindow dynamicproperties.DurationPropertyFn
+	// PrefetchPageSize caps the number of tasks fetched per DB round-trip.
+	PrefetchPageSize dynamicproperties.IntPropertyFn
+	// TimeEvictionWindow is the lookback horizon: tasks older than
+	// now-TimeEvictionWindow are evicted to reclaim cache capacity.
+	TimeEvictionWindow dynamicproperties.DurationPropertyFn
+	// MinPrefetchInterval is the minimum time between consecutive prefetch attempts.
+	// It prevents the prefetch loop from hammering the database when the cache resets
+	// or gap detection fires repeatedly.
+	MinPrefetchInterval dynamicproperties.DurationPropertyFn
+	// PrefetchJitterCoefficient is passed to backoff.JitDuration when computing
+	// the next prefetch delay. Must be in [0, 1]. Zero disables jitter.
+	PrefetchJitterCoefficient dynamicproperties.FloatPropertyFn
+}
+
 // cachedScheduledQueueReader is the scheduled (timer) cached queue reader. It embeds the shared
 // cachedQueueReaderBase and adds the prefetch cycle that keeps a look-ahead window of future
 // timer tasks warm in the cache.
 type cachedScheduledQueueReader struct {
 	*cachedQueueReaderBase
+
+	// scheduledOpts holds the look-ahead / time-eviction / prefetch tuning knobs, specific to the
+	// scheduled/timer reader.
+	scheduledOpts *scheduledCacheQueueReaderOptions
 
 	// prefetchTargetUpper is the new exclusive upper key the current in-flight prefetch is aiming
 	// to reach. Prefetch-only state, so it lives on the scheduled reader rather than the shared
@@ -81,15 +110,17 @@ func newCachedScheduledQueueReader(
 		shard.GetLogger().WithTags(tag.ComponentCachedQueueReader),
 		metricsScope,
 		&cachedQueueReaderOptions{
-			Mode:                      config.TimerProcessorCachedQueueReaderMode,
-			MaxSize:                   config.TimerProcessorCacheMaxSize,
+			Mode:                 config.TimerProcessorCachedQueueReaderMode,
+			MaxSize:              config.TimerProcessorCacheMaxSize,
+			ShadowSampleInterval: config.TimerProcessorCachedQueueReaderShadowSampleInterval,
+		},
+		&scheduledCacheQueueReaderOptions{
 			MaxLookAheadWindow:        config.TimerProcessorMaxPollInterval,
 			PrefetchTriggerWindow:     config.TimerProcessorCachePrefetchTriggerWindow,
 			PrefetchPageSize:          config.TimerTaskBatchSize,
 			TimeEvictionWindow:        config.TimerProcessorCacheTimeEvictionWindow,
 			MinPrefetchInterval:       config.TimerProcessorCacheMinPrefetchInterval,
 			PrefetchJitterCoefficient: config.TimerProcessorMaxPollIntervalJitterCoefficient,
-			ShadowSampleInterval:      config.TimerProcessorCachedQueueReaderShadowSampleInterval,
 		},
 	)
 }
@@ -102,6 +133,7 @@ func newCachedScheduledQueueReaderWithOptions(
 	logger log.Logger,
 	metricsScope metrics.Scope,
 	options *cachedQueueReaderOptions,
+	scheduledOpts *scheduledCacheQueueReaderOptions,
 ) *cachedScheduledQueueReader {
 	ctx, cancel := context.WithCancel(context.Background())
 	q := &cachedScheduledQueueReader{
@@ -114,6 +146,7 @@ func newCachedScheduledQueueReaderWithOptions(
 			metricsScope,
 			options,
 		),
+		scheduledOpts:       scheduledOpts,
 		prefetchTargetUpper: persistence.MinimumHistoryTaskKey,
 		prefetchCh:          make(chan struct{}, 1),
 		ctx:                 ctx,
@@ -177,7 +210,7 @@ func (q *cachedScheduledQueueReader) prefetchLoop() {
 			q.tryTimeEvictIfCacheFull()
 			if err := q.prefetch(); err != nil {
 				q.logger.Warn("prefetch failed, retrying shortly", tag.Error(err))
-				timer.Reset(q.options.MinPrefetchInterval())
+				timer.Reset(q.scheduledOpts.MinPrefetchInterval())
 			} else {
 				timer.Reset(q.nextPrefetchDelay())
 			}
@@ -201,16 +234,16 @@ func (q *cachedScheduledQueueReader) nextPrefetchDelay() time.Duration {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 
-	triggerTime := q.exclusiveUpperBound.GetScheduledTime().Add(-q.options.PrefetchTriggerWindow())
-	delay := max(q.options.MinPrefetchInterval(), triggerTime.Sub(q.clock.Now()))
-	jittered := backoff.JitDuration(delay, q.options.PrefetchJitterCoefficient())
+	triggerTime := q.exclusiveUpperBound.GetScheduledTime().Add(-q.scheduledOpts.PrefetchTriggerWindow())
+	delay := max(q.scheduledOpts.MinPrefetchInterval(), triggerTime.Sub(q.clock.Now()))
+	jittered := backoff.JitDuration(delay, q.scheduledOpts.PrefetchJitterCoefficient())
 
 	// Cap the jittered delay to the original delay: positive jitter must not push the
 	// prefetch past triggerTime, which would cause it to fire after the upper bound and
 	// produce cache misses. MinPrefetchInterval is re-applied as the floor because
 	// negative jitter on a delay already clamped to MinPrefetchInterval can otherwise
 	// return a value below it.
-	return max(q.options.MinPrefetchInterval(), min(delay, jittered))
+	return max(q.scheduledOpts.MinPrefetchInterval(), min(delay, jittered))
 }
 
 // LookAHead returns the next task at or after req.InclusiveMinTaskKey. Serves
@@ -284,7 +317,7 @@ func (q *cachedScheduledQueueReader) prefetch() error {
 	defer sw.Stop()
 
 	// Ceiling of the look-ahead window; tasks at or after this time aren't due yet.
-	exclusiveMaxTaskKey := persistence.NewHistoryTaskKey(now.Add(q.options.MaxLookAheadWindow()), 0)
+	exclusiveMaxTaskKey := persistence.NewHistoryTaskKey(now.Add(q.scheduledOpts.MaxLookAheadWindow()), 0)
 
 	// Start from the existing upper bound so pages don't overlap. On the first
 	// run (upperBound is MinimumHistoryTaskKey, nothing fetched yet), anchor to
@@ -292,12 +325,12 @@ func (q *cachedScheduledQueueReader) prefetch() error {
 	// that timeEvict would drop immediately.
 	inclusiveMinTaskKey := upperBound
 	if inclusiveMinTaskKey.Equal(persistence.MinimumHistoryTaskKey) {
-		inclusiveMinTaskKey = persistence.NewHistoryTaskKey(now.Add(-q.options.TimeEvictionWindow()), 0)
+		inclusiveMinTaskKey = persistence.NewHistoryTaskKey(now.Add(-q.scheduledOpts.TimeEvictionWindow()), 0)
 	}
 
 	// Cap the page to available space (so the insert won't spill into RTrimBySize)
 	// and to the configured page size (to bound each round-trip).
-	pageSize := min(availableCacheSize, q.options.PrefetchPageSize())
+	pageSize := min(availableCacheSize, q.scheduledOpts.PrefetchPageSize())
 
 	// Record the prefetch's target window so Inject can buffer tasks that arrive
 	// while the DB call is in-flight. Cleared inside the write lock after the call.
@@ -445,7 +478,7 @@ func (q *cachedScheduledQueueReader) tryTimeEvict(extraTasks int) {
 	if q.queue.Len()+extraTasks < q.options.MaxSize() {
 		return
 	}
-	evictBefore := persistence.NewHistoryTaskKey(q.clock.Now().Add(-q.options.TimeEvictionWindow()), 0)
+	evictBefore := persistence.NewHistoryTaskKey(q.clock.Now().Add(-q.scheduledOpts.TimeEvictionWindow()), 0)
 	q.advanceInclusiveLowerBound(evictBefore)
 }
 

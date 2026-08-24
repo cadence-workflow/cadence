@@ -69,27 +69,8 @@ type cachedQueueReaderOptions struct {
 	// Mode controls cache behavior: "enabled" uses cache, anything else (including "disabled") disables.
 	Mode dynamicproperties.StringPropertyFnWithShardIDFilter
 	// MaxSize is the maximum number of tasks the cache may hold at once.
-	// Insertions that would exceed this limit trigger time-based eviction first.
+	// Insertions that would exceed this limit trigger eviction first.
 	MaxSize dynamicproperties.IntPropertyFn
-	// MaxLookAheadWindow is how far into the future from now the cache prefetches.
-	// Tasks with scheduled time beyond now+MaxLookAheadWindow are not fetched.
-	MaxLookAheadWindow dynamicproperties.DurationPropertyFn
-	// PrefetchTriggerWindow defines how close to the upper-bound a task must be
-	// before the next prefetch is scheduled. A prefetch fires when the nearest
-	// upcoming task is within PrefetchTriggerWindow of the current upper bound.
-	PrefetchTriggerWindow dynamicproperties.DurationPropertyFn
-	// PrefetchPageSize caps the number of tasks fetched per DB round-trip.
-	PrefetchPageSize dynamicproperties.IntPropertyFn
-	// TimeEvictionWindow is the lookback horizon: tasks older than
-	// now-TimeEvictionWindow are evicted to reclaim cache capacity.
-	TimeEvictionWindow dynamicproperties.DurationPropertyFn
-	// MinPrefetchInterval is the minimum time between consecutive prefetch attempts.
-	// It prevents the prefetch loop from hammering the database when the cache resets
-	// or gap detection fires repeatedly.
-	MinPrefetchInterval dynamicproperties.DurationPropertyFn
-	// PrefetchJitterCoefficient is passed to backoff.JitDuration when computing
-	// the next prefetch delay. Must be in [0, 1]. Zero disables jitter.
-	PrefetchJitterCoefficient dynamicproperties.FloatPropertyFn
 	// ShadowSampleInterval controls how often, at most, a GetTask call in "enabled" mode
 	// is diverted through the shadow comparison path for continuous regression detection.
 	// <= 0 disables sampling.
