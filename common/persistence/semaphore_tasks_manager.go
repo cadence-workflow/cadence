@@ -55,7 +55,7 @@ func (m *semaphoreTaskManagerImpl) ClaimSemaphoreTaskBucket(
 	ctx context.Context,
 	request *ClaimSemaphoreTaskBucketRequest,
 ) (*ClaimSemaphoreTaskBucketResponse, error) {
-	if err := validateBucketIdentity(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	// Zero is the "I hold nothing, take the bucket" case; negative is never a real range_id.
@@ -69,7 +69,7 @@ func (m *semaphoreTaskManagerImpl) GetSemaphoreTaskBucketState(
 	ctx context.Context,
 	request *GetSemaphoreTaskBucketStateRequest,
 ) (*GetSemaphoreTaskBucketStateResponse, error) {
-	if err := validateBucketIdentity(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	return m.persistence.GetSemaphoreTaskBucketState(ctx, request)
@@ -83,7 +83,7 @@ func (m *semaphoreTaskManagerImpl) UpdateSemaphoreTaskBucketState(
 	ctx context.Context,
 	request *UpdateSemaphoreTaskBucketStateRequest,
 ) (*UpdateSemaphoreTaskBucketStateResponse, error) {
-	if err := validateBucketIdentity(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	if request.RangeID <= 0 {
@@ -99,7 +99,7 @@ func (m *semaphoreTaskManagerImpl) CreateSemaphoreTasks(
 	ctx context.Context,
 	request *CreateSemaphoreTasksRequest,
 ) (*CreateSemaphoreTasksResponse, error) {
-	if err := validateBucketIdentity(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	if request.RangeID <= 0 {
@@ -122,7 +122,7 @@ func (m *semaphoreTaskManagerImpl) GetSemaphoreTasks(
 	ctx context.Context,
 	request *GetSemaphoreTasksRequest,
 ) (*GetSemaphoreTasksResponse, error) {
-	if err := validateBucketIdentity(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	// A non-positive BatchSize would not read zero rows: it disables the page limit and the
@@ -137,7 +137,7 @@ func (m *semaphoreTaskManagerImpl) CompleteSemaphoreTasksLessThan(
 	ctx context.Context,
 	request *CompleteSemaphoreTasksLessThanRequest,
 ) (*CompleteSemaphoreTasksLessThanResponse, error) {
-	if err := validateBucketIdentity(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	return m.persistence.CompleteSemaphoreTasksLessThan(ctx, request)
@@ -147,21 +147,8 @@ func (m *semaphoreTaskManagerImpl) GetSemaphoreTasksCount(
 	ctx context.Context,
 	request *GetSemaphoreTasksCountRequest,
 ) (*GetSemaphoreTasksCountResponse, error) {
-	if err := validateBucketIdentity(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
+	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
 		return nil, err
 	}
 	return m.persistence.GetSemaphoreTasksCount(ctx, request)
-}
-
-func validateBucketIdentity(domainID, semaphoreName string, bucket int) error {
-	if domainID == "" {
-		return fmt.Errorf("DomainID is required")
-	}
-	if semaphoreName == "" {
-		return fmt.Errorf("SemaphoreName is required")
-	}
-	if bucket < 0 {
-		return fmt.Errorf("Bucket must not be negative, got %d", bucket)
-	}
-	return nil
 }
