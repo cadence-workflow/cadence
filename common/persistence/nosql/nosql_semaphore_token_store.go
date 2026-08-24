@@ -93,28 +93,26 @@ func (m *nosqlSemaphoreTokenStore) GrantSemaphoreToken(
 	if err != nil {
 		return nil, convertCommonErrors(m.db, "GrantSemaphoreToken", err)
 	}
-	outcome, err := toPersistenceGrantOutcome(result.Outcome)
-	if err != nil {
+	if err := validateGrantOutcome(result.Outcome); err != nil {
 		return nil, err
 	}
 	return &persistence.GrantSemaphoreTokenResponse{
-		Outcome:   outcome,
+		Outcome:   result.Outcome,
 		HeldToken: result.HeldToken,
 	}, nil
 }
 
-// toPersistenceGrantOutcome maps the plugin's grant outcome to the persistence one.
-// The two enums are declared separately because persistence cannot import nosqlplugin.
-func toPersistenceGrantOutcome(outcome nosqlplugin.SemaphoreGrantOutcome) (persistence.SemaphoreGrantOutcome, error) {
+// validateGrantOutcome rejects an unset or unrecognized outcome; reaching it means a
+// plugin bug. No path does today, but SemaphoreGrantUnknown is 0, so a future bare
+// `return SemaphoreGrantResult{}, nil` would otherwise read as a real answer.
+func validateGrantOutcome(outcome persistence.SemaphoreGrantOutcome) error {
 	switch outcome {
-	case nosqlplugin.SemaphoreGrantApplied:
-		return persistence.SemaphoreGrantApplied, nil
-	case nosqlplugin.SemaphoreGrantAlreadyHeld:
-		return persistence.SemaphoreGrantAlreadyHeld, nil
-	case nosqlplugin.SemaphoreGrantSlotTaken:
-		return persistence.SemaphoreGrantSlotTaken, nil
+	case persistence.SemaphoreGrantApplied,
+		persistence.SemaphoreGrantAlreadyHeld,
+		persistence.SemaphoreGrantSlotTaken:
+		return nil
 	default:
-		return persistence.SemaphoreGrantUnknown, fmt.Errorf("unknown semaphore grant outcome: %v", outcome)
+		return fmt.Errorf("unknown semaphore grant outcome: %v", outcome)
 	}
 }
 

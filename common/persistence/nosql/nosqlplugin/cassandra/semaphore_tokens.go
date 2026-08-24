@@ -25,6 +25,7 @@ import (
 
 	gogocql "github.com/gocql/gocql"
 
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/types"
@@ -131,7 +132,7 @@ func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.Semapho
 		if iter != nil {
 			_ = iter.Close()
 		}
-		return nosqlplugin.SemaphoreGrantResult{Outcome: nosqlplugin.SemaphoreGrantApplied}, nil
+		return nosqlplugin.SemaphoreGrantResult{Outcome: persistence.SemaphoreGrantApplied}, nil
 	}
 	// Not applied: walk the returned rows (first in `previous`, the rest via the
 	// iterator) to find the owner row and read the token it already holds.
@@ -141,11 +142,11 @@ func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.Semapho
 	}
 	if heldToken > 0 {
 		return nosqlplugin.SemaphoreGrantResult{
-			Outcome:   nosqlplugin.SemaphoreGrantAlreadyHeld,
+			Outcome:   persistence.SemaphoreGrantAlreadyHeld,
 			HeldToken: heldToken,
 		}, nil
 	}
-	return nosqlplugin.SemaphoreGrantResult{Outcome: nosqlplugin.SemaphoreGrantSlotTaken}, nil
+	return nosqlplugin.SemaphoreGrantResult{Outcome: persistence.SemaphoreGrantSlotTaken}, nil
 }
 
 // parseAlreadyHeldTokenFromCAS inspects the CAS result of a not-applied grant

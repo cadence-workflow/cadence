@@ -79,10 +79,33 @@ func TestInsertSemaphoreTokens(t *testing.T) {
 		assert.True(t, session.iter.closed)
 	})
 
+	t.Run("re-seeding an already seeded bucket is a no-op, not an error", func(t *testing.T) {
+		// Every IF NOT EXISTS fails, so the batch does not apply and nothing is written.
+		// InsertSemaphoreTokens ignores the applied flag on purpose: re-seeding the full
+		// id set is idempotent by design. `previous` carries a currently held slot to pin
+		// down the guarantee that matters most - a re-seed never clobbers a live holder.
+		session := &fakeSession{
+			mapExecuteBatchCASApplied: false,
+			mapExecuteBatchCASPrev: map[string]any{
+				"type":     rowTypeSemaphoreToken,
+				"token_id": 1,
+				"holder":   "owner-abc",
+			},
+			iter: &fakeIter{},
+		}
+		db := newTestSemaphoreTokenDB(t, session)
+
+		assert.NoError(t, db.InsertSemaphoreTokens(context.Background(), rows))
+		assert.Len(t, session.batches, 1)
+		assert.True(t, session.iter.closed)
+	})
+
 	t.Run("batch error", func(t *testing.T) {
 		session := &fakeSession{mapExecuteBatchCASErr: errors.New("boom"), iter: &fakeIter{}}
 		db := newTestSemaphoreTokenDB(t, session)
 		assert.Error(t, db.InsertSemaphoreTokens(context.Background(), rows))
+		// The iterator must still be released when the batch fails.
+		assert.True(t, session.iter.closed)
 	})
 }
 
@@ -102,7 +125,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.NoError(t, err)
-		assert.Equal(t, nosqlplugin.SemaphoreGrantApplied, result.Outcome)
+		assert.Equal(t, persistence.SemaphoreGrantApplied, result.Outcome)
 		assert.Zero(t, result.HeldToken)
 		assert.Len(t, session.batches, 1)
 		assert.Equal(t, []string{
@@ -129,7 +152,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.NoError(t, err)
-		assert.Equal(t, nosqlplugin.SemaphoreGrantSlotTaken, result.Outcome)
+		assert.Equal(t, persistence.SemaphoreGrantSlotTaken, result.Outcome)
 		assert.Zero(t, result.HeldToken)
 		assert.True(t, session.iter.closed)
 	})
@@ -147,7 +170,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.NoError(t, err)
-		assert.Equal(t, nosqlplugin.SemaphoreGrantAlreadyHeld, result.Outcome)
+		assert.Equal(t, persistence.SemaphoreGrantAlreadyHeld, result.Outcome)
 		assert.Equal(t, 7, result.HeldToken)
 		assert.True(t, session.iter.closed)
 	})
@@ -170,7 +193,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.NoError(t, err)
-		assert.Equal(t, nosqlplugin.SemaphoreGrantAlreadyHeld, result.Outcome)
+		assert.Equal(t, persistence.SemaphoreGrantAlreadyHeld, result.Outcome)
 		assert.Equal(t, 9, result.HeldToken)
 		assert.True(t, session.iter.closed)
 	})
@@ -180,7 +203,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
 		assert.Error(t, err)
-		assert.Equal(t, nosqlplugin.SemaphoreGrantUnknown, result.Outcome)
+		assert.Equal(t, persistence.SemaphoreGrantUnknown, result.Outcome)
 	})
 }
 

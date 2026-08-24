@@ -310,13 +310,10 @@ type (
 		UpdatedTime   time.Time
 	}
 
-	// SemaphoreGrantOutcome says whether a conditional grant applied, and if not, why
-	SemaphoreGrantOutcome int
-
 	// SemaphoreGrantResult reports the outcome of a conditional grant batch.
 	SemaphoreGrantResult struct {
-		Outcome SemaphoreGrantOutcome
-		// HeldToken is set only when Outcome is SemaphoreGrantAlreadyHeld.
+		Outcome persistence.SemaphoreGrantOutcome
+		// HeldToken is set only when Outcome is persistence.SemaphoreGrantAlreadyHeld.
 		HeldToken int
 	}
 
@@ -518,20 +515,6 @@ const (
 const (
 	WorkflowRequestWriteModeInsert WorkflowRequestWriteMode = iota
 	WorkflowRequestWriteModeUpsert
-)
-
-// enums of SemaphoreGrantOutcome
-const (
-	// SemaphoreGrantUnknown is the zero value and is never returned. It exists so an
-	// uninitialized result cannot read as a successful grant.
-	SemaphoreGrantUnknown SemaphoreGrantOutcome = iota
-	// SemaphoreGrantApplied means the slot was claimed
-	SemaphoreGrantApplied
-	// SemaphoreGrantAlreadyHeld means this owner already holds HeldToken; reuse it
-	// instead of retrying
-	SemaphoreGrantAlreadyHeld
-	// SemaphoreGrantSlotTaken means another owner holds the slot; retry a different one
-	SemaphoreGrantSlotTaken
 )
 
 // GetCurrentRunID returns the current runID

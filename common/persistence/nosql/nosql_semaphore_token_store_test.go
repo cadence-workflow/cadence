@@ -98,33 +98,36 @@ func TestNoSQLGrantSemaphoreToken(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(1234567890, 0).UTC()
 
+	// The outcome cases below check that the store surfaces each grant outcome to its
+	// caller unchanged, and that an unset or unrecognized one is rejected rather than
+	// read as a decision (validateGrantOutcome).
 	tests := map[string]struct {
 		setupMock     func(*nosqlplugin.MockDB)
 		expectErr     bool
 		wantOutcome   persistence.SemaphoreGrantOutcome
 		wantHeldToken int
 	}{
-		"applied maps through": {
+		"Applied": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				expectedRow := &nosqlplugin.SemaphoreOwnershipRow{
 					DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, OwnerID: "owner-abc", UpdatedTime: now,
 				}
 				dbMock.EXPECT().GrantSemaphoreToken(ctx, expectedRow).
-					Return(nosqlplugin.SemaphoreGrantResult{Outcome: nosqlplugin.SemaphoreGrantApplied}, nil).Times(1)
+					Return(nosqlplugin.SemaphoreGrantResult{Outcome: persistence.SemaphoreGrantApplied}, nil).Times(1)
 			},
 			wantOutcome: persistence.SemaphoreGrantApplied,
 		},
-		"slot taken maps through": {
+		"SlotTaken": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().GrantSemaphoreToken(ctx, gomock.Any()).
-					Return(nosqlplugin.SemaphoreGrantResult{Outcome: nosqlplugin.SemaphoreGrantSlotTaken}, nil).Times(1)
+					Return(nosqlplugin.SemaphoreGrantResult{Outcome: persistence.SemaphoreGrantSlotTaken}, nil).Times(1)
 			},
 			wantOutcome: persistence.SemaphoreGrantSlotTaken,
 		},
-		"already held maps through with the held token": {
+		"AlreadyHeld carries the held token": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().GrantSemaphoreToken(ctx, gomock.Any()).
-					Return(nosqlplugin.SemaphoreGrantResult{Outcome: nosqlplugin.SemaphoreGrantAlreadyHeld, HeldToken: 7}, nil).Times(1)
+					Return(nosqlplugin.SemaphoreGrantResult{Outcome: persistence.SemaphoreGrantAlreadyHeld, HeldToken: 7}, nil).Times(1)
 			},
 			wantOutcome:   persistence.SemaphoreGrantAlreadyHeld,
 			wantHeldToken: 7,
@@ -132,7 +135,7 @@ func TestNoSQLGrantSemaphoreToken(t *testing.T) {
 		"unrecognized outcome is an error": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().GrantSemaphoreToken(ctx, gomock.Any()).
-					Return(nosqlplugin.SemaphoreGrantResult{Outcome: nosqlplugin.SemaphoreGrantUnknown}, nil).Times(1)
+					Return(nosqlplugin.SemaphoreGrantResult{Outcome: persistence.SemaphoreGrantUnknown}, nil).Times(1)
 			},
 			expectErr: true,
 		},
