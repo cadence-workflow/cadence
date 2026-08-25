@@ -42,7 +42,6 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/tools/common/flag"
 )
 
@@ -399,7 +398,7 @@ func loadConfig(
 		return nil, fmt.Errorf("Unable to load config. %w", err)
 	}
 	var cfg config.Config
-	err = config.Load(env, configDir, zone, &cfg)
+	_, err = config.LoadProvider(env, configDir, zone, &cfg)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to load config. %w", err)
 	}
@@ -456,14 +455,14 @@ func initializeArchivalMetadata(
 	serviceConfig *config.Config,
 	dynamicConfig *dynamicconfig.Collection,
 ) archiver.ArchivalMetadata {
-
+	// Return noop archival metadata for CLI - archival is not needed for domain registration
 	return archiver.NewArchivalMetadata(
 		dynamicConfig,
-		serviceConfig.Archival.History.Status,
-		serviceConfig.Archival.History.EnableRead,
-		serviceConfig.Archival.Visibility.Status,
-		serviceConfig.Archival.Visibility.EnableRead,
-		&serviceConfig.DomainDefaults.Archival,
+		"",
+		false,
+		"",
+		false,
+		&archiver.ArchivalDomainDefaults{},
 	)
 }
 
@@ -474,37 +473,8 @@ func initializeArchivalProvider(
 	logger log.Logger,
 	dynamicConfig *dynamicconfig.Collection,
 ) (provider.ArchiverProvider, error) {
-
-	archiverProvider := provider.NewArchiverProvider(
-		serviceConfig.Archival.History.Provider,
-		serviceConfig.Archival.Visibility.Provider,
-	)
-
-	historyArchiverBootstrapContainer := &archiver.HistoryBootstrapContainer{
-		HistoryV2Manager:  nil, // not used
-		Logger:            logger,
-		MetricsClient:     metricsClient,
-		ClusterMetadata:   clusterMetadata,
-		DomainCache:       nil, // not used
-		DynamicCollection: dynamicConfig,
-	}
-	visibilityArchiverBootstrapContainer := &archiver.VisibilityBootstrapContainer{
-		Logger:            logger,
-		MetricsClient:     metricsClient,
-		ClusterMetadata:   clusterMetadata,
-		DomainCache:       nil, // not used
-		DynamicCollection: dynamicConfig,
-	}
-
-	err := archiverProvider.RegisterBootstrapContainer(
-		service.Frontend,
-		historyArchiverBootstrapContainer,
-		visibilityArchiverBootstrapContainer,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("Error initializing archival provider. %w", err)
-	}
-	return archiverProvider, nil
+	// Return noop provider for CLI - archival is not needed for domain registration
+	return provider.NewNoOpArchiverProvider(), nil
 }
 
 func initializeDomainReplicator(

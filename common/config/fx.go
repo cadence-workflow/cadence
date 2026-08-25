@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 
+	uconfig "go.uber.org/config"
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common/metrics"
@@ -60,6 +61,7 @@ type Result struct {
 	fx.Out
 
 	Config        Config
+	Provider      uconfig.Provider
 	ServiceConfig Service
 	MigrationCfg  metrics.MigrationConfig
 }
@@ -83,7 +85,7 @@ func New(p Params) (Result, error) {
 	}
 
 	var cfg Config
-	err := Load(p.Context.Environment, p.ConfigDir, p.Context.Zone, &cfg)
+	provider, err := LoadProvider(p.Context.Environment, p.ConfigDir, p.Context.Zone, &cfg)
 	if err != nil {
 		return Result{}, fmt.Errorf("load config: %w", err)
 	}
@@ -99,6 +101,7 @@ func New(p Params) (Result, error) {
 
 	return Result{
 		Config:        cfg,
+		Provider:      provider,
 		ServiceConfig: svcCfg,
 		MigrationCfg: metrics.MigrationConfig{
 			Histogram: cfg.Histograms,

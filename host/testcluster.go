@@ -408,7 +408,7 @@ func newArchiverBase(enabled bool, logger log.Logger) *ArchiverBase {
 	dcCollection := dynamicconfig.NewNopCollection()
 	if !enabled {
 		return &ArchiverBase{
-			metadata: archiver.NewArchivalMetadata(dcCollection, "", false, "", false, &config.ArchivalDomainDefaults{}),
+			metadata: archiver.NewArchivalMetadata(dcCollection, "", false, "", false, &archiver.ArchivalDomainDefaults{}),
 			provider: provider.NewNoOpArchiverProvider(),
 		}
 	}
@@ -421,7 +421,7 @@ func newArchiverBase(enabled bool, logger log.Logger) *ArchiverBase {
 	if err != nil {
 		logger.Fatal("Failed to create temp dir for visibility archival", tag.Error(err))
 	}
-	cfg := &config.FilestoreArchiver{
+	cfg := &filestore.Config{
 		FileMode: "0666",
 		DirMode:  "0766",
 	}
@@ -431,16 +431,16 @@ func newArchiverBase(enabled bool, logger log.Logger) *ArchiverBase {
 	}
 
 	archiverProvider := provider.NewArchiverProvider(
-		config.HistoryArchiverProvider{config.FilestoreConfig: node},
-		config.VisibilityArchiverProvider{config.FilestoreConfig: node},
+		archiver.HistoryArchiverProvider{archiver.FilestoreConfig: node},
+		archiver.VisibilityArchiverProvider{archiver.FilestoreConfig: node},
 	)
 	return &ArchiverBase{
-		metadata: archiver.NewArchivalMetadata(dcCollection, "enabled", true, "enabled", true, &config.ArchivalDomainDefaults{
-			History: config.HistoryArchivalDomainDefaults{
+		metadata: archiver.NewArchivalMetadata(dcCollection, "enabled", true, "enabled", true, &archiver.ArchivalDomainDefaults{
+			History: archiver.HistoryArchivalDomainDefaults{
 				Status: "enabled",
 				URI:    "testScheme://test/history/archive/path",
 			},
-			Visibility: config.VisibilityArchivalDomainDefaults{
+			Visibility: archiver.VisibilityArchivalDomainDefaults{
 				Status: "enabled",
 				URI:    "testScheme://test/visibility/archive/path",
 			},

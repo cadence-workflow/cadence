@@ -62,8 +62,6 @@ type (
 		Services map[string]Service `yaml:"services"`
 		// Kafka is the config for connecting to kafka
 		Kafka KafkaConfig `yaml:"kafka"`
-		// Archival is the config for archival
-		Archival Archival `yaml:"archival"`
 		// PublicClient is config for sys worker service connecting to cadence frontend
 		PublicClient PublicClient `yaml:"publicClient"`
 		// DynamicConfigClient is the config for setting up the file based dynamic config client
@@ -74,8 +72,6 @@ type (
 		// DynamicConfig is the config for setting up all dynamic config clients
 		// Allows for changes in client without needing code change
 		DynamicConfig DynamicConfig `yaml:"dynamicconfig"`
-		// DomainDefaults is the default config for every domain
-		DomainDefaults DomainDefaults `yaml:"domainDefaults"`
 		// Blobstore is the config for setting up blobstore
 		Blobstore Blobstore `yaml:"blobstore"`
 		// Authorization is the config for setting up authorization
@@ -94,6 +90,16 @@ type (
 
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
 		ShardDistributorMatchingConfig clientcommon.Config `yaml:"shard-distributor-matching"`
+
+		// Deprecated: Archival config is now loaded via archiverfx from config.Provider.
+		// This field exists only for backward compatibility with existing YAML files.
+		// The actual archival configuration is decoded separately by archiverfx.New.
+		Archival interface{} `yaml:"archival" json:"-"`
+
+		// Deprecated: Domain defaults config is now loaded via archiverfx from config.Provider.
+		// This field exists only for backward compatibility with existing YAML files.
+		// The actual domain defaults configuration is decoded separately by archiverfx.New.
+		DomainDefaults interface{} `yaml:"domainDefaults" json:"-"`
 
 		// Histograms controls timer vs histogram metric emission while they are being migrated.
 		//
@@ -495,75 +501,6 @@ type (
 		FlushBytes int `yaml:"flushBytes"`
 	}
 
-	// Archival contains the config for archival
-	Archival struct {
-		// History is the config for the history archival
-		History HistoryArchival `yaml:"history"`
-		// Visibility is the config for visibility archival
-		Visibility VisibilityArchival `yaml:"visibility"`
-	}
-
-	// HistoryArchival contains the config for history archival
-	HistoryArchival struct {
-		// Status is the status of history archival either: enabled, disabled, or paused
-		Status string `yaml:"status"`
-		// EnableRead whether history can be read from archival
-		EnableRead bool `yaml:"enableRead"`
-		// Provider contains the config for all history archivers
-		Provider HistoryArchiverProvider `yaml:"provider"`
-	}
-
-	// HistoryArchiverProvider contains the config for all history archivers.
-	//
-	// Because archivers support external plugins, so there is no fundamental structure expected,
-	// but a top-level key per named store plugin is required, and will be used to select the
-	// config for a plugin as it is initialized.
-	//
-	// Config keys and structures expected in the main default binary include:
-	//  - FilestoreConfig: [*FilestoreArchiver], used with provider scheme [github.com/uber/cadence/common/archiver/filestore.URIScheme]
-	//  - S3storeConfig: [*S3Archiver], used with provider scheme [github.com/uber/cadence/common/archiver/s3store.URIScheme]
-	//  - "gstorage" via [github.com/uber/cadence/common/archiver/gcloud.ConfigKey]: [github.com/uber/cadence/common/archiver/gcloud.Config], used with provider scheme "gs" [github.com/uber/cadence/common/archiver/gcloud.URIScheme]
-	//
-	// For handling hardcoded config, see yaml.ToNode.
-	HistoryArchiverProvider map[string]*yaml.Node
-
-	// VisibilityArchival contains the config for visibility archival
-	VisibilityArchival struct {
-		// Status is the status of visibility archival either: enabled, disabled, or paused
-		Status string `yaml:"status"`
-		// EnableRead whether visibility can be read from archival
-		EnableRead bool `yaml:"enableRead"`
-		// Provider contains the config for all visibility archivers
-		Provider VisibilityArchiverProvider `yaml:"provider"`
-	}
-
-	// VisibilityArchiverProvider contains the config for all visibility archivers.
-	//
-	// Because archivers support external plugins, so there is no fundamental structure expected,
-	// but a top-level key per named store plugin is required, and will be used to select the
-	// config for a plugin as it is initialized.
-	//
-	// Config keys and structures expected in the main default binary include:
-	//  - FilestoreConfig: [*FilestoreArchiver], used with provider scheme [github.com/uber/cadence/common/archiver/filestore.URIScheme]
-	//  - S3storeConfig: [*S3Archiver], used with provider scheme [github.com/uber/cadence/common/archiver/s3store.URIScheme]
-	//  - "gstorage" via [github.com/uber/cadence/common/archiver/gcloud.ConfigKey]: [github.com/uber/cadence/common/archiver/gcloud.Config], used with provider scheme "gs" [github.com/uber/cadence/common/archiver/gcloud.URIScheme]
-	//
-	// For handling hardcoded config, see yaml.ToNode.
-	VisibilityArchiverProvider map[string]*yaml.Node
-
-	// FilestoreArchiver contain the config for filestore archiver
-	FilestoreArchiver struct {
-		FileMode string `yaml:"fileMode"`
-		DirMode  string `yaml:"dirMode"`
-	}
-
-	// S3Archiver contains the config for S3 archiver
-	S3Archiver struct {
-		Region           string  `yaml:"region"`
-		Endpoint         *string `yaml:"endpoint"`
-		S3ForcePathStyle bool    `yaml:"s3ForcePathStyle"`
-	}
-
 	// PublicClient is config for connecting to cadence frontend
 	PublicClient struct {
 		// HostPort is the host port to connect on. Host can be DNS name
@@ -576,36 +513,6 @@ type (
 		Transport string `yaml:"transport"`
 		// interval to refresh DNS. Default to 10s
 		RefreshInterval time.Duration `yaml:"RefreshInterval"`
-	}
-
-	// DomainDefaults is the default config for each domain
-	DomainDefaults struct {
-		// Archival is the default archival config for each domain
-		Archival ArchivalDomainDefaults `yaml:"archival"`
-	}
-
-	// ArchivalDomainDefaults is the default archival config for each domain
-	ArchivalDomainDefaults struct {
-		// History is the domain default history archival config for each domain
-		History HistoryArchivalDomainDefaults `yaml:"history"`
-		// Visibility is the domain default visibility archival config for each domain
-		Visibility VisibilityArchivalDomainDefaults `yaml:"visibility"`
-	}
-
-	// HistoryArchivalDomainDefaults is the default history archival config for each domain
-	HistoryArchivalDomainDefaults struct {
-		// Status is the domain default status of history archival: enabled or disabled
-		Status string `yaml:"status"`
-		// URI is the domain default URI for history archiver
-		URI string `yaml:"URI"`
-	}
-
-	// VisibilityArchivalDomainDefaults is the default visibility archival config for each domain
-	VisibilityArchivalDomainDefaults struct {
-		// Status is the domain default status of visibility archival: enabled or disabled
-		Status string `yaml:"status"`
-		// URI is the domain default URI for visibility archiver
-		URI string `yaml:"URI"`
 	}
 
 	// ShardDistributorClient contains the config items for shard distributor
@@ -656,9 +563,6 @@ func (c *Config) validate() error {
 		return err
 	}
 	if err := c.ClusterGroupMetadata.Validate(); err != nil {
-		return err
-	}
-	if err := c.Archival.Validate(&c.DomainDefaults.Archival); err != nil {
 		return err
 	}
 

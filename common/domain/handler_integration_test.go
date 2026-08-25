@@ -38,7 +38,6 @@ import (
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -114,7 +113,7 @@ func (s *domainHandlerCommonSuite) SetupTest() {
 		false,
 		"",
 		false,
-		&config.ArchivalDomainDefaults{},
+		&archiver.ArchivalDomainDefaults{},
 	)
 	s.mockArchiverProvider = provider.NewMockArchiverProvider(s.Controller)
 	domainConfig := Config{

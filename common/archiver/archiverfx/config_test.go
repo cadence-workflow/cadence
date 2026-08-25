@@ -18,19 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package archiverfx
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/archiver"
+	"github.com/uber/cadence/common/archiver/filestore"
 	"github.com/uber/cadence/common/config/yaml"
 	"github.com/uber/cadence/common/constants"
 )
 
 func defaultFilestoreConfig(t *testing.T) *yaml.Node {
-	node, err := yaml.ToNode(&FilestoreArchiver{
+	node, err := yaml.ToNode(&filestore.Config{
 		FileMode: "044",
 	})
 	require.NoError(t, err)
@@ -43,13 +45,13 @@ func TestValidEnabledHistoryArchivalConfig(t *testing.T) {
 	archival := Archival{
 		History: HistoryArchival{
 			Status: constants.ArchivalEnabled,
-			Provider: HistoryArchiverProvider{
-				FilestoreConfig: defaultFilestoreConfig(t),
+			Provider: archiver.HistoryArchiverProvider{
+				archiver.FilestoreConfig: defaultFilestoreConfig(t),
 			},
 		},
 	}
-	err := archival.Validate(&ArchivalDomainDefaults{
-		History: HistoryArchivalDomainDefaults{
+	err := archival.Validate(&archiver.ArchivalDomainDefaults{
+		History: archiver.HistoryArchivalDomainDefaults{
 			URI: "/var/tmp",
 		},
 	})
@@ -62,19 +64,19 @@ func TestInvalidHEnabledHistoryArchivalConfig(t *testing.T) {
 			Status: constants.ArchivalEnabled,
 		},
 	}
-	err := archival.Validate(&ArchivalDomainDefaults{})
+	err := archival.Validate(&archiver.ArchivalDomainDefaults{})
 	require.Error(t, err)
 }
 
 func TestValidDisabledHistoryArchivalConfig(t *testing.T) {
 	archival := Archival{
 		History: HistoryArchival{
-			Provider: HistoryArchiverProvider{
-				FilestoreConfig: defaultFilestoreConfig(t),
+			Provider: archiver.HistoryArchiverProvider{
+				archiver.FilestoreConfig: defaultFilestoreConfig(t),
 			},
 		},
 	}
-	err := archival.Validate(&ArchivalDomainDefaults{})
+	err := archival.Validate(&archiver.ArchivalDomainDefaults{})
 	require.NoError(t, err)
 }
 
@@ -84,7 +86,7 @@ func TestInvalidDisabledHistoryArchivalConfig(t *testing.T) {
 			EnableRead: true,
 		},
 	}
-	err := archival.Validate(&ArchivalDomainDefaults{})
+	err := archival.Validate(&archiver.ArchivalDomainDefaults{})
 	require.Error(t, err)
 }
 
@@ -92,7 +94,7 @@ func TestValidEmptyHistoryArchivalConfig(t *testing.T) {
 	archival := Archival{
 		History: HistoryArchival{},
 	}
-	err := archival.Validate(&ArchivalDomainDefaults{})
+	err := archival.Validate(&archiver.ArchivalDomainDefaults{})
 	require.NoError(t, err)
 }
 
@@ -102,13 +104,13 @@ func TestValidEnabledVisibilityArchivalConfig(t *testing.T) {
 	archival := Archival{
 		Visibility: VisibilityArchival{
 			Status: constants.ArchivalEnabled,
-			Provider: VisibilityArchiverProvider{
-				FilestoreConfig: defaultFilestoreConfig(t),
+			Provider: archiver.VisibilityArchiverProvider{
+				archiver.FilestoreConfig: defaultFilestoreConfig(t),
 			},
 		},
 	}
-	err := archival.Validate(&ArchivalDomainDefaults{
-		Visibility: VisibilityArchivalDomainDefaults{
+	err := archival.Validate(&archiver.ArchivalDomainDefaults{
+		Visibility: archiver.VisibilityArchivalDomainDefaults{
 			URI: "/var/tmp",
 		},
 	})
@@ -121,19 +123,19 @@ func TestInvalidHEnabledVisibilityArchivalConfig(t *testing.T) {
 			Status: constants.ArchivalEnabled,
 		},
 	}
-	err := archival.Validate(&ArchivalDomainDefaults{})
+	err := archival.Validate(&archiver.ArchivalDomainDefaults{})
 	require.Error(t, err)
 }
 
 func TestValidDisabledVisibilityArchivalConfig(t *testing.T) {
 	archival := Archival{
 		Visibility: VisibilityArchival{
-			Provider: VisibilityArchiverProvider{
-				FilestoreConfig: defaultFilestoreConfig(t),
+			Provider: archiver.VisibilityArchiverProvider{
+				archiver.FilestoreConfig: defaultFilestoreConfig(t),
 			},
 		},
 	}
-	err := archival.Validate(&ArchivalDomainDefaults{})
+	err := archival.Validate(&archiver.ArchivalDomainDefaults{})
 	require.NoError(t, err)
 }
 
@@ -143,7 +145,7 @@ func TestInvalidDisabledVisibilityArchivalConfig(t *testing.T) {
 			EnableRead: true,
 		},
 	}
-	err := archival.Validate(&ArchivalDomainDefaults{})
+	err := archival.Validate(&archiver.ArchivalDomainDefaults{})
 	require.Error(t, err)
 }
 
@@ -151,6 +153,6 @@ func TestValidEmptyVisibilityArchivalConfig(t *testing.T) {
 	archival := Archival{
 		Visibility: VisibilityArchival{},
 	}
-	err := archival.Validate(&ArchivalDomainDefaults{})
+	err := archival.Validate(&archiver.ArchivalDomainDefaults{})
 	require.NoError(t, err)
 }

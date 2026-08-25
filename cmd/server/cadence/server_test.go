@@ -124,15 +124,16 @@ func (s *ServerSuite) TestServerStartup() {
 		rpcParams, err := rpc.NewParams(service.FullName(svc), &cfg, dc, logger, metrics.NewNoopMetricsClient())
 		s.NoError(err)
 		rpcFactory := rpc.NewFactory(logger, rpcParams)
+		// Use noop archival for tests - archival is tested separately
 		archivalMetadata := archiver.NewArchivalMetadata(
 			dc,
-			cfg.Archival.History.Status,
-			cfg.Archival.History.EnableRead,
-			cfg.Archival.Visibility.Status,
-			cfg.Archival.Visibility.EnableRead,
-			&cfg.DomainDefaults.Archival,
+			"",
+			false,
+			"",
+			false,
+			&archiver.ArchivalDomainDefaults{},
 		)
-		archiverProvider := provider.NewArchiverProvider(cfg.Archival.History.Provider, cfg.Archival.Visibility.Provider)
+		archiverProvider := provider.NewNoOpArchiverProvider()
 		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, operationalConfigStore, operationalDC, tally.NoopScope, metrics.NewNoopMetricsClient(), rpcFactory, archivalMetadata, archiverProvider)
 		daemons = append(daemons, server)
 		server.Start()

@@ -53,12 +53,12 @@ import (
 // newTestHandler creates a new instance of the handler with mocked dependencies for testing.
 func newTestHandler(t *testing.T, ctrl *gomock.Controller, domainManager *persistence.MockDomainManager, primaryCluster bool, domainReplicator Replicator) Handler {
 	mockDC := dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), log.NewNoop())
-	domainDefaults := &config.ArchivalDomainDefaults{
-		History: config.HistoryArchivalDomainDefaults{
+	domainDefaults := &archiver.ArchivalDomainDefaults{
+		History: archiver.HistoryArchivalDomainDefaults{
 			Status: "Disabled",
 			URI:    "https://history.example.com",
 		},
-		Visibility: config.VisibilityArchivalDomainDefaults{
+		Visibility: archiver.VisibilityArchivalDomainDefaults{
 			Status: "Disabled",
 			URI:    "https://visibility.example.com",
 		},

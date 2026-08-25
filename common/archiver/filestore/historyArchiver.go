@@ -44,7 +44,6 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -86,14 +85,14 @@ type (
 // NewHistoryArchiver creates a new archiver.HistoryArchiver based on filestore
 func NewHistoryArchiver(
 	container *archiver.HistoryBootstrapContainer,
-	config *config.FilestoreArchiver,
+	config *Config,
 ) (archiver.HistoryArchiver, error) {
 	return newHistoryArchiver(container, config, nil)
 }
 
 func newHistoryArchiver(
 	container *archiver.HistoryBootstrapContainer,
-	config *config.FilestoreArchiver,
+	config *Config,
 	historyIterator archiver.HistoryIterator,
 ) (*historyArchiver, error) {
 	fileMode, err := strconv.ParseUint(config.FileMode, 0, 32)

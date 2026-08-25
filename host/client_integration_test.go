@@ -50,6 +50,10 @@ import (
 
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/service"
+
+	// Register default archivers
+	_ "github.com/uber/cadence/common/archiver/filestore"
+	_ "github.com/uber/cadence/common/archiver/s3store"
 )
 
 func init() {
