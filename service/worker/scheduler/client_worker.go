@@ -25,12 +25,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	cadenceworker "go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/zap"
 
-	"github.com/uber-go/tally"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
@@ -323,8 +323,8 @@ func (m *WorkerManager) defaultCreateWorker(domainName string) (workerHandle, er
 	})
 
 	w := cadenceworker.New(m.serviceClient, domainName, TaskListName, cadenceworker.Options{
-		Logger:                   m.zapLogger,
-		MetricsScope:             m.metricsScope,
+		Logger:                    m.zapLogger,
+		MetricsScope:              m.metricsScope,
 		BackgroundActivityContext: actCtx,
 	})
 	w.RegisterWorkflowWithOptions(SchedulerWorkflow, workflow.RegisterOptions{Name: WorkflowTypeName})
