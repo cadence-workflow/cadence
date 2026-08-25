@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/antipatterns"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
@@ -57,6 +58,7 @@ type DiagnosticsWorkflowResult struct {
 	Failures     *failureDiagnostics
 	Retries      *retryDiagnostics
 	TimeoutRisks *timeoutRiskDiagnostics
+	Antipatterns *antipatternsDiagnostics
 }
 
 type timeoutDiagnostics struct {
@@ -121,6 +123,18 @@ type timeoutRiskIssuesResult struct {
 	Metadata      *timeoutrisk.TimeoutRiskIssuesMetadata
 }
 
+type antipatternsDiagnostics struct {
+	Issues  []*antipatternsIssuesResult
+	Runbook string
+}
+
+type antipatternsIssuesResult struct {
+	IssueID       int
+	InvariantType string
+	Reason        string
+	Metadata      *antipatterns.AntipatternIssuesMetadata
+}
+
 func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflowInput) (*DiagnosticsWorkflowResult, error) {
 	scope := w.metricsClient.Scope(metrics.DiagnosticsWorkflowScope, metrics.DomainTag(params.Domain))
 	scope.IncCounter(metrics.DiagnosticsWorkflowStartedCount)
@@ -135,6 +149,7 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	var failureResult *failureDiagnostics
 	var retryResult *retryDiagnostics
 	var timeoutRiskResult *timeoutRiskDiagnostics
+	var antipatternsResult *antipatternsDiagnostics
 	var checkResult []invariant.InvariantCheckResult
 	var rootCauseResult []invariant.InvariantRootCauseResult
 
@@ -222,12 +237,25 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 		}
 	}
 
+	antipatternsIssues, err := retrieveAntipatternsIssues(checkResult)
+	if err != nil {
+		return nil, fmt.Errorf("RetrieveAntipatternsIssues: %w", err)
+	}
+
+	if len(antipatternsIssues) > 0 {
+		antipatternsResult = &antipatternsDiagnostics{
+			Issues:  antipatternsIssues,
+			Runbook: linkToAntipatternsRunbook,
+		}
+	}
+
 	scope.IncCounter(metrics.DiagnosticsWorkflowSuccess)
 	return &DiagnosticsWorkflowResult{
 		Timeouts:     timeoutsResult,
 		Failures:     failureResult,
 		Retries:      retryResult,
 		TimeoutRisks: timeoutRiskResult,
+		Antipatterns: antipatternsResult,
 	}, nil
 }
 
@@ -429,6 +457,37 @@ func retrieveTimeoutRiskIssues(issues []invariant.InvariantCheckResult) ([]*time
 				Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
 					ActivityMissingHeartbeatTimeout: &metadata,
 				},
+			})
+		}
+	}
+	return result, nil
+}
+
+func retrieveAntipatternsIssues(issues []invariant.InvariantCheckResult) ([]*antipatternsIssuesResult, error) {
+	result := make([]*antipatternsIssuesResult, 0)
+	for _, issue := range issues {
+		switch issue.InvariantType {
+		case antipatterns.ActivityScheduleBurst.String():
+			var metadata antipatterns.ActivityScheduleBurstMetadata
+			if err := json.Unmarshal(issue.Metadata, &metadata); err != nil {
+				return nil, err
+			}
+			result = append(result, &antipatternsIssuesResult{
+				IssueID:       issue.IssueID,
+				InvariantType: issue.InvariantType,
+				Reason:        issue.Reason,
+				Metadata:      &antipatterns.AntipatternIssuesMetadata{ActivityScheduleBurst: &metadata},
+			})
+		case antipatterns.ContinueAsNewInCronWorkflow.String():
+			var metadata antipatterns.ContinueAsNewInCronWorkflowMetadata
+			if err := json.Unmarshal(issue.Metadata, &metadata); err != nil {
+				return nil, err
+			}
+			result = append(result, &antipatternsIssuesResult{
+				IssueID:       issue.IssueID,
+				InvariantType: issue.InvariantType,
+				Reason:        issue.Reason,
+				Metadata:      &antipatterns.AntipatternIssuesMetadata{ContinueAsNewInCronWorkflow: &metadata},
 			})
 		}
 	}

@@ -41,6 +41,7 @@ import (
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/antipatterns"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
@@ -68,7 +69,7 @@ func (s *diagnosticsWorkflowTestSuite) SetupTest() {
 		svcClient:     publicClient,
 		clientBean:    mockResource.ClientBean,
 		metricsClient: mockResource.GetMetricsClient(),
-		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant()},
+		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant(), antipatterns.NewInvariant()},
 	}
 
 	s.T().Cleanup(func() {
@@ -538,4 +539,56 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 	result, err := retrieveTimeoutRiskIssues(issues)
 	s.NoError(err)
 	s.ElementsMatch(timeoutRiskIssues, result)
+}
+
+func (s *diagnosticsWorkflowTestSuite) Test__retrieveAntipatternsIssues() {
+	burstMetadata := antipatterns.ActivityScheduleBurstMetadata{
+		FirstEventID:    2,
+		LastEventID:     51,
+		EventCount:      50,
+		WindowStart:     time.Unix(0, 1700000000000000000).UTC(),
+		WindowEnd:       time.Unix(0, 1700000004900000000).UTC(),
+		WindowInSeconds: 10,
+		Threshold:       50,
+	}
+	burstMetadataInBytes, err := json.Marshal(burstMetadata)
+	s.NoError(err)
+	canMetadata := antipatterns.ContinueAsNewInCronWorkflowMetadata{
+		StartedEventID:        1,
+		CronSchedule:          "*/5 * * * *",
+		ContinuedAsNewEventID: 60,
+	}
+	canMetadataInBytes, err := json.Marshal(canMetadata)
+	s.NoError(err)
+	issues := []invariant.InvariantCheckResult{
+		{
+			IssueID:       0,
+			InvariantType: antipatterns.ActivityScheduleBurst.String(),
+			Reason:        antipatterns.ActivityScheduleBurstDetected.String(),
+			Metadata:      burstMetadataInBytes,
+		},
+		{
+			IssueID:       1,
+			InvariantType: antipatterns.ContinueAsNewInCronWorkflow.String(),
+			Reason:        antipatterns.ContinueAsNewInitiatedByDeciderInCronWorkflow.String(),
+			Metadata:      canMetadataInBytes,
+		},
+	}
+	antipatternsIssues := []*antipatternsIssuesResult{
+		{
+			IssueID:       0,
+			InvariantType: antipatterns.ActivityScheduleBurst.String(),
+			Reason:        antipatterns.ActivityScheduleBurstDetected.String(),
+			Metadata:      &antipatterns.AntipatternIssuesMetadata{ActivityScheduleBurst: &burstMetadata},
+		},
+		{
+			IssueID:       1,
+			InvariantType: antipatterns.ContinueAsNewInCronWorkflow.String(),
+			Reason:        antipatterns.ContinueAsNewInitiatedByDeciderInCronWorkflow.String(),
+			Metadata:      &antipatterns.AntipatternIssuesMetadata{ContinueAsNewInCronWorkflow: &canMetadata},
+		},
+	}
+	result, err := retrieveAntipatternsIssues(issues)
+	s.NoError(err)
+	s.ElementsMatch(antipatternsIssues, result)
 }

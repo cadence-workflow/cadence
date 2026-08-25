@@ -39,6 +39,7 @@ const (
 	linkToFailuresRunbook     = "https://cadenceworkflow.io/docs/workflow-troubleshooting/activity-failures/"
 	linkToRetriesRunbook      = "https://cadenceworkflow.io/docs/workflow-troubleshooting/retries"
 	linkToTimeoutRisksRunbook = "https://cadenceworkflow.io/docs/workflow-troubleshooting/timeouts/"
+	linkToAntipatternsRunbook = "https://cadenceworkflow.io/docs/workflow-troubleshooting/antipatterns/"
 	WfDiagnosticsAppName      = "workflow-diagnostics"
 
 	_maxPageSize           = 1000            // current maximum page size for fetching workflow history
