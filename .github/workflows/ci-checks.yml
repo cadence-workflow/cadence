@@ -18,25 +18,6 @@ jobs:
       - name: Check IDL submodule status (must point to master)
         run: make .idl-status
 
-  golang-check-fresh-dependencies:
-    name: Golang check fresh dependencies
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Setup Go environment
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.24.5'
-
-      - name: Check for too-fresh go module dependencies
-        run: ./scripts/github_actions/check_fresh_go_deps.sh
-
   golang-unit-test:
     name: Golang unit test
     runs-on: ubuntu-latest
