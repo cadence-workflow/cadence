@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       gettext-base \
       libyaml-dev \
       python3-pip \
-      python-setuptools \
+      python3-setuptools \
       time \
       unzip \
       ca-certificates \
