@@ -515,6 +515,50 @@ func TestSelectSemaphoreTasks(t *testing.T) {
 			},
 		},
 		{
+			// A UDT present but missing a field is as unusable as no UDT at all, and must be
+			// skipped the same way rather than returned with the field zeroed.
+			name: "row with an incomplete task UDT skipped, later rows still returned",
+			queryMockFn: func(query *gocql.MockQuery) {
+				query.EXPECT().PageSize(10).Return(query).Times(1)
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+			},
+			iterMockFn: func(iter *gocql.MockIter) {
+				iter.EXPECT().MapScan(gomock.Any()).DoAndReturn(func(m map[string]interface{}) bool {
+					m["task_id"] = int64(100)
+					m["task"] = map[string]interface{}{
+						"workflow_id": "wf-1",
+						"run_id":      nil, // null field: the unguarded assertion used to panic here
+						"hold_id":     int64(11),
+					}
+					return true
+				}).Times(1)
+				iter.EXPECT().MapScan(gomock.Any()).DoAndReturn(func(m map[string]interface{}) bool {
+					m["task_id"] = int64(101)
+					m["task"] = map[string]interface{}{
+						"workflow_id": "wf-2",
+						"run_id":      &fakeUUID{uuid: "30000000-3000-f000-f000-000000000000"},
+						"hold_id":     int64(12),
+					}
+					m["created_time"] = now
+					return true
+				}).Times(1)
+				iter.EXPECT().MapScan(gomock.Any()).Return(false).Times(1)
+				iter.EXPECT().Close().Return(nil).Times(1)
+			},
+			wantRows: []*nosqlplugin.SemaphoreTaskRow{
+				{
+					DomainID:      testSemaphoreDomainID,
+					SemaphoreName: testSemaphoreName,
+					Bucket:        testSemaphoreBucket,
+					TaskID:        101,
+					WorkflowID:    "wf-2",
+					RunID:         "30000000-3000-f000-f000-000000000000",
+					HoldID:        12,
+					CreatedTime:   now,
+				},
+			},
+		},
+		{
 			name:    "nil iterator",
 			nilIter: true,
 			queryMockFn: func(query *gocql.MockQuery) {

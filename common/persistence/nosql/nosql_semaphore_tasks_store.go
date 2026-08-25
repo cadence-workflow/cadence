@@ -72,6 +72,17 @@ func (m *nosqlSemaphoreTaskStore) ClaimSemaphoreTaskBucket(
 
 	if selectErr != nil {
 		if m.db.IsNotFoundError(selectErr) { // first use of this bucket
+			// Nothing deletes a semaphore control row — the range delete is scoped to task rows
+			// (type 0), and the control row's task_id is negative. A renew against a missing row
+			// therefore means the row was lost out of band. Recreating it would report a successful
+			// renew of a bucket silently reset to ack_level 0. The re-grants that follow are caught
+			// by the owner-row CAS, so this is about surfacing the loss, not preventing corruption.
+			if request.RangeID > 0 {
+				return nil, &persistence.ConditionFailedError{
+					Msg: fmt.Sprintf("ClaimSemaphoreTaskBucket: control row missing for semaphore:%v, bucket:%v, haveRangeID:%v",
+						request.SemaphoreName, request.Bucket, request.RangeID),
+				}
+			}
 			newRow := &nosqlplugin.SemaphoreTaskControlRow{
 				DomainID:      request.DomainID,
 				SemaphoreName: request.SemaphoreName,

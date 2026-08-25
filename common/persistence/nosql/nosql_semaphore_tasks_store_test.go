@@ -115,6 +115,19 @@ func TestNoSQLClaimSemaphoreTaskBucket(t *testing.T) {
 			},
 			expectErr: true,
 		},
+		"renew - control row missing, bucket not recreated": {
+			request: &persistence.ClaimSemaphoreTaskBucketRequest{
+				DomainID: testSemTaskDomainID, SemaphoreName: testSemTaskName, Bucket: testSemTaskBucket, RangeID: 7,
+			},
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				// No InsertSemaphoreTaskControlRow is expected: the row was lost out of band, and
+				// recreating it would report a successful renew of a bucket reset to ack_level 0.
+				dbMock.EXPECT().SelectSemaphoreTaskControlRow(ctx, gomock.Any()).
+					Return(nil, errors.New("not found")).Times(1)
+				dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(true).Times(1)
+			},
+			expectErr: true,
+		},
 		"insert fence conflict maps to ConditionFailedError": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().SelectSemaphoreTaskControlRow(ctx, gomock.Any()).
@@ -190,6 +203,20 @@ func TestNoSQLClaimSemaphoreTaskBucketConditionType(t *testing.T) {
 		store, dbMock := setUpMocksForSemaphoreTaskStore(t)
 		dbMock.EXPECT().SelectSemaphoreTaskControlRow(ctx, gomock.Any()).
 			Return(&nosqlplugin.SemaphoreTaskControlRow{RangeID: 9}, nil).Times(1)
+
+		renew := *req
+		renew.RangeID = 7
+		_, err := store.ClaimSemaphoreTaskBucket(ctx, &renew)
+		require.Error(t, err)
+		_, ok := err.(*persistence.ConditionFailedError)
+		assert.True(t, ok, "expected *persistence.ConditionFailedError, got %T", err)
+	})
+
+	t.Run("renew against a missing control row", func(t *testing.T) {
+		store, dbMock := setUpMocksForSemaphoreTaskStore(t)
+		dbMock.EXPECT().SelectSemaphoreTaskControlRow(ctx, gomock.Any()).
+			Return(nil, errors.New("not found")).Times(1)
+		dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(true).Times(1)
 
 		renew := *req
 		renew.RangeID = 7

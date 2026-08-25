@@ -188,7 +188,14 @@ func (db *CDB) SelectSemaphoreTasks(ctx context.Context, filter *nosqlplugin.Sem
 			continue
 		}
 
-		w := createSemaphoreTaskInfo(taskMap)
+		w, ok := createSemaphoreTaskInfo(taskMap)
+		if !ok {
+			// Same reasoning as the null `task` column above: skip the row rather than panic
+			// on the assertion or stall the bucket with an error.
+			db.logger.Warn("skipping semaphore task row with an incomplete task UDT",
+				tag.WorkflowDomainID(filter.DomainID), tag.TaskID(taskID))
+			continue
+		}
 		w.DomainID = filter.DomainID
 		w.SemaphoreName = filter.SemaphoreName
 		w.Bucket = filter.Bucket
@@ -214,20 +221,28 @@ func (db *CDB) SelectSemaphoreTasks(ctx context.Context, filter *nosqlplugin.Sem
 	return response, nil
 }
 
-// createSemaphoreTaskInfo scans the frozen<semaphore_task> UDT map into a task row.
-func createSemaphoreTaskInfo(result map[string]interface{}) *nosqlplugin.SemaphoreTaskRow {
-	w := &nosqlplugin.SemaphoreTaskRow{}
-	for k, v := range result {
-		switch k {
-		case "workflow_id":
-			w.WorkflowID = v.(string)
-		case "run_id":
-			w.RunID = v.(gocql.UUID).String()
-		case "hold_id":
-			w.HoldID = v.(int64)
-		}
+// createSemaphoreTaskInfo scans the frozen<semaphore_task> UDT map into a task row. It reports
+// false if a field is absent or has an unexpected type. All three are written by one INSERT, so
+// a partial UDT is a corrupt row, not an optional one: returning it with zeroed fields would
+// hand the caller a task it cannot act on.
+func createSemaphoreTaskInfo(result map[string]interface{}) (*nosqlplugin.SemaphoreTaskRow, bool) {
+	workflowID, ok := result["workflow_id"].(string)
+	if !ok {
+		return nil, false
 	}
-	return w
+	runID, ok := result["run_id"].(gocql.UUID)
+	if !ok {
+		return nil, false
+	}
+	holdID, ok := result["hold_id"].(int64)
+	if !ok {
+		return nil, false
+	}
+	return &nosqlplugin.SemaphoreTaskRow{
+		WorkflowID: workflowID,
+		RunID:      runID.String(),
+		HoldID:     holdID,
+	}, true
 }
 
 // GetSemaphoreTasksCount returns the number of task rows with task_id > ExclusiveMinTaskID.
