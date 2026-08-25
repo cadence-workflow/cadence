@@ -1159,6 +1159,8 @@ func (c *cadenceImpl) startSchedulerWorkerManager(params *resource.Params, svc S
 		FrontendClient:     c.frontendClient,
 		MetricsClient:      svc.GetMetricsClient(),
 		Logger:             svc.GetLogger(),
+		ZapLogger:          c.zapLogger,
+		// tally metrics is not passed
 		DomainCache:        domainCache,
 		MembershipResolver: svc.GetMembershipResolver(),
 		HostInfo:           svc.GetHostInfo(),

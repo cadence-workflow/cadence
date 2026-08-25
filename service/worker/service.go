@@ -348,6 +348,8 @@ func (s *Service) startSchedulerWorkerManager() *scheduler.WorkerManager {
 		FrontendClient:     s.GetClientBean().GetFrontendClient(),
 		MetricsClient:      s.GetMetricsClient(),
 		Logger:             s.GetLogger(),
+		ZapLogger:          s.GetZapLogger(),
+		MetricsScope:       s.GetMetricsScope(),
 		DomainCache:        s.GetDomainCache(),
 		MembershipResolver: s.GetMembershipResolver(),
 		HostInfo:           s.GetHostInfo(),
