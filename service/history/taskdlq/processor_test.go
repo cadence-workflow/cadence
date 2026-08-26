@@ -25,6 +25,7 @@ package taskdlq
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -41,6 +42,79 @@ import (
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/shard"
 )
+
+func TestHostLimiter_BoundsConcurrentProcessingAcrossShards(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	limiter := NewHostLimiter(1)
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+
+	newProc := func(shardID int) *ProcessorImpl {
+		return NewProcessor(ProcessorParams{
+			ShardID:                shardID,
+			Manager:                mgr,
+			Reinjector:             reinjector,
+			PageSize:               10,
+			Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
+			FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(0),
+			DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+			Enabled:                dynamicproperties.GetBoolPropertyFn(true),
+			HostLimiter:            limiter,
+			TimeSource:             clock.NewMockedTimeSource(),
+			MetricsClient:          metrics.NewNoopMetricsClient(),
+			Logger:                 testlogger.New(t),
+		})
+	}
+	proc1 := newProc(1)
+	proc2 := newProc(2)
+
+	entered1 := make(chan struct{})
+	release1 := make(chan struct{})
+	var secondStarted atomic.Bool
+	done2 := make(chan struct{})
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:  1,
+		DomainID: "test-domain",
+	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+		close(entered1)
+		<-release1
+		return nil, nil
+	})
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:  2,
+		DomainID: "test-domain",
+	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+		secondStarted.Store(true)
+		close(done2)
+		return nil, nil
+	})
+
+	proc1.Start()
+	defer proc1.Stop()
+	proc2.Start()
+	defer proc2.Stop()
+
+	proc1.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+	select {
+	case <-entered1: // proc1 now holds the single host slot inside its DB call
+	case <-time.After(5 * time.Second):
+		t.Fatal("first shard's DLQ processing never started")
+	}
+
+	proc2.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+	time.Sleep(100 * time.Millisecond)
+	require.False(t, secondStarted.Load(), "second shard's DLQ query ran while the host slot was held")
+
+	close(release1)
+	select {
+	case <-done2:
+	case <-time.After(5 * time.Second):
+		t.Fatal("second shard's DLQ processing never ran after the slot freed")
+	}
+}
 
 const (
 	defaultTestProcessingInterval = 15 * time.Second

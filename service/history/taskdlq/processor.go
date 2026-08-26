@@ -98,6 +98,7 @@ type (
 		failoverJitterMaxDelay dynamicproperties.DurationPropertyFn
 		domainMode             dynamicproperties.StringPropertyFnWithDomainFilter
 		enabled                dynamicproperties.BoolPropertyFn
+		hostLimiter            *HostLimiter
 		timeSource             clock.TimeSource
 		metricsClient          metrics.Client
 		logger                 log.Logger
@@ -134,6 +135,7 @@ type (
 		FailoverJitterMaxDelay dynamicproperties.DurationPropertyFn
 		DomainMode             dynamicproperties.StringPropertyFnWithDomainFilter
 		Enabled                dynamicproperties.BoolPropertyFn
+		HostLimiter            *HostLimiter
 		TimeSource             clock.TimeSource
 		MetricsClient          metrics.Client
 		Logger                 log.Logger
@@ -164,6 +166,7 @@ func NewProcessor(params ProcessorParams) *ProcessorImpl {
 		failoverJitterMaxDelay: params.FailoverJitterMaxDelay,
 		domainMode:             params.DomainMode,
 		enabled:                params.Enabled,
+		hostLimiter:            params.HostLimiter,
 		timeSource:             params.TimeSource,
 		metricsClient:          params.MetricsClient,
 		logger:                 params.Logger,
@@ -199,6 +202,7 @@ func NewProcessorFromShard(
 	failoverJitterMaxDelay dynamicproperties.DurationPropertyFn,
 	domainMode dynamicproperties.StringPropertyFnWithDomainFilter,
 	enabled dynamicproperties.BoolPropertyFn,
+	hostLimiter *HostLimiter,
 ) *ProcessorImpl {
 	return NewProcessor(ProcessorParams{
 		ShardID:                shard.GetShardID(),
@@ -210,6 +214,7 @@ func NewProcessorFromShard(
 		FailoverJitterMaxDelay: failoverJitterMaxDelay,
 		DomainMode:             domainMode,
 		Enabled:                enabled,
+		HostLimiter:            hostLimiter,
 		TimeSource:             shard.GetTimeSource(),
 		MetricsClient:          shard.GetMetricsClient(),
 		Logger:                 shard.GetLogger(),
@@ -351,6 +356,10 @@ func (p *ProcessorImpl) processPendingFailovers() {
 func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
+	if err := p.hostLimiter.Acquire(ctx); err != nil {
+		return err
+	}
+	defer p.hostLimiter.Release()
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -372,6 +381,10 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
+	if err := p.hostLimiter.Acquire(ctx); err != nil {
+		return err
+	}
+	defer p.hostLimiter.Release()
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
