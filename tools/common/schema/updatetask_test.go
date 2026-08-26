@@ -140,15 +140,15 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	// SQLite
 	fsys, err = fs.Sub(sqlite.SchemaFS, "cadence/versioned")
 	s.NoError(err)
-	ans, err = readSchemaDir(fsys, "0.1", "")
+	ans, err = readSchemaDir(fsys, "0.0", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.2", "v0.3"}, ans)
+	s.Equal([]string{"v0.1"}, ans)
 
 	fsys, err = fs.Sub(sqlite.SchemaFS, "visibility/versioned")
 	s.NoError(err)
-	ans, err = readSchemaDir(fsys, "0.1", "")
+	ans, err = readSchemaDir(fsys, "0.0", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.2"}, ans)
+	s.Equal([]string{"v0.1"}, ans)
 
 	// Postgres
 	fsys, err = fs.Sub(postgres.SchemaFS, "cadence/versioned")
