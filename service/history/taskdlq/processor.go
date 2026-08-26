@@ -27,10 +27,12 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
@@ -40,6 +42,10 @@ import (
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/shard"
 )
+
+// sweepIntervalJitterCoefficient spreads periodic sweeps across shards; see
+// emitDLQSizeMetricsLoop in service/history/replication/dlq_handler.go for precedent.
+const sweepIntervalJitterCoefficient = 0.15
 
 type (
 	// Processor reads tasks from the history task DLQ and executes them synchronously.
@@ -238,7 +244,7 @@ func (p *ProcessorImpl) processLoop() {
 	defer p.wg.Done()
 	defer func() { log.CapturePanic(recover(), p.logger, nil) }()
 
-	timer := p.timeSource.NewTimer(p.interval(p.shardID))
+	timer := p.timeSource.NewTimer(p.sweepInterval())
 	defer timer.Stop()
 
 	for {
@@ -252,9 +258,15 @@ func (p *ProcessorImpl) processLoop() {
 			p.runSweep()
 			// A failover may have preempted the sweep; drain it before the next tick.
 			p.processPendingFailovers()
-			timer.Reset(p.interval(p.shardID))
+			timer.Reset(p.sweepInterval())
 		}
 	}
+}
+
+// sweepInterval returns the configured sweep interval with jitter applied so
+// shards' periodic sweeps don't run in synchronized cluster-wide waves.
+func (p *ProcessorImpl) sweepInterval() time.Duration {
+	return backoff.JitDuration(p.interval(p.shardID), sweepIntervalJitterCoefficient)
 }
 
 // runSweep runs one periodic ProcessShard synchronously under a cancelable context.
