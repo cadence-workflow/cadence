@@ -1,29 +1,44 @@
 package antipatterns
 
 import (
+	"fmt"
 	"time"
 )
 
-type AntipatternType string
+type AntipatternType int32
 
 const (
-	ActivityScheduleBurst       AntipatternType = "Activities scheduled in quick succession"
-	ContinueAsNewInCronWorkflow AntipatternType = "Continue-As-New used in cron workflow"
+	AntipatternTypeInvalid AntipatternType = iota
+	ActivityScheduleBurst
+	ContinueAsNewInCronWorkflow
 )
 
 func (a AntipatternType) String() string {
-	return string(a)
+	switch a {
+	case ActivityScheduleBurst:
+		return "Activities scheduled in quick succession"
+	case ContinueAsNewInCronWorkflow:
+		return "Continue-As-New used in cron workflow"
+	}
+	return fmt.Sprintf("AntipatternType(%d)", int32(a))
 }
 
-type IssueType string
+type IssueType int32
 
 const (
-	ActivityScheduleBurstDetected                 IssueType = "A burst of activities was scheduled within a short time window, which can be an early-warning signal of hot-shard contention."
-	ContinueAsNewInitiatedByDeciderInCronWorkflow IssueType = "The workflow continued-as-new from workflow code while running under a cron schedule, which can interfere with server-managed cron scheduling."
+	IssueTypeInvalid IssueType = iota
+	ActivityScheduleBurstDetected
+	ContinueAsNewInitiatedByDeciderInCronWorkflow
 )
 
 func (i IssueType) String() string {
-	return string(i)
+	switch i {
+	case ActivityScheduleBurstDetected:
+		return "A burst of activities was scheduled within a short time window, which can cause hot-shard contention."
+	case ContinueAsNewInitiatedByDeciderInCronWorkflow:
+		return "The workflow continued-as-new from workflow code while running under a cron schedule, which can interfere with server-managed cron scheduling."
+	}
+	return fmt.Sprintf("IssueType(%d)", int32(i))
 }
 
 const (
