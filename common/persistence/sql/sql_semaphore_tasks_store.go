@@ -86,10 +86,10 @@ func (m *sqlSemaphoreTaskStore) GetSemaphoreTasks(
 	return nil, errSemaphoreNotSupportedOnSQL()
 }
 
-func (m *sqlSemaphoreTaskStore) CompleteSemaphoreTasksLessThan(
+func (m *sqlSemaphoreTaskStore) RangeCompleteSemaphoreTasks(
 	ctx context.Context,
-	request *persistence.CompleteSemaphoreTasksLessThanRequest,
-) (*persistence.CompleteSemaphoreTasksLessThanResponse, error) {
+	request *persistence.RangeCompleteSemaphoreTasksRequest,
+) (*persistence.RangeCompleteSemaphoreTasksResponse, error) {
 	return nil, errSemaphoreNotSupportedOnSQL()
 }
 

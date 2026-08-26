@@ -388,9 +388,9 @@ func TestNoSQLGetSemaphoreTasks(t *testing.T) {
 	})
 }
 
-func TestNoSQLCompleteSemaphoreTasksLessThan(t *testing.T) {
+func TestNoSQLRangeCompleteSemaphoreTasks(t *testing.T) {
 	ctx := context.Background()
-	req := &persistence.CompleteSemaphoreTasksLessThanRequest{
+	req := &persistence.RangeCompleteSemaphoreTasksRequest{
 		DomainID: testSemTaskDomainID, SemaphoreName: testSemTaskName, Bucket: testSemTaskBucket,
 		ReadLevel: 0, AckLevel: 100,
 	}
@@ -404,7 +404,7 @@ func TestNoSQLCompleteSemaphoreTasksLessThan(t *testing.T) {
 				return persistence.UnknownNumRowsAffected, nil
 			}).Times(1)
 
-		resp, err := store.CompleteSemaphoreTasksLessThan(ctx, req)
+		resp, err := store.RangeCompleteSemaphoreTasks(ctx, req)
 		assert.NoError(t, err)
 		assert.Equal(t, persistence.UnknownNumRowsAffected, resp.RowsDeleted)
 	})
@@ -414,7 +414,7 @@ func TestNoSQLCompleteSemaphoreTasksLessThan(t *testing.T) {
 		dbMock.EXPECT().RangeDeleteSemaphoreTasks(ctx, gomock.Any()).Return(0, errors.New("db error")).Times(1)
 		expectNotACommonError(dbMock)
 
-		resp, err := store.CompleteSemaphoreTasksLessThan(ctx, req)
+		resp, err := store.RangeCompleteSemaphoreTasks(ctx, req)
 		assert.Error(t, err)
 		assert.Nil(t, resp)
 	})

@@ -207,6 +207,8 @@ func TestUpdateSemaphoreTaskControlRow(t *testing.T) {
 		wantQueries []string
 		wantErr     bool
 		wantFence   bool
+		wantRangeID int64
+		wantDetails string
 	}{
 		{
 			name: "applied",
@@ -230,8 +232,28 @@ func TestUpdateSemaphoreTaskControlRow(t *testing.T) {
 					return false, nil
 				}).Times(1)
 			},
-			wantErr:   true,
-			wantFence: true,
+			wantErr:     true,
+			wantFence:   true,
+			wantRangeID: 9,
+		},
+		{
+			// Cassandra returns only the conflicted columns, so range_id is not guaranteed to be
+			// among them. The tasks table's shared helper asserts on it and would panic here;
+			// ours reports rangeID 0 and still surfaces a usable fence error. Two columns also
+			// pin the Details ordering, which is sorted because map iteration order is random.
+			name: "fence conflict without range_id reports 0 instead of panicking",
+			queryMockFn: func(query *gocql.MockQuery) {
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+				query.EXPECT().MapScanCAS(gomock.Any()).DoAndReturn(func(m map[string]interface{}) (bool, error) {
+					m["task_id"] = int64(-12345)
+					m["ack_level"] = int64(50)
+					return false, nil
+				}).Times(1)
+			},
+			wantErr:     true,
+			wantFence:   true,
+			wantRangeID: 0,
+			wantDetails: "ack_level=50,task_id=-12345",
 		},
 	}
 
@@ -250,7 +272,10 @@ func TestUpdateSemaphoreTaskControlRow(t *testing.T) {
 				if tc.wantFence {
 					var fenceErr *nosqlplugin.TaskOperationConditionFailure
 					require.True(t, errors.As(err, &fenceErr), "expected *TaskOperationConditionFailure, got %T", err)
-					assert.Equal(t, int64(9), fenceErr.RangeID)
+					assert.Equal(t, tc.wantRangeID, fenceErr.RangeID)
+					if tc.wantDetails != "" {
+						assert.Equal(t, tc.wantDetails, fenceErr.Details)
+					}
 				}
 				return
 			}

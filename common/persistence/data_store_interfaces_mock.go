@@ -1288,21 +1288,6 @@ func (mr *MockSemaphoreTaskStoreMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).Close))
 }
 
-// CompleteSemaphoreTasksLessThan mocks base method.
-func (m *MockSemaphoreTaskStore) CompleteSemaphoreTasksLessThan(ctx context.Context, request *CompleteSemaphoreTasksLessThanRequest) (*CompleteSemaphoreTasksLessThanResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CompleteSemaphoreTasksLessThan", ctx, request)
-	ret0, _ := ret[0].(*CompleteSemaphoreTasksLessThanResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CompleteSemaphoreTasksLessThan indicates an expected call of CompleteSemaphoreTasksLessThan.
-func (mr *MockSemaphoreTaskStoreMockRecorder) CompleteSemaphoreTasksLessThan(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteSemaphoreTasksLessThan", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).CompleteSemaphoreTasksLessThan), ctx, request)
-}
-
 // CreateSemaphoreTasks mocks base method.
 func (m *MockSemaphoreTaskStore) CreateSemaphoreTasks(ctx context.Context, request *CreateSemaphoreTasksRequest) (*CreateSemaphoreTasksResponse, error) {
 	m.ctrl.T.Helper()
@@ -1375,6 +1360,21 @@ func (m *MockSemaphoreTaskStore) GetSemaphoreTasksCount(ctx context.Context, req
 func (mr *MockSemaphoreTaskStoreMockRecorder) GetSemaphoreTasksCount(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTasksCount", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).GetSemaphoreTasksCount), ctx, request)
+}
+
+// RangeCompleteSemaphoreTasks mocks base method.
+func (m *MockSemaphoreTaskStore) RangeCompleteSemaphoreTasks(ctx context.Context, request *RangeCompleteSemaphoreTasksRequest) (*RangeCompleteSemaphoreTasksResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeCompleteSemaphoreTasks", ctx, request)
+	ret0, _ := ret[0].(*RangeCompleteSemaphoreTasksResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RangeCompleteSemaphoreTasks indicates an expected call of RangeCompleteSemaphoreTasks.
+func (mr *MockSemaphoreTaskStoreMockRecorder) RangeCompleteSemaphoreTasks(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeCompleteSemaphoreTasks", reflect.TypeOf((*MockSemaphoreTaskStore)(nil).RangeCompleteSemaphoreTasks), ctx, request)
 }
 
 // UpdateSemaphoreTaskBucketState mocks base method.

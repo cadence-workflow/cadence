@@ -138,7 +138,7 @@ type (
 		UpdateSemaphoreTaskBucketState(ctx context.Context, request *UpdateSemaphoreTaskBucketStateRequest) (*UpdateSemaphoreTaskBucketStateResponse, error)
 		CreateSemaphoreTasks(ctx context.Context, request *CreateSemaphoreTasksRequest) (*CreateSemaphoreTasksResponse, error)
 		GetSemaphoreTasks(ctx context.Context, request *GetSemaphoreTasksRequest) (*GetSemaphoreTasksResponse, error)
-		CompleteSemaphoreTasksLessThan(ctx context.Context, request *CompleteSemaphoreTasksLessThanRequest) (*CompleteSemaphoreTasksLessThanResponse, error)
+		RangeCompleteSemaphoreTasks(ctx context.Context, request *RangeCompleteSemaphoreTasksRequest) (*RangeCompleteSemaphoreTasksResponse, error)
 		GetSemaphoreTasksCount(ctx context.Context, request *GetSemaphoreTasksCountRequest) (*GetSemaphoreTasksCountResponse, error)
 	}
 

@@ -23,6 +23,8 @@ package cassandra
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/uber/cadence/common/log/tag"
@@ -83,7 +85,7 @@ func (db *CDB) InsertSemaphoreTaskControlRow(ctx context.Context, row *nosqlplug
 	if err != nil {
 		return err
 	}
-	return handleTaskListAppliedError(applied, previous)
+	return handleSemaphoreAppliedError(applied, previous)
 }
 
 // UpdateSemaphoreTaskControlRow updates range_id and ack_level, fenced by previousRangeID.
@@ -104,7 +106,7 @@ func (db *CDB) UpdateSemaphoreTaskControlRow(ctx context.Context, row *nosqlplug
 	if err != nil {
 		return err
 	}
-	return handleTaskListAppliedError(applied, previous)
+	return handleSemaphoreAppliedError(applied, previous)
 }
 
 // InsertSemaphoreTasks inserts a batch of task rows in a single LWT batch fenced by the
@@ -152,7 +154,7 @@ func (db *CDB) InsertSemaphoreTasks(
 	if err != nil {
 		return err
 	}
-	return handleTaskListAppliedError(applied, previous)
+	return handleSemaphoreAppliedError(applied, previous)
 }
 
 // SelectSemaphoreTasks returns task rows in (ExclusiveMinTaskID, InclusiveMaxTaskID], paged.
@@ -263,10 +265,14 @@ func (db *CDB) GetSemaphoreTasksCount(ctx context.Context, filter *nosqlplugin.S
 }
 
 // RangeDeleteSemaphoreTasks deletes task rows in (ExclusiveMinTaskID, InclusiveMaxTaskID].
-// NOTE: this ignores BatchSize and either deletes all tasks in the range or returns an error,
-// because Cassandra cannot report the number of rows deleted.
+//
+// This is the one write here not fenced on range_id, as in the tasks table. It is safe because
+// the range only ever holds waiters already granted and confirmed (its upper bound is an
+// ack_level), and because a new owner's higher range_id gives it a higher task_id block that a
+// stale delete cannot reach. Anything that deletes past a confirmed ack_level, or touches the
+// control row, does need the fence: put it in a batch with the control-row re-assert.
 func (db *CDB) RangeDeleteSemaphoreTasks(ctx context.Context, filter *nosqlplugin.SemaphoreTasksFilter) (rowsDeleted int, err error) {
-	query := db.session.Query(templateDeleteSemaphoreTasksLessThanQuery,
+	query := db.session.Query(templateRangeDeleteSemaphoreTasksQuery,
 		filter.DomainID,
 		filter.SemaphoreName,
 		filter.Bucket,
@@ -275,4 +281,26 @@ func (db *CDB) RangeDeleteSemaphoreTasks(ctx context.Context, filter *nosqlplugi
 		filter.InclusiveMaxTaskID,
 	).WithContext(ctx)
 	return persistence.UnknownNumRowsAffected, db.executeWithConsistencyAll(query)
+}
+
+// handleSemaphoreAppliedError converts a not-applied CAS result on the control row into a
+// TaskOperationConditionFailure. Every fenced semaphore write conditions on range_id, so a
+// conflict returns it; if it is somehow absent or not an int64 we report 0 rather than assert,
+// since a panic in the persistence layer is a worse outcome than a fence error with a missing
+// rangeID.
+func handleSemaphoreAppliedError(applied bool, previous map[string]interface{}) error {
+	if applied {
+		return nil
+	}
+	// NOTE: Cassandra only returns the conflicted columns in this result.
+	rangeID, _ := previous["range_id"].(int64)
+	columns := make([]string, 0, len(previous))
+	for k, v := range previous {
+		columns = append(columns, fmt.Sprintf("%s=%v", k, v))
+	}
+	sort.Strings(columns) // map iteration order is random; keep the message stable for tests and logs
+	return &nosqlplugin.TaskOperationConditionFailure{
+		RangeID: rangeID,
+		Details: strings.Join(columns, ","),
+	}
 }

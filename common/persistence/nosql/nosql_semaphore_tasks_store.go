@@ -102,9 +102,9 @@ func (m *nosqlSemaphoreTaskStore) ClaimSemaphoreTaskBucket(
 		return nil, convertCommonErrors(m.db, "ClaimSemaphoreTaskBucket", selectErr)
 	}
 
-	// A caller that claims a range_id must still hold it. Without this the bucket would always
-	// change hands, so an owner that already lost it would take it straight back and the two
-	// hosts would trade the bucket instead of one of them standing down.
+	// A renew (RangeID > 0) asserts "I still hold N"; a mismatch means another host took the
+	// bucket. This error is how the stale owner finds out, and what makes it unload — without
+	// it the renew would bump range_id and take the bucket back, fencing out the live owner.
 	if request.RangeID > 0 && request.RangeID != current.RangeID {
 		return nil, &persistence.ConditionFailedError{
 			Msg: fmt.Sprintf("ClaimSemaphoreTaskBucket:renew failed: semaphore:%v, bucket:%v, haveRangeID:%v, gotRangeID:%v",
@@ -204,7 +204,7 @@ func (m *nosqlSemaphoreTaskStore) GetSemaphoreTasks(
 ) (*persistence.GetSemaphoreTasksResponse, error) {
 	// An inverted range is a legitimate transient state (the reader has caught up to the
 	// writer), not a caller error, so return empty rather than issuing a query that can only
-	// match nothing. Mirrors nosqlTaskStore.GetTasks.
+	// match nothing.
 	if request.ReadLevel > request.MaxReadLevel {
 		return &persistence.GetSemaphoreTasksResponse{}, nil
 	}
@@ -230,11 +230,11 @@ func (m *nosqlSemaphoreTaskStore) GetSemaphoreTasks(
 	return &persistence.GetSemaphoreTasksResponse{Tasks: tasks}, nil
 }
 
-// CompleteSemaphoreTasksLessThan range-deletes granted/expired tasks in (ReadLevel, AckLevel].
-func (m *nosqlSemaphoreTaskStore) CompleteSemaphoreTasksLessThan(
+// RangeCompleteSemaphoreTasks range-deletes granted/expired tasks in (ReadLevel, AckLevel].
+func (m *nosqlSemaphoreTaskStore) RangeCompleteSemaphoreTasks(
 	ctx context.Context,
-	request *persistence.CompleteSemaphoreTasksLessThanRequest,
-) (*persistence.CompleteSemaphoreTasksLessThanResponse, error) {
+	request *persistence.RangeCompleteSemaphoreTasksRequest,
+) (*persistence.RangeCompleteSemaphoreTasksResponse, error) {
 	rowsDeleted, err := m.db.RangeDeleteSemaphoreTasks(ctx, &nosqlplugin.SemaphoreTasksFilter{
 		SemaphoreTaskControlFilter: nosqlplugin.SemaphoreTaskControlFilter{
 			DomainID:      request.DomainID,
@@ -245,9 +245,9 @@ func (m *nosqlSemaphoreTaskStore) CompleteSemaphoreTasksLessThan(
 		InclusiveMaxTaskID: request.AckLevel,
 	})
 	if err != nil {
-		return nil, convertCommonErrors(m.db, "CompleteSemaphoreTasksLessThan", err)
+		return nil, convertCommonErrors(m.db, "RangeCompleteSemaphoreTasks", err)
 	}
-	return &persistence.CompleteSemaphoreTasksLessThanResponse{RowsDeleted: rowsDeleted}, nil
+	return &persistence.RangeCompleteSemaphoreTasksResponse{RowsDeleted: rowsDeleted}, nil
 }
 
 // GetSemaphoreTasksCount counts task rows with task_id > ReadLevel.

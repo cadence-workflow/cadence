@@ -187,7 +187,7 @@ func (s *SemaphoreTaskPersistenceSuite) TestTaskQueueLifecycle() {
 	})
 	s.NoError(err)
 
-	_, err = manager.CompleteSemaphoreTasksLessThan(ctx, &persistence.CompleteSemaphoreTasksLessThanRequest{
+	_, err = manager.RangeCompleteSemaphoreTasks(ctx, &persistence.RangeCompleteSemaphoreTasksRequest{
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
 		Bucket:        bucket,

@@ -1655,8 +1655,8 @@ type (
 		Tasks []*SemaphoreTask
 	}
 
-	// CompleteSemaphoreTasksLessThanRequest range-deletes granted/expired tasks in (ReadLevel, AckLevel].
-	CompleteSemaphoreTasksLessThanRequest struct {
+	// RangeCompleteSemaphoreTasksRequest range-deletes granted/expired tasks in (ReadLevel, AckLevel].
+	RangeCompleteSemaphoreTasksRequest struct {
 		DomainID      string
 		SemaphoreName string
 		Bucket        int
@@ -1666,9 +1666,9 @@ type (
 		AckLevel int64
 	}
 
-	// CompleteSemaphoreTasksLessThanResponse reports how many rows were deleted, or
+	// RangeCompleteSemaphoreTasksResponse reports how many rows were deleted, or
 	// UnknownNumRowsAffected when the backend cannot report it.
-	CompleteSemaphoreTasksLessThanResponse struct {
+	RangeCompleteSemaphoreTasksResponse struct {
 		RowsDeleted int
 	}
 
@@ -2109,7 +2109,7 @@ type (
 		UpdateSemaphoreTaskBucketState(ctx context.Context, request *UpdateSemaphoreTaskBucketStateRequest) (*UpdateSemaphoreTaskBucketStateResponse, error)
 		CreateSemaphoreTasks(ctx context.Context, request *CreateSemaphoreTasksRequest) (*CreateSemaphoreTasksResponse, error)
 		GetSemaphoreTasks(ctx context.Context, request *GetSemaphoreTasksRequest) (*GetSemaphoreTasksResponse, error)
-		CompleteSemaphoreTasksLessThan(ctx context.Context, request *CompleteSemaphoreTasksLessThanRequest) (*CompleteSemaphoreTasksLessThanResponse, error)
+		RangeCompleteSemaphoreTasks(ctx context.Context, request *RangeCompleteSemaphoreTasksRequest) (*RangeCompleteSemaphoreTasksResponse, error)
 		GetSemaphoreTasksCount(ctx context.Context, request *GetSemaphoreTasksCountRequest) (*GetSemaphoreTasksCountResponse, error)
 	}
 

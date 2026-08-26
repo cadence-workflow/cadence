@@ -369,28 +369,73 @@ func TestSemaphoreTaskManagerGetSemaphoreTasksValidation(t *testing.T) {
 	}
 }
 
-func TestSemaphoreTaskManagerCompleteSemaphoreTasksLessThan(t *testing.T) {
+func TestSemaphoreTaskManagerRangeCompleteSemaphoreTasks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := NewMockSemaphoreTaskStore(ctrl)
 
-	req := &CompleteSemaphoreTasksLessThanRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, AckLevel: 100}
-	want := &CompleteSemaphoreTasksLessThanResponse{RowsDeleted: UnknownNumRowsAffected}
-	store.EXPECT().CompleteSemaphoreTasksLessThan(gomock.Any(), req).Return(want, nil).Times(1)
+	req := &RangeCompleteSemaphoreTasksRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, AckLevel: 100}
+	want := &RangeCompleteSemaphoreTasksResponse{RowsDeleted: UnknownNumRowsAffected}
+	store.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), req).Return(want, nil).Times(1)
 
 	m := newTestSemaphoreTaskManager(store, clock.NewMockedTimeSource(), t)
-	resp, err := m.CompleteSemaphoreTasksLessThan(context.Background(), req)
+	resp, err := m.RangeCompleteSemaphoreTasks(context.Background(), req)
 	assert.NoError(t, err)
 	assert.Equal(t, want, resp)
 }
 
-func TestSemaphoreTaskManagerCompleteSemaphoreTasksLessThanValidation(t *testing.T) {
+func TestSemaphoreTaskManagerRangeCompleteSemaphoreTasksValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *RangeCompleteSemaphoreTasksRequest
+	}{
+		{
+			name: "missing semaphore name",
+			req:  &RangeCompleteSemaphoreTasksRequest{DomainID: "domain-1"},
+		},
+		{
+			name: "negative read level",
+			req:  &RangeCompleteSemaphoreTasksRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, ReadLevel: -1, AckLevel: 100},
+		},
+		{
+			// An inverted range deletes nothing but reports success, so it has to be rejected
+			// here rather than silently no-op in the store.
+			name: "ack level below read level",
+			req:  &RangeCompleteSemaphoreTasksRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, ReadLevel: 100, AckLevel: 50},
+		},
+		{
+			name: "negative ack level",
+			req:  &RangeCompleteSemaphoreTasksRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, ReadLevel: 0, AckLevel: -1},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			store := NewMockSemaphoreTaskStore(ctrl)
+			// No EXPECT: validation must reject before reaching the store.
+
+			m := newTestSemaphoreTaskManager(store, clock.NewMockedTimeSource(), t)
+			resp, err := m.RangeCompleteSemaphoreTasks(context.Background(), tc.req)
+			assert.Error(t, err)
+			assert.Nil(t, resp)
+		})
+	}
+}
+
+func TestSemaphoreTaskManagerRangeCompleteSemaphoreTasksEqualLevels(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := NewMockSemaphoreTaskStore(ctrl)
 
+	// ReadLevel == AckLevel is an empty but legal range: nothing new has been acked since the
+	// last cleanup. It must reach the store rather than be rejected as inverted.
+	req := &RangeCompleteSemaphoreTasksRequest{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 3, ReadLevel: 100, AckLevel: 100}
+	want := &RangeCompleteSemaphoreTasksResponse{RowsDeleted: UnknownNumRowsAffected}
+	store.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), req).Return(want, nil).Times(1)
+
 	m := newTestSemaphoreTaskManager(store, clock.NewMockedTimeSource(), t)
-	resp, err := m.CompleteSemaphoreTasksLessThan(context.Background(), &CompleteSemaphoreTasksLessThanRequest{DomainID: "domain-1"})
-	assert.Error(t, err)
-	assert.Nil(t, resp)
+	resp, err := m.RangeCompleteSemaphoreTasks(context.Background(), req)
+	assert.NoError(t, err)
+	assert.Equal(t, want, resp)
 }
 
 func TestSemaphoreTaskManagerGetSemaphoreTasksCount(t *testing.T) {
