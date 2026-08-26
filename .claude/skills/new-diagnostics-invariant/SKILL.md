@@ -66,7 +66,7 @@ The `linkTo<Name>Runbook` URL has to exist eventually. Write the page in your lo
 
 - Frontmatter: `layout: default`, `title`, a one-sentence `description`, `keywords`, and `permalink: /docs/workflow-troubleshooting/<topic>` — must match the `linkTo<Name>Runbook` path.
 - No H1 in the body (the title comes from frontmatter). Start with a 2-3 sentence intro.
-- One `##` section per issue. The heading describes the situation ("Many activities scheduled in quick succession"), not a command. Then a paragraph on the cause, then the fixes: a single fix is a paragraph starting with `Mitigation:`; multiple fixes go under a `Mitigations:` line as a bulleted list, best fix first. Links go on their own lines.
+- One `##` section per issue. The heading describes the situation ("Many activities scheduled in quick succession"), not a command. Then a paragraph on the cause, then the fixes: a single fix is a paragraph starting with `Mitigation:`; multiple fixes go under a `Mitigations:` line as a bulleted list, best fix first.
 - Internal doc links are relative paths like `/docs/concepts/activities#timeouts` — no domain, no trailing slash. Only external links (GitHub, pkg.go.dev) are absolute.
 - Point to built-in solutions first (`workflow.NewBatchFuture` for big fan-outs, Schedules instead of cron) before manual workarounds.
 - Describe thresholds loosely ("50 or more within a few seconds") so the page doesn't go stale when the consts are tuned.
