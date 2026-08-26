@@ -311,6 +311,20 @@ func (mr *MockContextMockRecorder) GetHistoryManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryManager", reflect.TypeOf((*MockContext)(nil).GetHistoryManager))
 }
 
+// GetHistoryTaskDLQPartitionWriteTracker mocks base method.
+func (m *MockContext) GetHistoryTaskDLQPartitionWriteTracker() TaskDLQPartitionWriteTracker {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryTaskDLQPartitionWriteTracker")
+	ret0, _ := ret[0].(TaskDLQPartitionWriteTracker)
+	return ret0
+}
+
+// GetHistoryTaskDLQPartitionWriteTracker indicates an expected call of GetHistoryTaskDLQPartitionWriteTracker.
+func (mr *MockContextMockRecorder) GetHistoryTaskDLQPartitionWriteTracker() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTaskDLQPartitionWriteTracker", reflect.TypeOf((*MockContext)(nil).GetHistoryTaskDLQPartitionWriteTracker))
+}
+
 // GetHistoryTaskDLQWriter mocks base method.
 func (m *MockContext) GetHistoryTaskDLQWriter() TaskDLQWriter {
 	m.ctrl.T.Helper()
@@ -795,4 +809,42 @@ func (m *MockTaskDLQWriter) CreateHistoryDLQTask(ctx context.Context, request pe
 func (mr *MockTaskDLQWriterMockRecorder) CreateHistoryDLQTask(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHistoryDLQTask", reflect.TypeOf((*MockTaskDLQWriter)(nil).CreateHistoryDLQTask), ctx, request)
+}
+
+// MockTaskDLQPartitionWriteTracker is a mock of TaskDLQPartitionWriteTracker interface.
+type MockTaskDLQPartitionWriteTracker struct {
+	ctrl     *gomock.Controller
+	recorder *MockTaskDLQPartitionWriteTrackerMockRecorder
+	isgomock struct{}
+}
+
+// MockTaskDLQPartitionWriteTrackerMockRecorder is the mock recorder for MockTaskDLQPartitionWriteTracker.
+type MockTaskDLQPartitionWriteTrackerMockRecorder struct {
+	mock *MockTaskDLQPartitionWriteTracker
+}
+
+// NewMockTaskDLQPartitionWriteTracker creates a new mock instance.
+func NewMockTaskDLQPartitionWriteTracker(ctrl *gomock.Controller) *MockTaskDLQPartitionWriteTracker {
+	mock := &MockTaskDLQPartitionWriteTracker{ctrl: ctrl}
+	mock.recorder = &MockTaskDLQPartitionWriteTrackerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockTaskDLQPartitionWriteTracker) EXPECT() *MockTaskDLQPartitionWriteTrackerMockRecorder {
+	return m.recorder
+}
+
+// HasWrittenDLQPartition mocks base method.
+func (m *MockTaskDLQPartitionWriteTracker) HasWrittenDLQPartition(domainID, clusterAttributeScope, clusterAttributeName string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasWrittenDLQPartition", domainID, clusterAttributeScope, clusterAttributeName)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// HasWrittenDLQPartition indicates an expected call of HasWrittenDLQPartition.
+func (mr *MockTaskDLQPartitionWriteTrackerMockRecorder) HasWrittenDLQPartition(domainID, clusterAttributeScope, clusterAttributeName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasWrittenDLQPartition", reflect.TypeOf((*MockTaskDLQPartitionWriteTracker)(nil).HasWrittenDLQPartition), domainID, clusterAttributeScope, clusterAttributeName)
 }
