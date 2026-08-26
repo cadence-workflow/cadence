@@ -97,6 +97,3 @@ worker.enableScheduler:
 frontend.failoverCoolDown:
 - value: 1s
   constraints: {}
-system.enforceSchemaVerificationV2:
-- value: true
-  constraints: {}

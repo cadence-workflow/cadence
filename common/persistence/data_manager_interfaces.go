@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Generate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,SemaphoreTokenManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -28,7 +28,6 @@
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/queue_generated.go
 //go:generate gowrap gen -g -p . -i TaskManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/task_generated.go
 //go:generate gowrap gen -g -p . -i ShardManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/shard_generated.go
-//go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/historytaskdlq_generated.go
 
 // Generate error injector wrappers.
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/configstore_generated.go
@@ -38,7 +37,6 @@
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/history_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/domain_generated.go
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/queue_generated.go
-//go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/historytaskdlq_generated.go
 
 // Generate metered wrappers.
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/configstore_generated.go
@@ -150,22 +148,6 @@ const (
 	// ConflictResolveWorkflowModeBypassCurrent Conflict resolve workflow, without current record
 	// NOTE: current record CANNOT point to the workflow to be updated
 	ConflictResolveWorkflowModeBypassCurrent
-)
-
-// SemaphoreGrantOutcome says whether a conditional semaphore grant applied, and if not, why
-type SemaphoreGrantOutcome int
-
-// Semaphore Grant Outcome
-const (
-	// SemaphoreGrantUnknown is the zero value and is never returned. It exists so an
-	// uninitialized response cannot read as a successful grant.
-	SemaphoreGrantUnknown SemaphoreGrantOutcome = iota
-	// SemaphoreGrantApplied the slot was claimed
-	SemaphoreGrantApplied
-	// SemaphoreGrantAlreadyHeld this owner already holds HeldToken; reuse it instead of retrying
-	SemaphoreGrantAlreadyHeld
-	// SemaphoreGrantSlotTaken another owner holds the slot; retry a different one
-	SemaphoreGrantSlotTaken
 )
 
 // Workflow execution states
@@ -1422,155 +1404,6 @@ type (
 		Comment         string
 	}
 
-	// SemaphoreMetadata is the identity and configuration of a distributed semaphore
-	SemaphoreMetadata struct {
-		DomainID      string
-		SemaphoreName string
-		Size          int
-		BucketSize    int
-		CreatedTime   time.Time
-	}
-
-	// CreateSemaphoreRequest is used to create a semaphore's metadata
-	CreateSemaphoreRequest struct {
-		DomainID      string
-		SemaphoreName string
-		Size          int
-		BucketSize    int
-	}
-
-	// CreateSemaphoreResponse is the response for CreateSemaphore
-	CreateSemaphoreResponse struct {
-		Semaphore *SemaphoreMetadata
-	}
-
-	// GetSemaphoreRequest is used to read a semaphore's metadata
-	GetSemaphoreRequest struct {
-		DomainID      string
-		SemaphoreName string
-	}
-
-	// GetSemaphoreResponse is the response for GetSemaphore
-	GetSemaphoreResponse struct {
-		Semaphore *SemaphoreMetadata
-	}
-
-	// ListSemaphoresRequest lists the semaphores in a domain
-	ListSemaphoresRequest struct {
-		DomainID      string
-		PageSize      int
-		NextPageToken []byte
-	}
-
-	// ListSemaphoresResponse is the response for ListSemaphores
-	ListSemaphoresResponse struct {
-		Semaphores    []*SemaphoreMetadata
-		NextPageToken []byte
-	}
-
-	// SemaphoreOwnership is one ownership record of the semaphore_tokens table,
-	// in either of its two forms: a forward "token" row per slot
-	// (TokenID -> Holder, empty when the slot is free) or a reverse "owner" row
-	// per hold (OwnerID -> HeldToken).
-	SemaphoreOwnership struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-		TokenID       int
-		OwnerID       string
-		Holder        string
-		HeldToken     int
-		UpdatedTime   time.Time
-	}
-
-	// SeedSemaphoreTokensRequest seeds a bucket with free token rows for the
-	// given slot ids (idempotent; never clobbers an already-held slot).
-	SeedSemaphoreTokensRequest struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-		TokenIDs      []int
-	}
-
-	// GrantSemaphoreTokenRequest claims a slot for an owner via a conditional
-	// batch (grant only if the slot is currently free).
-	GrantSemaphoreTokenRequest struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-		TokenID       int
-		OwnerID       string
-	}
-
-	// GrantSemaphoreTokenResponse reports the outcome of a conditional grant. A
-	// grant that does not apply is not an error; Outcome says why.
-	GrantSemaphoreTokenResponse struct {
-		Outcome SemaphoreGrantOutcome
-		// HeldToken is set only when Outcome is SemaphoreGrantAlreadyHeld.
-		HeldToken int
-	}
-
-	// ReleaseSemaphoreTokenRequest frees a slot via a guarded batch (clear only
-	// if the slot is still held by this owner).
-	ReleaseSemaphoreTokenRequest struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-		TokenID       int
-		OwnerID       string
-	}
-
-	// ReleaseSemaphoreTokenResponse reports whether the guarded release applied.
-	// Applied == false is a best-effort no-op (something else already touched
-	// the slot); it is not an error.
-	ReleaseSemaphoreTokenResponse struct {
-		Applied bool
-	}
-
-	// GetSemaphoreOwnershipByTokenRequest reads a slot's forward row by token id.
-	GetSemaphoreOwnershipByTokenRequest struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-		TokenID       int
-	}
-
-	// GetSemaphoreOwnershipByTokenResponse is the response for GetSemaphoreOwnershipByToken.
-	GetSemaphoreOwnershipByTokenResponse struct {
-		Ownership *SemaphoreOwnership
-	}
-
-	// GetSemaphoreOwnershipByOwnerRequest reads a hold's reverse row by owner id.
-	GetSemaphoreOwnershipByOwnerRequest struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-		OwnerID       string
-	}
-
-	// GetSemaphoreOwnershipByOwnerResponse is the response for GetSemaphoreOwnershipByOwner.
-	GetSemaphoreOwnershipByOwnerResponse struct {
-		Ownership *SemaphoreOwnership
-	}
-
-	// ScanSemaphoreBucketRequest scans a bucket partition (both row
-	// kinds), paginated, so a bucket owner can rebuild its in-memory state.
-	ScanSemaphoreBucketRequest struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-		PageSize      int
-		NextPageToken []byte
-	}
-
-	// ScanSemaphoreBucketResponse is the response for ScanSemaphoreBucket.
-	// Ownerships holds both row kinds interleaved by the partition's clustering order:
-	// token rows first, then owner rows.
-	ScanSemaphoreBucketResponse struct {
-		Ownerships    []*SemaphoreOwnership
-		NextPageToken []byte
-	}
-
 	// MutableStateStats is the size stats for MutableState
 	MutableStateStats struct {
 		// Total size of mutable state
@@ -1953,37 +1786,6 @@ type (
 		GetName() string
 		CreateDomainAuditLog(ctx context.Context, request *CreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error)
 		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*GetDomainAuditLogsResponse, error)
-	}
-
-	// SemaphoreMetadataManager is used to manage distributed semaphore metadata (config)
-	SemaphoreMetadataManager interface {
-		Closeable
-		GetName() string
-		CreateSemaphore(ctx context.Context, request *CreateSemaphoreRequest) (*CreateSemaphoreResponse, error)
-		GetSemaphore(ctx context.Context, request *GetSemaphoreRequest) (*GetSemaphoreResponse, error)
-		ListSemaphores(ctx context.Context, request *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
-	}
-
-	// SemaphoreTokenManager is used to manage distributed semaphore token ownership
-	SemaphoreTokenManager interface {
-		Closeable
-		GetName() string
-		// SeedSemaphoreTokens seeds a bucket with free token rows. Callers must
-		// supply the bucket's full, immutable id set: a fresh bucket is fully
-		// seeded, and re-seeding the same set is an idempotent no-op that never
-		// clobbers a held slot. Growing an existing bucket's id set is unsupported
-		// (to resize, create a new semaphore name).
-		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest) error
-		// GrantSemaphoreToken claims a slot for an owner if it is currently free.
-		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest) (*GrantSemaphoreTokenResponse, error)
-		// ReleaseSemaphoreToken frees a slot if it is still held by the owner.
-		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest) (*ReleaseSemaphoreTokenResponse, error)
-		// GetSemaphoreOwnershipByToken reads a slot's forward row (holder) by token id.
-		GetSemaphoreOwnershipByToken(ctx context.Context, request *GetSemaphoreOwnershipByTokenRequest) (*GetSemaphoreOwnershipByTokenResponse, error)
-		// GetSemaphoreOwnershipByOwner reads a hold's reverse row (held token) by owner id.
-		GetSemaphoreOwnershipByOwner(ctx context.Context, request *GetSemaphoreOwnershipByOwnerRequest) (*GetSemaphoreOwnershipByOwnerResponse, error)
-		// ScanSemaphoreBucket scans a bucket partition (both row kinds), paginated.
-		ScanSemaphoreBucket(ctx context.Context, request *ScanSemaphoreBucketRequest) (*ScanSemaphoreBucketResponse, error)
 	}
 
 	// HistoryTaskDLQManager is the manager-level interface for the history task DLQ.

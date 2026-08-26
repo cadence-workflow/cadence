@@ -79,7 +79,7 @@ func newTestNosqlExecutionStoreWithOptions(
 	dc *persistence.DynamicConfiguration,
 ) *nosqlExecutionStore {
 	if dc == nil {
-		dc = persistence.NewDefaultDynamicConfiguration()
+		dc = &persistence.DynamicConfiguration{}
 	}
 	store := nosqlStore{logger: logger, db: db, dc: dc}
 	return &nosqlExecutionStore{

@@ -38,7 +38,7 @@ esconfig:
     scheme: "http"
     host: "${ES_SEEDS}:9200"
   indices:
-    visibility: cadence-visibility-test
+    visibility: test-visibility-
 pinotconfig:
   broker: "${PINOT_SEEDS}:8099"
   cluster: pinot-test

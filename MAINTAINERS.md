@@ -5,7 +5,6 @@
 - Jan Kisel (https://github.com/dkrotx)
 - Shijie Sheng (https://github.com/shijiesheng)
 - Zijian Chen (https://github.com/Shaddoll)
-- Taylan Isikdemir (https://github.com/taylanisikdemir)
 
 ## Maintainers
 - Abhishek Jha (https://github.com/abhishekj720)

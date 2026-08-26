@@ -67,8 +67,6 @@ type (
 		WorkflowCRUD
 		ConfigStoreCRUD
 		DomainAuditLogCRUD
-		SemaphoreMetadataCRUD
-		SemaphoreTokenCRUD
 		HistoryDLQTaskCRUD
 	}
 
@@ -549,64 +547,6 @@ type (
 		// SelectDomainAuditLogs returns audit log entries for a domain and operation type
 		// Returns paginated results ordered by created_time DESC, event_id ASC
 		SelectDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, []byte, error)
-	}
-
-	/***
-	* SemaphoreMetadataCRUD is for distributed semaphore metadata (config) storage
-	*
-	* Recommendation: use one table
-	*
-	* Significant columns:
-	* semaphore_metadata: partition key(domainID), range key(semaphoreName)
-	 */
-	SemaphoreMetadataCRUD interface {
-		// InsertSemaphoreMetadata creates a semaphore's metadata with a conflict-detecting
-		// INSERT ... IF NOT EXISTS; it must return a ConditionFailure if the semaphore already exists.
-		// Returns a ConditionFailure if the semaphore already exists.
-		InsertSemaphoreMetadata(ctx context.Context, row *SemaphoreMetadataRow) error
-
-		// SelectSemaphoreMetadata returns a single semaphore's metadata by (domainID, semaphoreName).
-		SelectSemaphoreMetadata(ctx context.Context, domainID, semaphoreName string) (*SemaphoreMetadataRow, error)
-
-		// SelectSemaphoreMetadataByDomain returns the semaphores in a domain, paginated.
-		SelectSemaphoreMetadataByDomain(ctx context.Context, filter *SemaphoreMetadataFilter) ([]*SemaphoreMetadataRow, []byte, error)
-	}
-
-	/***
-	* SemaphoreTokenCRUD is for the per-token ownership of distributed semaphores.
-	*
-	* Significant columns:
-	* semaphore_tokens: partition key(domainID, semaphoreName, bucket), range key(type, tokenID, ownerID)
-	 */
-	SemaphoreTokenCRUD interface {
-		// InsertSemaphoreTokens seeds a bucket with free token rows for the given
-		// rows' TokenIDs. It is conflict-avoiding (INSERT ... IF NOT EXISTS), so
-		// re-seeding never clobbers an already-held slot.
-		InsertSemaphoreTokens(ctx context.Context, rows []*SemaphoreOwnershipRow) error
-
-		// GrantSemaphoreToken claims a slot for an owner via a conditional batch:
-		// it sets the token row's holder only if the slot is currently free, and
-		// inserts the matching owner (reverse-index) row (IF NOT EXISTS) in the
-		// same atomic batch. The returned SemaphoreGrantResult reports whether the
-		// batch applied and, when it did not, whether this owner already holds a
-		// token (for reuse) versus the slot being taken. A not-applied batch is not
-		// an error.
-		GrantSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (SemaphoreGrantResult, error)
-
-		// ReleaseSemaphoreToken frees a slot via a guarded batch: it clears the
-		// token row's holder only if the slot is still held by this owner, and
-		// deletes the matching owner row in the same atomic batch. Returns
-		// applied == false (not an error) for a best-effort no-op.
-		ReleaseSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (bool, error)
-
-		// SelectSemaphoreOwnershipByToken reads a slot's forward row (holder) by token id.
-		SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*SemaphoreOwnershipRow, error)
-
-		// SelectSemaphoreOwnershipByOwner reads a hold's reverse row (held token) by owner id.
-		SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*SemaphoreOwnershipRow, error)
-
-		// SelectSemaphoreOwnershipsByBucket scans a bucket partition (both row kinds), paginated.
-		SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *SemaphoreOwnershipFilter) ([]*SemaphoreOwnershipRow, []byte, error)
 	}
 
 	/***

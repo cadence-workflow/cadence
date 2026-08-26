@@ -160,7 +160,7 @@ func (f *timerQueueFactory) createQueuev2(
 		options.MaxPollIntervalJitterCoefficient,
 	)
 	if !isCachedQueueReaderDisabled(config.TimerProcessorCachedQueueReaderMode(shard.GetShardID())) {
-		cachedReader = newCachedScheduledQueueReader(reader, newInMemQueue(), shard, metricsScope)
+		cachedReader = newCachedQueueReader(reader, newInMemQueue(), shard, metricsScope)
 		reader = cachedReader
 	}
 

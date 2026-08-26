@@ -1,8 +1,0 @@
-{
-  "CurrVersion": "0.52",
-  "MinCompatibleVersion": "0.52",
-  "Description": "Add semaphore_tasks table",
-  "SchemaUpdateCqlFiles": [
-    "semaphore_tasks.cql"
-  ]
-}

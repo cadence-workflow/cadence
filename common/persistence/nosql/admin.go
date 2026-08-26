@@ -8,27 +8,14 @@ import (
 )
 
 type nosqlAdmin struct {
-	logger     log.Logger
-	plugin     nosqlplugin.Plugin
-	dbType     persistence.DBType
-	identifier string
-	cfg        *config.NoSQL
-}
-
-func (n *nosqlAdmin) PluginName() string {
-	return n.cfg.PluginName
-}
-
-func (n *nosqlAdmin) DBType() persistence.DBType {
-	return n.dbType
-}
-
-func (n *nosqlAdmin) Identifier() string {
-	return n.identifier
+	logger log.Logger
+	plugin nosqlplugin.Plugin
+	dbType persistence.DBType
+	cfg    *config.NoSQL
 }
 
 func (n *nosqlAdmin) CreateSetupDB() (persistence.SetupDB, error) {
-	return n.plugin.SetupDB(n.cfg, n.logger, persistence.NewDefaultDynamicConfiguration())
+	return n.plugin.SetupDB(n.cfg, n.logger, &persistence.DynamicConfiguration{})
 }
 
 func (n *nosqlAdmin) SupportsSchema() bool {
@@ -36,5 +23,5 @@ func (n *nosqlAdmin) SupportsSchema() bool {
 }
 
 func (n *nosqlAdmin) CreateSchemaDB() (persistence.SchemaDB, error) {
-	return n.plugin.SchemaDB(n.dbType, n.cfg, n.logger, persistence.NewDefaultDynamicConfiguration())
+	return n.plugin.SchemaDB(n.dbType, n.cfg, n.logger, &persistence.DynamicConfiguration{})
 }

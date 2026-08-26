@@ -52,11 +52,10 @@ func archivalWorkflowHelper(
 	metricsClient = NewReplayMetricsClient(metricsClient, ctx)
 	metricsClient.IncCounter(metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverWorkflowStartedCount)
 	archivalLatencyStart := workflow.Now(ctx)
-	archivalScope := metricsClient.Scope(metrics.ArchiverArchivalWorkflowScope, metrics.NonDomainTag())
-	sw := archivalScope.StartTimer(metrics.CadenceLatency)
+	sw := metricsClient.StartTimer(metrics.ArchiverArchivalWorkflowScope, metrics.CadenceLatency)
 	stopTimers := func() {
 		sw.Stop()
-		archivalScope.ExponentialHistogram(metrics.CadenceLatencyHistogram, workflow.Now(ctx).Sub(archivalLatencyStart))
+		metricsClient.Scope(metrics.ArchiverArchivalWorkflowScope).ExponentialHistogram(metrics.CadenceLatencyHistogram, workflow.Now(ctx).Sub(archivalLatencyStart))
 	}
 	workflowInfo := workflow.GetInfo(ctx)
 	logger = logger.WithTags(

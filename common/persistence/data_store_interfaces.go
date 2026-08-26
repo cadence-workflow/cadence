@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,SemaphoreMetadataStore,SemaphoreTokenStore,HistoryDLQTaskStore
+//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,HistoryDLQTaskStore
 //go:generate mockgen -package $GOPACKAGE -destination visibility_store_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence VisibilityStore
 
 type (
@@ -100,31 +100,6 @@ type (
 		GetName() string
 		CreateDomainAuditLog(ctx context.Context, request *InternalCreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error)
 		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*InternalGetDomainAuditLogsResponse, error)
-	}
-
-	// SemaphoreMetadataStore is a lower level of SemaphoreMetadataManager.
-	// Columns are plain typed values (no serialized blobs), so it operates on the
-	// public request/record types directly rather than Internal* variants.
-	SemaphoreMetadataStore interface {
-		Closeable
-		GetName() string
-		CreateSemaphore(ctx context.Context, semaphore *SemaphoreMetadata) error
-		GetSemaphore(ctx context.Context, request *GetSemaphoreRequest) (*SemaphoreMetadata, error)
-		ListSemaphores(ctx context.Context, request *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
-	}
-
-	// SemaphoreTokenStore is a lower level of SemaphoreTokenManager. Columns are
-	// plain typed values, so it operates on the public request/record types
-	// directly. The manager stamps updatedTime and passes it to the write methods.
-	SemaphoreTokenStore interface {
-		Closeable
-		GetName() string
-		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest, updatedTime time.Time) error
-		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest, updatedTime time.Time) (*GrantSemaphoreTokenResponse, error)
-		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest, updatedTime time.Time) (bool, error)
-		GetSemaphoreOwnershipByToken(ctx context.Context, request *GetSemaphoreOwnershipByTokenRequest) (*SemaphoreOwnership, error)
-		GetSemaphoreOwnershipByOwner(ctx context.Context, request *GetSemaphoreOwnershipByOwnerRequest) (*SemaphoreOwnership, error)
-		ScanSemaphoreBucket(ctx context.Context, request *ScanSemaphoreBucketRequest) (*ScanSemaphoreBucketResponse, error)
 	}
 
 	// HistoryDLQTaskStore is the store-level interface for history task DLQ operations.

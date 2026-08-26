@@ -39,7 +39,6 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
-	schemaes "github.com/uber/cadence/schema/elasticsearch"
 )
 
 type MockTransport struct{}
@@ -193,31 +192,31 @@ func getSecureMockOS2Client(t *testing.T, handler http.HandlerFunc, secure bool)
 	return mockClient, testServer
 }
 
-func TestPutMappings(t *testing.T) {
+func TestPutMapping(t *testing.T) {
 	testCases := []struct {
 		name        string
 		handler     http.HandlerFunc
 		index       string
-		mappings    map[string]any
+		body        string
 		expectedErr bool
 	}{
 		{
-			name: "Successful PutMappings",
+			name: "Successful PutMapping",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(`{"acknowledged": true}`))
 			},
 			index:       "testIndex",
-			mappings:    map[string]any{"properties": map[string]any{"field": map[string]any{"type": "text"}}},
+			body:        `{"properties": {"field": {"type": "text"}}}`,
 			expectedErr: false,
 		},
 		{
-			name: "Failed PutMappings",
+			name: "Failed PutMapping",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 			},
 			index:       "nonExistentIndex",
-			mappings:    map[string]any{"properties": map[string]any{"field": map[string]any{"type": "text"}}},
+			body:        `{"properties": {"field": {"type": "text"}}}`,
 			expectedErr: true,
 		},
 	}
@@ -227,7 +226,7 @@ func TestPutMappings(t *testing.T) {
 			os2Client, testServer := getSecureMockOS2Client(t, tc.handler, true)
 			defer testServer.Close()
 
-			err := os2Client.PutMappings(context.Background(), tc.index, tc.mappings)
+			err := os2Client.PutMapping(context.Background(), tc.index, tc.body)
 
 			if tc.expectedErr {
 				assert.Error(t, err)
@@ -238,235 +237,7 @@ func TestPutMappings(t *testing.T) {
 	}
 }
 
-func TestIsHealthy(t *testing.T) {
-	tests := []struct {
-		name      string
-		status    int
-		expectErr bool
-	}{
-		{name: "healthy", status: http.StatusOK},
-		{name: "unhealthy", status: http.StatusServiceUnavailable, expectErr: true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tc.status)
-			})
-
-			os2Client, testServer := getSecureMockOS2Client(t, handler, true)
-			defer testServer.Close()
-
-			err := os2Client.IsHealthy(context.Background())
-			if tc.expectErr {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-		})
-	}
-}
-
-func TestPutIndexTemplate(t *testing.T) {
-	tests := []struct {
-		name      string
-		body      string
-		expectErr bool
-	}{
-		{name: "acknowledged", body: `{"acknowledged": true}`},
-		{name: "not acknowledged", body: `{"acknowledged": false}`, expectErr: true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method != "PUT" || r.URL.Path != "/_index_template/test-template" {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(tc.body))
-			})
-
-			os2Client, testServer := getSecureMockOS2Client(t, handler, true)
-			defer testServer.Close()
-
-			err := os2Client.PutIndexTemplate(context.Background(), "test-template", []byte(`{"template":{}}`))
-			if tc.expectErr {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-		})
-	}
-}
-
-func TestHasIndex(t *testing.T) {
-	tests := []struct {
-		name         string
-		status       int
-		expectExists bool
-		expectErr    bool
-	}{
-		{name: "exists", status: http.StatusOK, expectExists: true},
-		{name: "missing", status: http.StatusNotFound, expectExists: false},
-		{name: "server error", status: http.StatusInternalServerError, expectErr: true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method != "HEAD" || r.URL.Path != "/test-index" {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-				w.WriteHeader(tc.status)
-			})
-
-			os2Client, testServer := getSecureMockOS2Client(t, handler, true)
-			defer testServer.Close()
-
-			exists, err := os2Client.HasIndex(context.Background(), "test-index")
-			if tc.expectErr {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-			assert.Equal(t, tc.expectExists, exists)
-		})
-	}
-}
-
-func TestDeleteIndex(t *testing.T) {
-	tests := []struct {
-		name      string
-		body      string
-		expectErr bool
-	}{
-		{name: "acknowledged", body: `{"acknowledged": true}`},
-		{name: "not acknowledged", body: `{"acknowledged": false}`, expectErr: true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method != "DELETE" || r.URL.Path != "/test-index" {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(tc.body))
-			})
-
-			os2Client, testServer := getSecureMockOS2Client(t, handler, true)
-			defer testServer.Close()
-
-			err := os2Client.DeleteIndex(context.Background(), "test-index")
-			if tc.expectErr {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-		})
-	}
-}
-
-func TestGetMappings(t *testing.T) {
-	tests := []struct {
-		name      string
-		body      string
-		expectNil bool
-		expectErr bool
-	}{
-		{
-			name:      "mapping found",
-			body:      `{"test-index":{"mappings":{"properties":{"field":{"type":"keyword"}}}}}`,
-			expectNil: false,
-		},
-		{
-			name:      "mapping not found",
-			body:      `{"other-index":{"mappings":{"properties":{"field":{"type":"keyword"}}}}}`,
-			expectNil: true,
-		},
-		{
-			name:      "invalid mapping json",
-			body:      `{"test-index":{"mappings":"not-a-map"}}`,
-			expectErr: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method != "GET" || r.URL.Path != "/test-index/_mapping" {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(tc.body))
-			})
-
-			os2Client, testServer := getSecureMockOS2Client(t, handler, true)
-			defer testServer.Close()
-
-			mappings, err := os2Client.GetMappings(context.Background(), "test-index")
-			if tc.expectErr {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-			if tc.expectNil {
-				assert.Nil(t, mappings)
-				return
-			}
-			assert.Contains(t, mappings, "properties")
-		})
-	}
-}
-
-func TestMappingsFromTemplate(t *testing.T) {
-	tests := []struct {
-		name      string
-		template  []byte
-		expectErr bool
-	}{
-		{
-			name:      "valid template",
-			template:  []byte(`{"template":{"mappings":{"properties":{"field":{"type":"keyword"}}}}}`),
-			expectErr: false,
-		},
-		{
-			name:      "missing template",
-			template:  []byte(`{"mappings":{}}`),
-			expectErr: true,
-		},
-		{
-			name:      "missing mappings",
-			template:  []byte(`{"template":{}}`),
-			expectErr: true,
-		},
-	}
-
-	os2Client := &OS2{}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			mappings, err := os2Client.MappingsFromTemplate(tc.template)
-			if tc.expectErr {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-			assert.Contains(t, mappings, "properties")
-		})
-	}
-}
-
-func TestLatestTemplate(t *testing.T) {
-	os2Client := &OS2{}
-	assert.Equal(t, schemaes.IndexTemplateOS2, os2Client.LatestTemplate())
-}
-
-func TestPutMappingsError(t *testing.T) {
+func TestPutMappingError(t *testing.T) {
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
@@ -474,13 +245,7 @@ func TestPutMappingsError(t *testing.T) {
 	os2Client, testServer := getSecureMockOS2Client(t, http.HandlerFunc(handler), true)
 	defer testServer.Close()
 	os2Client.client.Client.Transport = &MockTransport{}
-	err := os2Client.PutMappings(context.Background(), "testIndex", map[string]any{
-		"properties": map[string]any{
-			"field": map[string]any{
-				"type": "text",
-			},
-		},
-	})
+	err := os2Client.PutMapping(context.Background(), "testIndex", `{"properties": {"field": {"type": "text"}}}`)
 	assert.Error(t, err)
 }
 

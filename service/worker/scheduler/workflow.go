@@ -70,7 +70,8 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		// On ContinueAsNew the stored state already reflects the user's intent
 		// (including CatchUpWindow=0 meaning "unlimited"), so we must not overwrite.
 		ensurePolicyDefaults(&input.Policies)
-		initStateOnFirstExecution(state, workflow.Now(ctx))
+		state.CreateTime = workflow.Now(ctx)
+		state.LastUpdateTime = state.CreateTime
 	}
 
 	err := workflow.SetQueryHandler(ctx, QueryTypeDescribe, func() (*ScheduleDescription, error) {
@@ -716,19 +717,6 @@ func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *Schedul
 		*budget--
 	}
 	return drained, false
-}
-
-// initStateOnFirstExecution sets the timestamp fields for a brand-new schedule.
-// It must only be called when state.CreateTime.IsZero() (first execution, not ContinueAsNew).
-// If the schedule starts paused, PausedAt is set to CreateTime so DescribeSchedule
-// returns a consistent timestamp regardless of whether the schedule was paused on create
-// or via a subsequent PauseSchedule call.
-func initStateOnFirstExecution(state *SchedulerWorkflowState, now time.Time) {
-	state.CreateTime = now
-	state.LastUpdateTime = now
-	if state.Paused {
-		state.PausedAt = now
-	}
 }
 
 // ensurePolicyDefaults fills in server-defined defaults for SchedulePolicies

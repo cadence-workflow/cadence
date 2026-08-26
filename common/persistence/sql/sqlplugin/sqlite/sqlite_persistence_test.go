@@ -28,9 +28,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
-
-	_ "github.com/ncruces/go-sqlite3/driver" // register sqlite3 driver for tests
-	_ "github.com/ncruces/go-sqlite3/embed"  // embed sqlite db for tests
 )
 
 func TestSQLiteHistoryV2PersistenceSuite(t *testing.T) {

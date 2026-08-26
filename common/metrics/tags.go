@@ -73,7 +73,6 @@ const (
 	isRetry                   = "is_retry"
 	queryConsistencyLevel     = "query_consistency_level"
 	budgetManagerName         = "budget_manager_name"
-	routingPath               = "routing_path"
 
 	// limiter-side tags
 	globalRatelimitKey            = "global_ratelimit_key"
@@ -416,11 +415,6 @@ func OverlapPolicyTag(value string) Tag {
 // TriggerSourceTag returns a new trigger_source tag for scheduler metrics.
 func TriggerSourceTag(value string) Tag {
 	return metricWithUnknown(triggerSource, value)
-}
-
-// RoutingPathTag returns a tag identifying the backend selected for routing.
-func RoutingPathTag(value string) Tag {
-	return metricWithUnknown(routingPath, value)
 }
 
 // QueryConsistencyLevelTag returns a new query consistency level tag.
