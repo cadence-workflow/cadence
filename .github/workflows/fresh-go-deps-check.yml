@@ -2,8 +2,8 @@ name: Fresh Go Deps Check
 on:
   pull_request:
     paths:
-      - 'go.mod'
-      - 'go.sum'
+      - '**/go.mod'
+      - '**/go.sum'
 
 jobs:
   golang-check-fresh-dependencies:
