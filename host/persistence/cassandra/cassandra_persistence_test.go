@@ -29,8 +29,6 @@ import (
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/testflags"
-
-	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra" // register cassandra plugin
 )
 
 func TestCassandraHistoryPersistence(t *testing.T) {
@@ -125,22 +123,6 @@ func TestCassandraDomainAuditPersistence(t *testing.T) {
 func TestCassandraHistoryTaskDLQPersistence(t *testing.T) {
 	testflags.RequireCassandra(t)
 	s := new(persistencetests.HistoryTaskDLQPersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
-	suite.Run(t, s)
-}
-
-func TestCassandraSemaphoreMetadataPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.SemaphoreMetadataPersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
-	suite.Run(t, s)
-}
-
-func TestCassandraSemaphoreTokenPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.SemaphoreTokenPersistenceSuite)
 	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
 	s.Setup()
 	suite.Run(t, s)

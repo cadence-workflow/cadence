@@ -1065,8 +1065,9 @@ func TestDeleteHistoryBranch_CustomBatchSize(t *testing.T) {
 	mockParser := serialization.NewMockParser(ctrl)
 
 	customBatchSize := 500
-	dc := persistence.NewDefaultDynamicConfiguration()
-	dc.HistoryNodeDeleteBatchSize = dynamicproperties.GetIntPropertyFn(customBatchSize)
+	dc := &persistence.DynamicConfiguration{
+		HistoryNodeDeleteBatchSize: func(...dynamicproperties.FilterOption) int { return customBatchSize },
+	}
 
 	store, err := NewHistoryV2Persistence(mockDB, nil, mockParser, dc)
 	require.NoError(t, err)
@@ -1121,8 +1122,9 @@ func TestDeleteHistoryBranch_UnboundedBatchSize(t *testing.T) {
 	mockTx := sqlplugin.NewMockTx(ctrl)
 	mockParser := serialization.NewMockParser(ctrl)
 
-	dc := persistence.NewDefaultDynamicConfiguration()
-	dc.HistoryNodeDeleteBatchSize = dynamicproperties.GetIntPropertyFn(0)
+	dc := &persistence.DynamicConfiguration{
+		HistoryNodeDeleteBatchSize: func(...dynamicproperties.FilterOption) int { return 0 },
+	}
 
 	store, err := NewHistoryV2Persistence(mockDB, nil, mockParser, dc)
 	require.NoError(t, err)
@@ -1177,8 +1179,9 @@ func TestDeleteHistoryBranch_NegativeBatchSize(t *testing.T) {
 	mockTx := sqlplugin.NewMockTx(ctrl)
 	mockParser := serialization.NewMockParser(ctrl)
 
-	dc := persistence.NewDefaultDynamicConfiguration()
-	dc.HistoryNodeDeleteBatchSize = dynamicproperties.GetIntPropertyFn(-100)
+	dc := &persistence.DynamicConfiguration{
+		HistoryNodeDeleteBatchSize: func(...dynamicproperties.FilterOption) int { return -100 },
+	}
 
 	store, err := NewHistoryV2Persistence(mockDB, nil, mockParser, dc)
 	require.NoError(t, err)

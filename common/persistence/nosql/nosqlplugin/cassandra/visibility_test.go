@@ -88,7 +88,7 @@ func TestInsertVisibility(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := persistence.NewDefaultDynamicConfiguration()
+			dc := &persistence.DynamicConfiguration{}
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.InsertVisibility(context.Background(), test.ttlSeconds, test.row)
@@ -158,7 +158,7 @@ func TestUpdateVisibility(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := persistence.NewDefaultDynamicConfiguration()
+			dc := &persistence.DynamicConfiguration{}
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 			err := db.UpdateVisibility(context.Background(), test.ttlSeconds, test.row)
 			if test.wantErr {
@@ -257,7 +257,7 @@ func TestSelectOneClosedWorkflow(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := persistence.NewDefaultDynamicConfiguration()
+			dc := &persistence.DynamicConfiguration{}
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 			result, err := db.SelectOneClosedWorkflow(context.Background(), test.domainID, test.workflowID, test.runID)
 			if test.wantError {
@@ -299,7 +299,7 @@ func TestDeleteVisibility(t *testing.T) {
 			itrMockFunc:    nil,
 			queryMockFunc:  nil,
 			context:        context.Background(),
-			dc:             persistence.NewDefaultDynamicConfiguration(),
+			dc:             &persistence.DynamicConfiguration{},
 			clientMockFunc: nil,
 			wantQueries:    nil,
 			wantError:      false,
@@ -315,7 +315,7 @@ func TestDeleteVisibility(t *testing.T) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query)
 			},
 			context:        context.WithValue(context.Background(), persistence.VisibilityAdminDeletionKey("visibilityAdminDelete"), true),
-			dc:             persistence.NewDefaultDynamicConfiguration(),
+			dc:             &persistence.DynamicConfiguration{},
 			clientMockFunc: nil,
 			wantQueries:    []string{`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`},
 			wantError:      true,
@@ -333,7 +333,7 @@ func TestDeleteVisibility(t *testing.T) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query)
 			},
 			context:        context.WithValue(context.Background(), persistence.VisibilityAdminDeletionKey("visibilityAdminDelete"), true),
-			dc:             persistence.NewDefaultDynamicConfiguration(),
+			dc:             &persistence.DynamicConfiguration{},
 			clientMockFunc: nil,
 			wantQueries:    []string{`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`},
 			wantError:      false,
@@ -352,7 +352,7 @@ func TestDeleteVisibility(t *testing.T) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query)
 			},
 			context:        context.WithValue(context.Background(), persistence.VisibilityAdminDeletionKey("visibilityAdminDelete"), true),
-			dc:             persistence.NewDefaultDynamicConfiguration(),
+			dc:             &persistence.DynamicConfiguration{},
 			clientMockFunc: nil,
 			wantQueries:    []string{`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`},
 			wantError:      true,
@@ -395,8 +395,10 @@ func TestDeleteVisibility(t *testing.T) {
 				query.EXPECT().Consistency(gomock.Any()).Return(query)
 				query.EXPECT().Exec().Return(nil)
 			},
-			context:        context.WithValue(context.Background(), persistence.VisibilityAdminDeletionKey("visibilityAdminDelete"), true),
-			dc:             dcWithAllConsistencyLevelDelete(),
+			context: context.WithValue(context.Background(), persistence.VisibilityAdminDeletionKey("visibilityAdminDelete"), true),
+			dc: &persistence.DynamicConfiguration{EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool {
+				return true
+			}},
 			clientMockFunc: nil,
 			wantQueries: []string{
 				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`,
@@ -422,7 +424,9 @@ func TestDeleteVisibility(t *testing.T) {
 				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
 				itr.EXPECT().Close().Return(nil)
 			},
-			dc: dcWithAllConsistencyLevelDelete(),
+			dc: &persistence.DynamicConfiguration{
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool { return true },
+			},
 			clientMockFunc: func(client *gocql.MockClient) {
 				client.EXPECT().IsCassandraConsistencyError(gomock.Any()).Return(true)
 			},
@@ -448,7 +452,9 @@ func TestDeleteVisibility(t *testing.T) {
 				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
 				itr.EXPECT().Close().Return(nil)
 			},
-			dc: dcWithAllConsistencyLevelDelete(),
+			dc: &persistence.DynamicConfiguration{
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool { return true },
+			},
 			clientMockFunc: func(client *gocql.MockClient) {
 				client.EXPECT().IsCassandraConsistencyError(gomock.Any()).Return(false)
 			},
@@ -877,7 +883,7 @@ func TestSelectVisibility(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := persistence.NewDefaultDynamicConfiguration()
+			dc := &persistence.DynamicConfiguration{}
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 			result, err := db.SelectVisibility(context.Background(), test.filter)
 			if test.wantError {
@@ -901,10 +907,4 @@ func generateMockParams(count int) []interface{} {
 		params = append(params, gomock.Any())
 	}
 	return params
-}
-
-func dcWithAllConsistencyLevelDelete() *persistence.DynamicConfiguration {
-	dc := persistence.NewDefaultDynamicConfiguration()
-	dc.EnableCassandraAllConsistencyLevelDelete = dynamicproperties.GetBoolPropertyFn(true)
-	return dc
 }

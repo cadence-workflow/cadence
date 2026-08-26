@@ -82,16 +82,6 @@ func (f *Factory) NewDomainAuditStore() (persistence.DomainAuditStore, error) {
 	return newNoSQLDomainAuditStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
-// NewSemaphoreMetadataStore returns a semaphore metadata store
-func (f *Factory) NewSemaphoreMetadataStore() (persistence.SemaphoreMetadataStore, error) {
-	return newNoSQLSemaphoreMetadataStore(f.cfg, f.logger, f.metricsClient, f.dc)
-}
-
-// NewSemaphoreTokenStore returns a semaphore token store
-func (f *Factory) NewSemaphoreTokenStore() (persistence.SemaphoreTokenStore, error) {
-	return newNoSQLSemaphoreTokenStore(f.cfg, f.logger, f.metricsClient, f.dc)
-}
-
 // NewHistoryDLQTaskStore returns a history DLQ task store
 func (f *Factory) NewHistoryDLQTaskStore() (persistence.HistoryDLQTaskStore, error) {
 	return newNoSQLHistoryDLQTaskStore(f.cfg, f.logger, f.metricsClient, f.dc)
@@ -119,17 +109,16 @@ func (f *Factory) NewConfigStore() (persistence.ConfigStore, error) {
 
 func (f *Factory) NewAdminDBs(dbType persistence.DBType) ([]persistence.AdminDB, error) {
 	var result []persistence.AdminDB
-	for connectionID, conn := range f.cfg.Connections {
+	for _, conn := range f.cfg.Connections {
 		plugin, ok := supportedPlugins[conn.NoSQLPlugin.PluginName]
 		if !ok {
 			return nil, fmt.Errorf("unsupported plugin: %v", conn.NoSQLPlugin.PluginName)
 		}
 		result = append(result, &nosqlAdmin{
-			logger:     f.logger,
-			plugin:     plugin,
-			dbType:     dbType,
-			identifier: connectionID,
-			cfg:        conn.NoSQLPlugin,
+			logger: f.logger,
+			plugin: plugin,
+			dbType: dbType,
+			cfg:    conn.NoSQLPlugin,
 		})
 	}
 	return result, nil

@@ -74,7 +74,6 @@ import (
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
-	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeoutrisk"
 )
 
 type (
@@ -233,14 +232,7 @@ func (s *server) startService() common.Daemon {
 		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
 	}
 
-	wrappedRings := s.wrapHashRingsWithShardDistributor(
-		params.HashRings,
-		spectator,
-		s.operationalDynamicConfig,
-		params.PercentageOnboarded,
-		params.Logger,
-		params.MetricsClient.Scope(metrics.ShardDistributorResolverScope),
-	)
+	wrappedRings := s.wrapHashRingsWithShardDistributor(params.HashRings, spectator, s.operationalDynamicConfig, params.PercentageOnboarded, params.Logger)
 
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
@@ -296,6 +288,8 @@ func (s *server) startService() common.Daemon {
 
 	params.ArchivalMetadata = s.archivalMetadata
 	params.ArchiverProvider = s.archiverProvider
+	params.PersistenceConfig.TransactionSizeLimit = s.dynamicCollection.GetIntProperty(dynamicproperties.TransactionSizeLimit)
+	params.PersistenceConfig.ErrorInjectionRate = s.dynamicCollection.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate)
 	params.AuthorizationConfig = s.cfg.Authorization
 	params.BlobstoreClient, err = filestore.NewFilestoreClient(s.cfg.Blobstore.Filestore)
 	if err != nil {
@@ -309,7 +303,7 @@ func (s *server) startService() common.Daemon {
 	}
 
 	params.KafkaConfig = s.cfg.Kafka
-	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant()}
+	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant()}
 	params.ShardDistributorMatchingConfig = s.cfg.ShardDistributorMatchingConfig
 
 	params.Logger.Info("Starting service " + s.name)
@@ -343,7 +337,6 @@ func (*server) wrapHashRingsWithShardDistributor(
 	operationalDC *dynamicconfig.Collection,
 	percentageOnboarded membership.PercentageOnboarded,
 	logger log.Logger,
-	metricsScope metrics.Scope,
 ) map[string]membership.SingleProvider {
 	if _, ok := hashRings[service.Matching]; ok {
 		hashRings[service.Matching] = membership.NewShardDistributorResolver(
@@ -352,7 +345,6 @@ func (*server) wrapHashRingsWithShardDistributor(
 			percentageOnboarded,
 			hashRings[service.Matching],
 			logger,
-			metricsScope,
 		)
 	}
 	return hashRings

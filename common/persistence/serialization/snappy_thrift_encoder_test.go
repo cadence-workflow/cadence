@@ -404,8 +404,9 @@ func TestSnappyThriftRWEncode(t *testing.T) {
 }
 
 func TestSnappyThriftEncoderWithParser(t *testing.T) {
-	dc := persistence.NewDefaultDynamicConfiguration()
-	dc.SerializationEncoding = dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRWSnappy))
+	dc := &persistence.DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRWSnappy)),
+	}
 	// Test encoder integration with parser
 	parser, err := NewParser(dc)
 	require.NoError(t, err)

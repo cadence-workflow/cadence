@@ -162,9 +162,12 @@ func (s *MatchingSimulationSuite) SetupSuite() {
 
 	s.Logger.Info("Running integration test against test cluster")
 	clusterMetadata := host.NewClusterMetadata(s.T(), s.TestClusterConfig)
-	dc := *persistence.NewDefaultDynamicConfiguration()
-	dc.EnableCassandraAllConsistencyLevelDelete = dynamicproperties.GetBoolPropertyFn(true)
-	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
+	dc := persistence.DynamicConfiguration{
+		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
+		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
+		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	}
 	params := pt.TestBaseParams{
 		PersistenceConfig:    s.PersistenceConfig,
 		ClusterMetadata:      clusterMetadata,

@@ -24,6 +24,8 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 // NewTestCluster returns a new SQL test cluster
@@ -54,6 +56,8 @@ func NewTestCluster(pluginName, dbName, username, password, host string, port in
 		DataStores: map[string]config.DataStore{
 			"test": {SQL: &cfg},
 		},
-		NumHistoryShards: cfg.NumShards,
+		TransactionSizeLimit: dynamicproperties.GetIntPropertyFn(constants.DefaultTransactionSizeLimit),
+		ErrorInjectionRate:   dynamicproperties.GetFloatPropertyFn(0),
+		NumHistoryShards:     cfg.NumShards,
 	}, nil
 }

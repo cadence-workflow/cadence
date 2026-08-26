@@ -45,9 +45,9 @@ import (
 var FixedTime = time.Date(2025, 1, 6, 15, 0, 0, 0, time.UTC)
 
 func newTestNosqlExecutionStoreWithTaskSerializer(db nosqlplugin.DB, logger log.Logger, taskSerializer serialization.TaskSerializer) *nosqlExecutionStore {
-	dc := persistence.NewDefaultDynamicConfiguration()
-	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
-	return newTestNosqlExecutionStoreWithOptions(db, logger, taskSerializer, dc)
+	return newTestNosqlExecutionStoreWithOptions(db, logger, taskSerializer, &persistence.DynamicConfiguration{
+		EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return true },
+	})
 }
 
 func TestNosqlExecutionStoreUtils(t *testing.T) {

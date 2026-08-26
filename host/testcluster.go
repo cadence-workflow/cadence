@@ -38,7 +38,6 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/config/yaml"
-	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -134,13 +133,6 @@ const (
 
 // NewCluster creates and sets up the test cluster
 func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, params persistencetests.TestBaseParams) (*TestCluster, error) {
-	// Copy visibility config to the PersistenceConfig so persistence test base can do setup/teardown
-	if options.PinotConfig != nil {
-		params.PersistenceConfig.DataStores[constants.PinotVisibilityStoreName] = config.DataStore{Pinot: options.PinotConfig}
-	}
-	if options.ESConfig != nil {
-		params.PersistenceConfig.DataStores[constants.ESVisibilityStoreName] = config.DataStore{ElasticSearch: options.ESConfig}
-	}
 	testBase := persistencetests.NewTestBaseFromParams(t, params)
 	testBase.Setup()
 	setupShards(testBase, options.HistoryConfig.NumHistoryShards, logger)
@@ -155,7 +147,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		if err != nil {
 			return nil, err
 		}
-		pConfig.AdvancedVisibilityStore = constants.ESVisibilityStoreName
+		pConfig.AdvancedVisibilityStore = "es-visibility"
 	}
 
 	scope := tally.NewTestScope("integration-test", nil)
@@ -214,13 +206,6 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 }
 
 func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, params persistencetests.TestBaseParams) (*TestCluster, error) {
-	// Copy visibility config to the PersistenceConfig so persistence test base can do setup/teardown
-	if options.PinotConfig != nil {
-		params.PersistenceConfig.DataStores[constants.PinotVisibilityStoreName] = config.DataStore{Pinot: options.PinotConfig}
-	}
-	if options.ESConfig != nil {
-		params.PersistenceConfig.DataStores[constants.ESVisibilityStoreName] = config.DataStore{ElasticSearch: options.ESConfig}
-	}
 	testBase := persistencetests.NewTestBaseFromParams(t, params)
 	testBase.Setup()
 	setupShards(testBase, options.HistoryConfig.NumHistoryShards, logger)
@@ -239,7 +224,7 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 			}
 		}
 	}
-	pConfig.AdvancedVisibilityStore = constants.PinotVisibilityStoreName
+	pConfig.AdvancedVisibilityStore = "pinot-visibility"
 	pinotBroker := options.PinotConfig.Broker
 	pinotRawClient, err := pinot.NewFromBrokerList([]string{pinotBroker})
 	if err != nil || pinotRawClient == nil {

@@ -67,10 +67,6 @@ type (
 		NewDomainManager() (p.DomainManager, error)
 		// NewDomainAuditManager returns a new domain audit manager
 		NewDomainAuditManager() (p.DomainAuditManager, error)
-		// NewSemaphoreMetadataManager returns a new semaphore metadata manager
-		NewSemaphoreMetadataManager() (p.SemaphoreMetadataManager, error)
-		// NewSemaphoreTokenManager returns a new semaphore token manager
-		NewSemaphoreTokenManager() (p.SemaphoreTokenManager, error)
 		// NewHistoryTaskDLQManager returns a new history task DLQ manager
 		NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error)
 		// NewExecutionManager returns a new execution manager
@@ -98,10 +94,6 @@ type (
 		NewDomainStore() (p.DomainStore, error)
 		// NewDomainAuditStore returns a new domain audit store
 		NewDomainAuditStore() (p.DomainAuditStore, error)
-		// NewSemaphoreMetadataStore returns a new semaphore metadata store
-		NewSemaphoreMetadataStore() (p.SemaphoreMetadataStore, error)
-		// NewSemaphoreTokenStore returns a new semaphore token store
-		NewSemaphoreTokenStore() (p.SemaphoreTokenStore, error)
 		// NewHistoryDLQTaskStore returns a new history DLQ task store
 		NewHistoryDLQTaskStore() (p.HistoryDLQTaskStore, error)
 		// NewExecutionStore returns an execution store
@@ -191,7 +183,7 @@ func (f *factoryImpl) NewTaskManager() (p.TaskManager, error) {
 		return nil, err
 	}
 	result := p.NewTaskManager(store)
-	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewTaskManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -211,7 +203,7 @@ func (f *factoryImpl) NewShardManager() (p.ShardManager, error) {
 		return nil, err
 	}
 	result := p.NewShardManager(store, f.dc)
-	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewShardManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -230,8 +222,8 @@ func (f *factoryImpl) NewHistoryManager() (p.HistoryManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := p.NewHistoryV2ManagerImpl(store, f.logger, p.NewPayloadSerializer(), codec.NewThriftRWEncoder(), f.dc.TransactionSizeLimit)
-	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+	result := p.NewHistoryV2ManagerImpl(store, f.logger, p.NewPayloadSerializer(), codec.NewThriftRWEncoder(), f.config.TransactionSizeLimit)
+	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewHistoryManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -253,7 +245,7 @@ func (f *factoryImpl) NewDomainManager() (p.DomainManager, error) {
 		return nil, err
 	}
 	result := p.NewDomainManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
-	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewDomainManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -282,40 +274,6 @@ func (f *factoryImpl) NewDomainAuditManager() (p.DomainAuditManager, error) {
 	return result, nil
 }
 
-// NewSemaphoreMetadataManager returns a new semaphore metadata manager
-func (f *factoryImpl) NewSemaphoreMetadataManager() (p.SemaphoreMetadataManager, error) {
-	var err error
-	var store p.SemaphoreMetadataStore
-
-	ds := f.datastores[storeTypeMetadata]
-	store, err = ds.factory.NewSemaphoreMetadataStore()
-	if err != nil {
-		return nil, err
-	}
-	if store == nil {
-		return nil, nil
-	}
-	result := p.NewSemaphoreMetadataManagerImpl(store, f.logger)
-	return result, nil
-}
-
-// NewSemaphoreTokenManager returns a new semaphore token manager
-func (f *factoryImpl) NewSemaphoreTokenManager() (p.SemaphoreTokenManager, error) {
-	var err error
-	var store p.SemaphoreTokenStore
-
-	ds := f.datastores[storeTypeMetadata]
-	store, err = ds.factory.NewSemaphoreTokenStore()
-	if err != nil {
-		return nil, err
-	}
-	if store == nil {
-		return nil, nil
-	}
-	result := p.NewSemaphoreTokenManagerImpl(store, f.logger)
-	return result, nil
-}
-
 // NewHistoryTaskDLQManager returns a new history task DLQ manager
 func (f *factoryImpl) NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error) {
 	ds := f.datastores[storeTypeExecution]
@@ -329,12 +287,6 @@ func (f *factoryImpl) NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error
 	}
 	taskSerializer := serialization.NewTaskSerializer(parser)
 	result := p.NewHistoryTaskDLQManager(store, taskSerializer, f.logger)
-	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
-		result = errorinjectors.NewHistoryTaskDLQManager(result, errorRate, f.logger, time.Now())
-	}
-	if ds.ratelimit != nil {
-		result = ratelimited.NewHistoryTaskDLQManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
-	}
 	if f.metricsClient != nil {
 		result = metered.NewHistoryTaskDLQManager(result, f.metricsClient, f.logger, f.config)
 	}
@@ -349,7 +301,7 @@ func (f *factoryImpl) NewExecutionManager() (p.ExecutionManager, error) {
 		return nil, err
 	}
 	result := p.NewExecutionManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
-	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewExecutionManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -544,7 +496,7 @@ func (f *factoryImpl) newDBVisibilityManager(
 		return nil, err
 	}
 	result := p.NewVisibilityManagerImpl(store, f.logger, f.dc)
-	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewVisibilityManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -577,7 +529,7 @@ func (f *factoryImpl) NewDomainReplicationQueueManager() (p.QueueManager, error)
 		return nil, err
 	}
 	result := p.NewQueueManager(store)
-	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewQueueManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -597,7 +549,7 @@ func (f *factoryImpl) NewConfigStoreManager() (p.ConfigStoreManager, error) {
 		return nil, err
 	}
 	result := p.NewConfigStoreManagerImpl(store, f.logger)
-	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewConfigStoreManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
@@ -625,31 +577,8 @@ func (f *factoryImpl) NewAdminDBs() ([]p.AdminDB, error) {
 		}
 		dbs = append(dbs, vDBs...)
 	}
-	// Advanced visibility operates different from "regular" datastores:
-	// - They use a fixed datastore name based on the plugin
-	// - They may fallback to other stores, or be migrating between them, and that's implemented in the visibility store
-	//
-	// As a result, we just check whether the plugin is configured and include it. The user might have configured ES
-	// but not actually be using it, but we don't really have a way to tell.
-
-	esConfig, ok := f.config.DataStores[constants.ESVisibilityStoreName]
-	if ok && esConfig.ElasticSearch != nil {
-		db, dbErr := elasticsearch.NewAdminDB(esConfig.ElasticSearch, f.logger)
-		if dbErr != nil {
-			return nil, dbErr
-		}
-		dbs = append(dbs, db)
-	}
-	osConfig, ok := f.config.DataStores[constants.OSVisibilityStoreName]
-	// OS is secretly ElasticSearch
-	if ok && osConfig.ElasticSearch != nil {
-		db, dbErr := elasticsearch.NewAdminDB(osConfig.ElasticSearch, f.logger)
-		if dbErr != nil {
-			return nil, dbErr
-		}
-		dbs = append(dbs, db)
-	}
-	// TODO: Pinot support
+	// TODO: Support advanced visibility
+	// It doesn't have versioned schema support but we can do the setup
 
 	return dbs, nil
 }

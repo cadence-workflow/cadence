@@ -27,9 +27,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -56,7 +54,6 @@ type (
 	activityReplicatorImpl struct {
 		executionCache  execution.Cache
 		clusterMetadata cluster.Metadata
-		domainCache     cache.DomainCache
 		logger          log.Logger
 	}
 )
@@ -73,7 +70,6 @@ func NewActivityReplicator(
 	return &activityReplicatorImpl{
 		executionCache:  executionCache,
 		clusterMetadata: shard.GetService().GetClusterMetadata(),
-		domainCache:     shard.GetDomainCache(),
 		logger:          logger.WithTags(tag.ComponentHistoryReplicator),
 	}
 }
@@ -83,10 +79,11 @@ func (r *activityReplicatorImpl) SyncActivity(
 	request *types.SyncActivityRequest,
 ) (retError error) {
 
-	// Sync activity info is sent from the active side when an activity starts,
-	// heartbeats, or has a retriable failure. For an unstarted retry, this apply
-	// path regenerates the retry backoff timer locally because timer tasks are not
-	// replicated.
+	// sync activity info will only be sent from active side, when
+	// 1. activity has retry policy and activity got started
+	// 2. activity heart beat
+	// no sync activity task will be sent when active side fail / timeout activity,
+	// since standby side does not have activity retry timer
 	domainID := request.GetDomainID()
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: request.WorkflowID,
@@ -172,11 +169,6 @@ func (r *activityReplicatorImpl) SyncActivity(
 	} else if ai.Attempt < request.GetAttempt() {
 		resetActivityTimerTaskStatus = true
 	}
-	// capture whether this sync advances the retry attempt before
-	// ReplicateActivityInfo overwrites the activity info in place
-	attemptIncremented := ai.Attempt < request.GetAttempt()
-	activityNotStarted := request.GetStartedID() == constants.EmptyEventID
-
 	err = mutableState.ReplicateActivityInfo(request, resetActivityTimerTaskStatus)
 	if err != nil {
 		return err
@@ -197,22 +189,6 @@ func (r *activityReplicatorImpl) SyncActivity(
 		mutableState,
 	).CreateNextActivityTimer(); err != nil {
 		return err
-	}
-
-	// ActivityRetryTimers are only generated in the cluster that recorded the activity failure.
-	// With a race between the activity failure, failover, and domain cache refresh, this can
-	// mean the timer is processed by both clusters as a 'passive' task.
-	// When this occurs, the timer is dropped. Ensure that syncActivity generates a timer whenever
-	// the attempt is incremented to prevent this race condition.
-	if attemptIncremented && activityNotStarted && !ai.CancelRequested {
-		if err := execution.NewMutableStateTaskGenerator(
-			r.logger,
-			r.clusterMetadata,
-			r.domainCache,
-			mutableState,
-		).GenerateActivityRetryTasks(scheduleID); err != nil {
-			return err
-		}
 	}
 
 	updateMode := persistence.UpdateWorkflowModeUpdateCurrent

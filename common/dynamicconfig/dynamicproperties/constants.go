@@ -2415,14 +2415,6 @@ const (
 	// Default value: false
 	HistoryTaskDLQProcessorEnabled
 
-	// EnforceSchemaVerificationV2 enables more detailed schema verification on server startup
-	// When enabled, the server will verify that the schema of the underlying database matches the expected schema.
-	// This includes persistence backends not previously checked, such as advanced visibility.
-	// KeyName: system.enforceSchemaVerificationV2
-	// Value type: Bool
-	// Default value: false
-	EnforceSchemaVerificationV2
-
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -5259,11 +5251,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	HistoryTaskDLQProcessorEnabled: {
 		KeyName:      "history.historyTaskDLQProcessorEnabled",
 		Description:  "HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages",
-		DefaultValue: false,
-	},
-	EnforceSchemaVerificationV2: {
-		KeyName:      "system.enforceSchemaVerificationV2",
-		Description:  "EnforceSchemaVerificationV2 enables more thorough schema verification, including advanced visibility",
 		DefaultValue: false,
 	},
 }

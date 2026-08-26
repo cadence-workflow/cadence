@@ -41,7 +41,6 @@ import (
 
 var (
 	workflowTestMetrics *mmocks.Client
-	workflowTestScope   *mmocks.Scope
 	workflowTestLogger  log.Logger
 	workflowTestHandler *MockHandler
 	workflowTestPump    *MockPump
@@ -74,16 +73,16 @@ func (s *workflowSuite) SetupTest() {
 	}
 
 	// archival workflow dual-emits CadenceLatency timer + CadenceLatencyHistogram via
-	// metricsClient.Scope(ArchiverArchivalWorkflowScope, NonDomainTag()). Wire a permissive
-	// scope mock so we don't have to repeat the histogram expectation in every test.
-	workflowTestScope = &mmocks.Scope{}
-	workflowTestScope.On("ExponentialHistogram", metrics.CadenceLatencyHistogram, mock.Anything).Maybe()
-	workflowTestMetrics.On("Scope", metrics.ArchiverArchivalWorkflowScope, []metrics.Tag{metrics.NonDomainTag()}).Return(workflowTestScope).Maybe()
+	// metricsClient.Scope(ArchiverArchivalWorkflowScope).ExponentialHistogram(...). Wire a
+	// permissive scope mock so we don't have to repeat the expectation in every test.
+	archivalScopeMock := &mmocks.Scope{}
+	archivalScopeMock.On("ExponentialHistogram", metrics.CadenceLatencyHistogram, mock.Anything).Maybe()
+	workflowTestMetrics.On("Scope", metrics.ArchiverArchivalWorkflowScope).Return(archivalScopeMock).Maybe()
 }
 
 func (s *workflowSuite) TestArchivalWorkflow_Fail_HashesDoNotEqual() {
 	workflowTestMetrics.On("IncCounter", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverWorkflowStartedCount).Once()
-	workflowTestScope.On("StartTimer", metrics.CadenceLatency).Return(metrics.NewTestStopwatch()).Once()
+	workflowTestMetrics.On("StartTimer", metrics.ArchiverArchivalWorkflowScope, metrics.CadenceLatency).Return(metrics.NopStopwatch()).Once()
 	workflowTestMetrics.On("StartTimer", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverHandleAllRequestsLatency).Return(metrics.NopStopwatch()).Once()
 	workflowTestMetrics.On("AddCounter", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverNumPumpedRequestsCount, int64(3)).Once()
 	workflowTestMetrics.On("AddCounter", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverNumHandledRequestsCount, int64(3)).Once()
@@ -106,7 +105,7 @@ func (s *workflowSuite) TestArchivalWorkflow_Fail_HashesDoNotEqual() {
 
 func (s *workflowSuite) TestArchivalWorkflow_Exit_TimeoutWithoutSignals() {
 	workflowTestMetrics.On("IncCounter", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverWorkflowStartedCount).Once()
-	workflowTestScope.On("StartTimer", metrics.CadenceLatency).Return(metrics.NewTestStopwatch()).Once()
+	workflowTestMetrics.On("StartTimer", metrics.ArchiverArchivalWorkflowScope, metrics.CadenceLatency).Return(metrics.NopStopwatch()).Once()
 	workflowTestMetrics.On("StartTimer", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverHandleAllRequestsLatency).Return(metrics.NopStopwatch()).Once()
 	workflowTestMetrics.On("AddCounter", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverNumPumpedRequestsCount, int64(0)).Once()
 	workflowTestMetrics.On("AddCounter", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverNumHandledRequestsCount, int64(0)).Once()
@@ -128,7 +127,7 @@ func (s *workflowSuite) TestArchivalWorkflow_Exit_TimeoutWithoutSignals() {
 
 func (s *workflowSuite) TestArchivalWorkflow_Success() {
 	workflowTestMetrics.On("IncCounter", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverWorkflowStartedCount).Once()
-	workflowTestScope.On("StartTimer", metrics.CadenceLatency).Return(metrics.NewTestStopwatch()).Once()
+	workflowTestMetrics.On("StartTimer", metrics.ArchiverArchivalWorkflowScope, metrics.CadenceLatency).Return(metrics.NopStopwatch()).Once()
 	workflowTestMetrics.On("StartTimer", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverHandleAllRequestsLatency).Return(metrics.NopStopwatch()).Once()
 	workflowTestMetrics.On("AddCounter", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverNumPumpedRequestsCount, int64(5)).Once()
 	workflowTestMetrics.On("AddCounter", metrics.ArchiverArchivalWorkflowScope, metrics.ArchiverNumHandledRequestsCount, int64(5)).Once()

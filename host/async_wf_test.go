@@ -52,6 +52,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
@@ -91,9 +92,15 @@ func (s *AsyncWFIntegrationSuite) SetupSuite() {
 
 	s.Logger.Info("Running integration test against test cluster")
 	clusterMetadata := NewClusterMetadata(s.T(), s.TestClusterConfig)
-	dc := *persistence.NewDefaultDynamicConfiguration()
-	dc.EnableCassandraAllConsistencyLevelDelete = dynamicproperties.GetBoolPropertyFn(true)
-	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
+	dc := persistence.DynamicConfiguration{
+		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
+		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
+		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
+		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
+		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
+	}
 	params := pt.TestBaseParams{
 		PersistenceConfig:    s.PersistenceConfig,
 		ClusterMetadata:      clusterMetadata,
@@ -110,7 +117,7 @@ func (s *AsyncWFIntegrationSuite) SetupSuite() {
 	s.SecondaryDomainName = s.RandomizeStr("unused-test-domain")
 	s.Require().NoError(s.RegisterDomain(s.SecondaryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
-	s.domainCacheRefresh()
+	s.domainCacheRefresh(s.DomainName, s.SecondaryDomainName)
 }
 
 func (s *AsyncWFIntegrationSuite) SetupTest() {
@@ -178,7 +185,7 @@ func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync_SLOW() {
 					t.Fatalf("UpdateDomainAsyncWorkflowConfiguraton() failed: %v", err)
 				}
 
-				s.domainCacheRefresh()
+				s.domainCacheRefresh(s.DomainName)
 			}
 
 			if tc.secondaryCfg != nil {
@@ -190,7 +197,7 @@ func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync_SLOW() {
 					t.Fatalf("UpdateDomainAsyncWorkflowConfiguraton() failed: %v", err)
 				}
 
-				s.domainCacheRefresh()
+				s.domainCacheRefresh(s.DomainName)
 			}
 
 			startTime := s.TestClusterConfig.TimeSource.Now().UnixNano()

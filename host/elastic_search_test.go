@@ -36,11 +36,13 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/environment"
+	"github.com/uber/cadence/host/esutils"
 )
 
 const (
@@ -54,6 +56,7 @@ type ElasticSearchIntegrationSuite struct {
 	// not merely log an error
 	*require.Assertions
 	*IntegrationBase
+	esClient esutils.ESClient
 
 	testSearchAttributeKey string
 	testSearchAttributeVal string
@@ -84,10 +87,16 @@ func TestElasticsearchIntegrationSuite(t *testing.T) {
 // This cluster use customized threshold for history config
 func (s *ElasticSearchIntegrationSuite) SetupSuite() {
 	s.setupSuite()
+	s.esClient = esutils.CreateESClient(s.Suite.T(), s.TestClusterConfig.ESConfig.URL.String(), environment.GetESVersion())
+	s.esClient.PutIndexTemplate(s.Suite.T(), "testdata/es_"+environment.GetESVersion()+"_index_template.json", "test-visibility-template")
+	indexName := s.TestClusterConfig.ESConfig.Indices[constants.VisibilityAppName]
+	s.esClient.CreateIndex(s.Suite.T(), indexName)
+	s.putIndexSettings(s.Suite.T(), indexName, defaultTestValueOfESIndexMaxResultWindow)
 }
 
 func (s *ElasticSearchIntegrationSuite) TearDownSuite() {
 	s.TearDownBaseSuite()
+	s.esClient.DeleteIndex(s.Suite.T(), s.TestClusterConfig.ESConfig.Indices[constants.VisibilityAppName])
 }
 
 func (s *ElasticSearchIntegrationSuite) SetupTest() {
@@ -1268,4 +1277,22 @@ func (s *ElasticSearchIntegrationSuite) TestUpsertWorkflowExecution_InvalidKey()
 	failedDecisionAttr := decisionFailedEvent.DecisionTaskFailedEventAttributes
 	s.Equal(types.DecisionTaskFailedCauseBadSearchAttributes, failedDecisionAttr.GetCause())
 	s.True(len(failedDecisionAttr.GetDetails()) > 0)
+}
+
+func (s *ElasticSearchIntegrationSuite) putIndexSettings(t *testing.T, indexName string, maxResultWindowSize int) {
+	err := s.esClient.PutMaxResultWindow(t, indexName, maxResultWindowSize)
+	s.Require().NoError(err)
+	s.verifyMaxResultWindowSize(t, indexName, maxResultWindowSize)
+}
+
+func (s *ElasticSearchIntegrationSuite) verifyMaxResultWindowSize(t *testing.T, indexName string, targetSize int) {
+	for i := 0; i < numOfRetry; i++ {
+		currentWindow, err := s.esClient.GetMaxResultWindow(t, indexName)
+		s.Require().NoError(err)
+		if currentWindow == strconv.Itoa(targetSize) {
+			return
+		}
+		time.Sleep(waitTimeInMs * time.Millisecond)
+	}
+	s.FailNow(fmt.Sprintf("ES max result window size hasn't reach target size within %v.", (numOfRetry*waitTimeInMs)*time.Millisecond))
 }

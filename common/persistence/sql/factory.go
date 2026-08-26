@@ -119,26 +119,6 @@ func (f *Factory) NewDomainAuditStore() (p.DomainAuditStore, error) {
 	return newSQLDomainAuditStore(conn, f.logger, f.parser)
 }
 
-// NewSemaphoreMetadataStore returns a semaphore metadata store.
-// Distributed semaphore is only supported on NoSQL; this is a not-supported stub.
-func (f *Factory) NewSemaphoreMetadataStore() (p.SemaphoreMetadataStore, error) {
-	conn, err := f.dbConn.get()
-	if err != nil {
-		return nil, err
-	}
-	return newSQLSemaphoreMetadataStore(conn, f.logger, f.parser)
-}
-
-// NewSemaphoreTokenStore returns a semaphore token store.
-// Distributed semaphore is only supported on NoSQL; this is a not-supported stub.
-func (f *Factory) NewSemaphoreTokenStore() (p.SemaphoreTokenStore, error) {
-	conn, err := f.dbConn.get()
-	if err != nil {
-		return nil, err
-	}
-	return newSQLSemaphoreTokenStore(conn, f.logger, f.parser)
-}
-
 // NewHistoryDLQTaskStore returns a history DLQ task store.
 func (f *Factory) NewHistoryDLQTaskStore() (p.HistoryDLQTaskStore, error) {
 	return &sqlHistoryDLQTaskStore{}, nil
@@ -193,7 +173,6 @@ func (f *Factory) NewAdminDBs(dbType p.DBType) ([]p.AdminDB, error) {
 		result = append(result, &sqlAdmin{
 			logger: f.logger,
 			plugin: plugin,
-			dbType: dbType,
 			schema: schema,
 			cfg:    db,
 		})

@@ -29,11 +29,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 )
 
 func TestTaskSerializerThriftRW(t *testing.T) {
-	parser, err := NewParser(persistence.NewDefaultDynamicConfiguration())
+	dc := &persistence.DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	}
+	parser, err := NewParser(dc)
 	require.NoError(t, err)
 	taskSerializer := NewTaskSerializer(parser)
 

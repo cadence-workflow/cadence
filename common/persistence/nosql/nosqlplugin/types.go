@@ -281,52 +281,6 @@ type (
 		NextPageToken  []byte
 	}
 
-	// SemaphoreMetadataRow defines the row struct for distributed semaphore metadata
-	SemaphoreMetadataRow struct {
-		DomainID      string
-		SemaphoreName string
-		Size          int
-		BucketSize    int
-		CreatedTime   time.Time
-	}
-
-	// SemaphoreMetadataFilter contains the filter criteria for listing semaphores in a domain
-	SemaphoreMetadataFilter struct {
-		DomainID      string
-		PageSize      int
-		NextPageToken []byte
-	}
-
-	// SemaphoreOwnershipRow defines a row of the semaphore_tokens table, in either
-	// of its two kinds: a forward "token" row or a reverse "owner" row.
-	SemaphoreOwnershipRow struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-		TokenID       int
-		OwnerID       string
-		Holder        string
-		HeldToken     int
-		UpdatedTime   time.Time
-	}
-
-	// SemaphoreGrantResult reports the outcome of a conditional grant batch.
-	SemaphoreGrantResult struct {
-		Outcome persistence.SemaphoreGrantOutcome
-		// HeldToken is set only when Outcome is persistence.SemaphoreGrantAlreadyHeld.
-		HeldToken int
-	}
-
-	// SemaphoreOwnershipFilter contains the filter criteria for scanning a bucket
-	// partition (both row kinds), paginated.
-	SemaphoreOwnershipFilter struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-		PageSize      int
-		NextPageToken []byte
-	}
-
 	// HistoryDLQTaskRow defines the row struct for history task dead-letter queue entries.
 	HistoryDLQTaskRow struct {
 		ShardID               int

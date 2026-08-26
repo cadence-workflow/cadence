@@ -39,7 +39,7 @@ func TestCDBBasics(t *testing.T) {
 	client := gocql.NewMockClient(ctrl)
 	cfg := &config.NoSQL{}
 	logger := testlogger.New(t)
-	dc := persistence.NewDefaultDynamicConfiguration()
+	dc := &persistence.DynamicConfiguration{}
 
 	db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -161,9 +161,10 @@ func TestExecuteWithConsistencyAll(t *testing.T) {
 			query := gocql.NewMockQuery(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := persistence.NewDefaultDynamicConfiguration()
-			dc.EnableCassandraAllConsistencyLevelDelete = func(opts ...dynamicproperties.FilterOption) bool {
-				return tc.enableAllConsistencyLevelDelete
+			dc := &persistence.DynamicConfiguration{
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool {
+					return tc.enableAllConsistencyLevelDelete
+				},
 			}
 
 			if tc.queryMockPrep != nil {
@@ -260,9 +261,10 @@ func TestExecuteBatchWithConsistencyAll(t *testing.T) {
 			batch := gocql.NewMockBatch(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := persistence.NewDefaultDynamicConfiguration()
-			dc.EnableCassandraAllConsistencyLevelDelete = func(opts ...dynamicproperties.FilterOption) bool {
-				return tc.enableAllConsistencyLevelDelete
+			dc := &persistence.DynamicConfiguration{
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool {
+					return tc.enableAllConsistencyLevelDelete
+				},
 			}
 
 			if tc.sessionMockPrep != nil {

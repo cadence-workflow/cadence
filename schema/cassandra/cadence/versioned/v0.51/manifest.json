@@ -1,8 +1,0 @@
-{
-  "CurrVersion": "0.51",
-  "MinCompatibleVersion": "0.51",
-  "Description": "Add semaphore_tokens table",
-  "SchemaUpdateCqlFiles": [
-    "semaphore_tokens.cql"
-  ]
-}

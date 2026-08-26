@@ -29,6 +29,8 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -248,6 +250,9 @@ func (f *defaultManagerFactory) initPersistenceFactory(c *cli.Context) (client.F
 	}
 	cfg.Persistence.DataStores[cfg.Persistence.DefaultStore] = defaultStore
 
+	cfg.Persistence.TransactionSizeLimit = dynamicproperties.GetIntPropertyFn(constants.DefaultTransactionSizeLimit)
+	cfg.Persistence.ErrorInjectionRate = dynamicproperties.GetFloatPropertyFn(0.0)
+
 	rps := c.Float64(FlagRPS)
 
 	return client.NewFactory(
@@ -256,7 +261,9 @@ func (f *defaultManagerFactory) initPersistenceFactory(c *cli.Context) (client.F
 		cfg.ClusterGroupMetadata.CurrentClusterName,
 		metrics.NewNoopMetricsClient(),
 		log.NewNoop(),
-		persistence.NewDefaultDynamicConfiguration(),
+		&persistence.DynamicConfiguration{
+			EnableSQLAsyncTransaction: dynamicproperties.GetBoolPropertyFn(false),
+		},
 	), nil
 }
 

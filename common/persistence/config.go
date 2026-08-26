@@ -40,12 +40,10 @@ type (
 		DomainAuditLogTTL                        dynamicproperties.DurationPropertyFnWithDomainIDFilter
 		HistoryNodeDeleteBatchSize               dynamicproperties.IntPropertyFn
 		RateLimiterBypassCallerTypes             dynamicproperties.ListPropertyFn
-		TransactionSizeLimit                     dynamicproperties.IntPropertyFn
-		ErrorInjectionRate                       dynamicproperties.FloatPropertyFn
 	}
 )
 
-// NewDynamicConfiguration returns new config backed by the specified collection
+// NewDynamicConfiguration returns new config with default values
 func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration {
 	return &DynamicConfiguration{
 		EnableWorkflowTimerTaskCleanup:           dc.GetBoolProperty(dynamicproperties.EnableWorkflowTimerTaskCleanup),
@@ -60,12 +58,5 @@ func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration
 		DomainAuditLogTTL:                        dc.GetDurationPropertyFilteredByDomainID(dynamicproperties.DomainAuditLogTTL),
 		HistoryNodeDeleteBatchSize:               dc.GetIntProperty(dynamicproperties.HistoryNodeDeleteBatchSize),
 		RateLimiterBypassCallerTypes:             dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes),
-		TransactionSizeLimit:                     dc.GetIntProperty(dynamicproperties.TransactionSizeLimit),
-		ErrorInjectionRate:                       dc.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate),
 	}
-}
-
-// NewDefaultDynamicConfiguration returns new config with default values
-func NewDefaultDynamicConfiguration() *DynamicConfiguration {
-	return NewDynamicConfiguration(dynamicconfig.NewNopCollection())
 }

@@ -31,6 +31,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -246,7 +247,7 @@ func TestInsertDomain(t *testing.T) {
 			}
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := persistence.NewDefaultDynamicConfiguration()
+			dc := &persistence.DynamicConfiguration{}
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.InsertDomain(context.Background(), tc.row)
@@ -379,7 +380,7 @@ func TestUpdateDomain(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := persistence.NewDefaultDynamicConfiguration()
+			dc := &persistence.DynamicConfiguration{}
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.UpdateDomain(context.Background(), tc.row)
@@ -503,7 +504,7 @@ func TestSelectDomain(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := persistence.NewDefaultDynamicConfiguration()
+			dc := &persistence.DynamicConfiguration{}
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -750,7 +751,7 @@ func TestSelectDomainMetadata(t *testing.T) {
 			}
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := persistence.NewDefaultDynamicConfiguration()
+			dc := &persistence.DynamicConfiguration{}
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -921,8 +922,11 @@ func TestDeleteDomain(t *testing.T) {
 			}
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			// EnableCassandraAllConsistencyLevelDelete is false by default
-			dc := persistence.NewDefaultDynamicConfiguration()
+			dc := &persistence.DynamicConfiguration{
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool {
+					return false
+				},
+			}
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 

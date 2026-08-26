@@ -28,6 +28,9 @@ import (
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+
+	// DO NOT REMOVE THE LINE BELOW
+	_ "net/http/pprof"
 )
 
 type (
