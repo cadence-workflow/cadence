@@ -43,6 +43,8 @@ go test -race -run TestFoo ./path/to/pkg/...  # run a specific test
   - All new tests should be either plain Go tests or table-tests.
   - Round-trip test all mappers: `ToX(FromX(item)) == item`. Fuzz-test mappers following the pattern in `common/types/mapper/proto/api_test.go` and `schedule_test.go`.
 
+- **License headers**: Do **not** add license headers to new files.
+
 - **Types**:
   - Never use IDL code (`.gen/go/` or `.gen/proto/`) directly in service logic.
   - Map to `common/types` or `common/persistence` types via mappers in `common/types/mapper/`.
