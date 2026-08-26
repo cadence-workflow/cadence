@@ -37,13 +37,13 @@ func Test_buildDSN(t *testing.T) {
 	}{
 		"empty": {
 			cfg:  &config.SQL{},
-			want: "file::memory:?_pragma=busy_timeout(60000)",
+			want: "file::memory:?_pragma=busy_timeout(60000)&_timefmt=2006-01-02T15:04:05.000000000Z07:00",
 		},
 		"database name only": {
 			cfg: &config.SQL{
 				DatabaseName: "cadence.db",
 			},
-			want: "file:cadence.db?_pragma=busy_timeout(60000)&_pragma=journal_mode(WAL)",
+			want: "file:cadence.db?_pragma=busy_timeout(60000)&_pragma=journal_mode(WAL)&_timefmt=2006-01-02T15:04:05.000000000Z07:00",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -65,7 +65,7 @@ func Test_buildDSN_attrs(t *testing.T) {
 					"_FK":           "true",
 				},
 			},
-			want: "file::memory:?_busy_timeout=10&_fk=true&_pragma=busy_timeout(60000)",
+			want: "file::memory:?_busy_timeout=10&_fk=true&_pragma=busy_timeout(60000)&_timefmt=2006-01-02T15:04:05.000000000Z07:00",
 		},
 		"database name and connection attrs": {
 			cfg: &config.SQL{
@@ -74,7 +74,7 @@ func Test_buildDSN_attrs(t *testing.T) {
 					"cache1 ": "NONe ",
 				},
 			},
-			want: "file:cadence.db?_pragma=busy_timeout(60000)&_pragma=journal_mode(WAL)&cache1=NONe",
+			want: "file:cadence.db?_pragma=busy_timeout(60000)&_pragma=journal_mode(WAL)&_timefmt=2006-01-02T15:04:05.000000000Z07:00&cache1=NONe",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
