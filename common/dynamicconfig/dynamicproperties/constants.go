@@ -3374,6 +3374,12 @@ const (
 	// Allowed filters: ShardID
 	HistoryTaskDLQProcessorInterval
 
+	// HistoryTaskDLQProcessorFailoverJitterMaxDelay is the maximum jitter delay before processing failover-triggered History Task DLQ partitions
+	// KeyName: history.historyTaskDLQProcessorFailoverJitterMaxDelay
+	// Value type: Duration
+	// Default value: 1m (1 * time.Minute)
+	HistoryTaskDLQProcessorFailoverJitterMaxDelay
+
 	// OperationalConfigStorePollInterval controls how often the operational
 	// dynamic config store re-reads its snapshot from the primary database.
 	// KeyName: system.operationalConfigStorePollInterval
@@ -6115,6 +6121,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{ShardID},
 		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
 		DefaultValue: time.Minute * 30,
+	},
+	HistoryTaskDLQProcessorFailoverJitterMaxDelay: {
+		KeyName:      "history.historyTaskDLQProcessorFailoverJitterMaxDelay",
+		Description:  "HistoryTaskDLQProcessorFailoverJitterMaxDelay is the maximum jitter delay before processing failover-triggered History Task DLQ partitions",
+		DefaultValue: time.Minute,
 	},
 	OperationalConfigStorePollInterval: {
 		KeyName:      "system.operationalConfigStorePollInterval",

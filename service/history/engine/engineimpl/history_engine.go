@@ -299,6 +299,7 @@ func NewEngineWithShardContext(
 		shard,
 		100,
 		config.HistoryTaskDLQProcessorInterval,
+		config.HistoryTaskDLQProcessorFailoverJitterMaxDelay,
 		config.HistoryTaskDLQMode,
 		config.HistoryTaskDLQProcessorEnabled,
 	)

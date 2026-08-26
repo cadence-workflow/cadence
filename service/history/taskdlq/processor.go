@@ -25,6 +25,7 @@ package taskdlq
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -88,17 +89,18 @@ type (
 	MaxReadLevelFn func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey
 
 	ProcessorImpl struct {
-		shardID       int
-		mgr           persistence.HistoryTaskDLQManager
-		reinjector    TaskReinjector
-		maxReadLevel  MaxReadLevelFn
-		pageSize      int
-		interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
-		domainMode    dynamicproperties.StringPropertyFnWithDomainFilter
-		enabled       dynamicproperties.BoolPropertyFn
-		timeSource    clock.TimeSource
-		metricsClient metrics.Client
-		logger        log.Logger
+		shardID                int
+		mgr                    persistence.HistoryTaskDLQManager
+		reinjector             TaskReinjector
+		maxReadLevel           MaxReadLevelFn
+		pageSize               int
+		interval               dynamicproperties.DurationPropertyFnWithShardIDFilter
+		failoverJitterMaxDelay dynamicproperties.DurationPropertyFn
+		domainMode             dynamicproperties.StringPropertyFnWithDomainFilter
+		enabled                dynamicproperties.BoolPropertyFn
+		timeSource             clock.TimeSource
+		metricsClient          metrics.Client
+		logger                 log.Logger
 
 		status    int32
 		ctx       context.Context
@@ -126,14 +128,15 @@ type (
 		Reinjector TaskReinjector
 		// MaxReadLevel provides the exclusive upper bound for each processing round.
 		// Optional: defaults to an unbounded read (MaximumHistoryTaskKey) when nil.
-		MaxReadLevel  MaxReadLevelFn
-		PageSize      int
-		Interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
-		DomainMode    dynamicproperties.StringPropertyFnWithDomainFilter
-		Enabled       dynamicproperties.BoolPropertyFn
-		TimeSource    clock.TimeSource
-		MetricsClient metrics.Client
-		Logger        log.Logger
+		MaxReadLevel           MaxReadLevelFn
+		PageSize               int
+		Interval               dynamicproperties.DurationPropertyFnWithShardIDFilter
+		FailoverJitterMaxDelay dynamicproperties.DurationPropertyFn
+		DomainMode             dynamicproperties.StringPropertyFnWithDomainFilter
+		Enabled                dynamicproperties.BoolPropertyFn
+		TimeSource             clock.TimeSource
+		MetricsClient          metrics.Client
+		Logger                 log.Logger
 	}
 )
 
@@ -152,21 +155,22 @@ func NewProcessor(params ProcessorParams) *ProcessorImpl {
 		}
 	}
 	return &ProcessorImpl{
-		shardID:         params.ShardID,
-		mgr:             params.Manager,
-		reinjector:      params.Reinjector,
-		maxReadLevel:    maxReadLevel,
-		pageSize:        params.PageSize,
-		interval:        params.Interval,
-		domainMode:      params.DomainMode,
-		enabled:         params.Enabled,
-		timeSource:      params.TimeSource,
-		metricsClient:   params.MetricsClient,
-		logger:          params.Logger,
-		status:          common.DaemonStatusInitialized,
-		cancel:          func() {}, // no-op until Start() sets the real cancel
-		pendingFailover: make(map[string]Partition),
-		failoverSignal:  make(chan struct{}, 1),
+		shardID:                params.ShardID,
+		mgr:                    params.Manager,
+		reinjector:             params.Reinjector,
+		maxReadLevel:           maxReadLevel,
+		pageSize:               params.PageSize,
+		interval:               params.Interval,
+		failoverJitterMaxDelay: params.FailoverJitterMaxDelay,
+		domainMode:             params.DomainMode,
+		enabled:                params.Enabled,
+		timeSource:             params.TimeSource,
+		metricsClient:          params.MetricsClient,
+		logger:                 params.Logger,
+		status:                 common.DaemonStatusInitialized,
+		cancel:                 func() {}, // no-op until Start() sets the real cancel
+		pendingFailover:        make(map[string]Partition),
+		failoverSignal:         make(chan struct{}, 1),
 	}
 }
 
@@ -192,21 +196,23 @@ func NewProcessorFromShard(
 	// TODO(c-warren): Convert pageSize to a dynamic property.
 	pageSize int,
 	interval dynamicproperties.DurationPropertyFnWithShardIDFilter,
+	failoverJitterMaxDelay dynamicproperties.DurationPropertyFn,
 	domainMode dynamicproperties.StringPropertyFnWithDomainFilter,
 	enabled dynamicproperties.BoolPropertyFn,
 ) *ProcessorImpl {
 	return NewProcessor(ProcessorParams{
-		ShardID:       shard.GetShardID(),
-		Manager:       shard.GetService().GetHistoryTaskDLQManager(),
-		Reinjector:    shard,
-		MaxReadLevel:  NewShardMaxReadLevelFn(shard),
-		PageSize:      pageSize,
-		Interval:      interval,
-		DomainMode:    domainMode,
-		Enabled:       enabled,
-		TimeSource:    shard.GetTimeSource(),
-		MetricsClient: shard.GetMetricsClient(),
-		Logger:        shard.GetLogger(),
+		ShardID:                shard.GetShardID(),
+		Manager:                shard.GetService().GetHistoryTaskDLQManager(),
+		Reinjector:             shard,
+		MaxReadLevel:           NewShardMaxReadLevelFn(shard),
+		PageSize:               pageSize,
+		Interval:               interval,
+		FailoverJitterMaxDelay: failoverJitterMaxDelay,
+		DomainMode:             domainMode,
+		Enabled:                enabled,
+		TimeSource:             shard.GetTimeSource(),
+		MetricsClient:          shard.GetMetricsClient(),
+		Logger:                 shard.GetLogger(),
 	})
 }
 
@@ -297,6 +303,24 @@ func (p *ProcessorImpl) runSweep() {
 
 // processPendingFailovers drains the pending failover set and processes each partition.
 func (p *ProcessorImpl) processPendingFailovers() {
+	p.failoverMu.Lock()
+	if len(p.pendingFailover) == 0 {
+		p.failoverMu.Unlock()
+		return
+	}
+	p.failoverMu.Unlock()
+
+	if window := p.failoverJitterMaxDelay(); window > 0 {
+		delay := time.Duration(rand.Int63n(int64(window)) + 1)
+		timer := p.timeSource.NewTimer(delay)
+		select {
+		case <-timer.Chan():
+		case <-p.ctx.Done():
+			timer.Stop()
+			return
+		}
+	}
+
 	p.failoverMu.Lock()
 	parts := make([]Partition, 0, len(p.pendingFailover))
 	for _, part := range p.pendingFailover {
