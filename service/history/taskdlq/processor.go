@@ -88,6 +88,13 @@ type (
 	// of the given category in the current processing round.
 	MaxReadLevelFn func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey
 
+	// PartitionWriteTracker reports whether the shard has written DLQ rows for a
+	// partition during the current shard ownership. See
+	// shard.TaskDLQPartitionWriteTracker for the production implementation.
+	PartitionWriteTracker interface {
+		HasWrittenDLQPartition(domainID, clusterAttributeScope, clusterAttributeName string) bool
+	}
+
 	ProcessorImpl struct {
 		shardID                int
 		mgr                    persistence.HistoryTaskDLQManager
@@ -99,6 +106,7 @@ type (
 		domainMode             dynamicproperties.StringPropertyFnWithDomainFilter
 		enabled                dynamicproperties.BoolPropertyFn
 		hostLimiter            *HostLimiter
+		writeTracker           PartitionWriteTracker
 		timeSource             clock.TimeSource
 		metricsClient          metrics.Client
 		logger                 log.Logger
@@ -108,6 +116,13 @@ type (
 		cancel    context.CancelFunc
 		wg        sync.WaitGroup
 		processMu sync.Mutex // serializes ProcessShard and ProcessPartition
+
+		// verifiedEmptyMu guards verifiedEmpty.
+		verifiedEmptyMu sync.Mutex
+		// verifiedEmpty holds Partition.key()s whose GetHistoryDLQAckLevels returned no rows.
+		// A key is only trusted while writeTracker reports the partition unwritten, and is
+		// cleared whenever a shard sweep sees the partition.
+		verifiedEmpty map[string]struct{}
 
 		// failoverMu guards the failover coordination state below.
 		failoverMu sync.Mutex
@@ -136,6 +151,7 @@ type (
 		DomainMode             dynamicproperties.StringPropertyFnWithDomainFilter
 		Enabled                dynamicproperties.BoolPropertyFn
 		HostLimiter            *HostLimiter
+		WriteTracker           PartitionWriteTracker
 		TimeSource             clock.TimeSource
 		MetricsClient          metrics.Client
 		Logger                 log.Logger
@@ -167,11 +183,13 @@ func NewProcessor(params ProcessorParams) *ProcessorImpl {
 		domainMode:             params.DomainMode,
 		enabled:                params.Enabled,
 		hostLimiter:            params.HostLimiter,
+		writeTracker:           params.WriteTracker,
 		timeSource:             params.TimeSource,
 		metricsClient:          params.MetricsClient,
 		logger:                 params.Logger,
 		status:                 common.DaemonStatusInitialized,
 		cancel:                 func() {}, // no-op until Start() sets the real cancel
+		verifiedEmpty:          make(map[string]struct{}),
 		pendingFailover:        make(map[string]Partition),
 		failoverSignal:         make(chan struct{}, 1),
 	}
@@ -215,6 +233,7 @@ func NewProcessorFromShard(
 		DomainMode:             domainMode,
 		Enabled:                enabled,
 		HostLimiter:            hostLimiter,
+		WriteTracker:           shard.GetHistoryTaskDLQPartitionWriteTracker(),
 		TimeSource:             shard.GetTimeSource(),
 		MetricsClient:          shard.GetMetricsClient(),
 		Logger:                 shard.GetLogger(),
@@ -378,6 +397,26 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 		p.logger.Debug("DLQ not enabled for domain, skipping partition processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(domainID))
 		return nil
 	}
+	partition := Partition{
+		DomainID:              domainID,
+		ClusterAttributeScope: clusterAttributeScope,
+		ClusterAttributeName:  clusterAttributeName,
+	}
+	partitionKey := partition.key()
+	if p.writeTracker != nil {
+		p.verifiedEmptyMu.Lock()
+		_, verifiedEmpty := p.verifiedEmpty[partitionKey]
+		p.verifiedEmptyMu.Unlock()
+		if verifiedEmpty && !p.writeTracker.HasWrittenDLQPartition(domainID, clusterAttributeScope, clusterAttributeName) {
+			p.logger.Debug("DLQ partition previously verified empty, skipping partition processing",
+				tag.ShardID(p.shardID),
+				tag.WorkflowDomainID(domainID),
+				tag.Dynamic("cluster-attribute-scope", clusterAttributeScope),
+				tag.Dynamic("cluster-attribute-name", clusterAttributeName),
+			)
+			return nil
+		}
+	}
 
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
@@ -397,6 +436,11 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for partition (shard=%d domain=%s scope=%s name=%s): %w",
 			p.shardID, domainID, clusterAttributeScope, clusterAttributeName, err)
+	}
+	if len(ackLevels) == 0 && p.writeTracker != nil {
+		p.verifiedEmptyMu.Lock()
+		p.verifiedEmpty[partitionKey] = struct{}{}
+		p.verifiedEmptyMu.Unlock()
 	}
 	return p.processAckLevels(ctx, ackLevels)
 }
@@ -431,6 +475,16 @@ func (p *ProcessorImpl) FailoverPartitions(partitions []Partition) {
 // It manages context cancellation to allow the processor to preempt and ongoing operation.
 // Returns an error when any of the ack levels cannot be processed
 func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persistence.HistoryDLQAckLevel) error {
+	p.verifiedEmptyMu.Lock()
+	for _, al := range ackLevels {
+		delete(p.verifiedEmpty, (&Partition{
+			DomainID:              al.DomainID,
+			ClusterAttributeScope: al.ClusterAttributeScope,
+			ClusterAttributeName:  al.ClusterAttributeName,
+		}).key())
+	}
+	p.verifiedEmptyMu.Unlock()
+
 	var errs error
 	for _, al := range ackLevels {
 		// Preempt promptly when the sweep's context is canceled (e.g. a failover wants to run

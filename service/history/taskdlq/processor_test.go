@@ -25,6 +25,7 @@ package taskdlq
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -179,6 +180,44 @@ func setupProcessor(t *testing.T, ctrl *gomock.Controller) (*ProcessorImpl, *per
 		TimeSource:        clock.NewMockedTimeSource(),
 	})
 	return proc, mgr, reinjector
+}
+
+// fakeWriteTracker implements PartitionWriteTracker with a settable answer.
+type fakeWriteTracker struct {
+	mu      sync.Mutex
+	written bool
+}
+
+func (f *fakeWriteTracker) HasWrittenDLQPartition(domainID, clusterAttributeScope, clusterAttributeName string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.written
+}
+
+func (f *fakeWriteTracker) setWritten(w bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.written = w
+}
+
+func newCacheTestProcessor(t *testing.T, ctrl *gomock.Controller, tracker PartitionWriteTracker) (*ProcessorImpl, *persistence.MockHistoryTaskDLQManager) {
+	t.Helper()
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	proc := NewProcessor(ProcessorParams{
+		ShardID:                1,
+		Manager:                mgr,
+		Reinjector:             NewMockTaskReinjector(ctrl),
+		PageSize:               10,
+		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
+		FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(0),
+		DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		Enabled:                dynamicproperties.GetBoolPropertyFn(true),
+		WriteTracker:           tracker,
+		TimeSource:             clock.NewMockedTimeSource(),
+		MetricsClient:          metrics.NewNoopMetricsClient(),
+		Logger:                 testlogger.New(t),
+	})
+	return proc, mgr
 }
 
 func TestSweepIntervalIsJittered(t *testing.T) {
@@ -689,6 +728,107 @@ func TestProcessPartition_WhenGetAckLevelsFails_ReturnsError(t *testing.T) {
 	err := proc.ProcessPartition(context.Background(), "d", "s", "n")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "partition error")
+}
+
+func TestProcessPartition_VerifiedEmptySkipsRepeatQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tracker := &fakeWriteTracker{}
+	proc, mgr := newCacheTestProcessor(t, ctrl, tracker)
+	ctx := context.Background()
+
+	req := persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+	}
+
+	// First call queries and finds the partition empty.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), req).Return(nil, nil).Times(1)
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+
+	// Second call must be served from the verified-empty cache: no further DB call
+	// (the Times(1) above makes an extra call fail the test).
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+
+	// Once the shard has written the partition, the cache no longer applies.
+	tracker.setWritten(true)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), req).Return(nil, nil).Times(1)
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+}
+
+func TestProcessPartition_NonEmptyPartitionIsNotCached(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tracker := &fakeWriteTracker{}
+	proc, mgr := newCacheTestProcessor(t, ctrl, tracker)
+	ctx := context.Background()
+
+	al := persistence.HistoryDLQAckLevel{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+		TaskCategory:          persistence.HistoryTaskCategoryTransfer,
+		AckLevelVisibilityTS:  time.Unix(0, 0).UTC(),
+		AckLevelTaskID:        -1,
+	}
+	req := persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+	}
+	// Both calls must query: a partition with rows is never cached as empty.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), req).Return([]persistence.HistoryDLQAckLevel{al}, nil).Times(2)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil).Times(2)
+
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+}
+
+func TestProcessShard_ClearsVerifiedEmptyForSeenPartitions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tracker := &fakeWriteTracker{}
+	proc, mgr := newCacheTestProcessor(t, ctrl, tracker)
+	ctx := context.Background()
+
+	partReq := persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+	}
+	// Mark the partition verified-empty via the failover path.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), partReq).Return(nil, nil).Times(1)
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+	// Cache hit: no query.
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+
+	// A shard sweep sees rows for the partition (e.g. a zombie previous owner wrote
+	// them after our verification) — the sweep must clear the verified-empty entry.
+	al := persistence.HistoryDLQAckLevel{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+		TaskCategory:          persistence.HistoryTaskCategoryTransfer,
+		AckLevelVisibilityTS:  time.Unix(0, 0).UTC(),
+		AckLevelTaskID:        -1,
+	}
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{al}, nil).Times(1)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil).AnyTimes()
+	require.NoError(t, proc.ProcessShard(ctx))
+
+	// The partition must be queried again now.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), partReq).Return([]persistence.HistoryDLQAckLevel{al}, nil).Times(1)
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
 }
 
 func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {

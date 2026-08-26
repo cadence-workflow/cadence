@@ -2300,7 +2300,11 @@ func TestShardedHistoryTaskDLQWriterAckLevel(t *testing.T) {
 				}).
 				Times(tc.wantManagerCalls)
 
-			w := &shardedHistoryTaskDLQWriter{writer: dlqMgr, dlqAckLevelsCreated: make(map[dlqAckLevelKey]struct{})}
+			w := &shardedHistoryTaskDLQWriter{
+				writer:               dlqMgr,
+				dlqAckLevelsCreated:  make(map[dlqAckLevelKey]struct{}),
+				dlqPartitionsWritten: make(map[dlqPartitionKey]struct{}),
+			}
 			for i, want := range tc.wantErrs {
 				err := w.CreateHistoryDLQAckLevelIfNotExists(context.Background(), req)
 				if want == "" {
@@ -2312,4 +2316,79 @@ func TestShardedHistoryTaskDLQWriterAckLevel(t *testing.T) {
 			assert.Equal(t, tc.wantManagerCalls, managerCalls)
 		})
 	}
+}
+
+func TestShardedHistoryTaskDLQWriterPartitionWriteTracking(t *testing.T) {
+	const (
+		domainID = "dom"
+		scope    = "scope"
+		name     = "cluster-a"
+	)
+
+	newWriter := func(dlqMgr TaskDLQWriter) *shardedHistoryTaskDLQWriter {
+		return &shardedHistoryTaskDLQWriter{
+			writer:               dlqMgr,
+			dlqAckLevelsCreated:  make(map[dlqAckLevelKey]struct{}),
+			dlqPartitionsWritten: make(map[dlqPartitionKey]struct{}),
+		}
+	}
+
+	t.Run("successful task write marks partition", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		dlqMgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+		w := newWriter(dlqMgr)
+		req := persistence.CreateHistoryDLQTaskRequest{
+			DomainID:              domainID,
+			ClusterAttributeScope: scope,
+			ClusterAttributeName:  name,
+		}
+
+		require.False(t, w.HasWrittenDLQPartition(domainID, scope, name))
+		dlqMgr.EXPECT().CreateHistoryDLQTask(gomock.Any(), req).Return(nil)
+		require.NoError(t, w.CreateHistoryDLQTask(context.Background(), req))
+		require.True(t, w.HasWrittenDLQPartition(domainID, scope, name))
+	})
+
+	t.Run("successful ack-level write marks partition", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		dlqMgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+		w := newWriter(dlqMgr)
+		req := persistence.CreateHistoryDLQAckLevelRequest{
+			DomainID:              domainID,
+			ClusterAttributeScope: scope,
+			ClusterAttributeName:  name,
+			TaskCategory:          persistence.HistoryTaskCategoryTransfer,
+		}
+
+		require.False(t, w.HasWrittenDLQPartition(domainID, scope, name))
+		dlqMgr.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), req).Return(nil)
+		require.NoError(t, w.CreateHistoryDLQAckLevelIfNotExists(context.Background(), req))
+		require.True(t, w.HasWrittenDLQPartition(domainID, scope, name))
+	})
+
+	t.Run("failed writes do not mark partition", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		dlqMgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+		w := newWriter(dlqMgr)
+		taskReq := persistence.CreateHistoryDLQTaskRequest{
+			DomainID:              domainID,
+			ClusterAttributeScope: scope,
+			ClusterAttributeName:  name,
+		}
+		ackReq := persistence.CreateHistoryDLQAckLevelRequest{
+			DomainID:              domainID,
+			ClusterAttributeScope: scope,
+			ClusterAttributeName:  name,
+			TaskCategory:          persistence.HistoryTaskCategoryTransfer,
+		}
+		writeErr := errors.New("write failed")
+
+		dlqMgr.EXPECT().CreateHistoryDLQTask(gomock.Any(), taskReq).Return(writeErr)
+		require.ErrorIs(t, w.CreateHistoryDLQTask(context.Background(), taskReq), writeErr)
+		require.False(t, w.HasWrittenDLQPartition(domainID, scope, name))
+
+		dlqMgr.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), ackReq).Return(writeErr)
+		require.ErrorIs(t, w.CreateHistoryDLQAckLevelIfNotExists(context.Background(), ackReq), writeErr)
+		require.False(t, w.HasWrittenDLQPartition(domainID, scope, name))
+	})
 }
