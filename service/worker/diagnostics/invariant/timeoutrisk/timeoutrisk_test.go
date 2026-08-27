@@ -6,12 +6,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	publicservicetest "go.uber.org/cadence/.gen/go/cadence/workflowservicetest"
+	"go.uber.org/cadence/.gen/go/shared"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
+
+func globalDomain(isGlobal bool) func(client *publicservicetest.MockClient) {
+	return func(client *publicservicetest.MockClient) {
+		client.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(&shared.DescribeDomainResponse{
+			IsGlobalDomain: common.BoolPtr(isGlobal),
+		}, nil)
+	}
+}
+
+func fixedFailoverOrphanRiskThreshold(threshold time.Duration) dynamicproperties.DurationPropertyFn {
+	return func(opts ...dynamicproperties.FilterOption) time.Duration {
+		return threshold
+	}
+}
 
 func Test__Check(t *testing.T) {
 	atCapMetadata := ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
@@ -34,24 +52,81 @@ func Test__Check(t *testing.T) {
 	missingHeartbeatMetadataInBytes, err := json.Marshal(missingHeartbeatMetadata)
 	require.NoError(t, err)
 
-	twoIssuesAtCapMetadata := ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+	explicitExpirationMetadata := ActivityRetryWindowExceedsStandbyDiscardDelayMetadata{
+		EventID:              2,
+		ActivityID:           "201",
+		ActivityType:         "test-activity",
+		EstimatedRetryWindow: 1800 * time.Second,
+		Threshold:            1500 * time.Second,
+		RetryPolicy: &types.RetryPolicy{
+			ExpirationIntervalInSeconds: 1800,
+			MaximumAttempts:             0,
+		},
+	}
+	explicitExpirationMetadataInBytes, err := json.Marshal(explicitExpirationMetadata)
+	require.NoError(t, err)
+
+	unlimitedRidesToWfTimeoutMetadata := ActivityRetryWindowExceedsStandbyDiscardDelayMetadata{
+		EventID:              2,
+		ActivityID:           "202",
+		ActivityType:         "test-activity",
+		EstimatedRetryWindow: 3600 * time.Second,
+		Threshold:            1500 * time.Second,
+		RetryPolicy: &types.RetryPolicy{
+			MaximumAttempts: 0,
+		},
+	}
+	unlimitedRidesToWfTimeoutMetadataInBytes, err := json.Marshal(unlimitedRidesToWfTimeoutMetadata)
+	require.NoError(t, err)
+
+	boundedCumulativeMetadata := ActivityRetryWindowExceedsStandbyDiscardDelayMetadata{
+		EventID:              2,
+		ActivityID:           "203",
+		ActivityType:         "test-activity",
+		EstimatedRetryWindow: 6900 * time.Second,
+		Threshold:            1500 * time.Second,
+		RetryPolicy: &types.RetryPolicy{
+			InitialIntervalInSeconds: 60,
+			BackoffCoefficient:       2,
+			MaximumIntervalInSeconds: 600,
+			MaximumAttempts:          10,
+		},
+	}
+	boundedCumulativeMetadataInBytes, err := json.Marshal(boundedCumulativeMetadata)
+	require.NoError(t, err)
+
+	allThreeAtCapMetadata := ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
 		EventID:             2,
 		ActivityID:          "107",
 		ActivityType:        "test-activity",
 		StartToCloseTimeout: 1800 * time.Second,
 		WorkflowTimeout:     1800 * time.Second,
 	}
-	twoIssuesAtCapMetadataInBytes, err := json.Marshal(twoIssuesAtCapMetadata)
+	allThreeAtCapMetadataInBytes, err := json.Marshal(allThreeAtCapMetadata)
 	require.NoError(t, err)
 
-	twoIssuesMissingHeartbeatMetadata := ActivityMissingHeartbeatTimeoutMetadata{
+	allThreeMissingHeartbeatMetadata := ActivityMissingHeartbeatTimeoutMetadata{
 		EventID:             2,
 		ActivityID:          "107",
 		ActivityType:        "test-activity",
 		StartToCloseTimeout: 1800 * time.Second,
 		Threshold:           600 * time.Second,
 	}
-	twoIssuesMissingHeartbeatMetadataInBytes, err := json.Marshal(twoIssuesMissingHeartbeatMetadata)
+	allThreeMissingHeartbeatMetadataInBytes, err := json.Marshal(allThreeMissingHeartbeatMetadata)
+	require.NoError(t, err)
+
+	allThreeRetryWindowMetadata := ActivityRetryWindowExceedsStandbyDiscardDelayMetadata{
+		EventID:              2,
+		ActivityID:           "107",
+		ActivityType:         "test-activity",
+		EstimatedRetryWindow: 1800 * time.Second,
+		Threshold:            1500 * time.Second,
+		RetryPolicy: &types.RetryPolicy{
+			InitialIntervalInSeconds: 1,
+			MaximumAttempts:          0,
+		},
+	}
+	allThreeRetryWindowMetadataInBytes, err := json.Marshal(allThreeRetryWindowMetadata)
 	require.NoError(t, err)
 
 	secondActivityRiskyMetadata := ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
@@ -67,6 +142,7 @@ func Test__Check(t *testing.T) {
 	testCases := []struct {
 		name           string
 		testData       *types.GetWorkflowExecutionHistoryResponse
+		clientExpects  func(client *publicservicetest.MockClient)
 		expectedResult []invariant.InvariantCheckResult
 	}{
 		{
@@ -138,27 +214,200 @@ func Test__Check(t *testing.T) {
 			expectedResult: []invariant.InvariantCheckResult{},
 		},
 		{
-			name: "both risks fire on one scheduled event",
+			name: "retry window: explicit expiration exceeds threshold",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 7200),
+						scheduledEvent(2, "201", "test-activity", 30, 5, 10, &types.RetryPolicy{
+							ExpirationIntervalInSeconds: 1800,
+							MaximumAttempts:             0,
+						}),
+					},
+				},
+			},
+			clientExpects: globalDomain(true),
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: ActivityRetryWindowExceedsStandbyDiscardDelay.String(),
+					Reason:        RetryWindowExceedsStandbyDiscardDelay.String(),
+					Metadata:      explicitExpirationMetadataInBytes,
+				},
+			},
+		},
+		{
+			name: "retry window: unlimited attempts ride out to the workflow timeout",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 3600),
+						scheduledEvent(2, "202", "test-activity", 30, 5, 10, &types.RetryPolicy{
+							MaximumAttempts: 0,
+						}),
+					},
+				},
+			},
+			clientExpects: globalDomain(true),
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: ActivityRetryWindowExceedsStandbyDiscardDelay.String(),
+					Reason:        RetryWindowExceedsStandbyDiscardDelay.String(),
+					Metadata:      unlimitedRidesToWfTimeoutMetadataInBytes,
+				},
+			},
+		},
+		{
+			name: "retry window: single-cluster domain suppresses the issue",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 3600),
+						scheduledEvent(2, "202", "test-activity", 30, 5, 10, &types.RetryPolicy{
+							MaximumAttempts: 0,
+						}),
+					},
+				},
+			},
+			clientExpects:  globalDomain(false),
+			expectedResult: []invariant.InvariantCheckResult{},
+		},
+		{
+			name: "retry window: bounded attempts with large cumulative backoff",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 7200),
+						scheduledEvent(2, "203", "test-activity", 300, 5, 10, &types.RetryPolicy{
+							InitialIntervalInSeconds: 60,
+							BackoffCoefficient:       2,
+							MaximumIntervalInSeconds: 600,
+							MaximumAttempts:          10,
+						}),
+					},
+				},
+			},
+			clientExpects: globalDomain(true),
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: ActivityRetryWindowExceedsStandbyDiscardDelay.String(),
+					Reason:        RetryWindowExceedsStandbyDiscardDelay.String(),
+					Metadata:      boundedCumulativeMetadataInBytes,
+				},
+			},
+		},
+		{
+			name: "retry window: explicit expiration below threshold - no issue",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 3600),
+						scheduledEvent(2, "204", "test-activity", 30, 5, 10, &types.RetryPolicy{
+							ExpirationIntervalInSeconds: 600,
+							MaximumAttempts:             0,
+						}),
+					},
+				},
+			},
+			clientExpects:  globalDomain(true),
+			expectedResult: []invariant.InvariantCheckResult{},
+		},
+		{
+			name: "retry window: explicit expiration capped at workflow timeout - no issue",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 1200),
+						scheduledEvent(2, "205", "test-activity", 30, 5, 10, &types.RetryPolicy{
+							ExpirationIntervalInSeconds: 7200,
+							MaximumAttempts:             0,
+						}),
+					},
+				},
+			},
+			clientExpects:  globalDomain(true),
+			expectedResult: []invariant.InvariantCheckResult{},
+		},
+		{
+			name: "retry window: single attempt cannot retry - no issue",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 3600),
+						scheduledEvent(2, "206", "test-activity", 30, 5, 10, &types.RetryPolicy{
+							ExpirationIntervalInSeconds: 7200,
+							MaximumAttempts:             1,
+						}),
+					},
+				},
+			},
+			expectedResult: []invariant.InvariantCheckResult{},
+		},
+		{
+			name: "retry window: bounded attempts with small cumulative backoff - no issue",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 3600),
+						scheduledEvent(2, "207", "test-activity", 60, 5, 10, &types.RetryPolicy{
+							InitialIntervalInSeconds: 1,
+							BackoffCoefficient:       2,
+							MaximumAttempts:          2,
+						}),
+					},
+				},
+			},
+			clientExpects:  globalDomain(true),
+			expectedResult: []invariant.InvariantCheckResult{},
+		},
+		{
+			name: "retry window: unlimited attempts but no workflow started event - no issue",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						scheduledEvent(1, "208", "test-activity", 10, 5, 10, &types.RetryPolicy{
+							MaximumAttempts: 0,
+						}),
+					},
+				},
+			},
+			clientExpects:  globalDomain(true),
+			expectedResult: []invariant.InvariantCheckResult{},
+		},
+		{
+			name: "all three risks fire on one scheduled event",
 			testData: &types.GetWorkflowExecutionHistoryResponse{
 				History: &types.History{
 					Events: []*types.HistoryEvent{
 						startedEvent(1, 1800),
-						scheduledEvent(2, "107", "test-activity", 1800, 5, 0, nil),
+						scheduledEvent(2, "107", "test-activity", 1800, 5, 0, &types.RetryPolicy{
+							InitialIntervalInSeconds: 1,
+							MaximumAttempts:          0,
+						}),
 					},
 				},
 			},
+			clientExpects: globalDomain(true),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
 					IssueID:       0,
 					InvariantType: ActivityStartToCloseAtWorkflowTimeoutCap.String(),
 					Reason:        StartToCloseAtWorkflowTimeoutCap.String(),
-					Metadata:      twoIssuesAtCapMetadataInBytes,
+					Metadata:      allThreeAtCapMetadataInBytes,
 				},
 				{
 					IssueID:       1,
 					InvariantType: ActivityMissingHeartbeatTimeout.String(),
 					Reason:        MissingHeartbeatTimeoutForLongActivity.String(),
-					Metadata:      twoIssuesMissingHeartbeatMetadataInBytes,
+					Metadata:      allThreeMissingHeartbeatMetadataInBytes,
+				},
+				{
+					IssueID:       2,
+					InvariantType: ActivityRetryWindowExceedsStandbyDiscardDelay.String(),
+					Reason:        RetryWindowExceedsStandbyDiscardDelay.String(),
+					Metadata:      allThreeRetryWindowMetadataInBytes,
 				},
 			},
 		},
@@ -201,9 +450,17 @@ func Test__Check(t *testing.T) {
 		},
 	}
 
+	ctrl := gomock.NewController(t)
+	mockClient := publicservicetest.NewMockClient(ctrl)
+	inv := NewInvariant(Params{
+		Client:                      mockClient,
+		FailoverOrphanRiskThreshold: fixedFailoverOrphanRiskThreshold(1500 * time.Second),
+	})
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inv := NewInvariant()
+			if tc.clientExpects != nil {
+				tc.clientExpects(mockClient)
+			}
 			result, err := inv.Check(context.Background(), invariant.InvariantCheckInput{
 				WorkflowExecutionHistory: tc.testData,
 			})
@@ -215,7 +472,7 @@ func Test__Check(t *testing.T) {
 }
 
 func Test__RootCause(t *testing.T) {
-	inv := NewInvariant()
+	inv := NewInvariant(Params{})
 	result, err := inv.RootCause(context.Background(), invariant.InvariantRootCauseInput{})
 	require.NoError(t, err)
 	require.Empty(t, result)

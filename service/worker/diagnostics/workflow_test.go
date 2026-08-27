@@ -68,7 +68,7 @@ func (s *diagnosticsWorkflowTestSuite) SetupTest() {
 		svcClient:     publicClient,
 		clientBean:    mockResource.ClientBean,
 		metricsClient: mockResource.GetMetricsClient(),
-		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant()},
+		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant(timeoutrisk.Params{})},
 	}
 
 	s.T().Cleanup(func() {
@@ -503,6 +503,19 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 	}
 	missingHeartbeatMetadataInBytes, err := json.Marshal(missingHeartbeatMetadata)
 	s.NoError(err)
+	retryWindowMetadata := timeoutrisk.ActivityRetryWindowExceedsStandbyDiscardDelayMetadata{
+		EventID:              4,
+		ActivityID:           "103",
+		ActivityType:         "test-activity",
+		EstimatedRetryWindow: 1800 * time.Second,
+		Threshold:            1500 * time.Second,
+		RetryPolicy: &types.RetryPolicy{
+			InitialIntervalInSeconds: 1,
+			MaximumAttempts:          0,
+		},
+	}
+	retryWindowMetadataInBytes, err := json.Marshal(retryWindowMetadata)
+	s.NoError(err)
 	issues := []invariant.InvariantCheckResult{
 		{
 			IssueID:       0,
@@ -515,6 +528,12 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 			InvariantType: timeoutrisk.ActivityMissingHeartbeatTimeout.String(),
 			Reason:        timeoutrisk.MissingHeartbeatTimeoutForLongActivity.String(),
 			Metadata:      missingHeartbeatMetadataInBytes,
+		},
+		{
+			IssueID:       2,
+			InvariantType: timeoutrisk.ActivityRetryWindowExceedsStandbyDiscardDelay.String(),
+			Reason:        timeoutrisk.RetryWindowExceedsStandbyDiscardDelay.String(),
+			Metadata:      retryWindowMetadataInBytes,
 		},
 	}
 	timeoutRiskIssues := []*timeoutRiskIssuesResult{
@@ -532,6 +551,14 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 			Reason:        timeoutrisk.MissingHeartbeatTimeoutForLongActivity.String(),
 			Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
 				ActivityMissingHeartbeatTimeout: &missingHeartbeatMetadata,
+			},
+		},
+		{
+			IssueID:       2,
+			InvariantType: timeoutrisk.ActivityRetryWindowExceedsStandbyDiscardDelay.String(),
+			Reason:        timeoutrisk.RetryWindowExceedsStandbyDiscardDelay.String(),
+			Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
+				ActivityRetryWindowExceedsStandbyDiscardDelay: &retryWindowMetadata,
 			},
 		},
 	}

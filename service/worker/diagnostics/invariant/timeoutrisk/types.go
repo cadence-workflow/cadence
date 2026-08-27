@@ -2,13 +2,16 @@ package timeoutrisk
 
 import (
 	"time"
+
+	"github.com/uber/cadence/common/types"
 )
 
 type TimeoutRiskType string
 
 const (
-	ActivityStartToCloseAtWorkflowTimeoutCap TimeoutRiskType = "Activity StartToClose timeout at the workflow execution timeout cap"
-	ActivityMissingHeartbeatTimeout          TimeoutRiskType = "Long-running activity missing heartbeat timeout"
+	ActivityStartToCloseAtWorkflowTimeoutCap      TimeoutRiskType = "Activity StartToClose timeout at the workflow execution timeout cap"
+	ActivityMissingHeartbeatTimeout               TimeoutRiskType = "Long-running activity missing heartbeat timeout"
+	ActivityRetryWindowExceedsStandbyDiscardDelay TimeoutRiskType = "Activity retry window exceeds standby task discard delay (failover risk)"
 )
 
 func (t TimeoutRiskType) String() string {
@@ -20,6 +23,7 @@ type IssueType string
 const (
 	StartToCloseAtWorkflowTimeoutCap       IssueType = "Activity StartToClose timeout may have been silently capped at the workflow execution timeout by the server, leaving no headroom for retrying."
 	MissingHeartbeatTimeoutForLongActivity IssueType = "Long-running activity without a HeartbeatTimeout will leave worker failures undetected until the activity times out."
+	RetryWindowExceedsStandbyDiscardDelay  IssueType = "Activity retries that can extend past the standby cluster's task discard delay risk being orphaned by a failover; a workflow stuck this way needs its tasks refreshed to resume."
 )
 
 func (i IssueType) String() string {
@@ -56,9 +60,22 @@ type ActivityMissingHeartbeatTimeoutMetadata struct {
 	Threshold           time.Duration
 }
 
+// ActivityRetryWindowExceedsStandbyDiscardDelayMetadata is the metadata for an activity whose estimated
+// retry window -- how long its retry sequence could keep extending, per its retry policy -- exceeds the
+// standby cluster's task discard delay, putting it at risk of being orphaned by a failover.
+type ActivityRetryWindowExceedsStandbyDiscardDelayMetadata struct {
+	EventID              int64
+	ActivityID           string
+	ActivityType         string
+	EstimatedRetryWindow time.Duration
+	Threshold            time.Duration
+	RetryPolicy          *types.RetryPolicy
+}
+
 // TimeoutRiskIssuesMetadata is a discriminated union of the metadata for each timeout risk check,
 // with exactly one field populated per issue.
 type TimeoutRiskIssuesMetadata struct {
-	ActivityStartToCloseAtWorkflowTimeoutCap *ActivityStartToCloseAtWorkflowTimeoutCapMetadata
-	ActivityMissingHeartbeatTimeout          *ActivityMissingHeartbeatTimeoutMetadata
+	ActivityStartToCloseAtWorkflowTimeoutCap      *ActivityStartToCloseAtWorkflowTimeoutCapMetadata
+	ActivityMissingHeartbeatTimeout               *ActivityMissingHeartbeatTimeoutMetadata
+	ActivityRetryWindowExceedsStandbyDiscardDelay *ActivityRetryWindowExceedsStandbyDiscardDelayMetadata
 }
