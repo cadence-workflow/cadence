@@ -99,7 +99,10 @@ func (t *timeoutRisk) Check(ctx context.Context, params invariant.InvariantCheck
 				var err error
 				isGlobalDomain, err = t.isGlobalDomain(ctx, params.Domain)
 				if err != nil {
-					return nil, err
+					// Diagnostics are best-effort: a failed domain lookup skips this check for
+					// the run rather than failing the activity, which would discard every
+					// invariant's findings.
+					isGlobalDomain = false
 				}
 				isGlobalDomainResolved = true
 			}
@@ -156,9 +159,14 @@ func fetchWorkflowExecutionTimeoutSeconds(events []*types.HistoryEvent) int32 {
 // emitting new history events, so this window cannot be read off the scheduled event directly -- it is
 // derived the same way the server would internally: an explicit expiration wins outright; an unlimited
 // attempt budget rides out to the workflow timeout; otherwise it is the cumulative estimate for a bounded
-// attempt budget. The result is always capped at the workflow timeout when one is known.
+// attempt budget. The result is always capped at the workflow timeout.
 func estimatedRetryWindowSeconds(policy *types.RetryPolicy, startToCloseSeconds int32, workflowTimeoutSeconds int32) int32 {
 	if policy == nil {
+		return 0
+	}
+	if workflowTimeoutSeconds == 0 {
+		// No started event to establish a baseline against -- conservatively report no window,
+		// mirroring the guard on check 1. This also keeps the cumulative estimate's loop bounded.
 		return 0
 	}
 
@@ -167,34 +175,23 @@ func estimatedRetryWindowSeconds(policy *types.RetryPolicy, startToCloseSeconds 
 	case policy.GetExpirationIntervalInSeconds() > 0:
 		windowSeconds = int64(policy.GetExpirationIntervalInSeconds())
 	case policy.GetMaximumAttempts() == 0:
-		if workflowTimeoutSeconds == 0 {
-			// No started event to establish a baseline against -- conservatively report no window,
-			// mirroring the guard on check 1.
-			return 0
-		}
 		windowSeconds = int64(workflowTimeoutSeconds)
 	default:
 		windowSeconds = cumulativeRetryWindowSeconds(policy, startToCloseSeconds, workflowTimeoutSeconds)
 	}
 
-	if workflowTimeoutSeconds > 0 && windowSeconds > int64(workflowTimeoutSeconds) {
+	if windowSeconds > int64(workflowTimeoutSeconds) {
 		windowSeconds = int64(workflowTimeoutSeconds)
-	}
-	if windowSeconds > math.MaxInt32 {
-		windowSeconds = math.MaxInt32
 	}
 	return int32(windowSeconds)
 }
 
 // cumulativeRetryWindowSeconds estimates the retry window for a bounded, non-expiring retry policy as the
 // sum of the backoff delays between attempts (each capped at MaximumIntervalInSeconds when configured) plus
-// one StartToCloseTimeout per attempt. The loop exits early once the running backoff total exceeds the
-// workflow timeout (or int32 range), since the estimate is already conclusive at that point.
+// one StartToCloseTimeout per attempt. Callers guarantee a positive workflow timeout; the loop exits early
+// once the running backoff total exceeds it, since the estimate is already conclusive at that point.
 func cumulativeRetryWindowSeconds(policy *types.RetryPolicy, startToCloseSeconds int32, workflowTimeoutSeconds int32) int64 {
-	limit := int64(math.MaxInt32)
-	if workflowTimeoutSeconds > 0 {
-		limit = int64(workflowTimeoutSeconds)
-	}
+	limit := int64(workflowTimeoutSeconds)
 
 	coefficient := policy.GetBackoffCoefficient()
 	if coefficient < 1 {
@@ -212,6 +209,11 @@ func cumulativeRetryWindowSeconds(policy *types.RetryPolicy, startToCloseSeconds
 		// exponential growth can exceed int64 range, where float-to-int conversion is implementation-defined
 		if step > float64(math.MaxInt32) {
 			step = float64(math.MaxInt32)
+		}
+		// retry policy validation enforces a positive initial interval, so a well-formed policy always
+		// advances by at least a second; guard anyway so the early exit below is guaranteed to be reached
+		if step < 1 {
+			step = 1
 		}
 		backoffTotal += int64(step)
 		if backoffTotal > limit {

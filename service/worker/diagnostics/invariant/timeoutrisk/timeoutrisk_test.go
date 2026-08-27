@@ -3,6 +3,8 @@ package timeoutrisk
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -22,6 +24,12 @@ func globalDomain(isGlobal bool) func(client *publicservicetest.MockClient) {
 		client.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(&shared.DescribeDomainResponse{
 			IsGlobalDomain: common.BoolPtr(isGlobal),
 		}, nil)
+	}
+}
+
+func describeDomainFails() func(client *publicservicetest.MockClient) {
+	return func(client *publicservicetest.MockClient) {
+		client.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(nil, errors.New("describe domain failed"))
 	}
 }
 
@@ -274,6 +282,21 @@ func Test__Check(t *testing.T) {
 			expectedResult: []invariant.InvariantCheckResult{},
 		},
 		{
+			name: "retry window: DescribeDomain failure suppresses the issue instead of failing the run",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 3600),
+						scheduledEvent(2, "202", "test-activity", 30, 5, 10, &types.RetryPolicy{
+							MaximumAttempts: 0,
+						}),
+					},
+				},
+			},
+			clientExpects:  describeDomainFails(),
+			expectedResult: []invariant.InvariantCheckResult{},
+		},
+		{
 			name: "retry window: bounded attempts with large cumulative backoff",
 			testData: &types.GetWorkflowExecutionHistoryResponse{
 				History: &types.History{
@@ -369,6 +392,24 @@ func Test__Check(t *testing.T) {
 					Events: []*types.HistoryEvent{
 						scheduledEvent(1, "208", "test-activity", 10, 5, 10, &types.RetryPolicy{
 							MaximumAttempts: 0,
+						}),
+					},
+				},
+			},
+			clientExpects:  globalDomain(true),
+			expectedResult: []invariant.InvariantCheckResult{},
+		},
+		{
+			// regression: without the workflow-timeout guard, this policy makes the
+			// cumulative estimate loop ~2 billion times
+			name: "retry window: bounded attempts but no workflow started event - no issue",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						scheduledEvent(1, "209", "test-activity", 10, 5, 10, &types.RetryPolicy{
+							InitialIntervalInSeconds: 1,
+							BackoffCoefficient:       1,
+							MaximumAttempts:          math.MaxInt32,
 						}),
 					},
 				},
