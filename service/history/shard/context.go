@@ -163,8 +163,9 @@ type (
 		CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request persistence.CreateHistoryDLQAckLevelRequest) error
 	}
 
-	// TaskDLQPartitionWriteTracker reports whether this shard has written history task DLQ
-	// rows for a partition during the current shard ownership.
+	// TaskDLQPartitionWriteTracker reports whether this shard has started writing history task DLQ
+	// rows for a partition during the current shard ownership. Partitions are marked before the
+	// persistence write is issued and remain marked if the write fails.
 	TaskDLQPartitionWriteTracker interface {
 		HasWrittenDLQPartition(domainID, clusterAttributeScope, clusterAttributeName string) bool
 	}
@@ -2016,8 +2017,9 @@ type dlqPartitionKey struct {
 type shardedHistoryTaskDLQWriter struct {
 	writer TaskDLQWriter
 
-	mu                   sync.Mutex
-	dlqAckLevelsCreated  map[dlqAckLevelKey]struct{}
+	mu                  sync.Mutex
+	dlqAckLevelsCreated map[dlqAckLevelKey]struct{}
+	// dlqPartitionsWritten is marked before a partition write is issued and remains marked if it fails.
 	dlqPartitionsWritten map[dlqPartitionKey]struct{}
 }
 
@@ -2025,17 +2027,15 @@ var _ TaskDLQWriter = &shardedHistoryTaskDLQWriter{}
 var _ TaskDLQPartitionWriteTracker = &shardedHistoryTaskDLQWriter{}
 
 func (w *shardedHistoryTaskDLQWriter) CreateHistoryDLQTask(ctx context.Context, request persistence.CreateHistoryDLQTaskRequest) error {
-	if err := w.writer.CreateHistoryDLQTask(ctx, request); err != nil {
-		return err
-	}
-	w.mu.Lock()
-	w.dlqPartitionsWritten[dlqPartitionKey{
+	partitionKey := dlqPartitionKey{
 		domainID:              request.DomainID,
 		clusterAttributeScope: request.ClusterAttributeScope,
 		clusterAttributeName:  request.ClusterAttributeName,
-	}] = struct{}{}
+	}
+	w.mu.Lock()
+	w.dlqPartitionsWritten[partitionKey] = struct{}{}
 	w.mu.Unlock()
-	return nil
+	return w.writer.CreateHistoryDLQTask(ctx, request)
 }
 
 func (w *shardedHistoryTaskDLQWriter) CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request persistence.CreateHistoryDLQAckLevelRequest) error {
@@ -2051,9 +2051,9 @@ func (w *shardedHistoryTaskDLQWriter) CreateHistoryDLQAckLevelIfNotExists(ctx co
 		taskCategoryID:        request.TaskCategory.ID(),
 	}
 	w.mu.Lock()
+	w.dlqPartitionsWritten[partitionKey] = struct{}{}
 	_, cached := w.dlqAckLevelsCreated[ackLevelKey]
 	if cached {
-		w.dlqPartitionsWritten[partitionKey] = struct{}{}
 		w.mu.Unlock()
 		return nil
 	}
@@ -2063,11 +2063,12 @@ func (w *shardedHistoryTaskDLQWriter) CreateHistoryDLQAckLevelIfNotExists(ctx co
 	}
 	w.mu.Lock()
 	w.dlqAckLevelsCreated[ackLevelKey] = struct{}{}
-	w.dlqPartitionsWritten[partitionKey] = struct{}{}
 	w.mu.Unlock()
 	return nil
 }
 
+// HasWrittenDLQPartition reports whether either write method has started a write for the partition.
+// The partition is reported as written before persistence is called, even if that call later fails.
 func (w *shardedHistoryTaskDLQWriter) HasWrittenDLQPartition(domainID, clusterAttributeScope, clusterAttributeName string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
