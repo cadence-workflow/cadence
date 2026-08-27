@@ -1,3 +1,13 @@
+# All CI services run the same test image. Defining it once lets a pre-built image be
+# reused instead of rebuilding the apt, pip and `go mod download` layers per service.
+# The build block stays so `docker compose run` still builds the image on demand when it
+# is not already present, which is what happens outside CI.
+x-test-image: &test-image
+  image: cadence-ci-test:local${DOCKERFILE_SUFFIX}
+  build:
+    context: ../../
+    dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+
 services:
   cassandra:
     image: cassandra:4.1.1
@@ -141,9 +151,7 @@ services:
           - pinot-server
 
   integration-test-cassandra-pinot:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
