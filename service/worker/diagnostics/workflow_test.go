@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/testsuite"
@@ -440,6 +441,23 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureRootCause() {
 	result, err := retrieveFailureRootCause(rootCause)
 	s.NoError(err)
 	s.ElementsMatch(failureRootCause, result)
+}
+
+func TestRetrieveFailureRootCauseWorkflowSizeExceedsLimit(t *testing.T) {
+	result, err := retrieveFailureRootCause([]invariant.InvariantRootCauseResult{
+		{
+			IssueID:   1,
+			RootCause: invariant.RootCauseTypeWorkflowSizeExceedsLimit,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []*failureRootCauseResult{
+		{
+			IssueID:       1,
+			RootCauseType: invariant.RootCauseTypeWorkflowSizeExceedsLimit.String(),
+		},
+	}, result)
 }
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveRetryIssues() {

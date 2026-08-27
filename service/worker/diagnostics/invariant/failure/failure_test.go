@@ -35,7 +35,8 @@ import (
 )
 
 const (
-	testDomain = "test-domain"
+	testDomain             = "test-domain"
+	largeHistoryEventCount = int64(200001)
 )
 
 func Test__Check(t *testing.T) {
@@ -43,6 +44,12 @@ func Test__Check(t *testing.T) {
 		Identity: "localhost",
 	}
 	metadataInBytes, err := json.Marshal(metadata)
+	require.NoError(t, err)
+	largeHistoryMetadata := FailureIssuesMetadata{
+		Identity:          "localhost",
+		HistoryEventCount: largeHistoryEventCount,
+	}
+	largeHistoryMetadataInBytes, err := json.Marshal(largeHistoryMetadata)
 	require.NoError(t, err)
 	actMetadata := FailureIssuesMetadata{
 		Identity:            "localhost",
@@ -108,6 +115,19 @@ func Test__Check(t *testing.T) {
 			},
 			err: nil,
 		},
+		{
+			name:     "workflow history size limit exceeded",
+			testData: historySizeLimitExceededHistory(),
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: WorkflowFailed.String(),
+					Reason:        WorkflowSizeExceedsLimit.String(),
+					Metadata:      largeHistoryMetadataInBytes,
+				},
+			},
+			err: nil,
+		},
 	}
 	for _, tc := range testCases {
 		inv := NewInvariant()
@@ -118,6 +138,29 @@ func Test__Check(t *testing.T) {
 		require.Equal(t, tc.err, err)
 		require.Equal(t, len(tc.expectedResult), len(result))
 		require.ElementsMatch(t, tc.expectedResult, result)
+	}
+}
+
+func historySizeLimitExceededHistory() *types.GetWorkflowExecutionHistoryResponse {
+	return &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					ID: 10,
+					DecisionTaskCompletedEventAttributes: &types.DecisionTaskCompletedEventAttributes{
+						Identity: "localhost",
+					},
+				},
+				{
+					ID: largeHistoryEventCount,
+					WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{
+						Reason:                       common.StringPtr(common.FailureReasonSizeExceedsLimit),
+						Details:                      []byte("Workflow history size / count exceeds limit."),
+						DecisionTaskCompletedEventID: 10,
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -235,6 +278,11 @@ func Test__RootCause(t *testing.T) {
 	}
 	metadataInBytes, err := json.Marshal(metadata)
 	require.NoError(t, err)
+	largeHistoryMetadataInBytes, err := json.Marshal(FailureIssuesMetadata{
+		Identity:          "localhost",
+		HistoryEventCount: largeHistoryEventCount,
+	})
+	require.NoError(t, err)
 	testCases := []struct {
 		name           string
 		input          []invariant.InvariantCheckResult
@@ -286,6 +334,22 @@ func Test__RootCause(t *testing.T) {
 				IssueID:   0,
 				RootCause: invariant.RootCauseTypeServiceSidePanic,
 				Metadata:  metadataInBytes,
+			}},
+			err: nil,
+		},
+		{
+			name: "workflow history size limit exceeded",
+			input: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: WorkflowFailed.String(),
+					Reason:        WorkflowSizeExceedsLimit.String(),
+					Metadata:      largeHistoryMetadataInBytes,
+				}},
+			expectedResult: []invariant.InvariantRootCauseResult{{
+				IssueID:   0,
+				RootCause: invariant.RootCauseTypeWorkflowSizeExceedsLimit,
+				Metadata:  largeHistoryMetadataInBytes,
 			}},
 			err: nil,
 		},
