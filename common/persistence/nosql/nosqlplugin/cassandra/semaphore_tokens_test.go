@@ -66,7 +66,7 @@ func TestSemaphoreSentinelsMatchTheOwnerIDEncoding(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			want := semaphore.Owner{
-				WorkflowID: emptyWorkflowID,
+				WorkflowID: "",
 				RunID:      emptyRunID,
 				HoldID:     tc.holdID,
 			}

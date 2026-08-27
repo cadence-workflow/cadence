@@ -40,14 +40,19 @@ const (
 // Placeholders for key columns that do not apply to a given row kind. Non-key columns are
 // bound to gogocql.UnsetValue instead.
 //
-// The two text values are themselves owner_ids, encoded by common/semaphore from
-// emptyWorkflowID, emptyRunID, and a negative hold id. They share columns with live owner_ids,
-// so they must never equal one. The -1 and -2 only keep the two sentinels apart.
+// The two text values are themselves owner_ids, encoded by common/semaphore from an empty
+// workflow id, emptyRunID, and a negative hold id. They share columns with live owner_ids, so
+// they must never equal one, and two independent things stop them from doing so. The frontend
+// rejects an empty workflow id, so no hold can have one. Run ids are server-generated v4
+// UUIDs, and emptyRunID has 'f' in both its version and variant nibbles, which uuid.New()
+// cannot produce. The -1 and -2 carry no such guarantee; they only keep the two apart.
+//
+// The "0:" is the encoding's length prefix for the empty workflow id, not padding.
 const (
 	emptyTokenID = -1 // token_id on owner rows (key); negative, never a real slot id
 
-	ownerNoneSentinel = "36:20000000-0000-f000-f000-000000000000:30000000-0000-f000-f000-000000000000:-1" // owner_id on token rows (key)
-	freeSentinel      = "36:20000000-0000-f000-f000-000000000000:30000000-0000-f000-f000-000000000000:-2" // holder of an unheld token row (LWT-compared)
+	ownerNoneSentinel = "0::30000000-0000-f000-f000-000000000000:-1" // owner_id on token rows (key)
+	freeSentinel      = "0::30000000-0000-f000-f000-000000000000:-2" // holder of an unheld token row (LWT-compared)
 )
 
 // InsertSemaphoreTokens seeds a bucket with free token rows for the given TokenIDs

@@ -79,8 +79,6 @@ const (
 const (
 	// Special Domains related constants
 	emptyDomainID = "10000000-0000-f000-f000-000000000000"
-	// Special Workflow IDs
-	emptyWorkflowID = "20000000-0000-f000-f000-000000000000"
 	// Special Run IDs
 	emptyRunID     = "30000000-0000-f000-f000-000000000000"
 	permanentRunID = "30000000-0000-f000-f000-000000000001"
