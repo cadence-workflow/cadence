@@ -77,13 +77,7 @@ func newProcessor(
 	params newProcessorParams,
 ) *ProcessorImpl {
 	t.Helper()
-	maxReadLevel := params.MaxReadLevel
-	if maxReadLevel == nil {
-		maxReadLevel = func(persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
-			return persistence.MaximumHistoryTaskKey
-		}
-	}
-	proc, err := NewProcessor(ProcessorParams{
+	return NewProcessor(ProcessorParams{
 		ShardID:       1,
 		Manager:       params.Manager,
 		Reinjector:    params.Reinjector,
@@ -94,10 +88,8 @@ func newProcessor(
 		TimeSource:    params.TimeSource,
 		MetricsClient: metrics.NewNoopMetricsClient(),
 		Logger:        testlogger.New(t),
-		MaxReadLevel:  maxReadLevel,
+		MaxReadLevel:  params.MaxReadLevel,
 	})
-	require.NoError(t, err)
-	return proc
 }
 
 func setupProcessor(t *testing.T, ctrl *gomock.Controller) (*ProcessorImpl, *persistence.MockHistoryTaskDLQManager, *MockTaskReinjector) {
@@ -319,38 +311,29 @@ func TestNewShardMaxReadLevelFn(t *testing.T) {
 	assert.Equal(t, timerLevel, fn(persistence.HistoryTaskCategoryTimer))
 }
 
-// TestNewProcessor_ErrorsWhenMaxReadLevelNil validates that a missing MaxReadLevel is
-// reported as an error the caller can act on (fail the process, or proceed without the
-// processor) rather than a panic or a silent default.
-func TestNewProcessor_ErrorsWhenMaxReadLevelNil(t *testing.T) {
-	proc, err := NewProcessor(ProcessorParams{})
-	assert.Nil(t, proc)
-	assert.ErrorIs(t, err, ErrMaxReadLevelRequired)
-}
-
-// TestProcessAckLevel_FallsBackToUnboundedReadWhenMaxReadLevelNil validates the defensive
-// fallback: a processor holding no MaxReadLevelFn reads up to MaximumHistoryTaskKey (the
-// pre-#8450 behavior) instead of panicking. NewProcessor reports a nil fn as an error, so
-// this state is only reachable when the processor is constructed directly.
-func TestProcessAckLevel_FallsBackToUnboundedReadWhenMaxReadLevelNil(t *testing.T) {
+// TestProcessShard_DefaultsToUnboundedReadWhenMaxReadLevelNil validates that NewProcessor
+// defaults a nil MaxReadLevel to an unbounded read (MaximumHistoryTaskKey): the processor
+// is never optional and never fails construction; a missing bound only means reading more
+// than strictly necessary.
+func TestProcessShard_DefaultsToUnboundedReadWhenMaxReadLevelNil(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
 	reinjector := NewMockTaskReinjector(ctrl)
-	p := &ProcessorImpl{
-		shardID:       1,
-		mgr:           mgr,
-		reinjector:    reinjector,
-		pageSize:      10,
-		domainMode:    dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
-		metricsClient: metrics.NewNoopMetricsClient(),
-		logger:        testlogger.New(t),
-		ctx:           context.Background(), // used by advanceAckLevel after a successful page
-	}
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        reinjector,
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+		// MaxReadLevel deliberately nil: NewProcessor must default it.
+	})
 
 	al := baseAckLevel(1)
 	tasks := []persistence.Task{newMockTask(ctrl, 10)}
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{al}, nil)
 	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), persistence.HistoryDLQGetTasksRequest{
 		ShardID:               al.ShardID,
 		DomainID:              al.DomainID,
@@ -365,7 +348,7 @@ func TestProcessAckLevel_FallsBackToUnboundedReadWhenMaxReadLevelNil(t *testing.
 	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil)
 	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
 
-	require.NoError(t, p.processAckLevel(context.Background(), al))
+	require.NoError(t, proc.ProcessShard(context.Background()))
 }
 
 func TestProcessShard_WhenNoAckLevels_ReturnsNil(t *testing.T) {

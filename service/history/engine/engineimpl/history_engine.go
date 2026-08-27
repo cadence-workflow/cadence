@@ -295,22 +295,13 @@ func NewEngineWithShardContext(
 	replicationMessageHandler := replication.NewDLQHandler(shard, replicationTaskExecutors)
 	historyEngImpl.replicationDLQHandler = replicationMessageHandler
 
-	dlqProcessor, err := taskdlq.NewProcessorFromShard(
+	historyEngImpl.dlqProcessor = taskdlq.NewProcessorFromShard(
 		shard,
 		100,
 		config.HistoryTaskDLQProcessorInterval,
 		config.HistoryTaskDLQMode,
 		config.HistoryTaskDLQProcessorEnabled,
 	)
-	if err != nil {
-		// Run the shard without a history task DLQ processor if construction fails
-		logger.Error("Failed to create history task DLQ processor; DLQ re-injection disabled for this shard",
-			tag.ShardID(shard.GetShardID()),
-			tag.Error(err),
-		)
-	} else {
-		historyEngImpl.dlqProcessor = dlqProcessor
-	}
 
 	shard.SetEngine(historyEngImpl)
 	return historyEngImpl
@@ -326,9 +317,7 @@ func (e *historyEngineImpl) Start() {
 	for _, processor := range e.queueProcessors {
 		processor.Start()
 	}
-	if e.dlqProcessor != nil {
-		e.dlqProcessor.Start()
-	}
+	e.dlqProcessor.Start()
 	e.replicationDLQHandler.Start()
 	e.replicationMetricsEmitter.Start()
 
@@ -356,9 +345,7 @@ func (e *historyEngineImpl) Stop() {
 	for _, processor := range e.queueProcessors {
 		processor.Stop()
 	}
-	if e.dlqProcessor != nil {
-		e.dlqProcessor.Stop()
-	}
+	e.dlqProcessor.Stop()
 	e.replicationDLQHandler.Stop()
 	e.replicationMetricsEmitter.Stop()
 
