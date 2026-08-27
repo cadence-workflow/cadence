@@ -37,17 +37,17 @@ const (
 	rowTypeSemaphoreOwner        // reverse index row, keyed by owner_id (owner_id -> held_token)
 )
 
-// Placeholders for key columns that do not apply to a given row kind. Non-key columns
-// that do not apply are bound to gogocql.UnsetValue instead.
+// Placeholders for key columns that do not apply to a given row kind. Non-key columns are
+// bound to gogocql.UnsetValue instead.
 //
-// The text values are PROVISIONAL: only freeSentinel is LWT-compared, so only its literal
-// must be one the owner_id encoding can never produce.
-// TODO: finalize the text sentinels with the owner_id encoding.
+// The two text values are themselves owner_ids, encoded by common/semaphore from
+// emptyWorkflowID, emptyRunID, and a negative hold id. They share columns with live owner_ids,
+// so they must never equal one. The -1 and -2 only keep the two sentinels apart.
 const (
 	emptyTokenID = -1 // token_id on owner rows (key); negative, never a real slot id
 
-	ownerNoneSentinel = "__NONE__" // owner_id on token rows (key)
-	freeSentinel      = "__FREE__" // holder of an unheld token row (LWT-compared)
+	ownerNoneSentinel = "36:20000000-0000-f000-f000-000000000000:30000000-0000-f000-f000-000000000000:-1" // owner_id on token rows (key)
+	freeSentinel      = "36:20000000-0000-f000-f000-000000000000:30000000-0000-f000-f000-000000000000:-2" // holder of an unheld token row (LWT-compared)
 )
 
 // InsertSemaphoreTokens seeds a bucket with free token rows for the given TokenIDs
@@ -74,8 +74,8 @@ func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.Se
 			row.Bucket,
 			rowTypeSemaphoreToken, // type = 0 (forward "token" row)
 			row.TokenID,
-			ownerNoneSentinel,  // owner_id key = __NONE__
-			freeSentinel,       // holder = __FREE__, the slot is unheld
+			ownerNoneSentinel,  // owner_id key = the reserved "no owner" value
+			freeSentinel,       // holder = the reserved "free" value, the slot is unheld
 			gogocql.UnsetValue, // held_token does not apply to a token row
 			row.UpdatedTime,
 		)

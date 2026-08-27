@@ -21,7 +21,6 @@
 package semaphore
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,16 +39,11 @@ func TestOwnerStringRoundTrip(t *testing.T) {
 			want:  "4:wf-1:run-1:7",
 		},
 		{
-			// The worked example from the design doc: without the length prefix this would
-			// split into the wrong four pieces.
 			name:  "workflow id containing the separator",
 			owner: Owner{WorkflowID: "a:b", RunID: "run-1", HoldID: 7},
 			want:  "3:a:b:run-1:7",
 		},
 		{
-			// Five consecutive colons: the prefix separator, the three the workflow id is
-			// made of, and the separator that closes it. Only the declared length of 3 tells
-			// a reader where the workflow id ends.
 			name:  "workflow id is only separators",
 			owner: Owner{WorkflowID: ":::", RunID: "run-1", HoldID: 7},
 			want:  "3:::::run-1:7",
@@ -72,9 +66,6 @@ func TestOwnerStringRoundTrip(t *testing.T) {
 			want:  "0::run-1:3",
 		},
 		{
-			// A run id is a UUID in practice, but the encoding does not depend on that: the
-			// length prefix pins where the workflow id stops and the trailing decimal pins
-			// where the hold id starts, so anything in between round-trips.
 			name:  "run id containing the separator",
 			owner: Owner{WorkflowID: "wf", RunID: "run:1", HoldID: 7},
 			want:  "2:wf:run:1:7",
@@ -93,11 +84,6 @@ func TestOwnerStringRoundTrip(t *testing.T) {
 			name:  "zero hold id",
 			owner: Owner{WorkflowID: "wf", RunID: "run-1", HoldID: 0},
 			want:  "2:wf:run-1:0",
-		},
-		{
-			name:  "negative hold id",
-			owner: Owner{WorkflowID: "wf", RunID: "run-1", HoldID: -8},
-			want:  "2:wf:run-1:-8",
 		},
 		{
 			name:  "max hold id",
@@ -130,6 +116,11 @@ func TestParseOwnerRejectsMalformed(t *testing.T) {
 		{name: "length prefix with leading zeros", ownerID: "004:wf-1:run-1:1"},
 		{name: "length prefix with a plus sign", ownerID: "+4:wf-1:run-1:1"},
 		{name: "length overruns the string", ownerID: "99:wf:run-1:1"},
+		// MaxInt64 clears the earlier checks, so the bounds guard is all that stops a slice
+		// panic. Writing that guard as length+1 would overflow and skip it.
+		{name: "length prefix is max int64", ownerID: "9223372036854775807:wf:run:1"},
+		{name: "length prefix is one below max int64", ownerID: "9223372036854775806:wf:run:1"},
+		{name: "length prefix overflows int", ownerID: "99999999999999999999:wf:run:1"},
 		{name: "length leaves no room for a separator", ownerID: "2:wf"},
 		{name: "no separator after the workflow id", ownerID: "2:wfrun-1:1"},
 		{name: "missing hold id", ownerID: "2:wf:run-1"},
@@ -144,29 +135,6 @@ func TestParseOwnerRejectsMalformed(t *testing.T) {
 			_, err := ParseOwner(tc.ownerID)
 			assert.Error(t, err)
 		})
-	}
-}
-
-func TestOwnerIDNeverCollidesWithStorageSentinels(t *testing.T) {
-	// semaphore_tokens stores "__FREE__" and "__NONE__" in the same columns an owner_id can
-	// occupy, and "__FREE__" is compared by the grant's LWT. An encoded owner_id always starts
-	// with a decimal digit, so it can never equal either.
-	for _, sentinel := range []string{"__FREE__", "__NONE__"} {
-		_, err := ParseOwner(sentinel)
-		assert.Error(t, err, "sentinel %q must not parse as an owner_id", sentinel)
-	}
-
-	owners := []Owner{
-		{WorkflowID: "__FREE__", RunID: "run-1", HoldID: 1},
-		{WorkflowID: "", RunID: "", HoldID: 0},
-	}
-	for _, o := range owners {
-		encoded := o.String()
-		assert.NotEqual(t, "__FREE__", encoded)
-		assert.NotEqual(t, "__NONE__", encoded)
-		assert.True(t, encoded[0] >= '0' && encoded[0] <= '9',
-			"an encoded owner_id must start with a digit, got %q", encoded)
-		assert.False(t, strings.HasPrefix(encoded, "_"))
 	}
 }
 
@@ -190,18 +158,14 @@ func FuzzOwnerStringRoundTrip(f *testing.F) {
 	})
 }
 
-// FuzzParseOwnerReencodes checks the direction the canonical-form rules exist for: any string
-// ParseOwner accepts must encode back to itself. Without it a caller could read a stored
-// owner_id, re-encode it, and get different bytes — and the release guard, comparing bytes,
-// would stop matching the row those bytes came from.
-func FuzzParseOwnerReencodes(f *testing.F) {
+// FuzzParseOwnerAcceptsOnlyCanonicalIDs checks that every string ParseOwner accepts is exactly
+// what String would have written; strings it rejects are skipped. That is what stops one hold
+// from having more than one spelling, which matters because the release guard compares bytes.
+func FuzzParseOwnerAcceptsOnlyCanonicalIDs(f *testing.F) {
 	f.Add("4:wf-1:run-1:7")
 	f.Add("0::run-1:3")
 	f.Add("3:a:b::c::-9")
 	f.Add("2:wf:run-1:-8")
-	// Non-canonical spellings that are otherwise structurally valid, so they reach the
-	// canonical checks instead of failing earlier. They must be rejected, never accepted and
-	// silently re-encoded into different bytes. "wfabcde" is exactly the 7 bytes "007" claims.
 	f.Add("007:wfabcde:run-1:7")
 	f.Add("+7:wfabcde:run-1:7")
 	f.Add("2:wf:run-1:007")
@@ -209,7 +173,7 @@ func FuzzParseOwnerReencodes(f *testing.F) {
 	f.Fuzz(func(t *testing.T, ownerID string) {
 		owner, err := ParseOwner(ownerID)
 		if err != nil {
-			return // a rejected string carries no obligation
+			return // a rejected string owes nothing
 		}
 		require.Equal(t, ownerID, owner.String())
 	})

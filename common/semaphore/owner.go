@@ -39,7 +39,7 @@ type Owner struct {
 	RunID string
 	// HoldID is the id of the event that started the acquire. Taking it from the run's
 	// history rather than minting one is what lets an owner_id survive replay, retries,
-	// and failover.
+	// and failover. Event ids start at 1, though the encoding does not enforce it.
 	HoldID int64
 }
 
@@ -99,8 +99,8 @@ func ParseOwner(ownerID string) (Owner, error) {
 	}
 
 	rest := ownerID[sep+1:]
-	// The workflow id itself, plus the separator that must follow it.
-	if len(rest) < length+1 {
+	// The declared length must fit in rest, with a byte to spare for the separator.
+	if length >= len(rest) {
 		return Owner{}, fmt.Errorf("owner_id %q is shorter than its length prefix %d claims", ownerID, length)
 	}
 	workflowID := rest[:length]

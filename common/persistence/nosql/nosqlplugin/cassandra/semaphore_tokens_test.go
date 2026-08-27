@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
+	"github.com/uber/cadence/common/semaphore"
 )
 
 const (
@@ -48,6 +49,30 @@ func newTestSemaphoreTokenDB(t *testing.T, session gocql.Session) *CDB {
 	logger := testlogger.New(t)
 	dc := &persistence.DynamicConfiguration{}
 	return NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
+}
+
+// TestSemaphoreSentinelsMatchTheOwnerIDEncoding checks each literal is still what the encoding
+// produces from its parts. The literals are hardcoded, so a change to the encoding would
+// otherwise leave them stale with nothing to catch it.
+func TestSemaphoreSentinelsMatchTheOwnerIDEncoding(t *testing.T) {
+	tests := []struct {
+		name     string
+		sentinel string
+		holdID   int64
+	}{
+		{name: "owner none", sentinel: ownerNoneSentinel, holdID: -1},
+		{name: "free", sentinel: freeSentinel, holdID: -2},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			want := semaphore.Owner{
+				WorkflowID: emptyWorkflowID,
+				RunID:      emptyRunID,
+				HoldID:     tc.holdID,
+			}
+			assert.Equal(t, want.String(), tc.sentinel)
+		})
+	}
 }
 
 func TestInsertSemaphoreTokens(t *testing.T) {
@@ -72,9 +97,9 @@ func TestInsertSemaphoreTokens(t *testing.T) {
 		assert.Len(t, session.batches, 1)
 		assert.Equal(t, []string{
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 1, __NONE__, __FREE__, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
+				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 1, ` + ownerNoneSentinel + `, ` + freeSentinel + `, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 2, __NONE__, __FREE__, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
+				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 2, ` + ownerNoneSentinel + `, ` + freeSentinel + `, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 		}, session.batches[0].queries)
 		assert.True(t, session.iter.closed)
 	})
@@ -129,7 +154,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		assert.Equal(t, []string{
 			`UPDATE semaphore_tokens SET holder = owner-abc, updated_time = ` + now.UTC().Format(time.RFC3339) + ` ` +
 				`WHERE domain_id = 10000000-1000-f000-f000-000000000000 AND semaphore_name = sem-1 AND bucket = 0 ` +
-				`AND type = 0 AND token_id = 5 AND owner_id = __NONE__ IF holder = __FREE__`,
+				`AND type = 0 AND token_id = 5 AND owner_id = ` + ownerNoneSentinel + ` IF holder = ` + freeSentinel,
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
 				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, -1, owner-abc, {}, 5, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 		}, session.batches[0].queries)
@@ -224,9 +249,9 @@ func TestReleaseSemaphoreToken(t *testing.T) {
 		assert.True(t, applied)
 		assert.Len(t, session.batches, 1)
 		assert.Equal(t, []string{
-			`UPDATE semaphore_tokens SET holder = __FREE__, updated_time = ` + now.UTC().Format(time.RFC3339) + ` ` +
+			`UPDATE semaphore_tokens SET holder = ` + freeSentinel + `, updated_time = ` + now.UTC().Format(time.RFC3339) + ` ` +
 				`WHERE domain_id = 10000000-1000-f000-f000-000000000000 AND semaphore_name = sem-1 AND bucket = 0 ` +
-				`AND type = 0 AND token_id = 5 AND owner_id = __NONE__ IF holder = owner-abc`,
+				`AND type = 0 AND token_id = 5 AND owner_id = ` + ownerNoneSentinel + ` IF holder = owner-abc`,
 			`DELETE FROM semaphore_tokens ` +
 				`WHERE domain_id = 10000000-1000-f000-f000-000000000000 AND semaphore_name = sem-1 AND bucket = 0 ` +
 				`AND type = 1 AND token_id = -1 AND owner_id = owner-abc`,
