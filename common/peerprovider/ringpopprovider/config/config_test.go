@@ -1,23 +1,3 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
 package config
 
 import (
@@ -25,7 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/ringpop-go/discovery/statichosts"
 	"gopkg.in/yaml.v2"
 )
 
@@ -59,9 +38,7 @@ func TestCustomMode(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "test", cfg.Name)
 	assert.Equal(t, BootstrapModeCustom, cfg.BootstrapMode)
-	assert.NotNil(t, cfg.Validate())
-	cfg.DiscoveryProvider = statichosts.New("127.0.0.1")
-	assert.Nil(t, cfg.Validate())
+	assert.NotNil(t, cfg.Validate(), "custom bootstrap mode should not be supported")
 }
 
 func TestInvalidConfig(t *testing.T) {

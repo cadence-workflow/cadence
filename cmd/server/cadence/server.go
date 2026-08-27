@@ -1,23 +1,3 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
 package cadence
 
 import (
@@ -61,7 +41,6 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
 	pnt "github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/rpc"
@@ -92,6 +71,7 @@ type (
 		scope                    tally.Scope
 		metricsClient            metrics.Client
 		rpcFactory               rpc.Factory
+		peerProvider             membership.PeerProvider
 		archivalMetadata         archiver.ArchivalMetadata
 		archiverProvider         provider.ArchiverProvider
 	}
@@ -99,7 +79,7 @@ type (
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, dynamicCollection *dynamicconfig.Collection, operationalConfigStore configstore.Client, operationalDynamicConfig *dynamicconfig.Collection, scope tally.Scope, metricsClient metrics.Client, rpcFactory rpc.Factory, archivalMetadata archiver.ArchivalMetadata, archiverProvider provider.ArchiverProvider) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, dynamicCollection *dynamicconfig.Collection, operationalConfigStore configstore.Client, operationalDynamicConfig *dynamicconfig.Collection, scope tally.Scope, metricsClient metrics.Client, rpcFactory rpc.Factory, peerProvider membership.PeerProvider, archivalMetadata archiver.ArchivalMetadata, archiverProvider provider.ArchiverProvider) common.Daemon {
 	return &server{
 		cfg:                      cfg,
 		name:                     service,
@@ -113,6 +93,7 @@ func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *
 		scope:                    scope,
 		metricsClient:            metricsClient,
 		rpcFactory:               rpcFactory,
+		peerProvider:             peerProvider,
 		archivalMetadata:         archivalMetadata,
 		archiverProvider:         archiverProvider,
 	}
@@ -178,20 +159,8 @@ func (s *server) startService() common.Daemon {
 
 	params.RPCFactory = s.rpcFactory
 
-	peerProvider, err := ringpopprovider.New(
-		params.Name,
-		&s.cfg.Ringpop,
-		s.rpcFactory.GetTChannel(),
-		membership.PortMap{
-			membership.PortGRPC:     svcCfg.RPC.GRPCPort,
-			membership.PortTchannel: svcCfg.RPC.Port,
-		},
-		params.Logger,
-	)
-
-	if err != nil {
-		s.logger.Fatal("ringpop provider failed", tag.Error(err))
-	}
+	// PeerProvider is now injected via Fx (ringpopfx.Module) instead of manual initialization
+	peerProvider := s.peerProvider
 
 	shardDistributorClient := s.createShardDistributorClient(params)
 	var spectator spectatorclient.Spectator

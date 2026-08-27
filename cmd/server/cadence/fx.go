@@ -1,25 +1,3 @@
-// The MIT License (MIT)
-
-// Copyright (c) 2017-2020 Uber Technologies Inc.
-
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
 package cadence
 
 import (
@@ -43,8 +21,10 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/logfx"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/metricsfx"
+	"github.com/uber/cadence/common/peerprovider/ringpopprovider/ringpopfx"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/rpc/rpcfx"
@@ -60,6 +40,7 @@ var _commonModule = fx.Options(
 	metricsfx.Module,
 	clockfx.Module,
 	rpcfx.Module,
+	ringpopfx.Module,
 	archiverfx.Module)
 
 // Module provides a cadence server initialization with root components.
@@ -104,6 +85,7 @@ type AppParams struct {
 	Scope                    tally.Scope
 	MetricsClient            metrics.Client
 	RPCFactory               rpc.Factory
+	PeerProvider             membership.PeerProvider
 	ArchivalMetadata         archiver.ArchivalMetadata
 	ArchiverProvider         provider.ArchiverProvider
 }
@@ -122,6 +104,7 @@ func NewApp(params AppParams) *App {
 		scope:                    params.Scope,
 		metricsClient:            params.MetricsClient,
 		rpcFactory:               params.RPCFactory,
+		peerProvider:             params.PeerProvider,
 		archivalMetadata:         params.ArchivalMetadata,
 		archiverProvider:         params.ArchiverProvider,
 	}
@@ -145,6 +128,7 @@ type App struct {
 	scope                    tally.Scope
 	metricsClient            metrics.Client
 	rpcFactory               rpc.Factory
+	peerProvider             membership.PeerProvider
 	archivalMetadata         archiver.ArchivalMetadata
 	archiverProvider         provider.ArchiverProvider
 
@@ -153,7 +137,7 @@ type App struct {
 }
 
 func (a *App) Start(_ context.Context) error {
-	a.daemon = newServer(a.service, a.cfg, a.logger, a.zapLogger, a.dynamicConfig, a.dynamicCollection, a.operationalConfigStore, a.operationalDynamicConfig, a.scope, a.metricsClient, a.rpcFactory, a.archivalMetadata, a.archiverProvider)
+	a.daemon = newServer(a.service, a.cfg, a.logger, a.zapLogger, a.dynamicConfig, a.dynamicCollection, a.operationalConfigStore, a.operationalDynamicConfig, a.scope, a.metricsClient, a.rpcFactory, a.peerProvider, a.archivalMetadata, a.archiverProvider)
 	a.daemon.Start()
 	return nil
 }
