@@ -7,3 +7,4 @@ cadence-bench
 cadence-sql-tool
 cadence-cassandra-tool
 vendor/
+.gocache/

@@ -102,6 +102,11 @@ services:
     <<: *test-image
     volumes:
       - ../../:/cadence
+      # Bind the Go build cache out of the container so `actions/cache` can persist it
+      # between runs. Only this service and coverage-report mount it: they are the two
+      # jobs that compile the whole tree. The module cache is deliberately not mounted,
+      # the image's own `go mod download` layer already supplies /go/pkg/mod.
+      - ../../.gocache/go-build:/root/.cache/go-build
     networks:
       services-network:
         aliases:
@@ -352,6 +357,8 @@ services:
       - GITHUB_PULL_REQUEST_REPO
     volumes:
       - ../../:/cadence
+      # Same build cache as unit-test, see the note there.
+      - ../../.gocache/go-build:/root/.cache/go-build
 
 networks:
   services-network:

@@ -121,6 +121,7 @@ SUBMODULE_PATHS = $(shell \
 		-name "go.mod" \
 		-not -path "./go.mod" \
 		-not -path "./idls/*" \
+		-not -path "./.gocache/*" \
 		-exec dirname {} \; \
 	| sed 's|^\./||' \
 )
@@ -141,6 +142,7 @@ FRESH_ALL_SRC = $(shell \
 		-o -path './idls/*' \
 		-o -path './.build/*' \
 		-o -path './.bin/*' \
+		-o -path './.gocache/*' \
 		-o -path './.git/*' \
 		-o -path './.worktrees/*' \
 	\) \
@@ -409,7 +411,7 @@ $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive $(BIN)/nilaway | $(BUILD)
 	$Q go vet -copylocks ./... ./common/archiver/gcloud/...
 	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -exclude './.worktrees/...' -formatter stylish ./...
 	$Q # look for go files with "//comments", and ignore "//go:build"-style directives ("grep -n" shows "file:line: //go:build" so the regex is a bit complex)
-	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' -not -path './.worktrees/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
+	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' -not -path './.worktrees/*' -not -path './.gocache/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
 		if [ -n "$$bad" ]; then \
 		  echo "$$bad" >&2; \
 		  echo 'non-directive comments must have a space after the "//"' >&2; \

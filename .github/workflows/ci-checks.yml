@@ -36,14 +36,24 @@ jobs:
 
       - name: Build CI test image
         uses: ./.github/actions/build-test-image
-      
+
+      - name: Restore the Go build cache
+        uses: ./.github/actions/go-build-cache
+
       - name: Run unit test
+        id: unit-test
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run unit-test bash -c "make .just-build && make cover_profile && ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt"
+
+      - name: Save the Go build cache
+        if: always()
+        uses: ./.github/actions/go-build-cache-release
+        with:
+          compiled: ${{ steps.unit-test.outcome }}
 
       - name: Upload coverage artifacts
         if: always()
@@ -74,8 +84,18 @@ jobs:
       - name: Build CI test image
         uses: ./.github/actions/build-test-image
 
+      - name: Restore the Go build cache
+        uses: ./.github/actions/go-build-cache
+
       - name: Run golint
+        id: golint
         run: docker compose -f docker/github_actions/docker-compose.yml run coverage-report bash -c "./scripts/github_actions/golint.sh"
+
+      - name: Save the Go build cache
+        if: always()
+        uses: ./.github/actions/go-build-cache-release
+        with:
+          compiled: ${{ steps.golint.outcome }}
 
 
   golang-integration-test-with-cassandra:
