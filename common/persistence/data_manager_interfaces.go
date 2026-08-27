@@ -168,6 +168,22 @@ const (
 	SemaphoreGrantSlotTaken
 )
 
+// SemaphoreRowKind says which of the two semaphore_tokens row shapes a SemaphoreOwnership holds.
+// A bucket scan returns both interleaved, and the two carry different fields, so a reader has to
+// know which it is looking at.
+type SemaphoreRowKind int
+
+// Semaphore Row Kind
+const (
+	// SemaphoreRowKindUnknown is the zero value and is never stored. It exists so a row that
+	// was never tagged cannot read as a valid kind.
+	SemaphoreRowKindUnknown SemaphoreRowKind = iota
+	// SemaphoreRowKindToken is the forward row for a slot: TokenID -> Holder, Holder empty when free
+	SemaphoreRowKindToken
+	// SemaphoreRowKindOwner is the reverse row for a hold: OwnerID -> HeldToken
+	SemaphoreRowKindOwner
+)
+
 // Workflow execution states
 const (
 	WorkflowStateCreated = iota
@@ -1473,6 +1489,10 @@ type (
 	// (TokenID -> Holder, empty when the slot is free) or a reverse "owner" row
 	// per hold (OwnerID -> HeldToken).
 	SemaphoreOwnership struct {
+		// Kind says which of the two row shapes this is. Set on every read; a scan of a
+		// bucket returns both kinds interleaved and only Kind tells them apart without
+		// relying on which fields happen to be zero.
+		Kind          SemaphoreRowKind
 		DomainID      string
 		SemaphoreName string
 		Bucket        int

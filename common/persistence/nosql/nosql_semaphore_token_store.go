@@ -193,6 +193,7 @@ func (m *nosqlSemaphoreTokenStore) ScanSemaphoreBucket(
 
 func toSemaphoreOwnership(row *nosqlplugin.SemaphoreOwnershipRow) *persistence.SemaphoreOwnership {
 	return &persistence.SemaphoreOwnership{
+		Kind:          row.Kind,
 		DomainID:      row.DomainID,
 		SemaphoreName: row.SemaphoreName,
 		Bucket:        row.Bucket,

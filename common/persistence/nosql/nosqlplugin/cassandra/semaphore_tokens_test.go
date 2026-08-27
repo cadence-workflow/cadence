@@ -278,6 +278,7 @@ func TestSelectSemaphoreOwnershipByToken(t *testing.T) {
 					}).Times(1)
 			},
 			wantRow: &nosqlplugin.SemaphoreOwnershipRow{
+				Kind:          persistence.SemaphoreRowKindToken,
 				DomainID:      testSemaphoreDomainID,
 				SemaphoreName: testSemaphoreName,
 				Bucket:        0,
@@ -306,6 +307,7 @@ func TestSelectSemaphoreOwnershipByToken(t *testing.T) {
 					}).Times(1)
 			},
 			wantRow: &nosqlplugin.SemaphoreOwnershipRow{
+				Kind:          persistence.SemaphoreRowKindToken,
 				DomainID:      testSemaphoreDomainID,
 				SemaphoreName: testSemaphoreName,
 				Bucket:        0,
@@ -373,6 +375,7 @@ func TestSelectSemaphoreOwnershipByOwner(t *testing.T) {
 					}).Times(1)
 			},
 			wantRow: &nosqlplugin.SemaphoreOwnershipRow{
+				Kind:          persistence.SemaphoreRowKindOwner,
 				DomainID:      testSemaphoreDomainID,
 				SemaphoreName: testSemaphoreName,
 				Bucket:        0,
@@ -467,8 +470,8 @@ func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 				iter.EXPECT().Close().Return(nil).Times(1)
 			},
 			wantRows: []*nosqlplugin.SemaphoreOwnershipRow{
-				{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 5, OwnerID: "", Holder: "owner-abc", HeldToken: 0, UpdatedTime: now},
-				{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 0, OwnerID: "owner-abc", Holder: "", HeldToken: 5, UpdatedTime: now},
+				{Kind: persistence.SemaphoreRowKindToken, DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 5, OwnerID: "", Holder: "owner-abc", HeldToken: 0, UpdatedTime: now},
+				{Kind: persistence.SemaphoreRowKindOwner, DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 0, OwnerID: "owner-abc", Holder: "", HeldToken: 5, UpdatedTime: now},
 			},
 			wantToken: nil,
 		},
@@ -497,9 +500,41 @@ func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 				iter.EXPECT().Close().Return(nil).Times(1)
 			},
 			wantRows: []*nosqlplugin.SemaphoreOwnershipRow{
-				{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 5, OwnerID: "", Holder: "", HeldToken: 0, UpdatedTime: now},
+				{Kind: persistence.SemaphoreRowKindToken, DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 5, OwnerID: "", Holder: "", HeldToken: 0, UpdatedTime: now},
 			},
 			wantToken: []byte("next"),
+		},
+		{
+			name:   "unrecognized row type reads as unknown",
+			filter: &nosqlplugin.SemaphoreOwnershipFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0},
+			queryMockFn: func(query *gocql.MockQuery) {
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+			},
+			iterMockFn: func(iter *gocql.MockIter) {
+				iter.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(args ...interface{}) bool {
+						*args[0].(*string) = testSemaphoreDomainID
+						*args[1].(*string) = testSemaphoreName
+						*args[2].(*int) = 0
+						*args[3].(*int) = 7 // a kind added by some future version
+						*args[4].(*int) = 5
+						*args[5].(*string) = ownerNoneSentinel
+						*args[6].(*string) = freeSentinel
+						*args[7].(*int) = 0
+						*args[8].(*time.Time) = now
+						return true
+					}).Times(1)
+				iter.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false).Times(1)
+				iter.EXPECT().PageState().Return([]byte(nil)).Times(1)
+				iter.EXPECT().Close().Return(nil).Times(1)
+			},
+			// The row is still returned; classifying it is the reader's job, and calling it
+			// a token row would offer slot 5 to a caller as if it were free.
+			wantRows: []*nosqlplugin.SemaphoreOwnershipRow{
+				{Kind: persistence.SemaphoreRowKindUnknown, DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 5, OwnerID: "", Holder: "", HeldToken: 0, UpdatedTime: now},
+			},
+			wantToken: nil,
 		},
 		{
 			name:    "iterator is nil",

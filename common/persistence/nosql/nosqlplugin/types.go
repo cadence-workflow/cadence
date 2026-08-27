@@ -300,6 +300,10 @@ type (
 	// SemaphoreOwnershipRow defines a row of the semaphore_tokens table, in either
 	// of its two kinds: a forward "token" row or a reverse "owner" row.
 	SemaphoreOwnershipRow struct {
+		// Kind is the row's `type` column, carried up so callers do not have to infer the
+		// shape from which fields are zero. Reads set it; writes ignore it, since each
+		// write path already knows which kind of row it is producing.
+		Kind          persistence.SemaphoreRowKind
 		DomainID      string
 		SemaphoreName string
 		Bucket        int

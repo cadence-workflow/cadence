@@ -37,6 +37,25 @@ const (
 	rowTypeSemaphoreOwner        // reverse index row, keyed by owner_id (owner_id -> held_token)
 )
 
+// semaphoreRowKind maps the stored `type` column onto the kind callers see. A bucket scan
+// returns both kinds interleaved, so this has to travel with the row: inferring it from which
+// fields are zero would tie the caller to the sentinel normalization below.
+//
+// A type this version does not recognize maps to Unknown rather than to either kind. Only
+// this plugin writes the column, so that cannot happen today; it can once a third row kind
+// is added, and reading such a row as a token row would feed its token_id to the caller as
+// a real slot.
+func semaphoreRowKind(rowType int) persistence.SemaphoreRowKind {
+	switch rowType {
+	case rowTypeSemaphoreToken:
+		return persistence.SemaphoreRowKindToken
+	case rowTypeSemaphoreOwner:
+		return persistence.SemaphoreRowKindOwner
+	default:
+		return persistence.SemaphoreRowKindUnknown
+	}
+}
+
 // Placeholders for key columns that do not apply to a given row kind. Non-key columns
 // that do not apply are bound to gogocql.UnsetValue instead.
 //
@@ -227,6 +246,8 @@ func (db *CDB) SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, se
 	if err := scanSemaphoreOwnershipRow(query, row); err != nil {
 		return nil, err
 	}
+	// The query pins the type column, so the kind is known without reading it back.
+	row.Kind = persistence.SemaphoreRowKindToken
 	return row, nil
 }
 
@@ -239,6 +260,8 @@ func (db *CDB) SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, se
 	if err := scanSemaphoreOwnershipRow(query, row); err != nil {
 		return nil, err
 	}
+	// The query pins the type column, so the kind is known without reading it back.
+	row.Kind = persistence.SemaphoreRowKindOwner
 	return row, nil
 }
 
@@ -276,6 +299,7 @@ func (db *CDB) SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *no
 		&row.HeldToken,
 		&row.UpdatedTime,
 	) {
+		row.Kind = semaphoreRowKind(rowType)
 		normalizeSemaphoreOwnershipRow(row)
 		rows = append(rows, row)
 		row = &nosqlplugin.SemaphoreOwnershipRow{}
