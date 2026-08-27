@@ -217,6 +217,7 @@ func newCacheTestProcessor(t *testing.T, ctrl *gomock.Controller, tracker Partit
 	proc := NewProcessor(ProcessorParams{
 		ShardID:                1,
 		Manager:                mgr,
+		DomainName:             func(id string) (string, error) { return id, nil },
 		Reinjector:             NewMockTaskReinjector(ctrl),
 		PageSize:               10,
 		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
