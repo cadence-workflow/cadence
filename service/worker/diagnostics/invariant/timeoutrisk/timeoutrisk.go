@@ -88,20 +88,16 @@ func (t *timeoutRisk) Check(ctx context.Context, params invariant.InvariantCheck
 			issueID++
 		}
 
-		// Activity retries are invisible in history and replicate to standby clusters only via activity
-		// sync; the standby's activity timeout task is discarded after the configured discard delay with
-		// no replacement, so a failover during a retry sequence extending past that delay can orphan the
-		// activity until its workflow's tasks are refreshed. Only global (multi-cluster) domains have a
-		// standby cluster to fail over to, so single-cluster domains carry no such risk.
+		// Retries emit no history events, and the standby cluster stops tracking the activity after
+		// the discard delay -- a failover during a longer retry window can orphan it. Only global
+		// domains can fail over.
 		policy := attr.RetryPolicy
 		if policy != nil && (policy.GetMaximumAttempts() == 0 || policy.GetMaximumAttempts() >= 2) {
 			if !isGlobalDomainResolved {
 				var err error
 				isGlobalDomain, err = t.isGlobalDomain(ctx, params.Domain)
 				if err != nil {
-					// Diagnostics are best-effort: a failed domain lookup skips this check for
-					// the run rather than failing the activity, which would discard every
-					// invariant's findings.
+					// best-effort: skip this check on a failed lookup rather than fail the whole run
 					isGlobalDomain = false
 				}
 				isGlobalDomainResolved = true
@@ -133,8 +129,7 @@ func (t *timeoutRisk) Check(ctx context.Context, params invariant.InvariantCheck
 	return result, nil
 }
 
-// isGlobalDomain reports whether the domain is a global (multi-cluster) domain -- only such domains have a
-// standby cluster to fail over to, so this gates the retry-window check to where the risk actually applies.
+// isGlobalDomain reports whether the domain is global (multi-cluster) -- the only kind that can fail over.
 func (t *timeoutRisk) isGlobalDomain(ctx context.Context, domain string) (bool, error) {
 	resp, err := t.client.DescribeDomain(ctx, &shared.DescribeDomainRequest{Name: &domain})
 	if err != nil {
@@ -154,19 +149,15 @@ func fetchWorkflowExecutionTimeoutSeconds(events []*types.HistoryEvent) int32 {
 	return 0
 }
 
-// estimatedRetryWindowSeconds estimates how long an activity's retry sequence could keep extending, based
-// on its retry policy. Retries mutate mutable state and replicate to standby via activity sync without
-// emitting new history events, so this window cannot be read off the scheduled event directly -- it is
-// derived the same way the server would internally: an explicit expiration wins outright; an unlimited
-// attempt budget rides out to the workflow timeout; otherwise it is the cumulative estimate for a bounded
-// attempt budget. The result is always capped at the workflow timeout.
+// estimatedRetryWindowSeconds estimates how long a retry sequence could keep an activity alive: an
+// explicit expiration wins; unlimited attempts ride out to the workflow timeout; bounded attempts get
+// a cumulative estimate. Always capped at the workflow timeout.
 func estimatedRetryWindowSeconds(policy *types.RetryPolicy, startToCloseSeconds int32, workflowTimeoutSeconds int32) int32 {
 	if policy == nil {
 		return 0
 	}
 	if workflowTimeoutSeconds == 0 {
-		// No started event to establish a baseline against -- conservatively report no window,
-		// mirroring the guard on check 1. This also keeps the cumulative estimate's loop bounded.
+		// no started event to baseline against; this also keeps the cumulative loop bounded
 		return 0
 	}
 
@@ -186,10 +177,8 @@ func estimatedRetryWindowSeconds(policy *types.RetryPolicy, startToCloseSeconds 
 	return int32(windowSeconds)
 }
 
-// cumulativeRetryWindowSeconds estimates the retry window for a bounded, non-expiring retry policy as the
-// sum of the backoff delays between attempts (each capped at MaximumIntervalInSeconds when configured) plus
-// one StartToCloseTimeout per attempt. Callers guarantee a positive workflow timeout; the loop exits early
-// once the running backoff total exceeds it, since the estimate is already conclusive at that point.
+// cumulativeRetryWindowSeconds sums the backoff delays between attempts plus one StartToCloseTimeout
+// per attempt, exiting early once the total exceeds the (positive, caller-guaranteed) workflow timeout.
 func cumulativeRetryWindowSeconds(policy *types.RetryPolicy, startToCloseSeconds int32, workflowTimeoutSeconds int32) int64 {
 	limit := int64(workflowTimeoutSeconds)
 
@@ -210,8 +199,7 @@ func cumulativeRetryWindowSeconds(policy *types.RetryPolicy, startToCloseSeconds
 		if step > float64(math.MaxInt32) {
 			step = float64(math.MaxInt32)
 		}
-		// retry policy validation enforces a positive initial interval, so a well-formed policy always
-		// advances by at least a second; guard anyway so the early exit below is guaranteed to be reached
+		// validation enforces a positive initial interval; guard anyway so the early exit stays reachable
 		if step < 1 {
 			step = 1
 		}

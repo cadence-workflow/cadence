@@ -400,8 +400,7 @@ func Test__Check(t *testing.T) {
 			expectedResult: []invariant.InvariantCheckResult{},
 		},
 		{
-			// regression: without the workflow-timeout guard, this policy makes the
-			// cumulative estimate loop ~2 billion times
+			// regression: this policy looped ~2 billion times before the workflow-timeout guard
 			name: "retry window: bounded attempts but no workflow started event - no issue",
 			testData: &types.GetWorkflowExecutionHistoryResponse{
 				History: &types.History{
