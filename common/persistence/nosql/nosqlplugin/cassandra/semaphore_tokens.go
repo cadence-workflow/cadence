@@ -31,13 +31,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-// Row kinds for the `type` clustering column of semaphore_tokens.
-const (
-	rowTypeSemaphoreToken = iota // forward index row, keyed by token_id (token_id -> holder)
-	rowTypeSemaphoreOwner        // reverse index row, keyed by owner_id (owner_id -> held_token)
-)
-
-// Placeholders for key columns that do not apply to a given row kind. Non-key columns
+// Placeholders for key columns that do not apply to a given row type. Non-key columns
 // that do not apply are bound to gogocql.UnsetValue instead.
 //
 // The text values are PROVISIONAL: only freeSentinel is LWT-compared, so only its literal
@@ -72,7 +66,7 @@ func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.Se
 			row.DomainID,
 			row.SemaphoreName,
 			row.Bucket,
-			rowTypeSemaphoreToken, // type = 0 (forward "token" row)
+			persistence.SemaphoreRowTypeToken, // forward "token" row
 			row.TokenID,
 			ownerNoneSentinel,  // owner_id key = __NONE__
 			freeSentinel,       // holder = __FREE__, the slot is unheld
@@ -104,7 +98,7 @@ func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.Semapho
 		row.DomainID,
 		row.SemaphoreName,
 		row.Bucket,
-		rowTypeSemaphoreToken,
+		persistence.SemaphoreRowTypeToken,
 		row.TokenID,
 		ownerNoneSentinel, // token row's owner_id key
 		freeSentinel,      // IF holder = FREE
@@ -113,7 +107,7 @@ func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.Semapho
 		row.DomainID,
 		row.SemaphoreName,
 		row.Bucket,
-		rowTypeSemaphoreOwner,
+		persistence.SemaphoreRowTypeOwner,
 		emptyTokenID,
 		row.OwnerID,
 		gogocql.UnsetValue, // holder does not apply to an owner row
@@ -171,15 +165,18 @@ func parseAlreadyHeldTokenFromCAS(previous map[string]interface{}, iter gocql.It
 	return 0
 }
 
-// parseHeldTokenIfOwnerRow is a helper for parseAlreadyHeldTokenFromCAS: it
-// returns the held_token of the given CAS row when it is an owner (reverse-index)
-// row, or 0 when absent; ok is false for any other row kind.
+// parseHeldTokenIfOwnerRow returns the held_token of an owner (reverse-index) CAS row.
+// ok is false for any other row type, and for an owner row whose held_token is absent or
+// not positive: that owner holds no valid token.
 func parseHeldTokenIfOwnerRow(row map[string]interface{}) (int, bool) {
 	rowType, ok := row["type"].(int)
-	if !ok || rowType != rowTypeSemaphoreOwner {
+	if !ok || rowType != int(persistence.SemaphoreRowTypeOwner) {
 		return 0, false
 	}
-	heldToken, _ := row["held_token"].(int)
+	heldToken, ok := row["held_token"].(int)
+	if !ok || heldToken <= 0 {
+		return 0, false
+	}
 	return heldToken, true
 }
 
@@ -195,7 +192,7 @@ func (db *CDB) ReleaseSemaphoreToken(ctx context.Context, row *nosqlplugin.Semap
 		row.DomainID,
 		row.SemaphoreName,
 		row.Bucket,
-		rowTypeSemaphoreToken,
+		persistence.SemaphoreRowTypeToken,
 		row.TokenID,
 		ownerNoneSentinel,
 		row.OwnerID, // IF holder = owner_id
@@ -204,7 +201,7 @@ func (db *CDB) ReleaseSemaphoreToken(ctx context.Context, row *nosqlplugin.Semap
 		row.DomainID,
 		row.SemaphoreName,
 		row.Bucket,
-		rowTypeSemaphoreOwner,
+		persistence.SemaphoreRowTypeOwner,
 		emptyTokenID,
 		row.OwnerID,
 	)
@@ -222,7 +219,7 @@ func (db *CDB) ReleaseSemaphoreToken(ctx context.Context, row *nosqlplugin.Semap
 func (db *CDB) SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*nosqlplugin.SemaphoreOwnershipRow, error) {
 	row := &nosqlplugin.SemaphoreOwnershipRow{}
 	query := db.session.Query(templateSelectSemaphoreOwnershipByTokenQuery,
-		domainID, semaphoreName, bucket, rowTypeSemaphoreToken, tokenID,
+		domainID, semaphoreName, bucket, persistence.SemaphoreRowTypeToken, tokenID,
 	).WithContext(ctx)
 	if err := scanSemaphoreOwnershipRow(query, row); err != nil {
 		return nil, err
@@ -234,7 +231,7 @@ func (db *CDB) SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, se
 func (db *CDB) SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*nosqlplugin.SemaphoreOwnershipRow, error) {
 	row := &nosqlplugin.SemaphoreOwnershipRow{}
 	query := db.session.Query(templateSelectSemaphoreOwnershipByOwnerQuery,
-		domainID, semaphoreName, bucket, rowTypeSemaphoreOwner, emptyTokenID, ownerID,
+		domainID, semaphoreName, bucket, persistence.SemaphoreRowTypeOwner, emptyTokenID, ownerID,
 	).WithContext(ctx)
 	if err := scanSemaphoreOwnershipRow(query, row); err != nil {
 		return nil, err
@@ -242,7 +239,7 @@ func (db *CDB) SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, se
 	return row, nil
 }
 
-// SelectSemaphoreOwnershipsByBucket scans a bucket partition (both row kinds), paginated.
+// SelectSemaphoreOwnershipsByBucket scans a bucket partition (both row types), paginated.
 func (db *CDB) SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *nosqlplugin.SemaphoreOwnershipFilter) ([]*nosqlplugin.SemaphoreOwnershipRow, []byte, error) {
 	query := db.session.Query(templateSelectSemaphoreOwnershipsByBucketQuery,
 		filter.DomainID, filter.SemaphoreName, filter.Bucket,
@@ -263,13 +260,12 @@ func (db *CDB) SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *no
 	}
 
 	var rows []*nosqlplugin.SemaphoreOwnershipRow
-	var rowType int
 	row := &nosqlplugin.SemaphoreOwnershipRow{}
 	for iter.Scan(
 		&row.DomainID,
 		&row.SemaphoreName,
 		&row.Bucket,
-		&rowType,
+		&row.RowType,
 		&row.TokenID,
 		&row.OwnerID,
 		&row.Holder,
@@ -300,6 +296,7 @@ func scanSemaphoreOwnershipRow(query gocql.Query, row *nosqlplugin.SemaphoreOwne
 		&row.DomainID,
 		&row.SemaphoreName,
 		&row.Bucket,
+		&row.RowType,
 		&row.TokenID,
 		&row.OwnerID,
 		&row.Holder,

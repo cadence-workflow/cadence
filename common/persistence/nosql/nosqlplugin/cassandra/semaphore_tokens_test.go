@@ -72,9 +72,9 @@ func TestInsertSemaphoreTokens(t *testing.T) {
 		assert.Len(t, session.batches, 1)
 		assert.Equal(t, []string{
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 1, __NONE__, __FREE__, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
+				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, 1, __NONE__, __FREE__, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 2, __NONE__, __FREE__, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
+				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, 2, __NONE__, __FREE__, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 		}, session.batches[0].queries)
 		assert.True(t, session.iter.closed)
 	})
@@ -85,7 +85,7 @@ func TestInsertSemaphoreTokens(t *testing.T) {
 		session := &fakeSession{
 			mapExecuteBatchCASApplied: false,
 			mapExecuteBatchCASPrev: map[string]any{
-				"type":     rowTypeSemaphoreToken,
+				"type":     int(persistence.SemaphoreRowTypeToken),
 				"token_id": 1,
 				"holder":   "owner-abc",
 			},
@@ -129,9 +129,9 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		assert.Equal(t, []string{
 			`UPDATE semaphore_tokens SET holder = owner-abc, updated_time = ` + now.UTC().Format(time.RFC3339) + ` ` +
 				`WHERE domain_id = 10000000-1000-f000-f000-000000000000 AND semaphore_name = sem-1 AND bucket = 0 ` +
-				`AND type = 0 AND token_id = 5 AND owner_id = __NONE__ IF holder = __FREE__`,
+				`AND type = 1 AND token_id = 5 AND owner_id = __NONE__ IF holder = __FREE__`,
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, -1, owner-abc, {}, 5, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
+				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 2, -1, owner-abc, {}, 5, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 		}, session.batches[0].queries)
 		assert.True(t, session.iter.closed)
 	})
@@ -142,7 +142,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		session := &fakeSession{
 			mapExecuteBatchCASApplied: false,
 			mapExecuteBatchCASPrev: map[string]any{
-				"type":   rowTypeSemaphoreToken,
+				"type":   int(persistence.SemaphoreRowTypeToken),
 				"holder": "owner-xyz",
 			},
 			iter: &fakeIter{},
@@ -160,7 +160,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		session := &fakeSession{
 			mapExecuteBatchCASApplied: false,
 			mapExecuteBatchCASPrev: map[string]any{
-				"type":       rowTypeSemaphoreOwner,
+				"type":       int(persistence.SemaphoreRowTypeOwner),
 				"held_token": 7,
 			},
 			iter: &fakeIter{},
@@ -179,12 +179,12 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		session := &fakeSession{
 			mapExecuteBatchCASApplied: false,
 			mapExecuteBatchCASPrev: map[string]any{
-				"type":   rowTypeSemaphoreToken,
+				"type":   int(persistence.SemaphoreRowTypeToken),
 				"holder": "owner-abc",
 			},
 			iter: &fakeIter{
 				mapScanInputs: []map[string]interface{}{
-					{"type": rowTypeSemaphoreOwner, "held_token": 9},
+					{"type": int(persistence.SemaphoreRowTypeOwner), "held_token": 9},
 				},
 			},
 		}
@@ -193,6 +193,46 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, persistence.SemaphoreGrantAlreadyHeld, result.Outcome)
 		assert.Equal(t, 9, result.HeldToken)
+		assert.True(t, session.iter.closed)
+	})
+
+	t.Run("not applied - owner row with an unusable held_token is skipped", func(t *testing.T) {
+		// A malformed owner row must neither be reported as a hold nor stop the search:
+		// the well-formed owner row behind it is the one that carries the answer.
+		session := &fakeSession{
+			mapExecuteBatchCASApplied: false,
+			mapExecuteBatchCASPrev: map[string]any{
+				"type": int(persistence.SemaphoreRowTypeOwner), // held_token missing entirely
+			},
+			iter: &fakeIter{
+				mapScanInputs: []map[string]interface{}{
+					{"type": int(persistence.SemaphoreRowTypeOwner), "held_token": 0}, // present but not a slot id
+					{"type": int(persistence.SemaphoreRowTypeOwner), "held_token": 9},
+				},
+			},
+		}
+		db := newTestSemaphoreTokenDB(t, session)
+		result, err := db.GrantSemaphoreToken(context.Background(), row)
+		assert.NoError(t, err)
+		assert.Equal(t, persistence.SemaphoreGrantAlreadyHeld, result.Outcome)
+		assert.Equal(t, 9, result.HeldToken)
+		assert.True(t, session.iter.closed)
+	})
+
+	t.Run("not applied - only malformed owner rows falls back to slot taken", func(t *testing.T) {
+		session := &fakeSession{
+			mapExecuteBatchCASApplied: false,
+			mapExecuteBatchCASPrev: map[string]any{
+				"type":       int(persistence.SemaphoreRowTypeOwner),
+				"held_token": -1,
+			},
+			iter: &fakeIter{},
+		}
+		db := newTestSemaphoreTokenDB(t, session)
+		result, err := db.GrantSemaphoreToken(context.Background(), row)
+		assert.NoError(t, err)
+		assert.Equal(t, persistence.SemaphoreGrantSlotTaken, result.Outcome)
+		assert.Zero(t, result.HeldToken)
 		assert.True(t, session.iter.closed)
 	})
 
@@ -226,10 +266,10 @@ func TestReleaseSemaphoreToken(t *testing.T) {
 		assert.Equal(t, []string{
 			`UPDATE semaphore_tokens SET holder = __FREE__, updated_time = ` + now.UTC().Format(time.RFC3339) + ` ` +
 				`WHERE domain_id = 10000000-1000-f000-f000-000000000000 AND semaphore_name = sem-1 AND bucket = 0 ` +
-				`AND type = 0 AND token_id = 5 AND owner_id = __NONE__ IF holder = owner-abc`,
+				`AND type = 1 AND token_id = 5 AND owner_id = __NONE__ IF holder = owner-abc`,
 			`DELETE FROM semaphore_tokens ` +
 				`WHERE domain_id = 10000000-1000-f000-f000-000000000000 AND semaphore_name = sem-1 AND bucket = 0 ` +
-				`AND type = 1 AND token_id = -1 AND owner_id = owner-abc`,
+				`AND type = 2 AND token_id = -1 AND owner_id = owner-abc`,
 		}, session.batches[0].queries)
 		assert.True(t, session.iter.closed)
 	})
@@ -264,20 +304,22 @@ func TestSelectSemaphoreOwnershipByToken(t *testing.T) {
 			name: "held slot normalizes sentinels",
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(args ...interface{}) error {
 						*args[0].(*string) = testSemaphoreDomainID
 						*args[1].(*string) = testSemaphoreName
 						*args[2].(*int) = 0
-						*args[3].(*int) = 5
-						*args[4].(*string) = ownerNoneSentinel // token row owner_id key
-						*args[5].(*string) = "owner-abc"       // holder
-						*args[6].(*int) = 0                    // held_token unset on token rows -> reads as 0
-						*args[7].(*time.Time) = now
+						*args[3].(*persistence.SemaphoreRowType) = persistence.SemaphoreRowTypeToken
+						*args[4].(*int) = 5
+						*args[5].(*string) = ownerNoneSentinel // token row owner_id key
+						*args[6].(*string) = "owner-abc"       // holder
+						*args[7].(*int) = 0                    // held_token unset on token rows -> reads as 0
+						*args[8].(*time.Time) = now
 						return nil
 					}).Times(1)
 			},
 			wantRow: &nosqlplugin.SemaphoreOwnershipRow{
+				RowType:       persistence.SemaphoreRowTypeToken,
 				DomainID:      testSemaphoreDomainID,
 				SemaphoreName: testSemaphoreName,
 				Bucket:        0,
@@ -292,20 +334,22 @@ func TestSelectSemaphoreOwnershipByToken(t *testing.T) {
 			name: "free slot normalizes holder",
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(args ...interface{}) error {
 						*args[0].(*string) = testSemaphoreDomainID
 						*args[1].(*string) = testSemaphoreName
 						*args[2].(*int) = 0
-						*args[3].(*int) = 5
-						*args[4].(*string) = ownerNoneSentinel
-						*args[5].(*string) = freeSentinel
-						*args[6].(*int) = 0
-						*args[7].(*time.Time) = now
+						*args[3].(*persistence.SemaphoreRowType) = persistence.SemaphoreRowTypeToken
+						*args[4].(*int) = 5
+						*args[5].(*string) = ownerNoneSentinel
+						*args[6].(*string) = freeSentinel
+						*args[7].(*int) = 0
+						*args[8].(*time.Time) = now
 						return nil
 					}).Times(1)
 			},
 			wantRow: &nosqlplugin.SemaphoreOwnershipRow{
+				RowType:       persistence.SemaphoreRowTypeToken,
 				DomainID:      testSemaphoreDomainID,
 				SemaphoreName: testSemaphoreName,
 				Bucket:        0,
@@ -320,7 +364,7 @@ func TestSelectSemaphoreOwnershipByToken(t *testing.T) {
 			name: "not found",
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(errors.New("not found")).Times(1)
 			},
 			wantErr: true,
@@ -336,6 +380,14 @@ func TestSelectSemaphoreOwnershipByToken(t *testing.T) {
 			db := newTestSemaphoreTokenDB(t, session)
 
 			row, err := db.SelectSemaphoreOwnershipByToken(context.Background(), testSemaphoreDomainID, testSemaphoreName, 0, 5)
+			// The selected columns must match scanSemaphoreOwnershipRow one for one,
+			// `type` included: gocql rejects a count mismatch and matches the rest by
+			// position.
+			assert.Equal(t, []string{
+				`SELECT domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time ` +
+					`FROM semaphore_tokens WHERE domain_id = 10000000-1000-f000-f000-000000000000 ` +
+					`AND semaphore_name = sem-1 AND bucket = 0 AND type = 1 AND token_id = 5`,
+			}, session.queries)
 			if tc.wantErr {
 				assert.Error(t, err)
 				return
@@ -359,20 +411,22 @@ func TestSelectSemaphoreOwnershipByOwner(t *testing.T) {
 			name: "found normalizes sentinels",
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					DoAndReturn(func(args ...interface{}) error {
 						*args[0].(*string) = testSemaphoreDomainID
 						*args[1].(*string) = testSemaphoreName
 						*args[2].(*int) = 0
-						*args[3].(*int) = emptyTokenID   // token_id N/A on owner row
-						*args[4].(*string) = "owner-abc" // owner_id
-						*args[5].(*string) = ""          // holder unset on owner rows -> reads as ""
-						*args[6].(*int) = 5              // held_token
-						*args[7].(*time.Time) = now
+						*args[3].(*persistence.SemaphoreRowType) = persistence.SemaphoreRowTypeOwner
+						*args[4].(*int) = emptyTokenID   // token_id N/A on owner row
+						*args[5].(*string) = "owner-abc" // owner_id
+						*args[6].(*string) = ""          // holder unset on owner rows -> reads as ""
+						*args[7].(*int) = 5              // held_token
+						*args[8].(*time.Time) = now
 						return nil
 					}).Times(1)
 			},
 			wantRow: &nosqlplugin.SemaphoreOwnershipRow{
+				RowType:       persistence.SemaphoreRowTypeOwner,
 				DomainID:      testSemaphoreDomainID,
 				SemaphoreName: testSemaphoreName,
 				Bucket:        0,
@@ -387,7 +441,7 @@ func TestSelectSemaphoreOwnershipByOwner(t *testing.T) {
 			name: "not found",
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(errors.New("not found")).Times(1)
 			},
 			wantErr: true,
@@ -403,6 +457,11 @@ func TestSelectSemaphoreOwnershipByOwner(t *testing.T) {
 			db := newTestSemaphoreTokenDB(t, session)
 
 			row, err := db.SelectSemaphoreOwnershipByOwner(context.Background(), testSemaphoreDomainID, testSemaphoreName, 0, "owner-abc")
+			assert.Equal(t, []string{
+				`SELECT domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time ` +
+					`FROM semaphore_tokens WHERE domain_id = 10000000-1000-f000-f000-000000000000 ` +
+					`AND semaphore_name = sem-1 AND bucket = 0 AND type = 2 AND token_id = -1 AND owner_id = owner-abc`,
+			}, session.queries)
 			if tc.wantErr {
 				assert.Error(t, err)
 				return
@@ -439,7 +498,7 @@ func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 						*args[0].(*string) = testSemaphoreDomainID
 						*args[1].(*string) = testSemaphoreName
 						*args[2].(*int) = 0
-						*args[3].(*int) = rowTypeSemaphoreToken
+						*args[3].(*persistence.SemaphoreRowType) = persistence.SemaphoreRowTypeToken
 						*args[4].(*int) = 5
 						*args[5].(*string) = ownerNoneSentinel
 						*args[6].(*string) = "owner-abc"
@@ -453,7 +512,7 @@ func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 						*args[0].(*string) = testSemaphoreDomainID
 						*args[1].(*string) = testSemaphoreName
 						*args[2].(*int) = 0
-						*args[3].(*int) = rowTypeSemaphoreOwner
+						*args[3].(*persistence.SemaphoreRowType) = persistence.SemaphoreRowTypeOwner
 						*args[4].(*int) = emptyTokenID
 						*args[5].(*string) = "owner-abc"
 						*args[6].(*string) = ""
@@ -467,8 +526,8 @@ func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 				iter.EXPECT().Close().Return(nil).Times(1)
 			},
 			wantRows: []*nosqlplugin.SemaphoreOwnershipRow{
-				{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 5, OwnerID: "", Holder: "owner-abc", HeldToken: 0, UpdatedTime: now},
-				{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 0, OwnerID: "owner-abc", Holder: "", HeldToken: 5, UpdatedTime: now},
+				{RowType: persistence.SemaphoreRowTypeToken, DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 5, OwnerID: "", Holder: "owner-abc", HeldToken: 0, UpdatedTime: now},
+				{RowType: persistence.SemaphoreRowTypeOwner, DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 0, OwnerID: "owner-abc", Holder: "", HeldToken: 5, UpdatedTime: now},
 			},
 			wantToken: nil,
 		},
@@ -485,7 +544,7 @@ func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 						*args[0].(*string) = testSemaphoreDomainID
 						*args[1].(*string) = testSemaphoreName
 						*args[2].(*int) = 0
-						*args[3].(*int) = rowTypeSemaphoreToken
+						*args[3].(*persistence.SemaphoreRowType) = persistence.SemaphoreRowTypeToken
 						*args[4].(*int) = 5
 						*args[5].(*string) = ownerNoneSentinel
 						*args[6].(*string) = freeSentinel
@@ -497,7 +556,7 @@ func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 				iter.EXPECT().Close().Return(nil).Times(1)
 			},
 			wantRows: []*nosqlplugin.SemaphoreOwnershipRow{
-				{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 5, OwnerID: "", Holder: "", HeldToken: 0, UpdatedTime: now},
+				{RowType: persistence.SemaphoreRowTypeToken, DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 5, OwnerID: "", Holder: "", HeldToken: 0, UpdatedTime: now},
 			},
 			wantToken: []byte("next"),
 		},

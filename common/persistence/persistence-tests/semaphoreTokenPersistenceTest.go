@@ -228,7 +228,7 @@ func (s *SemaphoreTokenPersistenceSuite) TestSeedIsIdempotent() {
 	s.Equal(owner, byToken.Ownership.Holder)
 }
 
-// TestScanSemaphoreBucket verifies a bucket scan returns both row kinds,
+// TestScanSemaphoreBucket verifies a bucket scan returns both row types,
 // paginated.
 func (s *SemaphoreTokenPersistenceSuite) TestScanSemaphoreBucket() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
@@ -264,6 +264,7 @@ func (s *SemaphoreTokenPersistenceSuite) TestScanSemaphoreBucket() {
 	// scan the whole partition: numTokens token rows + numGranted owner rows
 	pageSize := 3
 	total := 0
+	byRowType := map[persistence.SemaphoreRowType]int{}
 	var nextPageToken []byte
 	for {
 		scanResp, err := manager.ScanSemaphoreBucket(ctx, &persistence.ScanSemaphoreBucketRequest{
@@ -276,10 +277,17 @@ func (s *SemaphoreTokenPersistenceSuite) TestScanSemaphoreBucket() {
 		s.NoError(err)
 		s.NotNil(scanResp)
 		total += len(scanResp.Ownerships)
+		for _, ownership := range scanResp.Ownerships {
+			byRowType[ownership.RowType]++
+		}
 		if len(scanResp.NextPageToken) == 0 {
 			break
 		}
 		nextPageToken = scanResp.NextPageToken
 	}
 	s.Equal(numTokens+numGranted, total)
+	// A scan is the only read that returns both types interleaved, so it is the only place
+	// the stored type column is what tells them apart.
+	s.Equal(numTokens, byRowType[persistence.SemaphoreRowTypeToken])
+	s.Equal(numGranted, byRowType[persistence.SemaphoreRowTypeOwner])
 }
