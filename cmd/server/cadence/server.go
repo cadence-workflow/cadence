@@ -313,10 +313,7 @@ func (s *server) startService() common.Daemon {
 		timeout.NewInvariant(timeout.Params{Client: params.PublicClient}),
 		failure.NewInvariant(),
 		retry.NewInvariant(),
-		timeoutrisk.NewInvariant(timeoutrisk.Params{
-			Client:                      params.PublicClient,
-			FailoverOrphanRiskThreshold: params.DynamicCollection.GetDurationProperty(dynamicproperties.StandbyTaskMissingEventsDiscardDelay),
-		}),
+		timeoutrisk.NewInvariant(),
 	}
 	params.ShardDistributorMatchingConfig = s.cfg.ShardDistributorMatchingConfig
 

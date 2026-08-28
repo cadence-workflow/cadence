@@ -2,14 +2,8 @@ package timeoutrisk
 
 import (
 	"context"
-	"fmt"
-	"math"
 	"time"
 
-	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
-	"go.uber.org/cadence/.gen/go/shared"
-
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
@@ -18,21 +12,10 @@ import (
 // execution history that put the workflow at risk of timing out, even though no timeout has occurred yet.
 type TimeoutRisk invariant.Invariant
 
-type timeoutRisk struct {
-	client                      workflowserviceclient.Interface
-	failoverOrphanRiskThreshold dynamicproperties.DurationPropertyFn
-}
+type timeoutRisk struct{}
 
-type Params struct {
-	Client                      workflowserviceclient.Interface
-	FailoverOrphanRiskThreshold dynamicproperties.DurationPropertyFn
-}
-
-func NewInvariant(p Params) TimeoutRisk {
-	return &timeoutRisk{
-		client:                      p.Client,
-		failoverOrphanRiskThreshold: p.FailoverOrphanRiskThreshold,
-	}
+func NewInvariant() TimeoutRisk {
+	return &timeoutRisk{}
 }
 
 func (t *timeoutRisk) Check(ctx context.Context, params invariant.InvariantCheckInput) ([]invariant.InvariantCheckResult, error) {
@@ -41,8 +24,6 @@ func (t *timeoutRisk) Check(ctx context.Context, params invariant.InvariantCheck
 	issueID := 0
 
 	workflowTimeoutSeconds := fetchWorkflowExecutionTimeoutSeconds(events)
-
-	var isGlobalDomainResolved, isGlobalDomain bool
 
 	for _, event := range events {
 		attr := event.GetActivityTaskScheduledEventAttributes()
@@ -88,54 +69,26 @@ func (t *timeoutRisk) Check(ctx context.Context, params invariant.InvariantCheck
 			issueID++
 		}
 
-		// Retries emit no history events, and the standby cluster stops tracking the activity after
-		// the discard delay -- a failover during a longer retry window can orphan it. Only global
-		// domains can fail over.
-		policy := attr.RetryPolicy
-		if policy != nil && (policy.GetMaximumAttempts() == 0 || policy.GetMaximumAttempts() >= 2) {
-			if !isGlobalDomainResolved {
-				var err error
-				isGlobalDomain, err = t.isGlobalDomain(ctx, params.Domain)
-				if err != nil {
-					// best-effort: skip this check on a failed lookup rather than fail the whole run
-					isGlobalDomain = false
-				}
-				isGlobalDomainResolved = true
-			}
-
-			if isGlobalDomain {
-				threshold := int32(t.failoverOrphanRiskThreshold().Seconds())
-				estimatedRetryWindow := estimatedRetryWindowSeconds(policy, attr.GetStartToCloseTimeoutSeconds(), workflowTimeoutSeconds)
-				if estimatedRetryWindow > threshold {
-					result = append(result, invariant.InvariantCheckResult{
-						IssueID:       issueID,
-						InvariantType: ActivityRetryWindowExceedsStandbyDiscardDelay.String(),
-						Reason:        RetryWindowExceedsStandbyDiscardDelay.String(),
-						Metadata: invariant.MarshalData(ActivityRetryWindowExceedsStandbyDiscardDelayMetadata{
-							EventID:              event.ID,
-							ActivityID:           activityID,
-							ActivityType:         activityType,
-							EstimatedRetryWindow: time.Duration(estimatedRetryWindow) * time.Second,
-							Threshold:            time.Duration(threshold) * time.Second,
-							RetryPolicy:          policy,
-						}),
-					})
-					issueID++
-				}
-			}
+		// The recorded value is the effective timeout: the server inflates it under retryable
+		// policies (validateActivityScheduleAttributes), and that inflated wait is real.
+		if attr.GetScheduleToStartTimeoutSeconds() > highScheduleToStartThresholdSeconds {
+			result = append(result, invariant.InvariantCheckResult{
+				IssueID:       issueID,
+				InvariantType: ActivityHighScheduleToStartTimeout.String(),
+				Reason:        HighScheduleToStartTimeout.String(),
+				Metadata: invariant.MarshalData(ActivityHighScheduleToStartTimeoutMetadata{
+					EventID:                event.ID,
+					ActivityID:             activityID,
+					ActivityType:           activityType,
+					ScheduleToStartTimeout: time.Duration(attr.GetScheduleToStartTimeoutSeconds()) * time.Second,
+					Threshold:              time.Duration(highScheduleToStartThresholdSeconds) * time.Second,
+				}),
+			})
+			issueID++
 		}
 	}
 
 	return result, nil
-}
-
-// isGlobalDomain reports whether the domain is global (multi-cluster) -- the only kind that can fail over.
-func (t *timeoutRisk) isGlobalDomain(ctx context.Context, domain string) (bool, error) {
-	resp, err := t.client.DescribeDomain(ctx, &shared.DescribeDomainRequest{Name: &domain})
-	if err != nil {
-		return false, fmt.Errorf("failed to describe domain: %w", err)
-	}
-	return resp.GetIsGlobalDomain(), nil
 }
 
 // fetchWorkflowExecutionTimeoutSeconds returns the workflow's configured ExecutionStartToCloseTimeout in
@@ -147,70 +100,6 @@ func fetchWorkflowExecutionTimeoutSeconds(events []*types.HistoryEvent) int32 {
 		}
 	}
 	return 0
-}
-
-// estimatedRetryWindowSeconds estimates how long a retry sequence could keep an activity alive: an
-// explicit expiration wins; unlimited attempts ride out to the workflow timeout; bounded attempts get
-// a cumulative estimate. Always capped at the workflow timeout.
-func estimatedRetryWindowSeconds(policy *types.RetryPolicy, startToCloseSeconds int32, workflowTimeoutSeconds int32) int32 {
-	if policy == nil {
-		return 0
-	}
-	if workflowTimeoutSeconds == 0 {
-		// no started event to baseline against; this also keeps the cumulative loop bounded
-		return 0
-	}
-
-	var windowSeconds int64
-	switch {
-	case policy.GetExpirationIntervalInSeconds() > 0:
-		windowSeconds = int64(policy.GetExpirationIntervalInSeconds())
-	case policy.GetMaximumAttempts() == 0:
-		windowSeconds = int64(workflowTimeoutSeconds)
-	default:
-		windowSeconds = cumulativeRetryWindowSeconds(policy, startToCloseSeconds, workflowTimeoutSeconds)
-	}
-
-	if windowSeconds > int64(workflowTimeoutSeconds) {
-		windowSeconds = int64(workflowTimeoutSeconds)
-	}
-	return int32(windowSeconds)
-}
-
-// cumulativeRetryWindowSeconds sums the backoff delays between attempts plus one StartToCloseTimeout
-// per attempt, exiting early once the total exceeds the (positive, caller-guaranteed) workflow timeout.
-func cumulativeRetryWindowSeconds(policy *types.RetryPolicy, startToCloseSeconds int32, workflowTimeoutSeconds int32) int64 {
-	limit := int64(workflowTimeoutSeconds)
-
-	coefficient := policy.GetBackoffCoefficient()
-	if coefficient < 1 {
-		coefficient = 1
-	}
-	maximumIntervalSeconds := int64(policy.GetMaximumIntervalInSeconds())
-
-	interval := float64(policy.GetInitialIntervalInSeconds())
-	var backoffTotal int64
-	for attempt := int32(1); attempt < policy.GetMaximumAttempts(); attempt++ {
-		step := interval
-		if maximumIntervalSeconds > 0 && step > float64(maximumIntervalSeconds) {
-			step = float64(maximumIntervalSeconds)
-		}
-		// exponential growth can exceed int64 range, where float-to-int conversion is implementation-defined
-		if step > float64(math.MaxInt32) {
-			step = float64(math.MaxInt32)
-		}
-		// validation enforces a positive initial interval; guard anyway so the early exit stays reachable
-		if step < 1 {
-			step = 1
-		}
-		backoffTotal += int64(step)
-		if backoffTotal > limit {
-			return backoffTotal
-		}
-		interval *= coefficient
-	}
-
-	return backoffTotal + int64(policy.GetMaximumAttempts())*int64(startToCloseSeconds)
 }
 
 func (t *timeoutRisk) RootCause(ctx context.Context, params invariant.InvariantRootCauseInput) ([]invariant.InvariantRootCauseResult, error) {

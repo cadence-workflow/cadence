@@ -68,7 +68,7 @@ func (s *diagnosticsWorkflowTestSuite) SetupTest() {
 		svcClient:     publicClient,
 		clientBean:    mockResource.ClientBean,
 		metricsClient: mockResource.GetMetricsClient(),
-		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant(timeoutrisk.Params{})},
+		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant()},
 	}
 
 	s.T().Cleanup(func() {
@@ -503,18 +503,14 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 	}
 	missingHeartbeatMetadataInBytes, err := json.Marshal(missingHeartbeatMetadata)
 	s.NoError(err)
-	retryWindowMetadata := timeoutrisk.ActivityRetryWindowExceedsStandbyDiscardDelayMetadata{
-		EventID:              4,
-		ActivityID:           "103",
-		ActivityType:         "test-activity",
-		EstimatedRetryWindow: 1800 * time.Second,
-		Threshold:            1500 * time.Second,
-		RetryPolicy: &types.RetryPolicy{
-			InitialIntervalInSeconds: 1,
-			MaximumAttempts:          0,
-		},
+	highScheduleToStartMetadata := timeoutrisk.ActivityHighScheduleToStartTimeoutMetadata{
+		EventID:                4,
+		ActivityID:             "103",
+		ActivityType:           "test-activity",
+		ScheduleToStartTimeout: 300 * time.Second,
+		Threshold:              180 * time.Second,
 	}
-	retryWindowMetadataInBytes, err := json.Marshal(retryWindowMetadata)
+	highScheduleToStartMetadataInBytes, err := json.Marshal(highScheduleToStartMetadata)
 	s.NoError(err)
 	issues := []invariant.InvariantCheckResult{
 		{
@@ -531,9 +527,9 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 		},
 		{
 			IssueID:       2,
-			InvariantType: timeoutrisk.ActivityRetryWindowExceedsStandbyDiscardDelay.String(),
-			Reason:        timeoutrisk.RetryWindowExceedsStandbyDiscardDelay.String(),
-			Metadata:      retryWindowMetadataInBytes,
+			InvariantType: timeoutrisk.ActivityHighScheduleToStartTimeout.String(),
+			Reason:        timeoutrisk.HighScheduleToStartTimeout.String(),
+			Metadata:      highScheduleToStartMetadataInBytes,
 		},
 	}
 	timeoutRiskIssues := []*timeoutRiskIssuesResult{
@@ -555,10 +551,10 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 		},
 		{
 			IssueID:       2,
-			InvariantType: timeoutrisk.ActivityRetryWindowExceedsStandbyDiscardDelay.String(),
-			Reason:        timeoutrisk.RetryWindowExceedsStandbyDiscardDelay.String(),
+			InvariantType: timeoutrisk.ActivityHighScheduleToStartTimeout.String(),
+			Reason:        timeoutrisk.HighScheduleToStartTimeout.String(),
 			Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
-				ActivityRetryWindowExceedsStandbyDiscardDelay: &retryWindowMetadata,
+				ActivityHighScheduleToStartTimeout: &highScheduleToStartMetadata,
 			},
 		},
 	}
