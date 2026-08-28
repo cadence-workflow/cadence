@@ -303,8 +303,14 @@ type (
 		DomainID      string
 		SemaphoreName string
 		Bucket        int
-		// RowType is the row's `type` column. Reads set it; writes ignore it, since each
-		// write path already knows which shape of row it is producing.
+		// RowType is an output: reads fill it in from the stored `type` column, and
+		// writes ignore whatever it holds.
+		//
+		// Writes cannot honor it. Grant and release each write two rows in one batch,
+		// a token row and an owner row, so no single value on this struct could
+		// describe them. Seeding does write one row per struct, but honoring it there
+		// alone would leave a field that two of the three write paths still ignore.
+		// All three hardcode the `type` for each row they store.
 		RowType     persistence.SemaphoreRowType
 		TokenID     int
 		OwnerID     string
