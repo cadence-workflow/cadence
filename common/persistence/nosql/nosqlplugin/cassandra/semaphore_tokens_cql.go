@@ -51,12 +51,8 @@ const (
 	templateReleaseSemaphoreOwnerDeleteQuery = `DELETE FROM semaphore_tokens ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ?`
 
-	// The three reads below share one column list, in this order, so a single scan helper
-	// can serve all of them.
-	//
-	// Forward read: owner_id is the trailing clustering column, so it is omitted. Exactly
-	// one token row exists per (type, token_id) — every write binds ownerNoneSentinel — so
-	// this returns a single row without depending on that sentinel's literal value.
+	// Forward read: owner_id, the trailing clustering column, is omitted. Every write binds
+	// ownerNoneSentinel, so exactly one token row exists per (type, token_id).
 	templateSelectSemaphoreOwnershipByTokenQuery = `SELECT ` +
 		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time ` +
 		`FROM semaphore_tokens ` +

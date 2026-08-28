@@ -168,10 +168,8 @@ const (
 	SemaphoreGrantSlotTaken
 )
 
-// SemaphoreRowType is the `type` clustering column of semaphore_tokens: whether a row is the
-// forward token row or the reverse owner row. Numbering starts at 1 so the Go zero value
-// matches neither. The values are persisted and must never be renumbered; reads are not
-// validated, so handle an unrecognized one with a default branch.
+// SemaphoreRowType is the `type` clustering column of semaphore_tokens: a forward token row
+// or a reverse owner row.
 type SemaphoreRowType int
 
 // Semaphore Row Type
