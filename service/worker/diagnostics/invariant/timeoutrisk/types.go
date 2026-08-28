@@ -21,7 +21,7 @@ type IssueType string
 const (
 	StartToCloseAtWorkflowTimeoutCap       IssueType = "Activity StartToClose timeout may have been silently capped at the workflow execution timeout by the server, leaving no headroom for retrying."
 	MissingHeartbeatTimeoutForLongActivity IssueType = "Long-running activity without a HeartbeatTimeout will leave worker failures undetected until the activity times out."
-	HighScheduleToStartTimeout             IssueType = "A high ScheduleToStart timeout lets the activity sit unclaimed in the task list for a long time, hiding poller or backlog problems and delaying retries and failovers."
+	HighScheduleToStartTimeout             IssueType = "A high ScheduleToStart timeout lets the activity sit unclaimed in the task list for a long time, hiding poller or backlog problems and delaying retries."
 )
 
 func (i IssueType) String() string {
