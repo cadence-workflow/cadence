@@ -164,7 +164,7 @@ func (f *timerQueueFactory) createQueuev2(
 		reader = cachedReader
 	}
 
-	base := newScheduledQueue(
+	queue := newScheduledQueue(
 		shard,
 		persistence.HistoryTaskCategoryTimer,
 		f.taskProcessor,
@@ -177,8 +177,8 @@ func (f *timerQueueFactory) createQueuev2(
 	)
 
 	if cachedReader != nil {
-		return newCachedScheduledQueue(base, cachedReader)
+		return newCachedQueue(queue, queue.base, cachedReader)
 	}
 
-	return base
+	return queue
 }

@@ -50,18 +50,18 @@ func TestCachedScheduledQueue_Construction(t *testing.T) {
 		config.NewForTest(),
 	)
 
-	options := testScheduledQueueOptions()
+	options := testQueueOptions()
 	mockReader := NewMockCachedQueueReader(ctrl)
 
 	inner := NewScheduledQueue(mockShard, persistence.HistoryTaskCategoryTimer,
 		task.NewMockProcessor(ctrl), task.NewMockExecutor(ctrl),
 		mockShard.GetLogger(), metrics.NoopClient, metrics.NoopScope, mockReader, options).(*scheduledQueue)
 
-	q := newCachedScheduledQueue(inner, mockReader)
+	q := newCachedQueue(inner, inner.base, mockReader)
 
 	require.NotNil(t, q)
-	_, ok := q.(*cachedScheduledQueue)
-	require.True(t, ok, "expected *cachedScheduledQueue")
+	_, ok := q.(*cachedQueue)
+	require.True(t, ok, "expected *cachedQueue")
 }
 
 func TestCachedScheduledQueue_NotifyNewTask(t *testing.T) {
@@ -110,8 +110,8 @@ func TestCachedScheduledQueue_NotifyNewTask(t *testing.T) {
 			mockReader := NewMockCachedQueueReader(ctrl)
 			tt.setupMockReader(mockReader)
 
-			csq := &cachedScheduledQueue{
-				scheduledQueue: &scheduledQueue{
+			csq := &cachedQueue{
+				Queue: &scheduledQueue{
 					base: &queueBase{
 						metricsScope: metrics.NoopScope,
 					},
@@ -135,7 +135,7 @@ func TestCachedScheduledQueue_StartStop(t *testing.T) {
 		config.NewForTest(),
 	)
 
-	options := testScheduledQueueOptions()
+	options := testQueueOptions()
 	mockReader := NewMockCachedQueueReader(ctrl)
 
 	// processEventLoop calls LookAHead after the timer gate fires, and GetTask
@@ -158,7 +158,7 @@ func TestCachedScheduledQueue_StartStop(t *testing.T) {
 		task.NewMockProcessor(ctrl), task.NewMockExecutor(ctrl),
 		mockShard.GetLogger(), metrics.NoopClient, metrics.NoopScope, mockReader, options).(*scheduledQueue)
 
-	q := newCachedScheduledQueue(inner, mockReader)
+	q := newCachedQueue(inner, inner.base, mockReader)
 
 	q.Start()
 	q.Stop()
@@ -174,7 +174,7 @@ func TestCachedScheduledQueue_EvictionHookWired(t *testing.T) {
 		config.NewForTest(),
 	)
 
-	options := testScheduledQueueOptions()
+	options := testQueueOptions()
 	mockReader := NewMockCachedQueueReader(ctrl)
 
 	inner := NewScheduledQueue(mockShard, persistence.HistoryTaskCategoryTimer,
@@ -185,12 +185,11 @@ func TestCachedScheduledQueue_EvictionHookWired(t *testing.T) {
 	// can be called without triggering real shard persistence.
 	inner.base.updateQueueStateFn = func(ctx context.Context) {}
 
-	q := newCachedScheduledQueue(inner, mockReader)
-	csq := q.(*cachedScheduledQueue)
+	newCachedQueue(inner, inner.base, mockReader)
 
 	// Calling the hooked function exercises the closure (covers the inner body).
 	mockReader.EXPECT().UpdateReadLevel(gomock.Any()).Times(1)
-	csq.scheduledQueue.base.updateQueueStateFn(context.Background())
+	inner.base.updateQueueStateFn(context.Background())
 }
 
 func TestCachedScheduledQueue_UpdateQueueStateFn_PropagatesReadLevel(t *testing.T) {
@@ -234,13 +233,13 @@ func TestCachedScheduledQueue_UpdateQueueStateFn_PropagatesReadLevel(t *testing.
 			mockVQM.EXPECT().GetMinReadLevel().Return(tt.minReadLevel)
 			mockReader.EXPECT().UpdateReadLevel(tt.expectedLevel)
 
-			q := newCachedScheduledQueue(inner, mockReader)
-			q.(*cachedScheduledQueue).scheduledQueue.base.updateQueueStateFn(context.Background())
+			newCachedQueue(inner, inner.base, mockReader)
+			inner.base.updateQueueStateFn(context.Background())
 		})
 	}
 }
 
-func testScheduledQueueOptions() *Options {
+func testQueueOptions() *Options {
 	return &Options{
 		DeleteBatchSize:                      dynamicproperties.GetIntPropertyFn(100),
 		RedispatchInterval:                   dynamicproperties.GetDurationPropertyFn(10 * time.Second),

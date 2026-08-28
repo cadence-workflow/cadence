@@ -29,46 +29,47 @@ import (
 	hcommon "github.com/uber/cadence/service/history/common"
 )
 
-type cachedScheduledQueue struct {
-	*scheduledQueue
+type cachedQueue struct {
+	Queue
 	reader CachedQueueReader
 }
 
-func newCachedScheduledQueue(inner *scheduledQueue, reader CachedQueueReader) Queue {
+// newCachedQueue wraps passed queue with reader.
+// queueBase must be queue's underlying *queueBase.
+func newCachedQueue(queue Queue, queueBase *queueBase, reader CachedQueueReader) Queue {
 	// Wrap the queue state update to propagate min read level across all virtual queues
 	// to CachedQueueReader each time the ack level is updated
-	originalUpdateFn := inner.base.updateQueueStateFn
-	inner.base.updateQueueStateFn = func(ctx context.Context) {
+	originalUpdateFn := queueBase.updateQueueStateFn
+	queueBase.updateQueueStateFn = func(ctx context.Context) {
 		originalUpdateFn(ctx)
 		// MaximumHistoryTaskKey means no slices — fall back to ack level.
-		readLevel := inner.base.virtualQueueManager.GetMinReadLevel()
+		readLevel := queueBase.virtualQueueManager.GetMinReadLevel()
 		if readLevel.Equal(persistence.MaximumHistoryTaskKey) {
-			readLevel = inner.base.exclusiveAckLevel
+			readLevel = queueBase.exclusiveAckLevel
 		}
 		reader.UpdateReadLevel(readLevel)
 	}
-
-	return &cachedScheduledQueue{
-		scheduledQueue: inner,
-		reader:         reader,
+	return &cachedQueue{
+		Queue:  queue,
+		reader: reader,
 	}
 }
 
-func (q *cachedScheduledQueue) NotifyNewTask(clusterName string, info *hcommon.NotifyTaskInfo) {
+func (q *cachedQueue) NotifyNewTask(clusterName string, info *hcommon.NotifyTaskInfo) {
 	if info.PersistenceError {
 		q.reader.Clear()
 	} else {
 		q.reader.Inject(info.Tasks)
 	}
-	q.scheduledQueue.NotifyNewTask(clusterName, info)
+	q.Queue.NotifyNewTask(clusterName, info)
 }
 
-func (q *cachedScheduledQueue) Start() {
+func (q *cachedQueue) Start() {
 	q.reader.Start()
-	q.scheduledQueue.Start()
+	q.Queue.Start()
 }
 
-func (q *cachedScheduledQueue) Stop() {
-	q.scheduledQueue.Stop()
+func (q *cachedQueue) Stop() {
+	q.Queue.Stop()
 	q.reader.Stop()
 }
