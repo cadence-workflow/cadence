@@ -185,7 +185,7 @@ func (f *failure) RootCause(ctx context.Context, params invariant.InvariantRootC
 		case WorkflowSizeExceedsLimit.String():
 			result = append(result, invariant.InvariantRootCauseResult{
 				IssueID:   issue.IssueID,
-				RootCause: invariant.RootCauseTypeWorkflowSizeExceedsLimit,
+				RootCause: invariant.RootCauseTypeHistorySizeExceedsLimit,
 				Metadata:  issue.Metadata,
 			})
 		}

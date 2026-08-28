@@ -354,7 +354,7 @@ func retrieveFailureIssues(issues []invariant.InvariantCheckResult) ([]*failureI
 func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([]*failureRootCauseResult, error) {
 	result := make([]*failureRootCauseResult, 0)
 	for _, rc := range rootCause {
-		if rc.RootCause == invariant.RootCauseTypeServiceSideIssue || rc.RootCause == invariant.RootCauseTypeServiceSidePanic || rc.RootCause == invariant.RootCauseTypeServiceSideCustomError || rc.RootCause == invariant.RootCauseTypeWorkflowSizeExceedsLimit {
+		if rc.RootCause == invariant.RootCauseTypeServiceSideIssue || rc.RootCause == invariant.RootCauseTypeServiceSidePanic || rc.RootCause == invariant.RootCauseTypeServiceSideCustomError || rc.RootCause == invariant.RootCauseTypeHistorySizeExceedsLimit {
 			result = append(result, &failureRootCauseResult{
 				IssueID:       rc.IssueID,
 				RootCauseType: rc.RootCause.String(),

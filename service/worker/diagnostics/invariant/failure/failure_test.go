@@ -348,7 +348,7 @@ func Test__RootCause(t *testing.T) {
 				}},
 			expectedResult: []invariant.InvariantRootCauseResult{{
 				IssueID:   0,
-				RootCause: invariant.RootCauseTypeWorkflowSizeExceedsLimit,
+				RootCause: invariant.RootCauseTypeHistorySizeExceedsLimit,
 				Metadata:  largeHistoryMetadataInBytes,
 			}},
 			err: nil,

@@ -443,11 +443,11 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureRootCause() {
 	s.ElementsMatch(failureRootCause, result)
 }
 
-func TestRetrieveFailureRootCauseWorkflowSizeExceedsLimit(t *testing.T) {
+func TestRetrieveFailureRootCauseHistorySizeExceedsLimit(t *testing.T) {
 	result, err := retrieveFailureRootCause([]invariant.InvariantRootCauseResult{
 		{
 			IssueID:   1,
-			RootCause: invariant.RootCauseTypeWorkflowSizeExceedsLimit,
+			RootCause: invariant.RootCauseTypeHistorySizeExceedsLimit,
 		},
 	})
 
@@ -455,7 +455,7 @@ func TestRetrieveFailureRootCauseWorkflowSizeExceedsLimit(t *testing.T) {
 	require.Equal(t, []*failureRootCauseResult{
 		{
 			IssueID:       1,
-			RootCauseType: invariant.RootCauseTypeWorkflowSizeExceedsLimit.String(),
+			RootCauseType: invariant.RootCauseTypeHistorySizeExceedsLimit.String(),
 		},
 	}, result)
 }
