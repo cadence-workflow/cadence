@@ -55,7 +55,7 @@ type (
 	}
 )
 
-func NewImmediateQueue(
+func newImmediateQueue(
 	shard shard.Context,
 	category persistence.HistoryTaskCategory,
 	taskProcessor task.Processor,
@@ -65,7 +65,7 @@ func NewImmediateQueue(
 	metricsScope metrics.Scope,
 	queueReader QueueReader,
 	options *Options,
-) Queue {
+) *immediateQueue {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &immediateQueue{
 		base: newQueueBase(
@@ -83,6 +83,21 @@ func NewImmediateQueue(
 		ctx:      ctx,
 		cancel:   cancel,
 	}
+}
+
+func NewImmediateQueue(
+	shard shard.Context,
+	category persistence.HistoryTaskCategory,
+	taskProcessor task.Processor,
+	taskExecutor task.Executor,
+	logger log.Logger,
+	metricsClient metrics.Client,
+	metricsScope metrics.Scope,
+	queueReader QueueReader,
+	options *Options,
+) Queue {
+	return newImmediateQueue(shard, category, taskProcessor, taskExecutor,
+		logger, metricsClient, metricsScope, queueReader, options)
 }
 
 func (q *immediateQueue) Start() {
@@ -187,7 +202,7 @@ func (q *immediateQueue) processEventLoop() {
 		case <-q.pollTimer.Chan():
 			q.processPollTimer()
 		case <-q.base.updateQueueStateTimer.Chan():
-			q.base.updateQueueState(q.ctx)
+			q.base.updateQueueStateFn(q.ctx)
 		case alert := <-q.base.alertCh:
 			q.base.handleAlert(q.ctx, alert)
 		case <-q.ctx.Done():
