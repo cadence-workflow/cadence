@@ -120,6 +120,71 @@ Example: `feat(history): add retry logic for shard takeover`.
 
 For database setup, schema installation, and server start options: [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Release Tagging
+
+This repository contains multiple Go modules. Use the `releaser` tool in `cmd/tools/releaser/` for managing releases.
+
+### Building the Releaser Tool
+
+```bash
+make cadence-releaser
+```
+
+This creates a `cadence-releaser` binary in the repository root.
+
+### Release Workflow
+
+**Check current status:**
+```bash
+./cadence-releaser status
+```
+
+**During development (iterate on prereleases):**
+```bash
+./cadence-releaser prerelease  # v1.4.2-prerelease08 → v1.4.2-prerelease09
+```
+
+**Promote to stable release:**
+```bash
+./cadence-releaser release     # v1.4.2-prerelease09 → v1.4.2
+```
+
+**Start new version cycle:**
+```bash
+./cadence-releaser minor       # v1.4.2 → v1.5.0-prerelease01 (new features)
+./cadence-releaser patch       # v1.4.2 → v1.4.3-prerelease01 (bug fixes)
+./cadence-releaser major       # v1.4.2 → v2.0.0-prerelease01 (breaking changes)
+```
+
+**Override version (when needed):**
+```bash
+./cadence-releaser release --set-version v1.4.3
+```
+
+**Skip confirmations (for CI/automation):**
+```bash
+./cadence-releaser prerelease --yes
+```
+
+### How It Works
+
+- Tags **all modules uniformly** with the same version (simpler for users)
+- Submodule tags follow the pattern: `<module-path>/<version>`
+- Validates repository state (clean working directory, on master branch)
+- Interactive confirmations for safety
+- Detects and handles version conflicts (can create partial tags if some already exist)
+- After creating tags and pushing, create a GitHub release to trigger Docker image builds
+
+### Go Modules in This Repo
+
+- **Root**: `github.com/uber/cadence`
+- **Server**: `github.com/uber/cadence/cmd/server`
+- **GCloud Archiver**: `github.com/uber/cadence/common/archiver/gcloud`
+- **Unleash Provider**: `github.com/uber/cadence/common/dynamicconfig/openfeatureprovider/unleash`
+- **CloudSQL Plugin**: `github.com/uber/cadence/common/persistence/sql/sqlplugin/cloudsql-mysql`
+
+These are defined in `go.work` which the releaser tool uses to discover modules.
+
 ## Repository layout
 A Cadence server cluster is composed of four different services: Frontend, Matching, History and Worker(system).
 Here's what's in each top-level directory in this repository:
