@@ -582,12 +582,22 @@ func matchFilters(dcValue *types.DynamicConfigValue, filters map[dynamicproperti
 
 	for _, valueFilter := range dcValue.Filters {
 		filterKey := dynamicproperties.ParseFilter(valueFilter.Name)
-		if filters[filterKey] == nil {
+		filterValue := filters[filterKey]
+		if filterValue == nil {
 			return false
 		}
 
 		requestValue, err := convertFromDataBlob(valueFilter.Value)
-		if err != nil || filters[filterKey] != requestValue {
+		if err != nil {
+			return false
+		}
+		if m, ok := filterValue.(dynamicproperties.Matcher); ok {
+			if !m.Matches(requestValue) {
+				return false
+			}
+			continue
+		}
+		if filterValue != requestValue {
 			return false
 		}
 	}

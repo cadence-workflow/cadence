@@ -105,8 +105,53 @@ const (
 	LastFilterTypeForTest
 )
 
+// Matcher lets a filter-map value define its own comparison against a constraint,
+// instead of match()/matchFilters()'s default equality check. Implement this on a
+// filter's value type when a constraint isn't a plain exact match.
+type Matcher interface {
+	Matches(constraint interface{}) bool
+}
+
 // FilterOption is used to provide filters for dynamic config keys
 type FilterOption func(filterMap map[Filter]interface{})
+
+// ShardIDFilterOption builds a FilterOption once the shard id is known, for options
+// that also depend on a value fixed at Collection-construction time (e.g. the
+// cluster's shard count). Applied only within ShardID-scoped getters.
+type ShardIDFilterOption func(shardID int) FilterOption
+
+// CollectionFilterOption configures a Collection at construction time. Implemented
+// by FilterOption (applied to every getter call) and ShardIDFilterOption (applied
+// only within ShardID-scoped getters, once the shard id is known). Sealed to this
+// package: the apply method is unexported.
+type CollectionFilterOption interface {
+	apply(*CollectionFilterOptions)
+}
+
+// CollectionFilterOptions is the classified result of a NewCollection(...) call's
+// options.
+type CollectionFilterOptions struct {
+	FilterOptions        []FilterOption
+	ShardIDFilterOptions []ShardIDFilterOption
+}
+
+func (f FilterOption) apply(s *CollectionFilterOptions) {
+	s.FilterOptions = append(s.FilterOptions, f)
+}
+
+func (f ShardIDFilterOption) apply(s *CollectionFilterOptions) {
+	s.ShardIDFilterOptions = append(s.ShardIDFilterOptions, f)
+}
+
+// NewCollectionFilterOptions classifies raw CollectionFilterOption values into their
+// FilterOption / ShardIDFilterOption buckets.
+func NewCollectionFilterOptions(opts ...CollectionFilterOption) *CollectionFilterOptions {
+	s := &CollectionFilterOptions{}
+	for _, opt := range opts {
+		opt.apply(s)
+	}
+	return s
+}
 
 // TaskListFilter filters by task list name
 func TaskListFilter(name string) FilterOption {
