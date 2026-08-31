@@ -365,13 +365,15 @@ func (s *matchingEngineSuite) PollForDecisionTasksResultTest() {
 			Name: tl,
 			Kind: &tlKind,
 		},
-		AutoConfigHint: &types.AutoConfigHint{
-			EnableAutoConfig:   false,
-			PollerWaitTimeInMs: 0,
-		},
 	}
 
 	s.Nil(err)
+	// PollerWaitTimeInMs is time.Since(startT), so it is 0 on a fast machine and 1 or more
+	// on a loaded one. Check the deterministic half of the hint, then drop it before the
+	// deep comparison, as the other polls in this file do.
+	s.NotNil(resp.AutoConfigHint)
+	s.False(resp.AutoConfigHint.EnableAutoConfig)
+	resp.AutoConfigHint = nil
 	s.Equal(expectedResp, resp)
 }
 
