@@ -125,16 +125,27 @@ const (
 
 // Common service base metrics
 const (
-	RestartCount         = "restarts"
-	NumGoRoutinesGauge   = "num_goroutines"
-	GoMaxProcsGauge      = "gomaxprocs"
-	MemoryAllocatedGauge = "memory_allocated"
-	MemoryHeapGauge      = "memory_heap"
-	MemoryHeapIdleGauge  = "memory_heapidle"
-	MemoryHeapInuseGauge = "memory_heapinuse"
-	MemoryStackGauge     = "memory_stack"
-	NumGCCounter         = "memory_num_gc"
-	GcPauseMsTimer       = "memory_gc_pause_ms"
+	RestartCount            = "restarts"
+	NumGoRoutinesGauge      = "num_goroutines"
+	GoMaxProcsGauge         = "gomaxprocs"
+	MemoryAllocatedGauge    = "memory_allocated"
+	MemoryTotalAllocGauge   = "memory_total_alloc"
+	MemoryHeapGauge         = "memory_heap"
+	MemoryHeapIdleGauge     = "memory_heapidle"
+	MemoryHeapInuseGauge    = "memory_heapinuse"
+	MemoryHeapSysGauge      = "memory_heapsys"
+	MemoryHeapReleasedGauge = "memory_heapreleased"
+	MemoryHeapObjectsGauge  = "memory_heapobjects"
+	MemoryStackGauge        = "memory_stack"
+	MemoryStackSysGauge     = "memory_stacksys"
+	MemoryMallocsGauge      = "memory_mallocs"
+	MemoryFreesGauge        = "memory_frees"
+	MemoryNextGCGauge       = "memory_next_gc"
+	MemoryGCCPUFracGauge    = "memory_gc_cpu_frac"
+	NumGCCounter            = "memory_num_gc"
+	GcPauseMsTimer          = "memory_gc_pause_ms"
+	GcCPUTotalGauge         = "memory_gc_cpu_total"
+	CPUTotalGauge           = "memory_cpu_total"
 )
 
 // ServiceMetrics are types for common service base metrics
@@ -144,15 +155,26 @@ var ServiceMetrics = map[MetricName]MetricType{
 
 // GoRuntimeMetrics represent the runtime stats from go runtime
 var GoRuntimeMetrics = map[MetricName]MetricType{
-	NumGoRoutinesGauge:   Gauge,
-	GoMaxProcsGauge:      Gauge,
-	MemoryAllocatedGauge: Gauge,
-	MemoryHeapGauge:      Gauge,
-	MemoryHeapIdleGauge:  Gauge,
-	MemoryHeapInuseGauge: Gauge,
-	MemoryStackGauge:     Gauge,
-	NumGCCounter:         Counter,
-	GcPauseMsTimer:       Timer,
+	NumGoRoutinesGauge:      Gauge,
+	GoMaxProcsGauge:         Gauge,
+	MemoryAllocatedGauge:    Gauge,
+	MemoryTotalAllocGauge:   Gauge,
+	MemoryHeapGauge:         Gauge,
+	MemoryHeapIdleGauge:     Gauge,
+	MemoryHeapInuseGauge:    Gauge,
+	MemoryHeapSysGauge:      Gauge,
+	MemoryHeapReleasedGauge: Gauge,
+	MemoryHeapObjectsGauge:  Gauge,
+	MemoryStackGauge:        Gauge,
+	MemoryStackSysGauge:     Gauge,
+	MemoryMallocsGauge:      Gauge,
+	MemoryFreesGauge:        Gauge,
+	MemoryNextGCGauge:       Gauge,
+	MemoryGCCPUFracGauge:    Gauge,
+	NumGCCounter:            Counter,
+	GcPauseMsTimer:          Timer,
+	GcCPUTotalGauge:         Gauge,
+	CPUTotalGauge:           Gauge,
 }
 
 // Scopes enum
