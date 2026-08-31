@@ -32,6 +32,17 @@ import (
 // CreateSemaphoreRequest leaves BucketSize unset. N = ceil(size / bucket_size).
 const DefaultSemaphoreBucketSize = 100
 
+// MaxSemaphoreBucketSize caps the per-bucket token budget. SeedSemaphoreTokens writes a
+// whole bucket as one conditional batch of BucketSize statements against one partition,
+// so this bounds the size of a single Paxos round: contention and latency climb with the
+// statement count, and past a few hundred the batch trips the datastore's own size limit
+// and the seed fails outright. Rejecting here gives a caller a clear error instead.
+//
+// Capping rather than chunking is deliberate. The seed is all-or-nothing so that
+// re-seeding a different id set is refused whole rather than half-applied, which is what
+// makes growing a bucket unsupported rather than dangerous.
+const MaxSemaphoreBucketSize = 250
+
 type semaphoreMetadataManagerImpl struct {
 	persistence SemaphoreMetadataStore
 	logger      log.Logger
@@ -71,6 +82,9 @@ func (m *semaphoreMetadataManagerImpl) CreateSemaphore(
 
 	if request.BucketSize < 0 {
 		return nil, fmt.Errorf("BucketSize must not be negative, got %d", request.BucketSize)
+	}
+	if request.BucketSize > MaxSemaphoreBucketSize {
+		return nil, fmt.Errorf("BucketSize must not exceed %d, got %d", MaxSemaphoreBucketSize, request.BucketSize)
 	}
 	// BucketSize is optional: an unset (zero) value falls back to the default.
 	bucketSize := request.BucketSize

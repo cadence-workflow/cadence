@@ -61,6 +61,13 @@ func (m *semaphoreTokenManagerImpl) SeedSemaphoreTokens(
 	if len(request.TokenIDs) == 0 {
 		return fmt.Errorf("TokenIDs is required")
 	}
+	// One seed is one conditional batch with a statement per token, so the length of this
+	// slice is the bucket's size and carries the same bound CreateSemaphore applies. Checked
+	// again here because the datastore's own limit on batch size rejects an oversized seed
+	// with an error that never mentions buckets.
+	if len(request.TokenIDs) > MaxSemaphoreBucketSize {
+		return fmt.Errorf("a bucket holds at most %d tokens, got %d", MaxSemaphoreBucketSize, len(request.TokenIDs))
+	}
 	for _, id := range request.TokenIDs {
 		if id < 1 {
 			return fmt.Errorf("TokenID must be positive, got %d", id)

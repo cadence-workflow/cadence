@@ -41,6 +41,16 @@ func newTestSemaphoreTokenManager(store SemaphoreTokenStore, timeSrc clock.TimeS
 	}
 }
 
+// seedTokenIDs builds n sequential token ids, all valid, so a case can vary the count
+// without the per-id checks getting in the way.
+func seedTokenIDs(n int) []int {
+	ids := make([]int, 0, n)
+	for i := 1; i <= n; i++ {
+		ids = append(ids, i)
+	}
+	return ids
+}
+
 func TestSemaphoreTokenManagerSeedSemaphoreTokens(t *testing.T) {
 	fixedTime := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
 
@@ -107,6 +117,29 @@ func TestSemaphoreTokenManagerSeedSemaphoreTokens(t *testing.T) {
 				DomainID:      "domain-1",
 				SemaphoreName: "sem-1",
 				TokenIDs:      []int{1, 0},
+			},
+			setupMock: func(store *MockSemaphoreTokenStore) {},
+			wantErr:   true,
+		},
+		{
+			name: "token ids at the maximum are allowed",
+			request: &SeedSemaphoreTokensRequest{
+				DomainID:      "domain-1",
+				SemaphoreName: "sem-1",
+				TokenIDs:      seedTokenIDs(MaxSemaphoreBucketSize),
+			},
+			setupMock: func(store *MockSemaphoreTokenStore) {
+				store.EXPECT().SeedSemaphoreTokens(gomock.Any(), gomock.Any(), fixedTime).Return(nil).Times(1)
+			},
+		},
+		{
+			// The seed is one conditional batch, so an oversized bucket has to be refused
+			// here rather than half-written.
+			name: "more token ids than a bucket may hold",
+			request: &SeedSemaphoreTokensRequest{
+				DomainID:      "domain-1",
+				SemaphoreName: "sem-1",
+				TokenIDs:      seedTokenIDs(MaxSemaphoreBucketSize + 1),
 			},
 			setupMock: func(store *MockSemaphoreTokenStore) {},
 			wantErr:   true,

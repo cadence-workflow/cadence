@@ -140,6 +140,42 @@ func TestSemaphoreManagerCreateSemaphore(t *testing.T) {
 			wantErr:   true,
 		},
 		{
+			name: "bucket size at the maximum is allowed",
+			request: &CreateSemaphoreRequest{
+				DomainID:      "domain-1",
+				SemaphoreName: "sem-1",
+				Size:          1000,
+				BucketSize:    MaxSemaphoreBucketSize,
+			},
+			setupMock: func(store *MockSemaphoreMetadataStore) {
+				store.EXPECT().CreateSemaphore(gomock.Any(), &SemaphoreMetadata{
+					DomainID:      "domain-1",
+					SemaphoreName: "sem-1",
+					Size:          1000,
+					BucketSize:    MaxSemaphoreBucketSize,
+					CreatedTime:   fixedTime,
+				}).Return(nil).Times(1)
+			},
+			wantResult: &SemaphoreMetadata{
+				DomainID:      "domain-1",
+				SemaphoreName: "sem-1",
+				Size:          1000,
+				BucketSize:    MaxSemaphoreBucketSize,
+				CreatedTime:   fixedTime,
+			},
+		},
+		{
+			name: "bucket size above the maximum",
+			request: &CreateSemaphoreRequest{
+				DomainID:      "domain-1",
+				SemaphoreName: "sem-1",
+				Size:          1000,
+				BucketSize:    MaxSemaphoreBucketSize + 1,
+			},
+			setupMock: func(store *MockSemaphoreMetadataStore) {},
+			wantErr:   true,
+		},
+		{
 			name: "store error is propagated",
 			request: &CreateSemaphoreRequest{
 				DomainID:      "domain-1",
