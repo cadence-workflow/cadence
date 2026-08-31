@@ -32,15 +32,13 @@ import (
 // CreateSemaphoreRequest leaves BucketSize unset. N = ceil(size / bucket_size).
 const DefaultSemaphoreBucketSize = 100
 
-// MaxSemaphoreBucketSize caps the per-bucket token budget. SeedSemaphoreTokens writes a
-// whole bucket as one conditional batch of BucketSize statements against one partition,
-// so this bounds the size of a single Paxos round: contention and latency climb with the
-// statement count, and past a few hundred the batch trips the datastore's own size limit
-// and the seed fails outright. Rejecting here gives a caller a clear error instead.
+// MaxSemaphoreBucketSize caps the per-bucket token budget. Buckets exist to spread a
+// semaphore's writes across partitions, so a bigger bucket means fewer partitions and works
+// against that.
 //
-// Capping rather than chunking is deliberate. The seed is all-or-nothing so that
-// re-seeding a different id set is refused whole rather than half-applied, which is what
-// makes growing a bucket unsupported rather than dangerous.
+// Each hold costs two conditional writes, one to take the slot and one to return it, so a
+// busy bucket whose holds last D seconds drives 2*bucket_size/D writes at one partition,
+// whatever the semaphore's total size — 500 a second at this cap with one-second holds.
 const MaxSemaphoreBucketSize = 250
 
 type semaphoreMetadataManagerImpl struct {
