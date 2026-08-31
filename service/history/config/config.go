@@ -355,9 +355,11 @@ type Config struct {
 	GlobalRatelimiterGCAfter        dynamicproperties.DurationPropertyFn
 
 	// History Task DLQ Configuration
-	HistoryTaskDLQMode              dynamicproperties.StringPropertyFnWithDomainFilter
-	HistoryTaskDLQProcessorInterval dynamicproperties.DurationPropertyFnWithShardIDFilter
-	HistoryTaskDLQProcessorEnabled  dynamicproperties.BoolPropertyFn
+	HistoryTaskDLQMode                            dynamicproperties.StringPropertyFnWithDomainFilter
+	HistoryTaskDLQProcessorInterval               dynamicproperties.DurationPropertyFnWithShardIDFilter
+	HistoryTaskDLQProcessorFailoverJitterMaxDelay dynamicproperties.DurationPropertyFn
+	HistoryTaskDLQProcessorEnabled                dynamicproperties.BoolPropertyFn
+	HistoryTaskDLQProcessorHostConcurrency        dynamicproperties.IntPropertyFn
 
 	// HostName for machine running the service
 	HostName string
@@ -634,9 +636,11 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		GlobalRatelimiterDecayAfter:     dc.GetDurationProperty(dynamicproperties.HistoryGlobalRatelimiterDecayAfter),
 		GlobalRatelimiterGCAfter:        dc.GetDurationProperty(dynamicproperties.HistoryGlobalRatelimiterGCAfter),
 
-		HistoryTaskDLQMode:              dc.GetStringPropertyFilteredByDomain(dynamicproperties.HistoryTaskDLQMode),
-		HistoryTaskDLQProcessorInterval: dc.GetDurationPropertyFilteredByShardID(dynamicproperties.HistoryTaskDLQProcessorInterval),
-		HistoryTaskDLQProcessorEnabled:  dc.GetBoolProperty(dynamicproperties.HistoryTaskDLQProcessorEnabled),
+		HistoryTaskDLQMode:                            dc.GetStringPropertyFilteredByDomain(dynamicproperties.HistoryTaskDLQMode),
+		HistoryTaskDLQProcessorInterval:               dc.GetDurationPropertyFilteredByShardID(dynamicproperties.HistoryTaskDLQProcessorInterval),
+		HistoryTaskDLQProcessorFailoverJitterMaxDelay: dc.GetDurationProperty(dynamicproperties.HistoryTaskDLQProcessorFailoverJitterMaxDelay),
+		HistoryTaskDLQProcessorEnabled:                dc.GetBoolProperty(dynamicproperties.HistoryTaskDLQProcessorEnabled),
+		HistoryTaskDLQProcessorHostConcurrency:        dc.GetIntProperty(dynamicproperties.HistoryTaskDLQProcessorHostConcurrency),
 
 		HostName: hostname,
 	}

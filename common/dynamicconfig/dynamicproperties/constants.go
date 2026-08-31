@@ -1637,6 +1637,13 @@ const (
 	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
 
+	// HistoryTaskDLQProcessorHostConcurrency is the maximum number of shards that may process the History Task DLQ concurrently on one history host.
+	// KeyName: history.historyTaskDLQProcessorHostConcurrency
+	// Value type: Int
+	// Default value: 10
+	// Allowed filters: N/A
+	HistoryTaskDLQProcessorHostConcurrency
+
 	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
 	// KeyName: history.taskListNiceValue
 	// Value type: Int
@@ -3348,6 +3355,12 @@ const (
 	// Allowed filters: ShardID
 	HistoryTaskDLQProcessorInterval
 
+	// HistoryTaskDLQProcessorFailoverJitterMaxDelay is the maximum jitter delay before processing failover-triggered History Task DLQ partitions
+	// KeyName: history.historyTaskDLQProcessorFailoverJitterMaxDelay
+	// Value type: Duration
+	// Default value: 1m (1 * time.Minute)
+	HistoryTaskDLQProcessorFailoverJitterMaxDelay
+
 	// OperationalConfigStorePollInterval controls how often the operational
 	// dynamic config store re-reads its snapshot from the primary database.
 	// KeyName: system.operationalConfigStorePollInterval
@@ -4582,6 +4595,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.queueMaxVirtualQueueCount",
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
+	},
+	HistoryTaskDLQProcessorHostConcurrency: {
+		KeyName:      "history.historyTaskDLQProcessorHostConcurrency",
+		Description:  "HistoryTaskDLQProcessorHostConcurrency is the maximum number of shards that may process the History Task DLQ concurrently on one history host",
+		DefaultValue: 10,
 	},
 	HistoryTaskListNiceValue: {
 		KeyName:      "history.taskListNiceValue",
@@ -6073,6 +6091,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{ShardID},
 		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
 		DefaultValue: time.Minute * 30,
+	},
+	HistoryTaskDLQProcessorFailoverJitterMaxDelay: {
+		KeyName:      "history.historyTaskDLQProcessorFailoverJitterMaxDelay",
+		Description:  "HistoryTaskDLQProcessorFailoverJitterMaxDelay is the maximum jitter delay before processing failover-triggered History Task DLQ partitions",
+		DefaultValue: time.Minute,
 	},
 	OperationalConfigStorePollInterval: {
 		KeyName:      "system.operationalConfigStorePollInterval",

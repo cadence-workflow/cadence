@@ -74,8 +74,9 @@ func NewTestContext(
 		scheduledTaskMaxReadLevelMap: make(map[string]time.Time),
 		failoverLevels:               make(map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel),
 		historyTaskDLQWriter: &shardedHistoryTaskDLQWriter{
-			writer:              resource.GetHistoryTaskDLQManager(),
-			dlqAckLevelsCreated: make(map[dlqAckLevelKey]struct{}),
+			writer:               resource.GetHistoryTaskDLQManager(),
+			dlqAckLevelsCreated:  make(map[dlqAckLevelKey]struct{}),
+			dlqPartitionsWritten: make(map[dlqPartitionKey]struct{}),
 		},
 		remoteClusterCurrentTime: make(map[string]time.Time),
 		eventsCache:              eventsCache,

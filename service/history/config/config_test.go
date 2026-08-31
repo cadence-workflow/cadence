@@ -292,6 +292,8 @@ func TestNewConfig(t *testing.T) {
 		"RequireChecksumMatchAfterRebuildRepair":               {dynamicproperties.RequireChecksumMatchAfterRebuildRepair, true},
 		"HistoryTaskDLQMode":                                   {dynamicproperties.HistoryTaskDLQMode, "enabled"},
 		"HistoryTaskDLQProcessorInterval":                      {dynamicproperties.HistoryTaskDLQProcessorInterval, time.Second},
+		"HistoryTaskDLQProcessorFailoverJitterMaxDelay":        {dynamicproperties.HistoryTaskDLQProcessorFailoverJitterMaxDelay, time.Second},
+		"HistoryTaskDLQProcessorHostConcurrency":               {dynamicproperties.HistoryTaskDLQProcessorHostConcurrency, 10},
 		"HistoryTaskDLQProcessorEnabled":                       {dynamicproperties.HistoryTaskDLQProcessorEnabled, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()

@@ -25,6 +25,8 @@ package taskdlq
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -41,6 +43,79 @@ import (
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/shard"
 )
+
+func TestHostLimiter_BoundsConcurrentProcessingAcrossShards(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	limiter := NewHostLimiter(1)
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+
+	newProc := func(shardID int) *ProcessorImpl {
+		return NewProcessor(ProcessorParams{
+			ShardID:                shardID,
+			Manager:                mgr,
+			Reinjector:             reinjector,
+			PageSize:               10,
+			Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
+			FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(0),
+			DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+			Enabled:                dynamicproperties.GetBoolPropertyFn(true),
+			HostLimiter:            limiter,
+			TimeSource:             clock.NewMockedTimeSource(),
+			MetricsClient:          metrics.NewNoopMetricsClient(),
+			Logger:                 testlogger.New(t),
+		})
+	}
+	proc1 := newProc(1)
+	proc2 := newProc(2)
+
+	entered1 := make(chan struct{})
+	release1 := make(chan struct{})
+	var secondStarted atomic.Bool
+	done2 := make(chan struct{})
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:  1,
+		DomainID: "test-domain",
+	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+		close(entered1)
+		<-release1
+		return nil, nil
+	})
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:  2,
+		DomainID: "test-domain",
+	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+		secondStarted.Store(true)
+		close(done2)
+		return nil, nil
+	})
+
+	proc1.Start()
+	defer proc1.Stop()
+	proc2.Start()
+	defer proc2.Stop()
+
+	proc1.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+	select {
+	case <-entered1: // proc1 now holds the single host slot inside its DB call
+	case <-time.After(5 * time.Second):
+		t.Fatal("first shard's DLQ processing never started")
+	}
+
+	proc2.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+	time.Sleep(100 * time.Millisecond)
+	require.False(t, secondStarted.Load(), "second shard's DLQ query ran while the host slot was held")
+
+	close(release1)
+	select {
+	case <-done2:
+	case <-time.After(5 * time.Second):
+		t.Fatal("second shard's DLQ processing never ran after the slot freed")
+	}
+}
 
 const (
 	defaultTestProcessingInterval = 15 * time.Second
@@ -78,17 +153,18 @@ func newProcessor(
 ) *ProcessorImpl {
 	t.Helper()
 	return NewProcessor(ProcessorParams{
-		ShardID:       1,
-		Manager:       params.Manager,
-		Reinjector:    params.Reinjector,
-		PageSize:      10,
-		Interval:      dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
-		DomainMode:    dynamicproperties.GetStringPropertyFnFilteredByDomain(params.DomainMode),
-		Enabled:       dynamicproperties.GetBoolPropertyFn(params.ProcessingEnabled),
-		TimeSource:    params.TimeSource,
-		MetricsClient: metrics.NewNoopMetricsClient(),
-		Logger:        testlogger.New(t),
-		MaxReadLevel:  params.MaxReadLevel,
+		ShardID:                1,
+		Manager:                params.Manager,
+		Reinjector:             params.Reinjector,
+		PageSize:               10,
+		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
+		FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(0),
+		DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(params.DomainMode),
+		Enabled:                dynamicproperties.GetBoolPropertyFn(params.ProcessingEnabled),
+		TimeSource:             params.TimeSource,
+		MetricsClient:          metrics.NewNoopMetricsClient(),
+		Logger:                 testlogger.New(t),
+		MaxReadLevel:           params.MaxReadLevel,
 	})
 }
 
@@ -104,6 +180,63 @@ func setupProcessor(t *testing.T, ctrl *gomock.Controller) (*ProcessorImpl, *per
 		TimeSource:        clock.NewMockedTimeSource(),
 	})
 	return proc, mgr, reinjector
+}
+
+// fakeWriteTracker implements PartitionWriteTracker with a settable answer.
+type fakeWriteTracker struct {
+	mu      sync.Mutex
+	written bool
+}
+
+func (f *fakeWriteTracker) HasWrittenDLQPartition(domainID, clusterAttributeScope, clusterAttributeName string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.written
+}
+
+func (f *fakeWriteTracker) setWritten(w bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.written = w
+}
+
+func newCacheTestProcessor(t *testing.T, ctrl *gomock.Controller, tracker PartitionWriteTracker) (*ProcessorImpl, *persistence.MockHistoryTaskDLQManager) {
+	t.Helper()
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	proc := NewProcessor(ProcessorParams{
+		ShardID:                1,
+		Manager:                mgr,
+		Reinjector:             NewMockTaskReinjector(ctrl),
+		PageSize:               10,
+		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
+		FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(0),
+		DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		Enabled:                dynamicproperties.GetBoolPropertyFn(true),
+		WriteTracker:           tracker,
+		TimeSource:             clock.NewMockedTimeSource(),
+		MetricsClient:          metrics.NewNoopMetricsClient(),
+		Logger:                 testlogger.New(t),
+	})
+	return proc, mgr
+}
+
+func TestSweepIntervalIsJittered(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, _, _ := setupProcessor(t, ctrl)
+
+	base := defaultTestProcessingInterval
+	lo := time.Duration(float64(base) * (1 - sweepIntervalJitterCoefficient))
+	hi := time.Duration(float64(base) * (1 + sweepIntervalJitterCoefficient))
+	distinct := make(map[time.Duration]struct{})
+	for i := 0; i < 200; i++ {
+		d := proc.sweepInterval()
+		require.GreaterOrEqual(t, d, lo)
+		require.LessOrEqual(t, d, hi)
+		distinct[d] = struct{}{}
+	}
+	require.Greater(t, len(distinct), 1, "sweep interval should be jittered, got 200 identical values")
 }
 
 func baseAckLevel(shardID int) persistence.HistoryDLQAckLevel {
@@ -597,6 +730,107 @@ func TestProcessPartition_WhenGetAckLevelsFails_ReturnsError(t *testing.T) {
 	assert.ErrorContains(t, err, "partition error")
 }
 
+func TestProcessPartition_VerifiedEmptySkipsRepeatQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tracker := &fakeWriteTracker{}
+	proc, mgr := newCacheTestProcessor(t, ctrl, tracker)
+	ctx := context.Background()
+
+	req := persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+	}
+
+	// First call queries and finds the partition empty.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), req).Return(nil, nil).Times(1)
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+
+	// Second call must be served from the verified-empty cache: no further DB call
+	// (the Times(1) above makes an extra call fail the test).
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+
+	// Once the shard has written the partition, the cache no longer applies.
+	tracker.setWritten(true)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), req).Return(nil, nil).Times(1)
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+}
+
+func TestProcessPartition_NonEmptyPartitionIsNotCached(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tracker := &fakeWriteTracker{}
+	proc, mgr := newCacheTestProcessor(t, ctrl, tracker)
+	ctx := context.Background()
+
+	al := persistence.HistoryDLQAckLevel{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+		TaskCategory:          persistence.HistoryTaskCategoryTransfer,
+		AckLevelVisibilityTS:  time.Unix(0, 0).UTC(),
+		AckLevelTaskID:        -1,
+	}
+	req := persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+	}
+	// Both calls must query: a partition with rows is never cached as empty.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), req).Return([]persistence.HistoryDLQAckLevel{al}, nil).Times(2)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil).Times(2)
+
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+}
+
+func TestProcessShard_ClearsVerifiedEmptyForSeenPartitions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tracker := &fakeWriteTracker{}
+	proc, mgr := newCacheTestProcessor(t, ctrl, tracker)
+	ctx := context.Background()
+
+	partReq := persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+	}
+	// Mark the partition verified-empty via the failover path.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), partReq).Return(nil, nil).Times(1)
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+	// Cache hit: no query.
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+
+	// A shard sweep sees rows for the partition (e.g. a zombie previous owner wrote
+	// them after our verification) — the sweep must clear the verified-empty entry.
+	al := persistence.HistoryDLQAckLevel{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+		TaskCategory:          persistence.HistoryTaskCategoryTransfer,
+		AckLevelVisibilityTS:  time.Unix(0, 0).UTC(),
+		AckLevelTaskID:        -1,
+	}
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{al}, nil).Times(1)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil).AnyTimes()
+	require.NoError(t, proc.ProcessShard(ctx))
+
+	// The partition must be queried again now.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), partReq).Return([]persistence.HistoryDLQAckLevel{al}, nil).Times(1)
+	require.NoError(t, proc.ProcessPartition(ctx, "d1", "s", "n"))
+}
+
 func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -785,7 +1019,7 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 	proc.Start()
 
 	ts.BlockUntil(1)
-	ts.Advance(defaultTestProcessingInterval)
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
 
 	select {
 	case <-inGetAckLevels:
@@ -889,7 +1123,7 @@ func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
 	defer proc.Stop()
 
 	ts.BlockUntil(1)
-	ts.Advance(defaultTestProcessingInterval)
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
 
 	select {
 	case <-processed:
@@ -919,7 +1153,7 @@ func TestStart_WhenNotEnabled_SkipsProcessingButContinuesLoop(t *testing.T) {
 	// The loop always starts; wait for the first timer to be registered.
 	ts.BlockUntil(1)
 	// Advance past the interval — enabled() returns false, so GetAckLevels must not be called.
-	ts.Advance(defaultTestProcessingInterval)
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
 	// Wait for the timer to be reset, confirming the loop ran and continued.
 	ts.BlockUntil(1)
 	// ctrl.Finish() verifies GetAckLevels was called 0 times.
@@ -1083,7 +1317,7 @@ func TestFailoverPartitions_PreemptsInProgressSweep(t *testing.T) {
 
 	// Kick off a periodic sweep and wait for it to block inside the shard-level query.
 	ts.BlockUntil(1)
-	ts.Advance(defaultTestProcessingInterval)
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
 	select {
 	case <-sweepStarted:
 	case <-time.After(5 * time.Second):
@@ -1135,5 +1369,98 @@ func TestFailoverPartitions_WhenNotEnabled_DoesNotProcess(t *testing.T) {
 	case <-called:
 		t.Fatal("ProcessPartition ran while the processor was disabled")
 	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestFailoverPartitions_JitterDelaysProcessing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+	ts := clock.NewMockedTimeSource()
+	proc := NewProcessor(ProcessorParams{
+		ShardID:                1,
+		Manager:                mgr,
+		Reinjector:             reinjector,
+		PageSize:               10,
+		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
+		FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(10 * time.Second),
+		DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		Enabled:                dynamicproperties.GetBoolPropertyFn(true),
+		TimeSource:             ts,
+		MetricsClient:          metrics.NewNoopMetricsClient(),
+		Logger:                 testlogger.New(t),
+	})
+
+	processed := make(chan struct{}, 1)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:  1,
+		DomainID: "test-domain",
+	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+		processed <- struct{}{}
+		return nil, nil
+	})
+
+	proc.Start()
+	defer proc.Stop()
+	ts.BlockUntil(1) // the periodic sweep timer is armed
+
+	proc.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+
+	// The drain must arm a jitter timer before doing any DB work.
+	ts.BlockUntil(2)
+	select {
+	case <-processed:
+		t.Fatal("failover partition processed before the jitter delay elapsed")
+	default:
+	}
+
+	// Advancing past the maximum jitter window fires the jitter timer.
+	ts.Advance(10 * time.Second)
+	select {
+	case <-processed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("failover partition not processed after the jitter window elapsed")
+	}
+}
+
+func TestFailoverPartitions_ZeroJitterProcessesImmediately(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+	proc := NewProcessor(ProcessorParams{
+		ShardID:                1,
+		Manager:                mgr,
+		Reinjector:             reinjector,
+		PageSize:               10,
+		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
+		FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(0),
+		DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		Enabled:                dynamicproperties.GetBoolPropertyFn(true),
+		TimeSource:             clock.NewMockedTimeSource(),
+		MetricsClient:          metrics.NewNoopMetricsClient(),
+		Logger:                 testlogger.New(t),
+	})
+
+	processed := make(chan struct{}, 1)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:  1,
+		DomainID: "test-domain",
+	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+		processed <- struct{}{}
+		return nil, nil
+	})
+
+	proc.Start()
+	defer proc.Stop()
+
+	proc.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+	select {
+	case <-processed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("failover partition not processed with zero jitter window")
 	}
 }
