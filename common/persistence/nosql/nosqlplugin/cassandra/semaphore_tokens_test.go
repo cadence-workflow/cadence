@@ -97,9 +97,9 @@ func TestInsertSemaphoreTokens(t *testing.T) {
 		assert.Len(t, session.batches, 1)
 		assert.Equal(t, []string{
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 1, ` + ownerNoneSentinel + `, ` + freeSentinel + `, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
+				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, 1, ` + ownerNoneSentinel + `, ` + freeSentinel + `, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 0, 2, ` + ownerNoneSentinel + `, ` + freeSentinel + `, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
+				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, 2, ` + ownerNoneSentinel + `, ` + freeSentinel + `, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
 		}, session.batches[0].queries)
 		assert.True(t, session.iter.closed)
 	})
