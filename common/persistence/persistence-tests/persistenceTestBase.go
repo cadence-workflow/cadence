@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
@@ -40,7 +41,6 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -48,8 +48,6 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/client"
-	"github.com/uber/cadence/common/persistence/nosql"
-	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 )
@@ -60,19 +58,10 @@ type (
 		GenerateTransferTaskID() (int64, error)
 	}
 
-	// TestBaseOptions options to configure workflow test base.
-	TestBaseOptions struct {
-		DBPluginName    string
-		DBName          string
-		DBUsername      string
-		DBPassword      string
-		DBHost          string
-		DBPort          int              `yaml:"-"`
-		ClusterMetadata cluster.Metadata `yaml:"-"`
-		ProtoVersion    int              `yaml:"-"`
-		Replicas        int              `yaml:"-"`
-		MaxConns        int              `yaml:"-"`
-	}
+	// DataStoreProvider returns a DataStore that can be used within tests. Its configuration should be a combination
+	// of environmental variables or randomly generated data. Each returned DataStore should have a unique DB/keyspace
+	// to ensure isolation when a plugin is used across different tests or within the same test.
+	DataStoreProvider = func() (config.DataStore, error)
 
 	// TestBase wraps the base setup needed to create workflows over persistence layer.
 	TestBase struct {
@@ -99,8 +88,8 @@ type (
 	// TestBaseParams defines the input of TestBase
 	TestBaseParams struct {
 		PersistenceConfig    config.Persistence
-		ClusterMetadata      cluster.Metadata
-		DynamicConfiguration persistence.DynamicConfiguration
+		ClusterMetadata      *cluster.Metadata
+		DynamicConfiguration *persistence.DynamicConfiguration
 	}
 
 	// TestTransferTaskIDGenerator helper
@@ -120,74 +109,47 @@ var DBSetupOptions = map[string]string{
 	"replication_factor": "1",
 }
 
-// NewTestBaseFromParams returns a customized test base from given input
-func NewTestBaseFromParams(t *testing.T, params TestBaseParams) *TestBase {
+// SimplePersistenceConfig creates a persistence config matching the "standard" production configuration without
+// advanced visibility. A separate datastore is created for both default execution and visibility
+func SimplePersistenceConfig(t *testing.T, datastore DataStoreProvider) config.Persistence {
+	defaultStore, err := datastore()
+	require.NoError(t, err, "failed to create default store config")
+	visibilityStore, err := datastore()
+	require.NoError(t, err, "failed to create visibility store config")
+
+	return config.Persistence{
+		DefaultStore:    "test",
+		VisibilityStore: "test-visibility",
+		DataStores: map[string]config.DataStore{
+			"test":            defaultStore,
+			"test-visibility": visibilityStore,
+		},
+	}
+}
+
+// NewTestBase returns a customized test base from given input
+func NewTestBase(t *testing.T, params TestBaseParams) *TestBase {
+	var metadata cluster.Metadata
+	if params.ClusterMetadata != nil {
+		metadata = *params.ClusterMetadata
+	} else {
+		metadata = cluster.GetTestClusterMetadata(false)
+	}
+	var dc persistence.DynamicConfiguration
+	if params.DynamicConfiguration != nil {
+		dc = *params.DynamicConfiguration
+	} else {
+		dc = *persistence.NewDefaultDynamicConfiguration()
+	}
 	res := &TestBase{
 		Suite:                &suite.Suite{},
 		PersistenceConfig:    params.PersistenceConfig,
-		ClusterMetadata:      params.ClusterMetadata,
+		ClusterMetadata:      metadata,
 		PayloadSerializer:    persistence.NewPayloadSerializer(),
-		DynamicConfiguration: params.DynamicConfiguration,
+		DynamicConfiguration: dc,
 	}
 	res.SetT(t)
 	return res
-}
-
-// NewTestBaseWithNoSQL returns a persistence test base backed by nosql datastore
-func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
-	if options.DBName == "" {
-		options.DBName = "test_" + GenerateRandomDBName(10)
-	}
-	testClusterCfg := nosql.NewTestCluster(t, nosql.TestClusterParams{
-		PluginName:   options.DBPluginName,
-		KeySpace:     options.DBName,
-		Username:     options.DBUsername,
-		Password:     options.DBPassword,
-		Host:         options.DBHost,
-		Port:         options.DBPort,
-		ProtoVersion: options.ProtoVersion,
-		Replicas:     options.Replicas,
-		MaxConns:     options.MaxConns,
-	})
-	metadata := options.ClusterMetadata
-	if metadata.GetCurrentClusterName() == "" {
-		metadata = cluster.GetTestClusterMetadata(false)
-	}
-	dc := *persistence.NewDefaultDynamicConfiguration()
-	dc.EnableCassandraAllConsistencyLevelDelete = dynamicproperties.GetBoolPropertyFn(true)
-	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
-	dc.EnableWorkflowTimerTaskCleanup = dynamicproperties.GetBoolPropertyFn(true)
-	params := TestBaseParams{
-		PersistenceConfig:    testClusterCfg,
-		ClusterMetadata:      metadata,
-		DynamicConfiguration: dc,
-	}
-	return NewTestBaseFromParams(t, params)
-}
-
-// NewTestBaseWithSQL returns a new persistence test base backed by SQL
-func NewTestBaseWithSQL(t *testing.T, options *TestBaseOptions) *TestBase {
-	if options.DBName == "" {
-		options.DBName = "test_" + GenerateRandomDBName(10)
-	}
-	testConfig, err := sql.NewTestCluster(options.DBPluginName, options.DBName, options.DBUsername, options.DBPassword, options.DBHost, options.DBPort)
-	if err != nil {
-		t.Fatal(err)
-	}
-	metadata := options.ClusterMetadata
-	if metadata.GetCurrentClusterName() == "" {
-		metadata = cluster.GetTestClusterMetadata(false)
-	}
-	dc := *persistence.NewDefaultDynamicConfiguration()
-	dc.EnableCassandraAllConsistencyLevelDelete = dynamicproperties.GetBoolPropertyFn(true)
-	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
-	// EnableWorkflowTimerTaskCleanup is false by default
-	params := TestBaseParams{
-		PersistenceConfig:    testConfig,
-		ClusterMetadata:      metadata,
-		DynamicConfiguration: dc,
-	}
-	return NewTestBaseFromParams(t, params)
 }
 
 // Setup sets up the test base, must be called as part of SetupSuite
@@ -292,24 +254,23 @@ func (s *TestBase) SetupDB(adminDB persistence.AdminDB) {
 	if err != nil {
 		s.fatalOnError(fmt.Sprintf("Failed to check for DB for: %s/%s", adminDB.PluginName(), adminDB.Identifier()), err)
 	}
-	// We might have multiple AdminDBs pointing to the same physical DB, that's okay
+	// We might have multiple AdminDBs pointing to the same physical DB, that's probably not okay but not fatal yet
 	if !alreadySetup {
 		err = setup.Setup(s.T().Context(), DBSetupOptions)
 		s.fatalOnError("Failed to setup DB", err)
 	}
-	// If the AdminDB supports schema management we need to install it, even if the DB already exists
+	// If the AdminDB supports schema management we need to install it
+	// This is likely to fail if multiple AdminDBs point as the same DB, as the versions are global in the keyspace/DB.
 	if adminDB.SupportsSchema() {
 		schemaDB, err := adminDB.CreateSchemaDB()
 		s.fatalOnError("Failed to get schemaDB", err)
 		defer schemaDB.Close()
-		// In tests we skip setting up schema versioning and just want to install the "current" schema
-		// We therefore get the update that skips to the latest version, and we force apply it.
-		// It's not possible to do schema versioning within persistence tests because we run both the execution
-		// and visibility stores in the same DB, which isn't supported in production because the schema versioning
-		// is keyed by DB name.
+
+		err = schemaDB.SetupVersioning(s.T().Context())
+		s.fatalOnError("Failed to setup schema versioning", err)
 		latest, err := schemaDB.LatestSchema().SkipToLatest()
 		s.fatalOnError("Failed to get latest schema", err)
-		err = schemaDB.ForceApplySchema(s.T().Context(), latest)
+		err = schemaDB.UpdateSchema(s.T().Context(), latest)
 		s.fatalOnError("Failed to force apply schema", err)
 	}
 }
@@ -2170,16 +2131,17 @@ func (g *TestTransferTaskIDGenerator) GenerateTransferTaskIDs(number int) ([]int
 	return result, nil
 }
 
+var counter atomic.Int32
+
 // GenerateRandomDBName helper
-func GenerateRandomDBName(n int) string {
-	rand.Seed(time.Now().UnixNano())
+func GenerateRandomDBName() string {
 	letterRunes := []rune("workflow")
-	b := make([]rune, n)
+	b := make([]rune, 10)
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
-	ts := time.Now().Unix()
-	return fmt.Sprintf("%v_%v", ts, string(b))
+	ts := counter.Add(1)
+	return fmt.Sprintf("test_%v_%v", ts, string(b))
 }
 
 func pickRandomEncoding() constants.EncodingType {

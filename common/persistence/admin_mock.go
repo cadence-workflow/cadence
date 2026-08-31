@@ -241,20 +241,6 @@ func (mr *MockSchemaDBMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSchemaDB)(nil).Close))
 }
 
-// ForceApplySchema mocks base method.
-func (m *MockSchemaDB) ForceApplySchema(ctx context.Context, update *SchemaUpdate) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ForceApplySchema", ctx, update)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ForceApplySchema indicates an expected call of ForceApplySchema.
-func (mr *MockSchemaDBMockRecorder) ForceApplySchema(ctx, update any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForceApplySchema", reflect.TypeOf((*MockSchemaDB)(nil).ForceApplySchema), ctx, update)
-}
-
 // GetSchemaVersion mocks base method.
 func (m *MockSchemaDB) GetSchemaVersion(ctx context.Context) (Version, error) {
 	m.ctrl.T.Helper()

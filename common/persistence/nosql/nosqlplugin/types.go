@@ -298,16 +298,25 @@ type (
 	}
 
 	// SemaphoreOwnershipRow defines a row of the semaphore_tokens table, in either
-	// of its two kinds: a forward "token" row or a reverse "owner" row.
+	// of its two types: a forward "token" row or a reverse "owner" row.
 	SemaphoreOwnershipRow struct {
 		DomainID      string
 		SemaphoreName string
 		Bucket        int
-		TokenID       int
-		OwnerID       string
-		Holder        string
-		HeldToken     int
-		UpdatedTime   time.Time
+		// RowType is an output: reads fill it in from the stored `type` column, and
+		// writes ignore whatever it holds.
+		//
+		// Writes cannot honor it. Grant and release each write two rows in one batch,
+		// a token row and an owner row, so no single value on this struct could
+		// describe them. Seeding does write one row per struct, but honoring it there
+		// alone would leave a field that two of the three write paths still ignore.
+		// All three hardcode the `type` for each row they store.
+		RowType     persistence.SemaphoreRowType
+		TokenID     int
+		OwnerID     string
+		Holder      string
+		HeldToken   int
+		UpdatedTime time.Time
 	}
 
 	// SemaphoreGrantResult reports the outcome of a conditional grant batch.
@@ -318,7 +327,7 @@ type (
 	}
 
 	// SemaphoreOwnershipFilter contains the filter criteria for scanning a bucket
-	// partition (both row kinds), paginated.
+	// partition (both row types), paginated.
 	SemaphoreOwnershipFilter struct {
 		DomainID      string
 		SemaphoreName string

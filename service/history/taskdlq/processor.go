@@ -77,10 +77,15 @@ type (
 		ClusterAttributeName  string
 	}
 
+	// MaxReadLevelFn returns the exclusive upper bound key for reading DLQ tasks
+	// of the given category in the current processing round.
+	MaxReadLevelFn func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey
+
 	ProcessorImpl struct {
 		shardID       int
 		mgr           persistence.HistoryTaskDLQManager
 		reinjector    TaskReinjector
+		maxReadLevel  MaxReadLevelFn
 		pageSize      int
 		interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
 		domainMode    dynamicproperties.StringPropertyFnWithDomainFilter
@@ -110,9 +115,12 @@ type (
 
 	// ProcessorParams are the dependencies needed to build a Processor.
 	ProcessorParams struct {
-		ShardID       int
-		Manager       persistence.HistoryTaskDLQManager
-		Reinjector    TaskReinjector
+		ShardID    int
+		Manager    persistence.HistoryTaskDLQManager
+		Reinjector TaskReinjector
+		// MaxReadLevel provides the exclusive upper bound for each processing round.
+		// Optional: defaults to an unbounded read (MaximumHistoryTaskKey) when nil.
+		MaxReadLevel  MaxReadLevelFn
 		PageSize      int
 		Interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
 		DomainMode    dynamicproperties.StringPropertyFnWithDomainFilter
@@ -130,10 +138,18 @@ var _ Processor = (*ProcessorImpl)(nil)
 // The processor will periodically process the DLQ for the entire shard,
 // and will process a domain/clusterAttribute pair on demand.
 func NewProcessor(params ProcessorParams) *ProcessorImpl {
+	maxReadLevel := params.MaxReadLevel
+	if maxReadLevel == nil {
+		// Default to an unbounded read if no MaxReadLevelFn is provided.
+		maxReadLevel = func(persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
+			return persistence.MaximumHistoryTaskKey
+		}
+	}
 	return &ProcessorImpl{
 		shardID:         params.ShardID,
 		mgr:             params.Manager,
 		reinjector:      params.Reinjector,
+		maxReadLevel:    maxReadLevel,
 		pageSize:        params.PageSize,
 		interval:        params.Interval,
 		domainMode:      params.DomainMode,
@@ -145,6 +161,20 @@ func NewProcessor(params ProcessorParams) *ProcessorImpl {
 		cancel:          func() {}, // no-op until Start() sets the real cancel
 		pendingFailover: make(map[string]Partition),
 		failoverSignal:  make(chan struct{}, 1),
+	}
+}
+
+// NewShardMaxReadLevelFn builds a MaxReadLevelFn from the shard context.
+// It converts the shard's max read level to an exclusive upper bound for processing.
+func NewShardMaxReadLevelFn(shard shard.Context) MaxReadLevelFn {
+	// The current cluster name is static for the process lifetime, so capture it once.
+	currentClusterName := shard.GetClusterMetadata().GetCurrentClusterName()
+	return func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
+		maxReadLevel := shard.UpdateIfNeededAndGetQueueMaxReadLevel(category, currentClusterName)
+		if category.Type() == persistence.HistoryTaskCategoryTypeImmediate {
+			return persistence.NewImmediateTaskKey(maxReadLevel.GetTaskID() + 1)
+		}
+		return maxReadLevel
 	}
 }
 
@@ -163,6 +193,7 @@ func NewProcessorFromShard(
 		ShardID:       shard.GetShardID(),
 		Manager:       shard.GetService().GetHistoryTaskDLQManager(),
 		Reinjector:    shard,
+		MaxReadLevel:  NewShardMaxReadLevelFn(shard),
 		PageSize:      pageSize,
 		Interval:      interval,
 		DomainMode:    domainMode,
@@ -378,7 +409,7 @@ func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persis
 }
 
 // processAckLevel fetches and re-injects tasks for the given ack level.
-// It reads all tasks from the current ack position to the shards max read level, and re-injects them
+// It reads all tasks from the current ack position to the shard's max read level, and re-injects them
 // to the executions table.
 // Returns an error when the domain is not enabled or when the tasks cannot be fetched or re-injected.
 func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.HistoryDLQAckLevel) error {
@@ -407,8 +438,11 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 	)
 	// Start just past the current ack position.
 	minKey := persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
-	// TODO(c-warren): Pass in max read level from the shard context.
-	maxKey := persistence.MaximumHistoryTaskKey
+	// Bound by the shard's max read level so we don't race between the processor and shard executor.
+	maxKey := p.maxReadLevel(al.TaskCategory)
+	if minKey.Compare(maxKey) >= 0 {
+		return nil
+	}
 
 	for {
 		// Preempt promptly between pages when the sweep is canceled; any pages already

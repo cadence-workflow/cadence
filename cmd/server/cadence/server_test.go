@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
+	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
@@ -92,7 +93,11 @@ func (s *ServerSuite) TestServerStartup() {
 	}
 
 	// set up sqlite persistence layer and apply schema to sqlite db
-	testBase := pt.NewTestBaseWithSQL(s.T(), sqlite.GetTestClusterOption())
+	metadata := cluster.GetTestClusterMetadata(true)
+	testBase := pt.NewTestBase(s.T(), pt.TestBaseParams{
+		PersistenceConfig: pt.SimplePersistenceConfig(s.T(), sqlite.GetTestConfig),
+		ClusterMetadata:   &metadata,
+	})
 	cfg.Persistence = testBase.PersistenceConfig
 	testBase.Setup()
 
@@ -124,15 +129,16 @@ func (s *ServerSuite) TestServerStartup() {
 		rpcParams, err := rpc.NewParams(service.FullName(svc), &cfg, dc, logger, metrics.NewNoopMetricsClient())
 		s.NoError(err)
 		rpcFactory := rpc.NewFactory(logger, rpcParams)
+		// Use noop archival for tests - archival is tested separately
 		archivalMetadata := archiver.NewArchivalMetadata(
 			dc,
-			cfg.Archival.History.Status,
-			cfg.Archival.History.EnableRead,
-			cfg.Archival.Visibility.Status,
-			cfg.Archival.Visibility.EnableRead,
-			&cfg.DomainDefaults.Archival,
+			"",
+			false,
+			"",
+			false,
+			&archiver.ArchivalDomainDefaults{},
 		)
-		archiverProvider := provider.NewArchiverProvider(cfg.Archival.History.Provider, cfg.Archival.Visibility.Provider)
+		archiverProvider := provider.NewNoOpArchiverProvider()
 		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, operationalConfigStore, operationalDC, tally.NoopScope, metrics.NewNoopMetricsClient(), rpcFactory, archivalMetadata, archiverProvider)
 		daemons = append(daemons, server)
 		server.Start()

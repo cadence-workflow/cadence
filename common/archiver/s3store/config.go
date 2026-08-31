@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,42 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package sql
+package s3store
 
-import (
-	"fmt"
-
-	"github.com/uber/cadence/common/config"
-)
-
-// NewTestCluster returns a new SQL test cluster
-func NewTestCluster(pluginName, dbName, username, password, host string, port int) (config.Persistence, error) {
-	var connectAddr string
-	// CloudSQL doesn't need a port, don't add it
-	if port > 0 {
-		connectAddr = fmt.Sprintf("%s:%d", host, port)
-	} else {
-		connectAddr = host
-	}
-
-	cfg := config.SQL{
-		User:            username,
-		Password:        password,
-		ConnectAddr:     connectAddr,
-		ConnectProtocol: "tcp",
-		PluginName:      pluginName,
-		DatabaseName:    dbName,
-		NumShards:       4,
-		EncodingType:    "thriftrw",
-		DecodingTypes:   []string{"thriftrw"},
-	}
-
-	return config.Persistence{
-		DefaultStore:    "test",
-		VisibilityStore: "test",
-		DataStores: map[string]config.DataStore{
-			"test": {SQL: &cfg},
-		},
-		NumHistoryShards: cfg.NumShards,
-	}, nil
+// Config contains the config for S3 archiver
+type Config struct {
+	Region           string  `yaml:"region"`
+	Endpoint         *string `yaml:"endpoint"`
+	S3ForcePathStyle bool    `yaml:"s3ForcePathStyle"`
 }

@@ -53,7 +53,7 @@ func TestHistorySimulation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed creating cluster config from %s, err: %v", confPath, err)
 	}
-	testCluster := host.NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := host.NewTestPersistenceConfig(t)
 
 	s := new(HistorySimulationSuite)
 	params := host.IntegrationBaseParams{
@@ -74,8 +74,8 @@ func (s *HistorySimulationSuite) SetupSuite() {
 	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
 	params := pt.TestBaseParams{
 		PersistenceConfig:    s.PersistenceConfig,
-		ClusterMetadata:      clusterMetadata,
-		DynamicConfiguration: dc,
+		ClusterMetadata:      &clusterMetadata,
+		DynamicConfiguration: &dc,
 	}
 	cluster, err := host.NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)

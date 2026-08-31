@@ -55,7 +55,7 @@ func TestWorkflowTimerTaskCleanupIntegrationSuite(t *testing.T) {
 		dynamicproperties.WorkflowTimerTaskCleanupMinTTL: time.Hour,
 	}
 
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := NewTestPersistenceConfig(t)
 
 	s := &WorkflowTimerTaskCleanupSuite{}
 	params := IntegrationBaseParams{
@@ -247,7 +247,7 @@ func TestWorkflowTimerTaskCleanupDisabledIntegrationSuite(t *testing.T) {
 		dynamicproperties.EnableWorkflowTimerTaskCleanup: false,
 	}
 
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := NewTestPersistenceConfig(t)
 
 	s := &WorkflowTimerTaskCleanupDisabledSuite{}
 	params := IntegrationBaseParams{

@@ -38,7 +38,6 @@ import (
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -86,9 +85,11 @@ func TestDomainHandlerCommonSuite(t *testing.T) {
 }
 
 func (s *domainHandlerCommonSuite) setupTestBase(t *testing.T) {
-	sqliteTestBaseOptions := sqlite.GetTestClusterOption()
-	sqliteTestBaseOptions.ClusterMetadata = cluster.GetTestClusterMetadata(true)
-	s.TestBase = persistencetests.NewTestBaseWithSQL(t, sqliteTestBaseOptions)
+	metadata := cluster.GetTestClusterMetadata(true)
+	s.TestBase = persistencetests.NewTestBase(t, persistencetests.TestBaseParams{
+		PersistenceConfig: persistencetests.SimplePersistenceConfig(t, sqlite.GetTestConfig),
+		ClusterMetadata:   &metadata,
+	})
 	s.Setup()
 }
 
@@ -114,7 +115,7 @@ func (s *domainHandlerCommonSuite) SetupTest() {
 		false,
 		"",
 		false,
-		&config.ArchivalDomainDefaults{},
+		&archiver.ArchivalDomainDefaults{},
 	)
 	s.mockArchiverProvider = provider.NewMockArchiverProvider(s.Controller)
 	domainConfig := Config{

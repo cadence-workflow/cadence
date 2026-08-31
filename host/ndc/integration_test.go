@@ -70,7 +70,7 @@ func TestNDCIntegrationTestSuite(t *testing.T) {
 	}
 	clusterConfigs[0].WorkerConfig = &host.WorkerConfig{}
 	clusterConfigs[1].WorkerConfig = &host.WorkerConfig{}
-	testCluster := host.NewPersistenceTestCluster(t, clusterConfigs[0])
+	testCluster := host.NewTestPersistenceConfig(t)
 	params := NDCIntegrationTestSuiteParams{
 		ClusterConfigs:    clusterConfigs,
 		PersistenceConfig: testCluster,
@@ -105,8 +105,8 @@ func (s *NDCIntegrationTestSuite) SetupSuite() {
 	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
 	params := pt.TestBaseParams{
 		PersistenceConfig:    s.persistenceConfig,
-		ClusterMetadata:      clusterMetadata,
-		DynamicConfiguration: dc,
+		ClusterMetadata:      &clusterMetadata,
+		DynamicConfiguration: &dc,
 	}
 	cluster, err := host.NewCluster(s.T(), s.clusterConfigs[0], s.logger.WithTags(tag.ClusterName(clusterName[0])), params)
 	s.Require().NoError(err)

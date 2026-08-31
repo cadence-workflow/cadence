@@ -84,10 +84,6 @@ func (s *sqlSchemaDB) UpdateSchema(ctx context.Context, update *persistence.Sche
 	return nil
 }
 
-func (s *sqlSchemaDB) ForceApplySchema(ctx context.Context, update *persistence.SchemaUpdate) error {
-	return s.applyUpdate(ctx, update)
-}
-
 func (s *sqlSchemaDB) applyUpdate(ctx context.Context, update *persistence.SchemaUpdate) error {
 	for _, stmt := range update.DDLStatements {
 		e := s.crud.ExecSchemaOperationQuery(ctx, stmt)

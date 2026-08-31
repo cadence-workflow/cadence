@@ -96,10 +96,6 @@ func (db *CDB) UpdateSchema(ctx context.Context, update *persistence.SchemaUpdat
 	return query.Exec()
 }
 
-func (db *CDB) ForceApplySchema(ctx context.Context, update *persistence.SchemaUpdate) error {
-	return db.applyUpdate(ctx, update)
-}
-
 func (db *CDB) applyUpdate(ctx context.Context, update *persistence.SchemaUpdate) error {
 	for _, ddl := range update.DDLStatements {
 		err := db.session.Query(ddl).Exec()

@@ -29,7 +29,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 
 	"github.com/uber/cadence/common/archiver"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
@@ -71,14 +70,14 @@ const (
 // NewVisibilityArchiver creates a new archiver.VisibilityArchiver based on s3
 func NewVisibilityArchiver(
 	container *archiver.VisibilityBootstrapContainer,
-	config *config.S3Archiver,
+	config *Config,
 ) (archiver.VisibilityArchiver, error) {
 	return newVisibilityArchiver(container, config)
 }
 
 func newVisibilityArchiver(
 	container *archiver.VisibilityBootstrapContainer,
-	config *config.S3Archiver) (*visibilityArchiver, error) {
+	config *Config) (*visibilityArchiver, error) {
 	s3Config := &aws.Config{
 		Endpoint:         config.Endpoint,
 		Region:           aws.String(config.Region),

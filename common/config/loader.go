@@ -46,6 +46,63 @@ const (
 	defaultConfigDir = "config"
 )
 
+// LoadProvider loads the configuration provider from a set of
+// yaml config files found in the config directory and returns both
+// the provider and populated config.
+//
+// The loader first fetches the set of files matching
+// a pre-determined naming convention, then sorts
+// them by hierarchy order and after that, simply
+// loads the files one after another with the
+// key/values in the later files overriding the key/values
+// in the earlier files
+//
+// The hierarchy is as follows from lowest to highest
+//
+//	base.yaml
+//	    env.yaml   -- environment is one of the input params ex-development
+//	      env_az.yaml -- zone is another input param
+func LoadProvider(env string, configDir string, zone string, config interface{}) (uconfig.Provider, error) {
+	if len(env) == 0 {
+		env = envDevelopment
+	}
+
+	if len(configDir) == 0 {
+		configDir = defaultConfigDir
+	}
+
+	files, err := getConfigFiles(env, configDir, zone)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get config files: %w", err)
+	}
+
+	log.Printf("Loading configFiles=%v\n", files)
+
+	var options []uconfig.YAMLOption
+	for _, f := range files {
+		options = append(options, uconfig.File(f))
+	}
+
+	// expand env variables declared in .yaml files
+	options = append(options, uconfig.Expand(os.LookupEnv))
+
+	yaml, err := uconfig.NewYAML(options...)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create yaml parser: %w", err)
+	}
+
+	err = yaml.Get(uconfig.Root).Populate(config)
+	if err != nil {
+		return nil, fmt.Errorf("unable to populate config: %w", err)
+	}
+
+	err = validator.Validate(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate config: %w", err)
+	}
+	return yaml, nil
+}
+
 // Load loads the configuration from a set of
 // yaml config files found in the config directory
 //
@@ -62,45 +119,8 @@ const (
 //	    env.yaml   -- environment is one of the input params ex-development
 //	      env_az.yaml -- zone is another input param
 func Load(env string, configDir string, zone string, config interface{}) error {
-
-	if len(env) == 0 {
-		env = envDevelopment
-	}
-
-	if len(configDir) == 0 {
-		configDir = defaultConfigDir
-	}
-
-	files, err := getConfigFiles(env, configDir, zone)
-	if err != nil {
-		return fmt.Errorf("unable to get config files: %w", err)
-	}
-
-	log.Printf("Loading configFiles=%v\n", files)
-
-	var options []uconfig.YAMLOption
-	for _, f := range files {
-		options = append(options, uconfig.File(f))
-	}
-
-	// expand env variables declared in .yaml files
-	options = append(options, uconfig.Expand(os.LookupEnv))
-
-	yaml, err := uconfig.NewYAML(options...)
-	if err != nil {
-		return fmt.Errorf("unable to create yaml parser: %w", err)
-	}
-
-	err = yaml.Get(uconfig.Root).Populate(config)
-	if err != nil {
-		return fmt.Errorf("unable to populate config: %w", err)
-	}
-
-	err = validator.Validate(config)
-	if err != nil {
-		return fmt.Errorf("failed to validate config: %w", err)
-	}
-	return nil
+	_, err := LoadProvider(env, configDir, zone, config)
+	return err
 }
 
 // getConfigFiles returns the list of config files to

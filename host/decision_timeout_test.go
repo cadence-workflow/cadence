@@ -49,7 +49,7 @@ func TestDecisionTimeoutMaxAttemptsIntegrationSuite(t *testing.T) {
 		dynamicproperties.EnforceDecisionTaskAttempts: true,
 	}
 
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := NewTestPersistenceConfig(t)
 
 	s := new(DecisionTimeoutMaxAttemptsIntegrationSuite)
 	params := IntegrationBaseParams{

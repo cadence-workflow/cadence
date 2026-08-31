@@ -56,7 +56,7 @@ func TestWorkflowIDInternalRateLimitIntegrationSuite(t *testing.T) {
 		dynamicproperties.WorkflowIDInternalRPS: 2,
 	}
 
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := NewTestPersistenceConfig(t)
 
 	s := new(WorkflowIDInternalRateLimitIntegrationSuite)
 	params := IntegrationBaseParams{
@@ -77,8 +77,8 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) SetupSuite() {
 	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
 	params := pt.TestBaseParams{
 		PersistenceConfig:    s.PersistenceConfig,
-		ClusterMetadata:      clusterMetadata,
-		DynamicConfiguration: dc,
+		ClusterMetadata:      &clusterMetadata,
+		DynamicConfiguration: &dc,
 	}
 	cluster, err := NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)

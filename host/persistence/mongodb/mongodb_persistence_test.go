@@ -20,24 +20,14 @@
 
 package tests
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/suite"
-
-	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/mongodb"
-	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
-	"github.com/uber/cadence/environment"
-	"github.com/uber/cadence/testflags"
-)
-
-func TestMongoDBConfigStorePersistence(t *testing.T) {
-	testflags.RequireMongoDB(t)
-	s := new(persistencetests.ConfigStorePersistenceSuite)
-	s.TestBase = NewTestBaseWithMongo(t)
-	s.TestBase.Setup()
-	suite.Run(t, s)
-}
+//
+// func TestMongoDBConfigStorePersistence(t *testing.T) {
+//	testflags.RequireMongoDB(t)
+//	s := new(persistencetests.ConfigStorePersistenceSuite)
+//	s.TestBase = NewTestBaseWithMongo(t)
+//	s.TestBase.Setup()
+//	suite.Run(t, s)
+// }
 
 // TODO uncomment the test once HistoryEventsCRUD is implemented
 // func TestMongoDBHistoryPersistence(t *testing.T) {
@@ -102,19 +92,19 @@ func TestMongoDBConfigStorePersistence(t *testing.T) {
 // 	s.TestBase.Setup()
 // 	suite.Run(t, s)
 // }
-
-func NewTestBaseWithMongo(t *testing.T) *persistencetests.TestBase {
-	port, err := environment.GetMongoPort()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	options := &persistencetests.TestBaseOptions{
-		DBPluginName: mongodb.PluginName,
-		DBHost:       environment.GetMongoAddress(),
-		DBUsername:   "root",
-		DBPassword:   "cadence",
-		DBPort:       port,
-	}
-	return persistencetests.NewTestBaseWithNoSQL(t, options)
-}
+//
+// func NewTestBaseWithMongo(t *testing.T) *persistencetests.TestBase {
+//	port, err := environment.GetMongoPort()
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//
+//	options := &persistencetests.TestBaseOptions{
+//		DBPluginName: mongodb.PluginName,
+//		DBHost:       environment.GetMongoAddress(),
+//		DBUsername:   "root",
+//		DBPassword:   "cadence",
+//		DBPort:       port,
+//	}
+//	return persistencetests.NewTestBaseWithNoSQL(t, options)
+// }

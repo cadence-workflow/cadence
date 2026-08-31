@@ -51,20 +51,21 @@ const (
 	templateReleaseSemaphoreOwnerDeleteQuery = `DELETE FROM semaphore_tokens ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ?`
 
-	// Forward read: owner_id is the trailing clustering column, so it is omitted.
+	// Forward read: owner_id, the trailing clustering column, is omitted. Every write binds
+	// ownerNoneSentinel, so exactly one token row exists per (type, token_id).
 	templateSelectSemaphoreOwnershipByTokenQuery = `SELECT ` +
-		`domain_id, semaphore_name, bucket, token_id, owner_id, holder, held_token, updated_time ` +
+		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time ` +
 		`FROM semaphore_tokens ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ?`
 
-	// Reverse read: token_id (a middle clustering column) must be pinned to reach owner_id.
+	// Reverse read
 	templateSelectSemaphoreOwnershipByOwnerQuery = `SELECT ` +
-		`domain_id, semaphore_name, bucket, token_id, owner_id, holder, held_token, updated_time ` +
+		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time ` +
 		`FROM semaphore_tokens ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ?`
 
 	// Full-partition read: no type predicate, so this deliberately returns BOTH row
-	// kinds - token rows first, then owner rows, per the type clustering order.
+	// types - token rows first, then owner rows, per the type clustering order.
 	// It rebuilds a bucket's forward and reverse indexes in one pass, for cache
 	// warm-up on host start and on ownership transfer
 	templateSelectSemaphoreOwnershipsByBucketQuery = `SELECT ` +

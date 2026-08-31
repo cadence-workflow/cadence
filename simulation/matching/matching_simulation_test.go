@@ -146,7 +146,7 @@ func TestMatchingSimulation(t *testing.T) {
 		}).AnyTimes()
 	clusterConfig.HistoryConfig.MockClient = mockHistoryCl
 
-	testCluster := host.NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := host.NewTestPersistenceConfig(t)
 
 	s := new(MatchingSimulationSuite)
 	params := host.IntegrationBaseParams{
@@ -167,8 +167,8 @@ func (s *MatchingSimulationSuite) SetupSuite() {
 	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
 	params := pt.TestBaseParams{
 		PersistenceConfig:    s.PersistenceConfig,
-		ClusterMetadata:      clusterMetadata,
-		DynamicConfiguration: dc,
+		ClusterMetadata:      &clusterMetadata,
+		DynamicConfiguration: &dc,
 	}
 	cluster, err := host.NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)

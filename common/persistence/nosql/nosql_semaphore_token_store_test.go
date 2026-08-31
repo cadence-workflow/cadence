@@ -233,12 +233,12 @@ func TestNoSQLGetSemaphoreOwnershipByToken(t *testing.T) {
 		"success maps row to token": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				row := &nosqlplugin.SemaphoreOwnershipRow{
-					DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, Holder: "owner-abc",
+					RowType: persistence.SemaphoreRowTypeToken, DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, Holder: "owner-abc",
 				}
 				dbMock.EXPECT().SelectSemaphoreOwnershipByToken(ctx, "domain-1", "sem-1", 0, 5).Return(row, nil).Times(1)
 			},
 			expected: &persistence.SemaphoreOwnership{
-				DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, Holder: "owner-abc",
+				RowType: persistence.SemaphoreRowTypeToken, DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, Holder: "owner-abc",
 			},
 		},
 		"error propagates": {
@@ -281,12 +281,12 @@ func TestNoSQLGetSemaphoreOwnershipByOwner(t *testing.T) {
 		"success maps row to token": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				row := &nosqlplugin.SemaphoreOwnershipRow{
-					DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc", HeldToken: 5,
+					RowType: persistence.SemaphoreRowTypeOwner, DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc", HeldToken: 5,
 				}
 				dbMock.EXPECT().SelectSemaphoreOwnershipByOwner(ctx, "domain-1", "sem-1", 0, "owner-abc").Return(row, nil).Times(1)
 			},
 			expected: &persistence.SemaphoreOwnership{
-				DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc", HeldToken: 5,
+				RowType: persistence.SemaphoreRowTypeOwner, DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc", HeldToken: 5,
 			},
 		},
 		"error propagates": {
@@ -330,8 +330,8 @@ func TestNoSQLScanSemaphoreBucket(t *testing.T) {
 		"success maps rows and token": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				rows := []*nosqlplugin.SemaphoreOwnershipRow{
-					{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, Holder: "owner-abc"},
-					{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc", HeldToken: 5},
+					{RowType: persistence.SemaphoreRowTypeToken, DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 5, Holder: "owner-abc"},
+					{RowType: persistence.SemaphoreRowTypeOwner, DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, OwnerID: "owner-abc", HeldToken: 5},
 				}
 				expectedFilter := &nosqlplugin.SemaphoreOwnershipFilter{
 					DomainID:      "domain-1",
@@ -345,7 +345,9 @@ func TestNoSQLScanSemaphoreBucket(t *testing.T) {
 			},
 			expectedCount: 2,
 			validate: func(t *testing.T, resp *persistence.ScanSemaphoreBucketResponse) {
+				assert.Equal(t, persistence.SemaphoreRowTypeToken, resp.Ownerships[0].RowType)
 				assert.Equal(t, 5, resp.Ownerships[0].TokenID)
+				assert.Equal(t, persistence.SemaphoreRowTypeOwner, resp.Ownerships[1].RowType)
 				assert.Equal(t, "owner-abc", resp.Ownerships[1].OwnerID)
 				assert.Equal(t, []byte("next"), resp.NextPageToken)
 			},

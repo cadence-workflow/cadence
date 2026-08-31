@@ -23,7 +23,6 @@ package cloudsqlmysql
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
@@ -35,42 +34,26 @@ import (
 // resources
 
 func TestCloudSQLMySQLHistoryV2PersistenceSuite(t *testing.T) {
-	testflags.RequireMySQL(t)
 	s := new(pt.HistoryV2PersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
-	s.TestBase = pt.NewTestBaseWithSQL(t, option)
-	s.TestBase.Setup()
+	s.TestBase = CloudMySQLTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCloudSQLMySQLMatchingPersistenceSuite(t *testing.T) {
-	testflags.RequireMySQL(t)
 	s := new(pt.MatchingPersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
-	s.TestBase = pt.NewTestBaseWithSQL(t, option)
-	s.TestBase.Setup()
+	s.TestBase = CloudMySQLTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCloudSQLMySQLMetadataPersistenceSuiteV2(t *testing.T) {
-	testflags.RequireMySQL(t)
 	s := new(pt.MetadataPersistenceSuiteV2)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
-	s.TestBase = pt.NewTestBaseWithSQL(t, option)
-	s.TestBase.Setup()
+	s.TestBase = CloudMySQLTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCloudSQLMySQLShardPersistenceSuite(t *testing.T) {
-	testflags.RequireMySQL(t)
 	s := new(pt.ShardPersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
-	s.TestBase = pt.NewTestBaseWithSQL(t, option)
-	s.TestBase.Setup()
+	s.TestBase = CloudMySQLTestBase(t)
 	suite.Run(t, s)
 }
 
@@ -87,61 +70,46 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 }
 
 func TestCloudSQLMySQLExecutionManagerSuite(t *testing.T) {
-	testflags.RequireMySQL(t)
 	s := new(ExecutionManagerSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
-	s.TestBase = pt.NewTestBaseWithSQL(t, option)
-	s.TestBase.Setup()
+	s.TestBase = CloudMySQLTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCloudSQLMySQLExecutionManagerWithEventsV2(t *testing.T) {
-	testflags.RequireMySQL(t)
 	s := new(pt.ExecutionManagerSuiteForEventsV2)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
-	s.TestBase = pt.NewTestBaseWithSQL(t, option)
-	s.TestBase.Setup()
+	s.TestBase = CloudMySQLTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCloudSQLMySQLVisibilityPersistenceSuite(t *testing.T) {
-	testflags.RequireMySQL(t)
 	s := new(pt.DBVisibilityPersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
-	s.TestBase = pt.NewTestBaseWithSQL(t, option)
-	s.TestBase.Setup()
+	s.TestBase = CloudMySQLTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCloudSQLMySQLQueuePersistence(t *testing.T) {
-	testflags.RequireMySQL(t)
 	s := new(pt.QueuePersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
-	s.TestBase = pt.NewTestBaseWithSQL(t, option)
-	s.TestBase.Setup()
+	s.TestBase = CloudMySQLTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCloudSQLMySQLConfigPersistence(t *testing.T) {
-	testflags.RequireMySQL(t)
 	s := new(pt.ConfigStorePersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
-	s.TestBase = pt.NewTestBaseWithSQL(t, option)
-	s.TestBase.Setup()
+	s.TestBase = CloudMySQLTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCloudSQLMySQLDomainAuditPersistence(t *testing.T) {
-	testflags.RequireMySQL(t)
 	s := new(pt.DomainAuditPersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
-	s.TestBase = pt.NewTestBaseWithSQL(t, option)
-	s.TestBase.Setup()
+	s.TestBase = CloudMySQLTestBase(t)
 	suite.Run(t, s)
+}
+
+func CloudMySQLTestBase(t *testing.T) *pt.TestBase {
+	testflags.RequireMySQL(t)
+	base := pt.NewTestBase(t, pt.TestBaseParams{
+		PersistenceConfig: pt.SimplePersistenceConfig(t, GetTestConfig),
+	})
+	base.Setup()
+	return base
 }

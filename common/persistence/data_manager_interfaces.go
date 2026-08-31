@@ -168,6 +168,18 @@ const (
 	SemaphoreGrantSlotTaken
 )
 
+// SemaphoreRowType is the `type` clustering column of semaphore_tokens: a forward token row
+// or a reverse owner row.
+type SemaphoreRowType int
+
+// Semaphore Row Type
+const (
+	// SemaphoreRowTypeToken the forward row for a slot: TokenID -> Holder, Holder empty when free
+	SemaphoreRowTypeToken SemaphoreRowType = iota + 1
+	// SemaphoreRowTypeOwner the reverse row for a hold: OwnerID -> HeldToken
+	SemaphoreRowTypeOwner
+)
+
 // Workflow execution states
 const (
 	WorkflowStateCreated = iota
@@ -1473,6 +1485,10 @@ type (
 	// (TokenID -> Holder, empty when the slot is free) or a reverse "owner" row
 	// per hold (OwnerID -> HeldToken).
 	SemaphoreOwnership struct {
+		// RowType says which of the two row shapes this is. Set on every read; a scan of a
+		// bucket returns both shapes interleaved and only RowType tells them apart without
+		// relying on which fields happen to be zero.
+		RowType       SemaphoreRowType
 		DomainID      string
 		SemaphoreName string
 		Bucket        int

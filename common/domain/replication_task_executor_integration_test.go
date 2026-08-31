@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
@@ -59,8 +60,11 @@ func TestDomainReplicationTaskExecutorSuite(t *testing.T) {
 }
 
 func (s *domainReplicationTaskExecutorSuite) setupTestBase(t *testing.T) {
-	sqliteTestBaseOptions := sqlite.GetTestClusterOption()
-	s.TestBase = persistencetests.NewTestBaseWithSQL(t, sqliteTestBaseOptions)
+	metadata := cluster.GetTestClusterMetadata(true)
+	s.TestBase = persistencetests.NewTestBase(t, persistencetests.TestBaseParams{
+		PersistenceConfig: persistencetests.SimplePersistenceConfig(t, sqlite.GetTestConfig),
+		ClusterMetadata:   &metadata,
+	})
 	s.Setup()
 }
 

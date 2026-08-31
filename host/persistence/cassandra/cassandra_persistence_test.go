@@ -26,130 +26,121 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
-	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
+	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/testflags"
 
 	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra" // register cassandra plugin
 )
 
 func TestCassandraHistoryPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.HistoryV2PersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.HistoryV2PersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraMatchingPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.MatchingPersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.MatchingPersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraDomainPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.MetadataPersistenceSuiteV2)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.MetadataPersistenceSuiteV2)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraShardPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.ShardPersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.ShardPersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraShardMigrationPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.ShardPersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.TestBase.DynamicConfiguration.ReadNoSQLShardFromDataBlob = dynamicproperties.GetBoolPropertyFn(true)
-	s.Setup()
+	s := new(pt.ShardPersistenceSuite)
+	s.TestBase = CassandraTestBase(t, func(dc *persistence.DynamicConfiguration) {
+		dc.ReadNoSQLShardFromDataBlob = dynamicproperties.GetBoolPropertyFn(true)
+	})
 	suite.Run(t, s)
 }
 
 func TestCassandraVisibilityPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.DBVisibilityPersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.DBVisibilityPersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraExecutionManager(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.ExecutionManagerSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.ExecutionManagerSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraExecutionManagerWithEventsV2(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.ExecutionManagerSuiteForEventsV2)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.ExecutionManagerSuiteForEventsV2)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraQueuePersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.QueuePersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.QueuePersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraConfigStorePersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.ConfigStorePersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.ConfigStorePersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraDomainAuditPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.DomainAuditPersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.DomainAuditPersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraHistoryTaskDLQPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.HistoryTaskDLQPersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.HistoryTaskDLQPersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraSemaphoreMetadataPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.SemaphoreMetadataPersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.SemaphoreMetadataPersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraSemaphoreTokenPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.SemaphoreTokenPersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.SemaphoreTokenPersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
 }
 
 func TestCassandraSemaphoreTaskPersistence(t *testing.T) {
-	testflags.RequireCassandra(t)
-	s := new(persistencetests.SemaphoreTaskPersistenceSuite)
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-	s.Setup()
+	s := new(pt.SemaphoreTaskPersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
 	suite.Run(t, s)
+}
+
+// CassandraTestBase creates and sets up a TestBase backed by an external/public Cassandra.
+// Optional dcOpts can be used to customize the DynamicConfiguration before the test base is set up.
+func CassandraTestBase(t *testing.T, dcOpts ...func(*persistence.DynamicConfiguration)) *pt.TestBase {
+	testflags.RequireCassandra(t)
+	dc := *persistence.NewDefaultDynamicConfiguration()
+	dc.EnableCassandraAllConsistencyLevelDelete = dynamicproperties.GetBoolPropertyFn(true)
+	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
+	dc.EnableWorkflowTimerTaskCleanup = dynamicproperties.GetBoolPropertyFn(true)
+	for _, opt := range dcOpts {
+		opt(&dc)
+	}
+	base := pt.NewTestBase(t, pt.TestBaseParams{
+		PersistenceConfig:    pt.SimplePersistenceConfig(t, public.NewTestConfigWithPublicCassandra),
+		DynamicConfiguration: &dc,
+	})
+	base.Setup()
+	return base
 }

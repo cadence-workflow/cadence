@@ -89,7 +89,7 @@ func TestPinotIntegrationSuite(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := NewTestPersistenceConfig(t)
 
 	s := new(PinotIntegrationSuite)
 	params := IntegrationBaseParams{
@@ -110,8 +110,8 @@ func (s *PinotIntegrationSuite) SetupSuite() {
 	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
 	params := pt.TestBaseParams{
 		PersistenceConfig:    s.PersistenceConfig,
-		ClusterMetadata:      clusterMetadata,
-		DynamicConfiguration: dc,
+		ClusterMetadata:      &clusterMetadata,
+		DynamicConfiguration: &dc,
 	}
 	cluster, err := NewPinotTestCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)

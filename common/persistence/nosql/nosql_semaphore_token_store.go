@@ -162,7 +162,7 @@ func (m *nosqlSemaphoreTokenStore) GetSemaphoreOwnershipByOwner(
 	return toSemaphoreOwnership(row), nil
 }
 
-// ScanSemaphoreBucket scans a bucket partition (both row kinds), paginated.
+// ScanSemaphoreBucket scans a bucket partition (both row types), paginated.
 func (m *nosqlSemaphoreTokenStore) ScanSemaphoreBucket(
 	ctx context.Context,
 	request *persistence.ScanSemaphoreBucketRequest,
@@ -193,6 +193,7 @@ func (m *nosqlSemaphoreTokenStore) ScanSemaphoreBucket(
 
 func toSemaphoreOwnership(row *nosqlplugin.SemaphoreOwnershipRow) *persistence.SemaphoreOwnership {
 	return &persistence.SemaphoreOwnership{
+		RowType:       row.RowType,
 		DomainID:      row.DomainID,
 		SemaphoreName: row.SemaphoreName,
 		Bucket:        row.Bucket,

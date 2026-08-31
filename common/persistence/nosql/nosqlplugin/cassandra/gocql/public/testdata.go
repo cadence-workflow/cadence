@@ -21,16 +21,22 @@
 package public
 
 import (
-	"testing"
-
+	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
 )
 
-// NewTestBaseWithPublicCassandra returns a persistence test base backed by cassandra datastore
+// NewTestConfigWithPublicCassandra returns a persistence test base backed by cassandra datastore
 // It is only being used by testing against external/public Cassandra, which require to load the default gocql client
-func NewTestBaseWithPublicCassandra(t *testing.T, options *persistencetests.TestBaseOptions) *persistencetests.TestBase {
-	if options.DBPluginName == "" {
-		options.DBPluginName = "cassandra"
-	}
-	return persistencetests.NewTestBaseWithNoSQL(t, options)
+// See client.go's init() function, that's the main value of this package.
+func NewTestConfigWithPublicCassandra() (config.DataStore, error) {
+	// The Cassandra plugin uniquely falls back to environmental variables while resolving the config
+	// As a result, it's valid to specify a nearly empty config and let the plugin do the rest.
+	return config.DataStore{
+		NoSQL: &config.NoSQL{
+			PluginName: cassandra.PluginName,
+			Keyspace:   persistencetests.GenerateRandomDBName(),
+			MaxConns:   2,
+		},
+	}, nil
 }

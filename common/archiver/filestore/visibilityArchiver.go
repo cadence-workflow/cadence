@@ -31,7 +31,6 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/util"
@@ -67,7 +66,7 @@ type (
 // NewVisibilityArchiver creates a new archiver.VisibilityArchiver based on filestore
 func NewVisibilityArchiver(
 	container *archiver.VisibilityBootstrapContainer,
-	config *config.FilestoreArchiver,
+	config *Config,
 ) (archiver.VisibilityArchiver, error) {
 	fileMode, err := strconv.ParseUint(config.FileMode, 0, 32)
 	if err != nil {

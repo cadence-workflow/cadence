@@ -23,6 +23,7 @@
 package queuev2
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -34,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/shard"
 )
@@ -77,6 +79,187 @@ func setupImmediateCachedReader(
 		testImmediateOptions(overrides...),
 	)
 	return r, mockBase
+}
+
+func transferTask(taskID int64) persistence.Task {
+	return &persistence.ActivityTask{
+		TaskData: persistence.TaskData{TaskID: taskID},
+	}
+}
+
+func immediateKey(taskID int64) persistence.HistoryTaskKey {
+	return persistence.NewImmediateTaskKey(taskID)
+}
+
+func getTaskReq(inclusiveMin, exclusiveMax persistence.HistoryTaskKey) *GetTaskRequest {
+	return &GetTaskRequest{
+		Progress: &GetTaskProgress{
+			Range: Range{
+				InclusiveMinTaskKey: inclusiveMin,
+				ExclusiveMaxTaskKey: exclusiveMax,
+			},
+			NextTaskKey: inclusiveMin,
+		},
+		Predicate: NewUniversalPredicate(),
+		PageSize:  100,
+	}
+}
+
+func TestCachedImmediateQueueReader_Inject_AnchorsAndFixesUpperBound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	r, _ := setupImmediateCachedReader(t, ctrl)
+
+	require.True(t, r.IsEmpty())
+
+	r.Inject([]persistence.Task{transferTask(5), transferTask(6), transferTask(7)})
+
+	require.False(t, r.IsEmpty())
+	require.Equal(t, immediateKey(5), r.inclusiveLowerBound, "lower bound anchors to earliest injected key")
+	require.Equal(t, persistence.MaximumHistoryTaskKey, r.exclusiveUpperBound, "upper bound is fixed to the maximum on first fill")
+	require.Equal(t, 3, r.queue.Len())
+
+	// A later batch keeps the anchored lower bound and the fixed upper bound.
+	r.Inject([]persistence.Task{transferTask(8)})
+	require.Equal(t, immediateKey(5), r.inclusiveLowerBound)
+	require.Equal(t, persistence.MaximumHistoryTaskKey, r.exclusiveUpperBound)
+	require.Equal(t, 4, r.queue.Len())
+}
+
+func TestCachedImmediateQueueReader_Inject_UnsortedBatchDerivesCorrectLowerBound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	r, _ := setupImmediateCachedReader(t, ctrl)
+
+	// The lower bound must be the smallest key in the batch, not the position of its first element:
+	// here tasks[0]==7 but the earliest key is 5. The queue self-sorts, so the sorted head is used.
+	r.Inject([]persistence.Task{transferTask(7), transferTask(5), transferTask(9), transferTask(6)})
+
+	require.Equal(t, immediateKey(5), r.inclusiveLowerBound, "lower bound is the smallest key, not tasks[0]")
+	require.Equal(t, persistence.MaximumHistoryTaskKey, r.exclusiveUpperBound, "upper bound is fixed to the maximum")
+	require.Equal(t, 4, r.queue.Len())
+
+	// The whole window is served from cache in sorted order, proving the queue self-sorts.
+	resp, err := r.GetTask(context.Background(), getTaskReq(immediateKey(5), immediateKey(10)))
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 4)
+}
+
+func TestCachedImmediateQueueReader_LookAHead_DelegatesToBase(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	r, mockBase := setupImmediateCachedReader(t, ctrl)
+
+	// The immediate reader has no cache-aware look-ahead of its own; it inherits the base's
+	// pass-through via embedding, so LookAHead delegates straight to the underlying reader.
+	req := &LookAHeadRequest{InclusiveMinTaskKey: immediateKey(5)}
+	want := &LookAHeadResponse{Task: transferTask(5)}
+	mockBase.EXPECT().LookAHead(gomock.Any(), req).Return(want, nil)
+
+	got, err := r.LookAHead(context.Background(), req)
+	require.NoError(t, err)
+	require.Same(t, want, got)
+}
+
+func TestCachedImmediateQueueReader_Inject_SkipsZeroTaskID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	r, _ := setupImmediateCachedReader(t, ctrl)
+
+	r.Inject([]persistence.Task{transferTask(0), transferTask(10)})
+
+	require.Equal(t, 1, r.queue.Len())
+	require.Equal(t, immediateKey(10), r.inclusiveLowerBound)
+	require.Equal(t, persistence.MaximumHistoryTaskKey, r.exclusiveUpperBound)
+}
+
+func TestCachedImmediateQueueReader_Inject_DropsBelowLowerBound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	r, _ := setupImmediateCachedReader(t, ctrl)
+
+	r.Inject([]persistence.Task{transferTask(10), transferTask(11), transferTask(12), transferTask(13)})
+	// Simulate the processor having advanced the read level to 12 (still within the window).
+	r.UpdateReadLevel(immediateKey(12))
+	require.Equal(t, immediateKey(12), r.inclusiveLowerBound)
+	require.Equal(t, 2, r.queue.Len(), "tasks below the read level are trimmed")
+
+	// A stale task below the lower bound is dropped, leaving the window unchanged.
+	r.Inject([]persistence.Task{transferTask(11)})
+	require.Equal(t, immediateKey(12), r.inclusiveLowerBound)
+	require.Equal(t, 2, r.queue.Len())
+}
+
+func TestCachedImmediateQueueReader_Inject_CapGuardDropsOldest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	r, _ := setupImmediateCachedReader(t, ctrl, func(o *cachedQueueReaderOptions) {
+		o.MaxSize = dynamicproperties.GetIntPropertyFn(3)
+	})
+
+	r.Inject([]persistence.Task{transferTask(1), transferTask(2), transferTask(3)})
+	require.Equal(t, immediateKey(1), r.inclusiveLowerBound)
+
+	// Exceeding MaxSize drops the oldest (head), advancing the lower bound.
+	r.Inject([]persistence.Task{transferTask(4), transferTask(5)})
+	require.Equal(t, 3, r.queue.Len())
+	require.Equal(t, immediateKey(3), r.inclusiveLowerBound, "oldest tasks evicted from the head")
+	require.Equal(t, persistence.MaximumHistoryTaskKey, r.exclusiveUpperBound)
+}
+
+func TestCachedImmediateQueueReader_Inject_CapGuardEmptyResets(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	r, _ := setupImmediateCachedReader(t, ctrl, func(o *cachedQueueReaderOptions) {
+		o.MaxSize = dynamicproperties.GetIntPropertyFn(0)
+	})
+
+	// With MaxSize=0 the cap guard trims everything just injected, leaving the cache empty
+	// and the window reset to the minimum so covered reads fall through to the DB.
+	r.Inject([]persistence.Task{transferTask(1), transferTask(2)})
+	require.Equal(t, 0, r.queue.Len())
+	require.Equal(t, persistence.MinimumHistoryTaskKey, r.inclusiveLowerBound)
+	require.Equal(t, persistence.MinimumHistoryTaskKey, r.exclusiveUpperBound)
+}
+
+func TestCachedImmediateQueueReader_GetTask_HitAndMiss(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	r, mockBase := setupImmediateCachedReader(t, ctrl)
+
+	r.Inject([]persistence.Task{transferTask(5), transferTask(6), transferTask(7)})
+
+	// Covered range -> served from cache, base is never called.
+	resp, err := r.GetTask(context.Background(), getTaskReq(immediateKey(5), immediateKey(8)))
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 3)
+
+	// Range starting below the lower bound -> miss -> delegated to base.
+	mockBase.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{}, nil).Times(1)
+	_, err = r.GetTask(context.Background(), getTaskReq(immediateKey(1), immediateKey(8)))
+	require.NoError(t, err)
+}
+
+func TestCachedImmediateQueueReader_Disabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	r, mockBase := setupImmediateCachedReader(t, ctrl, func(o *cachedQueueReaderOptions) {
+		o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("disabled")
+	})
+
+	// Inject is a no-op while disabled.
+	r.Inject([]persistence.Task{transferTask(5)})
+	require.Equal(t, 0, r.queue.Len())
+
+	// GetTask always delegates to base while disabled.
+	mockBase.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{}, nil).Times(1)
+	_, err := r.GetTask(context.Background(), getTaskReq(immediateKey(1), immediateKey(8)))
+	require.NoError(t, err)
+}
+
+func TestCachedImmediateQueueReader_Clear(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	r, _ := setupImmediateCachedReader(t, ctrl)
+
+	r.Inject([]persistence.Task{transferTask(5), transferTask(6)})
+	require.False(t, r.IsEmpty())
+
+	r.Clear()
+	require.True(t, r.IsEmpty())
+	require.Equal(t, 0, r.queue.Len())
+	require.Equal(t, persistence.MinimumHistoryTaskKey, r.inclusiveLowerBound)
+	require.Equal(t, persistence.MinimumHistoryTaskKey, r.exclusiveUpperBound)
 }
 
 // TestCachedImmediateQueueReader_StartStop verifies the lifecycle only flips state: there is no

@@ -68,7 +68,7 @@ func TestIntegrationSuite(t *testing.T) {
 		panic(err)
 	}
 
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := NewTestPersistenceConfig(t)
 
 	s := new(IntegrationSuite)
 	params := IntegrationBaseParams{

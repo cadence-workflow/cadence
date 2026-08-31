@@ -123,8 +123,8 @@ func (s *IntegrationBase) setupSuite() {
 		dc.EnableWorkflowTimerTaskCleanup = dynamicproperties.GetBoolPropertyFn(true)
 		params := pt.TestBaseParams{
 			PersistenceConfig:    s.PersistenceConfig,
-			ClusterMetadata:      clusterMetadata,
-			DynamicConfiguration: dc,
+			ClusterMetadata:      &clusterMetadata,
+			DynamicConfiguration: &dc,
 		}
 		cluster, err := NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 		s.Require().NoError(err)
@@ -194,9 +194,6 @@ func GetTestClusterConfig(configFile string) (*TestClusterConfig, error) {
 	options.FrontendAddress = TestFlags.FrontendAddr
 	if options.ESConfig != nil {
 		options.ESConfig.Indices[constants.VisibilityAppName] += uuid.New()
-	}
-	if options.Persistence.DBName == "" {
-		options.Persistence.DBName = "test_" + pt.GenerateRandomDBName(10)
 	}
 	return &options, nil
 }
