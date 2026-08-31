@@ -1,0 +1,30 @@
+name: Save the Go build cache
+description: >-
+  Hand the bind-mounted Go build cache back to the runner user and save it. Runs only on
+  the default branch, and only when the step that compiles actually succeeded.
+
+inputs:
+  compiled:
+    description: >-
+      The outcome of the step that compiles. The cache is saved only when this is
+      'success', so a job that dies early cannot write a near-empty entry that later
+      prefix restores would pick up in place of a warm one.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # The containers run as root, so the cache action cannot read what they wrote.
+    - name: Hand the cache back to the runner user
+      if: github.ref == 'refs/heads/master' && inputs.compiled == 'success'
+      shell: bash
+      run: sudo chown -R "$(id -u):$(id -g)" .gocache
+
+    - name: Save the Go build cache
+      if: github.ref == 'refs/heads/master' && inputs.compiled == 'success'
+      uses: actions/cache/save@v4
+      with:
+        path: .gocache/go-build
+        # run_attempt too, so re-running a failed master job refreshes the entry instead
+        # of hitting the key the failed attempt already reserved.
+        key: cadence-gocache-${{ runner.os }}-${{ hashFiles('**/go.sum', '!.gocache/**') }}-${{ github.run_id }}-${{ github.run_attempt }}

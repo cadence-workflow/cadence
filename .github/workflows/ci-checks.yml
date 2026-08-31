@@ -33,14 +33,27 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.5'
-      
+
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
+
+      - name: Restore the Go build cache
+        uses: ./.github/actions/go-build-cache
+
       - name: Run unit test
+        id: unit-test
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run unit-test bash -c "make .just-build && make cover_profile && ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt"
+
+      - name: Save the Go build cache
+        if: always()
+        uses: ./.github/actions/go-build-cache-release
+        with:
+          compiled: ${{ steps.unit-test.outcome }}
 
       - name: Upload coverage artifacts
         if: always()
@@ -68,8 +81,21 @@ jobs:
         with:
           go-version: '1.24.5'
 
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
+
+      - name: Restore the Go build cache
+        uses: ./.github/actions/go-build-cache
+
       - name: Run golint
+        id: golint
         run: docker compose -f docker/github_actions/docker-compose.yml run coverage-report bash -c "./scripts/github_actions/golint.sh"
+
+      - name: Save the Go build cache
+        if: always()
+        uses: ./.github/actions/go-build-cache-release
+        with:
+          compiled: ${{ steps.golint.outcome }}
 
 
   golang-integration-test-with-cassandra:
@@ -87,6 +113,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.5'
+
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
 
       - name: Run integration profile for cassandra
         uses: nick-fields/retry@v3
@@ -117,6 +146,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.5'
+
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
 
       - name: Run integration profile for cassandra running history queue v2
         uses: nick-fields/retry@v3
@@ -149,6 +181,9 @@ jobs:
         with:
           go-version: '1.24.5'
 
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
+
       - name: Run integration profile for cassandra running history queue v2 with alert
         uses: nick-fields/retry@v3
         with:
@@ -179,6 +214,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.5'
+
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
 
       - name: Run integration profile for cassandra running history queue v2 with cached reader
         uses: nick-fields/retry@v3
@@ -212,6 +250,9 @@ jobs:
         with:
           go-version: '1.24.5'
 
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
+
       - name: Run integration profile for cassandra and elasticsearch v7
         uses: nick-fields/retry@v3
         with:
@@ -243,6 +284,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.5'
+
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
 
       - name: Run integration test with cassandra and pinot
         uses: nick-fields/retry@v3
@@ -276,6 +320,9 @@ jobs:
         with:
           go-version: '1.24.5'
 
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
+
       - name: Run integration profile for cassandra and opensearch v2
         uses: nick-fields/retry@v3
         with:
@@ -307,6 +354,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.5'
+
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
 
       - name: Run ndc profile for cassandra
         uses: nick-fields/retry@v3
@@ -340,6 +390,9 @@ jobs:
         with:
           go-version: '1.24.5'
 
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
+
       - name: Run integration profile for mysql
         uses: nick-fields/retry@v3
         with:
@@ -371,6 +424,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.5'
+
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
 
       - name: Run ndc profile for mysql
         uses: nick-fields/retry@v3
@@ -404,6 +460,9 @@ jobs:
         with:
           go-version: '1.24.5'
 
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
+
       - name: Run integration profile for postgres
         uses: nick-fields/retry@v3
         with:
@@ -434,6 +493,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.5'
+
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
 
       - name: Run integration profile for sqlite
         uses: nick-fields/retry@v3
@@ -466,6 +528,9 @@ jobs:
         with:
           go-version: '1.24.5'
 
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
+
       - name: Run ndc profile for postgres
         uses: nick-fields/retry@v3
         with:
@@ -496,6 +561,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.5'
+
+      - name: Build CI test image
+        uses: ./.github/actions/build-test-image
 
       - name: Run async wf integration test with kafka
         uses: nick-fields/retry@v3

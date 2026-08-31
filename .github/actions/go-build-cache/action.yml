@@ -1,0 +1,26 @@
+name: Restore the Go build cache
+description: >-
+  Restore the Go build cache that the unit test and lint compose services bind-mount.
+  `actions/setup-go` caches GOCACHE on the runner host, but compilation happens inside
+  `docker compose run` containers that never see the host Go directories, so that cache
+  does not apply to the work that takes the time.
+
+runs:
+  using: composite
+  steps:
+    # Must exist before compose starts, or the bind mount creates it root-owned and the
+    # restore cannot write into it.
+    - name: Create the cache directory
+      shell: bash
+      run: mkdir -p .gocache/go-build
+
+    - name: Restore the Go build cache
+      uses: actions/cache/restore@v4
+      with:
+        path: .gocache/go-build
+        # `!.gocache/**` keeps hashFiles from walking the cache it is keying.
+        key: cadence-gocache-${{ runner.os }}-${{ hashFiles('**/go.sum', '!.gocache/**') }}
+        # Saves append a run id, so the exact key never matches and this always resolves
+        # through the prefix to the newest entry, which is what is wanted.
+        restore-keys: |
+          cadence-gocache-${{ runner.os }}-

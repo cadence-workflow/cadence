@@ -1,3 +1,13 @@
+# All CI services run the same test image. Defining it once lets a pre-built image be
+# reused instead of rebuilding the apt, pip and `go mod download` layers per service.
+# The build block stays so `docker compose run` still builds the image on demand when it
+# is not already present, which is what happens outside CI.
+x-test-image: &test-image
+  image: cadence-ci-test:local${DOCKERFILE_SUFFIX}
+  build:
+    context: ../../
+    dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+
 services:
   cassandra:
     image: cassandra:4.1.1
@@ -89,20 +99,21 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: cadence
 
   unit-test:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     volumes:
       - ../../:/cadence
+      # Bind the Go build cache out of the container so `actions/cache` can persist it
+      # between runs. Only this service and coverage-report mount it: they are the two
+      # jobs that compile the whole tree. The module cache is deliberately not mounted,
+      # the image's own `go mod download` layer already supplies /go/pkg/mod.
+      - ../../.gocache/go-build:/root/.cache/go-build
     networks:
       services-network:
         aliases:
           - unit-test
 
   integration-test-cassandra:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -124,9 +135,7 @@ services:
           - integration-test
 
   integration-test-cassandra-queue-v2:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -149,9 +158,7 @@ services:
           - integration-test
 
   integration-test-cassandra-queue-v2-alert:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -175,9 +182,7 @@ services:
           - integration-test
 
   integration-test-cassandra-queue-v2-cached-reader:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -201,9 +206,7 @@ services:
           - integration-test
 
   integration-test-mysql:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "MYSQL=1"
       - "MYSQL_SEEDS=mysql"
@@ -224,9 +227,7 @@ services:
           - integration-test
 
   integration-test-postgres:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "POSTGRES=1"
       - "POSTGRES_SEEDS=postgres"
@@ -247,9 +248,7 @@ services:
           - integration-test
 
   integration-test-sqlite:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "PERSISTENCE_PLUGIN=sqlite"
       - "PERSISTENCE_TYPE=sql"
@@ -261,9 +260,7 @@ services:
           - integration-test
 
   integration-test-ndc-cassandra:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -285,9 +282,7 @@ services:
           - integration-test-ndc
 
   integration-test-ndc-mysql:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "MYSQL=1"
       - "MYSQL_SEEDS=mysql"
@@ -308,9 +303,7 @@ services:
           - integration-test-ndc
 
   integration-test-ndc-postgres:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "POSTGRES=1"
       - "POSTGRES_SEEDS=postgres"
@@ -331,9 +324,7 @@ services:
           - integration-test-ndc
 
   integration-test-async-wf:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - "ASYNC_WF_KAFKA_QUEUE_TOPIC=async-wf-topic1"
       - "CASSANDRA=1"
@@ -354,9 +345,7 @@ services:
           - integration-test-async-wf
 
   coverage-report:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    <<: *test-image
     environment:
       - CI
       - GITHUB_BRANCH
@@ -368,6 +357,8 @@ services:
       - GITHUB_PULL_REQUEST_REPO
     volumes:
       - ../../:/cadence
+      # Same build cache as unit-test, see the note there.
+      - ../../.gocache/go-build:/root/.cache/go-build
 
 networks:
   services-network:

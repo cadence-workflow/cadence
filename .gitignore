@@ -48,3 +48,6 @@ cadence_visibility.db*
 settings.local.json
 .mcp.json
 *.bak
+
+# Go build cache, bind-mounted into the unit test and lint CI containers
+.gocache/

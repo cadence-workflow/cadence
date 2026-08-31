@@ -1,0 +1,47 @@
+name: Build CI test image
+description: >-
+  Build the image that every docker compose CI service runs, restoring its layers from the
+  GitHub Actions cache. The image is tagged so `docker compose run` reuses it instead of
+  rebuilding the apt, pip and `go mod download` layers in each of the 16 CI jobs that use
+  compose.
+
+runs:
+  using: composite
+  steps:
+    # The compose services interpolate DOCKERFILE_SUFFIX into both the dockerfile path and
+    # the image tag, but this action builds the default Dockerfile under the unsuffixed
+    # tag. With a suffix set, compose would ignore what we built and build its own, so the
+    # prebuild would be wasted work whose layers still land in the shared cache scope.
+    # Resolved in a shell step because a composite action does not reliably see the
+    # caller's `env` context, and this must fail closed.
+    - name: Check whether the default Dockerfile is in use
+      id: check
+      shell: bash
+      run: |
+        if [ -z "${DOCKERFILE_SUFFIX:-}" ]; then
+          echo "default=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "default=false" >> "$GITHUB_OUTPUT"
+          echo "DOCKERFILE_SUFFIX=${DOCKERFILE_SUFFIX} is set, skipping the prebuild." >&2
+        fi
+
+    - name: Set up Docker Buildx
+      if: steps.check.outputs.default == 'true'
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build test image
+      if: steps.check.outputs.default == 'true'
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: docker/github_actions/Dockerfile
+        tags: cadence-ci-test:local
+        # Load into the local daemon so `docker compose run` finds the tag and skips its
+        # own build. Without this the image only exists inside the buildx builder.
+        load: true
+        cache-from: type=gha,scope=ci-test-image
+        # Export only from the default branch. A pull_request run from a fork gets a
+        # read-only GITHUB_TOKEN, so the export would 403 there, and having all 16 jobs
+        # export the full mode=max layer set on every run would churn the 10GB per-repo
+        # cache budget. PR runs read the cache that master populated.
+        cache-to: ${{ github.ref == 'refs/heads/master' && 'type=gha,mode=max,scope=ci-test-image,ignore-error=true' || '' }}
