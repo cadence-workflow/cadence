@@ -81,14 +81,3 @@ func NewNoSQLDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicCon
 
 	return plugin.CreateDB(cfg, logger, dc)
 }
-
-// NewNoSQLAdminDB returns a AdminDB
-func NewNoSQLAdminDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (nosqlplugin.AdminDB, error) {
-	plugin, ok := supportedPlugins[cfg.PluginName]
-
-	if !ok {
-		return nil, fmt.Errorf("not supported plugin %v, only supported: %v", cfg.PluginName, supportedPlugins)
-	}
-
-	return plugin.CreateAdminDB(cfg, logger, dc)
-}

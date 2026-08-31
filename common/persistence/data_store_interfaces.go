@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,HistoryDLQTaskStore
+//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,SemaphoreMetadataStore,HistoryDLQTaskStore
 //go:generate mockgen -package $GOPACKAGE -destination visibility_store_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence VisibilityStore
 
 type (
@@ -100,6 +100,17 @@ type (
 		GetName() string
 		CreateDomainAuditLog(ctx context.Context, request *InternalCreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error)
 		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*InternalGetDomainAuditLogsResponse, error)
+	}
+
+	// SemaphoreMetadataStore is a lower level of SemaphoreMetadataManager.
+	// Columns are plain typed values (no serialized blobs), so it operates on the
+	// public request/record types directly rather than Internal* variants.
+	SemaphoreMetadataStore interface {
+		Closeable
+		GetName() string
+		CreateSemaphore(ctx context.Context, semaphore *SemaphoreMetadata) error
+		GetSemaphore(ctx context.Context, request *GetSemaphoreRequest) (*SemaphoreMetadata, error)
+		ListSemaphores(ctx context.Context, request *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
 	}
 
 	// HistoryDLQTaskStore is the store-level interface for history task DLQ operations.

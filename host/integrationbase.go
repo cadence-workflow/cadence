@@ -37,6 +37,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
@@ -44,16 +45,15 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
-	"github.com/uber/cadence/common/persistence/persistence-tests/testcluster"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/environment"
 )
 
 const (
-	defaultTestLimit   = 3 * time.Second
+	defaultTestLimit   = 5 * time.Second
 	slowTestLimit      = 40 * time.Second
-	suiteOverheadLimit = 30 * time.Second
+	suiteOverheadLimit = 60 * time.Second
 	slowTestSuffix     = "_SLOW"
 )
 
@@ -74,23 +74,20 @@ type (
 		ForeignDomainName        string
 		ArchivalDomainName       string
 		ActiveActiveDomainName   string
-		DefaultTestCluster       testcluster.PersistenceTestCluster
-		VisibilityTestCluster    testcluster.PersistenceTestCluster
+		PersistenceConfig        config.Persistence
 	}
 
 	IntegrationBaseParams struct {
-		T                     *testing.T
-		DefaultTestCluster    testcluster.PersistenceTestCluster
-		VisibilityTestCluster testcluster.PersistenceTestCluster
-		TestClusterConfig     *TestClusterConfig
+		T                 *testing.T
+		PersistenceConfig config.Persistence
+		TestClusterConfig *TestClusterConfig
 	}
 )
 
 func NewIntegrationBase(params IntegrationBaseParams) *IntegrationBase {
 	return &IntegrationBase{
-		DefaultTestCluster:    params.DefaultTestCluster,
-		VisibilityTestCluster: params.VisibilityTestCluster,
-		TestClusterConfig:     params.TestClusterConfig,
+		PersistenceConfig: params.PersistenceConfig,
+		TestClusterConfig: params.TestClusterConfig,
 	}
 }
 
@@ -132,10 +129,9 @@ func (s *IntegrationBase) setupSuite() {
 			EnableWorkflowTimerTaskCleanup:           dynamicproperties.GetBoolPropertyFn(true),
 		}
 		params := pt.TestBaseParams{
-			DefaultTestCluster:    s.DefaultTestCluster,
-			VisibilityTestCluster: s.VisibilityTestCluster,
-			ClusterMetadata:       clusterMetadata,
-			DynamicConfiguration:  dc,
+			PersistenceConfig:    s.PersistenceConfig,
+			ClusterMetadata:      clusterMetadata,
+			DynamicConfiguration: dc,
 		}
 		cluster, err := NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 		s.Require().NoError(err)

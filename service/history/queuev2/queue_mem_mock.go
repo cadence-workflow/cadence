@@ -80,6 +80,21 @@ func (mr *MockInMemQueueMockRecorder) LTrim(newInclusiveMinTaskKey any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LTrim", reflect.TypeOf((*MockInMemQueue)(nil).LTrim), newInclusiveMinTaskKey)
 }
 
+// LTrimBySize mocks base method.
+func (m *MockInMemQueue) LTrimBySize(maxSize int) (persistence.HistoryTaskKey, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LTrimBySize", maxSize)
+	ret0, _ := ret[0].(persistence.HistoryTaskKey)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// LTrimBySize indicates an expected call of LTrimBySize.
+func (mr *MockInMemQueueMockRecorder) LTrimBySize(maxSize any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LTrimBySize", reflect.TypeOf((*MockInMemQueue)(nil).LTrimBySize), maxSize)
+}
+
 // Len mocks base method.
 func (m *MockInMemQueue) Len() int {
 	m.ctrl.T.Helper()

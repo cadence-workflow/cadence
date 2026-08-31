@@ -300,6 +300,7 @@ func FromCreateScheduleRequest(t *types.CreateScheduleRequest) *shared.CreateSch
 		Policies:         FromSchedulePolicies(t.Policies),
 		Memo:             FromMemo(t.Memo),
 		SearchAttributes: FromSearchAttributes(t.SearchAttributes),
+		State:            FromScheduleState(t.State),
 	}
 }
 
@@ -315,6 +316,7 @@ func ToCreateScheduleRequest(t *shared.CreateScheduleRequest) *types.CreateSched
 		Policies:         ToSchedulePolicies(t.Policies),
 		Memo:             ToMemo(t.Memo),
 		SearchAttributes: ToSearchAttributes(t.SearchAttributes),
+		State:            ToScheduleState(t.State),
 	}
 }
 

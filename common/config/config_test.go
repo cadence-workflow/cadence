@@ -392,6 +392,92 @@ func TestInvalidShardedNoSQLConfig_TasklistShardingRefersToUnknownConnection(t *
 	require.ErrorContains(t, err, "Unknown tasklist shard name")
 }
 
+func TestSplitMultipleDatabases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *SQL
+		validate func(t *testing.T, input *SQL, result []*SQL)
+	}{
+		{
+			name: "not enabled returns original pointer",
+			input: &SQL{
+				PluginName:           "mysql",
+				ConnectProtocol:      "tcp",
+				User:                 "user",
+				Password:             "pass",
+				DatabaseName:         "mydb",
+				ConnectAddr:          "127.0.0.1:3306",
+				NumShards:            4,
+				UseMultipleDatabases: false,
+			},
+			validate: func(t *testing.T, input *SQL, result []*SQL) {
+				require.Len(t, result, 1)
+				assert.Same(t, input, result[0], "should return a pointer to the same config when UseMultipleDatabases is false")
+			},
+		},
+		{
+			name: "per-entry fields are applied correctly",
+			input: &SQL{
+				PluginName:           "mysql",
+				ConnectProtocol:      "tcp",
+				EncodingType:         "thriftrw",
+				DecodingTypes:        []string{"thriftrw"},
+				NumShards:            2,
+				UseMultipleDatabases: true,
+				MultipleDatabasesConfig: []MultipleDatabasesConfigEntry{
+					{DatabaseName: "db1", ConnectAddr: "10.0.0.1:3306", User: "user1", Password: "pw1"},
+					{DatabaseName: "db2", ConnectAddr: "10.0.0.2:3306", User: "user2", Password: "pw2"},
+				},
+			},
+			validate: func(t *testing.T, input *SQL, result []*SQL) {
+				require.Len(t, result, 2)
+				assert.Equal(t, "db1", result[0].DatabaseName)
+				assert.Equal(t, "10.0.0.1:3306", result[0].ConnectAddr)
+				assert.Equal(t, "user1", result[0].User)
+				assert.Equal(t, "pw1", result[0].Password)
+				assert.Equal(t, "db2", result[1].DatabaseName)
+				assert.Equal(t, "10.0.0.2:3306", result[1].ConnectAddr)
+				assert.Equal(t, "user2", result[1].User)
+				assert.Equal(t, "pw2", result[1].Password)
+			},
+		},
+		{
+			name: "base fields are inherited and multi-db fields are reset",
+			input: &SQL{
+				PluginName:           "mysql",
+				ConnectProtocol:      "tcp",
+				EncodingType:         "thriftrw",
+				DecodingTypes:        []string{"thriftrw"},
+				NumShards:            2,
+				UseMultipleDatabases: true,
+				MultipleDatabasesConfig: []MultipleDatabasesConfigEntry{
+					{DatabaseName: "db1", ConnectAddr: "10.0.0.1:3306"},
+					{DatabaseName: "db2", ConnectAddr: "10.0.0.2:3306"},
+				},
+			},
+			validate: func(t *testing.T, input *SQL, result []*SQL) {
+				require.Len(t, result, 2)
+				for _, shard := range result {
+					assert.Equal(t, "mysql", shard.PluginName)
+					assert.Equal(t, "tcp", shard.ConnectProtocol)
+					assert.Equal(t, "thriftrw", shard.EncodingType)
+					assert.Equal(t, []string{"thriftrw"}, shard.DecodingTypes)
+					assert.Equal(t, 1, shard.NumShards)
+					assert.False(t, shard.UseMultipleDatabases)
+					assert.Nil(t, shard.MultipleDatabasesConfig)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.input.SplitMultipleDatabases()
+			tc.validate(t, tc.input, result)
+		})
+	}
+}
+
 func TestHistogramMigrationConfig(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		orig := metrics.HistogramMigrationMetrics

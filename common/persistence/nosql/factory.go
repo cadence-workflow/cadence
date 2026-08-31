@@ -21,6 +21,8 @@
 package nosql
 
 import (
+	"fmt"
+
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
@@ -80,6 +82,11 @@ func (f *Factory) NewDomainAuditStore() (persistence.DomainAuditStore, error) {
 	return newNoSQLDomainAuditStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
+// NewSemaphoreMetadataStore returns a semaphore metadata store
+func (f *Factory) NewSemaphoreMetadataStore() (persistence.SemaphoreMetadataStore, error) {
+	return newNoSQLSemaphoreMetadataStore(f.cfg, f.logger, f.metricsClient, f.dc)
+}
+
 // NewHistoryDLQTaskStore returns a history DLQ task store
 func (f *Factory) NewHistoryDLQTaskStore() (persistence.HistoryDLQTaskStore, error) {
 	return newNoSQLHistoryDLQTaskStore(f.cfg, f.logger, f.metricsClient, f.dc)
@@ -103,6 +110,24 @@ func (f *Factory) NewQueue(queueType persistence.QueueType) (persistence.QueueSt
 // NewConfigStore returns a new config store
 func (f *Factory) NewConfigStore() (persistence.ConfigStore, error) {
 	return NewNoSQLConfigStore(f.cfg, f.logger, f.metricsClient, f.dc)
+}
+
+func (f *Factory) NewAdminDBs(dbType persistence.DBType) ([]persistence.AdminDB, error) {
+	var result []persistence.AdminDB
+	for connectionID, conn := range f.cfg.Connections {
+		plugin, ok := supportedPlugins[conn.NoSQLPlugin.PluginName]
+		if !ok {
+			return nil, fmt.Errorf("unsupported plugin: %v", conn.NoSQLPlugin.PluginName)
+		}
+		result = append(result, &nosqlAdmin{
+			logger:     f.logger,
+			plugin:     plugin,
+			dbType:     dbType,
+			identifier: connectionID,
+			cfg:        conn.NoSQLPlugin,
+		})
+	}
+	return result, nil
 }
 
 // Close closes the factory. Store Close methods own connection lifecycle

@@ -1,5 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
-// Portions of the Software are attributed to Copyright (c) 2020 Temporal Technologies Inc.
+// Copyright (c) 2025 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,14 +20,20 @@
 
 package dynamodb
 
-import "github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
+import (
+	"context"
 
-var _ nosqlplugin.AdminDB = (*ddb)(nil)
+	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
+)
 
-func (db *ddb) SetupTestDatabase(schemaBaseDir string, replicas int) error {
-	panic("TODO")
+func (db *ddb) InsertSemaphoreMetadata(ctx context.Context, row *nosqlplugin.SemaphoreMetadataRow) error {
+	panic("TODO: InsertSemaphoreMetadata is not implemented")
 }
 
-func (db *ddb) TeardownTestDatabase() error {
-	panic("TODO")
+func (db *ddb) SelectSemaphoreMetadata(ctx context.Context, domainID, semaphoreName string) (*nosqlplugin.SemaphoreMetadataRow, error) {
+	panic("TODO: SelectSemaphoreMetadata is not implemented")
+}
+
+func (db *ddb) SelectSemaphoreMetadataByDomain(ctx context.Context, filter *nosqlplugin.SemaphoreMetadataFilter) ([]*nosqlplugin.SemaphoreMetadataRow, []byte, error) {
+	panic("TODO: SelectSemaphoreMetadataByDomain is not implemented")
 }

@@ -27,6 +27,8 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/tools/common/commoncli"
 
+	_ "github.com/ncruces/go-sqlite3/driver"                                                // register sqlite3 driver
+	_ "github.com/ncruces/go-sqlite3/embed"                                                 // embed sqlite db
 	_ "github.com/uber/cadence/common/archiver/gcloud"                                      // needed to load the optional gcloud archiver plugin
 	_ "github.com/uber/cadence/common/asyncworkflow/queue/kafka"                            // needed to load kafka asyncworkflow queue
 	_ "github.com/uber/cadence/common/dynamicconfig/openfeatureprovider/unleash"            // needed to load the optional unleash openfeature provider plugin
@@ -36,6 +38,7 @@ import (
 	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"                      // needed to load mysql plugin
 	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/postgres"                   // needed to load postgres plugin
 	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"                     // needed to load sqlite plugin
+	_ "net/http/pprof"                                                                      // register pprof HTTP handlers
 )
 
 // main entry point for the cadence server

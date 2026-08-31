@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
 
@@ -40,6 +41,10 @@ func (f *fakePlugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
 }
 
 func (f *fakePlugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
+	return nil, nil
+}
+
+func (f *fakePlugin) GetSchema(dbType persistence.DBType) (persistence.Schema, error) {
 	return nil, nil
 }
 

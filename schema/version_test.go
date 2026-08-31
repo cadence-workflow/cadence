@@ -21,167 +21,138 @@
 package schema
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/hashicorp/go-version"
+	"github.com/stretchr/testify/assert"
 
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/schema/cassandra"
 	"github.com/uber/cadence/schema/mysql"
 	"github.com/uber/cadence/schema/postgres"
 	"github.com/uber/cadence/schema/sqlite"
 )
 
-// TestSchemaVersionsMatchDirectories verifies that the schema version constants
+// TestSchemas verifies that the schema version constants
 // match the latest versioned directory for each database type.
 // This prevents regressions where new migration directories are added but the
 // version constants are not updated.
-func TestSchemaVersionsMatchDirectories(t *testing.T) {
+func TestSchema(t *testing.T) {
 	tests := []struct {
-		name             string
-		schemaDir        string
-		versionedSubPath string // path from schemaDir to versioned directory
-		declaredVersion  string
-		versionType      string // "main" or "visibility"
+		name            string
+		schema          persistence.Schema
+		declaredVersion string
 	}{
 		// Cassandra
 		{
-			name:             "cassandra_main",
-			schemaDir:        "cassandra",
-			versionedSubPath: "cadence/versioned",
-			declaredVersion:  cassandra.Version,
-			versionType:      "main",
+			name:            "cassandra_main",
+			schema:          cassandra.DefaultSchema,
+			declaredVersion: cassandra.Version,
 		},
 		{
-			name:             "cassandra_visibility",
-			schemaDir:        "cassandra",
-			versionedSubPath: "visibility/versioned",
-			declaredVersion:  cassandra.VisibilityVersion,
-			versionType:      "visibility",
+			name:            "cassandra_visibility",
+			schema:          cassandra.VisibilitySchema,
+			declaredVersion: cassandra.VisibilityVersion,
 		},
 		// MySQL
 		{
-			name:             "mysql_main",
-			schemaDir:        "mysql",
-			versionedSubPath: "v8/cadence/versioned",
-			declaredVersion:  mysql.Version,
-			versionType:      "main",
+			name:            "mysql_main",
+			schema:          mysql.DefaultSchema,
+			declaredVersion: mysql.Version,
 		},
 		{
-			name:             "mysql_visibility",
-			schemaDir:        "mysql",
-			versionedSubPath: "v8/visibility/versioned",
-			declaredVersion:  mysql.VisibilityVersion,
-			versionType:      "visibility",
+			name:            "mysql_visibility",
+			schema:          mysql.VisibilitySchema,
+			declaredVersion: mysql.VisibilityVersion,
 		},
 		// Postgres
 		{
-			name:             "postgres_main",
-			schemaDir:        "postgres",
-			versionedSubPath: "cadence/versioned",
-			declaredVersion:  postgres.Version,
-			versionType:      "main",
+			name:            "postgres_main",
+			schema:          postgres.DefaultSchema,
+			declaredVersion: postgres.Version,
 		},
 		{
-			name:             "postgres_visibility",
-			schemaDir:        "postgres",
-			versionedSubPath: "visibility/versioned",
-			declaredVersion:  postgres.VisibilityVersion,
-			versionType:      "visibility",
+			name:            "postgres_visibility",
+			schema:          postgres.VisibilitySchema,
+			declaredVersion: postgres.VisibilityVersion,
 		},
 		// SQLite
 		{
-			name:             "sqlite_main",
-			schemaDir:        "sqlite",
-			versionedSubPath: "cadence/versioned",
-			declaredVersion:  sqlite.Version,
-			versionType:      "main",
+			name:            "sqlite_main",
+			schema:          sqlite.DefaultSchema,
+			declaredVersion: sqlite.Version,
 		},
 		{
-			name:             "sqlite_visibility",
-			schemaDir:        "sqlite",
-			versionedSubPath: "visibility/versioned",
-			declaredVersion:  sqlite.VisibilityVersion,
-			versionType:      "visibility",
+			name:            "sqlite_visibility",
+			schema:          sqlite.VisibilitySchema,
+			declaredVersion: sqlite.VisibilityVersion,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			versionedPath := filepath.Join(tt.schemaDir, tt.versionedSubPath)
-			latestVersion, err := getLatestVersionFromDirectory(versionedPath)
+			updates, err := tt.schema.AllUpdates()
 			if err != nil {
-				t.Fatalf("Failed to get latest version from %s: %v", versionedPath, err)
+				t.Fatalf("Failed to read updates: %v", err)
 			}
-
-			if latestVersion != tt.declaredVersion {
-				// Map versionType to actual constant name
-				constantName := "Version"
-				if tt.versionType == "visibility" {
-					constantName = "VisibilityVersion"
+			t.Run("correct latest version", func(t *testing.T) {
+				declaredVersion, err := persistence.ParseVersion(tt.declaredVersion)
+				if err != nil {
+					t.Fatalf("Failed to parse declared version: %v", err)
 				}
+				lastUpdate := updates[len(updates)-1]
 
-				t.Errorf(
-					"%s %s schema version mismatch:\n"+
-						"  Declared version in version.go: %s\n"+
-						"  Latest versioned directory:     v%s\n"+
-						"  Please update the %s constant in schema/%s/version.go to \"%s\"",
-					tt.schemaDir,
-					tt.versionType,
-					tt.declaredVersion,
-					latestVersion,
-					constantName,
-					tt.schemaDir,
-					latestVersion,
-				)
+				if lastUpdate.Version != declaredVersion {
+
+					t.Errorf(
+						"%s schema version mismatch:\n"+
+							"  Declared version in version.go: %s\n"+
+							"  Latest versioned directory:     v%s\n"+
+							"  Please update the constant  to \"%s\"",
+						tt.name,
+						tt.declaredVersion,
+						lastUpdate.Version.String(),
+						lastUpdate.Version.String(),
+					)
+				}
+			})
+			// Forbid schemas from incrementing the major/minor version by more than 1
+			t.Run("all versions sequential", func(t *testing.T) {
+				var previous *persistence.SchemaUpdate
+				for _, update := range updates {
+					if previous != nil {
+						oldVersion := previous.Version
+						newVersion := update.Version
+						majorIncrement := newVersion.Major == oldVersion.Major+1
+						minorIncrement := newVersion.Minor == oldVersion.Minor+1
+						// elusive exclusive or
+						if !(majorIncrement || minorIncrement) || (majorIncrement && minorIncrement) {
+							t.Fatalf("Invalid version increment from %s to %s: must increment either major or minor version by 1, but not both", oldVersion.String(), newVersion.String())
+						}
+					}
+					previous = update
+				}
+			})
+			t.Run("correct first version", func(t *testing.T) {
+				first := updates[0]
+				assert.Equal(t, "0.1", first.Version.String(), "first version should be 0.1")
+			})
+			t.Run("found all versions", func(t *testing.T) {
+				// Since they can only be incremented by 1, the expected number of versions is equal to the sum of the minor and major
+				expected := tt.schema.LatestVersion().Minor + tt.schema.LatestVersion().Major
+				assert.Equal(t, expected, len(updates), "unexpected number of updates")
+			})
+			// Validate each version as a test case
+			for _, update := range updates {
+				t.Run(update.Version.String(), func(t *testing.T) {
+					assert.NotEmptyf(t, update.Description, "description is required")
+					assert.NotEmptyf(t, update.ManifestMD5, "manifest hash is required")
+					assert.True(t, update.Version.Compare(update.MinCompatibleVersion) >= 0, "version must be greater than or equal to min compatible version")
+					assert.NotEmptyf(t, update.DDLStatements, "missing DDL statements")
+				})
 			}
 		})
 	}
-}
-
-// getLatestVersionFromDirectory scans a versioned directory and returns the highest version number.
-// It expects directories named like "v0.1", "v0.2", etc.
-func getLatestVersionFromDirectory(versionedPath string) (string, error) {
-	entries, err := os.ReadDir(versionedPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read directory %s: %w", versionedPath, err)
-	}
-
-	var versions []*version.Version
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if !strings.HasPrefix(name, "v") {
-			continue
-		}
-		// Extract version number (e.g., "v0.9" -> "0.9")
-		versionStr := strings.TrimPrefix(name, "v")
-		v, err := version.NewVersion(versionStr)
-		if err != nil {
-			// Skip directories that don't follow semantic versioning
-			continue
-		}
-		versions = append(versions, v)
-	}
-
-	if len(versions) == 0 {
-		return "", fmt.Errorf("no versioned directories found in %s", versionedPath)
-	}
-
-	// Find the highest version
-	latest := versions[0]
-	for _, v := range versions[1:] {
-		if v.GreaterThan(latest) {
-			latest = v
-		}
-	}
-
-	return latest.Original(), nil
 }
 
 // TestVersionComparison verifies that the version comparison logic works correctly

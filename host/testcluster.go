@@ -52,7 +52,6 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
-	"github.com/uber/cadence/common/persistence/persistence-tests/testcluster"
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/postgres"
@@ -139,7 +138,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 	setupShards(testBase, options.HistoryConfig.NumHistoryShards, logger)
 	archiverBase := newArchiverBase(options.EnableArchival, logger)
 	messagingClient := getMessagingClient(options.MessagingClientConfig, logger)
-	pConfig := testBase.Config()
+	pConfig := testBase.PersistenceConfig
 	pConfig.NumHistoryShards = options.HistoryConfig.NumHistoryShards
 	var esClient elasticsearch.GenericClient
 	if options.WorkerConfig.EnableIndexer {
@@ -212,7 +211,7 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 	setupShards(testBase, options.HistoryConfig.NumHistoryShards, logger)
 	archiverBase := newArchiverBase(options.EnableArchival, logger)
 	messagingClient := getMessagingClient(options.MessagingClientConfig, logger)
-	pConfig := testBase.Config()
+	pConfig := testBase.PersistenceConfig
 	pConfig.NumHistoryShards = options.HistoryConfig.NumHistoryShards
 	var esClient elasticsearch.GenericClient
 	var pinotClient pnt.GenericClient
@@ -308,19 +307,18 @@ func NewClusterMetadata(t *testing.T, options *TestClusterConfig) cluster.Metada
 	)
 }
 
-func NewPersistenceTestCluster(t *testing.T, clusterConfig *TestClusterConfig) testcluster.PersistenceTestCluster {
+func NewPersistenceTestCluster(t *testing.T, clusterConfig *TestClusterConfig) config.Persistence {
 	// NOTE: Override here to keep consistent. clusterConfig will be used in the test for some purposes.
-	clusterConfig.Persistence.StoreType = TestFlags.PersistenceType
 	clusterConfig.Persistence.DBPluginName = TestFlags.SQLPluginName
 
-	var testCluster testcluster.PersistenceTestCluster
+	var testConfig config.Persistence
 	var err error
 	if TestFlags.PersistenceType == config.StoreTypeCassandra {
 		// TODO refactor to support other NoSQL
 		ops := clusterConfig.Persistence
 		ops.DBPluginName = "cassandra"
 		testflags.RequireCassandra(t)
-		testCluster = nosql.NewTestCluster(t, nosql.TestClusterParams{
+		testConfig = nosql.NewTestCluster(t, nosql.TestClusterParams{
 			PluginName:    ops.DBPluginName,
 			KeySpace:      ops.DBName,
 			Username:      ops.DBUsername,
@@ -348,14 +346,14 @@ func NewPersistenceTestCluster(t *testing.T, clusterConfig *TestClusterConfig) t
 		if err != nil {
 			t.Fatal(err)
 		}
-		testCluster, err = sql.NewTestCluster(TestFlags.SQLPluginName, clusterConfig.Persistence.DBName, ops.DBUsername, ops.DBPassword, ops.DBHost, ops.DBPort, ops.SchemaDir)
+		testConfig, err = sql.NewTestCluster(TestFlags.SQLPluginName, clusterConfig.Persistence.DBName, ops.DBUsername, ops.DBPassword, ops.DBHost, ops.DBPort)
 		if err != nil {
 			t.Fatal(err)
 		}
 	} else {
 		t.Fatal("not supported storage type" + TestFlags.PersistenceType)
 	}
-	return testCluster
+	return testConfig
 }
 
 func newNoopDomainAuditManager() persistence.DomainAuditManager {

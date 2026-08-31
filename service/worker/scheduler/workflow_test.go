@@ -2310,6 +2310,37 @@ func TestHandleUpdate_BufferedFiresClearedOnOverlapPolicyChange(t *testing.T) {
 	}
 }
 
+func TestInitStateOnFirstExecution(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	tests := map[string]struct {
+		initial      SchedulerWorkflowState
+		wantPausedAt time.Time
+	}{
+		"unpaused: PausedAt stays zero": {
+			initial:      SchedulerWorkflowState{},
+			wantPausedAt: time.Time{},
+		},
+		"paused with reason: PausedAt equals CreateTime": {
+			initial:      SchedulerWorkflowState{Paused: true, PauseReason: "initial", PausedBy: "admin"},
+			wantPausedAt: now,
+		},
+		"paused with no reason: PausedAt equals CreateTime": {
+			initial:      SchedulerWorkflowState{Paused: true},
+			wantPausedAt: now,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			state := tt.initial
+			initStateOnFirstExecution(&state, now)
+			assert.Equal(t, now, state.CreateTime)
+			assert.Equal(t, now, state.LastUpdateTime)
+			assert.Equal(t, tt.wantPausedAt, state.PausedAt)
+		})
+	}
+}
+
 func TestEnsurePolicyDefaults(t *testing.T) {
 	tests := map[string]struct {
 		input      types.SchedulePolicies

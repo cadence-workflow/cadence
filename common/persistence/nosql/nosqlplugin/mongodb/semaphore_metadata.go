@@ -1,5 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
-// Portions of the Software are attributed to Copyright (c) 2020 Temporal Technologies Inc.
+// Copyright (c) 2025 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,16 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package testcluster
+package mongodb
 
-import "github.com/uber/cadence/common/config"
+import (
+	"context"
+	"fmt"
 
-type (
-	// PersistenceTestCluster exposes management operations on a database
-	// NOTE: Putting this interface in separate package to avoid cycle dependency
-	PersistenceTestCluster interface {
-		SetupTestDatabase()
-		TearDownTestDatabase()
-		Config() config.Persistence
-	}
+	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
+
+func (db *mdb) InsertSemaphoreMetadata(ctx context.Context, row *nosqlplugin.SemaphoreMetadataRow) error {
+	return fmt.Errorf("InsertSemaphoreMetadata is not implemented")
+}
+
+func (db *mdb) SelectSemaphoreMetadata(ctx context.Context, domainID, semaphoreName string) (*nosqlplugin.SemaphoreMetadataRow, error) {
+	return nil, fmt.Errorf("SelectSemaphoreMetadata is not implemented")
+}
+
+func (db *mdb) SelectSemaphoreMetadataByDomain(ctx context.Context, filter *nosqlplugin.SemaphoreMetadataFilter) ([]*nosqlplugin.SemaphoreMetadataRow, []byte, error) {
+	return nil, nil, fmt.Errorf("SelectSemaphoreMetadataByDomain is not implemented")
+}

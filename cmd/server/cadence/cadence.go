@@ -35,6 +35,7 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/common/client"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/service"
 
@@ -146,6 +147,29 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 						)
 					},
 				)
+			},
+		},
+		{
+			Name:  "update-schema",
+			Usage: "update the persistence schema to the latest version",
+			Action: func(c *cli.Context) error {
+				configDir := getConfigDir(c)
+				env := getEnvironment(c)
+				zone := getZone(c)
+
+				var cfg config.Config
+				if err := config.Load(env, configDir, zone, &cfg); err != nil {
+					return fmt.Errorf("load config: %w", err)
+				}
+				if err := cfg.ValidateAndFillDefaults(); err != nil {
+					return fmt.Errorf("validate config: %w", err)
+				}
+
+				logger := newUpdateSchemaLogger()
+				factory := newPersistenceFactory(cfg, logger)
+				defer factory.Close()
+
+				return runUpdateSchema(c.Context, factory, logger, clock.NewRealTimeSource())
 			},
 		},
 	}

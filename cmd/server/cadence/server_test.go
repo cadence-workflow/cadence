@@ -52,6 +52,9 @@ import (
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
+
+	_ "github.com/ncruces/go-sqlite3/driver" // register sqlite3 driver for tests
+	_ "github.com/ncruces/go-sqlite3/embed"  // embed sqlite db for tests
 )
 
 type ServerSuite struct {
@@ -90,7 +93,7 @@ func (s *ServerSuite) TestServerStartup() {
 
 	// set up sqlite persistence layer and apply schema to sqlite db
 	testBase := pt.NewTestBaseWithSQL(s.T(), sqlite.GetTestClusterOption())
-	cfg.Persistence = testBase.Config()
+	cfg.Persistence = testBase.PersistenceConfig
 	testBase.Setup()
 
 	s.T().Logf("config=\n%v\n", cfg.String())

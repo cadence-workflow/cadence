@@ -151,6 +151,20 @@ func (mr *MockBeanMockRecorder) GetHistoryTaskDLQManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTaskDLQManager", reflect.TypeOf((*MockBean)(nil).GetHistoryTaskDLQManager))
 }
 
+// GetSemaphoreMetadataManager mocks base method.
+func (m *MockBean) GetSemaphoreMetadataManager() persistence.SemaphoreMetadataManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreMetadataManager")
+	ret0, _ := ret[0].(persistence.SemaphoreMetadataManager)
+	return ret0
+}
+
+// GetSemaphoreMetadataManager indicates an expected call of GetSemaphoreMetadataManager.
+func (mr *MockBeanMockRecorder) GetSemaphoreMetadataManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreMetadataManager", reflect.TypeOf((*MockBean)(nil).GetSemaphoreMetadataManager))
+}
+
 // GetShardManager mocks base method.
 func (m *MockBean) GetShardManager() persistence.ShardManager {
 	m.ctrl.T.Helper()
@@ -275,6 +289,18 @@ func (m *MockBean) SetHistoryTaskDLQManager(arg0 persistence.HistoryTaskDLQManag
 func (mr *MockBeanMockRecorder) SetHistoryTaskDLQManager(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHistoryTaskDLQManager", reflect.TypeOf((*MockBean)(nil).SetHistoryTaskDLQManager), arg0)
+}
+
+// SetSemaphoreMetadataManager mocks base method.
+func (m *MockBean) SetSemaphoreMetadataManager(arg0 persistence.SemaphoreMetadataManager) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSemaphoreMetadataManager", arg0)
+}
+
+// SetSemaphoreMetadataManager indicates an expected call of SetSemaphoreMetadataManager.
+func (mr *MockBeanMockRecorder) SetSemaphoreMetadataManager(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSemaphoreMetadataManager", reflect.TypeOf((*MockBean)(nil).SetSemaphoreMetadataManager), arg0)
 }
 
 // SetShardManager mocks base method.

@@ -232,7 +232,14 @@ func (s *server) startService() common.Daemon {
 		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
 	}
 
-	wrappedRings := s.wrapHashRingsWithShardDistributor(params.HashRings, spectator, s.operationalDynamicConfig, params.PercentageOnboarded, params.Logger)
+	wrappedRings := s.wrapHashRingsWithShardDistributor(
+		params.HashRings,
+		spectator,
+		s.operationalDynamicConfig,
+		params.PercentageOnboarded,
+		params.Logger,
+		params.MetricsClient.Scope(metrics.ShardDistributorResolverScope),
+	)
 
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
@@ -337,6 +344,7 @@ func (*server) wrapHashRingsWithShardDistributor(
 	operationalDC *dynamicconfig.Collection,
 	percentageOnboarded membership.PercentageOnboarded,
 	logger log.Logger,
+	metricsScope metrics.Scope,
 ) map[string]membership.SingleProvider {
 	if _, ok := hashRings[service.Matching]; ok {
 		hashRings[service.Matching] = membership.NewShardDistributorResolver(
@@ -345,6 +353,7 @@ func (*server) wrapHashRingsWithShardDistributor(
 			percentageOnboarded,
 			hashRings[service.Matching],
 			logger,
+			metricsScope,
 		)
 	}
 	return hashRings

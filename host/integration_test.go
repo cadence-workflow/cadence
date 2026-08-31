@@ -44,6 +44,10 @@ import (
 	"github.com/uber/cadence/service/history/engine/engineimpl"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/matching/tasklist"
+
+	_ "github.com/ncruces/go-sqlite3/driver"                                   // register sqlite3 driver for tests
+	_ "github.com/ncruces/go-sqlite3/embed"                                    // embed sqlite db for tests
+	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra" // register cassandra plugin for tests
 )
 
 func TestIntegrationSuite(t *testing.T) {
@@ -68,9 +72,8 @@ func TestIntegrationSuite(t *testing.T) {
 
 	s := new(IntegrationSuite)
 	params := IntegrationBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		TestClusterConfig:     clusterConfig,
+		PersistenceConfig: testCluster,
+		TestClusterConfig: clusterConfig,
 	}
 	s.IntegrationBase = NewIntegrationBase(params)
 	suite.Run(t, s)

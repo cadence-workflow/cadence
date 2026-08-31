@@ -35,13 +35,8 @@ type (
 	// Plugin defines the interface for any NoSQL database that needs to implement
 	Plugin interface {
 		CreateDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (DB, error)
-		CreateAdminDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (AdminDB, error)
-	}
-
-	// AdminDB is for tooling and testing
-	AdminDB interface {
-		SetupTestDatabase(schemaBaseDir string, replicas int) error
-		TeardownTestDatabase() error
+		SetupDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (persistence.SetupDB, error)
+		SchemaDB(dbType persistence.DBType, cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (persistence.SchemaDB, error)
 	}
 
 	// DB defines the API for regular NoSQL operations of a Cadence server
@@ -72,6 +67,7 @@ type (
 		WorkflowCRUD
 		ConfigStoreCRUD
 		DomainAuditLogCRUD
+		SemaphoreMetadataCRUD
 		HistoryDLQTaskCRUD
 	}
 
@@ -552,6 +548,27 @@ type (
 		// SelectDomainAuditLogs returns audit log entries for a domain and operation type
 		// Returns paginated results ordered by created_time DESC, event_id ASC
 		SelectDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, []byte, error)
+	}
+
+	/***
+	* SemaphoreMetadataCRUD is for distributed semaphore metadata (config) storage
+	*
+	* Recommendation: use one table
+	*
+	* Significant columns:
+	* semaphore_metadata: partition key(domainID), range key(semaphoreName)
+	 */
+	SemaphoreMetadataCRUD interface {
+		// InsertSemaphoreMetadata creates a semaphore's metadata with a conflict-detecting
+		// INSERT ... IF NOT EXISTS; it must return a ConditionFailure if the semaphore already exists.
+		// Returns a ConditionFailure if the semaphore already exists.
+		InsertSemaphoreMetadata(ctx context.Context, row *SemaphoreMetadataRow) error
+
+		// SelectSemaphoreMetadata returns a single semaphore's metadata by (domainID, semaphoreName).
+		SelectSemaphoreMetadata(ctx context.Context, domainID, semaphoreName string) (*SemaphoreMetadataRow, error)
+
+		// SelectSemaphoreMetadataByDomain returns the semaphores in a domain, paginated.
+		SelectSemaphoreMetadataByDomain(ctx context.Context, filter *SemaphoreMetadataFilter) ([]*SemaphoreMetadataRow, []byte, error)
 	}
 
 	/***

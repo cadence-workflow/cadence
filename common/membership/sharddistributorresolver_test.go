@@ -27,10 +27,12 @@ import (
 
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 	"github.com/stretchr/testify/assert"
+	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 )
 
 func TestShardDistributorResolver_Lookup(t *testing.T) {
@@ -78,6 +80,7 @@ func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *test
 		pct,
 		ring,
 		logger,
+		metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),
 	).(*shardDistributorResolver)
 
 	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "hash-ring-addr"}, nil)
@@ -85,6 +88,83 @@ func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *test
 	host, err := resolver.Lookup("test-key")
 	assert.NoError(t, err)
 	assert.Equal(t, "hash-ring-addr", host.addr)
+}
+
+func TestShardDistributorResolver_Lookup_RecordsRoutingPath(t *testing.T) {
+	tests := []struct {
+		name                string
+		percentageOnboarded int
+		withSpectator       bool
+		expectedPath        string
+	}{
+		{
+			name:                "shard distributor",
+			percentageOnboarded: 100,
+			withSpectator:       true,
+			expectedPath:        routingPathShardDistributor,
+		},
+		{
+			name:                "excluded task list",
+			percentageOnboarded: 0,
+			withSpectator:       true,
+			expectedPath:        routingPathHashRing,
+		},
+		{
+			name:                "missing spectator",
+			percentageOnboarded: 100,
+			withSpectator:       false,
+			expectedPath:        routingPathHashRing,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			ring := NewMockSingleProvider(ctrl)
+			percentageOnboarded := NewMockPercentageOnboarded(ctrl)
+			percentageOnboarded.EXPECT().Value().Return(tt.percentageOnboarded)
+
+			var spectator spectatorclient.Spectator
+			if tt.withSpectator {
+				spectatorMock := spectatorclient.NewMockSpectator(ctrl)
+				spectator = spectatorMock
+				if tt.percentageOnboarded > 0 {
+					spectatorMock.EXPECT().GetShardOwner(gomock.Any(), "test-key").Return(&spectatorclient.ShardOwner{
+						ExecutorID: "test-owner",
+						Metadata: map[string]string{
+							"hostIP":   "127.0.0.1",
+							"tchannel": "7933",
+						},
+					}, nil)
+				}
+			}
+			if tt.percentageOnboarded == 0 || !tt.withSpectator {
+				ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "hash-ring-addr"}, nil)
+			}
+
+			testScope := tally.NewTestScope("", nil)
+			metricsClient := metrics.NewClient(testScope, metrics.Matching, metrics.MigrationConfig{})
+			resolver := NewShardDistributorResolver(
+				spectator,
+				dynamicproperties.GetBoolPropertyFn(false),
+				percentageOnboarded,
+				ring,
+				log.NewNoop(),
+				metricsClient.Scope(metrics.ShardDistributorResolverScope),
+			)
+
+			_, err := resolver.Lookup("test-key")
+			assert.NoError(t, err)
+
+			counters := testScope.Snapshot().Counters()
+			assert.Len(t, counters, 1)
+			for _, counter := range counters {
+				assert.Equal(t, "shard_distributor_resolver_lookups", counter.Name())
+				assert.Equal(t, tt.expectedPath, counter.Tags()["routing_path"])
+				assert.Equal(t, int64(1), counter.Value())
+			}
+		})
+	}
 }
 
 func TestShardDistributorResolver_Start(t *testing.T) {
@@ -177,6 +257,7 @@ func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T
 				pct,
 				ring,
 				logger,
+				metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),
 			).(*shardDistributorResolver)
 
 			if tc.expectHashRing {
@@ -214,7 +295,14 @@ func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *Mock
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
 
-	resolver := NewShardDistributorResolver(spectator, excludeShortLivedTaskLists, percentageOnboarded, ring, logger).(*shardDistributorResolver)
+	resolver := NewShardDistributorResolver(
+		spectator,
+		excludeShortLivedTaskLists,
+		percentageOnboarded,
+		ring,
+		logger,
+		metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),
+	).(*shardDistributorResolver)
 
 	return resolver, ring, spectator
 }

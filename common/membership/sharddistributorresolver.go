@@ -34,6 +34,12 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
+)
+
+const (
+	routingPathHashRing         = "hash_ring"
+	routingPathShardDistributor = "shard_distributor"
 )
 
 type shardDistributorResolver struct {
@@ -42,6 +48,7 @@ type shardDistributorResolver struct {
 	spectator                  spectatorclient.Spectator
 	ring                       SingleProvider
 	logger                     log.Logger
+	metricsScope               metrics.Scope
 }
 
 func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) {
@@ -54,6 +61,7 @@ func NewShardDistributorResolver(
 	percentageOnboarded PercentageOnboarded,
 	ring SingleProvider,
 	logger log.Logger,
+	metricsScope metrics.Scope,
 ) SingleProvider {
 	return &shardDistributorResolver{
 		spectator:                  spectator,
@@ -61,6 +69,7 @@ func NewShardDistributorResolver(
 		percentageOnboarded:        percentageOnboarded,
 		ring:                       ring,
 		logger:                     logger,
+		metricsScope:               metricsScope,
 	}
 }
 
@@ -77,14 +86,17 @@ func (s shardDistributorResolver) Stop() {
 func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 	excludeTaskList := TaskListExcludedFromShardDistributor(key, uint64(s.percentageOnboarded.Value()), s.excludeShortLivedTaskLists())
 	if excludeTaskList {
+		s.emitRoutingPathMetric(routingPathHashRing)
 		return s.ring.Lookup(key)
 	}
 
 	if s.spectator == nil {
 		s.logger.Warn("No shard distributor client, defaulting to hash ring")
+		s.emitRoutingPathMetric(routingPathHashRing)
 		return s.ring.Lookup(key)
 	}
 
+	s.emitRoutingPathMetric(routingPathShardDistributor)
 	return s.lookUpInShardDistributor(key)
 }
 
@@ -154,4 +166,8 @@ func (s shardDistributorResolver) lookUpInShardDistributor(key string) (HostInfo
 
 	hostInfo := NewDetailedHostInfo(address, owner.ExecutorID, portMap)
 	return hostInfo, nil
+}
+
+func (s shardDistributorResolver) emitRoutingPathMetric(path string) {
+	s.metricsScope.Tagged(metrics.RoutingPathTag(path)).IncCounter(metrics.ShardDistributorResolverLookups)
 }

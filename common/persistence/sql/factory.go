@@ -119,6 +119,16 @@ func (f *Factory) NewDomainAuditStore() (p.DomainAuditStore, error) {
 	return newSQLDomainAuditStore(conn, f.logger, f.parser)
 }
 
+// NewSemaphoreMetadataStore returns a semaphore metadata store.
+// Distributed semaphore is only supported on NoSQL; this is a not-supported stub.
+func (f *Factory) NewSemaphoreMetadataStore() (p.SemaphoreMetadataStore, error) {
+	conn, err := f.dbConn.get()
+	if err != nil {
+		return nil, err
+	}
+	return newSQLSemaphoreMetadataStore(conn, f.logger, f.parser)
+}
+
 // NewHistoryDLQTaskStore returns a history DLQ task store.
 func (f *Factory) NewHistoryDLQTaskStore() (p.HistoryDLQTaskStore, error) {
 	return &sqlHistoryDLQTaskStore{}, nil
@@ -156,6 +166,29 @@ func (f *Factory) NewConfigStore() (p.ConfigStore, error) {
 		return nil, err
 	}
 	return NewSQLConfigStore(conn, f.logger, f.parser)
+}
+
+func (f *Factory) NewAdminDBs(dbType p.DBType) ([]p.AdminDB, error) {
+	plugin, ok := supportedPlugins[f.cfg.PluginName]
+	if !ok {
+		return nil, fmt.Errorf("plugin not supported: %s", f.cfg.PluginName)
+	}
+	schema, err := plugin.GetSchema(dbType)
+	if err != nil {
+		return nil, err
+	}
+	var result []p.AdminDB
+	dbs := f.cfg.SplitMultipleDatabases()
+	for _, db := range dbs {
+		result = append(result, &sqlAdmin{
+			logger: f.logger,
+			plugin: plugin,
+			dbType: dbType,
+			schema: schema,
+			cfg:    db,
+		})
+	}
+	return result, nil
 }
 
 // Close closes the factory

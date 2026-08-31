@@ -53,9 +53,8 @@ func TestDecisionTimeoutMaxAttemptsIntegrationSuite(t *testing.T) {
 
 	s := new(DecisionTimeoutMaxAttemptsIntegrationSuite)
 	params := IntegrationBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		TestClusterConfig:     clusterConfig,
+		PersistenceConfig: testCluster,
+		TestClusterConfig: clusterConfig,
 	}
 	s.IntegrationBase = NewIntegrationBase(params)
 	suite.Run(t, s)

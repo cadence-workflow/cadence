@@ -75,6 +75,26 @@ func LatestTime(time int64) Tag {
 	return newInt64("latest-time", time)
 }
 
+// PersistencePluginName returns tag for persistence plugin name.
+func PersistencePluginName(pluginName string) Tag {
+	return newStringTag("persistence-plugin-name", pluginName)
+}
+
+// PersistenceDBType returns tag for persistence DB type.
+func PersistenceDBType(dbType string) Tag {
+	return newStringTag("persistence-db-type", dbType)
+}
+
+// PersistenceDBIdentifier returns tag for persistence DB identifier.
+func PersistenceDBIdentifier(identifier string) Tag {
+	return newStringTag("persistence-db-identifier", identifier)
+}
+
+// SchemaUpdateVersion returns tag for schema update version.
+func SchemaUpdateVersion(version string) Tag {
+	return newStringTag("schema-update-version", version)
+}
+
 // /////////////////  Workflow tags defined here: ( wf is short for workflow) ///////////////////
 
 // WorkflowAction returns tag for WorkflowAction
