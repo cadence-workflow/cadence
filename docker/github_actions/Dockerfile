@@ -17,7 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install cqlsh && cqlsh --version
+# Debian trixie's pip enforces PEP 668 
+# this is a single-purpose CI container, so installing into the system
+# environment is intentional (same approach as the release Dockerfile).
+RUN pip3 install --break-system-packages cqlsh==6.2.2 && cqlsh --version
 
 # verbose test output from `make`, can be disabled with V=0
 ENV V=0
