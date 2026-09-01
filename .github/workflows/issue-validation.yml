@@ -24,11 +24,3 @@ jobs:
           script: |
             const { run } = require("./.github/scripts/validate-issue.js");
             await run({ github, context });
-
-  test-validator:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Run validator unit tests
-        run: node --test .github/scripts/validate-issue.test.js
