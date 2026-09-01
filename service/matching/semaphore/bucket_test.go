@@ -555,24 +555,33 @@ func TestGrantOnAFullBucketReportsNoSlot(t *testing.T) {
 	assert.Equal(t, 0, b.freeCount())
 }
 
-func TestGrantKeepsTheSlotOutWhenTheWriteFails(t *testing.T) {
+// A failed write must not cost a slot. Grant explains why returning the id is safe even when
+// the write may have landed; what this test adds is the aggregate, since leaking one slot per
+// failure would drain the bucket during an outage.
+func TestGrantReturnsTheSlotWhenTheWriteFails(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := persistence.NewMockSemaphoreTokenManager(ctrl)
-	b := startBucket(t, m, freeTokens(1))
+	const slots = 5
+	b := startBucket(t, m, freeTokens(1, 2, 3, 4, 5))
 
 	writeErr := errors.New("cassandra unavailable")
-	m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(1).Return(nil, writeErr)
+	m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(slots*3).Return(nil, writeErr)
 
-	_, err := b.Grant(context.Background(), "owner-a")
-	assert.ErrorIs(t, err, writeErr)
-	// The write may have landed, so the slot must not be offered again while this host owns
-	// the bucket.
-	assert.Equal(t, 0, b.freeCount())
+	// More attempts than there are slots, so a leak of even one per call runs the bucket dry.
+	// Checked every round rather than only at the end: a leak then names the attempt it began
+	// on, instead of surfacing later as a bucket with nothing left to draw.
+	for i := range slots * 3 {
+		_, err := b.Grant(context.Background(), fmt.Sprintf("owner-%d", i))
+		require.ErrorIs(t, err, writeErr)
+		require.Equal(t, slots, b.freeCount(), "the slot must come back after attempt %d", i)
+	}
+	assertFreeSetIsConsistent(t, b)
 }
 
 // The nosql store screens outcomes before they reach here, so only a different store could
-// produce one. It is reported as an error rather than guessed at, and the slot stays out of
-// the free-set because what the write did is unknown.
+// produce one. It is reported as an error rather than guessed at, and the slot goes back for
+// the same reason a failed write's does: what the write did is unknown, and the conditional
+// guard settles it on the next attempt.
 func TestGrantRejectsAnUnrecognizedWriteOutcome(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := persistence.NewMockSemaphoreTokenManager(ctrl)
@@ -584,7 +593,7 @@ func TestGrantRejectsAnUnrecognizedWriteOutcome(t *testing.T) {
 
 	_, err := b.Grant(context.Background(), "owner-a")
 	require.ErrorContains(t, err, "unexpected semaphore grant outcome")
-	assert.Equal(t, 0, b.freeCount())
+	assert.Equal(t, 1, b.freeCount())
 }
 
 func TestGrantWhenTheReverseIndexIsStale(t *testing.T) {

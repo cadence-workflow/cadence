@@ -289,18 +289,24 @@ func (b *Bucket) Grant(ctx context.Context, ownerID string) (GrantResult, error)
 			OwnerID:       ownerID,
 		})
 		if err != nil {
-			// An error means the write may still have landed, so this host cannot tell
-			// whether the slot was claimed. Keep the id out of the free-set rather than
-			// returning it: if the write did land, offering the id again hands a held slot
-			// to a second owner. The cost of guessing wrong the other way is one slot sitting
-			// idle for as long as this host owns the bucket, which no caller can observe
-			// as anything worse than a slightly smaller bucket.
+			// An error does not mean the write was rejected: a timeout says the database
+			// stopped waiting for acknowledgements, not that anything was rolled back. The
+			// id goes back either way, because both cases are safe:
+			//
+			//   - the write did not land, so the slot really is free;
+			//   - the write did land, so the next attempt on this id fails the "only if
+			//     free" guard and is reported taken. No second owner can get the slot.
+			//
+			// Keeping the id out instead would cost a slot per failed write, and an outage
+			// would drain the bucket to nothing.
+			b.unreserve(tokenID)
 			return GrantResult{}, err
 		}
 
 		switch resp.Outcome {
 		case persistence.SemaphoreGrantApplied:
-			// Record the hold. Its durable owner row went in with the same batch.
+			// Record the hold.
+			// Its durable owner row went in with the same batch.
 			b.recordHold(ownerID, tokenID)
 			return GrantResult{Outcome: GrantOutcomeAcquired, TokenID: tokenID}, nil
 
@@ -334,8 +340,13 @@ func (b *Bucket) Grant(ctx context.Context, ownerID string) (GrantResult, error)
 		default:
 			// The nosql store rejects an unrecognized outcome before it gets here, so this
 			// is unreachable today. It is still checked because that guarantee belongs to
-			// one store rather than to the manager interface. Treat it like the error path
-			// and keep the id out of the free-set.
+			// one store rather than to the manager interface.
+			//
+			// An outcome this code cannot read says nothing about whether the slot was
+			// claimed, so the id goes back. Keeping it out would lose a slot for good over
+			// an unfamiliar response. If the slot was in fact claimed, the next attempt on
+			// it fails the "only if free" guard and is reported taken.
+			b.unreserve(tokenID)
 			return GrantResult{}, fmt.Errorf("unexpected semaphore grant outcome %v for bucket %v", resp.Outcome, b.id)
 		}
 	}
@@ -480,8 +491,9 @@ func (b *Bucket) reserve() (int, bool) {
 	return tokenID, true
 }
 
-// unreserve puts a reserved id back, for the case where the write proved the slot is
-// still free but this owner cannot use it.
+// unreserve puts a reserved id back, for a grant that drew it but did not take it. The id
+// may in fact be held, when the write's outcome is unknown. That is safe because the next
+// attempt on it is settled by the conditional write, not by this set.
 func (b *Bucket) unreserve(tokenID int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
