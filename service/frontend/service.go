@@ -246,6 +246,8 @@ func (s *Service) createGlobalQuotaCollections() (globalRatelimiterCollections, 
 			s.config.GlobalRatelimiterUpdateInterval,
 			targetRPS,
 			s.config.GlobalRatelimiterKeyMode,
+			s.config.GlobalRatelimiterBurstMultiplier,
+			s.config.GlobalRatelimiterBoostCapMultiplier,
 			s.GetRatelimiterAggregatorsClient(),
 			s.GetLogger(),
 			s.GetMetricsClient(),
@@ -295,23 +297,29 @@ func (s *Service) createGlobalQuotaCollections() (globalRatelimiterCollections, 
 }
 
 func (s *Service) createBaseLimiters() ratelimiterCollections {
-	create := func(shared, perInstance dynamicproperties.IntPropertyFnWithDomainFilter) *quotas.Collection[string] {
-		return quotas.NewCollection(permember.NewPerMemberDynamicRateLimiterFactory(
+	create := func(name string, shared, perInstance dynamicproperties.IntPropertyFnWithDomainFilter) *quotas.Collection[string] {
+		return quotas.NewCollection(permember.NewPerMemberDynamicRateLimiterFactoryWithBurst(
 			service.Frontend,
 			shared,
 			perInstance,
+			func(key string) float64 {
+				// the burst multiplier is configured per global ratelimit key, i.e. the
+				// local key prefixed by the collection name, matching shared.PrefixKey
+				// in the global collection and the GlobalRatelimiterKeyMode config.
+				return s.config.GlobalRatelimiterBurstMultiplier(name + ":" + key)
+			},
 			s.GetMembershipResolver(),
 		))
 	}
 
 	return ratelimiterCollections{
-		user:           create(s.config.GlobalDomainUserRPS, s.config.MaxDomainUserRPSPerInstance),
-		worker:         create(s.config.GlobalDomainWorkerRPS, s.config.MaxDomainWorkerRPSPerInstance),
-		visibility:     create(s.config.GlobalDomainVisibilityRPS, s.config.MaxDomainVisibilityRPSPerInstance),
-		async:          create(s.config.GlobalDomainAsyncRPS, s.config.MaxDomainAsyncRPSPerInstance),
-		userTaskList:   create(taskListRPS(s.config.GlobalTaskListUserRPS), taskListRPS(s.config.MaxTaskListUserRPSPerInstance)),
-		workerTaskList: create(taskListRPS(s.config.GlobalTaskListWorkerRPS), taskListRPS(s.config.MaxTaskListWorkerRPSPerInstance)),
-		asyncTaskList:  create(taskListRPS(s.config.GlobalTaskListAsyncRPS), taskListRPS(s.config.MaxTaskListAsyncRPSPerInstance)),
+		user:           create("user", s.config.GlobalDomainUserRPS, s.config.MaxDomainUserRPSPerInstance),
+		worker:         create("worker", s.config.GlobalDomainWorkerRPS, s.config.MaxDomainWorkerRPSPerInstance),
+		visibility:     create("visibility", s.config.GlobalDomainVisibilityRPS, s.config.MaxDomainVisibilityRPSPerInstance),
+		async:          create("async", s.config.GlobalDomainAsyncRPS, s.config.MaxDomainAsyncRPSPerInstance),
+		userTaskList:   create("userTaskList", taskListRPS(s.config.GlobalTaskListUserRPS), taskListRPS(s.config.MaxTaskListUserRPSPerInstance)),
+		workerTaskList: create("workerTaskList", taskListRPS(s.config.GlobalTaskListWorkerRPS), taskListRPS(s.config.MaxTaskListWorkerRPSPerInstance)),
+		asyncTaskList:  create("asyncTaskList", taskListRPS(s.config.GlobalTaskListAsyncRPS), taskListRPS(s.config.MaxTaskListAsyncRPSPerInstance)),
 	}
 }
 

@@ -73,8 +73,10 @@ type Config struct {
 	Lockdown                          dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// global ratelimiter config, uses GlobalDomain*RPS for RPS configuration
-	GlobalRatelimiterKeyMode        dynamicproperties.StringPropertyWithRatelimitKeyFilter
-	GlobalRatelimiterUpdateInterval dynamicproperties.DurationPropertyFn
+	GlobalRatelimiterKeyMode            dynamicproperties.StringPropertyWithRatelimitKeyFilter
+	GlobalRatelimiterUpdateInterval     dynamicproperties.DurationPropertyFn
+	GlobalRatelimiterBurstMultiplier    dynamicproperties.FloatPropertyWithRatelimitKeyFilter
+	GlobalRatelimiterBoostCapMultiplier dynamicproperties.FloatPropertyWithRatelimitKeyFilter
 
 	// isolation configuration
 	EnableTasklistIsolation  dynamicproperties.BoolPropertyFnWithDomainFilter
@@ -170,6 +172,8 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		RateLimiterBypassCallerTypes:                      dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes),
 		GlobalRatelimiterKeyMode:                          dc.GetStringPropertyFilteredByRatelimitKey(dynamicproperties.FrontendGlobalRatelimiterMode),
 		GlobalRatelimiterUpdateInterval:                   dc.GetDurationProperty(dynamicproperties.GlobalRatelimiterUpdateInterval),
+		GlobalRatelimiterBurstMultiplier:                  dc.GetFloatPropertyFilteredByRatelimitKey(dynamicproperties.FrontendGlobalRatelimiterBurstMultiplier),
+		GlobalRatelimiterBoostCapMultiplier:               dc.GetFloatPropertyFilteredByRatelimitKey(dynamicproperties.FrontendGlobalRatelimiterBoostCapMultiplier),
 		MaxIDLengthWarnLimit:                              dc.GetIntProperty(dynamicproperties.MaxIDLengthWarnLimit),
 		DomainNameMaxLength:                               dc.GetIntPropertyFilteredByDomain(dynamicproperties.DomainNameMaxLength),
 		IdentityMaxLength:                                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.IdentityMaxLength),

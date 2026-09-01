@@ -2619,6 +2619,27 @@ const (
 	// Allowed filters: DomainName, TaskListName, TaskType
 	MatchingOverrideTaskListRPS
 
+	// FrontendGlobalRatelimiterBurstMultiplier scales the token-bucket burst size of global ratelimiters, per key.
+	// The steady-state RPS is unchanged, this only allows brief bursts above it (up to rps*multiplier tokens),
+	// which can help absorb bursty traffic or sudden shifts of traffic between hosts without rejections.
+	// Values at or below zero are treated as 1 (i.e. burst == rps, the historical behavior).
+	// KeyName: frontend.globalRatelimiterBurstMultiplier
+	// Value type: Float64
+	// Default value: 1.0
+	// Allowed filters: RatelimitKey (on global key, e.g. prefixed by collection name)
+	FrontendGlobalRatelimiterBurstMultiplier
+
+	// FrontendGlobalRatelimiterBoostCapMultiplier scales the cap of the global ratelimiter's low-weight "boost", per key.
+	// Low-weight hosts are allowed to use unused quota beyond their weighted share, but by default only up to the
+	// local fallback limit (target RPS / number of hosts).  Raising this multiplier allows boosting up to
+	// (fallback * multiplier) instead, letting bursty traffic on low-weight hosts use more of the truly-unused quota.
+	// Values at or below zero are treated as 1 (the historical behavior).
+	// KeyName: frontend.globalRatelimiterBoostCapMultiplier
+	// Value type: Float64
+	// Default value: 1.0
+	// Allowed filters: RatelimitKey (on global key, e.g. prefixed by collection name)
+	FrontendGlobalRatelimiterBoostCapMultiplier
+
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
 )
@@ -5454,6 +5475,18 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Description:  "MatchingOverrideTaskListRPS is the RPS override for a specific TaskList. When set to a non-zero value, this overrides the RPS value that pollers specify. By default (0), the pollers' specified RPS is respected.",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		DefaultValue: 0,
+	},
+	FrontendGlobalRatelimiterBurstMultiplier: {
+		KeyName:      "frontend.globalRatelimiterBurstMultiplier",
+		Description:  "FrontendGlobalRatelimiterBurstMultiplier scales the token-bucket burst size of global ratelimiters, per key.  Steady-state RPS is unchanged, this only allows brief bursts above it, which can help absorb bursty traffic or sudden shifts of traffic between hosts.  Values at or below zero are treated as 1 (burst == rps, the historical behavior)",
+		DefaultValue: 1.0,
+		Filters:      []Filter{RatelimitKey},
+	},
+	FrontendGlobalRatelimiterBoostCapMultiplier: {
+		KeyName:      "frontend.globalRatelimiterBoostCapMultiplier",
+		Description:  "FrontendGlobalRatelimiterBoostCapMultiplier scales the cap of the global ratelimiter's low-weight boost, per key.  By default low-weight hosts can be boosted with unused quota only up to the local fallback limit (target RPS / number of hosts), raising this allows boosting up to (fallback * multiplier).  Values at or below zero are treated as 1 (the historical behavior)",
+		DefaultValue: 1.0,
+		Filters:      []Filter{RatelimitKey},
 	},
 }
 
