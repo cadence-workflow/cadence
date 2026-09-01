@@ -72,6 +72,20 @@ func Test__Check(t *testing.T) {
 	sustainedBurstMetadataInBytes, err := json.Marshal(sustainedBurstMetadata)
 	require.NoError(t, err)
 
+	group1LastTimestamp := testTimestamp + int64(activityBurstCountThreshold-1)*testStepNanos
+	sharedBoundaryGroup2Start := group1LastTimestamp + windowNanos
+	sharedBoundaryMetadata := ActivityScheduleBurstMetadata{
+		FirstEventID:    2,
+		LastEventID:     2 * int64(activityBurstCountThreshold),
+		EventCount:      2*activityBurstCountThreshold - 1,
+		WindowStart:     time.Unix(0, testTimestamp).UTC(),
+		WindowEnd:       time.Unix(0, sharedBoundaryGroup2Start).UTC(),
+		WindowInSeconds: activityBurstWindowInSeconds,
+		Threshold:       activityBurstCountThreshold,
+	}
+	sharedBoundaryMetadataInBytes, err := json.Marshal(sharedBoundaryMetadata)
+	require.NoError(t, err)
+
 	cronCaNMetadata := ContinueAsNewInCronWorkflowMetadata{
 		StartedEventID:        1,
 		CronSchedule:          testCronSchedule,
@@ -166,6 +180,22 @@ func Test__Check(t *testing.T) {
 					InvariantType: ActivityScheduleBurst.String(),
 					Reason:        ActivityScheduleBurstDetected.String(),
 					Metadata:      sustainedBurstMetadataInBytes,
+				},
+			},
+		},
+		{
+			name: "two windows sharing a boundary event merge instead of double-counting it",
+			testData: wfHistory(
+				startedEvent(1, ""),
+				activityScheduleBurst(activityBurstCountThreshold, 2, testTimestamp, testStepNanos),
+				activityScheduleBurst(activityBurstCountThreshold-1, 2+int64(activityBurstCountThreshold), sharedBoundaryGroup2Start, 0),
+			),
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: ActivityScheduleBurst.String(),
+					Reason:        ActivityScheduleBurstDetected.String(),
+					Metadata:      sharedBoundaryMetadataInBytes,
 				},
 			},
 		},
