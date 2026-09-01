@@ -1546,6 +1546,13 @@ func (s *contextImpl) ReplicateFailoverMarkers(
 	return err
 }
 
+// reinjectExecutionKey groups reinjected tasks by the execution they belong to, so
+// allocateTaskIDsLocked can allocate IDs on a per-execution basis.
+type reinjectExecutionKey struct {
+	domainID   string
+	workflowID string
+}
+
 func (s *contextImpl) ReinjectHistoryTasks(
 	ctx context.Context,
 	tasks []persistence.Task,
@@ -1554,14 +1561,9 @@ func (s *contextImpl) ReinjectHistoryTasks(
 		return err
 	}
 
-	// Group tasks by execution to allow allocateTaskIDsLocked to allocate IDs on a per-execution basis.
-	type executionKey struct {
-		domainID   string
-		workflowID string
-	}
-	tasksByExecution := make(map[executionKey]persistence.HistoryTasksByCategory)
+	tasksByExecution := make(map[reinjectExecutionKey]persistence.HistoryTasksByCategory)
 	for _, task := range tasks {
-		key := executionKey{domainID: task.GetDomainID(), workflowID: task.GetWorkflowID()}
+		key := reinjectExecutionKey{domainID: task.GetDomainID(), workflowID: task.GetWorkflowID()}
 		if tasksByExecution[key] == nil {
 			tasksByExecution[key] = make(persistence.HistoryTasksByCategory)
 		}
@@ -1587,6 +1589,16 @@ func (s *contextImpl) ReinjectHistoryTasks(
 	s.Lock()
 	defer s.Unlock()
 
+	tasksByCategory, err := s.reinjectHistoryTasksLocked(ctx, tasksByExecution, domainEntries)
+	s.notifyTasksFromReinjectHistoryTasks(tasksByCategory, err)
+	return err
+}
+
+func (s *contextImpl) reinjectHistoryTasksLocked(
+	ctx context.Context,
+	tasksByExecution map[reinjectExecutionKey]persistence.HistoryTasksByCategory,
+	domainEntries map[string]*cache.DomainCacheEntry,
+) (persistence.HistoryTasksByCategory, error) {
 	immediateTaskMaxReadLevel := int64(0)
 	// tasksByCategory is built after allocation of taskIDs. It is used to build the persistence request.
 	tasksByCategory := make(persistence.HistoryTasksByCategory)
@@ -1597,7 +1609,7 @@ func (s *contextImpl) ReinjectHistoryTasks(
 			executionTasks,
 			&immediateTaskMaxReadLevel,
 		); err != nil {
-			return err
+			return tasksByCategory, err
 		}
 		for category, categoryTasks := range executionTasks {
 			tasksByCategory[category] = append(tasksByCategory[category], categoryTasks...)
@@ -1605,7 +1617,7 @@ func (s *contextImpl) ReinjectHistoryTasks(
 	}
 
 	if err := s.closedError(); err != nil {
-		return err
+		return tasksByCategory, err
 	}
 	err := s.executionManager.CreateHistoryTasks(
 		ctx,
@@ -1631,7 +1643,7 @@ func (s *contextImpl) ReinjectHistoryTasks(
 			tag.Error(err),
 		)
 	}
-	return err
+	return tasksByCategory, err
 }
 
 func (s *contextImpl) AddingPendingFailoverMarker(

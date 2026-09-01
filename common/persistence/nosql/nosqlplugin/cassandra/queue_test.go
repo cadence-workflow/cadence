@@ -92,7 +92,7 @@ func TestInsertIntoQueue(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -160,7 +160,7 @@ func TestSelectLastEnqueuedMessageID(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotMsgID, err := db.SelectLastEnqueuedMessageID(context.Background(), tc.queueType)
@@ -261,7 +261,7 @@ func TestSelectQueueMetadata(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -333,7 +333,7 @@ func TestGetQueueSize(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotCount, err := db.GetQueueSize(context.Background(), tc.queueType)
@@ -824,7 +824,7 @@ func TestInsertQueueMetadata(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -913,7 +913,7 @@ func TestUpdateQueueMetadataCas(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 

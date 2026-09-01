@@ -32,6 +32,15 @@ import (
 // CreateSemaphoreRequest leaves BucketSize unset. N = ceil(size / bucket_size).
 const DefaultSemaphoreBucketSize = 100
 
+// MaxSemaphoreBucketSize caps the per-bucket token budget. Buckets exist to spread a
+// semaphore's writes across partitions, so a bigger bucket means fewer partitions and works
+// against that.
+//
+// Each hold costs two conditional writes, one to take the slot and one to return it, so a
+// busy bucket whose holds last D seconds drives 2*bucket_size/D writes at one partition,
+// whatever the semaphore's total size — 500 a second at this cap with one-second holds.
+const MaxSemaphoreBucketSize = 250
+
 type semaphoreMetadataManagerImpl struct {
 	persistence SemaphoreMetadataStore
 	logger      log.Logger
@@ -71,6 +80,9 @@ func (m *semaphoreMetadataManagerImpl) CreateSemaphore(
 
 	if request.BucketSize < 0 {
 		return nil, fmt.Errorf("BucketSize must not be negative, got %d", request.BucketSize)
+	}
+	if request.BucketSize > MaxSemaphoreBucketSize {
+		return nil, fmt.Errorf("BucketSize must not exceed %d, got %d", MaxSemaphoreBucketSize, request.BucketSize)
 	}
 	// BucketSize is optional: an unset (zero) value falls back to the default.
 	bucketSize := request.BucketSize

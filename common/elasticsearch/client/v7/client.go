@@ -22,6 +22,7 @@ package v7
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -33,13 +34,15 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
+	schemaes "github.com/uber/cadence/schema/elasticsearch"
 )
 
 type (
 	// ElasticV7 implements ES7
 	ElasticV7 struct {
-		client *elastic.Client
-		logger log.Logger
+		client  *elastic.Client
+		logger  log.Logger
+		pingURL string
 	}
 	convertlogger func(msg string, tags ...tag.Tag)
 )
@@ -85,8 +88,9 @@ func NewV7Client(
 	}
 
 	return &ElasticV7{
-		client: client,
-		logger: logger,
+		client:  client,
+		logger:  logger,
+		pingURL: connectConfig.URL.String(),
 	}, nil
 }
 
@@ -94,14 +98,6 @@ func (c *ElasticV7) IsNotFoundError(err error) bool {
 	return elastic.IsNotFound(err)
 }
 
-func (c *ElasticV7) PutMapping(ctx context.Context, index, body string) error {
-	_, err := c.client.PutMapping().Index(index).BodyString(body).Do(ctx)
-	return err
-}
-func (c *ElasticV7) CreateIndex(ctx context.Context, index string) error {
-	_, err := c.client.CreateIndex(index).Do(ctx)
-	return err
-}
 func (c *ElasticV7) Count(ctx context.Context, index, query string) (int64, error) {
 	return c.client.Count(index).BodyString(query).Do(ctx)
 }
@@ -176,4 +172,73 @@ func (c *ElasticV7) Scroll(ctx context.Context, index, body, scrollID string) (*
 		Aggregations: esResult.Aggregations,
 		ScrollID:     esResult.ScrollId,
 	}, err
+}
+
+// Admin schema management methods
+
+func (c *ElasticV7) IsHealthy(ctx context.Context) error {
+	_, _, err := c.client.Ping(c.pingURL).Do(ctx)
+	return err
+}
+
+func (c *ElasticV7) PutIndexTemplate(ctx context.Context, templateName string, template []byte) error {
+	resp, err := c.client.IndexPutTemplate(templateName).BodyString(string(template)).Do(ctx)
+	if err != nil {
+		return err
+	}
+	if !resp.Acknowledged {
+		return fmt.Errorf("put index template %q not acknowledged", templateName)
+	}
+	return nil
+}
+
+func (c *ElasticV7) CreateIndex(ctx context.Context, index string) error {
+	_, err := c.client.CreateIndex(index).Do(ctx)
+	return err
+}
+
+func (c *ElasticV7) HasIndex(ctx context.Context, indexName string) (bool, error) {
+	return c.client.IndexExists(indexName).Do(ctx)
+}
+
+func (c *ElasticV7) DeleteIndex(ctx context.Context, indexName string) error {
+	resp, err := c.client.DeleteIndex(indexName).Do(ctx)
+	if err != nil {
+		return err
+	}
+	if !resp.Acknowledged {
+		return fmt.Errorf("delete index %q not acknowledged", indexName)
+	}
+	return nil
+}
+
+func (c *ElasticV7) GetMappings(ctx context.Context, indexName string) (map[string]any, error) {
+	res, err := c.client.GetMapping().Index(indexName).Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (c *ElasticV7) PutMappings(ctx context.Context, indexName string, mappings map[string]any) error {
+	resp, err := c.client.PutMapping().Index(indexName).BodyJson(mappings).Do(ctx)
+	if err != nil {
+		return err
+	}
+	if !resp.Acknowledged {
+		return fmt.Errorf("put mapping %q not acknowledged", indexName)
+	}
+	return nil
+}
+
+func (c *ElasticV7) MappingsFromTemplate(template []byte) (map[string]any, error) {
+	var schemaJSON map[string]interface{}
+	if err := json.Unmarshal(template, &schemaJSON); err != nil {
+		return nil, err
+	}
+	return schemaJSON["mappings"].(map[string]any), nil
+}
+
+func (c *ElasticV7) LatestTemplate() []byte {
+	return schemaes.IndexTemplateV7
 }

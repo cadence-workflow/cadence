@@ -33,7 +33,6 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/persistence"
-	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -131,11 +130,12 @@ func (p *plugin) createDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 	return db, nil
 }
 
-// GetTestClusterOption returns a test cluster option for sqlite plugin
-// It uses a temporary directory for the database name
-func GetTestClusterOption() *pt.TestBaseOptions {
-	return &pt.TestBaseOptions{
-		DBPluginName: PluginName,
-		DBName:       path.Join(os.TempDir(), uuid.New().String()),
-	}
+func GetTestConfig() (config.DataStore, error) {
+	return config.DataStore{
+		SQL: &config.SQL{
+			PluginName:   PluginName,
+			DatabaseName: path.Join(os.TempDir(), uuid.New().String()),
+			NumShards:    4,
+		},
+	}, nil
 }

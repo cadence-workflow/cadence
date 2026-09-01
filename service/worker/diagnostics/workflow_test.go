@@ -44,6 +44,7 @@ import (
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeoutrisk"
 )
 
 type diagnosticsWorkflowTestSuite struct {
@@ -67,7 +68,7 @@ func (s *diagnosticsWorkflowTestSuite) SetupTest() {
 		svcClient:     publicClient,
 		clientBean:    mockResource.ClientBean,
 		metricsClient: mockResource.GetMetricsClient(),
-		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant()},
+		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant()},
 	}
 
 	s.T().Cleanup(func() {
@@ -481,4 +482,60 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveRetryIssues() {
 	result, err := retrieveRetryIssues(issues)
 	s.NoError(err)
 	s.ElementsMatch(retryIssues, result)
+}
+
+func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
+	atCapMetadata := timeoutrisk.ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+		EventID:             2,
+		ActivityID:          "101",
+		ActivityType:        "test-activity",
+		StartToCloseTimeout: 60 * time.Second,
+		WorkflowTimeout:     60 * time.Second,
+	}
+	atCapMetadataInBytes, err := json.Marshal(atCapMetadata)
+	s.NoError(err)
+	missingHeartbeatMetadata := timeoutrisk.ActivityMissingHeartbeatTimeoutMetadata{
+		EventID:             3,
+		ActivityID:          "102",
+		ActivityType:        "test-activity",
+		StartToCloseTimeout: 900 * time.Second,
+		Threshold:           600 * time.Second,
+	}
+	missingHeartbeatMetadataInBytes, err := json.Marshal(missingHeartbeatMetadata)
+	s.NoError(err)
+	issues := []invariant.InvariantCheckResult{
+		{
+			IssueID:       0,
+			InvariantType: timeoutrisk.ActivityStartToCloseAtWorkflowTimeoutCap.String(),
+			Reason:        timeoutrisk.StartToCloseAtWorkflowTimeoutCap.String(),
+			Metadata:      atCapMetadataInBytes,
+		},
+		{
+			IssueID:       1,
+			InvariantType: timeoutrisk.ActivityMissingHeartbeatTimeout.String(),
+			Reason:        timeoutrisk.MissingHeartbeatTimeoutForLongActivity.String(),
+			Metadata:      missingHeartbeatMetadataInBytes,
+		},
+	}
+	timeoutRiskIssues := []*timeoutRiskIssuesResult{
+		{
+			IssueID:       0,
+			InvariantType: timeoutrisk.ActivityStartToCloseAtWorkflowTimeoutCap.String(),
+			Reason:        timeoutrisk.StartToCloseAtWorkflowTimeoutCap.String(),
+			Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
+				ActivityStartToCloseAtWorkflowTimeoutCap: &atCapMetadata,
+			},
+		},
+		{
+			IssueID:       1,
+			InvariantType: timeoutrisk.ActivityMissingHeartbeatTimeout.String(),
+			Reason:        timeoutrisk.MissingHeartbeatTimeoutForLongActivity.String(),
+			Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
+				ActivityMissingHeartbeatTimeout: &missingHeartbeatMetadata,
+			},
+		},
+	}
+	result, err := retrieveTimeoutRiskIssues(issues)
+	s.NoError(err)
+	s.ElementsMatch(timeoutRiskIssues, result)
 }

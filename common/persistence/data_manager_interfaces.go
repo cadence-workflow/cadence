@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Generate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,SemaphoreTaskManager,SemaphoreTokenManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -28,6 +28,7 @@
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/queue_generated.go
 //go:generate gowrap gen -g -p . -i TaskManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/task_generated.go
 //go:generate gowrap gen -g -p . -i ShardManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/shard_generated.go
+//go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/historytaskdlq_generated.go
 
 // Generate error injector wrappers.
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/configstore_generated.go
@@ -37,6 +38,7 @@
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/history_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/domain_generated.go
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/queue_generated.go
+//go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/historytaskdlq_generated.go
 
 // Generate metered wrappers.
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/configstore_generated.go
@@ -148,6 +150,34 @@ const (
 	// ConflictResolveWorkflowModeBypassCurrent Conflict resolve workflow, without current record
 	// NOTE: current record CANNOT point to the workflow to be updated
 	ConflictResolveWorkflowModeBypassCurrent
+)
+
+// SemaphoreGrantOutcome says whether a conditional semaphore grant applied, and if not, why
+type SemaphoreGrantOutcome int
+
+// Semaphore Grant Outcome
+const (
+	// SemaphoreGrantUnknown is the zero value and is never returned. It exists so an
+	// uninitialized response cannot read as a successful grant.
+	SemaphoreGrantUnknown SemaphoreGrantOutcome = iota
+	// SemaphoreGrantApplied the slot was claimed
+	SemaphoreGrantApplied
+	// SemaphoreGrantAlreadyHeld this owner already holds HeldToken; reuse it instead of retrying
+	SemaphoreGrantAlreadyHeld
+	// SemaphoreGrantSlotTaken another owner holds the slot; retry a different one
+	SemaphoreGrantSlotTaken
+)
+
+// SemaphoreRowType is the `type` clustering column of semaphore_tokens: a forward token row
+// or a reverse owner row.
+type SemaphoreRowType int
+
+// Semaphore Row Type
+const (
+	// SemaphoreRowTypeToken the forward row for a slot: TokenID -> Holder, Holder empty when free
+	SemaphoreRowTypeToken SemaphoreRowType = iota + 1
+	// SemaphoreRowTypeOwner the reverse row for a hold: OwnerID -> HeldToken
+	SemaphoreRowTypeOwner
 )
 
 // Workflow execution states
@@ -1450,6 +1480,227 @@ type (
 		NextPageToken []byte
 	}
 
+	// SemaphoreOwnership is one ownership record of the semaphore_tokens table,
+	// in either of its two forms: a forward "token" row per slot
+	// (TokenID -> Holder, empty when the slot is free) or a reverse "owner" row
+	// per hold (OwnerID -> HeldToken).
+	SemaphoreOwnership struct {
+		// RowType says which of the two row shapes this is. Set on every read; a scan of a
+		// bucket returns both shapes interleaved and only RowType tells them apart without
+		// relying on which fields happen to be zero.
+		RowType       SemaphoreRowType
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenID       int
+		OwnerID       string
+		Holder        string
+		HeldToken     int
+		UpdatedTime   time.Time
+	}
+
+	// SeedSemaphoreTokensRequest seeds a bucket with free token rows for the
+	// given slot ids (idempotent; never clobbers an already-held slot).
+	SeedSemaphoreTokensRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenIDs      []int
+	}
+
+	// GrantSemaphoreTokenRequest claims a slot for an owner via a conditional
+	// batch (grant only if the slot is currently free).
+	GrantSemaphoreTokenRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenID       int
+		OwnerID       string
+	}
+
+	// GrantSemaphoreTokenResponse reports the outcome of a conditional grant. A
+	// grant that does not apply is not an error; Outcome says why.
+	GrantSemaphoreTokenResponse struct {
+		Outcome SemaphoreGrantOutcome
+		// HeldToken is set only when Outcome is SemaphoreGrantAlreadyHeld.
+		HeldToken int
+	}
+
+	// ReleaseSemaphoreTokenRequest frees a slot via a guarded batch (clear only
+	// if the slot is still held by this owner).
+	ReleaseSemaphoreTokenRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenID       int
+		OwnerID       string
+	}
+
+	// ReleaseSemaphoreTokenResponse reports whether the guarded release applied.
+	// Applied == false is a best-effort no-op (something else already touched
+	// the slot); it is not an error.
+	ReleaseSemaphoreTokenResponse struct {
+		Applied bool
+	}
+
+	// GetSemaphoreOwnershipByTokenRequest reads a slot's forward row by token id.
+	GetSemaphoreOwnershipByTokenRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TokenID       int
+	}
+
+	// GetSemaphoreOwnershipByTokenResponse is the response for GetSemaphoreOwnershipByToken.
+	GetSemaphoreOwnershipByTokenResponse struct {
+		Ownership *SemaphoreOwnership
+	}
+
+	// GetSemaphoreOwnershipByOwnerRequest reads a hold's reverse row by owner id.
+	GetSemaphoreOwnershipByOwnerRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		OwnerID       string
+	}
+
+	// GetSemaphoreOwnershipByOwnerResponse is the response for GetSemaphoreOwnershipByOwner.
+	GetSemaphoreOwnershipByOwnerResponse struct {
+		Ownership *SemaphoreOwnership
+	}
+
+	// ScanSemaphoreBucketRequest scans a bucket partition (both row
+	// kinds), paginated, so a bucket owner can rebuild its in-memory state.
+	ScanSemaphoreBucketRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		PageSize      int
+		NextPageToken []byte
+	}
+
+	// ScanSemaphoreBucketResponse is the response for ScanSemaphoreBucket.
+	// Ownerships holds both row kinds interleaved by the partition's clustering order:
+	// token rows first, then owner rows.
+	ScanSemaphoreBucketResponse struct {
+		Ownerships    []*SemaphoreOwnership
+		NextPageToken []byte
+	}
+
+	// SemaphoreTask is one queued acquire waiting for a token, in a semaphore bucket's FIFO queue.
+	SemaphoreTask struct {
+		TaskID     int64
+		WorkflowID string
+		RunID      string
+		HoldID     int64
+		// AcquireDeadline is nil when the task has no deadline (never skipped, no expiry).
+		AcquireDeadline *time.Time
+		CreatedTime     time.Time
+	}
+
+	// ClaimSemaphoreTaskBucketRequest claims (or renews) single-writer ownership of a bucket by
+	// bumping the control row's range_id. It creates the control row if the bucket is new.
+	ClaimSemaphoreTaskBucketRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		// RangeID is the range_id the caller believes it currently holds. Zero means the caller
+		// holds nothing and is taking the bucket from whoever has it. A non-zero value that no
+		// longer matches the control row returns ConditionFailedError instead of taking it back,
+		// which is how an owner that has already lost the bucket finds out.
+		RangeID int64
+	}
+
+	// ClaimSemaphoreTaskBucketResponse returns the bucket's fence and cursor after the claim.
+	ClaimSemaphoreTaskBucketResponse struct {
+		RangeID  int64
+		AckLevel int64
+	}
+
+	// GetSemaphoreTaskBucketStateRequest reads a bucket's control row.
+	GetSemaphoreTaskBucketStateRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+	}
+
+	// GetSemaphoreTaskBucketStateResponse is the response for GetSemaphoreTaskBucketState.
+	GetSemaphoreTaskBucketStateResponse struct {
+		RangeID  int64
+		AckLevel int64
+	}
+
+	// UpdateSemaphoreTaskBucketStateRequest advances the ack_level cursor, fenced by the current RangeID.
+	UpdateSemaphoreTaskBucketStateRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		RangeID       int64
+		AckLevel      int64
+	}
+
+	// UpdateSemaphoreTaskBucketStateResponse is the response for UpdateSemaphoreTaskBucketState.
+	UpdateSemaphoreTaskBucketStateResponse struct{}
+
+	// CreateSemaphoreTasksRequest enqueues task rows, fenced by the bucket's RangeID.
+	CreateSemaphoreTasksRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		RangeID       int64
+		Tasks         []*SemaphoreTask
+	}
+
+	// CreateSemaphoreTasksResponse is the response for CreateSemaphoreTasks.
+	CreateSemaphoreTasksResponse struct{}
+
+	// GetSemaphoreTasksRequest reads task rows in (ReadLevel, MaxReadLevel].
+	GetSemaphoreTasksRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		// ReadLevel is the exclusive lower bound (typically the ack_level).
+		ReadLevel int64
+		// MaxReadLevel is the inclusive upper bound.
+		MaxReadLevel int64
+		BatchSize    int
+	}
+
+	// GetSemaphoreTasksResponse is the response for GetSemaphoreTasks.
+	GetSemaphoreTasksResponse struct {
+		Tasks []*SemaphoreTask
+	}
+
+	// RangeCompleteSemaphoreTasksRequest range-deletes granted/expired tasks in (ReadLevel, AckLevel].
+	RangeCompleteSemaphoreTasksRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		// ReadLevel is the exclusive lower bound of the delete range.
+		ReadLevel int64
+		// AckLevel is the inclusive upper bound of the delete range.
+		AckLevel int64
+	}
+
+	// RangeCompleteSemaphoreTasksResponse reports how many rows were deleted, or
+	// UnknownNumRowsAffected when the backend cannot report it.
+	RangeCompleteSemaphoreTasksResponse struct {
+		RowsDeleted int
+	}
+
+	// GetSemaphoreTasksCountRequest counts task rows with task_id > ReadLevel.
+	GetSemaphoreTasksCountRequest struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		ReadLevel     int64
+	}
+
+	// GetSemaphoreTasksCountResponse is the response for GetSemaphoreTasksCount.
+	GetSemaphoreTasksCountResponse struct {
+		Count int64
+	}
+
 	// MutableStateStats is the size stats for MutableState
 	MutableStateStats struct {
 		// Total size of mutable state
@@ -1841,6 +2092,41 @@ type (
 		CreateSemaphore(ctx context.Context, request *CreateSemaphoreRequest) (*CreateSemaphoreResponse, error)
 		GetSemaphore(ctx context.Context, request *GetSemaphoreRequest) (*GetSemaphoreResponse, error)
 		ListSemaphores(ctx context.Context, request *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
+	}
+
+	// SemaphoreTokenManager is used to manage distributed semaphore token ownership
+	SemaphoreTokenManager interface {
+		Closeable
+		GetName() string
+		// SeedSemaphoreTokens seeds a bucket with free token rows. Callers must
+		// supply the bucket's full, immutable id set: a fresh bucket is fully
+		// seeded, and re-seeding the same set is an idempotent no-op that never
+		// clobbers a held slot. Growing an existing bucket's id set is unsupported
+		// (to resize, create a new semaphore name).
+		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest) error
+		// GrantSemaphoreToken claims a slot for an owner if it is currently free.
+		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest) (*GrantSemaphoreTokenResponse, error)
+		// ReleaseSemaphoreToken frees a slot if it is still held by the owner.
+		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest) (*ReleaseSemaphoreTokenResponse, error)
+		// GetSemaphoreOwnershipByToken reads a slot's forward row (holder) by token id.
+		GetSemaphoreOwnershipByToken(ctx context.Context, request *GetSemaphoreOwnershipByTokenRequest) (*GetSemaphoreOwnershipByTokenResponse, error)
+		// GetSemaphoreOwnershipByOwner reads a hold's reverse row (held token) by owner id.
+		GetSemaphoreOwnershipByOwner(ctx context.Context, request *GetSemaphoreOwnershipByOwnerRequest) (*GetSemaphoreOwnershipByOwnerResponse, error)
+		// ScanSemaphoreBucket scans a bucket partition (both row kinds), paginated.
+		ScanSemaphoreBucket(ctx context.Context, request *ScanSemaphoreBucketRequest) (*ScanSemaphoreBucketResponse, error)
+	}
+
+	// SemaphoreTaskManager manages a distributed semaphore's per-bucket FIFO task queue.
+	SemaphoreTaskManager interface {
+		Closeable
+		GetName() string
+		ClaimSemaphoreTaskBucket(ctx context.Context, request *ClaimSemaphoreTaskBucketRequest) (*ClaimSemaphoreTaskBucketResponse, error)
+		GetSemaphoreTaskBucketState(ctx context.Context, request *GetSemaphoreTaskBucketStateRequest) (*GetSemaphoreTaskBucketStateResponse, error)
+		UpdateSemaphoreTaskBucketState(ctx context.Context, request *UpdateSemaphoreTaskBucketStateRequest) (*UpdateSemaphoreTaskBucketStateResponse, error)
+		CreateSemaphoreTasks(ctx context.Context, request *CreateSemaphoreTasksRequest) (*CreateSemaphoreTasksResponse, error)
+		GetSemaphoreTasks(ctx context.Context, request *GetSemaphoreTasksRequest) (*GetSemaphoreTasksResponse, error)
+		RangeCompleteSemaphoreTasks(ctx context.Context, request *RangeCompleteSemaphoreTasksRequest) (*RangeCompleteSemaphoreTasksResponse, error)
+		GetSemaphoreTasksCount(ctx context.Context, request *GetSemaphoreTasksCountRequest) (*GetSemaphoreTasksCountResponse, error)
 	}
 
 	// HistoryTaskDLQManager is the manager-level interface for the history task DLQ.

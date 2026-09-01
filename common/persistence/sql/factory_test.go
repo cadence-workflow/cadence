@@ -41,7 +41,7 @@ func TestNewFactory(t *testing.T) {
 	clusterName := "test"
 	logger := testlogger.New(t)
 	mockParser := serialization.NewMockParser(ctrl)
-	dc := &persistence.DynamicConfiguration{}
+	dc := persistence.NewDefaultDynamicConfiguration()
 	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
 	assert.NotNil(t, factory)
 }
@@ -53,7 +53,7 @@ func TestFactoryNewTaskStore(t *testing.T) {
 	clusterName := "test"
 	logger := testlogger.New(t)
 	mockParser := serialization.NewMockParser(ctrl)
-	dc := &persistence.DynamicConfiguration{}
+	dc := persistence.NewDefaultDynamicConfiguration()
 	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
 	taskStore, err := factory.NewTaskStore()
 	assert.Nil(t, taskStore)
@@ -75,7 +75,7 @@ func TestFactoryNewShardStore(t *testing.T) {
 	clusterName := "test"
 	logger := testlogger.New(t)
 	mockParser := serialization.NewMockParser(ctrl)
-	dc := &persistence.DynamicConfiguration{}
+	dc := persistence.NewDefaultDynamicConfiguration()
 	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
 	shardStore, err := factory.NewShardStore()
 	assert.Nil(t, shardStore)
@@ -97,7 +97,7 @@ func TestFactoryNewHistoryV2Store(t *testing.T) {
 	clusterName := "test"
 	logger := testlogger.New(t)
 	mockParser := serialization.NewMockParser(ctrl)
-	dc := &persistence.DynamicConfiguration{}
+	dc := persistence.NewDefaultDynamicConfiguration()
 	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
 	historyV2Store, err := factory.NewHistoryStore()
 	assert.Nil(t, historyV2Store)
@@ -119,7 +119,7 @@ func TestFactoryNewMetadataV2Store(t *testing.T) {
 	clusterName := "test"
 	logger := testlogger.New(t)
 	mockParser := serialization.NewMockParser(ctrl)
-	dc := &persistence.DynamicConfiguration{}
+	dc := persistence.NewDefaultDynamicConfiguration()
 	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
 	metadataV2Store, err := factory.NewDomainStore()
 	assert.Nil(t, metadataV2Store)
@@ -141,7 +141,7 @@ func TestFactoryNewExecutionStore(t *testing.T) {
 	clusterName := "test"
 	logger := testlogger.New(t)
 	mockParser := serialization.NewMockParser(ctrl)
-	dc := &persistence.DynamicConfiguration{}
+	dc := persistence.NewDefaultDynamicConfiguration()
 	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
 	executionStore, err := factory.NewExecutionStore()
 	assert.Nil(t, executionStore)
@@ -163,7 +163,7 @@ func TestFactoryNewVisibilityStore(t *testing.T) {
 	clusterName := "test"
 	logger := testlogger.New(t)
 	mockParser := serialization.NewMockParser(ctrl)
-	dc := &persistence.DynamicConfiguration{}
+	dc := persistence.NewDefaultDynamicConfiguration()
 	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
 	visibilityStore, err := factory.NewVisibilityStore(true)
 	assert.Nil(t, visibilityStore)
@@ -185,7 +185,7 @@ func TestFactoryNewQueue(t *testing.T) {
 	clusterName := "test"
 	logger := testlogger.New(t)
 	mockParser := serialization.NewMockParser(ctrl)
-	dc := &persistence.DynamicConfiguration{}
+	dc := persistence.NewDefaultDynamicConfiguration()
 	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
 	queueStore, err := factory.NewQueue(persistence.DomainReplicationQueueType)
 	assert.Nil(t, queueStore)
@@ -207,7 +207,7 @@ func TestFactoryNewConfigStore(t *testing.T) {
 	clusterName := "test"
 	logger := testlogger.New(t)
 	mockParser := serialization.NewMockParser(ctrl)
-	dc := &persistence.DynamicConfiguration{}
+	dc := persistence.NewDefaultDynamicConfiguration()
 	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
 	configStore, err := factory.NewConfigStore()
 	assert.Nil(t, configStore)
@@ -229,7 +229,7 @@ func TestFactoryNewDomainAuditStore(t *testing.T) {
 	clusterName := "test"
 	logger := testlogger.New(t)
 	mockParser := serialization.NewMockParser(ctrl)
-	dc := &persistence.DynamicConfiguration{}
+	dc := persistence.NewDefaultDynamicConfiguration()
 	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
 	domainAuditStore, err := factory.NewDomainAuditStore()
 	assert.Nil(t, domainAuditStore)

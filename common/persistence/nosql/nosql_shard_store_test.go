@@ -211,9 +211,7 @@ func TestGetShard(t *testing.T) {
 		{
 			name: "success - no update",
 			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
-				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: &persistence.DynamicConfiguration{
-					ReadNoSQLShardFromDataBlob: dynamicproperties.GetBoolPropertyFn(true),
-				}}, nil).Times(1)
+				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: persistence.NewDefaultDynamicConfiguration()}, nil).Times(1)
 				shardInfo := testFixtureInternalShardInfo()
 				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(101), &nosqlplugin.ShardRow{
 					InternalShardInfo: shardInfo,
@@ -314,9 +312,9 @@ func TestGetShard(t *testing.T) {
 		{
 			name: "success - fix shard",
 			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
-				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: &persistence.DynamicConfiguration{
-					ReadNoSQLShardFromDataBlob: dynamicproperties.GetBoolPropertyFn(false),
-				}}, nil).Times(2)
+				dc := persistence.NewDefaultDynamicConfiguration()
+				dc.ReadNoSQLShardFromDataBlob = dynamicproperties.GetBoolPropertyFn(false)
+				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: dc}, nil).Times(2)
 				storeShardMock.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
 				storeShardMock.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).Times(1)
 				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(100), &nosqlplugin.ShardRow{
@@ -335,9 +333,9 @@ func TestGetShard(t *testing.T) {
 		{
 			name: "error fixing shard - shard ownership lost error",
 			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
-				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: &persistence.DynamicConfiguration{
-					ReadNoSQLShardFromDataBlob: dynamicproperties.GetBoolPropertyFn(false),
-				}}, nil).Times(2)
+				dc := persistence.NewDefaultDynamicConfiguration()
+				dc.ReadNoSQLShardFromDataBlob = dynamicproperties.GetBoolPropertyFn(false)
+				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: dc}, nil).Times(2)
 				storeShardMock.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
 				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(100), &nosqlplugin.ShardRow{
 					InternalShardInfo: testFixtureInternalShardInfo(),
@@ -356,9 +354,9 @@ func TestGetShard(t *testing.T) {
 		{
 			name: "error fixing shard - generic db error",
 			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
-				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: &persistence.DynamicConfiguration{
-					ReadNoSQLShardFromDataBlob: dynamicproperties.GetBoolPropertyFn(false),
-				}}, nil).Times(2)
+				dc := persistence.NewDefaultDynamicConfiguration()
+				dc.ReadNoSQLShardFromDataBlob = dynamicproperties.GetBoolPropertyFn(false)
+				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: dc}, nil).Times(2)
 				storeShardMock.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
 				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(100), &nosqlplugin.ShardRow{
 					InternalShardInfo: testFixtureInternalShardInfo(),

@@ -68,6 +68,8 @@ type (
 		ConfigStoreCRUD
 		DomainAuditLogCRUD
 		SemaphoreMetadataCRUD
+		SemaphoreTaskCRUD
+		SemaphoreTokenCRUD
 		HistoryDLQTaskCRUD
 	}
 
@@ -569,6 +571,84 @@ type (
 
 		// SelectSemaphoreMetadataByDomain returns the semaphores in a domain, paginated.
 		SelectSemaphoreMetadataByDomain(ctx context.Context, filter *SemaphoreMetadataFilter) ([]*SemaphoreMetadataRow, []byte, error)
+	}
+
+	/***
+	* SemaphoreTokenCRUD is for the per-token ownership of distributed semaphores.
+	*
+	* Significant columns:
+	* semaphore_tokens: partition key(domainID, semaphoreName, bucket), range key(type, tokenID, ownerID)
+	 */
+	SemaphoreTokenCRUD interface {
+		// InsertSemaphoreTokens seeds a bucket with free token rows for the given
+		// rows' TokenIDs. It is conflict-avoiding (INSERT ... IF NOT EXISTS), so
+		// re-seeding never clobbers an already-held slot.
+		InsertSemaphoreTokens(ctx context.Context, rows []*SemaphoreOwnershipRow) error
+
+		// GrantSemaphoreToken claims a slot for an owner via a conditional batch:
+		// it sets the token row's holder only if the slot is currently free, and
+		// inserts the matching owner (reverse-index) row (IF NOT EXISTS) in the
+		// same atomic batch. The returned SemaphoreGrantResult reports whether the
+		// batch applied and, when it did not, whether this owner already holds a
+		// token (for reuse) versus the slot being taken. A not-applied batch is not
+		// an error.
+		GrantSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (SemaphoreGrantResult, error)
+
+		// ReleaseSemaphoreToken frees a slot via a guarded batch: it clears the
+		// token row's holder only if the slot is still held by this owner, and
+		// deletes the matching owner row in the same atomic batch. Returns
+		// applied == false (not an error) for a best-effort no-op.
+		ReleaseSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (bool, error)
+
+		// SelectSemaphoreOwnershipByToken reads a slot's forward row (holder) by token id.
+		SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*SemaphoreOwnershipRow, error)
+
+		// SelectSemaphoreOwnershipByOwner reads a hold's reverse row (held token) by owner id.
+		SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*SemaphoreOwnershipRow, error)
+
+		// SelectSemaphoreOwnershipsByBucket scans a bucket partition (both row kinds), paginated.
+		SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *SemaphoreOwnershipFilter) ([]*SemaphoreOwnershipRow, []byte, error)
+	}
+
+	/***
+	* SemaphoreTaskCRUD is the per-bucket FIFO task queue of a distributed semaphore.
+	*
+	* It mirrors the base tasks table: a control row (type=1, sentinel task_id) carries the
+	* range_id single-writer fence and the ack_level cursor; task rows (type=0) are the queued
+	* acquire requests, ordered by task_id.
+	*
+	* Significant columns:
+	* control row: partition key(domainID, semaphoreName, bucket), condition column(range_id), carries ack_level
+	* task row:  partition key(domainID, semaphoreName, bucket), range key(task_id)
+	 */
+	SemaphoreTaskCRUD interface {
+		// SelectSemaphoreTaskControlRow returns a bucket's control row (range_id, ack_level).
+		// Returns IsNotFoundError if the bucket has no control row yet.
+		SelectSemaphoreTaskControlRow(ctx context.Context, filter *SemaphoreTaskControlFilter) (*SemaphoreTaskControlRow, error)
+
+		// InsertSemaphoreTaskControlRow inserts the control row with INSERT ... IF NOT EXISTS.
+		// Returns a TaskOperationConditionFailure if the control row already exists.
+		InsertSemaphoreTaskControlRow(ctx context.Context, row *SemaphoreTaskControlRow) error
+
+		// UpdateSemaphoreTaskControlRow updates range_id and ack_level, fenced by previousRangeID (LWT CAS).
+		// Returns a TaskOperationConditionFailure if range_id no longer equals previousRangeID.
+		UpdateSemaphoreTaskControlRow(ctx context.Context, row *SemaphoreTaskControlRow, previousRangeID int64) error
+
+		// InsertSemaphoreTasks inserts a batch of task rows in a single LWT batch fenced by the
+		// control row's range_id. Returns a TaskOperationConditionFailure on fence mismatch.
+		// All tasks must belong to the bucket named by controlCondition: a conditional batch
+		// can only span one partition. An empty slice is a no-op and does not check the fence.
+		InsertSemaphoreTasks(ctx context.Context, tasks []*SemaphoreTaskRow, controlCondition *SemaphoreTaskControlRow) error
+
+		// SelectSemaphoreTasks returns task rows in (ExclusiveMinTaskID, InclusiveMaxTaskID], paged by BatchSize.
+		SelectSemaphoreTasks(ctx context.Context, filter *SemaphoreTasksFilter) ([]*SemaphoreTaskRow, error)
+
+		// RangeDeleteSemaphoreTasks deletes task rows in (ExclusiveMinTaskID, InclusiveMaxTaskID].
+		// Returns persistence.UnknownNumRowsAffected when the backend cannot report the count.
+		RangeDeleteSemaphoreTasks(ctx context.Context, filter *SemaphoreTasksFilter) (rowsDeleted int, err error)
+
+		// GetSemaphoreTasksCount returns the number of task rows with task_id > ExclusiveMinTaskID.
+		GetSemaphoreTasksCount(ctx context.Context, filter *SemaphoreTasksFilter) (int64, error)
 	}
 
 	/***

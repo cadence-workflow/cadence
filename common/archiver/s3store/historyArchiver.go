@@ -40,7 +40,6 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -94,14 +93,14 @@ type (
 // NewHistoryArchiver creates a new archiver.HistoryArchiver based on s3
 func NewHistoryArchiver(
 	container *archiver.HistoryBootstrapContainer,
-	config *config.S3Archiver,
+	config *Config,
 ) (archiver.HistoryArchiver, error) {
 	return newHistoryArchiver(container, config, nil)
 }
 
 func newHistoryArchiver(
 	container *archiver.HistoryBootstrapContainer,
-	config *config.S3Archiver,
+	config *Config,
 	historyIterator archiver.HistoryIterator,
 ) (*historyArchiver, error) {
 	if len(config.Region) == 0 {

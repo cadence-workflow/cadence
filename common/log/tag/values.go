@@ -106,7 +106,8 @@ var (
 	ComponentTransferQueueV2                  = component("transfer-queue-processor-v2")
 	ComponentTimerQueue                       = component("timer-queue-processor")
 	ComponentTimerQueueV2                     = component("timer-queue-processor-v2")
-	ComponentCachedQueueReader                = component("cached-queue-reader")
+	ComponentCachedScheduledQueueReader       = component("cached-scheduled-queue-reader")
+	ComponentCachedImmediateQueueReader       = component("cached-immediate-queue-reader")
 	ComponentTimerBuilder                     = component("timer-builder")
 	ComponentReplicatorQueue                  = component("replicator-queue-processor")
 	ComponentShardController                  = component("shard-controller")
@@ -241,6 +242,13 @@ var (
 	StoreOperationGetActiveClusterSelectionPolicy    = storeOperation("get-active-cluster-selection-policy")
 	StoreOperationDeleteActiveClusterSelectionPolicy = storeOperation("delete-active-cluster-selection-policy")
 	StoreOperationFetchWorkflowTimerTasksForCleanup  = storeOperation("fetch-workflow-timer-tasks-for-cleanup")
+
+	StoreOperationCreateHistoryDLQTask                = storeOperation("create-history-dlq-task")
+	StoreOperationCreateHistoryDLQAckLevelIfNotExists = storeOperation("create-history-dlq-ack-level-if-not-exists")
+	StoreOperationGetHistoryDLQAckLevels              = storeOperation("get-history-dlq-ack-levels")
+	StoreOperationGetHistoryDLQTasks                  = storeOperation("get-history-dlq-tasks")
+	StoreOperationUpdateHistoryDLQAckLevel            = storeOperation("update-history-dlq-ack-level")
+	StoreOperationDeleteHistoryDLQTasks               = storeOperation("delete-history-dlq-tasks")
 
 	StoreOperationCreateTasks           = storeOperation("create-tasks")
 	StoreOperationGetTasks              = storeOperation("get-tasks")

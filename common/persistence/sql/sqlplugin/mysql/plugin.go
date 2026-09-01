@@ -248,17 +248,19 @@ func sanitizeAttr(inkey string, invalue string) (string, string) {
 	}
 }
 
-// GetTestClusterOption return test options
-func GetTestClusterOption() (*pt.TestBaseOptions, error) {
+func GetTestConfig() (config.DataStore, error) {
 	port, err := environment.GetMySQLPort()
 	if err != nil {
-		return nil, err
+		return config.DataStore{}, err
 	}
-	return &pt.TestBaseOptions{
-		DBPluginName: PluginName,
-		DBUsername:   environment.GetMySQLUser(),
-		DBPassword:   environment.GetMySQLPassword(),
-		DBHost:       environment.GetMySQLAddress(),
-		DBPort:       port,
+	return config.DataStore{
+		SQL: &config.SQL{
+			PluginName:   PluginName,
+			User:         environment.GetMySQLUser(),
+			Password:     environment.GetMySQLPassword(),
+			ConnectAddr:  fmt.Sprintf("%s:%d", environment.GetMySQLAddress(), port),
+			DatabaseName: pt.GenerateRandomDBName(),
+			NumShards:    4,
+		},
 	}, nil
 }

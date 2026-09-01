@@ -117,21 +117,14 @@ func (s *IntegrationBase) setupSuite() {
 	} else {
 		s.Logger.Info("Running integration test against test cluster")
 		clusterMetadata := NewClusterMetadata(s.T(), s.TestClusterConfig)
-		dc := persistence.DynamicConfiguration{
-			EnableSQLAsyncTransaction:                dynamicproperties.GetBoolPropertyFn(false),
-			EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
-			EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
-			EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
-			ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
-			SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
-			HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
-			EnableWorkflowTimerTaskCleanup:           dynamicproperties.GetBoolPropertyFn(true),
-		}
+		dc := *persistence.NewDefaultDynamicConfiguration()
+		dc.EnableCassandraAllConsistencyLevelDelete = dynamicproperties.GetBoolPropertyFn(true)
+		dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
+		dc.EnableWorkflowTimerTaskCleanup = dynamicproperties.GetBoolPropertyFn(true)
 		params := pt.TestBaseParams{
 			PersistenceConfig:    s.PersistenceConfig,
-			ClusterMetadata:      clusterMetadata,
-			DynamicConfiguration: dc,
+			ClusterMetadata:      &clusterMetadata,
+			DynamicConfiguration: &dc,
 		}
 		cluster, err := NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 		s.Require().NoError(err)
@@ -201,9 +194,6 @@ func GetTestClusterConfig(configFile string) (*TestClusterConfig, error) {
 	options.FrontendAddress = TestFlags.FrontendAddr
 	if options.ESConfig != nil {
 		options.ESConfig.Indices[constants.VisibilityAppName] += uuid.New()
-	}
-	if options.Persistence.DBName == "" {
-		options.Persistence.DBName = "test_" + pt.GenerateRandomDBName(10)
 	}
 	return &options, nil
 }

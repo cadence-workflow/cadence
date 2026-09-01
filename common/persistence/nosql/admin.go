@@ -28,7 +28,7 @@ func (n *nosqlAdmin) Identifier() string {
 }
 
 func (n *nosqlAdmin) CreateSetupDB() (persistence.SetupDB, error) {
-	return n.plugin.SetupDB(n.cfg, n.logger, &persistence.DynamicConfiguration{})
+	return n.plugin.SetupDB(n.cfg, n.logger, persistence.NewDefaultDynamicConfiguration())
 }
 
 func (n *nosqlAdmin) SupportsSchema() bool {
@@ -36,5 +36,5 @@ func (n *nosqlAdmin) SupportsSchema() bool {
 }
 
 func (n *nosqlAdmin) CreateSchemaDB() (persistence.SchemaDB, error) {
-	return n.plugin.SchemaDB(n.dbType, n.cfg, n.logger, &persistence.DynamicConfiguration{})
+	return n.plugin.SchemaDB(n.dbType, n.cfg, n.logger, persistence.NewDefaultDynamicConfiguration())
 }

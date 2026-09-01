@@ -160,8 +160,8 @@ func registerTLSConfig(cfg *config.SQL) (sslParams url.Values, err error) {
 	return
 }
 
-// GetTestClusterOption return test options
-func GetTestClusterOption() (*pt.TestBaseOptions, error) {
+// GetTestConfig return test options
+func GetTestConfig() (config.DataStore, error) {
 	testUser := "postgres"
 	testPassword := "cadence"
 
@@ -179,14 +179,17 @@ func GetTestClusterOption() (*pt.TestBaseOptions, error) {
 	}
 	dbPort, err := environment.GetPostgresPort()
 	if err != nil {
-		return nil, err
+		return config.DataStore{}, err
 	}
 
-	return &pt.TestBaseOptions{
-		DBPluginName: PluginName,
-		DBUsername:   testUser,
-		DBPassword:   testPassword,
-		DBHost:       environment.GetPostgresAddress(),
-		DBPort:       dbPort,
+	return config.DataStore{
+		SQL: &config.SQL{
+			PluginName:   PluginName,
+			User:         testUser,
+			Password:     testPassword,
+			ConnectAddr:  fmt.Sprintf("%s:%d", environment.GetPostgresAddress(), dbPort),
+			DatabaseName: pt.GenerateRandomDBName(),
+			NumShards:    4,
+		},
 	}, nil
 }

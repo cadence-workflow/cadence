@@ -2,6 +2,8 @@ package sql
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/uber/cadence/common/log"
@@ -47,6 +49,9 @@ func (s *sqlSchemaDB) SetupVersioning(_ context.Context) error {
 
 func (s *sqlSchemaDB) GetSchemaVersion(_ context.Context) (persistence.Version, error) {
 	stringVersion, err := s.crud.ReadSchemaVersion(s.db)
+	if errors.Is(err, sql.ErrNoRows) {
+		return persistence.Version{}, nil
+	}
 	if err != nil {
 		return persistence.Version{}, err
 	}
@@ -77,10 +82,6 @@ func (s *sqlSchemaDB) UpdateSchema(ctx context.Context, update *persistence.Sche
 	}
 	s.logger.Info("schema update completed successfully")
 	return nil
-}
-
-func (s *sqlSchemaDB) ForceApplySchema(ctx context.Context, update *persistence.SchemaUpdate) error {
-	return s.applyUpdate(ctx, update)
 }
 
 func (s *sqlSchemaDB) applyUpdate(ctx context.Context, update *persistence.SchemaUpdate) error {

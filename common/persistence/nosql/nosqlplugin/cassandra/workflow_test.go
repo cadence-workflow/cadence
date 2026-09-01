@@ -152,7 +152,7 @@ func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -487,7 +487,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -614,7 +614,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -854,7 +854,7 @@ func TestSelectAllCurrentWorkflows(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotExecutions, gotPageToken, err := db.SelectAllCurrentWorkflows(context.Background(), tc.shardID, tc.pageToken, tc.pageSize)
@@ -976,7 +976,7 @@ func TestSelectAllWorkflowExecutions(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotExecutions, gotPageToken, err := db.SelectAllWorkflowExecutions(context.Background(), tc.shardID, tc.pageToken, tc.pageSize)
@@ -1063,7 +1063,7 @@ func TestIsWorkflowExecutionExists(t *testing.T) {
 
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			got, err := db.IsWorkflowExecutionExists(context.Background(), 1, "domain1", "wfi", "run1")
@@ -1183,7 +1183,7 @@ func TestSelectTransferTasksOrderByTaskID(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotTasks, gotPageToken, err := db.SelectTransferTasksOrderByTaskID(context.Background(), tc.shardID, tc.pageSize, tc.pageToken, tc.inclusiveMinTaskID, tc.exclusiveMaxTaskID)
@@ -1424,7 +1424,7 @@ func TestSelectTimerTasksOrderByVisibilityTime(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotTasks, gotPageToken, err := db.SelectTimerTasksOrderByVisibilityTime(context.Background(), tc.shardID, tc.pageSize, tc.pageToken, tc.inclusiveMinTime, tc.exclusiveMaxTime)

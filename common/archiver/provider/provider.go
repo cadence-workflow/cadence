@@ -26,7 +26,6 @@ import (
 	"sync"
 
 	"github.com/uber/cadence/common/archiver"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/config/yaml"
 	"github.com/uber/cadence/common/syncmap"
 )
@@ -62,8 +61,8 @@ type (
 	archiverProvider struct {
 		sync.RWMutex
 
-		historyArchiverConfigs    config.HistoryArchiverProvider
-		visibilityArchiverConfigs config.VisibilityArchiverProvider
+		historyArchiverConfigs    archiver.HistoryArchiverProvider
+		visibilityArchiverConfigs archiver.VisibilityArchiverProvider
 
 		// Key for the container is just serviceName
 		historyContainers    map[string]*archiver.HistoryBootstrapContainer
@@ -117,8 +116,8 @@ func RegisterVisibilityArchiver(scheme, configKey string, constructor func(cfg *
 
 // NewArchiverProvider returns a new Archiver provider
 func NewArchiverProvider(
-	historyArchiverConfigs config.HistoryArchiverProvider,
-	visibilityArchiverConfigs config.VisibilityArchiverProvider,
+	historyArchiverConfigs archiver.HistoryArchiverProvider,
+	visibilityArchiverConfigs archiver.VisibilityArchiverProvider,
 ) ArchiverProvider {
 	return &archiverProvider{
 		historyArchiverConfigs:    historyArchiverConfigs,

@@ -329,9 +329,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			controller := gomock.NewController(t)
 			mockDB := nosqlplugin.NewMockDB(controller)
 			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
-			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{
-				EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-			})
+			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, persistence.NewDefaultDynamicConfiguration())
 
 			tc.setupMock(mockDB, 1)
 
@@ -1129,9 +1127,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 	t.Run("when tasks span multiple workflows it should prepare them by category with per-task owners", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
-		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{
-			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-		})
+		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 
 		now := time.Unix(0, 12345)
 
@@ -1185,9 +1181,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 	t.Run("when the request has no tasks it should not error", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
-		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{
-			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-		})
+		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 		mockDB.EXPECT().
 			InsertHistoryTasks(ctx, gomock.Len(0), gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 1}).
 			Return(nil)
@@ -1200,9 +1194,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 	t.Run("when a category other than transfer or timer is provided it should return a BadRequestError without writing", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
-		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{
-			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-		})
+		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 		// InsertHistoryTasks must never be called for an unsupported category.
 
 		err := store.CreateHistoryTasks(ctx, &persistence.CreateHistoryTasksRequest{
@@ -1219,9 +1211,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 	t.Run("when InsertHistoryTasks returns a shard condition failure it should return a ShardOwnershipLostError", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
-		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{
-			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-		})
+		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 		mockDB.EXPECT().
 			InsertHistoryTasks(ctx, gomock.Any(), gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 7}).
 			Return(&nosqlplugin.ShardOperationConditionFailure{RangeID: 8, Details: "boom"})
@@ -1241,9 +1231,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 	t.Run("when InsertHistoryTasks returns a non-condition error it should return that error unchanged", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
-		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{
-			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-		})
+		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 		genericErr := errors.New("some generic db error")
 		mockDB.EXPECT().
 			InsertHistoryTasks(ctx, gomock.Any(), gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 7}).
@@ -1333,9 +1321,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 
 	mockDB := nosqlplugin.NewMockDB(gomockController)
 	mockTaskSerializer := serialization.NewMockTaskSerializer(gomockController)
-	store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{
-		EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-	})
+	store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, persistence.NewDefaultDynamicConfiguration())
 
 	tests := []struct {
 		name          string
@@ -2047,9 +2033,11 @@ func TestGetHistoryTasks(t *testing.T) {
 
 			mockDB := nosqlplugin.NewMockDB(controller)
 			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
-			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{ReadNoSQLHistoryTaskFromDataBlob: func(...dynamicproperties.FilterOption) bool {
+			dc := persistence.NewDefaultDynamicConfiguration()
+			dc.ReadNoSQLHistoryTaskFromDataBlob = func(...dynamicproperties.FilterOption) bool {
 				return tc.readNoSQLHistoryTaskFromDataBlob
-			}})
+			}
+			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, dc)
 
 			tc.setupMock(mockDB, mockTaskSerializer)
 
@@ -2166,7 +2154,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			defer controller.Finish()
 
 			mockDB := nosqlplugin.NewMockDB(controller)
-			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{})
+			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 
 			tc.setupMock(mockDB)
 

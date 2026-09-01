@@ -53,7 +53,7 @@ func TestTimerQueueFactory_CreateQueuev2(t *testing.T) {
 			processor := factory.createQueuev2(mockShard, execution.NewMockCache(ctrl), invariant.NewMockInvariant(ctrl))
 
 			assert.NotNil(t, processor)
-			_, isCached := processor.(*cachedScheduledQueue)
+			_, isCached := processor.(*cachedQueue)
 			assert.Equal(t, tc.wantCached, isCached, "mode=%q", tc.mode)
 		})
 	}

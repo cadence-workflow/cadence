@@ -86,6 +86,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
+	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/testflags"
 
@@ -122,9 +123,9 @@ func TestCassandraLWT(t *testing.T) {
 	testflags.RequireCassandra(t)
 	t.Logf("Running Cassandra LWT tests, concurrency: %d", concurrency)
 
-	testBase := public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{
-		Replicas: replicas,
-		MaxConns: maxConns,
+	testBase := persistencetests.NewTestBase(t, pt.TestBaseParams{
+		PersistenceConfig:    pt.SimplePersistenceConfig(t, public.NewTestConfigWithPublicCassandra),
+		DynamicConfiguration: &dc,
 	})
 	testBase.Setup()
 	defer testBase.TearDownWorkflowStore()

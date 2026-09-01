@@ -106,6 +106,22 @@ func (s *contextImpl) notifyTasksFromConflictResolveWorkflowExecution(
 	))
 }
 
+// notifyTasksFromReinjectHistoryTasks sends task notifications for a ReinjectHistoryTasks operation.
+// Unlike the other notifyTasksFrom* functions, reinjection can span multiple executions in a single
+// call, so there is no single WorkflowExecutionInfo to notify with; ExecutionInfo is left nil since
+// none of the transfer/timer notification consumers dereference it.
+// Must be called while holding s.Lock().
+func (s *contextImpl) notifyTasksFromReinjectHistoryTasks(
+	tasksByCategory persistence.HistoryTasksByCategory,
+	err error,
+) {
+	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
+		s.notifyTasks(nil, tasksByCategory, persistenceError)
+		return
+	}
+	s.logNotifyTaskDroppedOnPersistenceError(err, taskIDsFromCategories(tasksByCategory))
+}
+
 // logNotifyTaskDroppedOnPersistenceError logs dropped task IDs when the cached queue reader
 // is in shadow mode. In shadow mode the cache is validated against the DB, so dropped tasks
 // produce observable mismatches that are worth tracking. In other modes the log is noise.

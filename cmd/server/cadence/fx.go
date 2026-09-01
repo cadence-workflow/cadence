@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/logfx"
 	"github.com/uber/cadence/common/log/tag"
@@ -163,6 +164,12 @@ func (a *App) Stop(ctx context.Context) error {
 }
 
 func (a *App) verifySchema(ctx context.Context) error {
+	if err := VerifySchema(ctx, a.cfg); err != nil {
+		if a.dynamicCollection.GetBoolProperty(dynamicproperties.EnforceSchemaVerificationV2)() {
+			return fmt.Errorf("schema verification failed: %w", err)
+		}
+		a.logger.Warn("SchemaVerificationV2 failed", tag.Error(err))
+	}
 	// cassandra schema version validation
 	if err := cassandra.VerifyCompatibleVersion(a.cfg.Persistence, gocql.Quorum); err != nil {
 		return fmt.Errorf("cassandra schema version compatibility check failed: %w", err)

@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/config/yaml"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -50,17 +51,13 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/persistence/nosql"
+	public "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
-	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/postgres"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	pnt "github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/testflags"
-
-	// the import is a test dependency
-	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 )
 
 type (
@@ -90,7 +87,6 @@ type (
 		ClusterNo             int
 		ClusterGroupMetadata  config.ClusterGroupMetadata
 		MessagingClientConfig *MessagingClientConfig
-		Persistence           persistencetests.TestBaseOptions
 		HistoryConfig         *HistoryConfig
 		MatchingConfig        *MatchingConfig
 		ESConfig              *config.ElasticSearchConfig
@@ -133,7 +129,14 @@ const (
 
 // NewCluster creates and sets up the test cluster
 func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, params persistencetests.TestBaseParams) (*TestCluster, error) {
-	testBase := persistencetests.NewTestBaseFromParams(t, params)
+	// Copy visibility config to the PersistenceConfig so persistence test base can do setup/teardown
+	if options.PinotConfig != nil {
+		params.PersistenceConfig.DataStores[constants.PinotVisibilityStoreName] = config.DataStore{Pinot: options.PinotConfig}
+	}
+	if options.ESConfig != nil {
+		params.PersistenceConfig.DataStores[constants.ESVisibilityStoreName] = config.DataStore{ElasticSearch: options.ESConfig}
+	}
+	testBase := persistencetests.NewTestBase(t, params)
 	testBase.Setup()
 	setupShards(testBase, options.HistoryConfig.NumHistoryShards, logger)
 	archiverBase := newArchiverBase(options.EnableArchival, logger)
@@ -147,7 +150,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		if err != nil {
 			return nil, err
 		}
-		pConfig.AdvancedVisibilityStore = "es-visibility"
+		pConfig.AdvancedVisibilityStore = constants.ESVisibilityStoreName
 	}
 
 	scope := tally.NewTestScope("integration-test", nil)
@@ -169,7 +172,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		return nil, err
 	}
 	cadenceParams := &CadenceParams{
-		ClusterMetadata:               params.ClusterMetadata,
+		ClusterMetadata:               *params.ClusterMetadata,
 		PersistenceConfig:             pConfig,
 		MessagingClient:               messagingClient,
 		DomainManager:                 testBase.DomainManager,
@@ -206,7 +209,14 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 }
 
 func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, params persistencetests.TestBaseParams) (*TestCluster, error) {
-	testBase := persistencetests.NewTestBaseFromParams(t, params)
+	// Copy visibility config to the PersistenceConfig so persistence test base can do setup/teardown
+	if options.PinotConfig != nil {
+		params.PersistenceConfig.DataStores[constants.PinotVisibilityStoreName] = config.DataStore{Pinot: options.PinotConfig}
+	}
+	if options.ESConfig != nil {
+		params.PersistenceConfig.DataStores[constants.ESVisibilityStoreName] = config.DataStore{ElasticSearch: options.ESConfig}
+	}
+	testBase := persistencetests.NewTestBase(t, params)
 	testBase.Setup()
 	setupShards(testBase, options.HistoryConfig.NumHistoryShards, logger)
 	archiverBase := newArchiverBase(options.EnableArchival, logger)
@@ -224,7 +234,7 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 			}
 		}
 	}
-	pConfig.AdvancedVisibilityStore = "pinot-visibility"
+	pConfig.AdvancedVisibilityStore = constants.PinotVisibilityStoreName
 	pinotBroker := options.PinotConfig.Broker
 	pinotRawClient, err := pinot.NewFromBrokerList([]string{pinotBroker})
 	if err != nil || pinotRawClient == nil {
@@ -251,7 +261,7 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 		return nil, err
 	}
 	cadenceParams := &CadenceParams{
-		ClusterMetadata:               params.ClusterMetadata,
+		ClusterMetadata:               *params.ClusterMetadata,
 		PersistenceConfig:             pConfig,
 		MessagingClient:               messagingClient,
 		DomainManager:                 testBase.DomainManager,
@@ -307,53 +317,29 @@ func NewClusterMetadata(t *testing.T, options *TestClusterConfig) cluster.Metada
 	)
 }
 
-func NewPersistenceTestCluster(t *testing.T, clusterConfig *TestClusterConfig) config.Persistence {
-	// NOTE: Override here to keep consistent. clusterConfig will be used in the test for some purposes.
-	clusterConfig.Persistence.DBPluginName = TestFlags.SQLPluginName
-
-	var testConfig config.Persistence
-	var err error
+func NewTestPersistenceConfig(t *testing.T) config.Persistence {
+	var testDataStore persistencetests.DataStoreProvider
 	if TestFlags.PersistenceType == config.StoreTypeCassandra {
 		// TODO refactor to support other NoSQL
-		ops := clusterConfig.Persistence
-		ops.DBPluginName = "cassandra"
 		testflags.RequireCassandra(t)
-		testConfig = nosql.NewTestCluster(t, nosql.TestClusterParams{
-			PluginName:    ops.DBPluginName,
-			KeySpace:      ops.DBName,
-			Username:      ops.DBUsername,
-			Password:      ops.DBPassword,
-			Host:          ops.DBHost,
-			Port:          ops.DBPort,
-			ProtoVersion:  ops.ProtoVersion,
-			SchemaBaseDir: "",
-		})
+		testDataStore = public.NewTestConfigWithPublicCassandra
 	} else if TestFlags.PersistenceType == config.StoreTypeSQL {
-		var ops *persistencetests.TestBaseOptions
 		switch TestFlags.SQLPluginName {
 		case mysql.PluginName:
 			testflags.RequireMySQL(t)
-			ops, err = mysql.GetTestClusterOption()
+			testDataStore = mysql.GetTestConfig
 		case postgres.PluginName:
 			testflags.RequirePostgres(t)
-			ops, err = postgres.GetTestClusterOption()
+			testDataStore = postgres.GetTestConfig
 		case sqlite.PluginName:
-			ops = sqlite.GetTestClusterOption()
+			testDataStore = sqlite.GetTestConfig
 		default:
 			t.Fatal("not supported plugin " + TestFlags.SQLPluginName)
-		}
-
-		if err != nil {
-			t.Fatal(err)
-		}
-		testConfig, err = sql.NewTestCluster(TestFlags.SQLPluginName, clusterConfig.Persistence.DBName, ops.DBUsername, ops.DBPassword, ops.DBHost, ops.DBPort)
-		if err != nil {
-			t.Fatal(err)
 		}
 	} else {
 		t.Fatal("not supported storage type" + TestFlags.PersistenceType)
 	}
-	return testConfig
+	return persistencetests.SimplePersistenceConfig(t, testDataStore)
 }
 
 func newNoopDomainAuditManager() persistence.DomainAuditManager {
@@ -393,7 +379,7 @@ func newArchiverBase(enabled bool, logger log.Logger) *ArchiverBase {
 	dcCollection := dynamicconfig.NewNopCollection()
 	if !enabled {
 		return &ArchiverBase{
-			metadata: archiver.NewArchivalMetadata(dcCollection, "", false, "", false, &config.ArchivalDomainDefaults{}),
+			metadata: archiver.NewArchivalMetadata(dcCollection, "", false, "", false, &archiver.ArchivalDomainDefaults{}),
 			provider: provider.NewNoOpArchiverProvider(),
 		}
 	}
@@ -406,7 +392,7 @@ func newArchiverBase(enabled bool, logger log.Logger) *ArchiverBase {
 	if err != nil {
 		logger.Fatal("Failed to create temp dir for visibility archival", tag.Error(err))
 	}
-	cfg := &config.FilestoreArchiver{
+	cfg := &filestore.Config{
 		FileMode: "0666",
 		DirMode:  "0766",
 	}
@@ -416,16 +402,16 @@ func newArchiverBase(enabled bool, logger log.Logger) *ArchiverBase {
 	}
 
 	archiverProvider := provider.NewArchiverProvider(
-		config.HistoryArchiverProvider{config.FilestoreConfig: node},
-		config.VisibilityArchiverProvider{config.FilestoreConfig: node},
+		archiver.HistoryArchiverProvider{archiver.FilestoreConfig: node},
+		archiver.VisibilityArchiverProvider{archiver.FilestoreConfig: node},
 	)
 	return &ArchiverBase{
-		metadata: archiver.NewArchivalMetadata(dcCollection, "enabled", true, "enabled", true, &config.ArchivalDomainDefaults{
-			History: config.HistoryArchivalDomainDefaults{
+		metadata: archiver.NewArchivalMetadata(dcCollection, "enabled", true, "enabled", true, &archiver.ArchivalDomainDefaults{
+			History: archiver.HistoryArchivalDomainDefaults{
 				Status: "enabled",
 				URI:    "testScheme://test/history/archive/path",
 			},
-			Visibility: config.VisibilityArchivalDomainDefaults{
+			Visibility: archiver.VisibilityArchivalDomainDefaults{
 				Status: "enabled",
 				URI:    "testScheme://test/visibility/archive/path",
 			},

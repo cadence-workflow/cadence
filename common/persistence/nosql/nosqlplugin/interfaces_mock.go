@@ -351,6 +351,21 @@ func (mr *MockDBMockRecorder) GetQueueSize(ctx, queueType any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueueSize", reflect.TypeOf((*MockDB)(nil).GetQueueSize), ctx, queueType)
 }
 
+// GetSemaphoreTasksCount mocks base method.
+func (m *MockDB) GetSemaphoreTasksCount(ctx context.Context, filter *SemaphoreTasksFilter) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreTasksCount", ctx, filter)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSemaphoreTasksCount indicates an expected call of GetSemaphoreTasksCount.
+func (mr *MockDBMockRecorder) GetSemaphoreTasksCount(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTasksCount", reflect.TypeOf((*MockDB)(nil).GetSemaphoreTasksCount), ctx, filter)
+}
+
 // GetTasksCount mocks base method.
 func (m *MockDB) GetTasksCount(ctx context.Context, filter *TasksFilter) (int64, error) {
 	m.ctrl.T.Helper()
@@ -364,6 +379,21 @@ func (m *MockDB) GetTasksCount(ctx context.Context, filter *TasksFilter) (int64,
 func (mr *MockDBMockRecorder) GetTasksCount(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTasksCount", reflect.TypeOf((*MockDB)(nil).GetTasksCount), ctx, filter)
+}
+
+// GrantSemaphoreToken mocks base method.
+func (m *MockDB) GrantSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (SemaphoreGrantResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GrantSemaphoreToken", ctx, row)
+	ret0, _ := ret[0].(SemaphoreGrantResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GrantSemaphoreToken indicates an expected call of GrantSemaphoreToken.
+func (mr *MockDBMockRecorder) GrantSemaphoreToken(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrantSemaphoreToken", reflect.TypeOf((*MockDB)(nil).GrantSemaphoreToken), ctx, row)
 }
 
 // InsertConfig mocks base method.
@@ -546,6 +576,48 @@ func (m *MockDB) InsertSemaphoreMetadata(ctx context.Context, row *SemaphoreMeta
 func (mr *MockDBMockRecorder) InsertSemaphoreMetadata(ctx, row any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreMetadata", reflect.TypeOf((*MockDB)(nil).InsertSemaphoreMetadata), ctx, row)
+}
+
+// InsertSemaphoreTaskControlRow mocks base method.
+func (m *MockDB) InsertSemaphoreTaskControlRow(ctx context.Context, row *SemaphoreTaskControlRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreTaskControlRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreTaskControlRow indicates an expected call of InsertSemaphoreTaskControlRow.
+func (mr *MockDBMockRecorder) InsertSemaphoreTaskControlRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTaskControlRow", reflect.TypeOf((*MockDB)(nil).InsertSemaphoreTaskControlRow), ctx, row)
+}
+
+// InsertSemaphoreTasks mocks base method.
+func (m *MockDB) InsertSemaphoreTasks(ctx context.Context, tasks []*SemaphoreTaskRow, controlCondition *SemaphoreTaskControlRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreTasks", ctx, tasks, controlCondition)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreTasks indicates an expected call of InsertSemaphoreTasks.
+func (mr *MockDBMockRecorder) InsertSemaphoreTasks(ctx, tasks, controlCondition any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTasks", reflect.TypeOf((*MockDB)(nil).InsertSemaphoreTasks), ctx, tasks, controlCondition)
+}
+
+// InsertSemaphoreTokens mocks base method.
+func (m *MockDB) InsertSemaphoreTokens(ctx context.Context, rows []*SemaphoreOwnershipRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreTokens", ctx, rows)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreTokens indicates an expected call of InsertSemaphoreTokens.
+func (mr *MockDBMockRecorder) InsertSemaphoreTokens(ctx, rows any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTokens", reflect.TypeOf((*MockDB)(nil).InsertSemaphoreTokens), ctx, rows)
 }
 
 // InsertShard mocks base method.
@@ -760,6 +832,21 @@ func (mr *MockDBMockRecorder) RangeDeleteReplicationTasks(ctx, shardID, exclusiv
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteReplicationTasks), ctx, shardID, exclusiveEndTaskID)
 }
 
+// RangeDeleteSemaphoreTasks mocks base method.
+func (m *MockDB) RangeDeleteSemaphoreTasks(ctx context.Context, filter *SemaphoreTasksFilter) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteSemaphoreTasks", ctx, filter)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RangeDeleteSemaphoreTasks indicates an expected call of RangeDeleteSemaphoreTasks.
+func (mr *MockDBMockRecorder) RangeDeleteSemaphoreTasks(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteSemaphoreTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteSemaphoreTasks), ctx, filter)
+}
+
 // RangeDeleteTasks mocks base method.
 func (m *MockDB) RangeDeleteTasks(ctx context.Context, filter *TasksFilter) (int, error) {
 	m.ctrl.T.Helper()
@@ -801,6 +888,21 @@ func (m *MockDB) RangeDeleteTransferTasks(ctx context.Context, shardID int, incl
 func (mr *MockDBMockRecorder) RangeDeleteTransferTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteTransferTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
+}
+
+// ReleaseSemaphoreToken mocks base method.
+func (m *MockDB) ReleaseSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseSemaphoreToken", ctx, row)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseSemaphoreToken indicates an expected call of ReleaseSemaphoreToken.
+func (mr *MockDBMockRecorder) ReleaseSemaphoreToken(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseSemaphoreToken", reflect.TypeOf((*MockDB)(nil).ReleaseSemaphoreToken), ctx, row)
 }
 
 // SelectActiveClusterSelectionPolicy mocks base method.
@@ -1173,6 +1275,82 @@ func (mr *MockDBMockRecorder) SelectSemaphoreMetadataByDomain(ctx, filter any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreMetadataByDomain", reflect.TypeOf((*MockDB)(nil).SelectSemaphoreMetadataByDomain), ctx, filter)
 }
 
+// SelectSemaphoreOwnershipByOwner mocks base method.
+func (m *MockDB) SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*SemaphoreOwnershipRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreOwnershipByOwner", ctx, domainID, semaphoreName, bucket, ownerID)
+	ret0, _ := ret[0].(*SemaphoreOwnershipRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreOwnershipByOwner indicates an expected call of SelectSemaphoreOwnershipByOwner.
+func (mr *MockDBMockRecorder) SelectSemaphoreOwnershipByOwner(ctx, domainID, semaphoreName, bucket, ownerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreOwnershipByOwner", reflect.TypeOf((*MockDB)(nil).SelectSemaphoreOwnershipByOwner), ctx, domainID, semaphoreName, bucket, ownerID)
+}
+
+// SelectSemaphoreOwnershipByToken mocks base method.
+func (m *MockDB) SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*SemaphoreOwnershipRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreOwnershipByToken", ctx, domainID, semaphoreName, bucket, tokenID)
+	ret0, _ := ret[0].(*SemaphoreOwnershipRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreOwnershipByToken indicates an expected call of SelectSemaphoreOwnershipByToken.
+func (mr *MockDBMockRecorder) SelectSemaphoreOwnershipByToken(ctx, domainID, semaphoreName, bucket, tokenID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreOwnershipByToken", reflect.TypeOf((*MockDB)(nil).SelectSemaphoreOwnershipByToken), ctx, domainID, semaphoreName, bucket, tokenID)
+}
+
+// SelectSemaphoreOwnershipsByBucket mocks base method.
+func (m *MockDB) SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *SemaphoreOwnershipFilter) ([]*SemaphoreOwnershipRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreOwnershipsByBucket", ctx, filter)
+	ret0, _ := ret[0].([]*SemaphoreOwnershipRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectSemaphoreOwnershipsByBucket indicates an expected call of SelectSemaphoreOwnershipsByBucket.
+func (mr *MockDBMockRecorder) SelectSemaphoreOwnershipsByBucket(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreOwnershipsByBucket", reflect.TypeOf((*MockDB)(nil).SelectSemaphoreOwnershipsByBucket), ctx, filter)
+}
+
+// SelectSemaphoreTaskControlRow mocks base method.
+func (m *MockDB) SelectSemaphoreTaskControlRow(ctx context.Context, filter *SemaphoreTaskControlFilter) (*SemaphoreTaskControlRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreTaskControlRow", ctx, filter)
+	ret0, _ := ret[0].(*SemaphoreTaskControlRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreTaskControlRow indicates an expected call of SelectSemaphoreTaskControlRow.
+func (mr *MockDBMockRecorder) SelectSemaphoreTaskControlRow(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreTaskControlRow", reflect.TypeOf((*MockDB)(nil).SelectSemaphoreTaskControlRow), ctx, filter)
+}
+
+// SelectSemaphoreTasks mocks base method.
+func (m *MockDB) SelectSemaphoreTasks(ctx context.Context, filter *SemaphoreTasksFilter) ([]*SemaphoreTaskRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreTasks", ctx, filter)
+	ret0, _ := ret[0].([]*SemaphoreTaskRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreTasks indicates an expected call of SelectSemaphoreTasks.
+func (mr *MockDBMockRecorder) SelectSemaphoreTasks(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreTasks", reflect.TypeOf((*MockDB)(nil).SelectSemaphoreTasks), ctx, filter)
+}
+
 // SelectShard mocks base method.
 func (m *MockDB) SelectShard(ctx context.Context, shardID int, currentClusterName string) (int64, *ShardRow, error) {
 	m.ctrl.T.Helper()
@@ -1336,6 +1514,20 @@ func (m *MockDB) UpdateRangeID(ctx context.Context, shardID int, rangeID, previo
 func (mr *MockDBMockRecorder) UpdateRangeID(ctx, shardID, rangeID, previousRangeID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRangeID", reflect.TypeOf((*MockDB)(nil).UpdateRangeID), ctx, shardID, rangeID, previousRangeID)
+}
+
+// UpdateSemaphoreTaskControlRow mocks base method.
+func (m *MockDB) UpdateSemaphoreTaskControlRow(ctx context.Context, row *SemaphoreTaskControlRow, previousRangeID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSemaphoreTaskControlRow", ctx, row, previousRangeID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSemaphoreTaskControlRow indicates an expected call of UpdateSemaphoreTaskControlRow.
+func (mr *MockDBMockRecorder) UpdateSemaphoreTaskControlRow(ctx, row, previousRangeID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSemaphoreTaskControlRow", reflect.TypeOf((*MockDB)(nil).UpdateSemaphoreTaskControlRow), ctx, row, previousRangeID)
 }
 
 // UpdateShard mocks base method.
@@ -1657,6 +1849,21 @@ func (mr *MocktableCRUDMockRecorder) GetQueueSize(ctx, queueType any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueueSize", reflect.TypeOf((*MocktableCRUD)(nil).GetQueueSize), ctx, queueType)
 }
 
+// GetSemaphoreTasksCount mocks base method.
+func (m *MocktableCRUD) GetSemaphoreTasksCount(ctx context.Context, filter *SemaphoreTasksFilter) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreTasksCount", ctx, filter)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSemaphoreTasksCount indicates an expected call of GetSemaphoreTasksCount.
+func (mr *MocktableCRUDMockRecorder) GetSemaphoreTasksCount(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTasksCount", reflect.TypeOf((*MocktableCRUD)(nil).GetSemaphoreTasksCount), ctx, filter)
+}
+
 // GetTasksCount mocks base method.
 func (m *MocktableCRUD) GetTasksCount(ctx context.Context, filter *TasksFilter) (int64, error) {
 	m.ctrl.T.Helper()
@@ -1670,6 +1877,21 @@ func (m *MocktableCRUD) GetTasksCount(ctx context.Context, filter *TasksFilter) 
 func (mr *MocktableCRUDMockRecorder) GetTasksCount(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTasksCount", reflect.TypeOf((*MocktableCRUD)(nil).GetTasksCount), ctx, filter)
+}
+
+// GrantSemaphoreToken mocks base method.
+func (m *MocktableCRUD) GrantSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (SemaphoreGrantResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GrantSemaphoreToken", ctx, row)
+	ret0, _ := ret[0].(SemaphoreGrantResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GrantSemaphoreToken indicates an expected call of GrantSemaphoreToken.
+func (mr *MocktableCRUDMockRecorder) GrantSemaphoreToken(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrantSemaphoreToken", reflect.TypeOf((*MocktableCRUD)(nil).GrantSemaphoreToken), ctx, row)
 }
 
 // InsertConfig mocks base method.
@@ -1854,6 +2076,48 @@ func (mr *MocktableCRUDMockRecorder) InsertSemaphoreMetadata(ctx, row any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreMetadata", reflect.TypeOf((*MocktableCRUD)(nil).InsertSemaphoreMetadata), ctx, row)
 }
 
+// InsertSemaphoreTaskControlRow mocks base method.
+func (m *MocktableCRUD) InsertSemaphoreTaskControlRow(ctx context.Context, row *SemaphoreTaskControlRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreTaskControlRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreTaskControlRow indicates an expected call of InsertSemaphoreTaskControlRow.
+func (mr *MocktableCRUDMockRecorder) InsertSemaphoreTaskControlRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTaskControlRow", reflect.TypeOf((*MocktableCRUD)(nil).InsertSemaphoreTaskControlRow), ctx, row)
+}
+
+// InsertSemaphoreTasks mocks base method.
+func (m *MocktableCRUD) InsertSemaphoreTasks(ctx context.Context, tasks []*SemaphoreTaskRow, controlCondition *SemaphoreTaskControlRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreTasks", ctx, tasks, controlCondition)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreTasks indicates an expected call of InsertSemaphoreTasks.
+func (mr *MocktableCRUDMockRecorder) InsertSemaphoreTasks(ctx, tasks, controlCondition any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTasks", reflect.TypeOf((*MocktableCRUD)(nil).InsertSemaphoreTasks), ctx, tasks, controlCondition)
+}
+
+// InsertSemaphoreTokens mocks base method.
+func (m *MocktableCRUD) InsertSemaphoreTokens(ctx context.Context, rows []*SemaphoreOwnershipRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreTokens", ctx, rows)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreTokens indicates an expected call of InsertSemaphoreTokens.
+func (mr *MocktableCRUDMockRecorder) InsertSemaphoreTokens(ctx, rows any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTokens", reflect.TypeOf((*MocktableCRUD)(nil).InsertSemaphoreTokens), ctx, rows)
+}
+
 // InsertShard mocks base method.
 func (m *MocktableCRUD) InsertShard(ctx context.Context, row *ShardRow) error {
 	m.ctrl.T.Helper()
@@ -1996,6 +2260,21 @@ func (mr *MocktableCRUDMockRecorder) RangeDeleteReplicationTasks(ctx, shardID, e
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteReplicationTasks), ctx, shardID, exclusiveEndTaskID)
 }
 
+// RangeDeleteSemaphoreTasks mocks base method.
+func (m *MocktableCRUD) RangeDeleteSemaphoreTasks(ctx context.Context, filter *SemaphoreTasksFilter) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteSemaphoreTasks", ctx, filter)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RangeDeleteSemaphoreTasks indicates an expected call of RangeDeleteSemaphoreTasks.
+func (mr *MocktableCRUDMockRecorder) RangeDeleteSemaphoreTasks(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteSemaphoreTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteSemaphoreTasks), ctx, filter)
+}
+
 // RangeDeleteTasks mocks base method.
 func (m *MocktableCRUD) RangeDeleteTasks(ctx context.Context, filter *TasksFilter) (int, error) {
 	m.ctrl.T.Helper()
@@ -2037,6 +2316,21 @@ func (m *MocktableCRUD) RangeDeleteTransferTasks(ctx context.Context, shardID in
 func (mr *MocktableCRUDMockRecorder) RangeDeleteTransferTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteTransferTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
+}
+
+// ReleaseSemaphoreToken mocks base method.
+func (m *MocktableCRUD) ReleaseSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseSemaphoreToken", ctx, row)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseSemaphoreToken indicates an expected call of ReleaseSemaphoreToken.
+func (mr *MocktableCRUDMockRecorder) ReleaseSemaphoreToken(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseSemaphoreToken", reflect.TypeOf((*MocktableCRUD)(nil).ReleaseSemaphoreToken), ctx, row)
 }
 
 // SelectActiveClusterSelectionPolicy mocks base method.
@@ -2409,6 +2703,82 @@ func (mr *MocktableCRUDMockRecorder) SelectSemaphoreMetadataByDomain(ctx, filter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreMetadataByDomain", reflect.TypeOf((*MocktableCRUD)(nil).SelectSemaphoreMetadataByDomain), ctx, filter)
 }
 
+// SelectSemaphoreOwnershipByOwner mocks base method.
+func (m *MocktableCRUD) SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*SemaphoreOwnershipRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreOwnershipByOwner", ctx, domainID, semaphoreName, bucket, ownerID)
+	ret0, _ := ret[0].(*SemaphoreOwnershipRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreOwnershipByOwner indicates an expected call of SelectSemaphoreOwnershipByOwner.
+func (mr *MocktableCRUDMockRecorder) SelectSemaphoreOwnershipByOwner(ctx, domainID, semaphoreName, bucket, ownerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreOwnershipByOwner", reflect.TypeOf((*MocktableCRUD)(nil).SelectSemaphoreOwnershipByOwner), ctx, domainID, semaphoreName, bucket, ownerID)
+}
+
+// SelectSemaphoreOwnershipByToken mocks base method.
+func (m *MocktableCRUD) SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*SemaphoreOwnershipRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreOwnershipByToken", ctx, domainID, semaphoreName, bucket, tokenID)
+	ret0, _ := ret[0].(*SemaphoreOwnershipRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreOwnershipByToken indicates an expected call of SelectSemaphoreOwnershipByToken.
+func (mr *MocktableCRUDMockRecorder) SelectSemaphoreOwnershipByToken(ctx, domainID, semaphoreName, bucket, tokenID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreOwnershipByToken", reflect.TypeOf((*MocktableCRUD)(nil).SelectSemaphoreOwnershipByToken), ctx, domainID, semaphoreName, bucket, tokenID)
+}
+
+// SelectSemaphoreOwnershipsByBucket mocks base method.
+func (m *MocktableCRUD) SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *SemaphoreOwnershipFilter) ([]*SemaphoreOwnershipRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreOwnershipsByBucket", ctx, filter)
+	ret0, _ := ret[0].([]*SemaphoreOwnershipRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectSemaphoreOwnershipsByBucket indicates an expected call of SelectSemaphoreOwnershipsByBucket.
+func (mr *MocktableCRUDMockRecorder) SelectSemaphoreOwnershipsByBucket(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreOwnershipsByBucket", reflect.TypeOf((*MocktableCRUD)(nil).SelectSemaphoreOwnershipsByBucket), ctx, filter)
+}
+
+// SelectSemaphoreTaskControlRow mocks base method.
+func (m *MocktableCRUD) SelectSemaphoreTaskControlRow(ctx context.Context, filter *SemaphoreTaskControlFilter) (*SemaphoreTaskControlRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreTaskControlRow", ctx, filter)
+	ret0, _ := ret[0].(*SemaphoreTaskControlRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreTaskControlRow indicates an expected call of SelectSemaphoreTaskControlRow.
+func (mr *MocktableCRUDMockRecorder) SelectSemaphoreTaskControlRow(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreTaskControlRow", reflect.TypeOf((*MocktableCRUD)(nil).SelectSemaphoreTaskControlRow), ctx, filter)
+}
+
+// SelectSemaphoreTasks mocks base method.
+func (m *MocktableCRUD) SelectSemaphoreTasks(ctx context.Context, filter *SemaphoreTasksFilter) ([]*SemaphoreTaskRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreTasks", ctx, filter)
+	ret0, _ := ret[0].([]*SemaphoreTaskRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreTasks indicates an expected call of SelectSemaphoreTasks.
+func (mr *MocktableCRUDMockRecorder) SelectSemaphoreTasks(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreTasks", reflect.TypeOf((*MocktableCRUD)(nil).SelectSemaphoreTasks), ctx, filter)
+}
+
 // SelectShard mocks base method.
 func (m *MocktableCRUD) SelectShard(ctx context.Context, shardID int, currentClusterName string) (int64, *ShardRow, error) {
 	m.ctrl.T.Helper()
@@ -2572,6 +2942,20 @@ func (m *MocktableCRUD) UpdateRangeID(ctx context.Context, shardID int, rangeID,
 func (mr *MocktableCRUDMockRecorder) UpdateRangeID(ctx, shardID, rangeID, previousRangeID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRangeID", reflect.TypeOf((*MocktableCRUD)(nil).UpdateRangeID), ctx, shardID, rangeID, previousRangeID)
+}
+
+// UpdateSemaphoreTaskControlRow mocks base method.
+func (m *MocktableCRUD) UpdateSemaphoreTaskControlRow(ctx context.Context, row *SemaphoreTaskControlRow, previousRangeID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSemaphoreTaskControlRow", ctx, row, previousRangeID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSemaphoreTaskControlRow indicates an expected call of UpdateSemaphoreTaskControlRow.
+func (mr *MocktableCRUDMockRecorder) UpdateSemaphoreTaskControlRow(ctx, row, previousRangeID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSemaphoreTaskControlRow", reflect.TypeOf((*MocktableCRUD)(nil).UpdateSemaphoreTaskControlRow), ctx, row, previousRangeID)
 }
 
 // UpdateShard mocks base method.
@@ -4087,6 +4471,246 @@ func (m *MockSemaphoreMetadataCRUD) SelectSemaphoreMetadataByDomain(ctx context.
 func (mr *MockSemaphoreMetadataCRUDMockRecorder) SelectSemaphoreMetadataByDomain(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreMetadataByDomain", reflect.TypeOf((*MockSemaphoreMetadataCRUD)(nil).SelectSemaphoreMetadataByDomain), ctx, filter)
+}
+
+// MockSemaphoreTokenCRUD is a mock of SemaphoreTokenCRUD interface.
+type MockSemaphoreTokenCRUD struct {
+	ctrl     *gomock.Controller
+	recorder *MockSemaphoreTokenCRUDMockRecorder
+	isgomock struct{}
+}
+
+// MockSemaphoreTokenCRUDMockRecorder is the mock recorder for MockSemaphoreTokenCRUD.
+type MockSemaphoreTokenCRUDMockRecorder struct {
+	mock *MockSemaphoreTokenCRUD
+}
+
+// NewMockSemaphoreTokenCRUD creates a new mock instance.
+func NewMockSemaphoreTokenCRUD(ctrl *gomock.Controller) *MockSemaphoreTokenCRUD {
+	mock := &MockSemaphoreTokenCRUD{ctrl: ctrl}
+	mock.recorder = &MockSemaphoreTokenCRUDMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSemaphoreTokenCRUD) EXPECT() *MockSemaphoreTokenCRUDMockRecorder {
+	return m.recorder
+}
+
+// GrantSemaphoreToken mocks base method.
+func (m *MockSemaphoreTokenCRUD) GrantSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (SemaphoreGrantResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GrantSemaphoreToken", ctx, row)
+	ret0, _ := ret[0].(SemaphoreGrantResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GrantSemaphoreToken indicates an expected call of GrantSemaphoreToken.
+func (mr *MockSemaphoreTokenCRUDMockRecorder) GrantSemaphoreToken(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrantSemaphoreToken", reflect.TypeOf((*MockSemaphoreTokenCRUD)(nil).GrantSemaphoreToken), ctx, row)
+}
+
+// InsertSemaphoreTokens mocks base method.
+func (m *MockSemaphoreTokenCRUD) InsertSemaphoreTokens(ctx context.Context, rows []*SemaphoreOwnershipRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreTokens", ctx, rows)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreTokens indicates an expected call of InsertSemaphoreTokens.
+func (mr *MockSemaphoreTokenCRUDMockRecorder) InsertSemaphoreTokens(ctx, rows any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTokens", reflect.TypeOf((*MockSemaphoreTokenCRUD)(nil).InsertSemaphoreTokens), ctx, rows)
+}
+
+// ReleaseSemaphoreToken mocks base method.
+func (m *MockSemaphoreTokenCRUD) ReleaseSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseSemaphoreToken", ctx, row)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseSemaphoreToken indicates an expected call of ReleaseSemaphoreToken.
+func (mr *MockSemaphoreTokenCRUDMockRecorder) ReleaseSemaphoreToken(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseSemaphoreToken", reflect.TypeOf((*MockSemaphoreTokenCRUD)(nil).ReleaseSemaphoreToken), ctx, row)
+}
+
+// SelectSemaphoreOwnershipByOwner mocks base method.
+func (m *MockSemaphoreTokenCRUD) SelectSemaphoreOwnershipByOwner(ctx context.Context, domainID, semaphoreName string, bucket int, ownerID string) (*SemaphoreOwnershipRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreOwnershipByOwner", ctx, domainID, semaphoreName, bucket, ownerID)
+	ret0, _ := ret[0].(*SemaphoreOwnershipRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreOwnershipByOwner indicates an expected call of SelectSemaphoreOwnershipByOwner.
+func (mr *MockSemaphoreTokenCRUDMockRecorder) SelectSemaphoreOwnershipByOwner(ctx, domainID, semaphoreName, bucket, ownerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreOwnershipByOwner", reflect.TypeOf((*MockSemaphoreTokenCRUD)(nil).SelectSemaphoreOwnershipByOwner), ctx, domainID, semaphoreName, bucket, ownerID)
+}
+
+// SelectSemaphoreOwnershipByToken mocks base method.
+func (m *MockSemaphoreTokenCRUD) SelectSemaphoreOwnershipByToken(ctx context.Context, domainID, semaphoreName string, bucket, tokenID int) (*SemaphoreOwnershipRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreOwnershipByToken", ctx, domainID, semaphoreName, bucket, tokenID)
+	ret0, _ := ret[0].(*SemaphoreOwnershipRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreOwnershipByToken indicates an expected call of SelectSemaphoreOwnershipByToken.
+func (mr *MockSemaphoreTokenCRUDMockRecorder) SelectSemaphoreOwnershipByToken(ctx, domainID, semaphoreName, bucket, tokenID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreOwnershipByToken", reflect.TypeOf((*MockSemaphoreTokenCRUD)(nil).SelectSemaphoreOwnershipByToken), ctx, domainID, semaphoreName, bucket, tokenID)
+}
+
+// SelectSemaphoreOwnershipsByBucket mocks base method.
+func (m *MockSemaphoreTokenCRUD) SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *SemaphoreOwnershipFilter) ([]*SemaphoreOwnershipRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreOwnershipsByBucket", ctx, filter)
+	ret0, _ := ret[0].([]*SemaphoreOwnershipRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectSemaphoreOwnershipsByBucket indicates an expected call of SelectSemaphoreOwnershipsByBucket.
+func (mr *MockSemaphoreTokenCRUDMockRecorder) SelectSemaphoreOwnershipsByBucket(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreOwnershipsByBucket", reflect.TypeOf((*MockSemaphoreTokenCRUD)(nil).SelectSemaphoreOwnershipsByBucket), ctx, filter)
+}
+
+// MockSemaphoreTaskCRUD is a mock of SemaphoreTaskCRUD interface.
+type MockSemaphoreTaskCRUD struct {
+	ctrl     *gomock.Controller
+	recorder *MockSemaphoreTaskCRUDMockRecorder
+	isgomock struct{}
+}
+
+// MockSemaphoreTaskCRUDMockRecorder is the mock recorder for MockSemaphoreTaskCRUD.
+type MockSemaphoreTaskCRUDMockRecorder struct {
+	mock *MockSemaphoreTaskCRUD
+}
+
+// NewMockSemaphoreTaskCRUD creates a new mock instance.
+func NewMockSemaphoreTaskCRUD(ctrl *gomock.Controller) *MockSemaphoreTaskCRUD {
+	mock := &MockSemaphoreTaskCRUD{ctrl: ctrl}
+	mock.recorder = &MockSemaphoreTaskCRUDMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSemaphoreTaskCRUD) EXPECT() *MockSemaphoreTaskCRUDMockRecorder {
+	return m.recorder
+}
+
+// GetSemaphoreTasksCount mocks base method.
+func (m *MockSemaphoreTaskCRUD) GetSemaphoreTasksCount(ctx context.Context, filter *SemaphoreTasksFilter) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreTasksCount", ctx, filter)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSemaphoreTasksCount indicates an expected call of GetSemaphoreTasksCount.
+func (mr *MockSemaphoreTaskCRUDMockRecorder) GetSemaphoreTasksCount(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTasksCount", reflect.TypeOf((*MockSemaphoreTaskCRUD)(nil).GetSemaphoreTasksCount), ctx, filter)
+}
+
+// InsertSemaphoreTaskControlRow mocks base method.
+func (m *MockSemaphoreTaskCRUD) InsertSemaphoreTaskControlRow(ctx context.Context, row *SemaphoreTaskControlRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreTaskControlRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreTaskControlRow indicates an expected call of InsertSemaphoreTaskControlRow.
+func (mr *MockSemaphoreTaskCRUDMockRecorder) InsertSemaphoreTaskControlRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTaskControlRow", reflect.TypeOf((*MockSemaphoreTaskCRUD)(nil).InsertSemaphoreTaskControlRow), ctx, row)
+}
+
+// InsertSemaphoreTasks mocks base method.
+func (m *MockSemaphoreTaskCRUD) InsertSemaphoreTasks(ctx context.Context, tasks []*SemaphoreTaskRow, controlCondition *SemaphoreTaskControlRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSemaphoreTasks", ctx, tasks, controlCondition)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertSemaphoreTasks indicates an expected call of InsertSemaphoreTasks.
+func (mr *MockSemaphoreTaskCRUDMockRecorder) InsertSemaphoreTasks(ctx, tasks, controlCondition any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTasks", reflect.TypeOf((*MockSemaphoreTaskCRUD)(nil).InsertSemaphoreTasks), ctx, tasks, controlCondition)
+}
+
+// RangeDeleteSemaphoreTasks mocks base method.
+func (m *MockSemaphoreTaskCRUD) RangeDeleteSemaphoreTasks(ctx context.Context, filter *SemaphoreTasksFilter) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteSemaphoreTasks", ctx, filter)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RangeDeleteSemaphoreTasks indicates an expected call of RangeDeleteSemaphoreTasks.
+func (mr *MockSemaphoreTaskCRUDMockRecorder) RangeDeleteSemaphoreTasks(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteSemaphoreTasks", reflect.TypeOf((*MockSemaphoreTaskCRUD)(nil).RangeDeleteSemaphoreTasks), ctx, filter)
+}
+
+// SelectSemaphoreTaskControlRow mocks base method.
+func (m *MockSemaphoreTaskCRUD) SelectSemaphoreTaskControlRow(ctx context.Context, filter *SemaphoreTaskControlFilter) (*SemaphoreTaskControlRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreTaskControlRow", ctx, filter)
+	ret0, _ := ret[0].(*SemaphoreTaskControlRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreTaskControlRow indicates an expected call of SelectSemaphoreTaskControlRow.
+func (mr *MockSemaphoreTaskCRUDMockRecorder) SelectSemaphoreTaskControlRow(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreTaskControlRow", reflect.TypeOf((*MockSemaphoreTaskCRUD)(nil).SelectSemaphoreTaskControlRow), ctx, filter)
+}
+
+// SelectSemaphoreTasks mocks base method.
+func (m *MockSemaphoreTaskCRUD) SelectSemaphoreTasks(ctx context.Context, filter *SemaphoreTasksFilter) ([]*SemaphoreTaskRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectSemaphoreTasks", ctx, filter)
+	ret0, _ := ret[0].([]*SemaphoreTaskRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectSemaphoreTasks indicates an expected call of SelectSemaphoreTasks.
+func (mr *MockSemaphoreTaskCRUDMockRecorder) SelectSemaphoreTasks(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectSemaphoreTasks", reflect.TypeOf((*MockSemaphoreTaskCRUD)(nil).SelectSemaphoreTasks), ctx, filter)
+}
+
+// UpdateSemaphoreTaskControlRow mocks base method.
+func (m *MockSemaphoreTaskCRUD) UpdateSemaphoreTaskControlRow(ctx context.Context, row *SemaphoreTaskControlRow, previousRangeID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSemaphoreTaskControlRow", ctx, row, previousRangeID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSemaphoreTaskControlRow indicates an expected call of UpdateSemaphoreTaskControlRow.
+func (mr *MockSemaphoreTaskCRUDMockRecorder) UpdateSemaphoreTaskControlRow(ctx, row, previousRangeID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSemaphoreTaskControlRow", reflect.TypeOf((*MockSemaphoreTaskCRUD)(nil).UpdateSemaphoreTaskControlRow), ctx, row, previousRangeID)
 }
 
 // MockHistoryDLQTaskCRUD is a mock of HistoryDLQTaskCRUD interface.

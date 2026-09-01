@@ -64,8 +64,6 @@ type (
 		// GetSchemaVersion returns the current schema version
 		GetSchemaVersion(ctx context.Context) (Version, error)
 		UpdateSchema(ctx context.Context, update *SchemaUpdate) error
-		// ForceApplySchema applies the specified SchemaUpdate without versioning
-		ForceApplySchema(ctx context.Context, update *SchemaUpdate) error
 		Close()
 	}
 	Schema interface {

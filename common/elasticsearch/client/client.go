@@ -29,6 +29,8 @@ import (
 	"github.com/uber/cadence/common/elasticsearch/bulk"
 )
 
+//go:generate mockgen -package $GOPACKAGE -destination client_mock.go github.com/uber/cadence/common/elasticsearch/client Client
+
 // Client is a generic ES client implementation.
 // This interface allows to use different Elasticsearch and OpenSearch versions
 // without exposing implementation details and structs
@@ -41,8 +43,6 @@ type Client interface {
 	CreateIndex(ctx context.Context, index string) error
 	// IsNotFoundError checks if error is a "not found"
 	IsNotFoundError(err error) bool
-	// PutMapping updates Client with new field mapping
-	PutMapping(ctx context.Context, index, body string) error
 	// RunBulkProcessor starts bulk indexing processor
 	// @TODO consider to extract Bulk Processor as a separate entity
 	RunBulkProcessor(ctx context.Context, p *bulk.BulkProcessorParameters) (bulk.GenericBulkProcessor, error)
@@ -50,6 +50,24 @@ type Client interface {
 	Scroll(ctx context.Context, index, body, scrollID string) (*Response, error)
 	// Search returns Elasticsearch hit bytes and additional metadata
 	Search(ctx context.Context, index, body string) (*Response, error)
+
+	// Admin schema management methods
+	// IsHealthy checks if the client can connect to the server
+	IsHealthy(ctx context.Context) error
+	// PutIndexTemplate creates or updates an index template
+	PutIndexTemplate(ctx context.Context, templateName string, template []byte) error
+	// HasIndex checks if an index exists
+	HasIndex(ctx context.Context, indexName string) (bool, error)
+	// DeleteIndex deletes an index
+	DeleteIndex(ctx context.Context, indexName string) error
+	// GetMappings retrieves the mappings for an index
+	GetMappings(ctx context.Context, indexName string) (map[string]any, error)
+	// PutMappings updates the mappings for an index
+	PutMappings(ctx context.Context, indexName string, mappings map[string]any) error
+	// MappingsFromTemplate extracts mappings from a template
+	MappingsFromTemplate(template []byte) (map[string]any, error)
+	// LatestTemplate returns the latest schema template
+	LatestTemplate() []byte
 }
 
 // Response is used to pass data retrieved from Elasticsearch/OpenSearch to upper layer

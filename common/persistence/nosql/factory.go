@@ -87,6 +87,16 @@ func (f *Factory) NewSemaphoreMetadataStore() (persistence.SemaphoreMetadataStor
 	return newNoSQLSemaphoreMetadataStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
+// NewSemaphoreTokenStore returns a semaphore token store
+func (f *Factory) NewSemaphoreTokenStore() (persistence.SemaphoreTokenStore, error) {
+	return newNoSQLSemaphoreTokenStore(f.cfg, f.logger, f.metricsClient, f.dc)
+}
+
+// NewSemaphoreTaskStore returns a semaphore task (task queue) store
+func (f *Factory) NewSemaphoreTaskStore() (persistence.SemaphoreTaskStore, error) {
+	return newNoSQLSemaphoreTaskStore(f.cfg, f.logger, f.metricsClient, f.dc)
+}
+
 // NewHistoryDLQTaskStore returns a history DLQ task store
 func (f *Factory) NewHistoryDLQTaskStore() (persistence.HistoryDLQTaskStore, error) {
 	return newNoSQLHistoryDLQTaskStore(f.cfg, f.logger, f.metricsClient, f.dc)

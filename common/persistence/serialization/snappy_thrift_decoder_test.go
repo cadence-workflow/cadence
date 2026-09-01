@@ -36,9 +36,8 @@ import (
 )
 
 func TestSnappyThriftDecoderRoundTrip(t *testing.T) {
-	dc := &persistence.DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRWSnappy)),
-	}
+	dc := persistence.NewDefaultDynamicConfiguration()
+	dc.SerializationEncoding = dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRWSnappy))
 	parser, err := NewParser(dc)
 	require.NoError(t, err)
 

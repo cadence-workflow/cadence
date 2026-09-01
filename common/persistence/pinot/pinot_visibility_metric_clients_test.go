@@ -32,7 +32,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/.gen/go/indexer"
-	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
@@ -40,7 +39,6 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	metricsClientMocks "github.com/uber/cadence/common/metrics/mocks"
 	"github.com/uber/cadence/common/mocks"
-	"github.com/uber/cadence/common/persistence"
 	p "github.com/uber/cadence/common/persistence"
 	pnt "github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/service"
@@ -119,9 +117,7 @@ func TestMetricClientRecordWorkflowExecutionStarted(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -206,9 +202,7 @@ func TestMetricClientRecordWorkflowExecutionClosed(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -283,9 +277,7 @@ func TestMetricClientRecordWorkflowExecutionUninitialized(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -360,9 +352,7 @@ func TestMetricClientUpsertWorkflowExecution(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -435,9 +425,7 @@ func TestMetricClientListOpenWorkflowExecutions(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -510,9 +498,7 @@ func TestMetricClientListClosedWorkflowExecutions(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -586,9 +572,7 @@ func TestMetricClientListOpenWorkflowExecutionsByType(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -662,9 +646,7 @@ func TestMetricClientListClosedWorkflowExecutionsByType(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -737,9 +719,7 @@ func TestMetricClientListOpenWorkflowExecutionsByWorkflowID(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -812,9 +792,7 @@ func TestMetricClientListClosedWorkflowExecutionsByWorkflowID(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -891,9 +869,7 @@ func TestMetricClientListClosedWorkflowExecutionsByStatus(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -968,9 +944,7 @@ func TestMetricClientGetClosedWorkflowExecution(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -1041,9 +1015,7 @@ func TestMetricClientListWorkflowExecutions(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -1110,9 +1082,7 @@ func TestMetricClientScanWorkflowExecutions(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -1179,9 +1149,7 @@ func TestMetricClientCountWorkflowExecutions(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -1256,9 +1224,7 @@ func TestMetricClientDeleteWorkflowExecution(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -1329,9 +1295,7 @@ func TestMetricClientDeleteUninitializedWorkflowExecution(t *testing.T) {
 				ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 			}, mockProducer, testlogger.New(t))
 			visibilityStore := mgr.(*pinotVisibilityStore)
-			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 			visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 			metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -1362,9 +1326,7 @@ func TestMetricClientClose(t *testing.T) {
 		ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 	}, mockProducer, testlogger.New(t))
 	visibilityStore := mgr.(*pinotVisibilityStore)
-	pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
+	pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 	visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 	metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 
@@ -1388,9 +1350,7 @@ func TestMetricClientGetName(t *testing.T) {
 		ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(3),
 	}, mockProducer, testlogger.New(t))
 	visibilityStore := mgr.(*pinotVisibilityStore)
-	pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, &persistence.DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
+	pinotVisibilityManager := p.NewVisibilityManagerImpl(visibilityStore, logger, p.NewDefaultDynamicConfiguration())
 	visibilityMgr := NewPinotVisibilityMetricsClient(pinotVisibilityManager, mockMetricClient, logger)
 	metricsClient := visibilityMgr.(*pinotVisibilityMetricsClient)
 

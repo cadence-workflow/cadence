@@ -64,7 +64,7 @@ func (db *CDB) GetSchemaVersion(ctx context.Context) (persistence.Version, error
 	var version string
 	if !iter.Scan(&version) {
 		err := iter.Close()
-		return persistence.Version{}, fmt.Errorf("reading schemaDB version: %w", err)
+		return persistence.Version{}, err
 	}
 	if err := iter.Close(); err != nil {
 		return persistence.Version{}, err
@@ -94,10 +94,6 @@ func (db *CDB) UpdateSchema(ctx context.Context, update *persistence.SchemaUpdat
 	query = db.session.Query(writeSchemaUpdateHistoryCQL)
 	query.Bind(now.Year(), int(now.Month()), now, current.String(), update.Version.String(), update.ManifestMD5, update.Description)
 	return query.Exec()
-}
-
-func (db *CDB) ForceApplySchema(ctx context.Context, update *persistence.SchemaUpdate) error {
-	return db.applyUpdate(ctx, update)
 }
 
 func (db *CDB) applyUpdate(ctx context.Context, update *persistence.SchemaUpdate) error {

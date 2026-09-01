@@ -184,7 +184,7 @@ func TestSelectTaskList(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -336,7 +336,7 @@ func TestInsertTaskList(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -448,7 +448,7 @@ func TestUpdateTaskList(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -549,7 +549,7 @@ func TestUpdateTaskListWithTTL(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 			err := db.UpdateTaskListWithTTL(context.Background(), tc.ttlSeconds, tc.row, tc.prevRangeID)
@@ -574,7 +574,7 @@ func TestListTaskList(t *testing.T) {
 	client := gocql.NewMockClient(ctrl)
 	cfg := &config.NoSQL{}
 	logger := testlogger.New(t)
-	dc := &persistence.DynamicConfiguration{}
+	dc := persistence.NewDefaultDynamicConfiguration()
 	session := &fakeSession{}
 	db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -717,7 +717,7 @@ func TestDeleteTaskList(t *testing.T) {
 			}
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -828,7 +828,7 @@ func TestInsertTasks(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -913,7 +913,7 @@ func TestGetTasksCount(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 

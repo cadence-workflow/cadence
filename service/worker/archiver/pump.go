@@ -85,10 +85,11 @@ func NewPump(
 // Upon returning request channel is closed.
 func (p *pump) Run() PumpResult {
 	pumpLatencyStart := workflow.Now(p.ctx)
-	sw := p.metricsClient.StartTimer(metrics.ArchiverPumpScope, metrics.CadenceLatency)
+	pumpScope := p.metricsClient.Scope(metrics.ArchiverPumpScope, metrics.NonDomainTag())
+	sw := pumpScope.StartTimer(metrics.CadenceLatency)
 	stopTimers := func() {
 		sw.Stop()
-		p.metricsClient.Scope(metrics.ArchiverPumpScope).ExponentialHistogram(metrics.CadenceLatencyHistogram, workflow.Now(p.ctx).Sub(pumpLatencyStart))
+		pumpScope.ExponentialHistogram(metrics.CadenceLatencyHistogram, workflow.Now(p.ctx).Sub(pumpLatencyStart))
 	}
 
 	carryoverBoundIndex := len(p.carryover)

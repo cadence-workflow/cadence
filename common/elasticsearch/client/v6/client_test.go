@@ -29,6 +29,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/olivere/elastic"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
+	schemaes "github.com/uber/cadence/schema/elasticsearch"
 )
 
 func TestNewV6Client(t *testing.T) {
@@ -88,7 +90,7 @@ func TestCreateIndex(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestPutMapping(t *testing.T) {
+func TestPutMappings(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/testIndex/_mapping/_doc" && r.Method == "PUT" {
 			body, err := io.ReadAll(r.Body)
@@ -127,17 +129,181 @@ func TestPutMapping(t *testing.T) {
 	})
 	elasticV6, testServer := getMockClient(t, handler)
 	defer testServer.Close()
-	err := elasticV6.PutMapping(context.Background(), "testIndex", `{
-        "properties": {
-            "title": {
-                "type": "text"
-            },
-            "publish_date": {
-                "type": "date"
-            }
-        }
-    }`)
+	err := elasticV6.PutMappings(context.Background(), "testIndex", map[string]any{
+		"properties": map[string]any{
+			"title": map[string]any{
+				"type": "text",
+			},
+			"publish_date": map[string]any{
+				"type": "date",
+			},
+		},
+	})
 	assert.NoError(t, err)
+}
+
+func TestIsHealthy(t *testing.T) {
+	t.Run("healthy", func(t *testing.T) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"name":"test-node","cluster_name":"test-cluster","version":{"number":"6.8.0"}}`))
+		})
+		elasticV6, testServer := getMockClient(t, handler)
+		defer testServer.Close()
+
+		err := elasticV6.IsHealthy(context.Background())
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid ping url", func(t *testing.T) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+		elasticV6, testServer := getMockClient(t, handler)
+		defer testServer.Close()
+
+		elasticV6.pingURL = "http://127.0.0.1:0"
+		err := elasticV6.IsHealthy(context.Background())
+		assert.Error(t, err)
+	})
+}
+
+func TestPutIndexTemplate(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		expectErr bool
+	}{
+		{name: "acknowledged", body: `{"acknowledged": true}`},
+		{name: "not acknowledged", body: `{"acknowledged": false}`, expectErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "PUT" || r.URL.Path != "/_template/test-template" {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(tc.body))
+			})
+
+			elasticV6, testServer := getMockClient(t, handler)
+			defer testServer.Close()
+
+			err := elasticV6.PutIndexTemplate(context.Background(), "test-template", []byte(`{"template":"*"}`))
+			if tc.expectErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestHasIndex(t *testing.T) {
+	tests := []struct {
+		name         string
+		status       int
+		expectExists bool
+		expectErr    bool
+	}{
+		{name: "exists", status: http.StatusOK, expectExists: true},
+		{name: "missing", status: http.StatusNotFound, expectExists: false},
+		{name: "server error", status: http.StatusInternalServerError, expectErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "HEAD" || r.URL.Path != "/testIndex" {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				w.WriteHeader(tc.status)
+			})
+
+			elasticV6, testServer := getMockClient(t, handler)
+			defer testServer.Close()
+
+			exists, err := elasticV6.HasIndex(context.Background(), "testIndex")
+			if tc.expectErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectExists, exists)
+		})
+	}
+}
+
+func TestDeleteIndex(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		expectErr bool
+	}{
+		{name: "acknowledged", body: `{"acknowledged": true}`},
+		{name: "not acknowledged", body: `{"acknowledged": false}`, expectErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "DELETE" || r.URL.Path != "/testIndex" {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(tc.body))
+			})
+
+			elasticV6, testServer := getMockClient(t, handler)
+			defer testServer.Close()
+
+			err := elasticV6.DeleteIndex(context.Background(), "testIndex")
+			if tc.expectErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestGetMappings(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" || !strings.HasPrefix(r.URL.Path, "/testIndex/_mapping") {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"testIndex":{"mappings":{"_doc":{"properties":{"title":{"type":"text"}}}}}}`))
+	})
+
+	elasticV6, testServer := getMockClient(t, handler)
+	defer testServer.Close()
+
+	mappings, err := elasticV6.GetMappings(context.Background(), "testIndex")
+	assert.NoError(t, err)
+	assert.Contains(t, mappings, "testIndex")
+}
+
+func TestMappingsFromTemplate(t *testing.T) {
+	elasticV6 := &ElasticV6{}
+
+	mappings, err := elasticV6.MappingsFromTemplate([]byte(`{"mappings":{"_doc":{"properties":{"title":{"type":"text"}}}}}`))
+	assert.NoError(t, err)
+	assert.Contains(t, mappings, "properties")
+
+	_, err = elasticV6.MappingsFromTemplate([]byte(`{"template":"*"}`))
+	assert.Error(t, err)
+}
+
+func TestLatestTemplate(t *testing.T) {
+	elasticV6 := &ElasticV6{}
+	assert.Equal(t, schemaes.IndexTemplateV6, elasticV6.LatestTemplate())
 }
 
 func TestCount(t *testing.T) {
@@ -487,6 +653,7 @@ func getMockClient(t *testing.T, handler http.HandlerFunc) (ElasticV6, *httptest
 		elastic.SetHttpClient(testServer.Client()))
 	assert.NoError(t, err)
 	return ElasticV6{
-		client: mockClient,
+		client:  mockClient,
+		pingURL: testServer.URL,
 	}, testServer
 }

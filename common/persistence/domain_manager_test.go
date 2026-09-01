@@ -33,7 +33,6 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -144,7 +143,7 @@ func setUpMocksForDomainManager(t *testing.T) (*domainManagerImpl, *MockDomainSt
 	mockSerializer := NewMockPayloadSerializer(ctrl)
 	logger := log.NewNoop()
 
-	domainManager := NewDomainManagerImpl(mockStore, logger, mockSerializer, &DynamicConfiguration{SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW))}).(*domainManagerImpl)
+	domainManager := NewDomainManagerImpl(mockStore, logger, mockSerializer, NewDefaultDynamicConfiguration()).(*domainManagerImpl)
 
 	return domainManager, mockStore, mockSerializer
 }

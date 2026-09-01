@@ -59,7 +59,7 @@ var _staticMethods = map[string]bool{
 // between methods and between wrapper types (e.g. shard-enabled vs shard-disabled
 // ExecutionManager, or ExecutionManager vs HistoryManager sharing a metric name).
 //
-// Functional errors returned by the wrapped calls are intentionally ignored: the
+// Functional results returned by the wrapped calls are intentionally ignored: the
 // mocks below return zero-value responses that aren't semantically valid, so the
 // only thing worth asserting on is the absence of Prometheus registration errors.
 func TestPersistenceMetricsLabelConsistency(t *testing.T) {
@@ -86,14 +86,23 @@ func TestPersistenceMetricsLabelConsistency(t *testing.T) {
 	metricsClient := metrics.NewClient(rootScope, metrics.History, metrics.MigrationConfig{})
 	logger := log.NewNoop()
 
-	for _, tc := range persistenceWrapperTestCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
+	errorTypes := append([]error{nil}, persistenceErrorTestCases()...)
+	for _, errorType := range errorTypes {
+		name := "without error"
+		if errorType != nil {
+			name = reflect.TypeOf(errorType).String()
+		}
+		t.Run(name, func(t *testing.T) {
+			for _, tc := range persistenceWrapperTestCases() {
+				t.Run(tc.name, func(t *testing.T) {
+					ctrl := gomock.NewController(t)
 
-			newObj, mocked := tc.prepareMock(t, ctrl, metricsClient, logger)
-			prepareMockForTest(t, mocked, nil)
+					newObj, mocked := tc.prepareMock(t, ctrl, metricsClient, logger)
+					prepareMockForTest(t, mocked, errorType)
 
-			invokeAllMethods(t, newObj)
+					invokeAllMethods(t, newObj)
+				})
+			}
 		})
 	}
 
@@ -396,21 +405,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 				runScenario(t, wrapper, logs, metricScope)
 			})
 			t.Run("with error", func(t *testing.T) {
-				for _, errorType := range []error{
-					&types.DomainAlreadyExistsError{},
-					&types.BadRequestError{},
-					&types.EntityNotExistsError{},
-					&types.ServiceBusyError{},
-					&persistence.WorkflowExecutionAlreadyStartedError{},
-					&persistence.ConditionFailedError{},
-					&persistence.CurrentWorkflowConditionFailedError{},
-					&persistence.ShardAlreadyExistError{},
-					&persistence.ShardOwnershipLostError{},
-					&persistence.DuplicateRequestError{},
-					&persistence.TimeoutError{},
-					&persistence.DBUnavailableError{},
-					errors.New("persistence error"),
-				} {
+				for _, errorType := range persistenceErrorTestCases() {
 					t.Run(reflect.TypeOf(errorType).String(), func(t *testing.T) {
 						ctrl := gomock.NewController(t)
 
@@ -427,6 +422,24 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 				}
 			})
 		})
+	}
+}
+
+func persistenceErrorTestCases() []error {
+	return []error{
+		&types.DomainAlreadyExistsError{},
+		&types.BadRequestError{},
+		&types.EntityNotExistsError{},
+		&types.ServiceBusyError{},
+		&persistence.WorkflowExecutionAlreadyStartedError{},
+		&persistence.ConditionFailedError{},
+		&persistence.CurrentWorkflowConditionFailedError{},
+		&persistence.ShardAlreadyExistError{},
+		&persistence.ShardOwnershipLostError{},
+		&persistence.DuplicateRequestError{},
+		&persistence.TimeoutError{},
+		&persistence.DBUnavailableError{},
+		errors.New("persistence error"),
 	}
 }
 

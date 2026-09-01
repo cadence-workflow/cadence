@@ -42,9 +42,7 @@ func TestConnectToDBs(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, tasks, 1)
 				require.Len(t, setupDBs, 1)
-				assert.Equal(t, "mysql", tasks[0].pluginName)
-				assert.Equal(t, persistence.DBTypeDefault, tasks[0].dbType)
-				assert.Equal(t, "db-1", tasks[0].identifier)
+				assert.Same(t, adminDB, tasks[0].adminDB)
 				assert.Same(t, setupDB, tasks[0].setupDB)
 				assert.Same(t, setupDB, setupDBs[0])
 
@@ -161,10 +159,8 @@ func TestEnsureSetup(t *testing.T) {
 			}
 
 			tasks := []setupTask{{
-				pluginName: "mysql",
-				dbType:     persistence.DBTypeDefault,
-				identifier: "db-1",
-				setupDB:    setupDB,
+				adminDB: newMockAdminDB(ctrl, "mysql", persistence.DBTypeDefault, "db-1"),
+				setupDB: setupDB,
 			}}
 
 			err := ensureSetup(context.Background(), logger, tasks)
@@ -271,10 +267,7 @@ func TestCollectSchemaUpdates(t *testing.T) {
 			},
 			wantSchemaDBs: 1,
 			expectedUpdates: []schemaUpdateTask{{
-				pluginName: "mysql",
-				dbType:     persistence.DBTypeDefault,
-				identifier: "db-1",
-				update:     updateV3,
+				update: updateV3,
 			}},
 		},
 		{
@@ -351,8 +344,8 @@ func TestCollectSchemaUpdates(t *testing.T) {
 			},
 			wantSchemaDBs: 1,
 			expectedUpdates: []schemaUpdateTask{
-				{pluginName: "cassandra", dbType: persistence.DBTypeVisibility, identifier: "shard-a", update: updateV2},
-				{pluginName: "cassandra", dbType: persistence.DBTypeVisibility, identifier: "shard-a", update: updateV3},
+				{update: updateV2},
+				{update: updateV3},
 			},
 		},
 	}
@@ -376,9 +369,6 @@ func TestCollectSchemaUpdates(t *testing.T) {
 			require.Len(t, schemaDBs, tt.wantSchemaDBs)
 			require.Len(t, updates, len(tt.expectedUpdates))
 			for i, want := range tt.expectedUpdates {
-				assert.Equal(t, want.pluginName, updates[i].pluginName)
-				assert.Equal(t, want.dbType, updates[i].dbType)
-				assert.Equal(t, want.identifier, updates[i].identifier)
 				assert.Same(t, want.update, updates[i].update)
 			}
 		})
@@ -424,12 +414,12 @@ func TestApplyUpdates(t *testing.T) {
 				return []schemaUpdateTask{
 					// This is the reverse of the expected order
 					// Plugin B
-					{pluginName: "b", dbType: persistence.DBTypeDefault, identifier: "id-2", schemaDB: db1, update: v2},
+					{adminDB: newMockAdminDB(ctrl, "b", persistence.DBTypeDefault, "id-2"), schemaDB: db1, update: v2},
 					// Plugin A, Visibility DB, update to v2
-					{pluginName: "a", dbType: persistence.DBTypeVisibility, identifier: "id-1", schemaDB: db2, update: v2},
+					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeVisibility, "id-1"), schemaDB: db2, update: v2},
 					// Plugin A, Default DB, update to v1, then v2
-					{pluginName: "a", dbType: persistence.DBTypeDefault, identifier: "id-0", schemaDB: db3, update: v2},
-					{pluginName: "a", dbType: persistence.DBTypeDefault, identifier: "id-0", schemaDB: db3, update: v1},
+					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeDefault, "id-0"), schemaDB: db3, update: v2},
+					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeDefault, "id-0"), schemaDB: db3, update: v1},
 				}
 			},
 			expected: []string{
@@ -451,8 +441,8 @@ func TestApplyUpdates(t *testing.T) {
 					return errors.New("update failed")
 				})
 				return []schemaUpdateTask{
-					{pluginName: "b", dbType: persistence.DBTypeDefault, identifier: "id-2", schemaDB: db2, update: v2},
-					{pluginName: "a", dbType: persistence.DBTypeDefault, identifier: "id-0", schemaDB: db1, update: v1},
+					{adminDB: newMockAdminDB(ctrl, "b", persistence.DBTypeDefault, "id-2"), schemaDB: db2, update: v2},
+					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeDefault, "id-0"), schemaDB: db1, update: v1},
 				}
 			},
 			wantErrContains: "failed applying schema update v1.0",

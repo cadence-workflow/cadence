@@ -47,6 +47,7 @@ import (
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	hcommon "github.com/uber/cadence/service/history/common"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/engine"
 	"github.com/uber/cadence/service/history/events"
@@ -535,6 +536,9 @@ func (s *contextTestSuite) TestReinjectHistoryTasks() {
 
 	s.Run("transfer tasks get fresh, strictly-increasing IDs", func() {
 		s.SetupTest()
+		mockEngine := engine.NewMockEngine(s.controller)
+		s.context.SetEngine(mockEngine)
+		mockEngine.EXPECT().NotifyNewTransferTasks(gomock.Any()).Times(1)
 		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil)
 		task1, task2 := newTransferTask(), newTransferTask()
 		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.MatchedBy(func(req *persistence.CreateHistoryTasksRequest) bool {
@@ -551,6 +555,9 @@ func (s *contextTestSuite) TestReinjectHistoryTasks() {
 
 	s.Run("timer tasks are allocated using the per-domain entry", func() {
 		s.SetupTest()
+		mockEngine := engine.NewMockEngine(s.controller)
+		s.context.SetEngine(mockEngine)
+		mockEngine.EXPECT().NotifyNewTimerTasks(gomock.Any()).Times(1)
 		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil)
 		timerTask := s.createMockTimerTask(createMockTimerTaskParams{
 			Version:    constants.EmptyVersion,
@@ -570,6 +577,10 @@ func (s *contextTestSuite) TestReinjectHistoryTasks() {
 
 	s.Run("multiple workflows in one domain share a single domain lookup", func() {
 		s.SetupTest()
+		mockEngine := engine.NewMockEngine(s.controller)
+		s.context.SetEngine(mockEngine)
+		// A single aggregated notification is expected for the whole batch, not one per execution.
+		mockEngine.EXPECT().NotifyNewTransferTasks(gomock.Any()).Times(1)
 		// Two executions in the same domain must resolve the domain entry exactly once.
 		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil).Times(1)
 		task1, task2 := newTransferTaskForWorkflow("workflow-1"), newTransferTaskForWorkflow("workflow-2")
@@ -585,6 +596,9 @@ func (s *contextTestSuite) TestReinjectHistoryTasks() {
 
 	s.Run("shard ownership lost closes the shard", func() {
 		s.SetupTest()
+		mockEngine := engine.NewMockEngine(s.controller)
+		s.context.SetEngine(mockEngine)
+		// ShardOwnershipLostError is a definitive failure — no notification should fire.
 		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil)
 		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.Anything).Once().Return(&persistence.ShardOwnershipLostError{})
 
@@ -595,6 +609,13 @@ func (s *contextTestSuite) TestReinjectHistoryTasks() {
 
 	s.Run("other errors are propagated without closing the shard", func() {
 		s.SetupTest()
+		mockEngine := engine.NewMockEngine(s.controller)
+		s.context.SetEngine(mockEngine)
+		// assert.AnError is not in the definitive-failure whitelist, so it is treated as
+		// possibly-successful and still triggers a notification with PersistenceError set.
+		mockEngine.EXPECT().NotifyNewTransferTasks(gomock.Any()).Times(1).Do(func(info *hcommon.NotifyTaskInfo) {
+			s.True(info.PersistenceError)
+		})
 		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil)
 		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.Anything).Once().Return(assert.AnError)
 

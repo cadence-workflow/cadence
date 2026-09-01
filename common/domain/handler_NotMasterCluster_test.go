@@ -37,7 +37,6 @@ import (
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -80,9 +79,11 @@ func TestDomainHandlerGlobalDomainEnabledNotPrimaryClusterSuite(t *testing.T) {
 }
 
 func (s *domainHandlerGlobalDomainEnabledNotPrimaryClusterSuite) setupTestBase(t *testing.T) {
-	sqliteTestBaseOptions := sqlite.GetTestClusterOption()
-	sqliteTestBaseOptions.ClusterMetadata = cluster.GetTestClusterMetadata(false)
-	s.TestBase = persistencetests.NewTestBaseWithSQL(t, sqliteTestBaseOptions)
+	metadata := cluster.GetTestClusterMetadata(false)
+	s.TestBase = persistencetests.NewTestBase(t, persistencetests.TestBaseParams{
+		PersistenceConfig: persistencetests.SimplePersistenceConfig(t, sqlite.GetTestConfig),
+		ClusterMetadata:   &metadata,
+	})
 	s.Setup()
 }
 
@@ -108,7 +109,7 @@ func (s *domainHandlerGlobalDomainEnabledNotPrimaryClusterSuite) SetupTest() {
 		false,
 		"",
 		false,
-		&config.ArchivalDomainDefaults{},
+		&archiver.ArchivalDomainDefaults{},
 	)
 	s.mockArchiverProvider = &provider.MockArchiverProvider{}
 	domainConfig := Config{

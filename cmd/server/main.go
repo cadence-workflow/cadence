@@ -29,7 +29,9 @@ import (
 
 	_ "github.com/ncruces/go-sqlite3/driver"                                                // register sqlite3 driver
 	_ "github.com/ncruces/go-sqlite3/embed"                                                 // embed sqlite db
+	_ "github.com/uber/cadence/common/archiver/filestore"                                   // register default filestore archiver
 	_ "github.com/uber/cadence/common/archiver/gcloud"                                      // needed to load the optional gcloud archiver plugin
+	_ "github.com/uber/cadence/common/archiver/s3store"                                     // register default s3store archiver
 	_ "github.com/uber/cadence/common/asyncworkflow/queue/kafka"                            // needed to load kafka asyncworkflow queue
 	_ "github.com/uber/cadence/common/dynamicconfig/openfeatureprovider/unleash"            // needed to load the optional unleash openfeature provider plugin
 	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra"              // needed to load cassandra plugin

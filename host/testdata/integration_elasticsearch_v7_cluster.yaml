@@ -26,12 +26,13 @@ workerconfig:
   enablereplicator: false
   enableindexer: true
 esconfig:
+  disableSniff: true
   version: "v7"
   url:
     scheme: "http"
     host: "${ES_SEEDS}:9200"
   indices:
-    visibility: test-visibility-
+    visibility: cadence-visibility-test
 dynamicclientconfig:
   filepath: "testdata/dynamicconfig/integration_test.yaml"
   pollInterval: "10s"

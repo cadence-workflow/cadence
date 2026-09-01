@@ -36,7 +36,6 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -57,7 +56,7 @@ func TestWorkflowIDInternalRateLimitIntegrationSuite(t *testing.T) {
 		dynamicproperties.WorkflowIDInternalRPS: 2,
 	}
 
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := NewTestPersistenceConfig(t)
 
 	s := new(WorkflowIDInternalRateLimitIntegrationSuite)
 	params := IntegrationBaseParams{
@@ -73,19 +72,13 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) SetupSuite() {
 
 	s.Logger.Info("Running integration test against test cluster")
 	clusterMetadata := NewClusterMetadata(s.T(), s.TestClusterConfig)
-	dc := persistence.DynamicConfiguration{
-		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
-		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
-		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
-		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
-		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
-		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
-	}
+	dc := *persistence.NewDefaultDynamicConfiguration()
+	dc.EnableCassandraAllConsistencyLevelDelete = dynamicproperties.GetBoolPropertyFn(true)
+	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
 	params := pt.TestBaseParams{
 		PersistenceConfig:    s.PersistenceConfig,
-		ClusterMetadata:      clusterMetadata,
-		DynamicConfiguration: dc,
+		ClusterMetadata:      &clusterMetadata,
+		DynamicConfiguration: &dc,
 	}
 	cluster, err := NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)

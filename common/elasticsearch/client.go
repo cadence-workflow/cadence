@@ -222,12 +222,8 @@ func (c *ESClient) CountByQuery(ctx context.Context, index, query string) (int64
 
 func (c *ESClient) PutMapping(ctx context.Context, index, root, key, valueType string) error {
 	mapping := buildPutMappingBody(root, key, valueType)
-	body, err := json.Marshal(mapping)
-	if err != nil {
-		return err
-	}
 
-	return c.Client.PutMapping(ctx, index, string(body))
+	return c.Client.PutMappings(ctx, index, mapping)
 }
 
 func (c *ESClient) getListWorkflowExecutionsResponse(

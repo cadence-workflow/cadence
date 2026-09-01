@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeoutrisk"
 )
 
 const (
@@ -140,7 +141,7 @@ func testDiagnosticWorkflow(t *testing.T, history *types.GetWorkflowExecutionHis
 	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(history, nil).AnyTimes()
 	return &dw{
 		clientBean: mockClientBean,
-		invariants: []invariant.Invariant{failure.NewInvariant(), retry.NewInvariant()},
+		invariants: []invariant.Invariant{failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant()},
 	}
 }
 

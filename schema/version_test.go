@@ -142,6 +142,29 @@ func TestSchema(t *testing.T) {
 				expected := tt.schema.LatestVersion().Minor + tt.schema.LatestVersion().Major
 				assert.Equal(t, expected, len(updates), "unexpected number of updates")
 			})
+			t.Run("minCompatibleVersion is non-decreasing", func(t *testing.T) {
+				for i := 1; i < len(updates); i++ {
+					prev := updates[i-1]
+					curr := updates[i]
+					// MinCompatibleVersion should never decrease across sequential updates
+					if curr.MinCompatibleVersion.Compare(prev.MinCompatibleVersion) < 0 {
+						t.Errorf(
+							"MinCompatibleVersion decreased from %s to %s (version %s to %s)\n"+
+								"  Previous update: v%s has MinCompatibleVersion=%s\n"+
+								"  Current update:  v%s has MinCompatibleVersion=%s\n"+
+								"  MinCompatibleVersion must be non-decreasing across schema updates",
+							prev.MinCompatibleVersion.String(),
+							curr.MinCompatibleVersion.String(),
+							prev.Version.String(),
+							curr.Version.String(),
+							prev.Version.String(),
+							prev.MinCompatibleVersion.String(),
+							curr.Version.String(),
+							curr.MinCompatibleVersion.String(),
+						)
+					}
+				}
+			})
 			// Validate each version as a test case
 			for _, update := range updates {
 				t.Run(update.Version.String(), func(t *testing.T) {

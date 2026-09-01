@@ -42,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/elasticsearch/client"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	schemaes "github.com/uber/cadence/schema/elasticsearch"
 )
 
 type (
@@ -203,34 +204,6 @@ func (c *OS2) IsNotFoundError(err error) bool {
 	return false
 }
 
-func (c *OS2) PutMapping(ctx context.Context, index, body string) error {
-
-	req := osapi.MappingPutReq{
-		Indices: []string{index},
-		Body:    strings.NewReader(body),
-	}
-
-	_, err := c.client.Indices.Mapping.Put(ctx, req)
-	if err != nil {
-		return fmt.Errorf("OpenSearch PutMapping: %w", err)
-	}
-
-	return nil
-}
-
-func (c *OS2) CreateIndex(ctx context.Context, index string) error {
-	req := osapi.IndicesCreateReq{
-		Index: index,
-	}
-
-	_, err := c.client.Indices.Create(ctx, req)
-
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (c *OS2) Count(ctx context.Context, index, query string) (int64, error) {
 
 	req := &osapi.IndicesCountReq{
@@ -374,4 +347,141 @@ func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response,
 		Aggregations: osResponse.Aggregations,
 		Sort:         sort,
 	}, nil
+}
+
+// Admin schema management methods
+
+func (c *OS2) IsHealthy(ctx context.Context) error {
+	resp, err := c.client.Ping(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if resp.IsError() {
+		return fmt.Errorf("opensearch ping failed with status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (c *OS2) PutIndexTemplate(ctx context.Context, templateName string, template []byte) error {
+	req := osapi.IndexTemplateCreateReq{
+		Body:          bytes.NewReader(template),
+		IndexTemplate: templateName,
+	}
+
+	resp, err := c.client.IndexTemplate.Create(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !resp.Acknowledged {
+		return fmt.Errorf("put index template %q not acknowledged", templateName)
+	}
+	return nil
+}
+
+func (c *OS2) CreateIndex(ctx context.Context, index string) error {
+	req := osapi.IndicesCreateReq{
+		Index: index,
+	}
+
+	_, err := c.client.Indices.Create(ctx, req)
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *OS2) HasIndex(ctx context.Context, indexName string) (bool, error) {
+	existsReq := osapi.IndicesExistsReq{
+		Indices: []string{indexName},
+	}
+	resp, err := c.client.Indices.Exists(ctx, existsReq)
+	if err != nil {
+		var clientErr *opensearch.StructError
+		if errors.As(err, &clientErr) && clientErr.Status == http.StatusNotFound {
+			return false, nil
+		}
+		// The OS client can fail to parse its own error and will return both an error and a response sometimes
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return false, nil
+		}
+
+		return false, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	return resp.StatusCode == http.StatusOK, nil
+}
+
+func (c *OS2) DeleteIndex(ctx context.Context, indexName string) error {
+	deleteReq := osapi.IndicesDeleteReq{
+		Indices: []string{indexName},
+	}
+	resp, err := c.client.Indices.Delete(ctx, deleteReq)
+	if err != nil {
+		return err
+	}
+	if !resp.Acknowledged {
+		return fmt.Errorf("delete index %q not acknowledged", indexName)
+	}
+	return nil
+}
+
+func (c *OS2) GetMappings(ctx context.Context, indexName string) (map[string]any, error) {
+	resp, err := c.client.Indices.Mapping.Get(ctx, &osapi.MappingGetReq{
+		Indices: []string{indexName},
+	})
+	if err != nil {
+		return nil, err
+	}
+	mappings, ok := resp.Indices[indexName]
+	if !ok {
+		return nil, nil
+	}
+
+	var result map[string]any
+	err = json.Unmarshal(mappings.Mappings, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *OS2) PutMappings(ctx context.Context, indexName string, mappings map[string]any) error {
+	body, err := json.Marshal(mappings)
+	if err != nil {
+		return err
+	}
+	resp, err := c.client.Indices.Mapping.Put(ctx, osapi.MappingPutReq{
+		Indices: []string{indexName},
+		Body:    bytes.NewReader(body),
+	})
+	if err != nil {
+		return err
+	}
+	if !resp.Acknowledged {
+		return fmt.Errorf("put mappings %q not acknowledged", indexName)
+	}
+	return nil
+}
+
+func (c *OS2) MappingsFromTemplate(template []byte) (map[string]any, error) {
+	var schemaJSON map[string]interface{}
+	if err := json.Unmarshal(template, &schemaJSON); err != nil {
+		return nil, err
+	}
+	templateJSON, ok := schemaJSON["template"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("malformed template JSON: missing \"template\"")
+	}
+	mappingsJSON, ok := templateJSON["mappings"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("malformed template JSON: missing \"mappings\"")
+	}
+	return mappingsJSON, nil
+}
+
+func (c *OS2) LatestTemplate() []byte {
+	return schemaes.IndexTemplateOS2
 }

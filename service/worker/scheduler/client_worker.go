@@ -25,9 +25,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	cadenceworker "go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
@@ -61,6 +63,8 @@ type BootstrapParams struct {
 	FrontendClient     frontend.Client
 	MetricsClient      metrics.Client
 	Logger             log.Logger
+	ZapLogger          *zap.Logger
+	MetricsScope       tally.Scope
 	DomainCache        cache.DomainCache
 	MembershipResolver membership.Resolver
 	HostInfo           membership.HostInfo
@@ -99,6 +103,8 @@ type WorkerManager struct {
 	frontendClient     frontend.Client
 	metricsClient      metrics.Client
 	logger             log.Logger
+	zapLogger          *zap.Logger
+	metricsScope       tally.Scope
 	domainCache        cache.DomainCache
 	membershipResolver membership.Resolver
 	hostInfo           membership.HostInfo
@@ -125,12 +131,22 @@ func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolP
 	if redundancy == nil {
 		redundancy = dynamicproperties.GetIntPropertyFilteredByDomain(workerRedundancyFactor)
 	}
+	zapLogger := zap.NewNop()
+	if params.ZapLogger != nil {
+		zapLogger = params.ZapLogger
+	}
+	metricsScope := tally.NoopScope
+	if params.MetricsScope != nil {
+		metricsScope = params.MetricsScope
+	}
 	wm := &WorkerManager{
 		enabledFn:          enabledFn,
 		serviceClient:      params.ServiceClient,
 		frontendClient:     params.FrontendClient,
 		metricsClient:      params.MetricsClient,
 		logger:             params.Logger.WithTags(tag.ComponentScheduler),
+		zapLogger:          zapLogger,
+		metricsScope:       metricsScope,
 		domainCache:        params.DomainCache,
 		membershipResolver: params.MembershipResolver,
 		hostInfo:           params.HostInfo,
@@ -307,6 +323,8 @@ func (m *WorkerManager) defaultCreateWorker(domainName string) (workerHandle, er
 	})
 
 	w := cadenceworker.New(m.serviceClient, domainName, TaskListName, cadenceworker.Options{
+		Logger:                    m.zapLogger,
+		MetricsScope:              m.metricsScope,
 		BackgroundActivityContext: actCtx,
 	})
 	w.RegisterWorkflowWithOptions(SchedulerWorkflow, workflow.RegisterOptions{Name: WorkflowTypeName})

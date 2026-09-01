@@ -74,6 +74,7 @@ import (
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeoutrisk"
 )
 
 type (
@@ -295,8 +296,6 @@ func (s *server) startService() common.Daemon {
 
 	params.ArchivalMetadata = s.archivalMetadata
 	params.ArchiverProvider = s.archiverProvider
-	params.PersistenceConfig.TransactionSizeLimit = s.dynamicCollection.GetIntProperty(dynamicproperties.TransactionSizeLimit)
-	params.PersistenceConfig.ErrorInjectionRate = s.dynamicCollection.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate)
 	params.AuthorizationConfig = s.cfg.Authorization
 	params.BlobstoreClient, err = filestore.NewFilestoreClient(s.cfg.Blobstore.Filestore)
 	if err != nil {
@@ -310,7 +309,7 @@ func (s *server) startService() common.Daemon {
 	}
 
 	params.KafkaConfig = s.cfg.Kafka
-	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant()}
+	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant()}
 	params.ShardDistributorMatchingConfig = s.cfg.ShardDistributorMatchingConfig
 
 	params.Logger.Info("Starting service " + s.name)

@@ -17,7 +17,6 @@ import (
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/transport/grpc"
 
-	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -54,7 +53,7 @@ func TestHistorySimulation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed creating cluster config from %s, err: %v", confPath, err)
 	}
-	testCluster := host.NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := host.NewTestPersistenceConfig(t)
 
 	s := new(HistorySimulationSuite)
 	params := host.IntegrationBaseParams{
@@ -70,18 +69,13 @@ func (s *HistorySimulationSuite) SetupSuite() {
 
 	s.Logger.Info("Running integration test against test cluster")
 	clusterMetadata := host.NewClusterMetadata(s.T(), s.TestClusterConfig)
-	dc := persistence.DynamicConfiguration{
-		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
-		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
-		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
-		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
-		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
-	}
+	dc := *persistence.NewDefaultDynamicConfiguration()
+	dc.EnableCassandraAllConsistencyLevelDelete = dynamicproperties.GetBoolPropertyFn(true)
+	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
 	params := pt.TestBaseParams{
 		PersistenceConfig:    s.PersistenceConfig,
-		ClusterMetadata:      clusterMetadata,
-		DynamicConfiguration: dc,
+		ClusterMetadata:      &clusterMetadata,
+		DynamicConfiguration: &dc,
 	}
 	cluster, err := host.NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)

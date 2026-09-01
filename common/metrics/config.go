@@ -400,6 +400,8 @@ var HistogramMigrationMetrics = map[string]struct{}{
 
 	"cadence_latency":                       {},
 	"cadence_latency_ns":                    {},
+	"cadence_latency_rollup":                {},
+	"cadence_latency_ns_rollup":             {},
 	"cadence_client_latency":                {},
 	"cadence_client_latency_ns":             {},
 	"cadence_client_latency_redirection":    {},

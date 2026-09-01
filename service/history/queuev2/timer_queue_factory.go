@@ -160,11 +160,11 @@ func (f *timerQueueFactory) createQueuev2(
 		options.MaxPollIntervalJitterCoefficient,
 	)
 	if !isCachedQueueReaderDisabled(config.TimerProcessorCachedQueueReaderMode(shard.GetShardID())) {
-		cachedReader = newCachedQueueReader(reader, newInMemQueue(), shard, metricsScope)
+		cachedReader = newCachedScheduledQueueReader(reader, newInMemQueue(), shard, metricsScope)
 		reader = cachedReader
 	}
 
-	base := newScheduledQueue(
+	queue := newScheduledQueue(
 		shard,
 		persistence.HistoryTaskCategoryTimer,
 		f.taskProcessor,
@@ -177,8 +177,8 @@ func (f *timerQueueFactory) createQueuev2(
 	)
 
 	if cachedReader != nil {
-		return newCachedScheduledQueue(base, cachedReader)
+		return newCachedQueue(queue, queue.base, cachedReader)
 	}
 
-	return base
+	return queue
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeoutrisk"
 )
 
 const (
@@ -52,9 +53,10 @@ type DiagnosticsWorkflowInput struct {
 }
 
 type DiagnosticsWorkflowResult struct {
-	Timeouts *timeoutDiagnostics
-	Failures *failureDiagnostics
-	Retries  *retryDiagnostics
+	Timeouts     *timeoutDiagnostics
+	Failures     *failureDiagnostics
+	Retries      *retryDiagnostics
+	TimeoutRisks *timeoutRiskDiagnostics
 }
 
 type timeoutDiagnostics struct {
@@ -107,6 +109,18 @@ type retryIssuesResult struct {
 	Metadata      retry.RetryMetadata
 }
 
+type timeoutRiskDiagnostics struct {
+	Issues  []*timeoutRiskIssuesResult
+	Runbook string
+}
+
+type timeoutRiskIssuesResult struct {
+	IssueID       int
+	InvariantType string
+	Reason        string
+	Metadata      *timeoutrisk.TimeoutRiskIssuesMetadata
+}
+
 func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflowInput) (*DiagnosticsWorkflowResult, error) {
 	scope := w.metricsClient.Scope(metrics.DiagnosticsWorkflowScope, metrics.DomainTag(params.Domain))
 	scope.IncCounter(metrics.DiagnosticsWorkflowStartedCount)
@@ -120,6 +134,7 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	var timeoutsResult *timeoutDiagnostics
 	var failureResult *failureDiagnostics
 	var retryResult *retryDiagnostics
+	var timeoutRiskResult *timeoutRiskDiagnostics
 	var checkResult []invariant.InvariantCheckResult
 	var rootCauseResult []invariant.InvariantRootCauseResult
 
@@ -195,11 +210,24 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 		}
 	}
 
+	timeoutRiskIssues, err := retrieveTimeoutRiskIssues(checkResult)
+	if err != nil {
+		return nil, fmt.Errorf("RetrieveTimeoutRiskIssues: %w", err)
+	}
+
+	if len(timeoutRiskIssues) > 0 {
+		timeoutRiskResult = &timeoutRiskDiagnostics{
+			Issues:  timeoutRiskIssues,
+			Runbook: linkToTimeoutRisksRunbook,
+		}
+	}
+
 	scope.IncCounter(metrics.DiagnosticsWorkflowSuccess)
 	return &DiagnosticsWorkflowResult{
-		Timeouts: timeoutsResult,
-		Failures: failureResult,
-		Retries:  retryResult,
+		Timeouts:     timeoutsResult,
+		Failures:     failureResult,
+		Retries:      retryResult,
+		TimeoutRisks: timeoutRiskResult,
 	}, nil
 }
 
@@ -364,6 +392,43 @@ func retrieveRetryIssues(issues []invariant.InvariantCheckResult) ([]*retryIssue
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
 				Metadata:      data,
+			})
+		}
+	}
+	return result, nil
+}
+
+func retrieveTimeoutRiskIssues(issues []invariant.InvariantCheckResult) ([]*timeoutRiskIssuesResult, error) {
+	result := make([]*timeoutRiskIssuesResult, 0)
+	for _, issue := range issues {
+		switch issue.InvariantType {
+		case timeoutrisk.ActivityStartToCloseAtWorkflowTimeoutCap.String():
+			var metadata timeoutrisk.ActivityStartToCloseAtWorkflowTimeoutCapMetadata
+			err := json.Unmarshal(issue.Metadata, &metadata)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, &timeoutRiskIssuesResult{
+				IssueID:       issue.IssueID,
+				InvariantType: issue.InvariantType,
+				Reason:        issue.Reason,
+				Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
+					ActivityStartToCloseAtWorkflowTimeoutCap: &metadata,
+				},
+			})
+		case timeoutrisk.ActivityMissingHeartbeatTimeout.String():
+			var metadata timeoutrisk.ActivityMissingHeartbeatTimeoutMetadata
+			err := json.Unmarshal(issue.Metadata, &metadata)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, &timeoutRiskIssuesResult{
+				IssueID:       issue.IssueID,
+				InvariantType: issue.InvariantType,
+				Reason:        issue.Reason,
+				Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
+					ActivityMissingHeartbeatTimeout: &metadata,
+				},
 			})
 		}
 	}

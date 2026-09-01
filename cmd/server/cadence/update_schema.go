@@ -45,21 +45,15 @@ const setupTimeout = 2 * time.Minute
 const setupRetryInterval = 3 * time.Second
 
 type setupTask struct {
-	pluginName string
-	dbType     persistence.DBType
-	identifier string
-	setupDB    persistence.SetupDB
+	adminDB persistence.AdminDB
+	setupDB persistence.SetupDB
 }
 
 // schemaUpdateTask tracks a pending schema update and the SchemaDB it should be applied to.
 type schemaUpdateTask struct {
-	// pluginName/dbType groups updates so all DBs in the same group can be
-	// advanced version-by-version together.
-	pluginName string
-	dbType     persistence.DBType
-	identifier string
-	schemaDB   persistence.SchemaDB
-	update     *persistence.SchemaUpdate
+	adminDB  persistence.AdminDB
+	schemaDB persistence.SchemaDB
+	update   *persistence.SchemaUpdate
 }
 
 // newPersistenceFactory constructs a persistence factory from the provided config. It doesn't support dynamic config
@@ -133,10 +127,8 @@ func connectToDBs(ctx context.Context, logger log.Logger, timeSource clock.TimeS
 			return tasks, setupDBs, err
 		}
 		tasks = append(tasks, setupTask{
-			pluginName: adminDB.PluginName(),
-			dbType:     adminDB.DBType(),
-			identifier: adminDB.Identifier(),
-			setupDB:    setupDB,
+			adminDB: adminDB,
+			setupDB: setupDB,
 		})
 		setupDBs = append(setupDBs, setupDB)
 	}
@@ -166,31 +158,20 @@ func retryUntilConnected(ctx context.Context, logger log.Logger, adminDB persist
 // ensureSetup calls Setup on any SetupDB that reports IsSetup() == false.
 func ensureSetup(ctx context.Context, logger log.Logger, tasks []setupTask) error {
 	for _, t := range tasks {
+		dbLogger := logger.WithTags(dbTags(t.adminDB)...)
 		isSetup, err := t.setupDB.IsSetup(ctx)
 		if err != nil {
-			return fmt.Errorf("checking setup status for %s: %w", setupTarget(t), err)
+			return fmt.Errorf("checking setup status for %s: %w", describeDB(t.adminDB), err)
 		}
 		if isSetup {
-			logger.Info("Database already set up",
-				tag.PersistencePluginName(t.pluginName),
-				tag.PersistenceDBType(string(t.dbType)),
-				tag.PersistenceDBIdentifier(t.identifier),
-			)
+			dbLogger.Info("Database already set up")
 			continue
 		}
-		logger.Info("Setting up database...",
-			tag.PersistencePluginName(t.pluginName),
-			tag.PersistenceDBType(string(t.dbType)),
-			tag.PersistenceDBIdentifier(t.identifier),
-		)
+		dbLogger.Info("Setting up database...")
 		if err = t.setupDB.Setup(ctx, nil); err != nil {
-			return fmt.Errorf("setting up %s: %w", setupTarget(t), err)
+			return fmt.Errorf("setting up %s: %w", describeDB(t.adminDB), err)
 		}
-		logger.Info("Database set up successfully",
-			tag.PersistencePluginName(t.pluginName),
-			tag.PersistenceDBType(string(t.dbType)),
-			tag.PersistenceDBIdentifier(t.identifier),
-		)
+		dbLogger.Info("Database set up successfully")
 	}
 	return nil
 }
@@ -206,7 +187,7 @@ func collectSchemaUpdates(ctx context.Context, adminDBs []persistence.AdminDB) (
 		if !adminDB.SupportsSchema() {
 			continue
 		}
-		adminDBID := adminDBIdentity(adminDB)
+		adminDBID := describeDB(adminDB)
 
 		schemaDB, err := adminDB.CreateSchemaDB()
 		if err != nil {
@@ -228,11 +209,9 @@ func collectSchemaUpdates(ctx context.Context, adminDBs []persistence.AdminDB) (
 				return schemaDBs, nil, fmt.Errorf("failed reading latest schema for %s: %w", adminDBID, err)
 			}
 			updates = append(updates, schemaUpdateTask{
-				pluginName: adminDB.PluginName(),
-				dbType:     adminDB.DBType(),
-				identifier: adminDB.Identifier(),
-				schemaDB:   schemaDB,
-				update:     skipToLatest,
+				adminDB:  adminDB,
+				schemaDB: schemaDB,
+				update:   skipToLatest,
 			})
 			continue
 		}
@@ -256,11 +235,9 @@ func collectSchemaUpdates(ctx context.Context, adminDBs []persistence.AdminDB) (
 		for _, u := range allUpdates {
 			if currentVersion.IsBefore(u.Version) {
 				updates = append(updates, schemaUpdateTask{
-					pluginName: adminDB.PluginName(),
-					dbType:     adminDB.DBType(),
-					identifier: adminDB.Identifier(),
-					schemaDB:   schemaDB,
-					update:     u,
+					adminDB:  adminDB,
+					schemaDB: schemaDB,
+					update:   u,
 				})
 			}
 		}
@@ -273,52 +250,46 @@ func applyUpdates(ctx context.Context, logger log.Logger, updates []schemaUpdate
 	// Sort by (PluginName, DBType, Version) so DBs in the same plugin/type group are
 	// advanced together version-by-version.
 	slices.SortStableFunc(updates, func(a, b schemaUpdateTask) int {
-		if pluginCmp := cmp.Compare(a.pluginName, b.pluginName); pluginCmp != 0 {
+		if pluginCmp := cmp.Compare(a.adminDB.PluginName(), b.adminDB.PluginName()); pluginCmp != 0 {
 			return pluginCmp
 		}
-		if dbTypeCmp := cmp.Compare(string(a.dbType), string(b.dbType)); dbTypeCmp != 0 {
+		if dbTypeCmp := cmp.Compare(string(a.adminDB.DBType()), string(b.adminDB.DBType())); dbTypeCmp != 0 {
 			return dbTypeCmp
 		}
 		if versionCmp := a.update.Version.Compare(b.update.Version); versionCmp != 0 {
 			return versionCmp
 		}
-		return cmp.Compare(a.identifier, b.identifier)
+		return cmp.Compare(a.adminDB.Identifier(), b.adminDB.Identifier())
 	})
 
 	for _, entry := range updates {
-		logger.Info(
+		dbLogger := logger.WithTags(dbTags(entry.adminDB)...)
+		dbLogger.Info(
 			"Applying schema update...",
-			tag.PersistencePluginName(entry.pluginName),
-			tag.PersistenceDBType(string(entry.dbType)),
-			tag.PersistenceDBIdentifier(entry.identifier),
 			tag.SchemaUpdateVersion(entry.update.Version.String()),
 		)
 		if err := entry.schemaDB.UpdateSchema(ctx, entry.update); err != nil {
-			return fmt.Errorf("failed applying schema update v%s to %s: %w", entry.update.Version, schemaUpdateTarget(entry), err)
+			return fmt.Errorf("failed applying schema update v%s to %s: %w", entry.update.Version, describeDB(entry.adminDB), err)
 		}
-		logger.Info(
+		dbLogger.Info(
 			"Applied schema update",
-			tag.PersistencePluginName(entry.pluginName),
-			tag.PersistenceDBType(string(entry.dbType)),
-			tag.PersistenceDBIdentifier(entry.identifier),
 			tag.SchemaUpdateVersion(entry.update.Version.String()),
 		)
+
 	}
 	return nil
 }
 
-// These three helper functions are for error messages to make it clear which DB is having issues.
-
-func adminDBIdentity(adminDB persistence.AdminDB) string {
-	return fmt.Sprintf("%s/%s/%s", adminDB.PluginName(), adminDB.DBType(), adminDB.Identifier())
+func describeDB(db persistence.AdminDB) string {
+	return fmt.Sprintf("%s/%s/%s", db.PluginName(), db.DBType(), db.Identifier())
 }
 
-func setupTarget(t setupTask) string {
-	return fmt.Sprintf("%s/%s/%s", t.pluginName, t.dbType, t.identifier)
-}
-
-func schemaUpdateTarget(entry schemaUpdateTask) string {
-	return fmt.Sprintf("%s/%s/%s", entry.pluginName, entry.dbType, entry.identifier)
+func dbTags(db persistence.AdminDB) []tag.Tag {
+	return []tag.Tag{
+		tag.PersistencePluginName(db.PluginName()),
+		tag.PersistenceDBType(string(db.DBType())),
+		tag.PersistenceDBIdentifier(db.Identifier()),
+	}
 }
 
 func closeSetupDBs(setupDBs []persistence.SetupDB) {

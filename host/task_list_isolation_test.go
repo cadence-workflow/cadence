@@ -52,7 +52,7 @@ func TestTaskListIsolationSuite(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := NewTestPersistenceConfig(t)
 	clusterConfig.FrontendDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
 		dynamicproperties.EnableTasklistIsolation:            true,
 		dynamicproperties.AllIsolationGroups:                 isolationGroups,
