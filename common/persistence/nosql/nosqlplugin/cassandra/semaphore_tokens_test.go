@@ -51,9 +51,11 @@ func newTestSemaphoreTokenDB(t *testing.T, session gocql.Session) *CDB {
 	return NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 }
 
-// TestSemaphoreSentinelsMatchTheOwnerIDEncoding checks each literal is still what the encoding
-// produces from its parts. The literals are hardcoded, so a change to the encoding would
-// otherwise leave them stale with nothing to catch it.
+// TestSemaphoreSentinelsMatchTheOwnerIDEncoding checks each literal is still what the encoder
+// writes. It catches a typo the first time it runs, and a changed owner_id encoding after that.
+//
+// Do not fix a failure by updating the literal. These bytes are in the primary key of every
+// token row already seeded, so the stored rows have to be migrated first.
 func TestSemaphoreSentinelsMatchTheOwnerIDEncoding(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -65,11 +67,7 @@ func TestSemaphoreSentinelsMatchTheOwnerIDEncoding(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			want := semaphore.Owner{
-				WorkflowID: "",
-				RunID:      emptyRunID,
-				HoldID:     tc.holdID,
-			}
+			want := semaphore.Owner{WorkflowID: "", RunID: emptyRunID, HoldID: tc.holdID}
 			assert.Equal(t, want.String(), tc.sentinel)
 		})
 	}

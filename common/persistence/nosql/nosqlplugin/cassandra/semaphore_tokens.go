@@ -34,14 +34,14 @@ import (
 // Placeholders for key columns that do not apply to a given row type. Non-key columns
 // that do not apply are bound to gogocql.UnsetValue instead.
 //
-// The two text values are themselves owner_ids, encoded by common/semaphore from an empty
-// workflow id, emptyRunID, and a negative hold id. They share columns with live owner_ids, so
-// they must never equal one, and two independent things stop them from doing so. The frontend
-// rejects an empty workflow id, so no hold can have one. Run ids are server-generated v4
-// UUIDs, and emptyRunID has 'f' in both its version and variant nibbles, which uuid.New()
-// cannot produce. The -1 and -2 carry no such guarantee; they only keep the two apart.
+// Both text values are owner_ids, sharing columns with live ones, so neither may ever equal a
+// real hold. Two things prevent it: the frontend rejects an empty workflow id, and emptyRunID
+// has 'f' in its version and variant nibbles, which uuid.New() cannot produce. The -1 and -2
+// only keep the two sentinels apart.
 //
-// The "0:" is the encoding's length prefix for the empty workflow id, not padding.
+// They are literals rather than computed from the encoder because they are bytes already in
+// the database, and ownerNoneSentinel is part of a token row's primary key. Deriving them
+// would let a change to the encoding silently re-point this code at rows that do not exist.
 const (
 	emptyTokenID = -1 // token_id on owner rows (key); negative, never a real slot id
 

@@ -21,14 +21,12 @@
 package semaphore
 
 import (
-	"math"
-	"math/rand"
-	"strconv"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/uber/cadence/common/types/mapper/testutils"
 )
 
 func TestOwnerStringRoundTrip(t *testing.T) {
@@ -154,138 +152,14 @@ func TestParseOwnerRejectsMalformed(t *testing.T) {
 	}
 }
 
-// The two tests below are the randomized half of this file: the tables above pin the cases
-// worth naming, these go looking for the ones nobody named. They are plain tests rather than
-// Go fuzz targets on purpose. Without -fuzz a fuzz target only replays its seed corpus, and
-// nothing in CI passes -fuzz, so a fuzz target here would never see an input its author had
-// not already written down by hand.
-//
-// Being random, they are the one part of this file that can fail on a commit that changed
-// nothing. Both log their seed so a failing run can be repeated.
-
-// randomIterations is how many cases each of those tests draws, matching the mapper fuzz
-// helper's default.
-const randomIterations = 100
-
-// ownerAlphabet is deliberately narrow. Every hard case in this format involves a separator or
-// a digit — a workflow id holding separators, or one that looks like its own length prefix —
-// and random unicode produces neither in any useful quantity. Drawing from these few bytes
-// makes those shapes common instead of unreachable.
-var ownerAlphabet = []byte(":0123456789-+abz")
-
-func randomOwnerText(r *rand.Rand, maxLen int) string {
-	b := make([]byte, r.Intn(maxLen+1))
-	for i := range b {
-		b[i] = ownerAlphabet[r.Intn(len(ownerAlphabet))]
-	}
-	return string(b)
-}
-
-func randomOwner(r *rand.Rand) Owner {
-	holdID := int64(r.Uint64())
-	// The extremes are worth hitting far more often than chance would give them, since both
-	// bounds sit next to overflow in the parser.
-	switch r.Intn(8) {
-	case 0:
-		holdID = 0
-	case 1:
-		holdID = math.MinInt64
-	case 2:
-		holdID = math.MaxInt64
-	}
-	return Owner{
-		WorkflowID: randomOwnerText(r, 12),
-		RunID:      randomOwnerText(r, 12),
-		HoldID:     holdID,
-	}
-}
-
-func TestRandomOwnersRoundTrip(t *testing.T) {
-	seed := time.Now().UnixNano()
-	r := rand.New(rand.NewSource(seed))
-	defer func() {
-		if t.Failed() {
-			t.Logf("random seed: %d", seed)
-		}
-	}()
-
-	for i := 0; i < randomIterations; i++ {
-		owner := randomOwner(r)
-
-		encoded := owner.String()
-		parsed, err := ParseOwner(encoded)
-		require.NoError(t, err, "String wrote %q, which does not parse", encoded)
-		require.Equal(t, owner, parsed, "round trip changed the owner, encoded as %q", encoded)
-	}
-}
-
-// numberDecorations are spellings strconv accepts for a number that String never writes. They
-// are prepended to the two numeric fields directly rather than left to a byte edit: reaching
-// "007" by chance means inserting one particular byte at one particular index, which over a
-// hundred iterations happens near enough to never.
-var numberDecorations = []string{"0", "00", "+"}
-
-// randomOwnerID builds a string shaped like an encoding but not always canonical, so that a
-// good share of them parse. Both failure directions matter: a string that parses when it
-// should not, and one that parses to something re-encoding differently. Either would give one
-// hold two spellings, and the release guard compares bytes.
-func randomOwnerID(r *rand.Rand, owner Owner) string {
-	lengthPrefix := strconv.Itoa(len(owner.WorkflowID))
-	if r.Intn(4) == 0 {
-		lengthPrefix = numberDecorations[r.Intn(len(numberDecorations))] + lengthPrefix
-	}
-	holdID := strconv.FormatInt(owner.HoldID, 10)
-	if r.Intn(4) == 0 {
-		holdID = numberDecorations[r.Intn(len(numberDecorations))] + holdID
-	}
-
-	id := lengthPrefix + ":" + owner.WorkflowID + ":" + owner.RunID + ":" + holdID
-	if r.Intn(2) == 0 {
-		id = editOneByte(r, id)
-	}
-	return id
-}
-
-// editOneByte damages the structure rather than the numbers: a separator moved, lost, or
-// gained is what tells apart a parser that trusts the declared length from one that guesses.
-func editOneByte(r *rand.Rand, id string) string {
-	b := []byte(id)
-	i := r.Intn(len(b))
-	switch r.Intn(3) {
-	case 0: // replace one byte
-		b[i] = ownerAlphabet[r.Intn(len(ownerAlphabet))]
-		return string(b)
-	case 1: // insert one byte
-		out := make([]byte, 0, len(b)+1)
-		out = append(out, b[:i]...)
-		out = append(out, ownerAlphabet[r.Intn(len(ownerAlphabet))])
-		return string(append(out, b[i:]...))
-	default: // drop one byte
-		return string(append(b[:i], b[i+1:]...))
-	}
-}
-
-func TestRandomIDsParseOnlyWhenCanonical(t *testing.T) {
-	seed := time.Now().UnixNano()
-	r := rand.New(rand.NewSource(seed))
-	defer func() {
-		if t.Failed() {
-			t.Logf("random seed: %d", seed)
-		}
-	}()
-
-	var accepted int
-	for i := 0; i < randomIterations; i++ {
-		id := randomOwnerID(r, randomOwner(r))
-
+// TestOwnerFuzz round-trips randomly generated Owners through the encoding, the way the type
+// mappers are fuzzed. gofuzz produces arbitrary unicode, which is what makes this worth having
+// next to the ASCII table above: the length prefix counts bytes, so a parser that sliced by
+// runes would pass every case up there and come apart here.
+func TestOwnerFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, Owner.String, func(id string) Owner {
 		owner, err := ParseOwner(id)
-		if err != nil {
-			continue // a rejected string owes nothing
-		}
-		accepted++
-		require.Equal(t, id, owner.String(), "ParseOwner accepted a spelling String would not write")
-	}
-	// Only the accepted strings exercise the assertion, so none accepted would mean this test
-	// passed without checking anything.
-	require.NotZero(t, accepted, "no mutated id parsed; the generator has stopped producing valid shapes")
+		require.NoError(t, err, "encoding %q does not parse", id)
+		return owner
+	})
 }
