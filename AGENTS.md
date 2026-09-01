@@ -65,6 +65,12 @@ go test -race -run TestFoo ./path/to/pkg/...  # run a specific test
   - **What to do instead:** Move the blank import to `cmd/server/main.go` or the appropriate entry point.
   - **Example:** `common/persistence/sql/sqlplugin/sqlite/db.go` should NOT import drivers. Instead, `cmd/server/main.go` imports both the plugin package AND the driver.
 
+- **License Headers**:
+  - Do **not** add per-file license headers (MIT, Apache, or SPDX) to any source file.
+  - The top-level `LICENSE` file (Apache 2.0) covers the entire repository.
+  - When creating new `.go` files, start with the `package` declaration — no copyright or license block.
+  - Files under `.gen/` are generated from IDL and may carry upstream headers — do not modify those manually.
+
 ## Architecture Guidelines
 
 **Core Principle**: Cadence must support both the standard open-source build and custom builds from a single codebase. Different builds may use different libraries (e.g., open-source Kafka client vs. company-internal Kafka library). This requires strict separation between core logic and proprietary implementations.
