@@ -107,7 +107,7 @@ func newCachedScheduledQueueReader(
 		queue,
 		shard,
 		shard.GetTimeSource(),
-		shard.GetLogger().WithTags(tag.ComponentCachedQueueReader),
+		shard.GetLogger().WithTags(tag.ComponentCachedScheduledQueueReader),
 		metricsScope,
 		&cachedQueueReaderOptions{
 			Mode:                 config.TimerProcessorCachedQueueReaderMode,

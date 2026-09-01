@@ -53,7 +53,7 @@ func newCachedImmediateQueueReader(
 		queue,
 		shard,
 		shard.GetTimeSource(),
-		shard.GetLogger().WithTags(tag.ComponentCachedQueueReader),
+		shard.GetLogger().WithTags(tag.ComponentCachedImmediateQueueReader),
 		metricsScope,
 		&cachedQueueReaderOptions{
 			Mode:                 config.TransferProcessorCachedQueueReaderMode,
