@@ -1164,6 +1164,12 @@ const (
 	// Default value: 10000
 	// Allowed filters: N/A
 	TransferProcessorMaxRedispatchQueueSize
+	// TransferProcessorCacheMaxSize is the hard cap on cached task count
+	// KeyName: history.transferProcessorCacheMaxSize
+	// Value type: Int
+	// Default value: 1000
+	// Allowed filters: N/A
+	TransferProcessorCacheMaxSize
 	// ReplicatorTaskBatchSize is batch size for ReplicatorProcessor
 	// KeyName: history.replicatorTaskBatchSize
 	// Value type: Int
@@ -2749,6 +2755,16 @@ const (
 	// Allowed filters: ShardID
 	TimerProcessorCachedQueueReaderMode
 
+	// TransferProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used.
+	// "disabled" (default): no cached reader, plain immediateQueue is used.
+	// "shadow": cached reader is created, but all reads are forwarded to the base reader.
+	// "enabled": cached reader fully active.
+	// KeyName: history.transferProcessorCachedQueueReaderMode
+	// Value type: string enum: "disabled", "shadow", "enabled"
+	// Default value: "disabled"
+	// Allowed filters: ShardID
+	TransferProcessorCachedQueueReaderMode
+
 	// LastStringKey must be the last one in this const group
 	LastStringKey
 )
@@ -3116,6 +3132,16 @@ const (
 	// Default value: 400ms (400*time.Millisecond)
 	// Allowed filters: N/A
 	TransferProcessorVisibilityArchivalTimeLimit
+	// TransferProcessorCachedQueueReaderShadowSampleInterval controls how often, at most once per this
+	// interval, a GetTask call is diverted through the shadow comparison path while
+	// TransferProcessorCachedQueueReaderMode is "enabled". This provides continuous regression
+	// detection for the cache in enabled mode, independent of request volume. A value <= 0
+	// disables sampling.
+	// KeyName: history.transferProcessorCachedQueueReaderShadowSampleInterval
+	// Value type: Duration
+	// Default value: 5m (5*time.Minute)
+	// Allowed filters: N/A
+	TransferProcessorCachedQueueReaderShadowSampleInterval
 	// ReplicatorUpperLatency indicates the max allowed replication latency between clusters
 	// KeyName: history.replicatorUpperLatency
 	// Value type: Duration
@@ -4183,6 +4209,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.transferProcessorMaxRedispatchQueueSize",
 		Description:  "TransferProcessorMaxRedispatchQueueSize is the threshold of the number of tasks in the redispatch queue for transferQueueProcessor",
 		DefaultValue: 10000,
+	},
+	TransferProcessorCacheMaxSize: {
+		KeyName:      "history.transferProcessorCacheMaxSize",
+		Description:  "TransferProcessorCacheMaxSize is the hard cap on cached task count",
+		DefaultValue: 1000,
 	},
 	ReplicatorTaskBatchSize: {
 		KeyName:      "history.replicatorTaskBatchSize",
@@ -5534,6 +5565,12 @@ var StringKeys = map[StringKey]DynamicString{
 		DefaultValue: "disabled",
 		Filters:      []Filter{ShardID},
 	},
+	TransferProcessorCachedQueueReaderMode: {
+		KeyName:      "history.transferProcessorCachedQueueReaderMode",
+		Description:  "TransferProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used: disabled/shadow/enabled",
+		DefaultValue: "disabled",
+		Filters:      []Filter{ShardID},
+	},
 }
 
 var DurationKeys = map[DurationKey]DynamicDuration{
@@ -5858,6 +5895,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.transferProcessorVisibilityArchivalTimeLimit",
 		Description:  "TransferProcessorVisibilityArchivalTimeLimit is the upper time limit for archiving visibility records",
 		DefaultValue: time.Millisecond * 400,
+	},
+	TransferProcessorCachedQueueReaderShadowSampleInterval: {
+		KeyName:      "history.transferProcessorCachedQueueReaderShadowSampleInterval",
+		Description:  "TransferProcessorCachedQueueReaderShadowSampleInterval controls how often, at most, a GetTask call is diverted through the shadow comparison path while in enabled mode. <= 0 disables sampling.",
+		DefaultValue: time.Minute * 5,
 	},
 	ReplicatorUpperLatency: {
 		KeyName:      "history.replicatorUpperLatency",
