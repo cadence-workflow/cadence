@@ -995,7 +995,7 @@ func TestWorkflowSizeChecker_failWorkflowSizeExceedsLimit(t *testing.T) {
 			}
 			if tc.expectFail {
 				mutableState.EXPECT().AddFailWorkflowEvent(testEventID, &types.FailWorkflowExecutionDecisionAttributes{
-					Reason:  common.StringPtr(common.FailureReasonSizeExceedsLimit),
+					Reason:  common.StringPtr(common.FailureReasonHistorySizeExceedsLimit),
 					Details: []byte("Workflow history size / count exceeds limit."),
 				}).Return(nil, nil).Times(1)
 			}

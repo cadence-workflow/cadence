@@ -32,7 +32,7 @@ const (
 	HeartBeatBlobSizeLimit      ErrorType = "Heartbeat details has exceeded the blob size limit"
 	ActivityOutputBlobSizeLimit ErrorType = "Activity output has exceeded the blob size limit"
 	DecisionBlobSizeLimit       ErrorType = "Decision result caused to exceed blob size limit"
-	WorkflowSizeExceedsLimit    ErrorType = "The workflow history size or event count exceeded the configured limit"
+	HistorySizeExceedsLimit     ErrorType = "The workflow history size or event count exceeded the configured limit"
 )
 
 func (e ErrorType) String() string {
@@ -56,7 +56,7 @@ type FailureIssuesMetadata struct {
 	ActivityType        string
 	ActivityScheduledID int64
 	ActivityStartedID   int64
-	HistoryEventCount   int64
+	FailedEventID       int64 `json:",omitempty"`
 }
 
 // BlobSizeMetadata includes the details of blob size limits

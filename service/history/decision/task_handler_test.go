@@ -1606,7 +1606,7 @@ func TestHandleDecisions(t *testing.T) {
 		taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetNextEventID().Return(int64(12)) // nextEventID - 1 > historyCountLimit of 10
 		taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{})
 		taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddFailWorkflowEvent(taskHandler.sizeLimitChecker.completedID, &types.FailWorkflowExecutionDecisionAttributes{
-			Reason:  common.StringPtr(common.FailureReasonSizeExceedsLimit),
+			Reason:  common.StringPtr(common.FailureReasonHistorySizeExceedsLimit),
 			Details: []byte("Workflow history size / count exceeds limit."),
 		}).Return(nil, errors.New("some error adding fail workflow event"))
 		res, err := taskHandler.handleDecisions(context.Background(), []byte{}, []*types.Decision{})

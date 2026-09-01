@@ -103,8 +103,8 @@ const (
 	FailureReasonHeartbeatExceedsLimit = "HEARTBEAT_EXCEEDS_LIMIT"
 	// FailureReasonDecisionBlobSizeExceedsLimit is the failureReason for decision blob exceeds size limit
 	FailureReasonDecisionBlobSizeExceedsLimit = "DECISION_BLOB_SIZE_EXCEEDS_LIMIT"
-	// FailureReasonSizeExceedsLimit is reason to fail workflow when history size or count exceed limit
-	FailureReasonSizeExceedsLimit = "HISTORY_EXCEEDS_LIMIT"
+	// FailureReasonHistorySizeExceedsLimit is reason to fail workflow when history size or count exceed limit
+	FailureReasonHistorySizeExceedsLimit = "HISTORY_EXCEEDS_LIMIT"
 	// FailureReasonTransactionSizeExceedsLimit is the failureReason for when transaction cannot be committed because it exceeds size limit
 	FailureReasonTransactionSizeExceedsLimit = "TRANSACTION_SIZE_EXCEEDS_LIMIT"
 	// FailureReasonDecisionAttemptsExceedsLimit is reason to fail workflow when decision attempts fail too many times

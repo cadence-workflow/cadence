@@ -354,13 +354,16 @@ func retrieveFailureIssues(issues []invariant.InvariantCheckResult) ([]*failureI
 func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([]*failureRootCauseResult, error) {
 	result := make([]*failureRootCauseResult, 0)
 	for _, rc := range rootCause {
-		if rc.RootCause == invariant.RootCauseTypeServiceSideIssue || rc.RootCause == invariant.RootCauseTypeServiceSidePanic || rc.RootCause == invariant.RootCauseTypeServiceSideCustomError || rc.RootCause == invariant.RootCauseTypeHistorySizeExceedsLimit {
+		switch rc.RootCause {
+		case invariant.RootCauseTypeServiceSideIssue,
+			invariant.RootCauseTypeServiceSidePanic,
+			invariant.RootCauseTypeServiceSideCustomError,
+			invariant.RootCauseTypeHistorySizeExceedsLimit:
 			result = append(result, &failureRootCauseResult{
 				IssueID:       rc.IssueID,
 				RootCauseType: rc.RootCause.String(),
 			})
-		}
-		if rc.RootCause == invariant.RootCauseTypeBlobSizeLimit {
+		case invariant.RootCauseTypeBlobSizeLimit:
 			var metadata failure.FailureRootcauseMetadata
 			err := json.Unmarshal(rc.Metadata, &metadata)
 			if err != nil {

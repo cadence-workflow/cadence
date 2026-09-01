@@ -35,8 +35,8 @@ import (
 )
 
 const (
-	testDomain             = "test-domain"
-	largeHistoryEventCount = int64(200001)
+	testDomain                = "test-domain"
+	largeHistoryFailedEventID = int64(200001)
 )
 
 func Test__Check(t *testing.T) {
@@ -46,8 +46,8 @@ func Test__Check(t *testing.T) {
 	metadataInBytes, err := json.Marshal(metadata)
 	require.NoError(t, err)
 	largeHistoryMetadata := FailureIssuesMetadata{
-		Identity:          "localhost",
-		HistoryEventCount: largeHistoryEventCount,
+		Identity:      "localhost",
+		FailedEventID: largeHistoryFailedEventID,
 	}
 	largeHistoryMetadataInBytes, err := json.Marshal(largeHistoryMetadata)
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func Test__Check(t *testing.T) {
 				{
 					IssueID:       0,
 					InvariantType: WorkflowFailed.String(),
-					Reason:        WorkflowSizeExceedsLimit.String(),
+					Reason:        HistorySizeExceedsLimit.String(),
 					Metadata:      largeHistoryMetadataInBytes,
 				},
 			},
@@ -152,9 +152,9 @@ func historySizeLimitExceededHistory() *types.GetWorkflowExecutionHistoryRespons
 					},
 				},
 				{
-					ID: largeHistoryEventCount,
+					ID: largeHistoryFailedEventID,
 					WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{
-						Reason:                       common.StringPtr(common.FailureReasonSizeExceedsLimit),
+						Reason:                       common.StringPtr(common.FailureReasonHistorySizeExceedsLimit),
 						Details:                      []byte("Workflow history size / count exceeds limit."),
 						DecisionTaskCompletedEventID: 10,
 					},
@@ -279,8 +279,8 @@ func Test__RootCause(t *testing.T) {
 	metadataInBytes, err := json.Marshal(metadata)
 	require.NoError(t, err)
 	largeHistoryMetadataInBytes, err := json.Marshal(FailureIssuesMetadata{
-		Identity:          "localhost",
-		HistoryEventCount: largeHistoryEventCount,
+		Identity:      "localhost",
+		FailedEventID: largeHistoryFailedEventID,
 	})
 	require.NoError(t, err)
 	testCases := []struct {
@@ -343,7 +343,7 @@ func Test__RootCause(t *testing.T) {
 				{
 					IssueID:       0,
 					InvariantType: WorkflowFailed.String(),
-					Reason:        WorkflowSizeExceedsLimit.String(),
+					Reason:        HistorySizeExceedsLimit.String(),
 					Metadata:      largeHistoryMetadataInBytes,
 				}},
 			expectedResult: []invariant.InvariantRootCauseResult{{
