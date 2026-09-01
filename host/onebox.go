@@ -1155,10 +1155,12 @@ func (c *cadenceImpl) startSchedulerWorkerManager(params *resource.Params, svc S
 
 	dc := dynamicconfig.NewCollection(params.DynamicConfig, svc.GetLogger())
 	bp := &scheduler.BootstrapParams{
-		ServiceClient:      params.PublicClient,
-		FrontendClient:     c.frontendClient,
-		MetricsClient:      svc.GetMetricsClient(),
-		Logger:             svc.GetLogger(),
+		ServiceClient:  params.PublicClient,
+		FrontendClient: c.frontendClient,
+		MetricsClient:  svc.GetMetricsClient(),
+		Logger:         svc.GetLogger(),
+		ZapLogger:      c.zapLogger,
+		// tally metrics is not passed
 		DomainCache:        domainCache,
 		MembershipResolver: svc.GetMembershipResolver(),
 		HostInfo:           svc.GetHostInfo(),

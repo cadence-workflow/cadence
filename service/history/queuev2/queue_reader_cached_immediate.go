@@ -41,6 +41,28 @@ type cachedImmediateQueueReader struct {
 	*cachedQueueReaderBase
 }
 
+func newCachedImmediateQueueReader(
+	base QueueReader,
+	queue InMemQueue,
+	shard shard.Context,
+	metricsScope metrics.Scope,
+) *cachedImmediateQueueReader {
+	config := shard.GetConfig()
+	return newCachedImmediateQueueReaderWithOptions(
+		base,
+		queue,
+		shard,
+		shard.GetTimeSource(),
+		shard.GetLogger().WithTags(tag.ComponentCachedImmediateQueueReader),
+		metricsScope,
+		&cachedQueueReaderOptions{
+			Mode:                 config.TransferProcessorCachedQueueReaderMode,
+			MaxSize:              config.TransferProcessorCacheMaxSize,
+			ShadowSampleInterval: config.TransferProcessorCachedQueueReaderShadowSampleInterval,
+		},
+	)
+}
+
 func newCachedImmediateQueueReaderWithOptions(
 	base QueueReader,
 	queue InMemQueue,

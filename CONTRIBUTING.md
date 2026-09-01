@@ -5,7 +5,7 @@ This doc is intended for contributors to Cadence backend. Thanks for considering
 > 📚 **New to contributing to Cadence?** Check out our [Contributing Guide](https://cadenceworkflow.io/community/how-to-contribute/getting-started) for an overview of the contribution process across all Cadence repositories. This document contains cadence backend specific setup and development instructions.
 
 Once you go through the rest of this doc and get familiar with local development setup, take a look at the list of issues labeled with
-[good first issue](https://github.com/cadence-workflow/cadence/labels/good%20first%20issue).
+[good-first-issue](https://github.com/cadence-workflow/cadence/issues?q=state%3Aopen%20label%3A%22good-first-issue%22).
 These issues are a great way to start contributing to Cadence. Later when you are more familiar with Cadence, look at issues with
 [up-for-grabs](https://github.com/cadence-workflow/cadence/labels/up-for-grabs).
 
@@ -233,6 +233,20 @@ git submodule foreach git pull origin master
 # Update go to use the latest idl package
 go get github.com/uber/cadence-idl@latest
 ```
+
+## Issue Triage
+
+Every issue goes through three triage states tracked by `triage/*` labels:
+
+| Label | Criteria | Who acts |
+|---|---|---|
+| `triage/needs-info` | Reporter must supply additional details. These may be reproduction steps or logs (for bugs), or clear acceptance criteria and behaviour (for features), etc. | Reporter |
+| `triage/needs-decision` | The issue is understood but needs a TSC or area-owner decision on whether/when to address it. | TSC / maintainers |
+| `triage/accepted` | Approved and ready to be picked up for implementation. | Contributors |
+
+**TSC review queue:** [`is:open label:triage/needs-decision`](https://github.com/cadence-workflow/cadence/issues?q=is%3Aopen+label%3Atriage%2Fneeds-decision)
+
+Issues filed from a template are automatically checked for completeness. If required sections are empty, the bot applies `triage/needs-info` and posts a comment listing what's missing. Once the reporter fills in the details, the bot removes the label on the next edit.
 
 ## Pull Requests
 After all the preparation you are about to write code and make a Pull Request for the issue.
