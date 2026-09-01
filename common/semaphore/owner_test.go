@@ -21,7 +21,11 @@
 package semaphore
 
 import (
+	"math"
+	"math/rand"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,6 +85,11 @@ func TestOwnerStringRoundTrip(t *testing.T) {
 			want:  "2:wf:3f2504e0-4f89-11d3-9a0c-0305e82c3301:12345",
 		},
 		{
+			name:  "every field empty or zero",
+			owner: Owner{},
+			want:  "0:::0",
+		},
+		{
 			name:  "zero hold id",
 			owner: Owner{WorkflowID: "wf", RunID: "run-1", HoldID: 0},
 			want:  "2:wf:run-1:0",
@@ -89,6 +98,13 @@ func TestOwnerStringRoundTrip(t *testing.T) {
 			name:  "max hold id",
 			owner: Owner{WorkflowID: "wf", RunID: "run-1", HoldID: 9223372036854775807},
 			want:  "2:wf:run-1:9223372036854775807",
+		},
+		{
+			// The most negative int64. Its magnitude has no positive counterpart, which is
+			// where sign handling tends to go wrong.
+			name:  "min hold id",
+			owner: Owner{WorkflowID: "wf", RunID: "run-1", HoldID: -9223372036854775808},
+			want:  "2:wf:run-1:-9223372036854775808",
 		},
 	}
 
@@ -138,43 +154,138 @@ func TestParseOwnerRejectsMalformed(t *testing.T) {
 	}
 }
 
-// FuzzOwnerStringRoundTrip checks the property the whole format exists for: every Owner
-// encodes to a string that parses back into the same Owner. Round-tripping for all inputs
-// also proves the encoding is injective, since two Owners sharing an encoding could not both
-// come back out of it. The table above pins specific cases; this covers the ones nobody
-// thought to write down.
-func FuzzOwnerStringRoundTrip(f *testing.F) {
-	f.Add("wf-1", "run-1", int64(7))
-	f.Add("a:b", ":c:", int64(-9))
-	f.Add("", "", int64(0))
-	f.Add(":::", "run-1", int64(9223372036854775807))
-	f.Add("12:xy", "3f2504e0-4f89-11d3-9a0c-0305e82c3301", int64(-9223372036854775808))
+// The two tests below are the randomized half of this file: the tables above pin the cases
+// worth naming, these go looking for the ones nobody named. They are plain tests rather than
+// Go fuzz targets on purpose. Without -fuzz a fuzz target only replays its seed corpus, and
+// nothing in CI passes -fuzz, so a fuzz target here would never see an input its author had
+// not already written down by hand.
+//
+// Being random, they are the one part of this file that can fail on a commit that changed
+// nothing. Both log their seed so a failing run can be repeated.
 
-	f.Fuzz(func(t *testing.T, workflowID, runID string, holdID int64) {
-		owner := Owner{WorkflowID: workflowID, RunID: runID, HoldID: holdID}
-		parsed, err := ParseOwner(owner.String())
-		require.NoError(t, err)
-		require.Equal(t, owner, parsed)
-	})
+// randomIterations is how many cases each of those tests draws, matching the mapper fuzz
+// helper's default.
+const randomIterations = 100
+
+// ownerAlphabet is deliberately narrow. Every hard case in this format involves a separator or
+// a digit — a workflow id holding separators, or one that looks like its own length prefix —
+// and random unicode produces neither in any useful quantity. Drawing from these few bytes
+// makes those shapes common instead of unreachable.
+var ownerAlphabet = []byte(":0123456789-+abz")
+
+func randomOwnerText(r *rand.Rand, maxLen int) string {
+	b := make([]byte, r.Intn(maxLen+1))
+	for i := range b {
+		b[i] = ownerAlphabet[r.Intn(len(ownerAlphabet))]
+	}
+	return string(b)
 }
 
-// FuzzParseOwnerAcceptsOnlyCanonicalIDs checks that every string ParseOwner accepts is exactly
-// what String would have written; strings it rejects are skipped. That is what stops one hold
-// from having more than one spelling, which matters because the release guard compares bytes.
-func FuzzParseOwnerAcceptsOnlyCanonicalIDs(f *testing.F) {
-	f.Add("4:wf-1:run-1:7")
-	f.Add("0::run-1:3")
-	f.Add("3:a:b::c::-9")
-	f.Add("2:wf:run-1:-8")
-	f.Add("007:wfabcde:run-1:7")
-	f.Add("+7:wfabcde:run-1:7")
-	f.Add("2:wf:run-1:007")
+func randomOwner(r *rand.Rand) Owner {
+	holdID := int64(r.Uint64())
+	// The extremes are worth hitting far more often than chance would give them, since both
+	// bounds sit next to overflow in the parser.
+	switch r.Intn(8) {
+	case 0:
+		holdID = 0
+	case 1:
+		holdID = math.MinInt64
+	case 2:
+		holdID = math.MaxInt64
+	}
+	return Owner{
+		WorkflowID: randomOwnerText(r, 12),
+		RunID:      randomOwnerText(r, 12),
+		HoldID:     holdID,
+	}
+}
 
-	f.Fuzz(func(t *testing.T, ownerID string) {
-		owner, err := ParseOwner(ownerID)
-		if err != nil {
-			return // a rejected string owes nothing
+func TestRandomOwnersRoundTrip(t *testing.T) {
+	seed := time.Now().UnixNano()
+	r := rand.New(rand.NewSource(seed))
+	defer func() {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
 		}
-		require.Equal(t, ownerID, owner.String())
-	})
+	}()
+
+	for i := 0; i < randomIterations; i++ {
+		owner := randomOwner(r)
+
+		encoded := owner.String()
+		parsed, err := ParseOwner(encoded)
+		require.NoError(t, err, "String wrote %q, which does not parse", encoded)
+		require.Equal(t, owner, parsed, "round trip changed the owner, encoded as %q", encoded)
+	}
+}
+
+// numberDecorations are spellings strconv accepts for a number that String never writes. They
+// are prepended to the two numeric fields directly rather than left to a byte edit: reaching
+// "007" by chance means inserting one particular byte at one particular index, which over a
+// hundred iterations happens near enough to never.
+var numberDecorations = []string{"0", "00", "+"}
+
+// randomOwnerID builds a string shaped like an encoding but not always canonical, so that a
+// good share of them parse. Both failure directions matter: a string that parses when it
+// should not, and one that parses to something re-encoding differently. Either would give one
+// hold two spellings, and the release guard compares bytes.
+func randomOwnerID(r *rand.Rand, owner Owner) string {
+	lengthPrefix := strconv.Itoa(len(owner.WorkflowID))
+	if r.Intn(4) == 0 {
+		lengthPrefix = numberDecorations[r.Intn(len(numberDecorations))] + lengthPrefix
+	}
+	holdID := strconv.FormatInt(owner.HoldID, 10)
+	if r.Intn(4) == 0 {
+		holdID = numberDecorations[r.Intn(len(numberDecorations))] + holdID
+	}
+
+	id := lengthPrefix + ":" + owner.WorkflowID + ":" + owner.RunID + ":" + holdID
+	if r.Intn(2) == 0 {
+		id = editOneByte(r, id)
+	}
+	return id
+}
+
+// editOneByte damages the structure rather than the numbers: a separator moved, lost, or
+// gained is what tells apart a parser that trusts the declared length from one that guesses.
+func editOneByte(r *rand.Rand, id string) string {
+	b := []byte(id)
+	i := r.Intn(len(b))
+	switch r.Intn(3) {
+	case 0: // replace one byte
+		b[i] = ownerAlphabet[r.Intn(len(ownerAlphabet))]
+		return string(b)
+	case 1: // insert one byte
+		out := make([]byte, 0, len(b)+1)
+		out = append(out, b[:i]...)
+		out = append(out, ownerAlphabet[r.Intn(len(ownerAlphabet))])
+		return string(append(out, b[i:]...))
+	default: // drop one byte
+		return string(append(b[:i], b[i+1:]...))
+	}
+}
+
+func TestRandomIDsParseOnlyWhenCanonical(t *testing.T) {
+	seed := time.Now().UnixNano()
+	r := rand.New(rand.NewSource(seed))
+	defer func() {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}()
+
+	var accepted int
+	for i := 0; i < randomIterations; i++ {
+		id := randomOwnerID(r, randomOwner(r))
+
+		owner, err := ParseOwner(id)
+		if err != nil {
+			continue // a rejected string owes nothing
+		}
+		accepted++
+		require.Equal(t, id, owner.String(), "ParseOwner accepted a spelling String would not write")
+	}
+	// Only the accepted strings exercise the assertion, so none accepted would mean this test
+	// passed without checking anything.
+	require.NotZero(t, accepted, "no mutated id parsed; the generator has stopped producing valid shapes")
 }
