@@ -2104,7 +2104,17 @@ type (
 		// clobbers a held slot. Growing an existing bucket's id set is unsupported
 		// (to resize, create a new semaphore name).
 		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest) error
-		// GrantSemaphoreToken claims a slot for an owner if it is currently free.
+		// GrantSemaphoreToken claims a slot for an owner if it is currently free. A grant
+		// that does not apply is an ordinary result rather than an error, and Outcome says
+		// which of three things happened:
+		//
+		//   - SemaphoreGrantApplied: the slot is now this owner's, and the token is the
+		//     TokenID that was asked for.
+		//   - SemaphoreGrantSlotTaken: some other owner holds that slot. Another token id
+		//     may still be free, so trying one is worthwhile.
+		//   - SemaphoreGrantAlreadyHeld: this owner already holds a slot, named by
+		//     HeldToken. Trying another id cannot help, because every id fails against the
+		//     same owner row; use HeldToken instead.
 		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest) (*GrantSemaphoreTokenResponse, error)
 		// ReleaseSemaphoreToken frees a slot if it is still held by the owner.
 		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest) (*ReleaseSemaphoreTokenResponse, error)
