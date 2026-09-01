@@ -23,8 +23,6 @@
 package shard
 
 import (
-	"slices"
-
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	hcommon "github.com/uber/cadence/service/history/common"
@@ -67,7 +65,7 @@ func (s *contextImpl) notifyTasksFromCreateWorkflowExecution(
 		s.notifyTasksFromSnapshot(&request.NewWorkflowSnapshot, persistenceError)
 		return
 	}
-	s.logNotifyTaskDroppedOnPersistenceError(err, taskIDsFromSnapshot(&request.NewWorkflowSnapshot))
+	s.logNotifyTaskDroppedOnPersistenceError(err, snapshotTasks(&request.NewWorkflowSnapshot))
 }
 
 // notifyTasksFromUpdateWorkflowExecution sends task notifications for an UpdateWorkflowExecution operation.
@@ -81,10 +79,10 @@ func (s *contextImpl) notifyTasksFromUpdateWorkflowExecution(
 		s.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
 		return
 	}
-	s.logNotifyTaskDroppedOnPersistenceError(err, slices.Concat(
-		taskIDsFromMutation(&request.UpdateWorkflowMutation),
-		taskIDsFromSnapshot(request.NewWorkflowSnapshot),
-	))
+	s.logNotifyTaskDroppedOnPersistenceError(err,
+		mutationTasks(&request.UpdateWorkflowMutation),
+		snapshotTasks(request.NewWorkflowSnapshot),
+	)
 }
 
 // notifyTasksFromConflictResolveWorkflowExecution sends task notifications for a ConflictResolveWorkflowExecution operation.
@@ -99,11 +97,11 @@ func (s *contextImpl) notifyTasksFromConflictResolveWorkflowExecution(
 		s.notifyTasksFromMutation(request.CurrentWorkflowMutation, persistenceError)
 		return
 	}
-	s.logNotifyTaskDroppedOnPersistenceError(err, slices.Concat(
-		taskIDsFromSnapshot(&request.ResetWorkflowSnapshot),
-		taskIDsFromSnapshot(request.NewWorkflowSnapshot),
-		taskIDsFromMutation(request.CurrentWorkflowMutation),
-	))
+	s.logNotifyTaskDroppedOnPersistenceError(err,
+		snapshotTasks(&request.ResetWorkflowSnapshot),
+		snapshotTasks(request.NewWorkflowSnapshot),
+		mutationTasks(request.CurrentWorkflowMutation),
+	)
 }
 
 // notifyTasksFromReinjectHistoryTasks sends task notifications for a ReinjectHistoryTasks operation.
@@ -119,19 +117,41 @@ func (s *contextImpl) notifyTasksFromReinjectHistoryTasks(
 		s.notifyTasks(nil, tasksByCategory, persistenceError)
 		return
 	}
-	s.logNotifyTaskDroppedOnPersistenceError(err, taskIDsFromCategories(tasksByCategory))
+	s.logNotifyTaskDroppedOnPersistenceError(err, tasksByCategory)
 }
 
-// logNotifyTaskDroppedOnPersistenceError logs dropped task IDs when the cached queue reader
-// is in shadow mode. In shadow mode the cache is validated against the DB, so dropped tasks
-// produce observable mismatches that are worth tracking. In other modes the log is noise.
-func (s *contextImpl) logNotifyTaskDroppedOnPersistenceError(err error, droppedTaskIDs []int64) {
-	if s.config.TimerProcessorCachedQueueReaderMode(s.GetShardID()) != "shadow" {
+// logNotifyTaskDroppedOnPersistenceError logs dropped task IDs per category, but only for a category
+// whose cached queue reader is in shadow mode, where the cache is validated against the DB and a
+// dropped task surfaces as an observable mismatch. For other modes (and categories with no cached
+// reader, e.g. replication) the log is just noise, so when no cache is shadowing it returns before
+// touching the sources, keeping the steady-state path free of per-task work.
+func (s *contextImpl) logNotifyTaskDroppedOnPersistenceError(
+	err error,
+	sources ...map[persistence.HistoryTaskCategory][]persistence.Task,
+) {
+	shardID := s.GetShardID()
+	timerCacheShadow := s.config.TimerProcessorCachedQueueReaderMode(shardID) == "shadow"
+	transferCacheShadow := s.config.TransferProcessorCachedQueueReaderMode(shardID) == "shadow"
+	if !timerCacheShadow && !transferCacheShadow {
+		return
+	}
+
+	var droppedTimerTaskIDs, droppedTransferTaskIDs []int64
+	for _, src := range sources {
+		if timerCacheShadow {
+			droppedTimerTaskIDs = appendTaskIDs(droppedTimerTaskIDs, src[persistence.HistoryTaskCategoryTimer])
+		}
+		if transferCacheShadow {
+			droppedTransferTaskIDs = appendTaskIDs(droppedTransferTaskIDs, src[persistence.HistoryTaskCategoryTransfer])
+		}
+	}
+	if len(droppedTimerTaskIDs) == 0 && len(droppedTransferTaskIDs) == 0 {
 		return
 	}
 	s.logger.Info("notify tasks dropped due to persistence error",
 		tag.Error(err),
-		tag.Dynamic("droppedTaskIDs", droppedTaskIDs),
+		tag.Dynamic("droppedTimerTaskIDs", droppedTimerTaskIDs),
+		tag.Dynamic("droppedTransferTaskIDs", droppedTransferTaskIDs),
 	)
 }
 
@@ -179,26 +199,23 @@ func (s *contextImpl) notifyTasksFromMutation(mutation *persistence.WorkflowMuta
 	s.notifyTasks(mutation.ExecutionInfo, mutation.TasksByCategory, persistenceError)
 }
 
-func taskIDsFromSnapshot(snapshot *persistence.WorkflowSnapshot) []int64 {
+func snapshotTasks(snapshot *persistence.WorkflowSnapshot) map[persistence.HistoryTaskCategory][]persistence.Task {
 	if snapshot == nil {
 		return nil
 	}
-	return taskIDsFromCategories(snapshot.TasksByCategory)
+	return snapshot.TasksByCategory
 }
 
-func taskIDsFromMutation(mutation *persistence.WorkflowMutation) []int64 {
+func mutationTasks(mutation *persistence.WorkflowMutation) map[persistence.HistoryTaskCategory][]persistence.Task {
 	if mutation == nil {
 		return nil
 	}
-	return taskIDsFromCategories(mutation.TasksByCategory)
+	return mutation.TasksByCategory
 }
 
-func taskIDsFromCategories(tasksByCategory map[persistence.HistoryTaskCategory][]persistence.Task) []int64 {
-	var ids []int64
-	for _, tasks := range tasksByCategory {
-		for _, t := range tasks {
-			ids = append(ids, t.GetTaskID())
-		}
+func appendTaskIDs(ids []int64, tasks []persistence.Task) []int64 {
+	for _, t := range tasks {
+		ids = append(ids, t.GetTaskID())
 	}
 	return ids
 }
