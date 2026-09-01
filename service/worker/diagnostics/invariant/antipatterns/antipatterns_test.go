@@ -46,7 +46,7 @@ func Test__Check(t *testing.T) {
 	burstAtWindowEdgeMetadataInBytes, err := json.Marshal(burstAtWindowEdgeMetadata)
 	require.NoError(t, err)
 
-	peakClusterMetadata := ActivityScheduleBurstMetadata{
+	secondBurstMetadata := ActivityScheduleBurstMetadata{
 		FirstEventID:    100,
 		LastEventID:     100 + int64(activityBurstCountThreshold) + 4,
 		EventCount:      activityBurstCountThreshold + 5,
@@ -55,7 +55,21 @@ func Test__Check(t *testing.T) {
 		WindowInSeconds: activityBurstWindowInSeconds,
 		Threshold:       activityBurstCountThreshold,
 	}
-	peakClusterMetadataInBytes, err := json.Marshal(peakClusterMetadata)
+	secondBurstMetadataInBytes, err := json.Marshal(secondBurstMetadata)
+	require.NoError(t, err)
+
+	const sustainedBurstCount = 100
+	const sustainedBurstStepNanos = int64(150 * time.Millisecond)
+	sustainedBurstMetadata := ActivityScheduleBurstMetadata{
+		FirstEventID:    2,
+		LastEventID:     2 + int64(sustainedBurstCount) - 1,
+		EventCount:      sustainedBurstCount,
+		WindowStart:     time.Unix(0, testTimestamp).UTC(),
+		WindowEnd:       time.Unix(0, testTimestamp+int64(sustainedBurstCount-1)*sustainedBurstStepNanos).UTC(),
+		WindowInSeconds: activityBurstWindowInSeconds,
+		Threshold:       activityBurstCountThreshold,
+	}
+	sustainedBurstMetadataInBytes, err := json.Marshal(sustainedBurstMetadata)
 	require.NoError(t, err)
 
 	cronCaNMetadata := ContinueAsNewInCronWorkflowMetadata{
@@ -119,7 +133,7 @@ func Test__Check(t *testing.T) {
 			},
 		},
 		{
-			name: "peak window is reported when multiple clusters cross the threshold",
+			name: "each independent burst cluster is reported as its own issue",
 			testData: wfHistory(
 				startedEvent(1, ""),
 				activityScheduleBurst(activityBurstCountThreshold, 2, testTimestamp, testStepNanos),
@@ -130,7 +144,28 @@ func Test__Check(t *testing.T) {
 					IssueID:       0,
 					InvariantType: ActivityScheduleBurst.String(),
 					Reason:        ActivityScheduleBurstDetected.String(),
-					Metadata:      peakClusterMetadataInBytes,
+					Metadata:      burstMetadataInBytes,
+				},
+				{
+					IssueID:       1,
+					InvariantType: ActivityScheduleBurst.String(),
+					Reason:        ActivityScheduleBurstDetected.String(),
+					Metadata:      secondBurstMetadataInBytes,
+				},
+			},
+		},
+		{
+			name: "a sustained burst longer than the window is reported as a single issue",
+			testData: wfHistory(
+				startedEvent(1, ""),
+				activityScheduleBurst(sustainedBurstCount, 2, testTimestamp, sustainedBurstStepNanos),
+			),
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: ActivityScheduleBurst.String(),
+					Reason:        ActivityScheduleBurstDetected.String(),
+					Metadata:      sustainedBurstMetadataInBytes,
 				},
 			},
 		},

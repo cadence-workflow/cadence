@@ -51,9 +51,11 @@ const (
 	activityBurstCountThreshold = 50
 )
 
-// ActivityScheduleBurstMetadata describes the densest window of scheduled activities found in the
-// history. Only the peak window is reported, not every window that crossed the threshold.
-// FirstEventID anchors the issue to the first ActivityTaskScheduled event of that window.
+// ActivityScheduleBurstMetadata describes one cluster of tightly-packed scheduled activities.
+// Every cluster that crosses the threshold is reported as its own issue, and a single sustained
+// burst spanning more than WindowInSeconds is still reported as one span rather than being split
+// at a window boundary. FirstEventID/LastEventID bound the full cluster, not just the densest
+// sub-window within it.
 type ActivityScheduleBurstMetadata struct {
 	FirstEventID    int64
 	LastEventID     int64

@@ -24,7 +24,7 @@ func (a *antipatterns) Check(ctx context.Context, params invariant.InvariantChec
 	result := make([]invariant.InvariantCheckResult, 0)
 	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
 
-	if burst := detectActivityScheduleBurst(events); burst != nil {
+	for _, burst := range detectActivityScheduleBursts(events) {
 		result = append(result, invariant.InvariantCheckResult{
 			IssueID:       len(result),
 			InvariantType: ActivityScheduleBurst.String(),
@@ -45,12 +45,15 @@ func (a *antipatterns) Check(ctx context.Context, params invariant.InvariantChec
 	return result, nil
 }
 
-// detectActivityScheduleBurst finds the densest window of activityBurstWindowInSeconds among the
-// timestamped ActivityTaskScheduled events and returns its stats if it contains at least
-// activityBurstCountThreshold events. Events without a timestamp are excluded: a nil timestamp is
-// unknown, not time zero, and treating it as zero would collapse unrelated events into a phantom
-// burst.
-func detectActivityScheduleBurst(events []*types.HistoryEvent) *ActivityScheduleBurstMetadata {
+// detectActivityScheduleBursts finds every maximal cluster of timestamped ActivityTaskScheduled
+// events in which a sliding window of activityBurstWindowInSeconds always contains at least
+// activityBurstCountThreshold events, and reports each cluster once as a single span covering all
+// of its events. Clusters are only split where the scheduling density genuinely drops below the
+// threshold between them; a single sustained burst that runs longer than the window itself is
+// still reported as one span rather than being cut at an arbitrary window boundary. Events without
+// a timestamp are excluded: a nil timestamp is unknown, not time zero, and treating it as zero
+// would collapse unrelated events into a phantom burst.
+func detectActivityScheduleBursts(events []*types.HistoryEvent) []*ActivityScheduleBurstMetadata {
 	type scheduledEvent struct {
 		eventID   int64
 		timestamp int64
@@ -73,26 +76,42 @@ func detectActivityScheduleBurst(events []*types.HistoryEvent) *ActivitySchedule
 
 	windowNanos := (time.Duration(activityBurstWindowInSeconds) * time.Second).Nanoseconds()
 
-	var peak *ActivityScheduleBurstMetadata
+	newBurst := func(clusterStart, clusterEnd int) *ActivityScheduleBurstMetadata {
+		return &ActivityScheduleBurstMetadata{
+			FirstEventID:    scheduled[clusterStart].eventID,
+			LastEventID:     scheduled[clusterEnd].eventID,
+			EventCount:      clusterEnd - clusterStart + 1,
+			WindowStart:     time.Unix(0, scheduled[clusterStart].timestamp).UTC(),
+			WindowEnd:       time.Unix(0, scheduled[clusterEnd].timestamp).UTC(),
+			WindowInSeconds: activityBurstWindowInSeconds,
+			Threshold:       activityBurstCountThreshold,
+		}
+	}
+
+	var bursts []*ActivityScheduleBurstMetadata
+	clusterStart := -1
+	clusterEnd := -1
 	left := 0
 	for right := 0; right < len(scheduled); right++ {
 		for scheduled[right].timestamp-scheduled[left].timestamp > windowNanos {
 			left++
 		}
-		count := right - left + 1
-		if count >= activityBurstCountThreshold && (peak == nil || count > peak.EventCount) {
-			peak = &ActivityScheduleBurstMetadata{
-				FirstEventID:    scheduled[left].eventID,
-				LastEventID:     scheduled[right].eventID,
-				EventCount:      count,
-				WindowStart:     time.Unix(0, scheduled[left].timestamp).UTC(),
-				WindowEnd:       time.Unix(0, scheduled[right].timestamp).UTC(),
-				WindowInSeconds: activityBurstWindowInSeconds,
-				Threshold:       activityBurstCountThreshold,
+		if right-left+1 >= activityBurstCountThreshold {
+			if clusterStart == -1 {
+				clusterStart = left
 			}
+			clusterEnd = right
+			continue
+		}
+		if clusterStart != -1 {
+			bursts = append(bursts, newBurst(clusterStart, clusterEnd))
+			clusterStart, clusterEnd = -1, -1
 		}
 	}
-	return peak
+	if clusterStart != -1 {
+		bursts = append(bursts, newBurst(clusterStart, clusterEnd))
+	}
+	return bursts
 }
 
 // detectContinueAsNewInCronWorkflow flags a workflow that was started with a cron schedule and
