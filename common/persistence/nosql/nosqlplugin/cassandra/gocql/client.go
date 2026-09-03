@@ -93,8 +93,8 @@ func newCassandraCluster(cfg ClusterConfig) *gocql.ClusterConfig {
 		cluster.NumConns = cfg.MaxConns
 	}
 
-	if cfg.HostSelectionPolicy != nil {
-		cluster.PoolConfig.HostSelectionPolicy = cfg.HostSelectionPolicy
+	if cfg.HostSelectionPolicyFactory != nil {
+		cluster.PoolConfig.HostSelectionPolicy = cfg.HostSelectionPolicyFactory()
 	} else {
 		// set default option if configuration was not provided
 		cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(gocql.RoundRobinHostPolicy())
