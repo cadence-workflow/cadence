@@ -216,6 +216,14 @@ func Test__Check(t *testing.T) {
 			expectedResult: []invariant.InvariantCheckResult{},
 		},
 		{
+			name: "cron workflow with retry-initiated continue-as-new",
+			testData: wfHistory(
+				startedEvent(1, testCronSchedule),
+				continuedAsNewEvent(2, types.ContinueAsNewInitiatorRetryPolicy),
+			),
+			expectedResult: []invariant.InvariantCheckResult{},
+		},
+		{
 			name: "non-cron workflow with decider-initiated continue-as-new",
 			testData: wfHistory(
 				startedEvent(1, ""),
@@ -239,7 +247,7 @@ func Test__Check(t *testing.T) {
 			},
 		},
 		{
-			name: "both issues fire with consecutive issue IDs",
+			name: "both issues fire with continue-as-new reported first",
 			testData: wfHistory(
 				startedEvent(1, testCronSchedule),
 				activityScheduleBurst(activityBurstCountThreshold, 2, testTimestamp, testStepNanos),
@@ -248,15 +256,15 @@ func Test__Check(t *testing.T) {
 			expectedResult: []invariant.InvariantCheckResult{
 				{
 					IssueID:       0,
-					InvariantType: ActivityScheduleBurst.String(),
-					Reason:        ActivityScheduleBurstDetected.String(),
-					Metadata:      burstMetadataInBytes,
-				},
-				{
-					IssueID:       1,
 					InvariantType: ContinueAsNewInCronWorkflow.String(),
 					Reason:        ContinueAsNewInitiatedByDeciderInCronWorkflow.String(),
 					Metadata:      cronCaNAfterBurstMetadataInBytes,
+				},
+				{
+					IssueID:       1,
+					InvariantType: ActivityScheduleBurst.String(),
+					Reason:        ActivityScheduleBurstDetected.String(),
+					Metadata:      burstMetadataInBytes,
 				},
 			},
 		},

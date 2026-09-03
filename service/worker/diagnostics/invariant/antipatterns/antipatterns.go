@@ -24,21 +24,23 @@ func (a *antipatterns) Check(ctx context.Context, params invariant.InvariantChec
 	result := make([]invariant.InvariantCheckResult, 0)
 	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
 
-	for _, burst := range detectActivityScheduleBursts(events) {
-		result = append(result, invariant.InvariantCheckResult{
-			IssueID:       len(result),
-			InvariantType: ActivityScheduleBurst.String(),
-			Reason:        ActivityScheduleBurstDetected.String(),
-			Metadata:      invariant.MarshalData(burst),
-		})
-	}
-
+	// The continue-as-new check yields at most one issue, so it goes first: the number of issues
+	// reported per invariant is capped, and a workflow with many bursts would otherwise push it out.
 	if issue := detectContinueAsNewInCronWorkflow(events); issue != nil {
 		result = append(result, invariant.InvariantCheckResult{
 			IssueID:       len(result),
 			InvariantType: ContinueAsNewInCronWorkflow.String(),
 			Reason:        ContinueAsNewInitiatedByDeciderInCronWorkflow.String(),
 			Metadata:      invariant.MarshalData(issue),
+		})
+	}
+
+	for _, burst := range detectActivityScheduleBursts(events) {
+		result = append(result, invariant.InvariantCheckResult{
+			IssueID:       len(result),
+			InvariantType: ActivityScheduleBurst.String(),
+			Reason:        ActivityScheduleBurstDetected.String(),
+			Metadata:      invariant.MarshalData(burst),
 		})
 	}
 
