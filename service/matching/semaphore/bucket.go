@@ -14,57 +14,72 @@ import (
 )
 
 const (
-	// scanPageSize bounds one page of the ownership load. A bucket holds at most
-	// 2*bucket_size rows: one token row per slot, plus at most one owner row per slot.
-	// CreateSemaphore caps bucket_size, so that whole bound fits in one page.
-	//
-	// The +1 puts the page just above the bound rather than at it. Cassandra returns a
-	// paging state whenever it fills a page, so an exact fit would always cost a second,
-	// empty round trip. Paging is followed to the end either way, so this size only ever
-	// costs round trips, never correctness.
+	// scanPageSize sizes one page of the ownership load. A bucket holds at most 2*bucket_size
+	// rows -- a token row per slot, plus at most one owner row -- and CreateSemaphore caps
+	// bucket_size, so one page covers a whole bucket. The +1 keeps the page just above that
+	// bound: Cassandra returns a paging state whenever a page fills exactly, and that extra
+	// round trip finds nothing. Paging is followed to the end regardless, so this number costs
+	// round trips, never correctness.
 	scanPageSize = 2*persistence.MaxSemaphoreBucketSize + 1
 
-	// maxGrantAttempts caps how many slots one acquire will try before giving up. Each
-	// retry costs a conditional write, and only a stale free-set entry causes one, which
-	// happens while a bucket has just changed hands. Every miss also drops the id it
-	// tried, so the free-set corrects itself within a few attempts; the cap is there so a
-	// pathologically stale bucket cannot turn one acquire into hundreds of round trips.
+	// maxGrantAttempts caps how many slots one acquire tries before giving up. Only a stale
+	// free-set entry costs a retry, and every miss drops the id it tried, so the free-set
+	// corrects itself within a few attempts. The cap bounds the worst case: a badly stale
+	// bucket cannot turn one acquire into hundreds of conditional writes.
 	maxGrantAttempts = 5
 )
 
-// GrantOutcome says how one acquire ended. Every value is a result, never an error.
+// AcquireOutcome says how one acquire ended. Every value is a result, never an error.
 //
-// It differs from persistence.SemaphoreGrantOutcome, which reports one conditional write:
-// an acquire may take several writes or none. SlotTaken is retried and never reaches the
-// caller, while NoSlot and AlreadyHeld can both be decided without a write.
-type GrantOutcome int
+// It is not persistence.SemaphoreGrantOutcome, which reports one conditional write. An acquire
+// may take several writes, or none.
+type AcquireOutcome int
 
 const (
-	// GrantOutcomeUnknown is the zero value and is never returned.
-	GrantOutcomeUnknown GrantOutcome = iota
-	// GrantOutcomeAcquired means this call claimed a slot; TokenID is the new token.
-	GrantOutcomeAcquired
-	// GrantOutcomeAlreadyHeld means the owner already had a token, so this call claimed
+	// AcquireOutcomeUnknown is the zero value and is never returned.
+	AcquireOutcomeUnknown AcquireOutcome = iota
+	// AcquireOutcomeAcquired means this call claimed a token slot; TokenID is the new token.
+	AcquireOutcomeAcquired
+	// AcquireOutcomeAlreadyHeld means the owner already had a token, so this call claimed
 	// nothing; TokenID is the token it already holds. A retried acquire lands here.
-	GrantOutcomeAlreadyHeld
-	// GrantOutcomeNoSlot means no slot was available.
-	GrantOutcomeNoSlot
+	AcquireOutcomeAlreadyHeld
+	// AcquireOutcomeNoSlot means no token, because this host has no free slot left to try and
+	// nothing in this call said its in-memory free-set was wrong. Most likely the bucket really
+	// is full, but not certainly: the free-set is built when the bucket loads and only loses
+	// slots from there, so a slot released since then is missing from it.
+	AcquireOutcomeNoSlot
+	// AcquireOutcomeContended also means no token, but for a different reason: every slot this
+	// call tried turned out to be held by someone else. That proves the free-set is out of
+	// date, so unlike NoSlot it says nothing about whether the bucket is full -- free slots may
+	// be missing from it too. Re-read the partition before acting on it, and never
+	// report the semaphore as full or park a waiter on it.
+	AcquireOutcomeContended
 )
 
-func (o GrantOutcome) String() string {
+// String names the outcome for logs and error messages.
+func (o AcquireOutcome) String() string {
 	switch o {
-	case GrantOutcomeAcquired:
+	case AcquireOutcomeAcquired:
 		return "Acquired"
-	case GrantOutcomeAlreadyHeld:
+	case AcquireOutcomeAlreadyHeld:
 		return "AlreadyHeld"
-	case GrantOutcomeNoSlot:
+	case AcquireOutcomeNoSlot:
 		return "NoSlot"
+	case AcquireOutcomeContended:
+		return "Contended"
 	default:
 		return "Unknown"
 	}
 }
 
-// bucketState gates Grant. A Bucket only moves forward: created to running, or either to
+// AcquireResult is the answer to one acquire. TokenID is set unless Outcome is one of the
+// two no-token outcomes, AcquireOutcomeNoSlot or AcquireOutcomeContended.
+type AcquireResult struct {
+	Outcome AcquireOutcome
+	TokenID int
+}
+
+// bucketState gates Acquire. A Bucket only moves forward: created to running, or either to
 // stopped. Nothing brings a stopped bucket back.
 type bucketState int
 
@@ -75,65 +90,43 @@ const (
 	bucketStateStopped
 )
 
-// GrantResult is the answer to one acquire. TokenID is set unless Outcome is
-// GrantOutcomeNoSlot.
-type GrantResult struct {
-	Outcome GrantOutcome
-	TokenID int
-}
-
-// ErrNotReady is returned by Grant when this host cannot answer for the bucket: Start has
-// not been called, its scan failed, or the bucket has been stopped. It is an error rather
-// than GrantOutcomeNoSlot so a caller can tell "ask somewhere else" from "the semaphore is
-// full", which are otherwise indistinguishable.
+// ErrNotReady means this host cannot answer for the bucket -- not started, scan failed, or
+// stopped. An error, not an AcquireOutcome, so it cannot be read as an answer about the slots.
 var ErrNotReady = errors.New("semaphore bucket is not ready")
 
 // Bucket hands out the slots of one semaphore bucket, tracking which are open.
 //
-// What it holds in memory is only a cache of the bucket's partition; the conditional write
-// in persistence is what decides a grant. That is why a stale cache is safe either way. If
-// it offers a slot someone else holds, the write rejects it and the grant retries. If it
-// has lost track of a slot that is free, grants are turned away that could have succeeded.
-// Neither can give one slot to two owners, and neither can lose a grant.
-//
-// The partition is read once, by Start, and nothing reads it again. A slot this bucket loses
-// track of stays lost until the bucket changes hands or the host restarts.
-//
-// TODO: return a slot to the free-set when its hold is released, and reload the partition
-// periodically so slots dropped by a failed write come back without waiting for a handoff.
+// Its free-set is only a cache; the conditional write in persistence decides every grant.
+// Start reads the partition once and never again, so a lost slot stays lost until the bucket
+// is loaded afresh.
 type Bucket struct {
 	id      Identifier
 	manager persistence.SemaphoreTokenManager
 	logger  log.Logger
 
-	// startupDoneCh is closed when startup ends, whatever the outcome, and Grant waits on it.
-	// A new bucket knows of no free slots until Start's scan reads them from the partition,
-	// so a grant answered before that would find the free-set empty and report no slot even
-	// when every slot is free. startupOnce keeps the close to one, since closing a channel
-	// twice panics.
+	// startupDoneCh is closed when startup ends, whatever the outcome, and Acquire waits on it.
+	// startupOnce keeps the close to one, since closing twice panics.
 	startupDoneCh chan struct{}
 	startupOnce   sync.Once
 
-	// mu guards the state below. It is never held across a persistence call: two
-	// concurrent acquires for the same owner are meant to race down to the conditional
-	// write, where the loser is told which token it already holds.
+	// mu guards the state below, never held across a persistence call: concurrent acquires
+	// for one owner must race to the conditional write.
 	mu sync.Mutex
-	// state is guarded by mu rather than an atomic because Start has to check it and install
-	// what it loaded as one step. Stop can land while that load is still in flight, and with
-	// a separate check Start would go running afterwards and lose the stop.
+	// state is the bucket's current lifecycle stage, and Acquire serves only while it is running.
+	// mu guards it rather than an atomic so Start can check it and install its scan result as
+	// one step; otherwise a Stop landing mid-load would be lost.
 	state bucketState
 	// freeList holds the ids of token rows with no holder; freeIndex maps an id back to its
-	// position in freeList. Grant needs a uniform random pick and removal of one named id,
-	// both in O(1), and neither structure alone gives both. Keeping both, a removal
-	// swaps the tail into the hole freeIndex names and stays O(1).
+	// position in freeList. A grant needs both a uniform random pick and removal of one named
+	// id in O(1): freeIndex names the hole, and the tail swaps into it.
 	freeList  []int
 	freeIndex map[int]int
 	// held is the owner_id -> token_id reverse index, mirroring the partition's owner rows.
 	held map[string]int
 }
 
-// NewBucket builds the owner of one bucket. The caller must call Start before Grant, and
-// must discard the Bucket if Start returns an error.
+// NewBucket builds the owner of one bucket. Call Start before Acquire, and discard the Bucket
+// if Start returns an error.
 func NewBucket(
 	id Identifier,
 	manager persistence.SemaphoreTokenManager,
@@ -150,16 +143,15 @@ func NewBucket(
 	return b
 }
 
-// markStartupDone releases anyone waiting in Grant. It says startup is over, not that it
-// succeeded, so Stop calls it too: a bucket given up on before it finished starting fails
-// its callers instead of hanging them.
+// markStartupDone releases everything waiting for startup. It says startup ended, not that it
+// succeeded, so Stop calls it too: an acquire on a bucket that never started gets ErrNotReady
+// rather than blocking forever.
 func (b *Bucket) markStartupDone() {
 	b.startupOnce.Do(func() { close(b.startupDoneCh) })
 }
 
-// Start takes ownership of the bucket by scanning its partition and building the
-// free-set and the reverse index from what is actually stored. It must be called exactly
-// once, and the Bucket must be discarded if it returns an error.
+// Start scans the bucket's partition and builds the free-set and the reverse index from what
+// is stored there. Call it exactly once, and discard the Bucket if it returns an error.
 func (b *Bucket) Start(ctx context.Context) error {
 	defer b.markStartupDone()
 
@@ -182,10 +174,8 @@ func (b *Bucket) Start(ctx context.Context) error {
 	b.mu.Lock()
 	if b.state == bucketStateStopped {
 		b.mu.Unlock()
-		// Ownership was given up while the scan was in flight, so these indexes describe a
-		// bucket this host no longer serves. Going running now would leave a Bucket whose
-		// free-set can never refresh: it hands out slots the real owner has already given
-		// away, and every one of those costs a conditional write that cannot apply.
+		// Stop landed during the scan, so this host no longer owns the bucket and the scan
+		// result is already stale.
 		return fmt.Errorf("semaphore bucket %v was stopped while it was loading", b.id)
 	}
 	b.freeList, b.freeIndex, b.held = freeList, freeIndex, held
@@ -203,12 +193,11 @@ func (b *Bucket) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop gives up the bucket. Grants that arrive after it report ErrNotReady rather than
+// Stop gives up the bucket: acquires arriving after it report ErrNotReady rather than
 // answering from state this host no longer owns.
 //
-// It is not a barrier: a grant that passed the check before Stop ran can still complete
-// its write afterwards. That is safe because the conditional write, not ownership, is what
-// keeps a slot from going to two owners.
+// It is not a barrier -- a grant already past the state check can still finish its write. That
+// is safe: the conditional write, not ownership, keeps one slot from reaching two owners.
 func (b *Bucket) Stop() {
 	b.mu.Lock()
 	b.state = bucketStateStopped
@@ -223,23 +212,11 @@ func (b *Bucket) isRunning() bool {
 	return b.state == bucketStateRunning
 }
 
-// Grant claims a slot for ownerID:
+// Acquire asks the bucket for a slot on behalf of ownerID, and it's the entry point.
 //
-//   - Wait for startup, then refuse the call if the bucket is not usable.
-//   - Return the token the owner already holds, if it holds one, so a retry costs no write.
-//   - Draw a free id at random and reserve it, so no other acquire on this host draws it too.
-//   - Write it conditionally. This is the only step that decides anything; everything before
-//     it is an in-memory guess the write either confirms or rejects.
-//   - If the write says the slot was taken, drop that id and draw another, up to
-//     maxGrantAttempts.
-//
-// A bucket with no free ids, or one where every attempt lost the race, reports
-// GrantOutcomeNoSlot.
-//
-// TODO: serve waiters first, and enqueue a blocking acquire that finds no slot. Reporting
-// GrantOutcomeNoSlot stays for the non-blocking entry point, which skips the wait rather
-// than joining the queue.
-func (b *Bucket) Grant(ctx context.Context, ownerID string) (GrantResult, error) {
+// TODO: re-read the partition and retry on Contended, and serve queued waiters before new
+// callers so the queue cannot be jumped.
+func (b *Bucket) Acquire(ctx context.Context, ownerID string) (AcquireResult, error) {
 	// Wait for startup to finish before reading any state, since the free-set is empty until
 	// the scan fills it.
 	select {
@@ -248,35 +225,85 @@ func (b *Bucket) Grant(ctx context.Context, ownerID string) (GrantResult, error)
 	case <-ctx.Done():
 		// The caller's deadline expired while startup was still running. Returning here keeps
 		// a slow scan from holding every acquire past the deadline it asked for.
-		return GrantResult{}, ctx.Err()
+		return AcquireResult{}, ctx.Err()
 	}
 	if !b.isRunning() {
-		return GrantResult{}, ErrNotReady
+		return AcquireResult{}, ErrNotReady
 	}
 	if ownerID == "" {
-		return GrantResult{}, fmt.Errorf("ownerID is required")
+		return AcquireResult{}, fmt.Errorf("ownerID is required")
 	}
 
-	// A retried acquire routes back to the same bucket, so an earlier hold is recorded here
-	// and the call can be answered without a write.
-	heldToken, isHeld, holdErr := b.getConfirmedHold(ctx, ownerID)
-	if holdErr != nil {
-		return GrantResult{}, holdErr
+	res, err := b.grant(ctx, ownerID)
+	if err != nil {
+		return AcquireResult{}, err
 	}
-	if isHeld {
-		return GrantResult{Outcome: GrantOutcomeAlreadyHeld, TokenID: heldToken}, nil
+
+	// A full bucket is the one answer a caller can wait out, so it is the only one that becomes
+	// a waiter. Contended is never queued: the slots such a waiter would be waiting for may not
+	// be held by anyone, so no release is coming to wake it.
+	if res.Outcome == AcquireOutcomeNoSlot {
+		if err := b.enqueue(ctx, ownerID); err != nil {
+			return AcquireResult{}, err
+		}
+		return AcquireResult{Outcome: AcquireOutcomeNoSlot}, nil
 	}
+	return res, nil
+}
+
+// enqueue records ownerID as a waiter on this bucket, to be granted a slot when one frees.
+// Acquire calls it when a grant finds the bucket full.
+//
+// TODO: allocate a task id from the range this host holds and write the waiter row to
+// semaphore_tasks.
+func (b *Bucket) enqueue(ctx context.Context, ownerID string) error {
+	return nil
+}
+
+// grant makes one attempt at a slot for ownerID:
+//
+//   - Check the reverse index and return the token the owner already holds.
+//   - Draw a free id at random and settle it with a conditional write. Only the write decides.
+//   - A slot the write reports taken is dropped, and another drawn, up to maxGrantAttempts.
+//
+// It answers with one of four outcomes:
+//
+//   - Acquired: the write applied, and TokenID is the new token.
+//   - AlreadyHeld: the owner already had a token, and TokenID is that token.
+//   - NoSlot: no free id was left to try, and nothing contradicted the free-set.
+//   - Contended: every id tried turned out to be held, so the free-set is stale. Unlike NoSlot,
+//     this says nothing about whether the bucket is full.
+func (b *Bucket) grant(ctx context.Context, ownerID string) (AcquireResult, error) {
+	// Check the reverse index first, to see whether this owner already holds a token.
+	// A retried acquire is deduped here, and costs no write.
+	b.mu.Lock()
+	tokenID, ok := b.held[ownerID]
+	b.mu.Unlock()
+
+	if ok {
+		stillHeld, err := b.confirmHold(ctx, ownerID, tokenID)
+		if err != nil {
+			return AcquireResult{}, err
+		}
+		if stillHeld {
+			return AcquireResult{Outcome: AcquireOutcomeAlreadyHeld, TokenID: tokenID}, nil
+		}
+	}
+
+	// True once a write reports a supposedly-free slot as held, which proves the free-set wrong.
+	freeSetWasWrong := false
 
 	for range maxGrantAttempts {
+		// Stop as soon as the caller gives up. Letting the write fail instead reports a
+		// persistence.TimeoutError, which hides whether the caller ran out of time or the store did.
 		if err := ctx.Err(); err != nil {
-			return GrantResult{}, err
+			return AcquireResult{}, err
 		}
 
-		// Draw a free id and reserve it before the write, so no other acquire on this host
-		// can draw the same one.
+		// Draw a free id and reserve it before the write
 		tokenID, ok := b.reserve()
 		if !ok {
-			return GrantResult{Outcome: GrantOutcomeNoSlot}, nil
+			return AcquireResult{Outcome: noTokenOutcome(freeSetWasWrong)}, nil
 		}
 
 		// The conditional batch write, the one authoritative step. A write that does not
@@ -289,53 +316,37 @@ func (b *Bucket) Grant(ctx context.Context, ownerID string) (GrantResult, error)
 			OwnerID:       ownerID,
 		})
 		if err != nil {
-			// An error does not mean the write was rejected: a timeout says the database
-			// stopped waiting for acknowledgements, not that anything was rolled back. The
-			// id goes back either way, because both cases are safe:
-			//
-			//   - the write did not land, so the slot really is free;
-			//   - the write did land, so the next attempt on this id fails the "only if
-			//     free" guard and is reported taken. No second owner can get the slot.
-			//
-			// Keeping the id out instead would cost a slot per failed write, and an outage
+			// An error does not mean the write was rejected. Keeping the id
+			// out instead would cost a slot per failed write, and an outage
 			// would drain the bucket to nothing.
 			b.unreserve(tokenID)
-			return GrantResult{}, err
+			return AcquireResult{}, err
 		}
 
 		switch resp.Outcome {
 		case persistence.SemaphoreGrantApplied:
 			// Record the hold.
-			// Its durable owner row went in with the same batch.
 			b.recordHold(ownerID, tokenID)
-			return GrantResult{Outcome: GrantOutcomeAcquired, TokenID: tokenID}, nil
+			return AcquireResult{Outcome: AcquireOutcomeAcquired, TokenID: tokenID}, nil
 
 		case persistence.SemaphoreGrantSlotTaken:
-			// A stale free-set entry: someone else holds this slot. Keep the id out (it is
-			// genuinely not free) and draw another.
+			// A stale free-set entry: someone else holds this slot.
+			// Keep the id out (it is genuinely not free) and draw another.
 			// This is the one outcome worth retrying.
+			freeSetWasWrong = true
 			continue
 
 		case persistence.SemaphoreGrantAlreadyHeld:
-			// This owner already holds a token, which the check above missed because the
-			// reverse index cache was cold — the window right after the bucket changed hands.
-			// Retrying cannot help, since every id would hit the same owner-row conflict, and each
-			// attempt would strand another reserved slot. So put this id back and report
-			// the token the owner already has.
-			//
-			// Note the un-reserve is the opposite of the slot-taken branch above: there
-			// the id was not free, here it still is. Swapping the two either leaks free
-			// slots or offers out held ones.
+			// This owner already holds a token, put this id back and report the token the owner already has.
 			b.unreserve(tokenID)
 			if resp.HeldToken < 1 {
 				// AlreadyHeld without a token names nothing to hand back. Recording it would
 				// put a zero in the reverse index, and every later acquire by this owner would
-				// fail confirming a token id that cannot exist, with nothing to clear the
-				// entry. Refuse the call and leave the index alone.
-				return GrantResult{}, fmt.Errorf("semaphore grant reported an already-held slot without a token for bucket %v", b.id)
+				// fail confirming a token id that cannot exist.
+				return AcquireResult{}, fmt.Errorf("semaphore grant reported an already-held slot without a token for bucket %v", b.id)
 			}
 			b.recordHold(ownerID, resp.HeldToken)
-			return GrantResult{Outcome: GrantOutcomeAlreadyHeld, TokenID: resp.HeldToken}, nil
+			return AcquireResult{Outcome: AcquireOutcomeAlreadyHeld, TokenID: resp.HeldToken}, nil
 
 		default:
 			// The nosql store rejects an unrecognized outcome before it gets here, so this
@@ -343,37 +354,32 @@ func (b *Bucket) Grant(ctx context.Context, ownerID string) (GrantResult, error)
 			// one store rather than to the manager interface.
 			//
 			// An outcome this code cannot read says nothing about whether the slot was
-			// claimed, so the id goes back. Keeping it out would lose a slot for good over
-			// an unfamiliar response. If the slot was in fact claimed, the next attempt on
-			// it fails the "only if free" guard and is reported taken.
+			// claimed, so the id goes back.
 			b.unreserve(tokenID)
-			return GrantResult{}, fmt.Errorf("unexpected semaphore grant outcome %v for bucket %v", resp.Outcome, b.id)
+			return AcquireResult{}, fmt.Errorf("unexpected semaphore grant outcome %v for bucket %v", resp.Outcome, b.id)
 		}
 	}
 
-	// Every attempt found its slot taken. Reporting no slot available is the safe answer:
-	// it under-admits, and the caller either retries or (once the queue exists) waits.
+	// Every attempt found its slot taken, so the free-set is known to be stale and the
+	// answer is Contended by construction. Under-admitting is the safe direction, and the
+	// caller re-reads the partition before deciding what to do about it.
 	b.logger.Warn("Semaphore grant gave up after repeated stale free-set hits",
 		tag.Dynamic("attempts", maxGrantAttempts))
-	return GrantResult{Outcome: GrantOutcomeNoSlot}, nil
+	return AcquireResult{Outcome: AcquireOutcomeContended}, nil
 }
 
-// getConfirmedHold reports the token this owner already holds, which is what a retried
-// acquire finds. A false second return means the owner holds nothing here and Grant should
-// pick a slot as usual.
-//
-// The index is only a cache, so a hit is confirmed against the token row before it is
-// trusted. Without that check an owner could be told it still holds a slot that was
-// released and given to someone else, putting two owners on one slot. The extra read
-// happens only when the index has an entry for this owner.
-func (b *Bucket) getConfirmedHold(ctx context.Context, ownerID string) (int, bool, error) {
-	b.mu.Lock()
-	tokenID, ok := b.held[ownerID]
-	b.mu.Unlock()
-	if !ok {
-		return 0, false, nil
+// noTokenOutcome picks between the two no-token answers. A write that reported its slot taken
+// is proof the free-set is wrong, which makes every other entry in it suspect too.
+func noTokenOutcome(freeSetWasWrong bool) AcquireOutcome {
+	if freeSetWasWrong {
+		return AcquireOutcomeContended
 	}
+	return AcquireOutcomeNoSlot
+}
 
+// confirmHold checks whether ownerID still holds tokenID by reading the token row.
+// A stale entry is dropped, and its slot returned to the free-set when the row proves the slot unheld.
+func (b *Bucket) confirmHold(ctx context.Context, ownerID string, tokenID int) (bool, error) {
 	resp, err := b.manager.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
 		DomainID:      b.id.DomainID,
 		SemaphoreName: b.id.SemaphoreName,
@@ -383,19 +389,19 @@ func (b *Bucket) getConfirmedHold(ctx context.Context, ownerID string) (int, boo
 	if err != nil {
 		var notExists *types.EntityNotExistsError
 		if !errors.As(err, &notExists) {
-			return 0, false, err
+			return false, err
 		}
 		// Token rows are seeded once and never deleted, so a missing one means the index
 		// named a slot this bucket does not own. Drop the entry and fall through to a
 		// normal pick.
 		b.dropStaleHold(ownerID, tokenID, false)
-		return 0, false, nil
+		return false, nil
 	}
 
 	ownership := resp.Ownership
 	// The row agrees with the index, so the owner really does hold this slot.
 	if ownership != nil && ownership.Holder == ownerID {
-		return tokenID, true, nil
+		return true, nil
 	}
 
 	// The index is stale. Drop the entry, and return the slot to the free-set only if the
@@ -403,7 +409,7 @@ func (b *Bucket) getConfirmedHold(ctx context.Context, ownerID string) (int, boo
 	// offer out a held slot.
 	stillFree := ownership != nil && ownership.Holder == ""
 	b.dropStaleHold(ownerID, tokenID, stillFree)
-	return 0, false, nil
+	return false, nil
 }
 
 // loadTokenOwnership reads the bucket's partition, following NextPageToken to the end, and
@@ -440,11 +446,7 @@ func (b *Bucket) loadTokenOwnership(ctx context.Context) ([]int, map[int]int, ma
 				}
 			default:
 				// Either a type a newer version wrote, or the zero value because nothing
-				// set it. Skipping is safe in both directions: a dropped token row costs one
-				// slot for as long as this host owns the bucket, and a dropped owner row
-				// leaves the conditional write to catch the duplicate. Counted rather than
-				// logged per row, because either cause makes every row in the bucket match
-				// here.
+				// set it.
 				skipped++
 			}
 		}
@@ -460,12 +462,9 @@ func (b *Bucket) loadTokenOwnership(ctx context.Context) ([]int, map[int]int, ma
 			tag.Dynamic("skipped-rows", skipped))
 	}
 
-	// A slot claimed by an owner row is not free, whatever its token row said. The two can
-	// disagree because a scan is not a snapshot: a grant landing mid-scan can be missed on
-	// the token row and seen on the owner row. Reconciling them here just keeps the two
-	// indexes agreeing on the pages we did read; repairing the table itself is a separate
-	// job. Doing it after the loop rather than inside keeps it independent of the order
-	// the two row types come back in.
+	// A slot claimed by an owner row is not free, whatever its token row said.
+	// The two can disagree because a scan is not a snapshot. Reconciling them here
+	// just keeps the two indexes agreeing on the pages we did read
 	for _, tokenID := range held {
 		delete(free, tokenID)
 	}
@@ -487,17 +486,16 @@ func (b *Bucket) reserve() (int, bool) {
 		return 0, false
 	}
 	tokenID := b.freeList[rand.Intn(len(b.freeList))]
-	b.removeFreeLocked(tokenID)
+	b.removeFromFreeSetLocked(tokenID)
 	return tokenID, true
 }
 
-// unreserve puts a reserved id back, for a grant that drew it but did not take it. The id
-// may in fact be held, when the write's outcome is unknown. That is safe because the next
-// attempt on it is settled by the conditional write, not by this set.
+// unreserve puts back an id a grant drew but did not take. It may in fact be held, when the
+// write's outcome is unknown -- safe, because the conditional write settles the next attempt.
 func (b *Bucket) unreserve(tokenID int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.addFreeLocked(tokenID)
+	b.addToFreeSetLocked(tokenID)
 }
 
 // recordHold marks ownerID as holding tokenID, mirroring the owner row the write just put
@@ -506,34 +504,27 @@ func (b *Bucket) recordHold(ownerID string, tokenID int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.held[ownerID] = tokenID
-	// A held slot is never in the free-set. It normally is not here anyway, since the
-	// grant reserved it; the already-held case reports a token this host never drew.
-	b.removeFreeLocked(tokenID)
+	// A held slot is never in the free-set. It normally is not here anyway, since the grant
+	// reserved it; the already-held case reports a token this host never drew.
+	b.removeFromFreeSetLocked(tokenID)
 }
 
-// dropStaleHold removes a reverse-index entry the caller has found to be wrong, and puts its
-// slot back in the free-set if stillFree says the token row proved the slot unheld.
-//
-// This is not the undo of recordHold: nothing was released here, the index was simply out of
-// date. Releasing a hold is a separate job with its own durable write.
+// dropStaleHold removes a reverse-index entry, returning its slot
+// to the free-set when stillFree says the token row proved the slot unheld.
 func (b *Bucket) dropStaleHold(ownerID string, tokenID int, stillFree bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	// The caller read tokenID from this map and then released the lock to check the row, so
-	// this owner may have been granted a different token since. Deleting that would throw
-	// away a valid hold, so only delete while the entry still names tokenID.
 	if current, ok := b.held[ownerID]; ok && current == tokenID {
 		delete(b.held, ownerID)
 	}
 	if stillFree {
-		b.addFreeLocked(tokenID)
+		b.addToFreeSetLocked(tokenID)
 	}
 }
 
-// addFreeLocked puts an id back in the free-set, ignoring one that is already there. That
-// check keeps freeList free of duplicates, which would otherwise let two grants draw the
-// same slot.
-func (b *Bucket) addFreeLocked(tokenID int) {
+// addToFreeSetLocked puts an id back, ignoring one already there. That check keeps freeList free
+// of duplicates, which would otherwise let two grants draw the same slot.
+func (b *Bucket) addToFreeSetLocked(tokenID int) {
 	if _, ok := b.freeIndex[tokenID]; ok {
 		return
 	}
@@ -541,9 +532,9 @@ func (b *Bucket) addFreeLocked(tokenID int) {
 	b.freeList = append(b.freeList, tokenID)
 }
 
-// removeFreeLocked takes one id out in constant time by moving the tail element into its
+// removeFromFreeSetLocked takes one id out in constant time by moving the tail element into its
 // slot. Order in freeList carries no meaning, since picks are random.
-func (b *Bucket) removeFreeLocked(tokenID int) {
+func (b *Bucket) removeFromFreeSetLocked(tokenID int) {
 	i, ok := b.freeIndex[tokenID]
 	if !ok {
 		return
@@ -558,8 +549,8 @@ func (b *Bucket) removeFreeLocked(tokenID int) {
 	delete(b.freeIndex, tokenID)
 }
 
-// freeCount reports how many slots the bucket believes are open. It is a hint, not the
-// truth, and exists for tests and metrics.
+// freeCount reports how many slots the bucket believes are open. It is a hint, not the truth,
+// and exists for tests.
 func (b *Bucket) freeCount() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()

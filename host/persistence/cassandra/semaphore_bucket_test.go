@@ -108,9 +108,9 @@ func TestCassandraSemaphoreBucketGrant(t *testing.T) {
 	granted := make(map[int]string, slots)
 	for i := 0; i < slots; i++ {
 		owner := "owner-" + uuid.NewString()
-		got, err := bucket.Grant(ctx, owner)
+		got, err := bucket.Acquire(ctx, owner)
 		require.NoError(t, err)
-		require.Equal(t, semaphore.GrantOutcomeAcquired, got.Outcome)
+		require.Equal(t, semaphore.AcquireOutcomeAcquired, got.Outcome)
 		require.NotContains(t, granted, got.TokenID, "a slot was handed out twice")
 		granted[got.TokenID] = owner
 		f.assertHeldInDB(ctx, t, got.TokenID, owner)
@@ -118,29 +118,29 @@ func TestCassandraSemaphoreBucketGrant(t *testing.T) {
 	assert.Len(t, granted, slots, "every seeded slot must be grantable exactly once")
 
 	// The bucket is full, so the next acquire has nothing to give.
-	full, err := bucket.Grant(ctx, "owner-"+uuid.NewString())
+	full, err := bucket.Acquire(ctx, "owner-"+uuid.NewString())
 	require.NoError(t, err)
-	assert.Equal(t, semaphore.GrantOutcomeNoSlot, full.Outcome)
+	assert.Equal(t, semaphore.AcquireOutcomeNoSlot, full.Outcome)
 
 	// A retry returns the token the owner already has and claims nothing new.
 	for tokenID, owner := range granted {
-		repeat, err := bucket.Grant(ctx, owner)
+		repeat, err := bucket.Acquire(ctx, owner)
 		require.NoError(t, err)
-		assert.Equal(t, semaphore.GrantOutcomeAlreadyHeld, repeat.Outcome)
+		assert.Equal(t, semaphore.AcquireOutcomeAlreadyHeld, repeat.Outcome)
 		assert.Equal(t, tokenID, repeat.TokenID)
 	}
 
 	// A second owner loading the same partition must see the same picture, which is what
 	// a bucket handoff does.
 	reloaded := f.startBucket(ctx, t)
-	after, err := reloaded.Grant(ctx, "owner-"+uuid.NewString())
+	after, err := reloaded.Acquire(ctx, "owner-"+uuid.NewString())
 	require.NoError(t, err)
-	assert.Equal(t, semaphore.GrantOutcomeNoSlot, after.Outcome,
+	assert.Equal(t, semaphore.AcquireOutcomeNoSlot, after.Outcome,
 		"a fresh load must find the bucket full")
 	for tokenID, owner := range granted {
-		repeat, err := reloaded.Grant(ctx, owner)
+		repeat, err := reloaded.Acquire(ctx, owner)
 		require.NoError(t, err)
-		assert.Equal(t, semaphore.GrantOutcomeAlreadyHeld, repeat.Outcome,
+		assert.Equal(t, semaphore.AcquireOutcomeAlreadyHeld, repeat.Outcome,
 			"a freshly loaded reverse index must know the existing holds")
 		assert.Equal(t, tokenID, repeat.TokenID)
 	}
@@ -162,17 +162,17 @@ func TestCassandraSemaphoreBucketStaleFreeSet(t *testing.T) {
 	f.grantBypassingBucket(ctx, t, 2, "owner-y")
 
 	owner := "owner-" + uuid.NewString()
-	got, err := bucket.Grant(ctx, owner)
+	got, err := bucket.Acquire(ctx, owner)
 	require.NoError(t, err)
-	assert.Equal(t, semaphore.GrantOutcomeAcquired, got.Outcome)
+	assert.Equal(t, semaphore.AcquireOutcomeAcquired, got.Outcome)
 	assert.Equal(t, 3, got.TokenID, "the only unclaimed slot is the one that can be granted")
 	f.assertHeldInDB(ctx, t, 3, owner)
 }
 
-// TestCassandraSemaphoreBucketAlreadyHeldBackstop checks the one-token-per-owner rule when
-// the bucket has no record of the hold. Its reverse index says the owner holds nothing, so
-// nothing on this host stops a second grant, and the owner-row guard in the conditional
-// write is the only thing that does.
+// TestCassandraSemaphoreBucketAlreadyHeldBackstop checks that an owner cannot take a second
+// slot when the bucket's reverse index has no record of the first -- what every bucket looks
+// like just after a handoff. Nothing on this host refuses the grant, so the owner-row guard
+// in the conditional write is the only thing that does.
 func TestCassandraSemaphoreBucketAlreadyHeldBackstop(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), semaphoreBucketTestTimeout)
 	defer cancel()
@@ -180,33 +180,41 @@ func TestCassandraSemaphoreBucketAlreadyHeldBackstop(t *testing.T) {
 	f := newSemaphoreBucketFixture(ctx, t, 3)
 	bucket := f.startBucket(ctx, t)
 
+	// Grant slot 2 behind the bucket's back, so its indexes never learn of the hold: they
+	// still list 2 as free and have no entry for this owner.
 	owner := "owner-" + uuid.NewString()
 	f.grantBypassingBucket(ctx, t, 2, owner)
 
-	got, err := bucket.Grant(ctx, owner)
+	got, err := bucket.Acquire(ctx, owner)
 	require.NoError(t, err)
-	assert.Equal(t, semaphore.GrantOutcomeAlreadyHeld, got.Outcome,
+	assert.Equal(t, semaphore.AcquireOutcomeAlreadyHeld, got.Outcome,
 		"a cold reverse index must not let one owner take a second slot")
 	assert.Equal(t, 2, got.TokenID, "the owner keeps the token it already had")
 	f.assertHeldInDB(ctx, t, 2, owner)
 
-	// Both untouched slots must still be grantable. The already-held branch puts back the id
-	// it drew, unlike slot-taken which keeps it out, so the free-set here is exactly {1, 3}.
-	// Keeping it out instead would leave a single slot and the second grant would find none.
-	// That only shows up when the draw was not 2, so the unit test is the strict check.
+	// The already-held branch puts back the id it drew, unlike slot-taken which keeps it out,
+	// so the free-set is exactly {1, 3} whichever id the call above happened to draw. Keeping
+	// it out instead would leave one slot and the second acquire would find none. A draw of 2
+	// hides that, so the unit test is the strict check.
 	granted := map[int]bool{}
 	for range 2 {
 		other := "owner-" + uuid.NewString()
-		next, err := bucket.Grant(ctx, other)
+		next, err := bucket.Acquire(ctx, other)
 		require.NoError(t, err)
-		require.Equal(t, semaphore.GrantOutcomeAcquired, next.Outcome)
+		require.Equal(t, semaphore.AcquireOutcomeAcquired, next.Outcome)
 		f.assertHeldInDB(ctx, t, next.TokenID, other)
 		granted[next.TokenID] = true
 	}
 	assert.Equal(t, map[int]bool{1: true, 3: true}, granted, "both untouched slots must come out")
 
-	// All three slots are now spoken for.
-	full, err := bucket.Grant(ctx, "owner-"+uuid.NewString())
+	// Every slot is held now, so no token comes back. Which no-token answer it is depends on
+	// the draws above: if one drew slot 2 the write dropped it and the free-set is empty, so
+	// NoSlot; if not, this call draws 2 and the write proving it taken makes it Contended.
+	// Both are correct, so assert only that no token came out.
+	full, err := bucket.Acquire(ctx, "owner-"+uuid.NewString())
 	require.NoError(t, err)
-	assert.Equal(t, semaphore.GrantOutcomeNoSlot, full.Outcome)
+	assert.Contains(t,
+		[]semaphore.AcquireOutcome{semaphore.AcquireOutcomeNoSlot, semaphore.AcquireOutcomeContended},
+		full.Outcome, "a full bucket hands out no token")
+	assert.Zero(t, full.TokenID)
 }
