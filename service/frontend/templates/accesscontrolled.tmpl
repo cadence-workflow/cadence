@@ -20,6 +20,7 @@ import (
 {{$permissionMap = set $permissionMap "GetWorkflowExecutionHistory" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListArchivedWorkflowExecutions" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListClosedWorkflowExecutions" "PermissionRead"}}
+{{$permissionMap = set $permissionMap "ListDomains" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListOpenWorkflowExecutions" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListWorkflowExecutions" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "PollForActivityTask" "PermissionProcess"}}
@@ -54,7 +55,7 @@ import (
 {{$adminPermissionMap := dict }}
 {{$adminPermissionMap = set $adminPermissionMap "DescribeCluster" "PermissionRead"}}
 
-{{$nonDomainAuthAPIs := list "RegisterDomain" "DescribeDomain" "UpdateDomain" "DeprecateDomain" "DeleteDomain" "GetSearchAttributes" "GetClusterInfo" "ResetStickyTaskList" "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
+{{$nonDomainAuthAPIs := list "RegisterDomain" "DescribeDomain" "UpdateDomain" "DeprecateDomain" "DeleteDomain" "ListDomains" "GetSearchAttributes" "GetClusterInfo" "ResetStickyTaskList" "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$taskListAuthAPIs := list "PollForActivityTask" "PollForDecisionTask"}}
 {{$workflowTypeAuthAPIs := list "SignalWithStartWorkflowExecution" "StartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync" "StartWorkflowExecutionAsync"}}
 
@@ -103,6 +104,9 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 	{{- end}}
 	attr := &authorization.Attributes{
 		APIName: "{{$method.Name}}",
+		{{- if and (eq $handlerName "API") (eq $method.Name "ListDomains")}}
+		AuthenticationOnly: true,
+		{{- end}}
 		{{- if eq $handlerName "Admin"}}
 		{{- if hasKey $adminPermissionMap $method.Name}}
 		Permission: authorization.{{get $adminPermissionMap $method.Name}},
@@ -148,7 +152,11 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 		{{- end}}
 	}
 	{{- end}}
+	{{- if and (eq $handlerName "API") (eq $method.Name "ListDomains")}}
+	return a.listAuthorizedDomains(ctx, {{(index $method.Params 1).Name}}, scope)
+	{{- else}}
 	return a.handler.{{$method.Call}}
+	{{- end}}
 }
 {{- end}}
 {{end}}
