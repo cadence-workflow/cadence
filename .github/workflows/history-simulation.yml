@@ -15,6 +15,7 @@ jobs:
         scenario:
           - default
           - queuev2
+          - queuev2_immediate_cache_enabled
           - queuev2_scheduled_cache_enabled
           - queuev2_split
     continue-on-error: ${{ matrix.experimental == true }}
