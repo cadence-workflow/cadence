@@ -24,6 +24,7 @@ package cassandra
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -510,6 +511,104 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 	}
 }
 
+func TestUpdateWorkflowExecutionWithTasks_SentinelBehavior(t *testing.T) {
+	tests := []struct {
+		name              string
+		sentinelEnabled   bool
+		activityDeletes   []int64
+		timerDeletes      []string
+		wantSentinelQuery string
+		wantDeleteQuery   string
+	}{
+		{
+			name:              "sentinel enabled - activity delete writes sentinel instead of deleting",
+			sentinelEnabled:   true,
+			activityDeletes:   []int64{10},
+			wantSentinelQuery: "SET activity_map",
+		},
+		{
+			name:            "sentinel disabled - activity delete uses regular delete",
+			sentinelEnabled: false,
+			activityDeletes: []int64{10},
+			wantDeleteQuery: "DELETE activity_map",
+		},
+		{
+			name:              "sentinel enabled - timer delete writes sentinel instead of deleting",
+			sentinelEnabled:   true,
+			timerDeletes:      []string{"timer-1"},
+			wantSentinelQuery: "SET timer_map",
+		},
+		{
+			name:            "sentinel disabled - timer delete uses regular delete",
+			sentinelEnabled: false,
+			timerDeletes:    []string{"timer-1"},
+			wantDeleteQuery: "DELETE timer_map",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			session := &fakeSession{
+				iter:                      &fakeIter{},
+				mapExecuteBatchCASApplied: true,
+			}
+			client := gocql.NewMockClient(ctrl)
+			cfg := &config.NoSQL{}
+			logger := testlogger.New(t)
+			db := NewCassandraDBFromSession(cfg, session, logger, nil, DbWithClient(client))
+
+			mutatedExecution := testdata.WFExecRequest(
+				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeUpdate),
+			)
+			mutatedExecution.ActivityInfoKeysToDelete = tc.activityDeletes
+			mutatedExecution.TimerInfoKeysToDelete = tc.timerDeletes
+			mutatedExecution.ActivitySentinelWriteEnabled = tc.sentinelEnabled
+			mutatedExecution.TimerSentinelWriteEnabled = tc.sentinelEnabled
+
+			err := db.UpdateWorkflowExecutionWithTasks(
+				context.Background(),
+				nil,
+				&nosqlplugin.CurrentWorkflowWriteRequest{
+					WriteMode: nosqlplugin.CurrentWorkflowWriteModeNoop,
+				},
+				mutatedExecution,
+				nil,
+				nil,
+				nil,
+				nil,
+				&nosqlplugin.ShardCondition{ShardID: 1},
+			)
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(session.batches) == 0 {
+				t.Fatal("expected at least one batch")
+			}
+
+			allQueries := strings.Join(session.batches[0].queries, "\n")
+
+			if tc.wantSentinelQuery != "" {
+				if !strings.Contains(allQueries, tc.wantSentinelQuery) {
+					t.Errorf("expected batch to contain sentinel query with %q, got:\n%s", tc.wantSentinelQuery, allQueries)
+				}
+			}
+			if tc.wantDeleteQuery != "" {
+				if !strings.Contains(allQueries, tc.wantDeleteQuery) {
+					t.Errorf("expected batch to contain delete query with %q, got:\n%s", tc.wantDeleteQuery, allQueries)
+				}
+			}
+			if tc.wantSentinelQuery != "" && tc.wantDeleteQuery == "" {
+				if strings.Contains(allQueries, "DELETE activity_map") || strings.Contains(allQueries, "DELETE timer_map") {
+					t.Errorf("sentinel enabled but found DELETE map query in batch:\n%s", allQueries)
+				}
+			}
+		})
+	}
+}
+
 func TestSelectWorkflowExecution(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -552,7 +651,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 						1: {"schedule_id": int64(1)},
 					}
 					m["timer_map"] = map[string]map[string]interface{}{
-						"t1": {"started_id": int64(5)},
+						"t1": {"timer_id": "t1", "started_id": int64(5)},
 					}
 					m["child_executions_map"] = map[int64]map[string]interface{}{
 						3: {"initiated_id": int64(2)},
@@ -579,7 +678,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 					1: {ScheduleID: 1, DomainID: "test-domain-id"},
 				},
 				TimerInfos: map[string]*persistence.TimerInfo{
-					"t1": {StartedID: 5},
+					"t1": {TimerID: "t1", StartedID: 5},
 				},
 				ChildExecutionInfos: map[int64]*persistence.InternalChildExecutionInfo{
 					3: {InitiatedID: 2},
@@ -596,6 +695,54 @@ func TestSelectWorkflowExecution(t *testing.T) {
 				BufferedEvents: []*persistence.DataBlob{
 					{Encoding: constants.EncodingTypeThriftRW, Data: []byte("test-buffered-events-1")},
 				},
+			},
+		},
+		{
+			name:       "sentinel activity and timer entries are discarded on read",
+			shardID:    1,
+			domainID:   "test-domain-id",
+			workflowID: "test-workflow-id",
+			runID:      "test-run-id",
+			queryMockFn: func(query *gocql.MockQuery) {
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+				query.EXPECT().MapScan(gomock.Any()).DoAndReturn(func(m map[string]interface{}) error {
+					m["execution"] = map[string]interface{}{}
+					m["version_histories"] = []byte{}
+					m["version_histories_encoding"] = "thriftrw"
+					m["replication_state"] = map[string]interface{}{}
+					m["activity_map"] = map[int64]map[string]interface{}{
+						1:  {"schedule_id": int64(1)},
+						10: {"schedule_id": activitySentinelScheduleID},
+						20: {"schedule_id": activitySentinelScheduleID},
+					}
+					m["timer_map"] = map[string]map[string]interface{}{
+						"t1": {"timer_id": "t1", "started_id": int64(5)},
+						"0":  {"timer_id": ""},
+						"1":  {"timer_id": ""},
+						"2":  {"timer_id": ""},
+					}
+					m["child_executions_map"] = map[int64]map[string]interface{}{}
+					m["request_cancel_map"] = map[int64]map[string]interface{}{}
+					m["signal_map"] = map[int64]map[string]interface{}{}
+					m["signal_requested"] = []interface{}{}
+					m["buffered_events_list"] = []map[string]interface{}{}
+					m["checksum"] = map[string]interface{}{}
+					return nil
+				}).Times(1)
+			},
+			wantResp: &nosqlplugin.WorkflowExecution{
+				ExecutionInfo: &persistence.InternalWorkflowExecutionInfo{},
+				ActivityInfos: map[int64]*persistence.InternalActivityInfo{
+					1: {ScheduleID: 1, DomainID: "test-domain-id"},
+				},
+				TimerInfos: map[string]*persistence.TimerInfo{
+					"t1": {TimerID: "t1", StartedID: 5},
+				},
+				ChildExecutionInfos: map[int64]*persistence.InternalChildExecutionInfo{},
+				RequestCancelInfos:  map[int64]*persistence.RequestCancelInfo{},
+				SignalInfos:         map[int64]*persistence.SignalInfo{},
+				SignalRequestedIDs:  map[string]struct{}{},
+				BufferedEvents:      []*persistence.DataBlob{},
 			},
 		},
 	}
