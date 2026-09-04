@@ -23,6 +23,7 @@ package persistence
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/uber/cadence/common"
@@ -36,12 +37,13 @@ import (
 type (
 	// executionManagerImpl implements ExecutionManager based on ExecutionStore, statsComputer and PayloadSerializer
 	executionManagerImpl struct {
-		serializer    PayloadSerializer
-		persistence   ExecutionStore
-		statsComputer statsComputer
-		logger        log.Logger
-		timeSrc       clock.TimeSource
-		dc            *DynamicConfiguration
+		serializer          PayloadSerializer
+		persistence         ExecutionStore
+		statsComputer       statsComputer
+		logger              log.Logger
+		timeSrc             clock.TimeSource
+		dc                  *DynamicConfiguration
+		mapRewriteSupported bool
 	}
 )
 
@@ -55,17 +57,41 @@ func NewExecutionManagerImpl(
 	dc *DynamicConfiguration,
 ) ExecutionManager {
 	return &executionManagerImpl{
-		serializer:    serializer,
-		persistence:   persistence,
-		statsComputer: statsComputer{},
-		logger:        logger,
-		timeSrc:       clock.NewRealTimeSource(),
-		dc:            dc,
+		serializer:          serializer,
+		persistence:         persistence,
+		statsComputer:       statsComputer{},
+		logger:              logger,
+		timeSrc:             clock.NewRealTimeSource(),
+		dc:                  dc,
+		mapRewriteSupported: isMapRewriteSupported(persistence, dc),
 	}
 }
 
 func (m *executionManagerImpl) GetName() string {
 	return m.persistence.GetName()
+}
+
+// isMapRewriteSupported is evaluated once at construction and cached. Runtime changes to
+// MapRewriteOptimizationBackends require a process restart to take effect. The sample rate
+// configs remain dynamic, so setting them to 0 disables the feature without a restart.
+func isMapRewriteSupported(store ExecutionStore, dc *DynamicConfiguration) bool {
+	if store == nil || dc == nil || dc.MapRewriteOptimizationBackends == nil {
+		return false
+	}
+	name := store.GetName()
+	for _, b := range dc.MapRewriteOptimizationBackends() {
+		if s, ok := b.(string); ok && s == name {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldRewrite returns true with a 1-in-rate probability, used to
+// probabilistically trigger a full map rewrite that compacts sentinel
+// entries accumulated from previous deletes.
+func shouldRewrite(rate int) bool {
+	return rand.Intn(rate) == 0
 }
 
 // The below three APIs are related to serialization/deserialization
@@ -710,6 +736,41 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 	if err != nil {
 		return nil, err
 	}
+	var serializedRewriteActivityInfos []*InternalActivityInfo
+	var rewriteTimerInfos []*TimerInfo
+	var activityRate, timerRate int
+	if m.mapRewriteSupported && m.dc != nil {
+		if m.dc.ActivityMapRewriteSampleRate != nil {
+			activityRate = m.dc.ActivityMapRewriteSampleRate()
+		}
+		if m.dc.TimerMapRewriteSampleRate != nil {
+			timerRate = m.dc.TimerMapRewriteSampleRate()
+		}
+	}
+	if input.RewriteActivityInfos != nil && activityRate > 0 && shouldRewrite(activityRate) {
+		serializedRewriteActivityInfos, err = m.SerializeUpsertActivityInfos(input.RewriteActivityInfos, encoding)
+		if err != nil {
+			return nil, err
+		}
+		if serializedRewriteActivityInfos == nil {
+			serializedRewriteActivityInfos = []*InternalActivityInfo{}
+		}
+		m.logger.Info("activity map rewrite triggered",
+			tag.WorkflowDomainID(input.ExecutionInfo.DomainID),
+			tag.WorkflowID(input.ExecutionInfo.WorkflowID),
+			tag.WorkflowRunID(input.ExecutionInfo.RunID),
+			tag.Counter(len(serializedRewriteActivityInfos)),
+		)
+	}
+	if input.RewriteTimerInfos != nil && timerRate > 0 && shouldRewrite(timerRate) {
+		rewriteTimerInfos = input.RewriteTimerInfos
+		m.logger.Info("timer map rewrite triggered",
+			tag.WorkflowDomainID(input.ExecutionInfo.DomainID),
+			tag.WorkflowID(input.ExecutionInfo.WorkflowID),
+			tag.WorkflowRunID(input.ExecutionInfo.RunID),
+			tag.Counter(len(rewriteTimerInfos)),
+		)
+	}
 	serializedUpsertChildExecutionInfos, err := m.SerializeUpsertChildExecutionInfos(input.UpsertChildExecutionInfos, encoding)
 	if err != nil {
 		return nil, err
@@ -741,21 +802,25 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		StartVersion:     startVersion,
 		LastWriteVersion: lastWriteVersion,
 
-		UpsertActivityInfos:       serializedUpsertActivityInfos,
-		DeleteActivityInfos:       input.DeleteActivityInfos,
-		UpsertTimerInfos:          input.UpsertTimerInfos,
-		DeleteTimerInfos:          input.DeleteTimerInfos,
-		WorkflowTimerTasks:        m.syncTimerTaskTrackingKeys(input.TasksByCategory),
-		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
-		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,
-		UpsertRequestCancelInfos:  input.UpsertRequestCancelInfos,
-		DeleteRequestCancelInfos:  input.DeleteRequestCancelInfos,
-		UpsertSignalInfos:         input.UpsertSignalInfos,
-		DeleteSignalInfos:         input.DeleteSignalInfos,
-		UpsertSignalRequestedIDs:  input.UpsertSignalRequestedIDs,
-		DeleteSignalRequestedIDs:  input.DeleteSignalRequestedIDs,
-		NewBufferedEvents:         serializedNewBufferedEvents,
-		ClearBufferedEvents:       input.ClearBufferedEvents,
+		UpsertActivityInfos:          serializedUpsertActivityInfos,
+		DeleteActivityInfos:          input.DeleteActivityInfos,
+		RewriteActivityInfos:         serializedRewriteActivityInfos,
+		ActivitySentinelWriteEnabled: activityRate > 0,
+		UpsertTimerInfos:             input.UpsertTimerInfos,
+		DeleteTimerInfos:             input.DeleteTimerInfos,
+		RewriteTimerInfos:            rewriteTimerInfos,
+		TimerSentinelWriteEnabled:    timerRate > 0,
+		WorkflowTimerTasks:           m.syncTimerTaskTrackingKeys(input.TasksByCategory),
+		UpsertChildExecutionInfos:    serializedUpsertChildExecutionInfos,
+		DeleteChildExecutionInfos:    input.DeleteChildExecutionInfos,
+		UpsertRequestCancelInfos:     input.UpsertRequestCancelInfos,
+		DeleteRequestCancelInfos:     input.DeleteRequestCancelInfos,
+		UpsertSignalInfos:            input.UpsertSignalInfos,
+		DeleteSignalInfos:            input.DeleteSignalInfos,
+		UpsertSignalRequestedIDs:     input.UpsertSignalRequestedIDs,
+		DeleteSignalRequestedIDs:     input.DeleteSignalRequestedIDs,
+		NewBufferedEvents:            serializedNewBufferedEvents,
+		ClearBufferedEvents:          input.ClearBufferedEvents,
 
 		TasksByCategory: input.TasksByCategory,
 
