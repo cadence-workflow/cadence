@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.53",
+  "MinCompatibleVersion": "0.53",
+  "Description": "Add range_id ownership fence to semaphore_tokens",
+  "SchemaUpdateCqlFiles": [
+    "semaphore_tokens_range_id.cql"
+  ]
+}

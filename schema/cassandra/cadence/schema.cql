@@ -634,29 +634,26 @@ CREATE TABLE semaphore_metadata (
 
 -- Distributed semaphore: per-token ownership with an inline reverse index.
 --
--- Each bucket (domain_id, semaphore_name, bucket) is one Cassandra partition, written by its single
--- owning Matching host. `type` splits the partition into two row kinds that reuse the same four
--- columns (token_id / owner_id / holder / held_token) for opposite roles:
+-- Each bucket (domain_id, semaphore_name, bucket) is one Cassandra partition with a single
+-- writer, its owning Matching host. `type` splits the partition into three row kinds that share
+-- one set of columns; the column comments below say which kind uses which.
 --
---   token row (type = token): forward index keyed by token_id — "who holds this slot?"
---       token_id = slot id in [1, size] (the key); holder = holder's owner_id, or FREE (LWT-guarded).
---       owner_id, held_token = unused sentinels (OWNER_NONE, TOKEN_NONE).
+--   token row (type = 0): token_id -> holder      — who holds this slot?
+--   owner row (type = 1): owner_id -> held_token  — which slot does this hold own?
+--   lease row (type = 2): the range_id fence      — which host owns this bucket?
 --
---   owner row (type = owner): reverse index keyed by owner_id — "which slot does this hold own?"
---       owner_id = hold identity, length-prefixed workflow_id:run_id:hold_id (the key); held_token = its token_id.
---       token_id, holder = unused sentinels (TOKEN_NONE, OWNER_NONE).
---
--- Grant and release write the paired token row and owner row in ONE atomic batch on the partition,
--- so the forward and reverse views can never diverge.
+-- Grant and release write a token row and its owner row in ONE atomic batch, so the forward and
+-- reverse views can never diverge.
 CREATE TABLE semaphore_tokens (
     domain_id       uuid,
     semaphore_name  text,
     bucket          int,        -- static bucket = f(owner_id)
-    type            int,        -- rowKind {token, owner}: forward row vs reverse-index row
-    token_id        int,        -- token row: slot id [1,size]; owner row: TOKEN_NONE sentinel
-    owner_id        text,       -- owner row: the holder's identity; token row: OWNER_NONE sentinel
-    holder          text,       -- token row: current holder or FREE (LWT-guarded); owner row: OWNER_NONE sentinel
-    held_token      int,        -- owner row: the token this owner holds; token row: TOKEN_NONE sentinel
+    type            int,        -- rowKind {token, owner, lease}: forward row, reverse-index row, or fence row
+    token_id        int,        -- token row: slot id [1,size]; owner and lease rows: TOKEN_NONE sentinel
+    owner_id        text,       -- owner row: the holder's identity; token and lease rows: OWNER_NONE sentinel
+    holder          text,       -- token row: current holder or FREE (LWT-guarded); owner and lease rows: OWNER_NONE sentinel
+    held_token      int,        -- owner row: the token this owner holds; token and lease rows: TOKEN_NONE sentinel
+    range_id        bigint,     -- lease row: the owning host's fence
     updated_time    timestamp,
     PRIMARY KEY ((domain_id, semaphore_name, bucket), type, token_id, owner_id)
 ) WITH compaction = {
