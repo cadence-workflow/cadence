@@ -32,7 +32,7 @@ require (
 	github.com/hashicorp/go-version v1.2.0 // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee // indirect
-	github.com/lib/pq v1.2.0 // indirect
+	github.com/lib/pq v1.10.2 // indirect
 	github.com/m3db/prometheus_client_golang v1.12.8 // indirect
 	github.com/olivere/elastic v6.2.37+incompatible // indirect
 	github.com/olivere/elastic/v7 v7.0.21 // indirect
@@ -133,7 +133,7 @@ require (
 	cloud.google.com/go/storage v1.53.0 // indirect
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/MicahParks/keyfunc/v2 v2.1.0 // indirect
-	github.com/apache/thrift v0.17.0 // indirect
+	github.com/apache/thrift v0.24.0 // indirect
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
