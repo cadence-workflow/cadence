@@ -12,8 +12,7 @@ import (
 // execution history that put the workflow at risk of timing out, even though no timeout has occurred yet.
 type TimeoutRisk invariant.Invariant
 
-type timeoutRisk struct {
-}
+type timeoutRisk struct{}
 
 func NewInvariant() TimeoutRisk {
 	return &timeoutRisk{}
@@ -65,6 +64,24 @@ func (t *timeoutRisk) Check(ctx context.Context, params invariant.InvariantCheck
 					ActivityType:        activityType,
 					StartToCloseTimeout: time.Duration(attr.GetStartToCloseTimeoutSeconds()) * time.Second,
 					Threshold:           time.Duration(longRunningActivityThresholdSeconds) * time.Second,
+				}),
+			})
+			issueID++
+		}
+
+		// The recorded value is the effective timeout: the server inflates it under retryable
+		// policies (validateActivityScheduleAttributes), and that inflated wait is real.
+		if attr.GetScheduleToStartTimeoutSeconds() > highScheduleToStartThresholdSeconds {
+			result = append(result, invariant.InvariantCheckResult{
+				IssueID:       issueID,
+				InvariantType: ActivityHighScheduleToStartTimeout.String(),
+				Reason:        HighScheduleToStartTimeout.String(),
+				Metadata: invariant.MarshalData(ActivityHighScheduleToStartTimeoutMetadata{
+					EventID:                event.ID,
+					ActivityID:             activityID,
+					ActivityType:           activityType,
+					ScheduleToStartTimeout: time.Duration(attr.GetScheduleToStartTimeoutSeconds()) * time.Second,
+					Threshold:              time.Duration(highScheduleToStartThresholdSeconds) * time.Second,
 				}),
 			})
 			issueID++

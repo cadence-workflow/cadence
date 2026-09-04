@@ -522,6 +522,15 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 	}
 	missingHeartbeatMetadataInBytes, err := json.Marshal(missingHeartbeatMetadata)
 	s.NoError(err)
+	highScheduleToStartMetadata := timeoutrisk.ActivityHighScheduleToStartTimeoutMetadata{
+		EventID:                4,
+		ActivityID:             "103",
+		ActivityType:           "test-activity",
+		ScheduleToStartTimeout: 300 * time.Second,
+		Threshold:              180 * time.Second,
+	}
+	highScheduleToStartMetadataInBytes, err := json.Marshal(highScheduleToStartMetadata)
+	s.NoError(err)
 	issues := []invariant.InvariantCheckResult{
 		{
 			IssueID:       0,
@@ -534,6 +543,12 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 			InvariantType: timeoutrisk.ActivityMissingHeartbeatTimeout.String(),
 			Reason:        timeoutrisk.MissingHeartbeatTimeoutForLongActivity.String(),
 			Metadata:      missingHeartbeatMetadataInBytes,
+		},
+		{
+			IssueID:       2,
+			InvariantType: timeoutrisk.ActivityHighScheduleToStartTimeout.String(),
+			Reason:        timeoutrisk.HighScheduleToStartTimeout.String(),
+			Metadata:      highScheduleToStartMetadataInBytes,
 		},
 	}
 	timeoutRiskIssues := []*timeoutRiskIssuesResult{
@@ -551,6 +566,14 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 			Reason:        timeoutrisk.MissingHeartbeatTimeoutForLongActivity.String(),
 			Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
 				ActivityMissingHeartbeatTimeout: &missingHeartbeatMetadata,
+			},
+		},
+		{
+			IssueID:       2,
+			InvariantType: timeoutrisk.ActivityHighScheduleToStartTimeout.String(),
+			Reason:        timeoutrisk.HighScheduleToStartTimeout.String(),
+			Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
+				ActivityHighScheduleToStartTimeout: &highScheduleToStartMetadata,
 			},
 		},
 	}

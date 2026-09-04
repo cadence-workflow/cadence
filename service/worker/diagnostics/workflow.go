@@ -461,6 +461,20 @@ func retrieveTimeoutRiskIssues(issues []invariant.InvariantCheckResult) ([]*time
 					ActivityMissingHeartbeatTimeout: &metadata,
 				},
 			})
+		case timeoutrisk.ActivityHighScheduleToStartTimeout.String():
+			var metadata timeoutrisk.ActivityHighScheduleToStartTimeoutMetadata
+			err := json.Unmarshal(issue.Metadata, &metadata)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, &timeoutRiskIssuesResult{
+				IssueID:       issue.IssueID,
+				InvariantType: issue.InvariantType,
+				Reason:        issue.Reason,
+				Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
+					ActivityHighScheduleToStartTimeout: &metadata,
+				},
+			})
 		}
 	}
 	return result, nil

@@ -34,24 +34,54 @@ func Test__Check(t *testing.T) {
 	missingHeartbeatMetadataInBytes, err := json.Marshal(missingHeartbeatMetadata)
 	require.NoError(t, err)
 
-	twoIssuesAtCapMetadata := ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+	highScheduleToStartMetadata := ActivityHighScheduleToStartTimeoutMetadata{
+		EventID:                2,
+		ActivityID:             "201",
+		ActivityType:           "test-activity",
+		ScheduleToStartTimeout: 300 * time.Second,
+		Threshold:              180 * time.Second,
+	}
+	highScheduleToStartMetadataInBytes, err := json.Marshal(highScheduleToStartMetadata)
+	require.NoError(t, err)
+
+	noStartedEventScheduleToStartMetadata := ActivityHighScheduleToStartTimeoutMetadata{
+		EventID:                1,
+		ActivityID:             "202",
+		ActivityType:           "test-activity",
+		ScheduleToStartTimeout: 600 * time.Second,
+		Threshold:              180 * time.Second,
+	}
+	noStartedEventScheduleToStartMetadataInBytes, err := json.Marshal(noStartedEventScheduleToStartMetadata)
+	require.NoError(t, err)
+
+	allThreeAtCapMetadata := ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
 		EventID:             2,
 		ActivityID:          "107",
 		ActivityType:        "test-activity",
 		StartToCloseTimeout: 1800 * time.Second,
 		WorkflowTimeout:     1800 * time.Second,
 	}
-	twoIssuesAtCapMetadataInBytes, err := json.Marshal(twoIssuesAtCapMetadata)
+	allThreeAtCapMetadataInBytes, err := json.Marshal(allThreeAtCapMetadata)
 	require.NoError(t, err)
 
-	twoIssuesMissingHeartbeatMetadata := ActivityMissingHeartbeatTimeoutMetadata{
+	allThreeMissingHeartbeatMetadata := ActivityMissingHeartbeatTimeoutMetadata{
 		EventID:             2,
 		ActivityID:          "107",
 		ActivityType:        "test-activity",
 		StartToCloseTimeout: 1800 * time.Second,
 		Threshold:           600 * time.Second,
 	}
-	twoIssuesMissingHeartbeatMetadataInBytes, err := json.Marshal(twoIssuesMissingHeartbeatMetadata)
+	allThreeMissingHeartbeatMetadataInBytes, err := json.Marshal(allThreeMissingHeartbeatMetadata)
+	require.NoError(t, err)
+
+	allThreeScheduleToStartMetadata := ActivityHighScheduleToStartTimeoutMetadata{
+		EventID:                2,
+		ActivityID:             "107",
+		ActivityType:           "test-activity",
+		ScheduleToStartTimeout: 300 * time.Second,
+		Threshold:              180 * time.Second,
+	}
+	allThreeScheduleToStartMetadataInBytes, err := json.Marshal(allThreeScheduleToStartMetadata)
 	require.NoError(t, err)
 
 	secondActivityRiskyMetadata := ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
@@ -138,12 +168,73 @@ func Test__Check(t *testing.T) {
 			expectedResult: []invariant.InvariantCheckResult{},
 		},
 		{
-			name: "both risks fire on one scheduled event",
+			name: "ScheduleToStart above threshold",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 3600),
+						scheduledEvent(2, "201", "test-activity", 30, 300, 10, nil),
+					},
+				},
+			},
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: ActivityHighScheduleToStartTimeout.String(),
+					Reason:        HighScheduleToStartTimeout.String(),
+					Metadata:      highScheduleToStartMetadataInBytes,
+				},
+			},
+		},
+		{
+			name: "ScheduleToStart exactly at threshold - no issue",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 3600),
+						scheduledEvent(2, "203", "test-activity", 30, 180, 10, nil),
+					},
+				},
+			},
+			expectedResult: []invariant.InvariantCheckResult{},
+		},
+		{
+			name: "ScheduleToStart unset - no issue",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						startedEvent(1, 3600),
+						scheduledEvent(2, "204", "test-activity", 30, 0, 10, nil),
+					},
+				},
+			},
+			expectedResult: []invariant.InvariantCheckResult{},
+		},
+		{
+			name: "ScheduleToStart above threshold fires even without a workflow started event",
+			testData: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: []*types.HistoryEvent{
+						scheduledEvent(1, "202", "test-activity", 30, 600, 10, nil),
+					},
+				},
+			},
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: ActivityHighScheduleToStartTimeout.String(),
+					Reason:        HighScheduleToStartTimeout.String(),
+					Metadata:      noStartedEventScheduleToStartMetadataInBytes,
+				},
+			},
+		},
+		{
+			name: "all three risks fire on one scheduled event",
 			testData: &types.GetWorkflowExecutionHistoryResponse{
 				History: &types.History{
 					Events: []*types.HistoryEvent{
 						startedEvent(1, 1800),
-						scheduledEvent(2, "107", "test-activity", 1800, 5, 0, nil),
+						scheduledEvent(2, "107", "test-activity", 1800, 300, 0, nil),
 					},
 				},
 			},
@@ -152,13 +243,19 @@ func Test__Check(t *testing.T) {
 					IssueID:       0,
 					InvariantType: ActivityStartToCloseAtWorkflowTimeoutCap.String(),
 					Reason:        StartToCloseAtWorkflowTimeoutCap.String(),
-					Metadata:      twoIssuesAtCapMetadataInBytes,
+					Metadata:      allThreeAtCapMetadataInBytes,
 				},
 				{
 					IssueID:       1,
 					InvariantType: ActivityMissingHeartbeatTimeout.String(),
 					Reason:        MissingHeartbeatTimeoutForLongActivity.String(),
-					Metadata:      twoIssuesMissingHeartbeatMetadataInBytes,
+					Metadata:      allThreeMissingHeartbeatMetadataInBytes,
+				},
+				{
+					IssueID:       2,
+					InvariantType: ActivityHighScheduleToStartTimeout.String(),
+					Reason:        HighScheduleToStartTimeout.String(),
+					Metadata:      allThreeScheduleToStartMetadataInBytes,
 				},
 			},
 		},
@@ -201,9 +298,9 @@ func Test__Check(t *testing.T) {
 		},
 	}
 
+	inv := NewInvariant()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inv := NewInvariant()
 			result, err := inv.Check(context.Background(), invariant.InvariantCheckInput{
 				WorkflowExecutionHistory: tc.testData,
 			})
