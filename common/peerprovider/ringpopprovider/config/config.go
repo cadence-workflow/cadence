@@ -1,31 +1,9 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
 package config
 
 import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/uber/ringpop-go/discovery"
 )
 
 // BootstrapMode is an enum type for ringpop bootstrap mode
@@ -56,7 +34,7 @@ const (
 // Config contains the ringpop config items
 type Config struct {
 	// Name to be used in ringpop advertisement
-	Name string `yaml:"name" validate:"nonzero"`
+	Name string `yaml:"name"`
 	// BroadcastAddress is communicated with peers to connect to this container/host.
 	// This is useful when running cadence in K8s and the containers need to listen on 0.0.0.0 but advertise their pod IP to peers.
 	// If not set, the listen address will be used as broadcast address.
@@ -69,8 +47,16 @@ type Config struct {
 	BootstrapFile string `yaml:"bootstrapFile"`
 	// MaxJoinDuration is the max wait time to join the ring
 	MaxJoinDuration time.Duration `yaml:"maxJoinDuration"`
-	// Custom discovery provider, cannot be specified through yaml
-	DiscoveryProvider discovery.DiscoverProvider `yaml:"-"`
+}
+
+// IsEmpty returns true if all config fields are zero values
+func (rpConfig *Config) IsEmpty() bool {
+	return rpConfig.Name == "" &&
+		rpConfig.BroadcastAddress == "" &&
+		rpConfig.BootstrapMode == 0 &&
+		len(rpConfig.BootstrapHosts) == 0 &&
+		rpConfig.BootstrapFile == "" &&
+		rpConfig.MaxJoinDuration == 0
 }
 
 func (rpConfig *Config) Validate() error {
@@ -134,9 +120,7 @@ func validateBootstrapMode(
 			return fmt.Errorf("ringpop config missing boostrap hosts param")
 		}
 	case BootstrapModeCustom:
-		if rpConfig.DiscoveryProvider == nil {
-			return fmt.Errorf("ringpop bootstrapMode is set to custom but discoveryProvider is nil")
-		}
+		return fmt.Errorf("ringpop bootstrapMode custom is not supported")
 	default:
 		return fmt.Errorf("ringpop config with unknown boostrap mode %q", rpConfig.BootstrapMode)
 	}

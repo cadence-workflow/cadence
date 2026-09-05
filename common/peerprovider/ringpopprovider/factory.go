@@ -170,11 +170,6 @@ func newDiscoveryProvider(
 	logger log.Logger,
 ) (discovery.DiscoverProvider, error) {
 
-	if cfg.DiscoveryProvider != nil {
-		// custom discovery provider takes first precedence
-		return cfg.DiscoveryProvider, nil
-	}
-
 	switch cfg.BootstrapMode {
 	case config.BootstrapModeHosts:
 		return statichosts.New(cfg.BootstrapHosts...), nil
