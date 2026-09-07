@@ -46,6 +46,7 @@ import (
 	"flag"
 	"fmt"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -121,19 +122,40 @@ func (s *PinotIntegrationSuite) SetupSuite() {
 
 	s.TestRawHistoryDomainName = "TestRawHistoryDomain"
 	s.DomainName = s.RandomizeStr("integration-test-domain")
-	s.Require().NoError(
-		s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
-	s.Require().NoError(
-		s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 	s.ForeignDomainName = s.RandomizeStr("integration-foreign-test-domain")
-	s.Require().NoError(
-		s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
-	s.Require().NoError(s.registerArchivalDomain())
+	var wg sync.WaitGroup
+	errCh := make(chan error, 4)
 
-	// this sleep is necessary because domainv2 cache gets refreshed in the
-	// background only every domainCacheRefreshInterval period
-	time.Sleep(cache.DomainCacheRefreshInterval + time.Second)
+	registerDomain := func(domain string, registerFn func() error) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errCh <- registerFn()
+		}()
+	}
+
+	registerDomain(s.DomainName, func() error {
+		return s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain(s.TestRawHistoryDomainName, func() error {
+		return s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain(s.ForeignDomainName, func() error {
+		return s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain("ArchivalDomain", func() error {
+		return s.registerArchivalDomain()
+	})
+
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		s.Require().NoError(err)
+	}
+
+	domains := []string{s.DomainName, s.TestRawHistoryDomainName, s.ForeignDomainName, s.ArchivalDomainName}
+	s.Require().NoError(s.waitForDomains(domains))
 
 	tableName := "cadence_visibility_pinot" // cadence_visibility_pinot_integration_test
 	pinotConfig := &config.PinotVisibilityConfig{
