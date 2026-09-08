@@ -1,8 +1,11 @@
 package semaphore
 
 import (
+	"math"
+	"strings"
 	"testing"
 
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -132,6 +135,45 @@ func TestParseOwnerRejectsMalformed(t *testing.T) {
 	}
 }
 
+// fuzzOwner generates a random Owner, weighted toward the interesting cases: empty strings, strings
+// holding the separator, and the int64 edges.
+func fuzzOwner(o *Owner, c fuzz.Continue) {
+	o.WorkflowID = fuzzOwnerText(c)
+	o.RunID = fuzzOwnerText(c)
+	switch c.Intn(8) {
+	case 0:
+		o.HoldID = 0
+	case 1:
+		o.HoldID = math.MaxInt64
+	case 2:
+		o.HoldID = math.MinInt64
+	default:
+		// RandUint64 rather than Int63 so negatives are reachable.
+		o.HoldID = int64(c.RandUint64())
+	}
+}
+
+// fuzzOwnerText builds one string field: sometimes empty, sometimes ordinary random unicode, and
+// often separators interleaved with it.
+func fuzzOwnerText(c fuzz.Continue) string {
+	switch c.Intn(4) {
+	case 0:
+		return ""
+	case 1, 2:
+		return c.RandString()
+	default:
+		var b strings.Builder
+		for n := c.Intn(8); n > 0; n-- {
+			if c.RandBool() {
+				b.WriteByte(ownerIDSeparator)
+			} else {
+				b.WriteString(c.RandString())
+			}
+		}
+		return b.String()
+	}
+}
+
 // TestOwnerFuzz round-trips randomly generated Owners through the encoding, the way the type
 // mappers are fuzzed. gofuzz produces arbitrary unicode, which is what makes this worth having
 // next to the ASCII table above: the length prefix counts bytes, so a parser that sliced by
@@ -141,5 +183,5 @@ func TestOwnerFuzz(t *testing.T) {
 		owner, err := ParseOwner(id)
 		require.NoError(t, err, "encoding %q does not parse", id)
 		return owner
-	})
+	}, testutils.WithCustomFuncs(fuzzOwner))
 }
