@@ -58,11 +58,14 @@ func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInpu
 	for _, event := range events {
 		if event.WorkflowExecutionTimedOutEventAttributes != nil {
 			timeoutLimit := getWorkflowExecutionConfiguredTimeout(events)
-			data := ExecutionTimeoutMetadata{
-				ExecutionTime:     getExecutionTime(1, event.ID, events),
+			data := TimeoutIssuesMetadata{
+				EventID:           event.ID,
 				ConfiguredTimeout: time.Duration(timeoutLimit) * time.Second,
-				LastOngoingEvent:  events[len(events)-2],
-				Tasklist:          getWorkflowExecutionTasklist(events),
+				ExecutionTimeout: &ExecutionTimeoutMetadata{
+					ExecutionTime:    getExecutionTime(1, event.ID, events),
+					LastOngoingEvent: events[len(events)-2],
+					Tasklist:         getWorkflowExecutionTasklist(events),
+				},
 			}
 			result = append(result, invariant.InvariantCheckResult{
 				IssueID:       issueID,
@@ -97,10 +100,13 @@ func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInpu
 		}
 		if event.ChildWorkflowExecutionTimedOutEventAttributes != nil {
 			timeoutLimit := getChildWorkflowExecutionConfiguredTimeout(event, events)
-			data := ChildWfTimeoutMetadata{
-				ExecutionTime:     getExecutionTime(event.GetChildWorkflowExecutionTimedOutEventAttributes().StartedEventID, event.ID, events),
+			data := TimeoutIssuesMetadata{
+				EventID:           event.ID,
 				ConfiguredTimeout: time.Duration(timeoutLimit) * time.Second,
-				Execution:         event.GetChildWorkflowExecutionTimedOutEventAttributes().WorkflowExecution,
+				ChildWfTimeout: &ChildWfTimeoutMetadata{
+					ExecutionTime: getExecutionTime(event.GetChildWorkflowExecutionTimedOutEventAttributes().StartedEventID, event.ID, events),
+					Execution:     event.GetChildWorkflowExecutionTimedOutEventAttributes().WorkflowExecution,
+				},
 			}
 			result = append(result, invariant.InvariantCheckResult{
 				IssueID:       issueID,
@@ -139,23 +145,22 @@ func (t *timeout) RootCause(ctx context.Context, params invariant.InvariantRootC
 func (t *timeout) checkTasklist(ctx context.Context, issue invariant.InvariantCheckResult, domain string) (invariant.InvariantRootCauseResult, error) {
 	var taskList *types.TaskList
 	var tasklistType *shared.TaskListType
+	var metadata TimeoutIssuesMetadata
+	err := json.Unmarshal(issue.Metadata, &metadata)
+	if err != nil {
+		return invariant.InvariantRootCauseResult{}, err
+	}
 	switch issue.InvariantType {
 	case TimeoutTypeExecution.String():
-		var metadata ExecutionTimeoutMetadata
-		err := json.Unmarshal(issue.Metadata, &metadata)
-		if err != nil {
-			return invariant.InvariantRootCauseResult{}, err
-		}
-		taskList = metadata.Tasklist
 		tasklistType = shared.TaskListTypeDecision.Ptr()
-	case TimeoutTypeActivity.String():
-		var metadata ActivityTimeoutMetadata
-		err := json.Unmarshal(issue.Metadata, &metadata)
-		if err != nil {
-			return invariant.InvariantRootCauseResult{}, err
+		if metadata.ExecutionTimeout != nil {
+			taskList = metadata.ExecutionTimeout.Tasklist
 		}
-		taskList = metadata.Tasklist
+	case TimeoutTypeActivity.String():
 		tasklistType = shared.TaskListTypeActivity.Ptr()
+		if metadata.ActivityTimeout != nil {
+			taskList = metadata.ActivityTimeout.Tasklist
+		}
 	}
 	if taskList == nil {
 		return invariant.InvariantRootCauseResult{}, fmt.Errorf("tasklist not set")
@@ -202,16 +207,20 @@ func taskListKind(kind types.TaskListKind) *shared.TaskListKind {
 }
 
 func checkHeartbeatStatus(issue invariant.InvariantCheckResult) ([]invariant.InvariantRootCauseResult, error) {
-	var metadata ActivityTimeoutMetadata
+	var metadata TimeoutIssuesMetadata
 	err := json.Unmarshal(issue.Metadata, &metadata)
 	if err != nil {
 		return nil, err
 	}
+	if metadata.ActivityTimeout == nil {
+		return nil, fmt.Errorf("activity timeout metadata not set")
+	}
+	act := metadata.ActivityTimeout
 
-	heartbeatingMetadataInBytes := invariant.MarshalData(HeartbeatingMetadata{TimeElapsed: metadata.TimeElapsed, RetryPolicy: metadata.RetryPolicy})
+	heartbeatingMetadataInBytes := invariant.MarshalData(HeartbeatingMetadata{TimeElapsed: act.TimeElapsed, RetryPolicy: act.RetryPolicy})
 
-	if metadata.HeartBeatTimeout == 0 && activityStarted(metadata) {
-		if metadata.RetryPolicy != nil {
+	if act.HeartBeatTimeout == 0 && activityStarted(*act) {
+		if act.RetryPolicy != nil {
 			return []invariant.InvariantRootCauseResult{
 				{
 					IssueID:   issue.IssueID,
@@ -229,8 +238,8 @@ func checkHeartbeatStatus(issue invariant.InvariantCheckResult) ([]invariant.Inv
 		}, nil
 	}
 
-	if metadata.HeartBeatTimeout > 0 && metadata.TimeoutType.String() == types.TimeoutTypeHeartbeat.String() {
-		if metadata.RetryPolicy == nil {
+	if act.HeartBeatTimeout > 0 && act.TimeoutType.String() == types.TimeoutTypeHeartbeat.String() {
+		if act.RetryPolicy == nil {
 			return []invariant.InvariantRootCauseResult{
 				{
 					IssueID:   issue.IssueID,

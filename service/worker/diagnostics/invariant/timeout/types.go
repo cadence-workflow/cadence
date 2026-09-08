@@ -42,29 +42,22 @@ func (tt TimeoutType) String() string {
 }
 
 type ExecutionTimeoutMetadata struct {
-	ExecutionTime     time.Duration
-	ConfiguredTimeout time.Duration
-	Tasklist          *types.TaskList
-	LastOngoingEvent  *types.HistoryEvent
+	ExecutionTime    time.Duration
+	Tasklist         *types.TaskList
+	LastOngoingEvent *types.HistoryEvent
 }
 
 type ChildWfTimeoutMetadata struct {
-	ExecutionTime     time.Duration
-	ConfiguredTimeout time.Duration
-	Execution         *types.WorkflowExecution
+	ExecutionTime time.Duration
+	Execution     *types.WorkflowExecution
 }
 
 type ActivityTimeoutMetadata struct {
-	TimeoutType       *types.TimeoutType
-	ConfiguredTimeout time.Duration
-	TimeElapsed       time.Duration
-	RetryPolicy       *types.RetryPolicy
-	HeartBeatTimeout  time.Duration
-	Tasklist          *types.TaskList
-}
-
-type DecisionTimeoutMetadata struct {
-	ConfiguredTimeout time.Duration
+	TimeoutType      *types.TimeoutType
+	TimeElapsed      time.Duration
+	RetryPolicy      *types.RetryPolicy
+	HeartBeatTimeout time.Duration
+	Tasklist         *types.TaskList
 }
 
 type PollersMetadata struct {
@@ -77,11 +70,16 @@ type HeartbeatingMetadata struct {
 	RetryPolicy *types.RetryPolicy
 }
 
+// TimeoutIssuesMetadata is the metadata for every timeout issue. EventID is the timed-out event.
+// The fields shared by all checks are top-level so the UI can render and link them; at most one of
+// the per-check fields is set (none for a decision task timeout, which has no extra details).
 type TimeoutIssuesMetadata struct {
-	ExecutionTimeout *ExecutionTimeoutMetadata
-	ActivityTimeout  *ActivityTimeoutMetadata
-	ChildWfTimeout   *ChildWfTimeoutMetadata
-	DecisionTimeout  *DecisionTimeoutMetadata
+	EventID           int64
+	ConfiguredTimeout time.Duration
+
+	ExecutionTimeout *ExecutionTimeoutMetadata `json:",omitempty"`
+	ActivityTimeout  *ActivityTimeoutMetadata  `json:",omitempty"`
+	ChildWfTimeout   *ChildWfTimeoutMetadata   `json:",omitempty"`
 }
 
 type TimeoutRootcauseMetadata struct {

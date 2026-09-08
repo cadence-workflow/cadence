@@ -31,7 +31,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func reasonForDecisionTaskTimeouts(event *types.HistoryEvent, allEvents []*types.HistoryEvent) (string, DecisionTimeoutMetadata) {
+func reasonForDecisionTaskTimeouts(event *types.HistoryEvent, allEvents []*types.HistoryEvent) (string, TimeoutIssuesMetadata) {
 	eventScheduledID := event.GetDecisionTaskTimedOutEventAttributes().GetScheduledEventID()
 	attr := event.GetDecisionTaskTimedOutEventAttributes()
 	cause := attr.GetCause()
@@ -43,7 +43,8 @@ func reasonForDecisionTaskTimeouts(event *types.HistoryEvent, allEvents []*types
 		newRunID := attr.GetNewRunID()
 		reason = fmt.Sprintf("%s - New run ID: %s", attr.Reason, newRunID)
 	}
-	return reason, DecisionTimeoutMetadata{
+	return reason, TimeoutIssuesMetadata{
+		EventID:           event.ID,
 		ConfiguredTimeout: time.Duration(getDecisionTaskConfiguredTimeout(eventScheduledID, allEvents)) * time.Second,
 	}
 }
@@ -66,7 +67,7 @@ func getWorkflowExecutionTasklist(events []*types.HistoryEvent) *types.TaskList 
 	return nil
 }
 
-func getActivityTaskMetadata(e *types.HistoryEvent, events []*types.HistoryEvent) (ActivityTimeoutMetadata, error) {
+func getActivityTaskMetadata(e *types.HistoryEvent, events []*types.HistoryEvent) (TimeoutIssuesMetadata, error) {
 	eventScheduledID := e.GetActivityTaskTimedOutEventAttributes().GetScheduledEventID()
 	eventStartedID := e.GetActivityTaskTimedOutEventAttributes().StartedEventID
 	timeoutType := e.GetActivityTaskTimedOutEventAttributes().GetTimeoutType()
@@ -89,20 +90,23 @@ func getActivityTaskMetadata(e *types.HistoryEvent, events []*types.HistoryEvent
 				configuredTimeout = attr.GetStartToCloseTimeoutSeconds()
 				timeElapsed = getExecutionTime(eventStartedID, e.ID, events)
 			default:
-				return ActivityTimeoutMetadata{}, fmt.Errorf("unknown timeout type")
+				return TimeoutIssuesMetadata{}, fmt.Errorf("unknown timeout type")
 			}
-			return ActivityTimeoutMetadata{
-				TimeoutType:       timeoutType.Ptr(),
+			return TimeoutIssuesMetadata{
+				EventID:           e.ID,
 				ConfiguredTimeout: time.Duration(configuredTimeout) * time.Second,
-				TimeElapsed:       timeElapsed,
-				RetryPolicy:       attr.RetryPolicy,
-				HeartBeatTimeout:  time.Duration(attr.GetHeartbeatTimeoutSeconds()) * time.Second,
-				Tasklist:          attr.TaskList,
+				ActivityTimeout: &ActivityTimeoutMetadata{
+					TimeoutType:      timeoutType.Ptr(),
+					TimeElapsed:      timeElapsed,
+					RetryPolicy:      attr.RetryPolicy,
+					HeartBeatTimeout: time.Duration(attr.GetHeartbeatTimeoutSeconds()) * time.Second,
+					Tasklist:         attr.TaskList,
+				},
 			}, nil
 		}
 
 	}
-	return ActivityTimeoutMetadata{}, fmt.Errorf("activity scheduled event not found")
+	return TimeoutIssuesMetadata{}, fmt.Errorf("activity scheduled event not found")
 }
 
 func getDecisionTaskConfiguredTimeout(eventScheduledID int64, events []*types.HistoryEvent) int32 {

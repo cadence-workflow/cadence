@@ -263,9 +263,9 @@ func retrieveTimeoutIssues(issues []invariant.InvariantCheckResult) ([]*timeoutI
 	result := make([]*timeoutIssuesResult, 0)
 	for _, issue := range issues {
 		switch issue.InvariantType {
-		case timeout.TimeoutTypeExecution.String():
-			var metadata timeout.ExecutionTimeoutMetadata
-			err := json.Unmarshal(issue.Metadata, &metadata)
+		case timeout.TimeoutTypeExecution.String(), timeout.TimeoutTypeActivity.String(), timeout.TimeoutTypeChildWorkflow.String(), timeout.TimeoutTypeDecision.String():
+			var data timeout.TimeoutIssuesMetadata
+			err := json.Unmarshal(issue.Metadata, &data)
 			if err != nil {
 				return nil, err
 			}
@@ -273,51 +273,7 @@ func retrieveTimeoutIssues(issues []invariant.InvariantCheckResult) ([]*timeoutI
 				IssueID:       issue.IssueID,
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
-				Metadata: &timeout.TimeoutIssuesMetadata{
-					ExecutionTimeout: &metadata,
-				},
-			})
-		case timeout.TimeoutTypeActivity.String():
-			var metadata timeout.ActivityTimeoutMetadata
-			err := json.Unmarshal(issue.Metadata, &metadata)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, &timeoutIssuesResult{
-				IssueID:       issue.IssueID,
-				InvariantType: issue.InvariantType,
-				Reason:        issue.Reason,
-				Metadata: &timeout.TimeoutIssuesMetadata{
-					ActivityTimeout: &metadata,
-				},
-			})
-		case timeout.TimeoutTypeChildWorkflow.String():
-			var metadata timeout.ChildWfTimeoutMetadata
-			err := json.Unmarshal(issue.Metadata, &metadata)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, &timeoutIssuesResult{
-				IssueID:       issue.IssueID,
-				InvariantType: issue.InvariantType,
-				Reason:        issue.Reason,
-				Metadata: &timeout.TimeoutIssuesMetadata{
-					ChildWfTimeout: &metadata,
-				},
-			})
-		case timeout.TimeoutTypeDecision.String():
-			var metadata timeout.DecisionTimeoutMetadata
-			err := json.Unmarshal(issue.Metadata, &metadata)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, &timeoutIssuesResult{
-				IssueID:       issue.IssueID,
-				InvariantType: issue.InvariantType,
-				Reason:        issue.Reason,
-				Metadata: &timeout.TimeoutIssuesMetadata{
-					DecisionTimeout: &metadata,
-				},
+				Metadata:      &data,
 			})
 		}
 	}
@@ -433,9 +389,9 @@ func retrieveTimeoutRiskIssues(issues []invariant.InvariantCheckResult) ([]*time
 	result := make([]*timeoutRiskIssuesResult, 0)
 	for _, issue := range issues {
 		switch issue.InvariantType {
-		case timeoutrisk.ActivityStartToCloseAtWorkflowTimeoutCap.String():
-			var metadata timeoutrisk.ActivityStartToCloseAtWorkflowTimeoutCapMetadata
-			err := json.Unmarshal(issue.Metadata, &metadata)
+		case timeoutrisk.ActivityStartToCloseAtWorkflowTimeoutCap.String(), timeoutrisk.ActivityMissingHeartbeatTimeout.String():
+			var data timeoutrisk.TimeoutRiskIssuesMetadata
+			err := json.Unmarshal(issue.Metadata, &data)
 			if err != nil {
 				return nil, err
 			}
@@ -443,23 +399,7 @@ func retrieveTimeoutRiskIssues(issues []invariant.InvariantCheckResult) ([]*time
 				IssueID:       issue.IssueID,
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
-				Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
-					ActivityStartToCloseAtWorkflowTimeoutCap: &metadata,
-				},
-			})
-		case timeoutrisk.ActivityMissingHeartbeatTimeout.String():
-			var metadata timeoutrisk.ActivityMissingHeartbeatTimeoutMetadata
-			err := json.Unmarshal(issue.Metadata, &metadata)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, &timeoutRiskIssuesResult{
-				IssueID:       issue.IssueID,
-				InvariantType: issue.InvariantType,
-				Reason:        issue.Reason,
-				Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
-					ActivityMissingHeartbeatTimeout: &metadata,
-				},
+				Metadata:      &data,
 			})
 		}
 	}
@@ -470,27 +410,16 @@ func retrieveAntipatternsIssues(issues []invariant.InvariantCheckResult) ([]*ant
 	result := make([]*antipatternsIssuesResult, 0)
 	for _, issue := range issues {
 		switch issue.InvariantType {
-		case antipatterns.ActivityScheduleBurst.String():
-			var metadata antipatterns.ActivityScheduleBurstMetadata
-			if err := json.Unmarshal(issue.Metadata, &metadata); err != nil {
+		case antipatterns.ActivityScheduleBurst.String(), antipatterns.ContinueAsNewInCronWorkflow.String():
+			var data antipatterns.AntipatternIssuesMetadata
+			if err := json.Unmarshal(issue.Metadata, &data); err != nil {
 				return nil, err
 			}
 			result = append(result, &antipatternsIssuesResult{
 				IssueID:       issue.IssueID,
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
-				Metadata:      &antipatterns.AntipatternIssuesMetadata{ActivityScheduleBurst: &metadata},
-			})
-		case antipatterns.ContinueAsNewInCronWorkflow.String():
-			var metadata antipatterns.ContinueAsNewInCronWorkflowMetadata
-			if err := json.Unmarshal(issue.Metadata, &metadata); err != nil {
-				return nil, err
-			}
-			result = append(result, &antipatternsIssuesResult{
-				IssueID:       issue.IssueID,
-				InvariantType: issue.InvariantType,
-				Reason:        issue.Reason,
-				Metadata:      &antipatterns.AntipatternIssuesMetadata{ContinueAsNewInCronWorkflow: &metadata},
+				Metadata:      &data,
 			})
 		}
 	}

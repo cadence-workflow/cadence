@@ -49,9 +49,6 @@ const (
 )
 
 func Test__Check(t *testing.T) {
-	decisionTimeoutMetadata := DecisionTimeoutMetadata{ConfiguredTimeout: 50 * time.Second}
-	decisionTimeoutMetadataInBytes, err := json.Marshal(decisionTimeoutMetadata)
-	require.NoError(t, err)
 	testCases := []struct {
 		name           string
 		testData       *types.GetWorkflowExecutionHistoryResponse
@@ -111,13 +108,13 @@ func Test__Check(t *testing.T) {
 					IssueID:       0,
 					InvariantType: TimeoutTypeDecision.String(),
 					Reason:        "START_TO_CLOSE",
-					Metadata:      decisionTimeoutMetadataInBytes,
+					Metadata:      decisionTimeoutDataInBytes(t, 2),
 				},
 				{
 					IssueID:       1,
 					InvariantType: TimeoutTypeDecision.String(),
 					Reason:        "workflow reset - New run ID: new run ID",
-					Metadata:      decisionTimeoutMetadataInBytes,
+					Metadata:      decisionTimeoutDataInBytes(t, 4),
 				},
 			},
 			err: nil,
@@ -261,28 +258,30 @@ func decisionTimeoutHistory() *types.GetWorkflowExecutionHistoryResponse {
 		History: &types.History{
 			Events: []*types.HistoryEvent{
 				{
-					ID: 13,
+					ID: 1,
 					DecisionTaskScheduledEventAttributes: &types.DecisionTaskScheduledEventAttributes{
 						StartToCloseTimeoutSeconds: common.Int32Ptr(taskTimeoutSecond),
 					},
 				},
 				{
+					ID: 2,
 					DecisionTaskTimedOutEventAttributes: &types.DecisionTaskTimedOutEventAttributes{
-						ScheduledEventID: 13,
+						ScheduledEventID: 1,
 						StartedEventID:   14,
 						Cause:            types.DecisionTaskTimedOutCauseTimeout.Ptr(),
 						TimeoutType:      types.TimeoutTypeStartToClose.Ptr(),
 					},
 				},
 				{
-					ID: 23,
+					ID: 3,
 					DecisionTaskScheduledEventAttributes: &types.DecisionTaskScheduledEventAttributes{
 						StartToCloseTimeoutSeconds: common.Int32Ptr(taskTimeoutSecond),
 					},
 				},
 				{
+					ID: 4,
 					DecisionTaskTimedOutEventAttributes: &types.DecisionTaskTimedOutEventAttributes{
-						ScheduledEventID: 23,
+						ScheduledEventID: 3,
 						Cause:            types.DecisionTaskTimedOutCauseReset.Ptr(),
 						Reason:           "workflow reset",
 						NewRunID:         "new run ID",
@@ -293,24 +292,34 @@ func decisionTimeoutHistory() *types.GetWorkflowExecutionHistoryResponse {
 	}
 }
 
+func decisionTimeoutDataInBytes(t *testing.T, eventID int64) []byte {
+	data := TimeoutIssuesMetadata{EventID: eventID, ConfiguredTimeout: 50 * time.Second}
+	dataInBytes, err := json.Marshal(data)
+	require.NoError(t, err)
+	return dataInBytes
+}
+
 func wfTimeoutDataInBytes(t *testing.T) []byte {
-	data := ExecutionTimeoutMetadata{
-		ExecutionTime:     110 * time.Second,
+	data := TimeoutIssuesMetadata{
+		EventID:           2,
 		ConfiguredTimeout: 110 * time.Second,
-		LastOngoingEvent: &types.HistoryEvent{
-			ID:        1,
-			Timestamp: common.Int64Ptr(testTimeStamp),
-			WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
-				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
-				TaskList: &types.TaskList{
-					Name: testTasklist,
-					Kind: nil,
+		ExecutionTimeout: &ExecutionTimeoutMetadata{
+			ExecutionTime: 110 * time.Second,
+			LastOngoingEvent: &types.HistoryEvent{
+				ID:        1,
+				Timestamp: common.Int64Ptr(testTimeStamp),
+				WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
+					TaskList: &types.TaskList{
+						Name: testTasklist,
+						Kind: nil,
+					},
 				},
 			},
-		},
-		Tasklist: &types.TaskList{
-			Name: testTasklist,
-			Kind: nil,
+			Tasklist: &types.TaskList{
+				Name: testTasklist,
+				Kind: nil,
+			},
 		},
 	}
 	dataInBytes, err := json.Marshal(data)
@@ -318,30 +327,36 @@ func wfTimeoutDataInBytes(t *testing.T) []byte {
 	return dataInBytes
 }
 
-func activityScheduleToStartTimeoutData() ActivityTimeoutMetadata {
-	return ActivityTimeoutMetadata{
-		TimeoutType:       types.TimeoutTypeScheduleToStart.Ptr(),
+func activityScheduleToStartTimeoutData() TimeoutIssuesMetadata {
+	return TimeoutIssuesMetadata{
+		EventID:           2,
 		ConfiguredTimeout: 50 * time.Second,
-		TimeElapsed:       50 * time.Second,
-		RetryPolicy:       nil,
-		HeartBeatTimeout:  0,
-		Tasklist: &types.TaskList{
-			Name: testTasklist,
-			Kind: nil,
+		ActivityTimeout: &ActivityTimeoutMetadata{
+			TimeoutType:      types.TimeoutTypeScheduleToStart.Ptr(),
+			TimeElapsed:      50 * time.Second,
+			RetryPolicy:      nil,
+			HeartBeatTimeout: 0,
+			Tasklist: &types.TaskList{
+				Name: testTasklist,
+				Kind: nil,
+			},
 		},
 	}
 }
 
-func activityStartToCloseTimeoutData() ActivityTimeoutMetadata {
-	return ActivityTimeoutMetadata{
-		TimeoutType:       types.TimeoutTypeStartToClose.Ptr(),
+func activityStartToCloseTimeoutData() TimeoutIssuesMetadata {
+	return TimeoutIssuesMetadata{
+		EventID:           5,
 		ConfiguredTimeout: 50 * time.Second,
-		TimeElapsed:       50 * time.Second,
-		RetryPolicy:       nil,
-		HeartBeatTimeout:  0,
-		Tasklist: &types.TaskList{
-			Name: testTasklist,
-			Kind: nil,
+		ActivityTimeout: &ActivityTimeoutMetadata{
+			TimeoutType:      types.TimeoutTypeStartToClose.Ptr(),
+			TimeElapsed:      50 * time.Second,
+			RetryPolicy:      nil,
+			HeartBeatTimeout: 0,
+			Tasklist: &types.TaskList{
+				Name: testTasklist,
+				Kind: nil,
+			},
 		},
 	}
 }
@@ -362,8 +377,8 @@ func activityStartToCloseTimeoutDataInBytes(t *testing.T) []byte {
 
 func activityHeartBeatTimeoutDataInBytes(t *testing.T) []byte {
 	actTimeoutData := activityStartToCloseTimeoutData()
-	actTimeoutData.TimeoutType = types.TimeoutTypeHeartbeat.Ptr()
-	actTimeoutData.HeartBeatTimeout = 50 * time.Second
+	actTimeoutData.ActivityTimeout.TimeoutType = types.TimeoutTypeHeartbeat.Ptr()
+	actTimeoutData.ActivityTimeout.HeartBeatTimeout = 50 * time.Second
 	actHeartBeatTimeoutDataInBytes, err := json.Marshal(actTimeoutData)
 	require.NoError(t, err)
 	return actHeartBeatTimeoutDataInBytes
@@ -371,9 +386,9 @@ func activityHeartBeatTimeoutDataInBytes(t *testing.T) []byte {
 
 func activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t *testing.T) []byte {
 	actTimeoutData := activityStartToCloseTimeoutData()
-	actTimeoutData.TimeoutType = types.TimeoutTypeHeartbeat.Ptr()
-	actTimeoutData.HeartBeatTimeout = 50 * time.Second
-	actTimeoutData.RetryPolicy = &types.RetryPolicy{
+	actTimeoutData.ActivityTimeout.TimeoutType = types.TimeoutTypeHeartbeat.Ptr()
+	actTimeoutData.ActivityTimeout.HeartBeatTimeout = 50 * time.Second
+	actTimeoutData.ActivityTimeout.RetryPolicy = &types.RetryPolicy{
 		MaximumAttempts: 3,
 	}
 	actHeartBeatTimeoutDataInBytes, err := json.Marshal(actTimeoutData)
@@ -382,12 +397,15 @@ func activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t *testing.T) []byte {
 }
 
 func childWfTimeoutDataInBytes(t *testing.T) []byte {
-	data := ChildWfTimeoutMetadata{
-		ExecutionTime:     110 * time.Second,
+	data := TimeoutIssuesMetadata{
+		EventID:           3,
 		ConfiguredTimeout: 110 * time.Second,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: "123",
-			RunID:      "abc",
+		ChildWfTimeout: &ChildWfTimeoutMetadata{
+			ExecutionTime: 110 * time.Second,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: "123",
+				RunID:      "abc",
+			},
 		},
 	}
 	dataInBytes, err := json.Marshal(data)
@@ -399,9 +417,9 @@ func Test__RootCause(t *testing.T) {
 	actStartToCloseTimeoutData := activityStartToCloseTimeoutData()
 	pollersMetadataInBytes, err := json.Marshal(PollersMetadata{TaskListName: testTasklist, TaskListBacklog: testTaskListBacklog})
 	require.NoError(t, err)
-	heartBeatingMetadataInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.TimeElapsed})
+	heartBeatingMetadataInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.ActivityTimeout.TimeElapsed})
 	require.NoError(t, err)
-	heartBeatingMetadataWithRetryPolicyInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.TimeElapsed, RetryPolicy: &types.RetryPolicy{MaximumAttempts: 3}})
+	heartBeatingMetadataWithRetryPolicyInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.ActivityTimeout.TimeElapsed, RetryPolicy: &types.RetryPolicy{MaximumAttempts: 3}})
 	require.NoError(t, err)
 	testCases := []struct {
 		name           string

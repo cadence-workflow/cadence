@@ -39,26 +39,24 @@ const (
 // was silently capped -- or, if genuinely configured this way, an activity with zero headroom before the
 // workflow itself times out.
 type ActivityStartToCloseAtWorkflowTimeoutCapMetadata struct {
-	EventID             int64
-	ActivityID          string
-	ActivityType        string
-	StartToCloseTimeout time.Duration
-	WorkflowTimeout     time.Duration
+	WorkflowTimeout time.Duration
 }
 
 // ActivityMissingHeartbeatTimeoutMetadata is the metadata for a long-running activity that has no
 // HeartbeatTimeout configured, meaning a dead worker would go undetected until the activity times out.
 type ActivityMissingHeartbeatTimeoutMetadata struct {
+	Threshold time.Duration
+}
+
+// TimeoutRiskIssuesMetadata is the metadata for every timeout risk issue. EventID is the ActivityTaskScheduled
+// event the issue was found on. The fields shared by all checks are top-level so the UI can render and link
+// them; exactly one of the per-check fields is set, holding the details specific to that check.
+type TimeoutRiskIssuesMetadata struct {
 	EventID             int64
 	ActivityID          string
 	ActivityType        string
 	StartToCloseTimeout time.Duration
-	Threshold           time.Duration
-}
 
-// TimeoutRiskIssuesMetadata is a discriminated union of the metadata for each timeout risk check,
-// with exactly one field populated per issue.
-type TimeoutRiskIssuesMetadata struct {
-	ActivityStartToCloseAtWorkflowTimeoutCap *ActivityStartToCloseAtWorkflowTimeoutCapMetadata
-	ActivityMissingHeartbeatTimeout          *ActivityMissingHeartbeatTimeoutMetadata
+	ActivityStartToCloseAtWorkflowTimeoutCap *ActivityStartToCloseAtWorkflowTimeoutCapMetadata `json:",omitempty"`
+	ActivityMissingHeartbeatTimeout          *ActivityMissingHeartbeatTimeoutMetadata          `json:",omitempty"`
 }

@@ -54,10 +54,9 @@ const (
 // ActivityScheduleBurstMetadata describes one cluster of tightly-packed scheduled activities.
 // Every cluster that crosses the threshold is reported as its own issue, and a single sustained
 // burst spanning more than WindowInSeconds is still reported as one span rather than being split
-// at a window boundary. FirstEventID/LastEventID bound the full cluster, not just the densest
-// sub-window within it.
+// at a window boundary. The issue's EventID and LastEventID bound the full cluster, not just the
+// densest sub-window within it.
 type ActivityScheduleBurstMetadata struct {
-	FirstEventID    int64
 	LastEventID     int64
 	EventCount      int
 	WindowStart     time.Time
@@ -66,17 +65,19 @@ type ActivityScheduleBurstMetadata struct {
 	Threshold       int
 }
 
-// ContinueAsNewInCronWorkflowMetadata identifies the started event carrying the cron schedule and
-// the continue-as-new event that was initiated by workflow code.
+// ContinueAsNewInCronWorkflowMetadata identifies the started event carrying the cron schedule.
 type ContinueAsNewInCronWorkflowMetadata struct {
-	StartedEventID        int64
-	CronSchedule          string
-	ContinuedAsNewEventID int64
+	StartedEventID int64
+	CronSchedule   string
 }
 
-// AntipatternIssuesMetadata is a discriminated union of the metadata for each antipattern check,
-// with exactly one field populated per issue.
+// AntipatternIssuesMetadata is the metadata for every antipattern issue. EventID is the event the
+// issue anchors on: the first ActivityTaskScheduled event of a burst, or the
+// WorkflowExecutionContinuedAsNew event that was initiated by workflow code. Exactly one of the
+// per-check fields is set, holding the details specific to that check.
 type AntipatternIssuesMetadata struct {
-	ActivityScheduleBurst       *ActivityScheduleBurstMetadata
-	ContinueAsNewInCronWorkflow *ContinueAsNewInCronWorkflowMetadata
+	EventID int64
+
+	ActivityScheduleBurst       *ActivityScheduleBurstMetadata       `json:",omitempty"`
+	ContinueAsNewInCronWorkflow *ContinueAsNewInCronWorkflowMetadata `json:",omitempty"`
 }

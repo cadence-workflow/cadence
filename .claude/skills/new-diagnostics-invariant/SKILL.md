@@ -5,7 +5,7 @@ description: Step-by-step guide for adding a new invariant to Workflow Diagnosti
 
 # Adding a Workflow Diagnostics Invariant
 
-Workflow Diagnostics (`service/worker/diagnostics`) reads one workflow execution's history and reports issues, root causes, and runbook links. Each check is an "invariant". Existing ones: `timeout`, `failure`, `retry`, `timeoutrisk`. Read the one closest to yours before writing anything.
+Workflow Diagnostics (`service/worker/diagnostics`) reads one workflow execution's history and reports issues, root causes, and runbook links. Each check is an "invariant". Existing ones: `timeout`, `failure`, `retry`, `timeoutrisk`, `antipatterns`. Read the one closest to yours before writing anything.
 
 ## The interface
 
@@ -27,7 +27,7 @@ Package name is one lowercase word (`timeout`, `retry`, `timeoutrisk`).
 - `<Name>Type` string type + consts + `String()` — these become the `InvariantType` values.
 - `IssueType` string type + consts + `String()` — these become the `Reason` values. Each reason is a plain sentence ending with a period. Never build reasons with `fmt.Sprintf` — numbers belong in the metadata.
 - Thresholds are package consts, each with a comment saying what it means.
-- One metadata struct per check. If checks have different shapes, add a wrapper struct with one pointer field per check and set only the matching field (see `timeoutrisk.TimeoutRiskIssuesMetadata`). If they share a shape, one struct is enough (see `retry.RetryMetadata`).
+- One `<Name>IssuesMetadata` struct per invariant, and `Check` marshals it directly. Fields shared by every check are top-level, and every issue sets a top-level `EventID` (the event the issue anchors on). Check-specific fields go in a per-check struct held by a pointer field named after the check, tagged `json:",omitempty"`, with exactly one set per issue (see `timeoutrisk.TimeoutRiskIssuesMetadata`). If all checks share one shape, skip the sub-structs (see `retry.RetryMetadata`). Never nest event IDs: cadence-web links only top-level `EventID`, `ActivityScheduledID`, `ActivityStartedID` keys and renders nested objects as one raw-JSON row.
 
 **<name>.go**
 - `type <Name> invariant.Invariant`, an unexported struct, `NewInvariant()`.
@@ -53,7 +53,7 @@ Before writing any check on configured values, read the validator to see what th
 1. `service/worker/diagnostics/workflow.go`:
    - Add `<Name>s *<name>Diagnostics` to `DiagnosticsWorkflowResult`.
    - Add `<name>Diagnostics{Issues, Runbook}` and `<name>IssuesResult{IssueID, InvariantType, Reason, Metadata}` structs. Add a `RootCause` field only if `RootCause` does real work.
-   - Add `retrieve<Name>Issues(checkResult)`: switch on your `InvariantType` consts and unmarshal the metadata (copy `retrieveTimeoutRiskIssues`).
+   - Add `retrieve<Name>Issues(checkResult)`: check membership in your `InvariantType` consts and unmarshal the metadata into `<Name>IssuesMetadata` (copy `retrieveTimeoutRiskIssues`).
    - In `DiagnosticsWorkflow`, add an `if len(issues) > 0 { ... Runbook: linkTo<Name>Runbook }` block and a field in the final result.
 2. `service/worker/diagnostics/activities.go`: add `linkTo<Name>Runbook` (`https://cadenceworkflow.io/docs/workflow-troubleshooting/<topic>/`). The 10-issues-per-invariant cap applies on its own.
 3. `service/worker/diagnostics/parent_workflow.go`: add an `issueType<Name>` const and a branch in `getIssueType` (same `-` joining as the others).

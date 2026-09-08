@@ -22,82 +22,96 @@ const (
 func Test__Check(t *testing.T) {
 	windowNanos := activityBurstWindowInSeconds * int64(time.Second)
 
-	burstMetadata := ActivityScheduleBurstMetadata{
-		FirstEventID:    2,
-		LastEventID:     2 + int64(activityBurstCountThreshold) - 1,
-		EventCount:      activityBurstCountThreshold,
-		WindowStart:     time.Unix(0, testTimestamp).UTC(),
-		WindowEnd:       time.Unix(0, testTimestamp+int64(activityBurstCountThreshold-1)*testStepNanos).UTC(),
-		WindowInSeconds: activityBurstWindowInSeconds,
-		Threshold:       activityBurstCountThreshold,
+	burstMetadata := AntipatternIssuesMetadata{
+		EventID: 2,
+		ActivityScheduleBurst: &ActivityScheduleBurstMetadata{
+			LastEventID:     2 + int64(activityBurstCountThreshold) - 1,
+			EventCount:      activityBurstCountThreshold,
+			WindowStart:     time.Unix(0, testTimestamp).UTC(),
+			WindowEnd:       time.Unix(0, testTimestamp+int64(activityBurstCountThreshold-1)*testStepNanos).UTC(),
+			WindowInSeconds: activityBurstWindowInSeconds,
+			Threshold:       activityBurstCountThreshold,
+		},
 	}
 	burstMetadataInBytes, err := json.Marshal(burstMetadata)
 	require.NoError(t, err)
 
-	burstAtWindowEdgeMetadata := ActivityScheduleBurstMetadata{
-		FirstEventID:    2,
-		LastEventID:     2 + int64(activityBurstCountThreshold) - 1,
-		EventCount:      activityBurstCountThreshold,
-		WindowStart:     time.Unix(0, testTimestamp).UTC(),
-		WindowEnd:       time.Unix(0, testTimestamp+windowNanos).UTC(),
-		WindowInSeconds: activityBurstWindowInSeconds,
-		Threshold:       activityBurstCountThreshold,
+	burstAtWindowEdgeMetadata := AntipatternIssuesMetadata{
+		EventID: 2,
+		ActivityScheduleBurst: &ActivityScheduleBurstMetadata{
+			LastEventID:     2 + int64(activityBurstCountThreshold) - 1,
+			EventCount:      activityBurstCountThreshold,
+			WindowStart:     time.Unix(0, testTimestamp).UTC(),
+			WindowEnd:       time.Unix(0, testTimestamp+windowNanos).UTC(),
+			WindowInSeconds: activityBurstWindowInSeconds,
+			Threshold:       activityBurstCountThreshold,
+		},
 	}
 	burstAtWindowEdgeMetadataInBytes, err := json.Marshal(burstAtWindowEdgeMetadata)
 	require.NoError(t, err)
 
-	secondBurstMetadata := ActivityScheduleBurstMetadata{
-		FirstEventID:    100,
-		LastEventID:     100 + int64(activityBurstCountThreshold) + 4,
-		EventCount:      activityBurstCountThreshold + 5,
-		WindowStart:     time.Unix(0, testTimestamp+int64(time.Hour)).UTC(),
-		WindowEnd:       time.Unix(0, testTimestamp+int64(time.Hour)+int64(activityBurstCountThreshold+4)*testStepNanos).UTC(),
-		WindowInSeconds: activityBurstWindowInSeconds,
-		Threshold:       activityBurstCountThreshold,
+	secondBurstMetadata := AntipatternIssuesMetadata{
+		EventID: 100,
+		ActivityScheduleBurst: &ActivityScheduleBurstMetadata{
+			LastEventID:     100 + int64(activityBurstCountThreshold) + 4,
+			EventCount:      activityBurstCountThreshold + 5,
+			WindowStart:     time.Unix(0, testTimestamp+int64(time.Hour)).UTC(),
+			WindowEnd:       time.Unix(0, testTimestamp+int64(time.Hour)+int64(activityBurstCountThreshold+4)*testStepNanos).UTC(),
+			WindowInSeconds: activityBurstWindowInSeconds,
+			Threshold:       activityBurstCountThreshold,
+		},
 	}
 	secondBurstMetadataInBytes, err := json.Marshal(secondBurstMetadata)
 	require.NoError(t, err)
 
 	const sustainedBurstCount = 100
 	const sustainedBurstStepNanos = int64(150 * time.Millisecond)
-	sustainedBurstMetadata := ActivityScheduleBurstMetadata{
-		FirstEventID:    2,
-		LastEventID:     2 + int64(sustainedBurstCount) - 1,
-		EventCount:      sustainedBurstCount,
-		WindowStart:     time.Unix(0, testTimestamp).UTC(),
-		WindowEnd:       time.Unix(0, testTimestamp+int64(sustainedBurstCount-1)*sustainedBurstStepNanos).UTC(),
-		WindowInSeconds: activityBurstWindowInSeconds,
-		Threshold:       activityBurstCountThreshold,
+	sustainedBurstMetadata := AntipatternIssuesMetadata{
+		EventID: 2,
+		ActivityScheduleBurst: &ActivityScheduleBurstMetadata{
+			LastEventID:     2 + int64(sustainedBurstCount) - 1,
+			EventCount:      sustainedBurstCount,
+			WindowStart:     time.Unix(0, testTimestamp).UTC(),
+			WindowEnd:       time.Unix(0, testTimestamp+int64(sustainedBurstCount-1)*sustainedBurstStepNanos).UTC(),
+			WindowInSeconds: activityBurstWindowInSeconds,
+			Threshold:       activityBurstCountThreshold,
+		},
 	}
 	sustainedBurstMetadataInBytes, err := json.Marshal(sustainedBurstMetadata)
 	require.NoError(t, err)
 
 	group1LastTimestamp := testTimestamp + int64(activityBurstCountThreshold-1)*testStepNanos
 	sharedBoundaryGroup2Start := group1LastTimestamp + windowNanos
-	sharedBoundaryMetadata := ActivityScheduleBurstMetadata{
-		FirstEventID:    2,
-		LastEventID:     2 * int64(activityBurstCountThreshold),
-		EventCount:      2*activityBurstCountThreshold - 1,
-		WindowStart:     time.Unix(0, testTimestamp).UTC(),
-		WindowEnd:       time.Unix(0, sharedBoundaryGroup2Start).UTC(),
-		WindowInSeconds: activityBurstWindowInSeconds,
-		Threshold:       activityBurstCountThreshold,
+	sharedBoundaryMetadata := AntipatternIssuesMetadata{
+		EventID: 2,
+		ActivityScheduleBurst: &ActivityScheduleBurstMetadata{
+			LastEventID:     2 * int64(activityBurstCountThreshold),
+			EventCount:      2*activityBurstCountThreshold - 1,
+			WindowStart:     time.Unix(0, testTimestamp).UTC(),
+			WindowEnd:       time.Unix(0, sharedBoundaryGroup2Start).UTC(),
+			WindowInSeconds: activityBurstWindowInSeconds,
+			Threshold:       activityBurstCountThreshold,
+		},
 	}
 	sharedBoundaryMetadataInBytes, err := json.Marshal(sharedBoundaryMetadata)
 	require.NoError(t, err)
 
-	cronCaNMetadata := ContinueAsNewInCronWorkflowMetadata{
-		StartedEventID:        1,
-		CronSchedule:          testCronSchedule,
-		ContinuedAsNewEventID: 2,
+	cronCaNMetadata := AntipatternIssuesMetadata{
+		EventID: 2,
+		ContinueAsNewInCronWorkflow: &ContinueAsNewInCronWorkflowMetadata{
+			StartedEventID: 1,
+			CronSchedule:   testCronSchedule,
+		},
 	}
 	cronCaNMetadataInBytes, err := json.Marshal(cronCaNMetadata)
 	require.NoError(t, err)
 
-	cronCaNAfterBurstMetadata := ContinueAsNewInCronWorkflowMetadata{
-		StartedEventID:        1,
-		CronSchedule:          testCronSchedule,
-		ContinuedAsNewEventID: 90,
+	cronCaNAfterBurstMetadata := AntipatternIssuesMetadata{
+		EventID: 90,
+		ContinueAsNewInCronWorkflow: &ContinueAsNewInCronWorkflowMetadata{
+			StartedEventID: 1,
+			CronSchedule:   testCronSchedule,
+		},
 	}
 	cronCaNAfterBurstMetadataInBytes, err := json.Marshal(cronCaNAfterBurstMetadata)
 	require.NoError(t, err)

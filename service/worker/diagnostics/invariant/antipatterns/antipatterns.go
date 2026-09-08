@@ -57,7 +57,7 @@ func (a *antipatterns) Check(ctx context.Context, params invariant.InvariantChec
 // treated as separate clusters once the scheduling density has genuinely dropped enough that the
 // windows no longer overlap. Events without a timestamp are excluded: a nil timestamp is unknown,
 // not time zero, and treating it as zero would collapse unrelated events into a phantom burst.
-func detectActivityScheduleBursts(events []*types.HistoryEvent) []*ActivityScheduleBurstMetadata {
+func detectActivityScheduleBursts(events []*types.HistoryEvent) []*AntipatternIssuesMetadata {
 	type scheduledEvent struct {
 		eventID   int64
 		timestamp int64
@@ -80,19 +80,21 @@ func detectActivityScheduleBursts(events []*types.HistoryEvent) []*ActivitySched
 
 	windowNanos := (time.Duration(activityBurstWindowInSeconds) * time.Second).Nanoseconds()
 
-	newBurst := func(clusterStart, clusterEnd int) *ActivityScheduleBurstMetadata {
-		return &ActivityScheduleBurstMetadata{
-			FirstEventID:    scheduled[clusterStart].eventID,
-			LastEventID:     scheduled[clusterEnd].eventID,
-			EventCount:      clusterEnd - clusterStart + 1,
-			WindowStart:     time.Unix(0, scheduled[clusterStart].timestamp).UTC(),
-			WindowEnd:       time.Unix(0, scheduled[clusterEnd].timestamp).UTC(),
-			WindowInSeconds: activityBurstWindowInSeconds,
-			Threshold:       activityBurstCountThreshold,
+	newBurst := func(clusterStart, clusterEnd int) *AntipatternIssuesMetadata {
+		return &AntipatternIssuesMetadata{
+			EventID: scheduled[clusterStart].eventID,
+			ActivityScheduleBurst: &ActivityScheduleBurstMetadata{
+				LastEventID:     scheduled[clusterEnd].eventID,
+				EventCount:      clusterEnd - clusterStart + 1,
+				WindowStart:     time.Unix(0, scheduled[clusterStart].timestamp).UTC(),
+				WindowEnd:       time.Unix(0, scheduled[clusterEnd].timestamp).UTC(),
+				WindowInSeconds: activityBurstWindowInSeconds,
+				Threshold:       activityBurstCountThreshold,
+			},
 		}
 	}
 
-	var bursts []*ActivityScheduleBurstMetadata
+	var bursts []*AntipatternIssuesMetadata
 	pendingStart, pendingEnd := -1, -1
 	left := 0
 	for right := 0; right < len(scheduled); right++ {
@@ -121,7 +123,7 @@ func detectActivityScheduleBursts(events []*types.HistoryEvent) []*ActivitySched
 // continued-as-new from workflow code. A nil Initiator reads as ContinueAsNewInitiatorDecider,
 // which is correct: the server only sets the initiator explicitly for its own cron- and
 // retry-driven continuations, and passes decisions from workflow code through unmodified.
-func detectContinueAsNewInCronWorkflow(events []*types.HistoryEvent) *ContinueAsNewInCronWorkflowMetadata {
+func detectContinueAsNewInCronWorkflow(events []*types.HistoryEvent) *AntipatternIssuesMetadata {
 	startedEvent := fetchWfStartedEvent(events)
 	if startedEvent == nil {
 		return nil
@@ -137,10 +139,12 @@ func detectContinueAsNewInCronWorkflow(events []*types.HistoryEvent) *ContinueAs
 			continue
 		}
 		if attr.GetInitiator() == types.ContinueAsNewInitiatorDecider {
-			return &ContinueAsNewInCronWorkflowMetadata{
-				StartedEventID:        startedEvent.ID,
-				CronSchedule:          cronSchedule,
-				ContinuedAsNewEventID: event.ID,
+			return &AntipatternIssuesMetadata{
+				EventID: event.ID,
+				ContinueAsNewInCronWorkflow: &ContinueAsNewInCronWorkflowMetadata{
+					StartedEventID: startedEvent.ID,
+					CronSchedule:   cronSchedule,
+				},
 			}
 		}
 	}
