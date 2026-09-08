@@ -2,7 +2,7 @@ module github.com/uber/cadence/common/dynamicconfig/openfeatureprovider/unleash
 
 go 1.25.0
 
-toolchain go1.25.12
+toolchain go1.25.14
 
 replace github.com/uber/cadence => ../../../..
 

@@ -32,4 +32,4 @@ use (
 // Go version used to build within this workspace only, it does not affect dependencies.
 // but note that it needs to be a version that docker + mac + linux all support, as
 // they all must be in sync.
-toolchain go1.25.12
+toolchain go1.25.14
