@@ -69,7 +69,7 @@ var (
 		&cli.StringFlag{
 			Name:    FlagActiveClusterName,
 			Aliases: []string{"ac"},
-			Usage:   "Active cluster name",
+			Usage:   "Cluster name to set as the active cluster for this domain",
 		},
 		&cli.StringSliceFlag{
 			Name:    FlagActiveClusters,
@@ -143,7 +143,7 @@ var (
 		&cli.StringFlag{
 			Name:    FlagActiveClusterName,
 			Aliases: []string{"ac"},
-			Usage:   "Active cluster name",
+			Usage:   "Cluster name to set as the active cluster for this domain",
 		},
 		&cli.StringSliceFlag{
 			Name:    FlagActiveClusters,
@@ -280,17 +280,17 @@ var (
 		&cli.StringFlag{
 			Name:    FlagActiveClusterName,
 			Aliases: []string{"ac"},
-			Usage:   "Active cluster name",
+			Usage:   "Target cluster name that will become the new active cluster after failover completes",
 		},
 		&cli.StringSliceFlag{
 			Name:    FlagActiveClusters,
 			Aliases: []string{"acs"},
-			Usage:   "Active clusters by cluster attribute in the format '<attr-scope>.<attr-name>:<cluster_name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+			Usage:   "Target active clusters by cluster attribute in the format '<attr-scope>.<attr-name>:<cluster_name> ie: region.manilla:cluster0,region.newyork:cluster1'",
 		},
 		&cli.StringFlag{
 			Name:    FlagActiveClustersJSON,
 			Aliases: []string{"acs-json"},
-			Usage:   `Active clusters by cluster attribute in JSON format. Eg {"attributeScopes":{"<attr-scope>":{"clusterAttributes":{"<attr-name>":{"activeClusterName":"<cluster_name>"}}}}}`,
+			Usage:   `Target active clusters by cluster attribute in JSON format. Eg {"attributeScopes":{"<attr-scope>":{"clusterAttributes":{"<attr-name>":{"activeClusterName":"<cluster_name>"}}}}}`,
 		},
 		&cli.StringFlag{
 			Name:    FlagFailoverReason,
