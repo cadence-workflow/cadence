@@ -48,9 +48,8 @@ type ActivityMissingHeartbeatTimeoutMetadata struct {
 	Threshold time.Duration
 }
 
-// TimeoutRiskIssuesMetadata is the metadata for every timeout risk issue. EventID is the ActivityTaskScheduled
-// event the issue was found on. The fields shared by all checks are top-level so the UI can render and link
-// them; exactly one of the per-check fields is set, holding the details specific to that check.
+// TimeoutRiskIssuesMetadata is the metadata for every timeout risk issue.
+// EventID is the ActivityTaskScheduled event the issue was found on.
 type TimeoutRiskIssuesMetadata struct {
 	EventID             int64
 	ActivityID          string

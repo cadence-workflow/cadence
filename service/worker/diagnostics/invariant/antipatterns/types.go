@@ -72,9 +72,7 @@ type ContinueAsNewInCronWorkflowMetadata struct {
 }
 
 // AntipatternIssuesMetadata is the metadata for every antipattern issue. EventID is the event the
-// issue anchors on: the first ActivityTaskScheduled event of a burst, or the
-// WorkflowExecutionContinuedAsNew event that was initiated by workflow code. Exactly one of the
-// per-check fields is set, holding the details specific to that check.
+// issue anchors on. Exactly one of the per-check fields is set, holding the details specific to that check.
 type AntipatternIssuesMetadata struct {
 	EventID int64
 
