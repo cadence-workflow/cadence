@@ -1669,6 +1669,26 @@ const (
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
 
+	// ActivityMapRewriteSampleRate controls how often a full activity map rewrite
+	// is triggered on transactions with deletes. A value of N means a 1-in-N chance
+	// per transaction (e.g., 100 = rewrite roughly every 100th transaction).
+	// 0 disables the optimization. 1 means rewrite every time.
+	// Only applies to backends listed in MapRewriteOptimizationBackends.
+	// KeyName: history.activityMapRewriteSampleRate
+	// Value type: Int
+	// Default value: 0
+	ActivityMapRewriteSampleRate
+
+	// TimerMapRewriteSampleRate controls how often a full timer map rewrite
+	// is triggered on transactions with deletes. A value of N means a 1-in-N chance
+	// per transaction (e.g., 100 = rewrite roughly every 100th transaction).
+	// 0 disables the optimization. 1 means rewrite every time.
+	// Only applies to backends listed in MapRewriteOptimizationBackends.
+	// KeyName: history.timerMapRewriteSampleRate
+	// Value type: Int
+	// Default value: 0
+	TimerMapRewriteSampleRate
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -3507,6 +3527,17 @@ const (
 	// Default value: forward all headers.  (this is a problematic value, and it will be changing as we reduce to a list of known values)
 	HeaderForwardingRules
 
+	// MapRewriteOptimizationBackends is the list of persistence backends that support
+	// the map rewrite optimization (sentinel writes + probabilistic full map rewrite).
+	// Currently only Cassandra is known to need this optimization (to avoid tombstones).
+	// Note: this value is read once at process startup and cached. Changes require a
+	// restart to take effect. Use the sample rate configs as a live kill switch instead.
+	// KeyName: history.mapRewriteOptimizationBackends
+	// Value type: []string
+	// Default value: ["cassandra"]
+	// Allowed filters: N/A
+	MapRewriteOptimizationBackends
+
 	LastListKey
 )
 
@@ -4630,6 +4661,16 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
+	},
+	ActivityMapRewriteSampleRate: {
+		KeyName:      "history.activityMapRewriteSampleRate",
+		Description:  "How often a full activity map rewrite is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction). 0 disables. Only applies to backends in MapRewriteOptimizationBackends.",
+		DefaultValue: 0,
+	},
+	TimerMapRewriteSampleRate: {
+		KeyName:      "history.timerMapRewriteSampleRate",
+		Description:  "How often a full timer map rewrite is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction). 0 disables. Only applies to backends in MapRewriteOptimizationBackends.",
+		DefaultValue: 0,
 	},
 }
 
@@ -6197,6 +6238,11 @@ var ListKeys = map[ListKey]DynamicList{
 		KeyName:      "system.rateLimiterBypassCallerTypes",
 		Description:  "List of caller types that bypass rate limiters (both frontend and persistence)",
 		DefaultValue: []interface{}{},
+	},
+	MapRewriteOptimizationBackends: {
+		KeyName:      "history.mapRewriteOptimizationBackends",
+		Description:  "List of persistence backends that support the map rewrite optimization (sentinel writes + probabilistic rewrite). Currently only Cassandra is known to need this (to avoid tombstones). Cached at startup; changes require restart. Use sample rate configs as a live kill switch.",
+		DefaultValue: []interface{}{"cassandra"},
 	},
 	DefaultIsolationGroupConfigStoreManagerGlobalMapping: {
 		KeyName: "system.defaultIsolationGroupConfigStoreManagerGlobalMapping",
