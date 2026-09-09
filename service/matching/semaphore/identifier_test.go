@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Tests that NewIdentifier rejects the values persistence would reject anyway, so a
+// misconfigured bucket fails here rather than on its first grant. Bucket 0 is valid.
 func TestNewIdentifier(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -39,7 +41,7 @@ func TestNewIdentifier(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			id, err := NewIdentifier(tc.domainID, tc.semaphoreName, tc.bucket)
 			if tc.wantErr {
-				assert.Error(t, err)
+				assert.ErrorIs(t, err, ErrInvalidRequest, "a bad identifier is never worth retrying")
 				return
 			}
 			require.NoError(t, err)
@@ -48,9 +50,10 @@ func TestNewIdentifier(t *testing.T) {
 	}
 }
 
+// Tests that Identifier works as a map key. Buckets are looked up by value, so the struct has to
+// stay comparable -- adding a slice or map field would break this at compile time, which is the
+// point.
 func TestIdentifierIsUsableAsAMapKey(t *testing.T) {
-	// Buckets are looked up by value, so the struct has to stay comparable — adding a
-	// slice or map field to it would break this at compile time, which is the point.
 	a, err := NewIdentifier("domain-1", "sem-1", 0)
 	require.NoError(t, err)
 	b, err := NewIdentifier("domain-1", "sem-1", 1)
