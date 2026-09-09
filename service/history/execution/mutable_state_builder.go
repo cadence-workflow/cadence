@@ -1481,6 +1481,21 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		Checksum:  checksum,
 	}
 
+	if len(workflowMutation.DeleteActivityInfos) > 0 {
+		infos := slices.Collect(maps.Values(e.pendingActivityInfoIDs))
+		if infos == nil {
+			infos = []*persistence.ActivityInfo{}
+		}
+		workflowMutation.RewriteActivityInfos = infos
+	}
+	if len(workflowMutation.DeleteTimerInfos) > 0 {
+		timers := slices.Collect(maps.Values(e.pendingTimerInfoIDs))
+		if timers == nil {
+			timers = []*persistence.TimerInfo{}
+		}
+		workflowMutation.RewriteTimerInfos = timers
+	}
+
 	e.checksum = checksum
 	if err := e.cleanupTransaction(); err != nil {
 		return nil, nil, err
