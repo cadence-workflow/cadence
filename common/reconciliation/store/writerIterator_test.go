@@ -142,7 +142,6 @@ func getMockExecutionManager(pages int, countPerPage int) persistence.ExecutionM
 			resp.PageToken = nil
 		}
 		execManager.On("ListConcreteExecutions", mock.Anything, req).Return(resp, nil)
-		execManager.On("GetShardID").Return(testShardID)
 	}
 	return execManager
 }

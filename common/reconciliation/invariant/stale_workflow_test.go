@@ -57,7 +57,7 @@ func setup(t *testing.T, retentionDays int) (*persistence.MockRetryer, *staleWor
 	dc.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil).AnyTimes()
 	dc.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()
 
-	invariant := NewStaleWorkflow(pr, dc, testlogger.NewZap(t))
+	invariant := NewStaleWorkflow(pr, dc, testlogger.NewZap(t), 4)
 	impl, ok := invariant.(*staleWorkflowCheck)
 	if !ok {
 		t.Fatalf("NewStaleWorkflowVersion returned invariant of type %T but want *staleWorkflowCheck", invariant)
@@ -91,15 +91,7 @@ func TestCheck(t *testing.T) {
 				},
 			},
 			mockFn: func(pr *persistence.MockRetryer) {
-				pr.EXPECT().GetWorkflowExecution(gomock.Any(), &persistence.GetWorkflowExecutionRequest{
-					DomainID: domainID,
-					Execution: types.WorkflowExecution{
-						WorkflowID: workflowID,
-						RunID:      runID,
-					},
-				}).Return(execution(domainID, running, time.Now().Add(-testRetentionAfterSafetyMargin-2*time.Hour), time.Hour, nil), nil).Times(1)
-
-				pr.EXPECT().GetShardID().Return(123).Times(1)
+				pr.EXPECT().GetWorkflowExecution(gomock.Any(), getWorkflowRequest{domainID, workflowID, runID}).Return(execution(domainID, running, time.Now().Add(-testRetentionAfterSafetyMargin-2*time.Hour), time.Hour, nil), nil).Times(1)
 				pr.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).
 					Return(&persistence.ReadHistoryBranchResponse{
 						HistoryEvents: []*types.HistoryEvent{
@@ -125,15 +117,7 @@ func TestCheck(t *testing.T) {
 				},
 			},
 			mockFn: func(pr *persistence.MockRetryer) {
-				pr.EXPECT().GetWorkflowExecution(gomock.Any(), &persistence.GetWorkflowExecutionRequest{
-					DomainID: domainID,
-					Execution: types.WorkflowExecution{
-						WorkflowID: workflowID,
-						RunID:      runID,
-					},
-				}).Return(execution(domainID, running, time.Now().Add(-2*time.Hour), time.Hour, nil), nil).Times(1)
-
-				pr.EXPECT().GetShardID().Return(123).Times(1)
+				pr.EXPECT().GetWorkflowExecution(gomock.Any(), getWorkflowRequest{domainID, workflowID, runID}).Return(execution(domainID, running, time.Now().Add(-2*time.Hour), time.Hour, nil), nil).Times(1)
 				pr.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).
 					Return(&persistence.ReadHistoryBranchResponse{
 						HistoryEvents: []*types.HistoryEvent{
@@ -159,15 +143,7 @@ func TestCheck(t *testing.T) {
 				},
 			},
 			mockFn: func(pr *persistence.MockRetryer) {
-				pr.EXPECT().GetWorkflowExecution(gomock.Any(), &persistence.GetWorkflowExecutionRequest{
-					DomainID: domainID,
-					Execution: types.WorkflowExecution{
-						WorkflowID: workflowID,
-						RunID:      runID,
-					},
-				}).Return(execution(domainID, zombie, time.Now().Add(-2*time.Hour), time.Hour, nil), nil).Times(1)
-
-				pr.EXPECT().GetShardID().Return(123).Times(1)
+				pr.EXPECT().GetWorkflowExecution(gomock.Any(), getWorkflowRequest{domainID, workflowID, runID}).Return(execution(domainID, zombie, time.Now().Add(-2*time.Hour), time.Hour, nil), nil).Times(1)
 				pr.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).
 					Return(&persistence.ReadHistoryBranchResponse{
 						HistoryEvents: []*types.HistoryEvent{
@@ -219,13 +195,7 @@ func TestCheck(t *testing.T) {
 				},
 			},
 			mockFn: func(pr *persistence.MockRetryer) {
-				pr.EXPECT().GetWorkflowExecution(gomock.Any(), &persistence.GetWorkflowExecutionRequest{
-					DomainID: domainID,
-					Execution: types.WorkflowExecution{
-						WorkflowID: workflowID,
-						RunID:      runID,
-					},
-				}).Return(nil, fmt.Errorf("failed")).Times(1)
+				pr.EXPECT().GetWorkflowExecution(gomock.Any(), getWorkflowRequest{domainID, workflowID, runID}).Return(nil, fmt.Errorf("failed")).Times(1)
 			},
 			wantResult: CheckResult{
 				CheckResultType: CheckResultTypeFailed,
@@ -265,15 +235,7 @@ func TestFix(t *testing.T) {
 				},
 			},
 			mockFn: func(pr *persistence.MockRetryer) {
-				pr.EXPECT().GetWorkflowExecution(gomock.Any(), &persistence.GetWorkflowExecutionRequest{
-					DomainID: domainID,
-					Execution: types.WorkflowExecution{
-						WorkflowID: workflowID,
-						RunID:      runID,
-					},
-				}).Return(execution(domainID, running, time.Now().Add(-2*time.Hour), time.Hour, nil), nil).Times(1)
-
-				pr.EXPECT().GetShardID().Return(123).Times(1)
+				pr.EXPECT().GetWorkflowExecution(gomock.Any(), getWorkflowRequest{domainID, workflowID, runID}).Return(execution(domainID, running, time.Now().Add(-2*time.Hour), time.Hour, nil), nil).Times(1)
 				pr.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).
 					Return(&persistence.ReadHistoryBranchResponse{
 						HistoryEvents: []*types.HistoryEvent{
@@ -299,15 +261,7 @@ func TestFix(t *testing.T) {
 				},
 			},
 			mockFn: func(pr *persistence.MockRetryer) {
-				pr.EXPECT().GetWorkflowExecution(gomock.Any(), &persistence.GetWorkflowExecutionRequest{
-					DomainID: domainID,
-					Execution: types.WorkflowExecution{
-						WorkflowID: workflowID,
-						RunID:      runID,
-					},
-				}).Return(execution(domainID, running, time.Now().Add(-testRetentionAfterSafetyMargin-2*time.Hour), time.Hour, nil), nil).Times(1)
-
-				pr.EXPECT().GetShardID().Return(123).Times(1)
+				pr.EXPECT().GetWorkflowExecution(gomock.Any(), getWorkflowRequest{domainID, workflowID, runID}).Return(execution(domainID, running, time.Now().Add(-testRetentionAfterSafetyMargin-2*time.Hour), time.Hour, nil), nil).Times(1)
 				pr.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).
 					Return(&persistence.ReadHistoryBranchResponse{
 						HistoryEvents: []*types.HistoryEvent{
@@ -593,7 +547,6 @@ func TestCompleteWithRunningFallback(t *testing.T) {
 }
 
 func withClosedHistory(finish *time.Time, pr *persistence.MockRetryer) {
-	pr.EXPECT().GetShardID().Return(0).MinTimes(1)
 
 	firstPage := &persistence.ReadHistoryBranchResponse{
 		HistoryEvents: []*types.HistoryEvent{
@@ -633,7 +586,6 @@ func withClosedHistory(finish *time.Time, pr *persistence.MockRetryer) {
 }
 
 func withOpenHistory(start time.Time, backoff time.Duration, pr *persistence.MockRetryer) {
-	pr.EXPECT().GetShardID().Return(0).MinTimes(1)
 
 	seconds := int32(backoff.Seconds())
 	res := &persistence.ReadHistoryBranchResponse{
@@ -673,6 +625,29 @@ func withOpenHistoryFallback(start time.Time, backoff time.Duration, pr *persist
 
 	// and then it's just another open request, no need to customize
 	withOpenHistory(start, backoff, pr)
+}
+
+type getWorkflowRequest struct {
+	domainID   string
+	workflowID string
+	runID      string
+}
+
+var _ gomock.Matcher = getWorkflowRequest{}
+
+func (m getWorkflowRequest) Matches(x interface{}) bool {
+	req, ok := x.(*persistence.GetWorkflowExecutionRequest)
+	if !ok {
+		return false
+	}
+	return req.DomainID == m.domainID &&
+		req.Execution.WorkflowID == m.workflowID &&
+		req.Execution.RunID == m.runID &&
+		req.ShardID != nil
+}
+
+func (m getWorkflowRequest) String() string {
+	return fmt.Sprintf("GetWorkflowExecutionRequest for %v/%v/%v", m.domainID, m.workflowID, m.runID)
 }
 
 type requestMaxEvent struct {
