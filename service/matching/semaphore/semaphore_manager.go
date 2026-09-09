@@ -119,6 +119,9 @@ type Manager struct {
 
 // NewManager builds the manager for one bucket. Call Start before Acquire, and discard it if
 // Start returns an error.
+//
+// Every manager must be started or stopped. Acquire blocks until one of the two happens, so a
+// manager left in between makes its callers wait.
 func NewManager(
 	id Identifier,
 	tokens persistence.SemaphoreTokenManager,
@@ -401,6 +404,12 @@ func (m *Manager) loadTokenOwnership(ctx context.Context) ([]int, map[int]int, m
 		}
 
 		for _, row := range resp.Ownerships {
+			if row == nil {
+				// The nosql store never returns one, but the interface does not promise it,
+				// and one nil row would panic the whole host.
+				skipped++
+				continue
+			}
 			switch row.RowType {
 			case persistence.SemaphoreRowTypeToken:
 				// Holder is empty exactly when the slot is unheld.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/log/testlogger"
@@ -66,7 +67,7 @@ func expectScan(t *testing.T, m *persistence.MockSemaphoreTokenManager, pages []
 		})
 }
 
-// startManager builds a bucket whose startup load reads the given single page of rows.
+// startManager returns a started manager whose startup scan read the given single page of rows.
 func startManager(t *testing.T, m *persistence.MockSemaphoreTokenManager, rows []*persistence.SemaphoreOwnership) *Manager {
 	t.Helper()
 	expectScan(t, m, [][]*persistence.SemaphoreOwnership{rows})
@@ -147,13 +148,15 @@ func TestStartKeepsAClaimedSlotOutOfTheFreeSet(t *testing.T) {
 }
 
 // Tests that Start() counts and steps over a row type it does not recognise, rather than failing
-// the load -- a newer writer must not be able to stop a bucket loading.
+// the load -- a newer writer must not be able to stop this host from loading the bucket.
 func TestStartSkipsRowsItCannotClassify(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := persistence.NewMockSemaphoreTokenManager(ctrl)
 
 	mgr := startManager(t, m, []*persistence.SemaphoreOwnership{
 		tokenRow(1, ""),
+		// A nil row would panic the load if it reached the switch below.
+		nil,
 		// The zero value: nothing set RowType. The enum starts at 1 so this cannot
 		// collide with a real type.
 		{TokenID: 2},
@@ -210,6 +213,16 @@ func TestSecondStartIsRejected(t *testing.T) {
 
 	assert.Error(t, mgr.Start(context.Background()))
 	assert.Equal(t, 2, mgr.freeCount(), "the first load's free-set survives")
+}
+
+// Testing a manager is started and then stopped leaves no goroutine running.
+func TestStartStop(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	ctrl := gomock.NewController(t)
+	m := persistence.NewMockSemaphoreTokenManager(ctrl)
+
+	mgr := startManager(t, m, freeTokens(1, 2))
+	mgr.Stop()
 }
 
 // Tests that Acquire refuses an empty owner id. Every grant is conditional on the owner, so an
@@ -292,9 +305,15 @@ func TestAcquireBeforeTheBucketIsUsable(t *testing.T) {
 			m := persistence.NewMockSemaphoreTokenManager(ctrl)
 			mgr := tc.setup(t, m)
 
+			// Bounded, so a manager that leaves its callers waiting fails here instead of
+			// hanging the whole package until go test gives up. A running manager never
+			// reaches this deadline: startup is already over in every case above.
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
 			// Not "no slot available": a caller cannot tell an unusable bucket from a full
 			// one, and would wait on a bucket that is never going to answer.
-			got, err := mgr.Acquire(context.Background(), "owner-a")
+			got, err := mgr.Acquire(ctx, "owner-a")
 			assert.ErrorIs(t, err, ErrNotReady)
 			assert.Equal(t, AcquireResult{}, got, "an error carries no result")
 		})
