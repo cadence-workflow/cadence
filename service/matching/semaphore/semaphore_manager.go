@@ -243,6 +243,7 @@ func (m *Manager) enqueue(ctx context.Context, ownerID string) error {
 // grant tries to get ownerID a slot, up to maxGrantAttempts times:
 //   - Check the reverse index first to confirm this owner holds a token
 //   - Otherwise draw a random free id and settle it with a conditional write
+//   - A write refused as taken, or one that failed on a blip, costs an attempt and is retried
 //
 // It answers with one of three outcomes:
 //   - Acquired: the write applied, and TokenID is the new token.
@@ -264,6 +265,10 @@ func (m *Manager) grant(ctx context.Context, ownerID string) (AcquireResult, err
 		}
 	}
 
+	// Remembers a write failure that was retried. Without it, running out of attempts would
+	// look like a full bucket instead of a store this host could not reach.
+	var lastErr error
+
 	for range maxGrantAttempts {
 		// Stop as soon as the caller gives up. Letting the write fail instead reports a
 		// persistence.TimeoutError, which hides whether the caller ran out of time or the store did.
@@ -274,7 +279,8 @@ func (m *Manager) grant(ctx context.Context, ownerID string) (AcquireResult, err
 		// Draw a free id and reserve it before the write
 		tokenID, ok := m.reserve()
 		if !ok {
-			return AcquireResult{Outcome: AcquireOutcomeNoSlot}, nil
+			// Nothing left to draw
+			break
 		}
 
 		// The conditional batch write, the one authoritative step.
@@ -291,7 +297,14 @@ func (m *Manager) grant(ctx context.Context, ownerID string) (AcquireResult, err
 			// If it did land, the next grant to draw it is refused and drops it.
 			// Keeping it out would lose a slot per failed write, emptying the free-set.
 			m.unreserve(tokenID)
-			return AcquireResult{}, err
+			if !persistence.IsTransientError(err) {
+				return AcquireResult{}, err
+			}
+			// A blip, retry. Safe even if the write did land,
+			// because the owner row is inserted IF NOT EXISTS,
+			// so the next attempt reports AlreadyHeld.
+			lastErr = err
+			continue
 		}
 
 		switch resp.Outcome {
@@ -324,6 +337,9 @@ func (m *Manager) grant(ctx context.Context, ownerID string) (AcquireResult, err
 			m.unreserve(tokenID)
 			return AcquireResult{}, fmt.Errorf("%w: unexpected grant outcome %v for bucket %v", ErrInconsistentState, resp.Outcome, m.id)
 		}
+	}
+	if lastErr != nil {
+		return AcquireResult{}, lastErr
 	}
 	return AcquireResult{Outcome: AcquireOutcomeNoSlot}, nil
 }

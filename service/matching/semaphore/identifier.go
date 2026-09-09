@@ -2,24 +2,20 @@ package semaphore
 
 import "fmt"
 
-// Identifier names one semaphore bucket. A semaphore of `size` slots is split into
-// ceil(size/bucket_size) buckets.
+// Identifier names what one Manager serves: one bucket of one semaphore. A semaphore of `size`
+// slots is split into ceil(size/bucket_size) buckets, and a bucket is one partition of
+// semaphore_tokens.
 //
-// A bucket is three things at once: one partition of semaphore_tokens, the target of every
-// conditional write that grants a slot in it, and the unit one Matching host serves. The first
-// two are what make a grant correct; the third only keeps this host's free-set useful.
-//
-// The struct is used directly as a map key, so keep every field comparable. String() is
-// for logs and metrics.
+// Used directly as a map key, so every field must stay comparable. String() is for logs and
+// metrics.
 type Identifier struct {
 	DomainID      string
 	SemaphoreName string
 	Bucket        int
 }
 
-// NewIdentifier builds a bucket identifier, rejecting the values the persistence layer
-// would reject anyway. Catching them here means a misconfigured bucket fails at
-// construction rather than on its first grant.
+// NewIdentifier rejects the values persistence would reject anyway, so a misconfigured manager
+// fails here rather than on its first grant.
 func NewIdentifier(domainID, semaphoreName string, bucket int) (Identifier, error) {
 	if domainID == "" {
 		return Identifier{}, fmt.Errorf("%w: domainID is required", ErrInvalidRequest)

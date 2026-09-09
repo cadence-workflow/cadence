@@ -571,6 +571,39 @@ func TestGrantRejectsAnAlreadyHeldWriteWithNoToken(t *testing.T) {
 	assert.Equal(t, AcquireOutcomeAcquired, got.Outcome)
 }
 
+func TestGrantRetriesATransientWriteFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := persistence.NewMockSemaphoreTokenManager(ctrl)
+	mgr := startManager(t, m, freeTokens(1, 2, 3))
+
+	gomock.InOrder(
+		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(nil, &persistence.TimeoutError{Msg: "write timed out"}),
+		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
+			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil),
+	)
+
+	got, err := mgr.grant(context.Background(), "owner-a")
+	require.NoError(t, err)
+	assert.Equal(t, AcquireOutcomeAcquired, got.Outcome)
+	assert.Equal(t, 2, mgr.freeCount(), "only the granted slot leaves the free-set")
+	assertFreeSetIsConsistent(t, mgr)
+}
+
+func TestGrantReportsTheErrorWhenEveryAttemptFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := persistence.NewMockSemaphoreTokenManager(ctrl)
+	mgr := startManager(t, m, freeTokens(1, 2, 3))
+
+	writeErr := &persistence.TimeoutError{Msg: "write timed out"}
+	m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(maxGrantAttempts).Return(nil, writeErr)
+
+	got, err := mgr.grant(context.Background(), "owner-a")
+	assert.ErrorIs(t, err, writeErr)
+	assert.Equal(t, AcquireResult{}, got)
+	assert.Equal(t, 3, mgr.freeCount(), "every drawn slot comes back")
+	assertFreeSetIsConsistent(t, mgr)
+}
+
 // Tests that a failed write costs no slot: the id goes back every time, so an outage cannot
 // drain the free-set one write at a time.
 func TestGrantReturnsTheSlotWhenTheWriteFails(t *testing.T) {
