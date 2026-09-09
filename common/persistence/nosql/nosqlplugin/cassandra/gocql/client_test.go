@@ -60,6 +60,7 @@ func Test_RegisterClientNotNil(t *testing.T) {
 }
 
 func Test_newCassandraCluster(t *testing.T) {
+	policyFactoryCalls := 0
 	testFullConfig := ClusterConfig{
 		Hosts:      "testHost1,testHost2,testHost3,testHost4",
 		Port:       123,
@@ -74,8 +75,13 @@ func Test_newCassandraCluster(t *testing.T) {
 			KeyFile:  "testKeyFile",
 		},
 		MaxConns: 10,
+		HostSelectionPolicyFactory: func() gocql.HostSelectionPolicy {
+			policyFactoryCalls++
+			return gocql.TokenAwareHostPolicy(gocql.RoundRobinHostPolicy())
+		},
 	}
 	clusterConfig := newCassandraCluster(testFullConfig)
+	secondClusterConfig := newCassandraCluster(testFullConfig)
 	assert.Equal(t, []string{"testHost1", "testHost2", "testHost3", "testHost4"}, clusterConfig.Hosts)
 	assert.Equal(t, testFullConfig.Port, clusterConfig.Port)
 	assert.Equal(t, testFullConfig.User, clusterConfig.Authenticator.(gocql.PasswordAuthenticator).Username)
@@ -84,6 +90,8 @@ func Test_newCassandraCluster(t *testing.T) {
 	assert.Equal(t, testFullConfig.TLS.CertFile, clusterConfig.SslOpts.CertPath)
 	assert.Equal(t, testFullConfig.TLS.KeyFile, clusterConfig.SslOpts.KeyPath)
 	assert.Equal(t, testFullConfig.MaxConns, clusterConfig.NumConns)
+	assert.Equal(t, 2, policyFactoryCalls)
+	assert.NotSame(t, clusterConfig.PoolConfig.HostSelectionPolicy, secondClusterConfig.PoolConfig.HostSelectionPolicy)
 
 	assert.False(t, clusterConfig.HostFilter.Accept(&gocql.HostInfo{}))
 }

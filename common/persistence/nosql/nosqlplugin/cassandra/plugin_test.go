@@ -47,14 +47,13 @@ func Test_toGoCqlConfig(t *testing.T) {
 			"empty config will be filled with defaults",
 			&config.NoSQL{},
 			gocql.ClusterConfig{
-				Hosts:               environment.Localhost,
-				Port:                9042,
-				ProtoVersion:        4,
-				Timeout:             time.Second * 10,
-				Consistency:         gocql.LocalQuorum,
-				SerialConsistency:   gocql.LocalSerial,
-				ConnectTimeout:      time.Second * 2,
-				HostSelectionPolicy: gogocql.TokenAwareHostPolicy(gogocql.RoundRobinHostPolicy()),
+				Hosts:             environment.Localhost,
+				Port:              9042,
+				ProtoVersion:      4,
+				Timeout:           time.Second * 10,
+				Consistency:       gocql.LocalQuorum,
+				SerialConsistency: gocql.LocalSerial,
+				ConnectTimeout:    time.Second * 2,
 			},
 			assert.NoError,
 		},
@@ -65,12 +64,14 @@ func Test_toGoCqlConfig(t *testing.T) {
 			if !tt.wantErr(t, err, fmt.Sprintf("toGoCqlConfig(%v)", tt.cfg)) {
 				return
 			}
+			assert.NotNil(t, got.HostSelectionPolicyFactory)
+			got.HostSelectionPolicyFactory = nil
 			assert.Equalf(t, tt.want, got, "toGoCqlConfig(%v)", tt.cfg)
 		})
 	}
 }
 
-func Test_toHostSelectionPolicy(t *testing.T) {
+func Test_toHostSelectionPolicyFactory(t *testing.T) {
 	tests := []struct {
 		name    string
 		policy  string
@@ -83,12 +84,19 @@ func Test_toHostSelectionPolicy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := toHostSelectionPolicy(tt.policy)
-			if !tt.wantErr(t, err, fmt.Sprintf("toHostSelectionPolicy(%v)", tt.policy)) {
+			got, err := toHostSelectionPolicyFactory(tt.policy)
+			if !tt.wantErr(t, err, fmt.Sprintf("toHostSelectionPolicyFactory(%v)", tt.policy)) {
+				return
+			}
+			if err != nil {
+				assert.Nil(t, got)
 				return
 			}
 
-			assert.Equal(t, tt.want, got, "toHostSelectionPolicy(%v)", tt.policy)
+			first := got()
+			second := got()
+			assert.Equal(t, tt.want, first, "toHostSelectionPolicyFactory(%v)", tt.policy)
+			assert.NotSame(t, first, second)
 		})
 	}
 }

@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	gogocql "github.com/gocql/gocql"
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
 
@@ -157,6 +158,42 @@ func TestSelectTaskList(t *testing.T) {
 			},
 		},
 		{
+			name: "success - null adaptive partition config",
+			filter: &nosqlplugin.TaskListFilter{
+				DomainID:     "domain1",
+				TaskListName: "tasklist1",
+				TaskListType: 1,
+			},
+			queryMockFn: func(query *gocql.MockQuery) {
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+				query.EXPECT().Scan(gomock.Any()).DoAndReturn(func(args ...interface{}) error {
+					rangeID := args[0].(*int64)
+					*rangeID = 25
+					tlDB := args[1].(*map[string]interface{})
+					*tlDB = map[string]interface{}{
+						"ack_level":                 int64(1000),
+						"kind":                      2,
+						"last_updated":              now,
+						"adaptive_partition_config": nil,
+					}
+					return nil
+				}).Times(1)
+			},
+			wantRow: &nosqlplugin.TaskListRow{
+				DomainID:                "domain1",
+				TaskListName:            "tasklist1",
+				TaskListType:            1,
+				TaskListKind:            2,
+				AckLevel:                1000,
+				RangeID:                 25,
+				LastUpdatedTime:         now,
+				AdaptivePartitionConfig: nil,
+			},
+			wantQueries: []string{
+				`SELECT range_id, task_list FROM tasks WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345`,
+			},
+		},
+		{
 			name: "scan failure",
 			filter: &nosqlplugin.TaskListFilter{
 				DomainID:     "domain1",
@@ -204,6 +241,70 @@ func TestSelectTaskList(t *testing.T) {
 
 			if diff := cmp.Diff(tc.wantQueries, session.queries); diff != "" {
 				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestFromTaskListPartitionConfigMarshaling(t *testing.T) {
+	protoVersion := byte(4)
+	udtType := gogocql.UDTTypeInfo{
+		NativeType: gogocql.NewNativeType(protoVersion, gogocql.TypeUDT, ""),
+		Elements: []gogocql.UDTField{
+			{Name: "version", Type: gogocql.NewNativeType(protoVersion, gogocql.TypeBigInt, "")},
+			{Name: "num_read_partitions", Type: gogocql.NewNativeType(protoVersion, gogocql.TypeInt, "")},
+			{Name: "num_write_partitions", Type: gogocql.NewNativeType(protoVersion, gogocql.TypeInt, "")},
+		},
+	}
+	tests := []struct {
+		name       string
+		config     *persistence.TaskListPartitionConfig
+		want       map[string]interface{}
+		wantCQLNil bool
+	}{
+		{
+			name:       "nil config",
+			wantCQLNil: true,
+		},
+		{
+			name: "populated config",
+			config: &persistence.TaskListPartitionConfig{
+				Version: 3,
+				ReadPartitions: map[int]*persistence.TaskListPartition{
+					0: {},
+					1: {},
+				},
+				WritePartitions: map[int]*persistence.TaskListPartition{
+					0: {},
+				},
+			},
+			want: map[string]interface{}{
+				"version":              int64(3),
+				"num_read_partitions":  2,
+				"num_write_partitions": 1,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := gogocql.Marshal(udtType, fromTaskListPartitionConfig(tc.config))
+			if err != nil {
+				t.Fatalf("Marshal() error = %v", err)
+			}
+			if tc.wantCQLNil {
+				if data != nil {
+					t.Fatalf("Marshal() = %v, want nil", data)
+				}
+				return
+			}
+
+			var got map[string]interface{}
+			if err := gogocql.Unmarshal(udtType, data, &got); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Fatalf("Map mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

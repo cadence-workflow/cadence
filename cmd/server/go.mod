@@ -25,7 +25,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
-	github.com/gocql/gocql v0.0.0-20211015133455-b225f9b53fa1 // indirect
+	github.com/gocql/gocql v1.7.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.7.0-rc.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect

@@ -27,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	gogocql "github.com/gocql/gocql"
+
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -142,11 +144,23 @@ func toTaskListPartition(partition map[string]any) *persistence.TaskListPartitio
 	}
 }
 
-func fromTaskListPartitionConfig(config *persistence.TaskListPartitionConfig) map[string]interface{} {
+// nullableMap preserves nil as a CQL null UDT. gocql v1.7 otherwise treats a
+// typed nil map as a present UDT and encodes each field as null. When decoded,
+// that value becomes a map containing zero-valued fields. Non-nil maps use normal UDT marshaling.
+type nullableMap map[string]interface{}
+
+func (m nullableMap) MarshalCQL(info gogocql.TypeInfo) ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	return gogocql.Marshal(info, map[string]interface{}(m))
+}
+
+func fromTaskListPartitionConfig(config *persistence.TaskListPartitionConfig) nullableMap {
 	if config == nil {
 		return nil
 	}
-	return map[string]interface{}{
+	return nullableMap{
 		"version":              config.Version,
 		"num_read_partitions":  len(config.ReadPartitions),
 		"num_write_partitions": len(config.WritePartitions),
