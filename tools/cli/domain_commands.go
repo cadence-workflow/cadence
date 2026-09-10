@@ -543,6 +543,7 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 	if c.IsSet(FlagFailoverTimeout) {
 		failoverRequest.FailoverTimeoutInSeconds = common.Int32Ptr(int32(c.Int(FlagFailoverTimeout)))
 	}
+	failoverRequest.SkipDestinationClusterCheck = c.Bool(FlagSkipDestinationCheck)
 
 	_, err = d.failoverDomain(ctx, failoverRequest)
 	if err != nil {

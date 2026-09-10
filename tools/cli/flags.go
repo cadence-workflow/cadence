@@ -110,6 +110,7 @@ const (
 	FlagPrefix                         = "prefix"
 	FlagDeprecated                     = "deprecated"
 	FlagForce                          = "force"
+	FlagSkipDestinationCheck           = "skip_destination_check"
 	FlagPageID                         = "page_id"
 	FlagPageSize                       = "pagesize"
 	FlagLimit                          = "limit"
