@@ -1886,11 +1886,12 @@ func (v *DescribeDomainResponse) GetFailoverInfo() (o *FailoverInfo) {
 
 // FailoverDomainRequest is an internal type (TBD...)
 type FailoverDomainRequest struct {
-	DomainName               string          `json:"domainName,omitempty"`
-	DomainActiveClusterName  *string         `json:"domainActiveClusterName,omitempty"`
-	ActiveClusters           *ActiveClusters `json:"activeClusters,omitempty"`
-	Reason                   *string         `json:"reason,omitempty"`
-	FailoverTimeoutInSeconds *int32          `json:"failoverTimeoutInSeconds,omitempty"`
+	DomainName                  string          `json:"domainName,omitempty"`
+	DomainActiveClusterName     *string         `json:"domainActiveClusterName,omitempty"`
+	ActiveClusters              *ActiveClusters `json:"activeClusters,omitempty"`
+	Reason                      *string         `json:"reason,omitempty"`
+	FailoverTimeoutInSeconds    *int32          `json:"failoverTimeoutInSeconds,omitempty"`
+	SkipDestinationClusterCheck bool            `json:"skipDestinationClusterCheck,omitempty"`
 }
 
 func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {

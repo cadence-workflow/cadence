@@ -83,11 +83,12 @@ var (
 		FailoverTimeoutInSeconds:               &Duration1,
 	}
 	FailoverDomainRequest = types.FailoverDomainRequest{
-		DomainName:               DomainName,
-		DomainActiveClusterName:  common.StringPtr(ClusterName1),
-		ActiveClusters:           &ActiveClusters,
-		Reason:                   common.StringPtr(Reason),
-		FailoverTimeoutInSeconds: &Duration1,
+		DomainName:                  DomainName,
+		DomainActiveClusterName:     common.StringPtr(ClusterName1),
+		ActiveClusters:              &ActiveClusters,
+		Reason:                      common.StringPtr(Reason),
+		FailoverTimeoutInSeconds:    &Duration1,
+		SkipDestinationClusterCheck: true,
 	}
 	FailoverDomainRequest_OnlyActiveClusters = types.FailoverDomainRequest{
 		DomainName: DomainName,

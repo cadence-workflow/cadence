@@ -865,6 +865,17 @@ func TestFailoverDomainRequest(t *testing.T) {
 			"DomainActiveClusterName should be nil when proto field is empty string")
 	})
 }
+
+func TestFailoverDomainRequest_PreservesSkipDestinationClusterCheck(t *testing.T) {
+	in := &types.FailoverDomainRequest{
+		DomainName:                  "test-domain",
+		DomainActiveClusterName:     common.StringPtr("cluster1"),
+		SkipDestinationClusterCheck: true,
+	}
+	out := ToFailoverDomainRequest(FromFailoverDomainRequest(in))
+	assert.Equal(t, in, out)
+	assert.True(t, out.SkipDestinationClusterCheck)
+}
 func TestUpdateDomainResponse(t *testing.T) {
 	for _, item := range []*types.UpdateDomainResponse{nil, &testdata.UpdateDomainResponse} {
 		assert.Equal(t, item, ToUpdateDomainResponse(FromUpdateDomainResponse(item)))
