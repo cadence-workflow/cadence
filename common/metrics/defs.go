@@ -995,6 +995,17 @@ const (
 	// PersistenceDeleteHistoryDLQTasksScope tracks DeleteTasks calls to the persistence layer
 	PersistenceDeleteHistoryDLQTasksScope
 
+	// PersistenceCreateSemaphoreScope tracks CreateSemaphore calls to the persistence layer
+	PersistenceCreateSemaphoreScope
+	// PersistenceGetSemaphoreScope tracks GetSemaphore calls to the persistence layer
+	PersistenceGetSemaphoreScope
+	// PersistenceListSemaphoresScope tracks ListSemaphores calls to the persistence layer
+	PersistenceListSemaphoresScope
+	// PersistenceCreateDomainAuditLogScope tracks CreateDomainAuditLog calls to the persistence layer
+	PersistenceCreateDomainAuditLogScope
+	// PersistenceGetDomainAuditLogsScope tracks GetDomainAuditLogs calls to the persistence layer
+	PersistenceGetDomainAuditLogsScope
+
 	NumCommonScopes
 )
 
@@ -2001,6 +2012,12 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistenceGetHistoryDLQTasksScope:                  {operation: "GetHistoryDLQTasks"},
 		PersistenceUpdateHistoryDLQAckLevelScope:            {operation: "UpdateHistoryDLQAckLevel"},
 		PersistenceDeleteHistoryDLQTasksScope:               {operation: "DeleteHistoryDLQTasks"},
+
+		PersistenceCreateSemaphoreScope:      {operation: "CreateSemaphore"},
+		PersistenceGetSemaphoreScope:         {operation: "GetSemaphore"},
+		PersistenceListSemaphoresScope:       {operation: "ListSemaphores"},
+		PersistenceCreateDomainAuditLogScope: {operation: "CreateDomainAuditLog"},
+		PersistenceGetDomainAuditLogsScope:   {operation: "GetDomainAuditLogs"},
 	},
 	// Frontend Scope Names
 	Frontend: {

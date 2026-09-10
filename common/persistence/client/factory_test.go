@@ -137,6 +137,48 @@ func TestFactoryMethods(t *testing.T) {
 		ds.EXPECT().NewConfigStore().Return(nil, nil).MinTimes(1)
 		check(t, fact.NewConfigStoreManager)
 	})
+	t.Run("NewDomainAuditManager", func(t *testing.T) {
+		fact := makeFactory(t)
+		ds := mockDatastore(t, fact, storeTypeMetadata)
+
+		ds.EXPECT().NewDomainAuditStore().Return(persistence.NewMockDomainAuditStore(gomock.NewController(t)), nil).MinTimes(1)
+		check(t, fact.NewDomainAuditManager)
+	})
+	t.Run("NewSemaphoreMetadataManager", func(t *testing.T) {
+		fact := makeFactory(t)
+		ds := mockDatastore(t, fact, storeTypeMetadata)
+
+		ds.EXPECT().NewSemaphoreMetadataStore().Return(persistence.NewMockSemaphoreMetadataStore(gomock.NewController(t)), nil).MinTimes(1)
+		check(t, fact.NewSemaphoreMetadataManager)
+	})
+	t.Run("NewDomainAuditManager is rate limited", func(t *testing.T) {
+		// makeFactoryWithMetrics uses a non-zero qpsFn, so ds.ratelimit is set, and a
+		// non-zero ErrorInjectionRate. With metrics disabled, the outermost wrapper of a
+		// correctly wired manager (error injection -> rate limited -> metered) must be
+		// the ratelimited client, mirroring the history task DLQ manager wiring.
+		fact := makeFactoryWithMetrics(t, false)
+		ds := mockDatastore(t, fact, storeTypeMetadata)
+
+		ds.EXPECT().NewDomainAuditStore().Return(persistence.NewMockDomainAuditStore(gomock.NewController(t)), nil).MinTimes(1)
+
+		mgr, err := fact.NewDomainAuditManager()
+		assert.NoError(t, err)
+		assert.NotNil(t, mgr)
+		assert.Contains(t, reflect.TypeOf(mgr).String(), "ratelimited.",
+			"domain audit manager must be wrapped with the ratelimited client")
+	})
+	t.Run("NewSemaphoreMetadataManager is rate limited", func(t *testing.T) {
+		fact := makeFactoryWithMetrics(t, false)
+		ds := mockDatastore(t, fact, storeTypeMetadata)
+
+		ds.EXPECT().NewSemaphoreMetadataStore().Return(persistence.NewMockSemaphoreMetadataStore(gomock.NewController(t)), nil).MinTimes(1)
+
+		mgr, err := fact.NewSemaphoreMetadataManager()
+		assert.NoError(t, err)
+		assert.NotNil(t, mgr)
+		assert.Contains(t, reflect.TypeOf(mgr).String(), "ratelimited.",
+			"semaphore metadata manager must be wrapped with the ratelimited client")
+	})
 	t.Run("NewHistoryTaskDLQManager propagates store creation error", func(t *testing.T) {
 		fact := makeFactory(t)
 		ds := mockDatastore(t, fact, storeTypeExecution)
