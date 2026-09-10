@@ -150,9 +150,9 @@ func (m *semaphoreManagerImpl) Identifier() Identifier {
 	return m.id
 }
 
-// markStartupDone releases everything waiting for startup. It says startup ended, not that it
-// succeeded, so Stop calls it too: an acquire on a manager that never started gets ErrNotReady
-// rather than blocking forever.
+// markStartupDone closes startupDoneCh, which is what lets a blocked Acquire go on. It says
+// startup ended, not that it succeeded, so Stop calls it too: an acquire on a manager that never
+// started gets ErrNotReady rather than blocking forever.
 func (m *semaphoreManagerImpl) markStartupDone() {
 	m.startupOnce.Do(func() { close(m.startupDoneCh) })
 }
@@ -160,8 +160,6 @@ func (m *semaphoreManagerImpl) markStartupDone() {
 // Start scans the partition and builds the free-set and the reverse index from what
 // is stored there. Call it exactly once, and discard the Manager if it returns an error.
 func (m *semaphoreManagerImpl) Start(ctx context.Context) error {
-	defer m.markStartupDone()
-
 	// Move to starting before the scan so a second Start fails here.
 	m.mu.Lock()
 	if m.state != managerStateCreated {
@@ -170,6 +168,10 @@ func (m *semaphoreManagerImpl) Start(ctx context.Context) error {
 	}
 	m.state = managerStateStarting
 	m.mu.Unlock()
+
+	// Registered after the check, so a rejected second Start cannot close startupDoneCh.
+	// Closing it mid-scan makes Acquire answer ErrNotReady for a bucket that is still loading.
+	defer m.markStartupDone()
 
 	freeList, freeIndex, held, err := m.loadTokenOwnership(ctx)
 	if err != nil {

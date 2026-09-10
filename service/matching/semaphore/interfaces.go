@@ -2,6 +2,8 @@ package semaphore
 
 import "context"
 
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go -self_package github.com/uber/cadence/service/matching/semaphore
+
 type (
 	// Manager hands out the slots of one semaphore token bucket. Its free-set is only a cache;
 	// the conditional write in persistence decides every grant. Always start or stop a manager,

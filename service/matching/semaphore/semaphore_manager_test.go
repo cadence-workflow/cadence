@@ -322,11 +322,11 @@ func TestAcquireBeforeTheBucketIsUsable(t *testing.T) {
 			// out slots the real owner has already given away.
 			name: "stopped while it was still loading",
 			setup: func(t *testing.T, m *persistence.MockSemaphoreTokenManager) *semaphoreManagerImpl {
-				scanning, release := make(chan struct{}), make(chan struct{})
+				scanning, finishScan := make(chan struct{}), make(chan struct{})
 				m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(context.Context, *persistence.ScanSemaphoreBucketRequest) (*persistence.ScanSemaphoreBucketResponse, error) {
 						close(scanning)
-						<-release
+						<-finishScan
 						return &persistence.ScanSemaphoreBucketResponse{Ownerships: freeTokens(1, 2)}, nil
 					})
 
@@ -336,7 +336,7 @@ func TestAcquireBeforeTheBucketIsUsable(t *testing.T) {
 
 				<-scanning // pin Stop to the window where the scan is in flight
 				mgr.Stop()
-				close(release)
+				close(finishScan)
 				assert.Error(t, <-started, "Start must report that it lost the bucket")
 				return mgr
 			},
@@ -369,11 +369,11 @@ func TestAcquireHonorsItsDeadlineWhileStarting(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := persistence.NewMockSemaphoreTokenManager(ctrl)
 
-	scanning, release := make(chan struct{}), make(chan struct{})
+	scanning, finishScan := make(chan struct{}), make(chan struct{})
 	m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(context.Context, *persistence.ScanSemaphoreBucketRequest) (*persistence.ScanSemaphoreBucketResponse, error) {
 			close(scanning)
-			<-release
+			<-finishScan
 			return &persistence.ScanSemaphoreBucketResponse{Ownerships: freeTokens(1)}, nil
 		})
 
@@ -382,7 +382,7 @@ func TestAcquireHonorsItsDeadlineWhileStarting(t *testing.T) {
 	go func() { started <- mgr.Start(context.Background()) }()
 	<-scanning
 	defer func() {
-		close(release)
+		close(finishScan)
 		assert.NoError(t, <-started)
 	}()
 
