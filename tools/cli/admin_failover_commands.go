@@ -428,11 +428,12 @@ func failoverStartV2(c *cli.Context, sourceCluster, targetCluster string) error 
 	}
 
 	foParams := failovermanager.FailoverV2Params{
-		SourceClusters:          []string{sourceCluster},
-		TargetCluster:           targetCluster,
-		BatchSize:               c.Int(FlagFailoverBatchSize),
-		WaitBetweenBatchSeconds: c.Int(FlagFailoverWaitTime),
-		Domains:                 c.StringSlice(FlagFailoverDomains),
+		SourceClusters:              []string{sourceCluster},
+		TargetCluster:               targetCluster,
+		BatchSize:                   c.Int(FlagFailoverBatchSize),
+		WaitBetweenBatchSeconds:     c.Int(FlagFailoverWaitTime),
+		Domains:                     c.StringSlice(FlagFailoverDomains),
+		SkipDestinationClusterCheck: c.Bool(FlagSkipDestinationCheck),
 	}
 	if raw := c.String(FlagClusterAttributesJSON); raw != "" {
 		attrs, parseErr := parseClusterAttributesJSON(raw)
