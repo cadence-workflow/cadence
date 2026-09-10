@@ -171,3 +171,7 @@ replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
 
 // DO NOT USE as it misses mysql/config store fix
 retract v1.2.3
+
+// TEMPORARY: local IDL testing for the FailoverDomainRequest.skipDestinationClusterCheck field.
+// Remove once the cadence-idl PR is merged and the go.mod version is bumped.
+replace github.com/uber/cadence-idl => ./idls
