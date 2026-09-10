@@ -5,6 +5,7 @@ persistence:
     sqlite-default:
       sql:
         pluginName: "sqlite"
+        autoSetup: true
         maxConns: 1
         maxIdleConns: 1
         maxConnLifetime: "128h"
@@ -12,6 +13,7 @@ persistence:
     sqlite-visibility:
       sql:
         pluginName: "sqlite"
+        autoSetup: true
         maxConns: 1
         maxIdleConns: 1
         maxConnLifetime: "128h"
