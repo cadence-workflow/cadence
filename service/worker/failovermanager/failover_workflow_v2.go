@@ -69,6 +69,9 @@ type (
 		// ClusterAttributes specifies which cluster attributes should be included for failover.
 		// If empty, cluster attributes are not included.
 		ClusterAttributes []types.ClusterAttribute
+		// SkipDestinationClusterCheck lets the failover run from a cluster other than TargetCluster.
+		// By default the server rejects FailoverDomain requests not received by the destination.
+		SkipDestinationClusterCheck bool
 	}
 
 	// DomainSnapshot records a single domain's pre-failover state so a later restore can put it
@@ -165,7 +168,7 @@ func FailoverWorkflowV2(ctx workflow.Context, params *FailoverV2Params) (*Failov
 		params.BatchSize,
 		waitBetween,
 		checkPause,
-		executeFailoverBatch(),
+		executeFailoverBatch(params.SkipDestinationClusterCheck),
 	)
 
 	wfState = WorkflowCompleted
