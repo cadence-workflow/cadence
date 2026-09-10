@@ -302,6 +302,10 @@ var (
 			Aliases: []string{"fts"},
 			Usage:   "[Optional] Graceful failover timeout in seconds. When set, the incoming active cluster waits up to this duration for pending replication tasks to drain before taking over",
 		},
+		&cli.BoolFlag{
+			Name:  FlagSkipDestinationCheck,
+			Usage: "[Optional] Allow this failover to be issued from a cluster other than the destination. By default the server only accepts a failover request received by the cluster being failed over to, so that a domain cannot be pulled away from a healthy region by mistake.",
+		},
 	}
 
 	listFailoverHistoryFlags = []cli.Flag{
