@@ -14,19 +14,14 @@ import (
 )
 
 const (
-	// scanPageSize sizes one page of the startup scan. A manager owns one bucket, and a bucket is
-	// a single Cassandra partition holding one token row per slot plus one owner row per hold.
-	// With every slot held that is 2*bucket_size rows, and CreateSemaphore caps bucket_size, so
-	// one page covers the whole partition.
-	//
-	// The +1 avoids a wasted round trip: a page that fills exactly comes back with a paging
-	// state, so the scan would fetch an empty second page. Paging runs to the end regardless,
-	// so this number only ever costs round trips, never correctness.
+	// scanPageSize sizes one page of the startup scan. A full bucket is one token row per slot
+	// plus one owner row per hold, so 2*bucket_size covers the partition, and the +1 saves the
+	// empty second fetch an exactly-full page would cost. Paging runs to the end either way, so
+	// this only ever costs round trips.
 	scanPageSize = 2*persistence.MaxSemaphoreBucketSize + 1
 
-	// maxGrantAttempts caps how many slots one acquire tries. Only a stale free-set entry costs
-	// a retry, and each miss drops the id it tried, so the cap keeps a badly stale bucket from
-	// turning one acquire into hundreds of conditional writes.
+	// maxGrantAttempts caps how many slots one acquire tries, so a badly stale free-set cannot
+	// turn one acquire into hundreds of conditional writes.
 	maxGrantAttempts = 3
 )
 
@@ -87,12 +82,10 @@ const (
 	managerStateStopped
 )
 
-// Manager hands out the slots of one semaphore token bucket, tracking which are open.
-//
-// Its free-set is only a cache; the conditional write in persistence decides every grant.
-// Start reads the partition once and never again, so a lost slot stays lost until the token
-// bucket is loaded afresh.
-type Manager struct {
+var _ Manager = (*semaphoreManagerImpl)(nil)
+
+// Single semaphore bucket in memory state
+type semaphoreManagerImpl struct {
 	id     Identifier
 	tokens persistence.SemaphoreTokenManager
 	logger log.Logger
@@ -117,36 +110,56 @@ type Manager struct {
 	held map[string]int
 }
 
+type ManagerParams struct {
+	ID     Identifier
+	Tokens persistence.SemaphoreTokenManager
+	Logger log.Logger
+}
+
+func validateParams(p ManagerParams) error {
+	if err := p.ID.validate(); err != nil {
+		return err
+	}
+	if p.Tokens == nil {
+		return fmt.Errorf("%w: ManagerParams.Tokens is required", ErrInvalidRequest)
+	}
+	if p.Logger == nil {
+		return fmt.Errorf("%w: ManagerParams.Logger is required", ErrInvalidRequest)
+	}
+	return nil
+}
+
 // NewManager builds the manager for one bucket. Call Start before Acquire, and discard it if
 // Start returns an error.
-//
-// Every manager must be started or stopped. Acquire blocks until one of the two happens, so a
-// manager left in between makes its callers wait.
-func NewManager(
-	id Identifier,
-	tokens persistence.SemaphoreTokenManager,
-	logger log.Logger,
-) *Manager {
-	return &Manager{
-		id:            id,
-		tokens:        tokens,
-		logger:        logger.WithTags(tag.Dynamic("semaphore-bucket", id.String())),
+func NewManager(p ManagerParams) (Manager, error) {
+	if err := validateParams(p); err != nil {
+		return nil, err
+	}
+	return &semaphoreManagerImpl{
+		id:            p.ID,
+		tokens:        p.Tokens,
+		logger:        p.Logger.WithTags(tag.Dynamic("semaphore-bucket", p.ID.String())),
 		startupDoneCh: make(chan struct{}),
 		freeIndex:     make(map[int]int),
 		held:          make(map[string]int),
-	}
+	}, nil
+}
+
+// Identifier names the bucket this manager serves.
+func (m *semaphoreManagerImpl) Identifier() Identifier {
+	return m.id
 }
 
 // markStartupDone releases everything waiting for startup. It says startup ended, not that it
 // succeeded, so Stop calls it too: an acquire on a manager that never started gets ErrNotReady
 // rather than blocking forever.
-func (m *Manager) markStartupDone() {
+func (m *semaphoreManagerImpl) markStartupDone() {
 	m.startupOnce.Do(func() { close(m.startupDoneCh) })
 }
 
 // Start scans the partition and builds the free-set and the reverse index from what
 // is stored there. Call it exactly once, and discard the Manager if it returns an error.
-func (m *Manager) Start(ctx context.Context) error {
+func (m *semaphoreManagerImpl) Start(ctx context.Context) error {
 	defer m.markStartupDone()
 
 	// Move to starting before the scan so a second Start fails here.
@@ -187,7 +200,7 @@ func (m *Manager) Start(ctx context.Context) error {
 
 // Stop gives up the bucket: later acquires get ErrNotReady. A grant
 // already past the state check still finishes its write.
-func (m *Manager) Stop() {
+func (m *semaphoreManagerImpl) Stop() {
 	m.mu.Lock()
 	m.state = managerStateStopped
 	m.mu.Unlock()
@@ -195,7 +208,7 @@ func (m *Manager) Stop() {
 	m.logger.Info("Semaphore manager stopped", tag.LifeCycleStopped)
 }
 
-func (m *Manager) isRunning() bool {
+func (m *semaphoreManagerImpl) isRunning() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.state == managerStateRunning
@@ -203,7 +216,7 @@ func (m *Manager) isRunning() bool {
 
 // Acquire is the entry point: it asks for a slot on behalf of ownerID, and queues a waiter when
 // this host cannot find one.
-func (m *Manager) Acquire(ctx context.Context, ownerID string) (AcquireResult, error) {
+func (m *semaphoreManagerImpl) Acquire(ctx context.Context, ownerID string) (AcquireResult, error) {
 	if ownerID == "" {
 		return AcquireResult{}, fmt.Errorf("%w: ownerID is required", ErrInvalidRequest)
 	}
@@ -235,11 +248,8 @@ func (m *Manager) Acquire(ctx context.Context, ownerID string) (AcquireResult, e
 }
 
 // enqueue records ownerID as a waiter on this bucket, to be granted a slot when one frees.
-// Acquire calls it when a grant finds the bucket full.
-//
-// TODO: allocate a task id from the range this host holds and write the waiter row to
-// semaphore_tasks.
-func (m *Manager) enqueue(ctx context.Context, ownerID string) error {
+// Acquire calls it when a grant finds the bucket full
+func (m *semaphoreManagerImpl) enqueue(ctx context.Context, ownerID string) error {
 	return nil
 }
 
@@ -252,7 +262,7 @@ func (m *Manager) enqueue(ctx context.Context, ownerID string) error {
 //   - Acquired: the write applied, and TokenID is the new token.
 //   - AlreadyHeld: the owner already had a token, and TokenID is that token.
 //   - NoSlot: no free id was left to try.
-func (m *Manager) grant(ctx context.Context, ownerID string) (AcquireResult, error) {
+func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (AcquireResult, error) {
 	// Check the reverse index first, to see whether this owner already holds a token.
 	m.mu.Lock()
 	tokenID, ok := m.held[ownerID]
@@ -349,7 +359,7 @@ func (m *Manager) grant(ctx context.Context, ownerID string) (AcquireResult, err
 
 // confirmHold checks whether ownerID still holds tokenID by reading the token row.
 // A stale entry is dropped, and its slot returned to the free-set when the row proves the slot unheld.
-func (m *Manager) confirmHold(ctx context.Context, ownerID string, tokenID int) (bool, error) {
+func (m *semaphoreManagerImpl) confirmHold(ctx context.Context, ownerID string, tokenID int) (bool, error) {
 	resp, err := m.tokens.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
 		DomainID:      m.id.DomainID,
 		SemaphoreName: m.id.SemaphoreName,
@@ -382,10 +392,9 @@ func (m *Manager) confirmHold(ctx context.Context, ownerID string, tokenID int) 
 	return false, nil
 }
 
-// loadTokenOwnership reads the bucket partition, following NextPageToken to the end, and
-// returns which slots are free and which owner holds what. It builds into locals, so a read
-// that fails partway leaves the live state untouched.
-func (m *Manager) loadTokenOwnership(ctx context.Context) ([]int, map[int]int, map[string]int, error) {
+// loadTokenOwnership pages through the bucket partition and returns which slots are free and
+// which owner holds what. It builds into locals, so a read that fails partway changes nothing.
+func (m *semaphoreManagerImpl) loadTokenOwnership(ctx context.Context) ([]int, map[int]int, map[string]int, error) {
 	free := make(map[int]struct{})
 	held := make(map[string]int)
 	var skipped int
@@ -453,7 +462,7 @@ func (m *Manager) loadTokenOwnership(ctx context.Context) ([]int, map[int]int, m
 }
 
 // reserve draws a uniform-random free id and takes it out of the free-set.
-func (m *Manager) reserve() (int, bool) {
+func (m *semaphoreManagerImpl) reserve() (int, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if len(m.freeList) == 0 {
@@ -466,7 +475,7 @@ func (m *Manager) reserve() (int, bool) {
 
 // unreserve puts back an id a grant drew but did not take. It may in fact be held, when the
 // write's outcome is unknown -- safe, because the conditional write settles the next attempt.
-func (m *Manager) unreserve(tokenID int) {
+func (m *semaphoreManagerImpl) unreserve(tokenID int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.addToFreeSetLocked(tokenID)
@@ -474,7 +483,7 @@ func (m *Manager) unreserve(tokenID int) {
 
 // recordHold marks ownerID as holding tokenID, mirroring the owner row the write just put
 // down. Apart from the startup load, this is the only place the reverse index grows.
-func (m *Manager) recordHold(ownerID string, tokenID int) {
+func (m *semaphoreManagerImpl) recordHold(ownerID string, tokenID int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.held[ownerID] = tokenID
@@ -485,7 +494,7 @@ func (m *Manager) recordHold(ownerID string, tokenID int) {
 
 // dropStaleHold removes a reverse-index entry, returning its slot
 // to the free-set when stillFree says the token row proved the slot unheld.
-func (m *Manager) dropStaleHold(ownerID string, tokenID int, stillFree bool) {
+func (m *semaphoreManagerImpl) dropStaleHold(ownerID string, tokenID int, stillFree bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if current, ok := m.held[ownerID]; ok && current == tokenID {
@@ -498,7 +507,7 @@ func (m *Manager) dropStaleHold(ownerID string, tokenID int, stillFree bool) {
 
 // addToFreeSetLocked puts an id back, ignoring one already there. That check keeps freeList free
 // of duplicates, which would otherwise let two grants draw the same slot.
-func (m *Manager) addToFreeSetLocked(tokenID int) {
+func (m *semaphoreManagerImpl) addToFreeSetLocked(tokenID int) {
 	if _, ok := m.freeIndex[tokenID]; ok {
 		return
 	}
@@ -508,7 +517,7 @@ func (m *Manager) addToFreeSetLocked(tokenID int) {
 
 // removeFromFreeSetLocked takes one id out in constant time by moving the tail element into its
 // slot. Order in freeList carries no meaning, since picks are random.
-func (m *Manager) removeFromFreeSetLocked(tokenID int) {
+func (m *semaphoreManagerImpl) removeFromFreeSetLocked(tokenID int) {
 	i, ok := m.freeIndex[tokenID]
 	if !ok {
 		return
@@ -525,7 +534,7 @@ func (m *Manager) removeFromFreeSetLocked(tokenID int) {
 
 // freeCount reports how many slots this host believes are open. A hint, not the truth, and
 // exists for tests.
-func (m *Manager) freeCount() int {
+func (m *semaphoreManagerImpl) freeCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.freeList)

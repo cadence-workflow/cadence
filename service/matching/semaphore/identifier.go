@@ -17,16 +17,24 @@ type Identifier struct {
 // NewIdentifier rejects the values persistence would reject anyway, so a misconfigured manager
 // fails here rather than on its first grant.
 func NewIdentifier(domainID, semaphoreName string, bucket int) (Identifier, error) {
-	if domainID == "" {
-		return Identifier{}, fmt.Errorf("%w: domainID is required", ErrInvalidRequest)
+	id := Identifier{DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket}
+	if err := id.validate(); err != nil {
+		return Identifier{}, err
 	}
-	if semaphoreName == "" {
-		return Identifier{}, fmt.Errorf("%w: semaphoreName is required", ErrInvalidRequest)
+	return id, nil
+}
+
+func (id Identifier) validate() error {
+	if id.DomainID == "" {
+		return fmt.Errorf("%w: domainID is required", ErrInvalidRequest)
 	}
-	if bucket < 0 {
-		return Identifier{}, fmt.Errorf("%w: bucket must not be negative, got %d", ErrInvalidRequest, bucket)
+	if id.SemaphoreName == "" {
+		return fmt.Errorf("%w: semaphoreName is required", ErrInvalidRequest)
 	}
-	return Identifier{DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket}, nil
+	if id.Bucket < 0 {
+		return fmt.Errorf("%w: bucket must not be negative, got %d", ErrInvalidRequest, id.Bucket)
+	}
+	return nil
 }
 
 func (id Identifier) String() string {
