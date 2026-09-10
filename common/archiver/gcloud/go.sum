@@ -377,8 +377,6 @@ github.com/uber/jaeger-client-go v2.30.0+incompatible h1:D6wyKGCecFaSRUpo8lCVbaO
 github.com/uber/jaeger-client-go v2.30.0+incompatible/go.mod h1:WVhlPFC8FDjOFMMWRy2pZqQJSXxYSwNYOkTr/Z6d3Kk=
 github.com/uber/jaeger-lib v2.4.1+incompatible h1:td4jdvLcExb4cBISKIpHuGoVXh+dVKhn2Um6rjCsSsg=
 github.com/uber/jaeger-lib v2.4.1+incompatible/go.mod h1:ComeNDZlWwrWnDv8aPp0Ba6+uUTzImX/AauajbLI56U=
-github.com/uber/ringpop-go v0.10.0 h1:KLMFirakdHC4hSOrqbnPBftTU/AzfMuLqAWVV99cd8A=
-github.com/uber/ringpop-go v0.10.0/go.mod h1:zVI6eGO6L7pG14GkntHsSOfmUAWQ7B4lvmzly4IT4ls=
 github.com/uber/tchannel-go v1.34.4 h1:Wi7SSfUQbJ4lPqS4trP1uAZvWu46oK0qz0tOodcfcbY=
 github.com/uber/tchannel-go v1.34.4/go.mod h1:ERHDsQa50nNJxV8Mm6V4nxPWyGvGxiV+T/dUNRzmoC4=
 github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2 h1:zzrxE1FKn5ryBNl9eKOeqQ58Y/Qpo3Q9QNxKHX5uzzQ=
