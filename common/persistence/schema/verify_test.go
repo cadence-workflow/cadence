@@ -1,4 +1,4 @@
-package cadence
+package schema
 
 import (
 	"context"

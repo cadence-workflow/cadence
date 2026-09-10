@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cadence
+package schema
 
 import (
 	"cmp"
@@ -27,22 +27,15 @@ import (
 	"slices"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 )
 
-// Amount of time allowed to connect to all DBs
-const setupTimeout = 2 * time.Minute
-
 // Backoff whenever we fail to connect to a DB
-const setupRetryInterval = 3 * time.Second
+const setupRetryInterval = 1 * time.Second
 
 type setupTask struct {
 	adminDB persistence.AdminDB
@@ -56,52 +49,45 @@ type schemaUpdateTask struct {
 	update   *persistence.SchemaUpdate
 }
 
-// newPersistenceFactory constructs a persistence factory from the provided config. It doesn't support dynamic config
-// or the more complex features of a full server.
-func newPersistenceFactory(cfg config.Config, logger log.Logger) persistenceClient.Factory {
-	dc := dynamicconfig.NewNopCollection()
-	clusterName := ""
-	if cfg.ClusterGroupMetadata != nil {
-		clusterName = cfg.ClusterGroupMetadata.CurrentClusterName
+// Update updates the schema for all DBs referenced in the specified config
+func Update(ctx context.Context, options Options) error {
+	options, err := withDefaults(options)
+	if err != nil {
+		return err
 	}
-	return persistenceClient.NewFactory(
-		&cfg.Persistence,
-		func() float64 { return 0 },
-		clusterName,
-		nil, // no metrics client needed for schema updates
-		logger,
-		persistence.NewDynamicConfiguration(dc),
-	)
-}
+	factory := newPersistenceFactory(options.ClusterName, options.Config, options.Logger)
+	defer factory.Close()
 
-// newUpdateSchemaLogger builds a simple zap-based logger suitable for the CLI update-schema command.
-func newUpdateSchemaLogger() log.Logger {
-	return log.NewLogger(zap.Must(zap.NewProduction()))
+	err = runUpdateSchema(ctx, factory, options)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // runUpdateSchema applies all pending schema updates for every AdminDB instance returned
 // by factory. It follows the steps below:
 //
-//  1. Within a 2-minute retry window, construct a SetupDB for every AdminDB. Any errors
+//  1. Within the configured connect timeout, construct a SetupDB for every AdminDB. Any errors
 //     are retried until the deadline.
 //  2. For each SetupDB, call IsSetup; if the result is false, call Setup.
 //  3. For each AdminDB that reports SupportsSchema() == true, create a SchemaDB, check
 //     the current schema version against the latest, and collect any updates that need
 //     to be applied.
 //  4. Sort the collected updates by (PluginName/DBType, Version) and apply them in that order.
-func runUpdateSchema(ctx context.Context, factory persistenceClient.Factory, logger log.Logger, timeSource clock.TimeSource) error {
+func runUpdateSchema(ctx context.Context, factory persistenceClient.Factory, opts Options) error {
 	adminDBs, err := factory.NewAdminDBs()
 	if err != nil {
 		return fmt.Errorf("get admin DBs: %w", err)
 	}
 
-	setupTasks, setupDBs, err := connectToDBs(ctx, logger, timeSource, adminDBs)
+	setupTasks, setupDBs, err := connectToDBs(ctx, opts, adminDBs)
 	defer closeSetupDBs(setupDBs)
 	if err != nil {
 		return err
 	}
 
-	if err = ensureSetup(ctx, logger, setupTasks); err != nil {
+	if err = ensureSetup(ctx, opts.Logger, setupTasks, opts.SetupOptions); err != nil {
 		return err
 	}
 
@@ -111,18 +97,18 @@ func runUpdateSchema(ctx context.Context, factory persistenceClient.Factory, log
 		return err
 	}
 
-	return applyUpdates(ctx, logger, updates)
+	return applyUpdates(ctx, opts.Logger, updates)
 }
 
-// connectToDBs tries to create a SetupDB for every AdminDB within a 2-minute
-// window, retrying on any error until the deadline is exceeded.
-func connectToDBs(ctx context.Context, logger log.Logger, timeSource clock.TimeSource, adminDBs []persistence.AdminDB) ([]setupTask, []persistence.SetupDB, error) {
+// connectToDBs tries to create a SetupDB for every AdminDB within the configured
+// connect timeout, retrying on any error until the deadline is exceeded.
+func connectToDBs(ctx context.Context, opts Options, adminDBs []persistence.AdminDB) ([]setupTask, []persistence.SetupDB, error) {
 	tasks := make([]setupTask, 0, len(adminDBs))
 	setupDBs := make([]persistence.SetupDB, 0, len(adminDBs))
-	ctx, cancel := timeSource.ContextWithTimeout(ctx, setupTimeout)
+	ctx, cancel := opts.Time.ContextWithTimeout(ctx, opts.ConnectTimeout)
 	defer cancel()
 	for _, adminDB := range adminDBs {
-		setupDB, err := retryUntilConnected(ctx, logger, adminDB, timeSource)
+		setupDB, err := retryUntilConnected(ctx, opts.Logger, adminDB, opts.Time)
 		if err != nil {
 			return tasks, setupDBs, err
 		}
@@ -156,7 +142,7 @@ func retryUntilConnected(ctx context.Context, logger log.Logger, adminDB persist
 }
 
 // ensureSetup calls Setup on any SetupDB that reports IsSetup() == false.
-func ensureSetup(ctx context.Context, logger log.Logger, tasks []setupTask) error {
+func ensureSetup(ctx context.Context, logger log.Logger, tasks []setupTask, setupOptions map[string]string) error {
 	for _, t := range tasks {
 		dbLogger := logger.WithTags(dbTags(t.adminDB)...)
 		isSetup, err := t.setupDB.IsSetup(ctx)
@@ -168,7 +154,7 @@ func ensureSetup(ctx context.Context, logger log.Logger, tasks []setupTask) erro
 			continue
 		}
 		dbLogger.Info("Setting up database...")
-		if err = t.setupDB.Setup(ctx, nil); err != nil {
+		if err = t.setupDB.Setup(ctx, setupOptions); err != nil {
 			return fmt.Errorf("setting up %s: %w", describeDB(t.adminDB), err)
 		}
 		dbLogger.Info("Database set up successfully")

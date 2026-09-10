@@ -105,6 +105,7 @@ func TestNewConfig(t *testing.T) {
 		"EmitSignalNameMetricsTag":                          {dynamicproperties.FrontendEmitSignalNameMetricsTag, true},
 		"Lockdown":                                          {dynamicproperties.Lockdown, false},
 		"EnableTasklistIsolation":                           {dynamicproperties.EnableTasklistIsolation, true},
+		"EnableScheduler":                                   {dynamicproperties.EnableScheduler, true},
 		"GlobalRatelimiterKeyMode":                          {dynamicproperties.FrontendGlobalRatelimiterMode, "disabled"},
 		"GlobalRatelimiterUpdateInterval":                   {dynamicproperties.GlobalRatelimiterUpdateInterval, 3 * time.Second},
 		"PinotOptimizedQueryColumns":                        {dynamicproperties.PinotOptimizedQueryColumns, map[string]interface{}{"foo": "bar"}},

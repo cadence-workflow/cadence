@@ -130,7 +130,7 @@ func NewService(params *resource.Params) Service {
 		serializer:       persistence.NewPayloadSerializer(),
 	}
 
-	sVice.runtimeMetricsReporter = metrics.NewRuntimeMetricsReporter(params.MetricScope, time.Minute, sVice.GetLogger(), params.InstanceID)
+	sVice.runtimeMetricsReporter = metrics.NewRuntimeMetricsReporter(params.MetricScope, time.Minute, sVice.GetLogger(), params.InstanceID, params.HostName)
 	sVice.dispatcher = sVice.rpcFactory.GetDispatcher()
 	if sVice.dispatcher == nil {
 		sVice.logger.Fatal("Unable to create yarpc dispatcher")

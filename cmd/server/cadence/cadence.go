@@ -29,14 +29,15 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/urfave/cli/v2"
 	"go.uber.org/fx"
 	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/common/client"
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence/schema"
 	"github.com/uber/cadence/common/service"
 
 	_ "go.uber.org/automaxprocs" // defines automaxpocs for dockerized usage.
@@ -165,11 +166,15 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 					return fmt.Errorf("validate config: %w", err)
 				}
 
-				logger := newUpdateSchemaLogger()
-				factory := newPersistenceFactory(cfg, logger)
-				defer factory.Close()
-
-				return runUpdateSchema(c.Context, factory, logger, clock.NewRealTimeSource())
+				err := schema.Update(c.Context, schema.Options{
+					ClusterName:    cfg.ClusterGroupMetadata.CurrentClusterName,
+					Config:         &cfg.Persistence,
+					ConnectTimeout: 30 * time.Second,
+				})
+				if err != nil {
+					return fmt.Errorf("update schema: %w", err)
+				}
+				return nil
 			},
 		},
 	}

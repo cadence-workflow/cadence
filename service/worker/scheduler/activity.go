@@ -31,9 +31,14 @@ import (
 	"go.uber.org/cadence/activity"
 
 	"github.com/uber/cadence/client/frontend"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
+
+// defaultTaskStartToCloseTimeoutSeconds is applied when a schedule's
+// StartWorkflow action leaves the decision task timeout unset.
+const defaultTaskStartToCloseTimeoutSeconds int32 = 10
 
 // schedulerRequestIDNamespace is a stable UUID namespace used to derive
 // deterministic RequestIDs. Cassandra's schema stores create_request_id as
@@ -142,6 +147,13 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (r
 
 	workflowID := generateWorkflowID(req.Action.WorkflowIDPrefix, req.ScheduleID, req.ScheduledTime)
 	reusePolicy := types.WorkflowIDReusePolicyAllowDuplicate
+	// StartWorkflowExecution rejects a non-positive decision task timeout, which
+	// would fail every fire and record it as a missed run. The field is optional
+	// on a schedule action, so default it here rather than reject the fire.
+	taskStartToCloseTimeout := req.Action.TaskStartToCloseTimeoutSeconds
+	if taskStartToCloseTimeout == nil || *taskStartToCloseTimeout <= 0 {
+		taskStartToCloseTimeout = common.Int32Ptr(defaultTaskStartToCloseTimeoutSeconds)
+	}
 	startReq := &types.StartWorkflowExecutionRequest{
 		Domain:                              req.Domain,
 		WorkflowID:                          workflowID,
@@ -149,7 +161,7 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (r
 		TaskList:                            req.Action.TaskList,
 		Input:                               req.Action.Input,
 		ExecutionStartToCloseTimeoutSeconds: req.Action.ExecutionStartToCloseTimeoutSeconds,
-		TaskStartToCloseTimeoutSeconds:      req.Action.TaskStartToCloseTimeoutSeconds,
+		TaskStartToCloseTimeoutSeconds:      taskStartToCloseTimeout,
 		RequestID:                           generateRequestID(req.ScheduleID, req.ScheduledTime.UnixNano(), req.TriggerSource),
 		WorkflowIDReusePolicy:               &reusePolicy,
 		RetryPolicy:                         req.Action.RetryPolicy,

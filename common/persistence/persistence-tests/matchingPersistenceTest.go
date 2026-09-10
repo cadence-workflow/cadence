@@ -109,7 +109,7 @@ func (s *MatchingPersistenceSuite) TestCreateTask() {
 		s.Equal(workflowExecution.RunID, resp.Tasks[0].RunID)
 		s.Equal(sid, resp.Tasks[0].ScheduleID)
 		s.True(resp.Tasks[0].CreatedTime.UnixNano() > 0)
-		if s.TaskMgr.GetName() != "cassandra" && s.TaskMgr.GetName() != "shardedNosql" {
+		if s.TaskMgr.GetName() != "cassandra" {
 			// cassandra uses TTL and expiry isn't stored as part of task state
 			s.True(time.Now().Before(resp.Tasks[0].Expiry))
 			s.True(resp.Tasks[0].Expiry.Before(time.Now().Add((defaultScheduleToStartTimeout + 1) * time.Second)))
@@ -524,7 +524,7 @@ func (s *MatchingPersistenceSuite) deleteAllTaskList() {
 
 // TestListWithOneTaskList test
 func (s *MatchingPersistenceSuite) TestListWithOneTaskList() {
-	if s.TaskMgr.GetName() == "cassandra" || s.TaskMgr.GetName() == "shardedNosql" {
+	if s.TaskMgr.GetName() == "cassandra" {
 		// ListTaskList API is currently not supported in cassandra
 		return
 	}
@@ -588,7 +588,7 @@ func (s *MatchingPersistenceSuite) TestListWithOneTaskList() {
 
 // TestListWithMultipleTaskList test
 func (s *MatchingPersistenceSuite) TestListWithMultipleTaskList() {
-	if s.TaskMgr.GetName() == "cassandra" || s.TaskMgr.GetName() == "shardedNosql" {
+	if s.TaskMgr.GetName() == "cassandra" {
 		// ListTaskList API is currently not supported in cassandra"
 		return
 	}
@@ -658,7 +658,7 @@ func (s *MatchingPersistenceSuite) TestGetOrphanTasks() {
 	if os.Getenv("SKIP_GET_ORPHAN_TASKS") != "" {
 		s.T().Skipf("GetOrphanTasks not supported in %v", s.TaskMgr.GetName())
 	}
-	if s.TaskMgr.GetName() == "cassandra" || s.TaskMgr.GetName() == "shardedNosql" {
+	if s.TaskMgr.GetName() == "cassandra" {
 		// GetOrphanTasks API is currently not supported in cassandra"
 		return
 	}

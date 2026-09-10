@@ -149,7 +149,7 @@ func (sn *shardedNosqlStoreImpl) Close() {
 }
 
 func (sn *shardedNosqlStoreImpl) GetName() string {
-	return "shardedNosql"
+	return sn.defaultShard.GetName()
 }
 
 func (sn *shardedNosqlStoreImpl) GetShardingPolicy() shardingPolicy {

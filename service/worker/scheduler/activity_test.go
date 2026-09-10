@@ -188,6 +188,65 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			},
 		},
 		{
+			name: "unset task timeout is defaulted so the fire is not silently skipped",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.Action.TaskStartToCloseTimeoutSeconds = nil
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
+						require.NotNil(t, req.TaskStartToCloseTimeoutSeconds)
+						assert.Equal(t, defaultTaskStartToCloseTimeoutSeconds, *req.TaskStartToCloseTimeoutSeconds)
+						// The caller-provided execution timeout is forwarded unchanged.
+						require.NotNil(t, req.ExecutionStartToCloseTimeoutSeconds)
+						assert.Equal(t, int32(3600), *req.ExecutionStartToCloseTimeoutSeconds)
+						return &types.StartWorkflowExecutionResponse{RunID: "run-abc"}, nil
+					})
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-abc"},
+			},
+		},
+		{
+			name: "non-positive task timeout is defaulted",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.Action.TaskStartToCloseTimeoutSeconds = int32Ptr(0)
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
+						require.NotNil(t, req.TaskStartToCloseTimeoutSeconds)
+						assert.Equal(t, defaultTaskStartToCloseTimeoutSeconds, *req.TaskStartToCloseTimeoutSeconds)
+						return &types.StartWorkflowExecutionResponse{RunID: "run-abc"}, nil
+					})
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-abc"},
+			},
+		},
+		{
+			name: "provided task timeout is forwarded unchanged",
+			req:  baseReq,
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
+						require.NotNil(t, req.TaskStartToCloseTimeoutSeconds)
+						assert.Equal(t, int32(60), *req.TaskStartToCloseTimeoutSeconds)
+						return &types.StartWorkflowExecutionResponse{RunID: "run-abc"}, nil
+					})
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-abc"},
+			},
+		},
+		{
 			name: "backfill start stamps CadenceScheduleBackfillID on StartWorkflow",
 			req: func() ProcessFireRequest {
 				r := baseReq

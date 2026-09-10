@@ -43,6 +43,8 @@ go test -race -run TestFoo ./path/to/pkg/...  # run a specific test
   - All new tests should be either plain Go tests or table-tests.
   - Round-trip test all mappers: `ToX(FromX(item)) == item`. Fuzz-test mappers following the pattern in `common/types/mapper/proto/api_test.go` and `schedule_test.go`.
 
+- **License headers**: Do **not** add license headers to new files.
+
 - **Types**:
   - Never use IDL code (`.gen/go/` or `.gen/proto/`) directly in service logic.
   - Map to `common/types` or `common/persistence` types via mappers in `common/types/mapper/`.
@@ -64,6 +66,12 @@ go test -race -run TestFoo ./path/to/pkg/...  # run a specific test
     - Any package that registers global state in `init()`
   - **What to do instead:** Move the blank import to `cmd/server/main.go` or the appropriate entry point.
   - **Example:** `common/persistence/sql/sqlplugin/sqlite/db.go` should NOT import drivers. Instead, `cmd/server/main.go` imports both the plugin package AND the driver.
+
+- **License Headers**:
+  - Do **not** add per-file license headers (MIT, Apache, or SPDX) to any source file.
+  - The top-level `LICENSE` file (Apache 2.0) covers the entire repository.
+  - When creating new `.go` files, start with the `package` declaration — no copyright or license block.
+  - Files under `.gen/` are generated from IDL and may carry upstream headers — do not modify those manually.
 
 ## Architecture Guidelines
 

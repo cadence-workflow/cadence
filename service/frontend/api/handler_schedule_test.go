@@ -36,6 +36,7 @@ import (
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/constants"
@@ -76,6 +77,7 @@ func newScheduleTestFixture(t *testing.T) *scheduleTestFixture {
 		10, false, "hostname", mockResource.Logger,
 	)
 	config.EmitSignalNameMetricsTag = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
+	config.EnableScheduler = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 
 	handler := NewWorkflowHandler(mockResource, config, versionChecker, nil)
 
@@ -102,9 +104,10 @@ func TestCreateSchedule(t *testing.T) {
 		Spec:       &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
 		Action: &types.ScheduleAction{
 			StartWorkflow: &types.StartWorkflowAction{
-				WorkflowType: &types.WorkflowType{Name: "my-workflow"},
-				TaskList:     &types.TaskList{Name: "my-tasklist"},
-				Input:        []byte(`{"k":1}`),
+				WorkflowType:                        &types.WorkflowType{Name: "my-workflow"},
+				TaskList:                            &types.TaskList{Name: "my-tasklist"},
+				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
+				Input:                               []byte(`{"k":1}`),
 			},
 		},
 	}
@@ -123,6 +126,13 @@ func TestCreateSchedule(t *testing.T) {
 		"empty domain": {
 			request: &types.CreateScheduleRequest{},
 			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"scheduler not enabled for domain": {
+			request: &types.CreateScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
+			mockFn: func(f *scheduleTestFixture) {
+				f.handler.config.EnableScheduler = dynamicproperties.GetBoolPropertyFnFilteredByDomain(false)
+			},
 			wantErr: true,
 		},
 		"empty schedule ID": {
@@ -182,8 +192,9 @@ func TestCreateSchedule(t *testing.T) {
 				},
 				Action: &types.ScheduleAction{
 					StartWorkflow: &types.StartWorkflowAction{
-						WorkflowType: &types.WorkflowType{Name: "wf"},
-						TaskList:     &types.TaskList{Name: "tl"},
+						WorkflowType:                        &types.WorkflowType{Name: "wf"},
+						TaskList:                            &types.TaskList{Name: "tl"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
 					},
 				},
 			},
@@ -199,7 +210,50 @@ func TestCreateSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
-		"retry policy with no bounds rejected at create": {
+		"nil StartWorkflow action": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "* * * * *"},
+				Action:     &types.ScheduleAction{},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"missing workflow type rejected": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "* * * * *"},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						TaskList:                            &types.TaskList{Name: "tl"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
+					},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"missing task list rejected": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "* * * * *"},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType:                        &types.WorkflowType{Name: "wf"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
+					},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"missing execution timeout rejected": {
+			// This is the field the web UI omitted: without it, every fire fails
+			// StartWorkflowExecution validation and is silently counted as a missed
+			// run. Reject it up front instead.
 			request: &types.CreateScheduleRequest{
 				Domain:     testDomain,
 				ScheduleID: "s1",
@@ -208,6 +262,38 @@ func TestCreateSchedule(t *testing.T) {
 					StartWorkflow: &types.StartWorkflowAction{
 						WorkflowType: &types.WorkflowType{Name: "wf"},
 						TaskList:     &types.TaskList{Name: "tl"},
+					},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"zero execution timeout rejected": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "* * * * *"},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType:                        &types.WorkflowType{Name: "wf"},
+						TaskList:                            &types.TaskList{Name: "tl"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(0),
+					},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"retry policy with no bounds rejected at create": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "* * * * *"},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType:                        &types.WorkflowType{Name: "wf"},
+						TaskList:                            &types.TaskList{Name: "tl"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
 						RetryPolicy: &types.RetryPolicy{
 							InitialIntervalInSeconds: 1,
 							MaximumIntervalInSeconds: 60,
@@ -227,8 +313,9 @@ func TestCreateSchedule(t *testing.T) {
 				Spec:       &types.ScheduleSpec{CronExpression: "* * * * *"},
 				Action: &types.ScheduleAction{
 					StartWorkflow: &types.StartWorkflowAction{
-						WorkflowType: &types.WorkflowType{Name: "wf"},
-						TaskList:     &types.TaskList{Name: "tl"},
+						WorkflowType:                        &types.WorkflowType{Name: "wf"},
+						TaskList:                            &types.TaskList{Name: "tl"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
 					},
 				},
 				Policies: &types.SchedulePolicies{
@@ -262,8 +349,9 @@ func TestCreateSchedule(t *testing.T) {
 				Spec:       &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
 				Action: &types.ScheduleAction{
 					StartWorkflow: &types.StartWorkflowAction{
-						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
-						TaskList:     &types.TaskList{Name: "my-tasklist"},
+						WorkflowType:                        &types.WorkflowType{Name: "my-workflow"},
+						TaskList:                            &types.TaskList{Name: "my-tasklist"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
 					},
 				},
 				SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{
@@ -289,8 +377,9 @@ func TestCreateSchedule(t *testing.T) {
 				Spec:       &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
 				Action: &types.ScheduleAction{
 					StartWorkflow: &types.StartWorkflowAction{
-						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
-						TaskList:     &types.TaskList{Name: "my-tasklist"},
+						WorkflowType:                        &types.WorkflowType{Name: "my-workflow"},
+						TaskList:                            &types.TaskList{Name: "my-tasklist"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
 					},
 				},
 				Policies: &types.SchedulePolicies{
@@ -336,8 +425,9 @@ func TestCreateSchedule(t *testing.T) {
 				Spec:       &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
 				Action: &types.ScheduleAction{
 					StartWorkflow: &types.StartWorkflowAction{
-						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
-						TaskList:     &types.TaskList{Name: "my-tasklist"},
+						WorkflowType:                        &types.WorkflowType{Name: "my-workflow"},
+						TaskList:                            &types.TaskList{Name: "my-tasklist"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
 					},
 				},
 				SearchAttributes: &types.SearchAttributes{
@@ -381,8 +471,9 @@ func TestCreateSchedule(t *testing.T) {
 				Spec:       &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
 				Action: &types.ScheduleAction{
 					StartWorkflow: &types.StartWorkflowAction{
-						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
-						TaskList:     &types.TaskList{Name: "my-tasklist"},
+						WorkflowType:                        &types.WorkflowType{Name: "my-workflow"},
+						TaskList:                            &types.TaskList{Name: "my-tasklist"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
 					},
 				},
 				Memo: &types.Memo{Fields: map[string][]byte{"schedMemo": []byte(`"sm"`)}},
@@ -407,8 +498,9 @@ func TestCreateSchedule(t *testing.T) {
 				Spec:       &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
 				Action: &types.ScheduleAction{
 					StartWorkflow: &types.StartWorkflowAction{
-						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
-						TaskList:     &types.TaskList{Name: "my-tasklist"},
+						WorkflowType:                        &types.WorkflowType{Name: "my-workflow"},
+						TaskList:                            &types.TaskList{Name: "my-tasklist"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
 					},
 				},
 				State: &types.ScheduleState{
@@ -437,8 +529,9 @@ func TestCreateSchedule(t *testing.T) {
 				Spec:       &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
 				Action: &types.ScheduleAction{
 					StartWorkflow: &types.StartWorkflowAction{
-						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
-						TaskList:     &types.TaskList{Name: "my-tasklist"},
+						WorkflowType:                        &types.WorkflowType{Name: "my-workflow"},
+						TaskList:                            &types.TaskList{Name: "my-tasklist"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
 					},
 				},
 				State: &types.ScheduleState{Paused: true},
@@ -1138,8 +1231,9 @@ func TestUpdateSchedule(t *testing.T) {
 				ScheduleID: "s1",
 				Action: &types.ScheduleAction{
 					StartWorkflow: &types.StartWorkflowAction{
-						WorkflowType: &types.WorkflowType{Name: "wf"},
-						TaskList:     &types.TaskList{Name: "tl"},
+						WorkflowType:                        &types.WorkflowType{Name: "wf"},
+						TaskList:                            &types.TaskList{Name: "tl"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
 						RetryPolicy: &types.RetryPolicy{
 							InitialIntervalInSeconds: 1,
 							MaximumIntervalInSeconds: 60,
@@ -1151,6 +1245,49 @@ func TestUpdateSchedule(t *testing.T) {
 			},
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
+		},
+		"action update missing execution timeout rejected": {
+			// An update replaces the action wholesale, so a provided action must be
+			// complete; a missing execution timeout would otherwise make every
+			// subsequent fire silently skip.
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf"},
+						TaskList:     &types.TaskList{Name: "tl"},
+					},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"action update with valid StartWorkflow succeeds": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType:                        &types.WorkflowType{Name: "wf"},
+						TaskList:                            &types.TaskList{Name: "tl"},
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
+					},
+				},
+			},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistorySignalWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						var signal scheduler.UpdateSignal
+						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &signal))
+						require.NotNil(t, signal.Action)
+						require.NotNil(t, signal.Action.StartWorkflow)
+						assert.Equal(t, "wf", signal.Action.StartWorkflow.GetWorkflowType().GetName())
+						return nil
+					})
+			},
+			wantErr: false,
 		},
 		"search attributes only update succeeds": {
 			request: &types.UpdateScheduleRequest{

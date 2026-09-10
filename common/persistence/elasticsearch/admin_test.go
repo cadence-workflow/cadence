@@ -12,6 +12,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/elasticsearch/client"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -76,8 +77,9 @@ func TestAdminDB_CreateSetupDB(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockClient := client.NewMockClient(ctrl)
 			cfg := testESConfig(t, v6, tt.indexName)
+			logger := testlogger.New(t)
 
-			a := &admin{client: mockClient, cfg: cfg}
+			a := &admin{client: mockClient, logger: logger, cfg: cfg}
 			if tt.wantErrContains == "invalid visibility index" {
 				// no calls expected
 			} else {
@@ -99,6 +101,7 @@ func TestAdminDB_CreateSetupDB(t *testing.T) {
 				assert.Equal(t, cfg.GetVisibilityIndex(), s.indexName)
 				assert.Equal(t, visibilityTemplateName, s.templateName)
 				assert.Same(t, mockClient, s.client)
+				assert.Same(t, logger, s.logger)
 			}
 		})
 	}
@@ -179,7 +182,7 @@ func TestSetupDB_IsSetup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockClient := client.NewMockClient(ctrl)
-			s := &setupDB{client: mockClient, indexName: "cadence-visibility-test", templateName: visibilityTemplateName}
+			s := &setupDB{client: mockClient, logger: testlogger.New(t), indexName: "cadence-visibility-test", templateName: visibilityTemplateName}
 			tt.allowances(s, mockClient)
 
 			got, err := s.IsSetup(t.Context())

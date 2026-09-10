@@ -6045,6 +6045,7 @@ func (s *ExecutionManagerSuite) TestWorkflowTimerTaskTracking() {
 	// Verify that FetchWorkflowTimerTasksForCleanup runs without error, which exercises
 	// the SelectWorkflowTimerTasks path on the tracking map.
 	_, err = s.ExecutionManager.FetchWorkflowTimerTasksForCleanup(ctx, &p.FetchWorkflowTimerTasksForCleanupRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowExecution.WorkflowID,
 		RunID:      workflowExecution.RunID,

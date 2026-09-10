@@ -1300,6 +1300,7 @@ func (c *cadenceImpl) newRPCFactory(serviceName string, host membership.HostInfo
 		OutboundsBuilder: rpc.CombineOutbounds(
 			rpc.NewSingleGRPCOutboundBuilder(testOutboundName(serviceName), serviceName, grpcAddress),
 			rpc.NewSingleGRPCOutboundBuilder(rpc.OutboundPublicClient, service.Frontend, frontendGrpcAddress),
+			rpc.NewSingleGRPCOutboundBuilder(service.ShardDistributor, service.ShardDistributor, grpcAddress),
 			rpc.NewCrossDCOutbounds(c.clusterMetadata.GetAllClusterInfo(), rpc.NewDNSPeerChooserFactory(0, c.logger)),
 			rpc.NewDirectOutboundBuilder(service.History, true, nil, directOutboundPCF, directConnRetainFn),
 			rpc.NewDirectOutboundBuilder(service.Matching, true, nil, directOutboundPCF, directConnRetainFn),

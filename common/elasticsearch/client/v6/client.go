@@ -49,6 +49,10 @@ type (
 
 var _ elastic.Logger = (convertlogger)(nil)
 
+// docTypeName is the mapping type used by the v6 visibility index template. Mapping types were
+// removed in ES 7, but v6 still requires one when reading and writing mappings.
+const docTypeName = "_doc"
+
 func (c convertlogger) Printf(format string, v ...interface{}) {
 	c(fmt.Sprintf(format, v...))
 }
@@ -239,11 +243,25 @@ func (c *ElasticV6) GetMappings(ctx context.Context, indexName string) (map[stri
 	if err != nil {
 		return nil, err
 	}
-	return res, nil
+	// The ES v6 API structure:
+	//   {"<index>": {"mappings": {"_doc": {"dynamic": ..., "properties": {...}}}}}
+	index, ok := res[indexName].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	mappings, ok := index["mappings"].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	docType, ok := mappings[docTypeName].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	return docType, nil
 }
 
 func (c *ElasticV6) PutMappings(ctx context.Context, indexName string, mappings map[string]any) error {
-	resp, err := c.client.PutMapping().Index(indexName).Type("_doc").BodyJson(mappings).Do(ctx)
+	resp, err := c.client.PutMapping().Index(indexName).Type(docTypeName).BodyJson(mappings).Do(ctx)
 	if err != nil {
 		return err
 	}
@@ -262,7 +280,11 @@ func (c *ElasticV6) MappingsFromTemplate(template []byte) (map[string]any, error
 	if !ok {
 		return nil, fmt.Errorf("mappings not found in template")
 	}
-	return m["_doc"].(map[string]interface{}), nil
+	docType, ok := m[docTypeName].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("mapping type %q not found in template", docTypeName)
+	}
+	return docType, nil
 }
 
 func (c *ElasticV6) LatestTemplate() []byte {

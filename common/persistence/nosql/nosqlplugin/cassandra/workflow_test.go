@@ -552,7 +552,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 						1: {"schedule_id": int64(1)},
 					}
 					m["timer_map"] = map[string]map[string]interface{}{
-						"t1": {"started_id": int64(5)},
+						"t1": {"timer_id": "t1", "started_id": int64(5)},
 					}
 					m["child_executions_map"] = map[int64]map[string]interface{}{
 						3: {"initiated_id": int64(2)},
@@ -579,7 +579,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 					1: {ScheduleID: 1, DomainID: "test-domain-id"},
 				},
 				TimerInfos: map[string]*persistence.TimerInfo{
-					"t1": {StartedID: 5},
+					"t1": {TimerID: "t1", StartedID: 5},
 				},
 				ChildExecutionInfos: map[int64]*persistence.InternalChildExecutionInfo{
 					3: {InitiatedID: 2},
@@ -596,6 +596,54 @@ func TestSelectWorkflowExecution(t *testing.T) {
 				BufferedEvents: []*persistence.DataBlob{
 					{Encoding: constants.EncodingTypeThriftRW, Data: []byte("test-buffered-events-1")},
 				},
+			},
+		},
+		{
+			name:       "sentinel activity and timer entries are filtered on read",
+			shardID:    1,
+			domainID:   "test-domain-id",
+			workflowID: "test-workflow-id",
+			runID:      "test-run-id",
+			queryMockFn: func(query *gocql.MockQuery) {
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+				query.EXPECT().MapScan(gomock.Any()).DoAndReturn(func(m map[string]interface{}) error {
+					m["execution"] = map[string]interface{}{}
+					m["version_histories"] = []byte{}
+					m["version_histories_encoding"] = "thriftrw"
+					m["replication_state"] = map[string]interface{}{}
+					m["activity_map"] = map[int64]map[string]interface{}{
+						1:  {"schedule_id": int64(1)},
+						10: {"schedule_id": activitySentinelScheduleID},
+						20: {"schedule_id": activitySentinelScheduleID},
+					}
+					m["timer_map"] = map[string]map[string]interface{}{
+						"t1": {"timer_id": "t1", "started_id": int64(5)},
+						"0":  {"timer_id": ""},
+						"1":  {"timer_id": ""},
+						"2":  {"timer_id": ""},
+					}
+					m["child_executions_map"] = map[int64]map[string]interface{}{}
+					m["request_cancel_map"] = map[int64]map[string]interface{}{}
+					m["signal_map"] = map[int64]map[string]interface{}{}
+					m["signal_requested"] = []interface{}{}
+					m["buffered_events_list"] = []map[string]interface{}{}
+					m["checksum"] = map[string]interface{}{}
+					return nil
+				}).Times(1)
+			},
+			wantResp: &nosqlplugin.WorkflowExecution{
+				ExecutionInfo: &persistence.InternalWorkflowExecutionInfo{},
+				ActivityInfos: map[int64]*persistence.InternalActivityInfo{
+					1: {ScheduleID: 1, DomainID: "test-domain-id"},
+				},
+				TimerInfos: map[string]*persistence.TimerInfo{
+					"t1": {TimerID: "t1", StartedID: 5},
+				},
+				ChildExecutionInfos: map[int64]*persistence.InternalChildExecutionInfo{},
+				RequestCancelInfos:  map[int64]*persistence.RequestCancelInfo{},
+				SignalInfos:         map[int64]*persistence.SignalInfo{},
+				SignalRequestedIDs:  map[string]struct{}{},
+				BufferedEvents:      []*persistence.DataBlob{},
 			},
 		},
 	}

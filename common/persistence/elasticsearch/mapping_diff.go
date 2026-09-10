@@ -2,8 +2,7 @@ package elasticsearch
 
 import (
 	"encoding/json"
-
-	"golang.org/x/exp/maps"
+	"sort"
 )
 
 type (
@@ -18,17 +17,21 @@ type (
 	}
 )
 
-func IsMissingMappings(current, expected map[string]any) (bool, error) {
+// GetMissingMappings returns the sorted dot notation paths of every property that is present in
+// expected but missing from current, e.g. ["Attr.CustomBoolField", "CloseTime"].
+// Properties that only exist in current are considered superfluous and are ignored.
+func GetMissingMappings(current, expected map[string]any) ([]string, error) {
 	c, err := convertMappings(current)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	e, err := convertMappings(expected)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	diff := mappingsDifferences(c.Properties, e.Properties)
-	return len(diff) > 0, nil
+	missing := missingMappingPaths("", c.Properties, e.Properties)
+	sort.Strings(missing)
+	return missing, nil
 }
 
 func convertMappings(m map[string]interface{}) (*mappings, error) {
@@ -43,39 +46,25 @@ func convertMappings(m map[string]interface{}) (*mappings, error) {
 	return &result, nil
 }
 
-func mappingsDifferences(current map[string]property, expected map[string]property) map[string]property {
-	missing := make(map[string]property)
-	keys := append(maps.Keys(current), maps.Keys(expected)...)
-	visited := make(map[string]bool)
+// missingMappingPaths walks the expected properties and collects the dot notation path of every
+// property that isn't present in current. Properties present in both are recursed into so that
+// only the missing leaves of a shared subtree are reported.
+func missingMappingPaths(prefix string, current, expected map[string]property) []string {
+	var missing []string
+	for key, expectedProperty := range expected {
+		path := key
+		if prefix != "" {
+			path = prefix + "." + key
+		}
 
-	// go through and find which are missing, which are
-	// additional and superfluous
-	for _, key := range keys {
-
-		// the list of keys will contain duplicates because it's summing up the maps keys directly above, so don't
-		// bother visiting more than once.
-		if visited[key] {
+		currentProperty, presentInCurrent := current[key]
+		if !presentInCurrent {
+			// missing key identified, no need to descend into it
+			missing = append(missing, path)
 			continue
 		}
 
-		existingProperty, presentInCurrent := current[key]
-		expectedProperty, presentInExpected := expected[key]
-
-		if presentInCurrent && presentInExpected {
-			missingSubtree := mappingsDifferences(existingProperty.Properties, expectedProperty.Properties)
-			if len(missingSubtree) > 0 {
-				missing[key] = property{
-					Properties: missingSubtree,
-				}
-			}
-		} else if presentInCurrent && !presentInExpected {
-			// ignore, superfluous mapping
-		} else if presentInExpected && !presentInCurrent {
-			// missing key identified
-			missing[key] = expectedProperty
-		}
-
-		visited[key] = true
+		missing = append(missing, missingMappingPaths(path, currentProperty.Properties, expectedProperty.Properties)...)
 	}
 
 	return missing

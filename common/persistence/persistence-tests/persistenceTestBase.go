@@ -48,6 +48,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/client"
+	"github.com/uber/cadence/common/persistence/schema"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 )
@@ -238,41 +239,17 @@ func (s *TestBase) Setup() {
 }
 
 func (s *TestBase) SetupPersistence() {
-	for _, adminDB := range s.AdminDBs {
-		s.SetupDB(adminDB)
+	options := schema.Options{
+		ClusterName:  s.ClusterMetadata.GetCurrentClusterName(),
+		Config:       &s.PersistenceConfig,
+		SetupOptions: DBSetupOptions,
+		Logger:       s.Logger,
 	}
-}
-
-func (s *TestBase) SetupDB(adminDB persistence.AdminDB) {
-	setup, err := adminDB.CreateSetupDB()
-	if err != nil {
-		s.fatalOnError("Failed to connect to DB", err)
-		return
-	}
-	defer setup.Close()
-	alreadySetup, err := setup.IsSetup(s.T().Context())
-	if err != nil {
-		s.fatalOnError(fmt.Sprintf("Failed to check for DB for: %s/%s", adminDB.PluginName(), adminDB.Identifier()), err)
-	}
-	// We might have multiple AdminDBs pointing to the same physical DB, that's probably not okay but not fatal yet
-	if !alreadySetup {
-		err = setup.Setup(s.T().Context(), DBSetupOptions)
-		s.fatalOnError("Failed to setup DB", err)
-	}
-	// If the AdminDB supports schema management we need to install it
-	// This is likely to fail if multiple AdminDBs point as the same DB, as the versions are global in the keyspace/DB.
-	if adminDB.SupportsSchema() {
-		schemaDB, err := adminDB.CreateSchemaDB()
-		s.fatalOnError("Failed to get schemaDB", err)
-		defer schemaDB.Close()
-
-		err = schemaDB.SetupVersioning(s.T().Context())
-		s.fatalOnError("Failed to setup schema versioning", err)
-		latest, err := schemaDB.LatestSchema().SkipToLatest()
-		s.fatalOnError("Failed to get latest schema", err)
-		err = schemaDB.UpdateSchema(s.T().Context(), latest)
-		s.fatalOnError("Failed to force apply schema", err)
-	}
+	err := schema.Update(s.T().Context(), options)
+	s.fatalOnError("Schema update failed", err)
+	// Not necessary but can't hurt and it's good to exercise this
+	err = schema.Verify(s.T().Context(), options)
+	s.fatalOnError("Schema verify failed", err)
 }
 
 func (s *TestBase) fatalOnError(msg string, err error) {

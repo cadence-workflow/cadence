@@ -1,4 +1,4 @@
-package cadence
+package schema
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	persistenceclient "github.com/uber/cadence/common/persistence/client"
@@ -30,7 +31,6 @@ func TestConnectToDBs(t *testing.T) {
 		{
 			name: "success without retries",
 			run: func(t *testing.T, ctrl *gomock.Controller) {
-				logger := testlogger.New(t)
 				timeSource := clock.NewMockedTimeSourceAt(time.Unix(0, 0))
 				adminDB := newMockAdminDB(ctrl, "mysql", persistence.DBTypeDefault, "db-1")
 				setupDB := persistence.NewMockSetupDB(ctrl)
@@ -38,7 +38,7 @@ func TestConnectToDBs(t *testing.T) {
 				adminDB.EXPECT().CreateSetupDB().Return(setupDB, nil)
 				setupDB.EXPECT().Close()
 
-				tasks, setupDBs, err := connectToDBs(context.Background(), logger, timeSource, []persistence.AdminDB{adminDB})
+				tasks, setupDBs, err := connectToDBs(context.Background(), testOptions(t, timeSource), []persistence.AdminDB{adminDB})
 				require.NoError(t, err)
 				require.Len(t, tasks, 1)
 				require.Len(t, setupDBs, 1)
@@ -52,7 +52,6 @@ func TestConnectToDBs(t *testing.T) {
 		{
 			name: "retries until success",
 			run: func(t *testing.T, ctrl *gomock.Controller) {
-				logger := testlogger.New(t)
 				timeSource := clock.NewMockedTimeSourceAt(time.Unix(0, 0))
 				adminDB := newMockAdminDB(ctrl, "cassandra", persistence.DBTypeVisibility, "shard-a")
 				setupDB := persistence.NewMockSetupDB(ctrl)
@@ -64,9 +63,10 @@ func TestConnectToDBs(t *testing.T) {
 				)
 				setupDB.EXPECT().Close()
 
+				opts := testOptions(t, timeSource)
 				resultCh := make(chan connectResult, 1)
 				go func() {
-					tasks, setupDBs, err := connectToDBs(context.Background(), logger, timeSource, []persistence.AdminDB{adminDB})
+					tasks, setupDBs, err := connectToDBs(context.Background(), opts, []persistence.AdminDB{adminDB})
 					resultCh <- connectResult{tasks: tasks, setupDBs: setupDBs, err: err}
 				}()
 
@@ -84,19 +84,19 @@ func TestConnectToDBs(t *testing.T) {
 		{
 			name: "returns context deadline exceeded when retries exhaust timeout",
 			run: func(t *testing.T, ctrl *gomock.Controller) {
-				logger := testlogger.New(t)
 				timeSource := clock.NewMockedTimeSourceAt(time.Unix(0, 0))
 				adminDB := newMockAdminDB(ctrl, "mysql", persistence.DBTypeDefault, "db-timeout")
 				adminDB.EXPECT().CreateSetupDB().Return(nil, errors.New("still down")).AnyTimes()
 
+				opts := testOptions(t, timeSource)
 				resultCh := make(chan connectResult, 1)
 				go func() {
-					tasks, setupDBs, err := connectToDBs(context.Background(), logger, timeSource, []persistence.AdminDB{adminDB})
+					tasks, setupDBs, err := connectToDBs(context.Background(), opts, []persistence.AdminDB{adminDB})
 					resultCh <- connectResult{tasks: tasks, setupDBs: setupDBs, err: err}
 				}()
 
 				timeSource.BlockUntil(2)
-				timeSource.Advance(setupTimeout + setupRetryInterval)
+				timeSource.Advance(opts.ConnectTimeout + setupRetryInterval)
 
 				res := waitForConnectResult(t, resultCh)
 				require.ErrorIs(t, res.err, context.DeadlineExceeded)
@@ -163,7 +163,7 @@ func TestEnsureSetup(t *testing.T) {
 				setupDB: setupDB,
 			}}
 
-			err := ensureSetup(context.Background(), logger, tasks)
+			err := ensureSetup(context.Background(), logger, tasks, nil)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 			} else {
@@ -470,7 +470,6 @@ func TestApplyUpdates(t *testing.T) {
 
 func TestRunUpdateSchema(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	logger := testlogger.New(t)
 	timeSource := clock.NewMockedTimeSourceAt(time.Unix(0, 0))
 	factory := persistenceclient.NewMockFactory(ctrl)
 	adminDB := newMockAdminDB(ctrl, "mysql", persistence.DBTypeDefault, "db-1")
@@ -479,13 +478,16 @@ func TestRunUpdateSchema(t *testing.T) {
 	schema := persistence.NewMockSchema(ctrl)
 	update := &persistence.SchemaUpdate{Version: persistence.Version{Major: 2, Minor: 0}}
 
+	opts := testOptions(t, timeSource)
+	opts.SetupOptions = map[string]string{"key": "value"}
+
 	// Happy path e2e
 
 	factory.EXPECT().NewAdminDBs().Return([]persistence.AdminDB{adminDB}, nil)
 	// Setup
 	adminDB.EXPECT().CreateSetupDB().Return(setupDB, nil)
 	setupDB.EXPECT().IsSetup(gomock.Any()).Return(false, nil)
-	setupDB.EXPECT().Setup(gomock.Any(), nil).Return(nil)
+	setupDB.EXPECT().Setup(gomock.Any(), opts.SetupOptions).Return(nil)
 	// Schema planning
 	adminDB.EXPECT().SupportsSchema().Return(true)
 	adminDB.EXPECT().CreateSchemaDB().Return(schemaDB, nil)
@@ -499,8 +501,21 @@ func TestRunUpdateSchema(t *testing.T) {
 	setupDB.EXPECT().Close()
 	schemaDB.EXPECT().Close()
 
-	err := runUpdateSchema(context.Background(), factory, logger, timeSource)
+	err := runUpdateSchema(context.Background(), factory, opts)
 	require.NoError(t, err)
+}
+
+// testOptions returns a fully defaulted Options suitable for unit tests.
+func testOptions(t *testing.T, timeSource clock.TimeSource) Options {
+	t.Helper()
+	opts, err := withDefaults(Options{
+		ClusterName: "test-cluster",
+		Config:      &config.Persistence{},
+		Logger:      testlogger.New(t),
+		Time:        timeSource,
+	})
+	require.NoError(t, err)
+	return opts
 }
 
 func newMockAdminDB(ctrl *gomock.Controller, pluginName string, dbType persistence.DBType, identifier string) *persistence.MockAdminDB {

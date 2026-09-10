@@ -1,4 +1,4 @@
-package cadence
+package schema
 
 import (
 	"cmp"
@@ -7,14 +7,16 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/persistence"
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 )
 
-func VerifySchema(ctx context.Context, cfg config.Config) error {
-	logger := newUpdateSchemaLogger()
-	factory := newPersistenceFactory(cfg, logger)
+func Verify(ctx context.Context, opts Options) error {
+	opts, err := withDefaults(opts)
+	if err != nil {
+		return err
+	}
+	factory := newPersistenceFactory(opts.ClusterName, opts.Config, opts.Logger)
 	defer factory.Close()
 
 	return checkSchemas(ctx, factory)

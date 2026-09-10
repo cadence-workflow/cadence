@@ -46,6 +46,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/metricsfx"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
+	"github.com/uber/cadence/common/persistence/schema"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/rpc/rpcfx"
 	"github.com/uber/cadence/common/service"
@@ -164,7 +165,7 @@ func (a *App) Stop(ctx context.Context) error {
 }
 
 func (a *App) verifySchema(ctx context.Context) error {
-	if err := VerifySchema(ctx, a.cfg); err != nil {
+	if err := schema.Verify(ctx, schema.OptionsFromConfig(a.cfg)); err != nil {
 		if a.dynamicCollection.GetBoolProperty(dynamicproperties.EnforceSchemaVerificationV2)() {
 			return fmt.Errorf("schema verification failed: %w", err)
 		}

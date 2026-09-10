@@ -71,6 +71,7 @@ import (
 	"github.com/uber/cadence/service/matching"
 	"github.com/uber/cadence/service/worker"
 	diagnosticsInvariant "github.com/uber/cadence/service/worker/diagnostics/invariant"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/antipatterns"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
@@ -309,7 +310,7 @@ func (s *server) startService() common.Daemon {
 	}
 
 	params.KafkaConfig = s.cfg.Kafka
-	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant()}
+	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant(), antipatterns.NewInvariant()}
 	params.ShardDistributorMatchingConfig = s.cfg.ShardDistributorMatchingConfig
 
 	params.Logger.Info("Starting service " + s.name)

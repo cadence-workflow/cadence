@@ -34,6 +34,12 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
+// Sentinel values written as tombstone-free placeholders when map entries are deleted.
+const (
+	activitySentinelScheduleID int64 = -1
+	timerSentinelTimerID             = ""
+)
+
 var _ nosqlplugin.WorkflowCRUD = (*CDB)(nil)
 
 // keep batch under Cassandra's default 50KB fail threshold.
@@ -225,6 +231,9 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	aMap := result["activity_map"].(map[int64]map[string]interface{})
 	for key, value := range aMap {
 		info := parseActivityInfo(domainID, value)
+		if info.ScheduleID == activitySentinelScheduleID {
+			continue
+		}
 		activityInfos[key] = info
 	}
 	state.ActivityInfos = activityInfos
@@ -233,6 +242,9 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	tMap := result["timer_map"].(map[string]map[string]interface{})
 	for key, value := range tMap {
 		info := parseTimerInfo(value)
+		if info.TimerID == timerSentinelTimerID {
+			continue
+		}
 		timerInfos[key] = info
 	}
 	state.TimerInfos = timerInfos

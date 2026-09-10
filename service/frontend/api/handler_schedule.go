@@ -89,6 +89,29 @@ func scheduleWorkflowID(scheduleID string) string {
 	return scheduleWorkflowIDPrefix + scheduleID
 }
 
+// validateScheduleAction rejects a StartWorkflow action missing a field required
+// to start the target workflow. The scheduler forwards these to
+// StartWorkflowExecution at each fire, so an invalid action would otherwise fail
+// every fire as a missed run instead of failing here at create/update time. The
+// decision task timeout is omitted on purpose: it is optional and defaulted when
+// the schedule fires.
+func validateScheduleAction(action *types.ScheduleAction) error {
+	sw := action.GetStartWorkflow()
+	if sw == nil {
+		return &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
+	}
+	if sw.GetWorkflowType().GetName() == "" {
+		return &types.BadRequestError{Message: "Action.StartWorkflow.WorkflowType.Name is not set on request."}
+	}
+	if sw.GetTaskList().GetName() == "" {
+		return &types.BadRequestError{Message: "Action.StartWorkflow.TaskList.Name is not set on request."}
+	}
+	if sw.GetExecutionStartToCloseTimeoutSeconds() <= 0 {
+		return validate.ErrInvalidExecutionStartToCloseTimeoutSeconds
+	}
+	return common.ValidateRetryPolicy(sw.GetRetryPolicy())
+}
+
 func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 	if policies == nil {
 		return nil
@@ -190,6 +213,12 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if domainName == "" {
 		return nil, validate.ErrDomainNotSet
 	}
+	if !wh.config.EnableScheduler(domainName) {
+		return nil, &types.BadRequestError{Message: fmt.Sprintf(
+			"Schedules are not enabled for domain %q. Set dynamic config worker.enableScheduler=true for this domain to enable them.",
+			domainName,
+		)}
+	}
 	scheduleID := request.GetScheduleID()
 	if scheduleID == "" {
 		return nil, &types.BadRequestError{Message: "ScheduleID is not set on request."}
@@ -206,10 +235,10 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if err := validateScheduleSpecTimeRange(request.GetSpec()); err != nil {
 		return nil, err
 	}
-	if request.GetAction() == nil || request.GetAction().GetStartWorkflow() == nil {
-		return nil, &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
+	if request.GetAction() == nil {
+		return nil, &types.BadRequestError{Message: "Action is not set on request."}
 	}
-	if err := common.ValidateRetryPolicy(request.GetAction().GetStartWorkflow().GetRetryPolicy()); err != nil {
+	if err := validateScheduleAction(request.GetAction()); err != nil {
 		return nil, err
 	}
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
@@ -392,8 +421,10 @@ func (wh *WorkflowHandler) UpdateSchedule(
 	if err := validateScheduleSpecTimeRange(request.GetSpec()); err != nil {
 		return nil, err
 	}
-	if action := request.GetAction(); action != nil && action.GetStartWorkflow() != nil {
-		if err := common.ValidateRetryPolicy(action.GetStartWorkflow().GetRetryPolicy()); err != nil {
+	// An update replaces the action wholesale (see handleUpdate in the scheduler
+	// workflow), so a provided action must be complete and valid on its own.
+	if action := request.GetAction(); action != nil {
+		if err := validateScheduleAction(action); err != nil {
 			return nil, err
 		}
 	}

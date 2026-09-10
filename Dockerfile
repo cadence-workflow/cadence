@@ -4,11 +4,11 @@ ARG TARGET=server
 ARG GOPROXY
 
 # Build Cadence binaries
-FROM golang:1.24.5-alpine3.21 AS builder
+FROM golang:1.25.14-alpine3.23 AS builder
 
 ARG RELEASE_VERSION
 
-RUN apk add --update --no-cache ca-certificates make git curl mercurial unzip bash
+RUN apk add --no-cache ca-certificates make git curl mercurial unzip bash
 
 WORKDIR /cadence
 

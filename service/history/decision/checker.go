@@ -181,7 +181,7 @@ func (c *workflowSizeChecker) failWorkflowSizeExceedsLimit() (bool, error) {
 		)
 
 		attributes := &types.FailWorkflowExecutionDecisionAttributes{
-			Reason:  common.StringPtr(common.FailureReasonSizeExceedsLimit),
+			Reason:  common.StringPtr(common.FailureReasonHistorySizeExceedsLimit),
 			Details: []byte("Workflow history size / count exceeds limit."),
 		}
 

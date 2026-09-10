@@ -142,7 +142,7 @@ CREATE TABLE replication_tasks_dlq
 CREATE TABLE timer_tasks
 (
     shard_id             INT         NOT NULL,
-    visibility_timestamp DATETIME(6) NOT NULL,
+    visibility_timestamp DATETIME    NOT NULL,
     task_id              BIGINT      NOT NULL,
     --
     data                 MEDIUMBLOB  NOT NULL,
@@ -162,7 +162,7 @@ CREATE TABLE activity_info_maps
     data                        MEDIUMBLOB   NOT NULL,
     data_encoding               VARCHAR(16),
     last_heartbeat_details      BLOB,
-    last_heartbeat_updated_time DATETIME(6)  NOT NULL,
+    last_heartbeat_updated_time DATETIME     NOT NULL,
     PRIMARY KEY (shard_id, domain_id, workflow_id, run_id, schedule_id)
 );
 
@@ -294,8 +294,38 @@ CREATE TABLE cluster_config
     row_type      INT         NOT NULL,
     version       BIGINT      NOT NULL,
     --
-    timestamp     DATETIME(6) NOT NULL,
+    timestamp     DATETIME    NOT NULL,
     data          MEDIUMBLOB  NOT NULL,
     data_encoding VARCHAR(16) NOT NULL,
     PRIMARY KEY (row_type, version)
+);
+
+CREATE TABLE domain_audit_log
+(
+    domain_id             VARCHAR(255) NOT NULL,
+    event_id              VARCHAR(255) NOT NULL,
+    --
+    state_before          BLOB         NOT NULL,
+    state_before_encoding VARCHAR(16)  NOT NULL,
+    state_after           BLOB         NOT NULL,
+    state_after_encoding  VARCHAR(16)  NOT NULL,
+    operation_type        INT          NOT NULL,
+    created_time          DATETIME     NOT NULL,
+    last_updated_time     DATETIME     NOT NULL,
+    identity              VARCHAR(255) NOT NULL,
+    identity_type         VARCHAR(255) NOT NULL,
+    comment               VARCHAR(255) NOT NULL DEFAULT '',
+    PRIMARY KEY (domain_id, operation_type, created_time, event_id)
+);
+
+CREATE TABLE active_cluster_selection_policy
+(
+    shard_id      INT          NOT NULL,
+    domain_id     BINARY(16)   NOT NULL,
+    workflow_id   VARCHAR(255) NOT NULL,
+    run_id        BINARY(16)   NOT NULL,
+    --
+    data          MEDIUMBLOB   NOT NULL,
+    data_encoding VARCHAR(16)  NOT NULL,
+    PRIMARY KEY (shard_id, domain_id, workflow_id, run_id)
 );

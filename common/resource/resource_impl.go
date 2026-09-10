@@ -393,9 +393,10 @@ func New(
 		pprofInitializer: params.PProfInitializer,
 		runtimeMetricsReporter: metrics.NewRuntimeMetricsReporter(
 			params.MetricScope,
-			time.Minute,
+			10*time.Second,
 			logger,
 			params.InstanceID,
+			params.HostName,
 		),
 		rpcFactory:                params.RPCFactory,
 		isolationGroups:           isolationGroupState,
