@@ -4540,11 +4540,12 @@ func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *apiv1.FailoverDo
 		return nil
 	}
 	return &apiv1.FailoverDomainRequest{
-		DomainName:              t.DomainName,
-		DomainActiveClusterName: t.GetDomainActiveClusterName(),
-		ActiveClusters:          FromActiveClusters(t.ActiveClusters),
-		Reason:                  t.GetReason(),
-		FailoverTimeout:         secondsToDuration(t.FailoverTimeoutInSeconds),
+		DomainName:                  t.DomainName,
+		DomainActiveClusterName:     t.GetDomainActiveClusterName(),
+		ActiveClusters:              FromActiveClusters(t.ActiveClusters),
+		Reason:                      t.GetReason(),
+		FailoverTimeout:             secondsToDuration(t.FailoverTimeoutInSeconds),
+		SkipDestinationClusterCheck: t.SkipDestinationClusterCheck,
 	}
 }
 
@@ -4561,11 +4562,12 @@ func ToFailoverDomainRequest(t *apiv1.FailoverDomainRequest) *types.FailoverDoma
 		reason = common.StringPtr(t.Reason)
 	}
 	return &types.FailoverDomainRequest{
-		DomainName:               t.DomainName,
-		DomainActiveClusterName:  domainActiveClusterName,
-		ActiveClusters:           ToActiveClusters(t.ActiveClusters),
-		Reason:                   reason,
-		FailoverTimeoutInSeconds: durationToSeconds(t.FailoverTimeout),
+		DomainName:                  t.DomainName,
+		DomainActiveClusterName:     domainActiveClusterName,
+		ActiveClusters:              ToActiveClusters(t.ActiveClusters),
+		Reason:                      reason,
+		FailoverTimeoutInSeconds:    durationToSeconds(t.FailoverTimeout),
+		SkipDestinationClusterCheck: t.SkipDestinationClusterCheck,
 	}
 }
 
