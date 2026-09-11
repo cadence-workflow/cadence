@@ -1002,6 +1002,7 @@ func (d *handlerImpl) updateLocalDomain(ctx context.Context,
 
 // FailoverDomain is used to change the active cluster of a domain or a domain's cluster attributes.
 // Returns an error if the domain does not exist, the failover request is invalid, or the domain is currently in cooldown.
+// Requests are only accepted by the destination cluster unless SkipDestinationClusterCheck is set.
 func (d *handlerImpl) FailoverDomain(
 	ctx context.Context,
 	failoverRequest *types.FailoverDomainRequest,
@@ -1788,6 +1789,24 @@ func (d *handlerImpl) validateDomainFailoverRequest(
 
 	if request.ActiveClusters == nil && request.DomainActiveClusterName == nil {
 		return &types.BadRequestError{Message: "Domain's ActiveClusterName or ActiveClusters must be set to failover the domain"}
+	}
+
+	// A failover must be requested from the cluster being failed over to. This keeps an operator
+	// in an unhealthy region from pulling a domain away from a healthy one by mistake; automated
+	// callers that know what they are doing (e.g. rebalance) opt out with SkipDestinationClusterCheck.
+	if request.SkipDestinationClusterCheck {
+		return nil
+	}
+	currentCluster := d.clusterMetadata.GetCurrentClusterName()
+	if request.DomainActiveClusterName != nil && *request.DomainActiveClusterName != currentCluster {
+		return errFailoverNotFromDestinationCluster(currentCluster, *request.DomainActiveClusterName)
+	}
+	for _, scope := range request.ActiveClusters.GetAttributeScopes() {
+		for _, info := range scope.ClusterAttributes {
+			if info.ActiveClusterName != currentCluster {
+				return errFailoverNotFromDestinationCluster(currentCluster, info.ActiveClusterName)
+			}
+		}
 	}
 	return nil
 }

@@ -3757,6 +3757,17 @@ func TestFailoverDomainRequestConversion(t *testing.T) {
 	}
 }
 
+func TestFailoverDomainRequestConversion_PreservesSkipDestinationClusterCheck(t *testing.T) {
+	in := &types.FailoverDomainRequest{
+		DomainName:                  "test-domain",
+		DomainActiveClusterName:     common.StringPtr("cluster1"),
+		SkipDestinationClusterCheck: true,
+	}
+	out := ToFailoverDomainRequest(FromFailoverDomainRequest(in))
+	assert.Equal(t, in, out)
+	assert.True(t, out.SkipDestinationClusterCheck)
+}
+
 func TestFailoverDomainRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest)
 }
