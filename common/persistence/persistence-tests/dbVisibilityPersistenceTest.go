@@ -295,7 +295,10 @@ func (s *DBVisibilityPersistenceSuite) TestVisibilityPagination() {
 	testDomainUUID := uuid.New()
 
 	// Create 2 executions
-	startTime1 := time.Now()
+	// Truncate to millisecond precision: MySQL DATETIME(6) columns round
+	// sub-microsecond nanoseconds, which can push the stored value across a
+	// millisecond boundary and make the ms-truncated comparisons below flaky.
+	startTime1 := time.Now().Truncate(time.Millisecond)
 	workflowExecution1 := types.WorkflowExecution{
 		WorkflowID: "visibility-pagination-test1",
 		RunID:      "fb15e4b5-356f-466d-8c6d-a29223e5c536",
