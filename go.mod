@@ -28,7 +28,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee
 	github.com/jonboulle/clockwork v0.5.0
-	github.com/lib/pq v1.2.0
+	github.com/lib/pq v1.10.2
 	github.com/m3db/prometheus_client_golang v1.12.8
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/olivere/elastic v6.2.37+incompatible
@@ -59,10 +59,10 @@ require (
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/net v0.58.0
 	golang.org/x/sync v0.22.0
-	golang.org/x/time v0.12.0
+	golang.org/x/time v0.14.0
 	golang.org/x/tools v0.48.0
 	gonum.org/v1/gonum v0.17.0
-	google.golang.org/grpc v1.83.1
+	google.golang.org/grpc v1.83.2
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19
 	gopkg.in/yaml.v2 v2.4.0
 )

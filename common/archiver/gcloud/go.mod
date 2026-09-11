@@ -42,7 +42,7 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
-	google.golang.org/grpc v1.83.1 // indirect
+	google.golang.org/grpc v1.83.2 // indirect
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
@@ -57,7 +57,7 @@ require (
 
 require (
 	cel.dev/expr v0.25.2 // indirect
-	cloud.google.com/go v0.121.6 // indirect
+	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.18.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
