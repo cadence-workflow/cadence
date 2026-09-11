@@ -97,7 +97,7 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 			Aliases: []string{"az"},
 			Value:   "",
 			Usage:   "availability zone",
-			EnvVars: []string{config.EnvKeyAvailabilityZone},
+			EnvVars: []string{config.EnvKeyAvailabilityZone, config.EnvKeyAvailabilityZoneLegacy},
 		},
 	}
 

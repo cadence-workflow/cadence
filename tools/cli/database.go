@@ -60,7 +60,7 @@ func getDBFlags() []cli.Flag {
 			Name:    FlagServiceZone,
 			Aliases: []string{"sz"},
 			Usage:   "service zone for loading service configuration",
-			EnvVars: []string{config.EnvKeyAvailabilityZone},
+			EnvVars: []string{config.EnvKeyAvailabilityZone, config.EnvKeyAvailabilityZoneLegacy},
 		},
 		&cli.StringFlag{
 			Name:  FlagDBType,
