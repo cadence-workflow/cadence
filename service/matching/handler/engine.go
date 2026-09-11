@@ -90,12 +90,10 @@ type (
 	}
 
 	matchingEngineImpl struct {
-		taskListCreationLock  sync.Mutex
-		taskListRegistry      tasklist.TaskListRegistry
-		semaphoreCreationLock sync.Mutex
-		semaphoreRegistry     semaphore.SemaphoreRegistry
-		// TODO: pass in from NewEngine. Needs GetSemaphoreTokenManager on common/resource.Resource,
-		// which is out of scope here, so only tests set it today. NewManager rejects a nil one.
+		taskListCreationLock           sync.Mutex
+		taskListRegistry               tasklist.TaskListRegistry
+		semaphoreCreationLock          sync.Mutex
+		semaphoreRegistry              semaphore.SemaphoreRegistry
 		semaphoreTokenManager          persistence.SemaphoreTokenManager
 		shutdownCompletion             *sync.WaitGroup
 		shutdown                       chan struct{}
