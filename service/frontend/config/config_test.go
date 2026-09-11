@@ -108,6 +108,8 @@ func TestNewConfig(t *testing.T) {
 		"EnableScheduler":                                   {dynamicproperties.EnableScheduler, true},
 		"GlobalRatelimiterKeyMode":                          {dynamicproperties.FrontendGlobalRatelimiterMode, "disabled"},
 		"GlobalRatelimiterUpdateInterval":                   {dynamicproperties.GlobalRatelimiterUpdateInterval, 3 * time.Second},
+		"GlobalRatelimiterBurstMultiplier":                  {dynamicproperties.FrontendGlobalRatelimiterBurstMultiplier, 1.0},
+		"GlobalRatelimiterBoostCapMultiplier":               {dynamicproperties.FrontendGlobalRatelimiterBoostCapMultiplier, 1.0},
 		"PinotOptimizedQueryColumns":                        {dynamicproperties.PinotOptimizedQueryColumns, map[string]interface{}{"foo": "bar"}},
 		"EnableDomainAuditLogging":                          {dynamicproperties.EnableDomainAuditLogging, true},
 		"RateLimiterBypassCallerTypes":                      {dynamicproperties.RateLimiterBypassCallerTypes, []interface{}{"cli", "ui"}},
@@ -188,6 +190,8 @@ func getValue(f *reflect.Value) interface{} {
 		case dynamicproperties.StringPropertyFn:
 			return fn()
 		case dynamicproperties.StringPropertyWithRatelimitKeyFilter:
+			return fn("user:domain")
+		case dynamicproperties.FloatPropertyWithRatelimitKeyFilter:
 			return fn("user:domain")
 		case dynamicproperties.StringPropertyFnWithDomainFilter:
 			return fn("domain")

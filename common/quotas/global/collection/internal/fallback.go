@@ -156,9 +156,9 @@ func (b *FallbackLimiter) useFallback() bool {
 	return starting || fallback
 }
 
-// Update adjusts the underlying "primary" ratelimit, and resets the fallback fuse.
+// Update adjusts the underlying "primary" ratelimit and burst size, and resets the fallback fuse.
 // This implies switching to the "primary" limiter - if that is not desired, call Reset() immediately after.
-func (b *FallbackLimiter) Update(lim rate.Limit) {
+func (b *FallbackLimiter) Update(lim rate.Limit, burst int) {
 	// caution: order here matters, to prevent potentially-old limiter values from being used
 	// before they are updated.
 	//
@@ -172,12 +172,12 @@ func (b *FallbackLimiter) Update(lim rate.Limit) {
 		b.failedUpdates.Store(0)
 	}()
 
-	if b.primary.Limit() == lim {
+	burst = max(1, burst) // 0 burst blocks all requests, so allow at least 1 and rely on rps to fill sanely
+	if b.primary.Limit() == lim && b.primary.Burst() == burst {
 		return
 	}
 
-	b.primary.SetLimit(lim)
-	b.primary.SetBurst(max(1, int(lim))) // 0 burst blocks all requests, so allow at least 1 and rely on rps to fill sanely
+	b.primary.SetLimitAndBurst(lim, burst)
 }
 
 // FailedUpdate should be called when a limit fails to update from an aggregator,

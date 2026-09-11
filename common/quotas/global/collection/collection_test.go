@@ -59,6 +59,8 @@ func TestLifecycleBasics(t *testing.T) {
 		func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Second },
 		nil, // not used
 		func(globalRatelimitKey string) string { return string(modeGlobal) },
+		func(globalRatelimitKey string) float64 { return 1 }, // burst multiplier
+		func(globalRatelimitKey string) float64 { return 1 }, // boost cap multiplier
 		nil, // no rpc expected as there are no metrics to submit
 		logger,
 		metrics.NewNoopMetricsClient(),
@@ -135,6 +137,8 @@ func TestCollectionLimitersCollectMetrics(t *testing.T) {
 				func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Second },
 				func(domain string) int { return 5 },
 				func(globalRatelimitKey string) string { return string(test.mode) },
+				func(globalRatelimitKey string) float64 { return 1 }, // burst multiplier
+				func(globalRatelimitKey string) float64 { return 1 }, // boost cap multiplier
 				nil,
 				testlogger.New(t),
 				metrics.NewNoopMetricsClient(),
@@ -196,6 +200,8 @@ func TestCollectionSubmitsDataAndUpdates(t *testing.T) {
 		func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Second },
 		func(domain string) int { return 10 }, // target 10 rps / one per 100ms
 		func(globalRatelimitKey string) string { return string(modeGlobal) },
+		func(globalRatelimitKey string) float64 { return 1 }, // burst multiplier
+		func(globalRatelimitKey string) float64 { return 1 }, // boost cap multiplier
 		aggs,
 		logger,
 		metrics.NewNoopMetricsClient(),
@@ -285,6 +291,8 @@ func TestTogglingMode(t *testing.T) {
 		func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Second }, // update every second
 		func(domain string) int { return 1 },
 		func(globalRatelimitKey string) string { return string(mode.Load().(keyMode)) },
+		func(globalRatelimitKey string) float64 { return 1 }, // burst multiplier
+		func(globalRatelimitKey string) float64 { return 1 }, // boost cap multiplier
 		aggs,
 		testlogger.New(t),
 		metrics.NewNoopMetricsClient(),
@@ -425,6 +433,7 @@ func TestBoostRPS(t *testing.T) {
 		targetLimit, fallbackLimit float64
 		weight                     float64
 		usedRPS                    float64
+		boostCapMult               float64 // zero means 1 (the default behavior)
 		resultLimit                float64
 	}{
 		"low weight fully used": {
@@ -462,6 +471,30 @@ func TestBoostRPS(t *testing.T) {
 			usedRPS:       100,
 			resultLimit:   0.89, // should be weight-based at worst, and not be reduced by excess usage
 		},
+		"low weight mostly unused with raised cap": {
+			targetLimit:   10,
+			fallbackLimit: 3,
+			weight:        0.11,
+			usedRPS:       2,
+			boostCapMult:  2,
+			resultLimit:   6, // min(1.1 + 8, 3*2), raised cap allows using more of the unused quota
+		},
+		"low weight fully used with raised cap": {
+			targetLimit:   10,
+			fallbackLimit: 3,
+			weight:        0.11,
+			usedRPS:       10,
+			boostCapMult:  2,
+			resultLimit:   1.1, // still no unused RPS to boost with, cap does not matter
+		},
+		"raised cap cannot exceed target": {
+			targetLimit:   10,
+			fallbackLimit: 3,
+			weight:        0.5,
+			usedRPS:       0,
+			boostCapMult:  100,
+			resultLimit:   10, // min(5 + 10, min(3*100, 10)), a single host must not exceed the whole-cluster target
+		},
 	}
 	for name, tc := range tests {
 		name, tc := name, tc
@@ -469,7 +502,11 @@ func TestBoostRPS(t *testing.T) {
 			t.Parallel()
 			assert.GreaterOrEqual(t, tc.weight, float64(0), "sanity check on weight")
 			assert.LessOrEqual(t, tc.weight, float64(1), "sanity check on weight")
-			result := boostRPS(rate.Limit(tc.targetLimit), rate.Limit(tc.fallbackLimit), tc.weight, tc.usedRPS)
+			boostCapMult := tc.boostCapMult
+			if boostCapMult == 0 {
+				boostCapMult = 1
+			}
+			result := boostRPS(rate.Limit(tc.targetLimit), rate.Limit(tc.fallbackLimit), tc.weight, tc.usedRPS, boostCapMult)
 			assert.InDeltaf(t, tc.resultLimit, float64(result), 0.01, "computed RPS does not match closely enough, should be %0.2f", tc.resultLimit)
 		})
 	}

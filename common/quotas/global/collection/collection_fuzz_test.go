@@ -30,7 +30,7 @@ import (
 )
 
 func FuzzBoostRPS(f *testing.F) {
-	f.Fuzz(func(t *testing.T, target, fallback, weight, used float64) {
+	f.Fuzz(func(t *testing.T, target, fallback, weight, used, boostCapMult float64) {
 		target = math.Abs(target)
 		fallback = math.Abs(fallback)
 		used = math.Abs(used)
@@ -45,7 +45,9 @@ func FuzzBoostRPS(f *testing.F) {
 			target, fallback = fallback, target
 		}
 
-		boosted := boostRPS(rate.Limit(target), rate.Limit(fallback), weight, used)
+		// mirror doUpdate: multipliers are sanitized before use, so any float64
+		// input must be safe here.
+		boosted := boostRPS(rate.Limit(target), rate.Limit(fallback), weight, used, sanitizeMultiplier(boostCapMult))
 
 		if boosted > rate.Limit(target) {
 			// should never exceed whole-cluster target

@@ -45,18 +45,30 @@ type DynamicRateLimiter struct {
 	ttl            time.Duration
 	lastUpdateTime atomic.Pointer[time.Time]
 	minBurst       int
+	// scales burst relative to rps, nil / non-positive / non-finite values mean 1
+	burstMultiplier func() float64
 }
 
 type DynamicRateLimiterOpts struct {
 	TTL        time.Duration
 	MinBurst   int
 	TimeSource clock.TimeSource
+	// BurstMultiplier scales the token-bucket burst size relative to the RPS.
+	// Values at or below zero (and NaN/Inf) are treated as 1, i.e. burst == rps.
+	// nil means 1.
+	BurstMultiplier func() float64
 }
 
 var _defaultOpts = DynamicRateLimiterOpts{
 	TTL:        _ttl,
 	MinBurst:   _minBurst,
 	TimeSource: clock.NewRealTimeSource(),
+}
+
+// DefaultDynamicRateLimiterOpts returns the default options used by NewDynamicRateLimiter,
+// for callers who want to customize only some fields.
+func DefaultDynamicRateLimiterOpts() DynamicRateLimiterOpts {
+	return _defaultOpts
 }
 
 // NewDynamicRateLimiter returns a rate limiter which handles dynamic config
@@ -70,10 +82,11 @@ func NewDynamicRateLimiterWithOpts(rps RPSFunc, opts DynamicRateLimiterOpts) Lim
 		ts = _defaultOpts.TimeSource
 	}
 	res := &DynamicRateLimiter{
-		rps:        rps,
-		timeSource: ts,
-		ttl:        opts.TTL,
-		minBurst:   opts.MinBurst,
+		rps:             rps,
+		timeSource:      ts,
+		ttl:             opts.TTL,
+		minBurst:        opts.MinBurst,
+		burstMultiplier: opts.BurstMultiplier,
 	}
 	now := res.timeSource.Now()
 	res.lastUpdateTime.Store(&now)
@@ -116,7 +129,13 @@ func (d *DynamicRateLimiter) maybeRefreshRps() {
 
 func (d *DynamicRateLimiter) getLimitAndBurst() (rate.Limit, int) {
 	rps := d.rps()
-	burst := max(int(math.Ceil(rps)), d.minBurst)
+	mult := 1.0
+	if d.burstMultiplier != nil {
+		if m := d.burstMultiplier(); m > 0 && !math.IsInf(m, 0) && !math.IsNaN(m) {
+			mult = m
+		}
+	}
+	burst := max(int(math.Ceil(rps*mult)), d.minBurst)
 	// If we have 0 rps we have to zero out the burst to immediately cut off new permits
 	if rps == 0 {
 		burst = 0

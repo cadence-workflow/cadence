@@ -580,6 +580,21 @@ func (c *Collection) GetStringPropertyFilteredByRatelimitKey(key dynamicproperti
 	}
 }
 
+func (c *Collection) GetFloatPropertyFilteredByRatelimitKey(key dynamicproperties.FloatKey) dynamicproperties.FloatPropertyWithRatelimitKeyFilter {
+	return func(ratelimitKey string) float64 {
+		filters := c.toFilterMap(dynamicproperties.RatelimitKeyFilter(ratelimitKey))
+		val, err := c.client.GetFloatValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultFloat()
+		}
+		return val
+	}
+}
+
 func (c *Collection) toFilterMap(opts ...dynamicproperties.FilterOption) map[dynamicproperties.Filter]interface{} {
 	l := len(opts)
 	m := make(map[dynamicproperties.Filter]interface{}, l)

@@ -23,6 +23,7 @@ package quotas
 import (
 	"context"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -297,6 +298,79 @@ func TestDynamicRateLimiter_Wait(t *testing.T) {
 	mockTime.Advance(time.Second)
 	err = limiter.Wait(ctx)
 	assert.NoError(t, err)
+}
+
+func TestDynamicRateLimiter_BurstMultiplier(t *testing.T) {
+	tests := map[string]struct {
+		rps        float64
+		minBurst   int
+		multiplier func() float64
+		wantLimit  rate.Limit
+		wantBurst  int
+	}{
+		"nil multiplier means burst == rps": {
+			rps:       10,
+			wantLimit: 10,
+			wantBurst: 10,
+		},
+		"multiplier scales burst but not limit": {
+			rps:        10,
+			multiplier: func() float64 { return 5 },
+			wantLimit:  10,
+			wantBurst:  50,
+		},
+		"fractional burst rounds up": {
+			rps:        10,
+			multiplier: func() float64 { return 1.25 },
+			wantLimit:  10,
+			wantBurst:  13,
+		},
+		"non-positive multiplier is ignored": {
+			rps:        10,
+			multiplier: func() float64 { return -1 },
+			wantLimit:  10,
+			wantBurst:  10,
+		},
+		"NaN multiplier is ignored": {
+			rps:        10,
+			multiplier: func() float64 { return math.NaN() },
+			wantLimit:  10,
+			wantBurst:  10,
+		},
+		"inf multiplier is ignored": {
+			rps:        10,
+			multiplier: func() float64 { return math.Inf(1) },
+			wantLimit:  10,
+			wantBurst:  10,
+		},
+		"min burst still applies": {
+			rps:        0.5,
+			minBurst:   1,
+			multiplier: func() float64 { return 0.1 },
+			wantLimit:  0.5,
+			wantBurst:  1,
+		},
+		"zero rps still zeroes burst": {
+			rps:        0,
+			minBurst:   1,
+			multiplier: func() float64 { return 5 },
+			wantLimit:  0,
+			wantBurst:  0,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			limiter := NewDynamicRateLimiterWithOpts(func() float64 { return tc.rps }, DynamicRateLimiterOpts{
+				TTL:             time.Second,
+				MinBurst:        tc.minBurst,
+				TimeSource:      clock.NewMockedTimeSource(),
+				BurstMultiplier: tc.multiplier,
+			})
+			limit, burst := limiter.(*DynamicRateLimiter).getLimitAndBurst()
+			assert.Equal(t, tc.wantLimit, limit, "limit should never be affected by the burst multiplier")
+			assert.Equal(t, tc.wantBurst, burst, "unexpected burst size")
+		})
+	}
 }
 
 func newFixedRpsMultiStageRateLimiter(t testing.TB, globalRps float64, domainRps int) Policy {
