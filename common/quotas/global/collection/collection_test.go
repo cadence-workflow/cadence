@@ -424,43 +424,37 @@ func TestBoostRPS(t *testing.T) {
 	tests := map[string]struct {
 		targetLimit, fallbackLimit float64
 		weight                     float64
-		usedRPS                    float64
 		resultLimit                float64
 	}{
-		"low weight fully used": {
+		"low weight": {
 			targetLimit:   10,
 			fallbackLimit: 3,
 			weight:        0.11,
-			usedRPS:       10,
-			resultLimit:   1.1, // no unused RPS free for boost, gets fair value
+			resultLimit:   3, // fair value 1.1 is below fallback, boosted to fallback
 		},
-		"low weight mostly unused": {
-			targetLimit:   10,
-			fallbackLimit: 3,
-			weight:        0.11,
-			usedRPS:       2,
-			resultLimit:   3, // min(1.1 + 8, 3)
-		},
-		"high weight fully used": {
+		"high weight": {
 			targetLimit:   10,
 			fallbackLimit: 3,
 			weight:        0.89,
-			usedRPS:       10,
-			resultLimit:   8.9, // no unused RPS free for boost, gets fair value
-		},
-		"high weight mostly unused": {
-			targetLimit:   10,
-			fallbackLimit: 3,
-			weight:        0.89,
-			usedRPS:       2,
 			resultLimit:   8.9, // should not be boosted beyond fair, nor limited below it
 		},
-		"usage over target": {
+		"weight exactly at fallback": {
 			targetLimit:   10,
 			fallbackLimit: 3,
-			weight:        0.089,
-			usedRPS:       100,
-			resultLimit:   0.89, // should be weight-based at worst, and not be reduced by excess usage
+			weight:        0.3,
+			resultLimit:   3,
+		},
+		"zero weight": {
+			targetLimit:   10,
+			fallbackLimit: 3,
+			weight:        0,
+			resultLimit:   3, // never below fallback
+		},
+		"full weight": {
+			targetLimit:   10,
+			fallbackLimit: 3,
+			weight:        1,
+			resultLimit:   10,
 		},
 	}
 	for name, tc := range tests {
@@ -469,7 +463,7 @@ func TestBoostRPS(t *testing.T) {
 			t.Parallel()
 			assert.GreaterOrEqual(t, tc.weight, float64(0), "sanity check on weight")
 			assert.LessOrEqual(t, tc.weight, float64(1), "sanity check on weight")
-			result := boostRPS(rate.Limit(tc.targetLimit), rate.Limit(tc.fallbackLimit), tc.weight, tc.usedRPS)
+			result := boostRPS(rate.Limit(tc.targetLimit), rate.Limit(tc.fallbackLimit), tc.weight)
 			assert.InDeltaf(t, tc.resultLimit, float64(result), 0.01, "computed RPS does not match closely enough, should be %0.2f", tc.resultLimit)
 		})
 	}
