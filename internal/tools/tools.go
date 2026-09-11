@@ -47,4 +47,6 @@ import (
 	_ "go.uber.org/yarpc/encoding/thrift/thriftrw-plugin-yarpc"
 	// removes unused imports and formats
 	_ "golang.org/x/tools/cmd/goimports"
+	// gotestsum reruns only the failed tests and writes the JUnit report
+	_ "gotest.tools/gotestsum"
 )

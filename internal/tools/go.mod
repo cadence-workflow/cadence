@@ -16,6 +16,7 @@ require (
 	go.uber.org/thriftrw v1.34.0
 	go.uber.org/yarpc v1.88.0
 	golang.org/x/tools v0.38.0
+	gotest.tools/gotestsum v1.13.0
 )
 
 require (
@@ -24,13 +25,16 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.2 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
+	github.com/bitfield/gotestdox v0.2.2 // indirect
 	github.com/brunoga/deep v1.2.4 // indirect
 	github.com/chavacava/garif v0.0.0-20230227094218-b8c73b2037b8 // indirect
-	github.com/fatih/color v1.15.0 // indirect
+	github.com/dnephin/pflag v1.0.7 // indirect
+	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
-	github.com/fsnotify/fsnotify v1.8.0 // indirect
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect

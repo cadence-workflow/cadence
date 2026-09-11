@@ -37,7 +37,7 @@ jobs:
       - name: Run unit test
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run unit-test bash -c "make .just-build && make cover_profile && ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt"
@@ -50,6 +50,7 @@ jobs:
           path: |
             .build/coverage/*.out
             .build/coverage/metadata.txt
+            .build/junit/*.xml
 
 
   golangci-lint-validate-code-is-clean:
@@ -91,7 +92,7 @@ jobs:
       - name: Run integration profile for cassandra
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
@@ -101,7 +102,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
 
   golang-integration-test-with-cassandra-running-history-queue-v2:
     name: Golang integration test with running history queue v2
@@ -121,7 +124,7 @@ jobs:
       - name: Run integration profile for cassandra running history queue v2
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2 bash -c "make .just-build && make cover_integration_profile"
@@ -131,7 +134,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-running-history-queue-v2-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
 
   golang-integration-test-with-cassandra-running-history-queue-v2-alert:
     name: Golang integration test with running history queue v2 with alert
@@ -152,7 +157,7 @@ jobs:
       - name: Run integration profile for cassandra running history queue v2 with alert
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2-alert bash -c "make .just-build && make cover_integration_profile"
@@ -162,7 +167,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-running-history-queue-v2-alert-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
 
   golang-integration-test-with-cassandra-running-history-queue-v2-cached-reader:
     name: Golang integration test with running history queue v2 with cached reader
@@ -183,7 +190,7 @@ jobs:
       - name: Run integration profile for cassandra running history queue v2 with cached reader
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2-cached-reader bash -c "make .just-build && make cover_integration_profile"
@@ -193,7 +200,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-running-history-queue-v2-cached-reader-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
 
 
   golang-integration-test-with-cassandra-and-elasticsearch-v7:
@@ -215,7 +224,7 @@ jobs:
       - name: Run integration profile for cassandra and elasticsearch v7
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
@@ -225,7 +234,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-and-elasticsearch-v7-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
 
 
   golang-integration-test-with-cassandra-and-pinot:
@@ -247,7 +258,7 @@ jobs:
       - name: Run integration test with cassandra and pinot
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot bash -c "mkdir -p .build/coverage && make .just-build && go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot.out github.com/uber/cadence/host"
@@ -257,7 +268,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-pinot-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
 
 
   golang-integration-test-with-cassandra-with-opensearch-v2:
@@ -279,7 +292,7 @@ jobs:
       - name: Run integration profile for cassandra and opensearch v2
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
@@ -289,7 +302,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-and-opensearch-v2-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
 
 
   golang-integration-ndc-test-with-cassandra:
@@ -311,7 +326,7 @@ jobs:
       - name: Run ndc profile for cassandra
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra bash -c "make .just-build && make cover_ndc_profile"
@@ -321,7 +336,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-ndc-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
 
 
   golang-integration-test-with-mysql:
@@ -343,7 +360,7 @@ jobs:
       - name: Run integration profile for mysql
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql bash -c "make .just-build && make cover_integration_profile"
@@ -353,7 +370,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-mysql-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
           
 
   golang-integration-ndc-test-with-mysql:
@@ -375,7 +394,7 @@ jobs:
       - name: Run ndc profile for mysql
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql bash -c "make .just-build && make cover_ndc_profile"
@@ -385,7 +404,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-mysql-ndc-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
 
 
   golang-integration-test-with-postgres:
@@ -407,7 +428,7 @@ jobs:
       - name: Run integration profile for postgres
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres bash -c "make .just-build && make cover_integration_profile"
@@ -417,7 +438,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-postgres-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
              
 
   golang-integration-test-with-sqlite:
@@ -438,7 +461,7 @@ jobs:
       - name: Run integration profile for sqlite
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite bash -c "make cover_integration_profile"
@@ -448,7 +471,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-sqlite-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
 
 
   golang-integration-ndc-test-with-postgres:
@@ -469,7 +494,7 @@ jobs:
       - name: Run ndc profile for postgres
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres bash -c "make .just-build && make cover_ndc_profile"
@@ -479,7 +504,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-postgres-ndc-integration-coverage
-          path: .build/coverage/*.out
+          path: |
+            .build/coverage/*.out
+            .build/junit/*.xml
 
 
   golang-async-wf-integration-test-with-kafka:
@@ -500,7 +527,7 @@ jobs:
       - name: Run async wf integration test with kafka
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 2
+          max_attempts: 1
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf bash -c "make .just-build && go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host"

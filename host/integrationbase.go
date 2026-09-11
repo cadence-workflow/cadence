@@ -55,6 +55,14 @@ const (
 	slowTestLimit      = 40 * time.Second
 	suiteOverheadLimit = 60 * time.Second
 	slowTestSuffix     = "_SLOW"
+
+	// Going over a limit is reported as a warning rather than a failure. These are
+	// wall-clock budgets measured on shared CI runners, so contention alone pushes a
+	// healthy test a few hundred milliseconds past the limit and turns a slow runner
+	// into a red build. Slow-test regressions are better caught from the JUnit output,
+	// which carries the trend. A hard failure is kept at a large multiple, where the
+	// duration is no longer explainable by contention and indicates a hang.
+	hardLimitMultiplier = 5
 )
 
 type (
@@ -358,16 +366,34 @@ func (s *IntegrationBase) HandleStats(suiteName string, stats *suite.SuiteInform
 			allowedTime = slowTestLimit
 		}
 
-		if testDuration > allowedTime {
-			s.Fail("Test took too long", "%s took %v (limit %v)", testName, testDuration, allowedTime)
-		}
+		s.reportDuration("Test", testName, testDuration, allowedTime)
 		timeInTests += testDuration
 	}
 
 	suiteOverhead := suiteDuration - timeInTests
-	if suiteOverhead > suiteOverheadLimit {
-		s.Fail("Test suite took too long to setup and teardown", "%s had overhead of %v (limit %v)", suiteName, suiteOverhead, suiteOverheadLimit)
+	s.reportDuration("Test suite setup and teardown", suiteName, suiteOverhead, suiteOverheadLimit)
+}
+
+// reportDuration warns when something ran over its wall-clock budget, and fails only when
+// it ran over by hardLimitMultiplier, which is far enough past the budget that runner
+// contention no longer explains it.
+func (s *IntegrationBase) reportDuration(what, name string, took, limit time.Duration) {
+	if took <= limit {
+		return
 	}
+	if took > limit*hardLimitMultiplier {
+		s.Fail(
+			what+" took too long",
+			"%s took %v, over %dx the %v limit, which indicates a hang rather than a slow runner",
+			name, took, hardLimitMultiplier, limit,
+		)
+		return
+	}
+	s.Logger.Warn(what+" went over its wall-clock budget",
+		tag.Name(name),
+		tag.Dynamic("took", took.String()),
+		tag.Dynamic("limit", limit.String()),
+	)
 }
 
 func (s *IntegrationBase) newPoller(decisions decisionTaskHandler, activities ActivityExecutor) *TaskPoller {
