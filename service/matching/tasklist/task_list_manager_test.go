@@ -495,12 +495,12 @@ func TestQueriesPerSecond(t *testing.T) {
 }
 
 func TestCheckIdleTaskList(t *testing.T) {
-	defer goleak.VerifyNone(t)
 	idleInterval := 100 * time.Millisecond
 	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
 	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(idleInterval)
 
 	t.Run("Idle task-list", func(t *testing.T) {
+		defer goleak.VerifyNone(t)
 		ctrl := gomock.NewController(t)
 		mockClock := clock.NewMockedTimeSource()
 		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, mockClock)
@@ -516,6 +516,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 	})
 
 	t.Run("Active poll-er", func(t *testing.T) {
+		defer goleak.VerifyNone(t)
 		ctrl := gomock.NewController(t)
 		mockClock := clock.NewMockedTimeSource()
 		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, mockClock)
@@ -543,6 +544,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 	})
 
 	t.Run("Active adding task", func(t *testing.T) {
+		defer goleak.VerifyNone(t)
 		ctrl := gomock.NewController(t)
 		mockClock := clock.NewMockedTimeSource()
 		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, mockClock)
@@ -1363,6 +1365,7 @@ func TestTaskListManagerImpl_HasPollerAfter(t *testing.T) {
 			tlm := createTestTaskListManager(t, logger, controller)
 			err := tlm.Start(context.Background())
 			assert.NoError(t, err)
+			defer tlm.Stop()
 
 			if tc.prepareManager != nil {
 				tc.prepareManager(tlm)
@@ -1769,7 +1772,9 @@ func TestManagerStart_RootPartition(t *testing.T) {
 			WritePartitions: partitions(2),
 		},
 	}).Return(&types.MatchingRefreshTaskListPartitionConfigResponse{}, nil)
+	deps.mockTaskManager.EXPECT().UpdateTaskList(gomock.Any(), gomock.Any()).Return(&persistence.UpdateTaskListResponse{}, nil).AnyTimes()
 	assert.NoError(t, tlm.Start(context.Background()))
+	defer tlm.Stop()
 	assert.Equal(t, &types.TaskListPartitionConfig{Version: 1, ReadPartitions: partitions(2), WritePartitions: partitions(2)}, tlm.TaskListPartitionConfig())
 	tlm.stopWG.Wait()
 }
@@ -1811,7 +1816,9 @@ func TestManagerStart_NonRootPartition(t *testing.T) {
 			RangeID:  0,
 		},
 	}, nil)
+	deps.mockTaskManager.EXPECT().UpdateTaskList(gomock.Any(), gomock.Any()).Return(&persistence.UpdateTaskListResponse{}, nil).AnyTimes()
 	assert.NoError(t, tlm.Start(context.Background()))
+	defer tlm.Stop()
 	assert.Equal(t, &types.TaskListPartitionConfig{
 		Version:         1,
 		ReadPartitions:  partitions(3),
