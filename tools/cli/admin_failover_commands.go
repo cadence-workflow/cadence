@@ -77,6 +77,9 @@ func AdminFailoverStart(c *cli.Context) error {
 	if c.Bool(FlagFailoverV2) {
 		return failoverStartV2(c, sc, tc)
 	}
+	if c.Bool(FlagSkipDestinationCheck) {
+		return commoncli.Problem("Invalid input parameters", fmt.Errorf("--%s only applies with --%s; the V1 failover workflow does not use the FailoverDomain RPC", FlagSkipDestinationCheck, FlagFailoverV2))
+	}
 	params := &startParams{
 		targetCluster:                  tc,
 		sourceCluster:                  sc,
@@ -428,11 +431,12 @@ func failoverStartV2(c *cli.Context, sourceCluster, targetCluster string) error 
 	}
 
 	foParams := failovermanager.FailoverV2Params{
-		SourceClusters:          []string{sourceCluster},
-		TargetCluster:           targetCluster,
-		BatchSize:               c.Int(FlagFailoverBatchSize),
-		WaitBetweenBatchSeconds: c.Int(FlagFailoverWaitTime),
-		Domains:                 c.StringSlice(FlagFailoverDomains),
+		SourceClusters:              []string{sourceCluster},
+		TargetCluster:               targetCluster,
+		BatchSize:                   c.Int(FlagFailoverBatchSize),
+		WaitBetweenBatchSeconds:     c.Int(FlagFailoverWaitTime),
+		Domains:                     c.StringSlice(FlagFailoverDomains),
+		SkipDestinationClusterCheck: c.Bool(FlagSkipDestinationCheck),
 	}
 	if raw := c.String(FlagClusterAttributesJSON); raw != "" {
 		attrs, parseErr := parseClusterAttributesJSON(raw)
