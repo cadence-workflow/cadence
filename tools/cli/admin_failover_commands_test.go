@@ -1070,3 +1070,22 @@ func TestAdminFailoverStartV2_WhenSkipDestinationCheckIsSetItIsIncludedInTheWork
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestAdminFailoverStart_WhenSkipDestinationCheckIsSetWithoutV2ItErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	frontendCl := frontend.NewMockClient(ctrl)
+	frontendCl.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Times(0)
+
+	app := NewCliApp(&clientFactoryMock{serverFrontendClient: frontendCl})
+	err := app.Run([]string{"", "admin", "cluster", "failover", "start",
+		"--sc", "cluster1",
+		"--tc", "cluster2",
+		"--skip_destination_check",
+	})
+	if err == nil {
+		t.Fatal("expected an error when --skip_destination_check is used without --failover_v2")
+	}
+	if !strings.Contains(err.Error(), "skip_destination_check") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
