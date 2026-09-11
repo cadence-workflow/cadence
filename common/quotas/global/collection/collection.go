@@ -37,7 +37,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"testing"
 	"time"
 
@@ -473,7 +472,7 @@ func (c *Collection) doUpdate(since time.Duration, usage map[shared.GlobalKey]rp
 		target := rate.Limit(c.targetRPS(lkey))
 		limiter := c.global.Load(lkey)
 		fallbackTarget := limiter.FallbackLimit()
-		boosted := boostRPS(target, fallbackTarget, info.Weight, info.UsedRPS)
+		boosted := boostRPS(target, fallbackTarget, info.Weight)
 		limiter.Update(boosted)
 	}
 
@@ -496,37 +495,28 @@ func (c *Collection) doUpdate(since time.Duration, usage map[shared.GlobalKey]rp
 	}
 }
 
-func boostRPS(target, fallback rate.Limit, weight float64, usedRPS float64) rate.Limit {
+func boostRPS(target, fallback rate.Limit, weight float64) rate.Limit {
 	baseline := target * rate.Limit(weight)
 
 	// low weights lead to low per-host overage allowed, and this can lead to
 	// restricting low-RPS-slightly-bursty requests quite a lot more than intended,
 	// despite more than enough unused quota remaining at all times.
 	//
-	// as a partial mitigation, "boost" low-weight values, allowing them to use
-	// more of the unused RPS than their weight would normally imply, up to the
-	// fallback's limit.
-	// as overall usage increases, this "allowed overage" will shrink, helping
-	// ensure it keeps converging towards the global target RPS.
-	if baseline < fallback {
-		// unused should not go below zero, e.g. if target was lowered,
-		// so this cannot reduce below the fair baseline.
-		unused := math.Max(0, float64(target)-usedRPS)
-		boosted := math.Min(
-			// with many bursty low-weight hosts, this may allow too much.
-			// currently this isn't really a concern, but this could be adjusted
-			// by num-of-low-hosts or something if needed.
-			float64(baseline)+unused,
-			// can't exceed the local fallback value though.
-			// this is also what would be allowed if this limit was garbage collected,
-			// so it's already established as a "safe enough" value.
-			float64(fallback),
-		)
-		return rate.Limit(boosted)
-	}
-
+	// as a mitigation, never limit a host below its local fallback limit
+	// (i.e. `target / num hosts`, what would be used without global limiting),
+	// effectively using max(local, global) per host.
+	//
+	// this used to be more conservative: low-weight hosts were only allowed to use
+	// the cluster-wide *unused* RPS, still capped at the fallback.  in practice that
+	// rejected requests while cluster-wide usage was still far below the target,
+	// especially with bursty traffic concentrated on a few hosts, so the cap is now
+	// the floor.  see https://github.com/cadence-workflow/cadence/issues/8158
+	//
 	// any host with a weighted target higher than the fallback will already be
 	// allowing a relatively large "growth room" on top of its actual usage, so
 	// they don't need this boost.
+	if baseline < fallback {
+		return fallback
+	}
 	return baseline
 }
