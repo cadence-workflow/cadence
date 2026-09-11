@@ -119,7 +119,7 @@ require (
 	golang.org/x/tools v0.48.0 // indirect
 	google.golang.org/api v0.264.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/grpc v1.83.1 // indirect
+	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
