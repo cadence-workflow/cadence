@@ -3,6 +3,7 @@ package schema
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,9 +13,11 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	persistenceclient "github.com/uber/cadence/common/persistence/client"
+	"github.com/uber/cadence/common/types"
 )
 
 type connectResult struct {
@@ -503,6 +506,105 @@ func TestRunUpdateSchema(t *testing.T) {
 
 	err := runUpdateSchema(context.Background(), factory, opts)
 	require.NoError(t, err)
+}
+
+func TestCreateDefaultDomain(t *testing.T) {
+	const (
+		clusterName = "test-cluster"
+		domainName  = "default-domain"
+	)
+
+	managerErr := errors.New("no domain manager")
+	createErr := errors.New("create failed")
+
+	tests := []struct {
+		name            string
+		setup           func(*testing.T, *gomock.Controller) *persistenceclient.MockFactory
+		wantErrContains string
+	}{
+		{
+			name: "success",
+			setup: func(t *testing.T, ctrl *gomock.Controller) *persistenceclient.MockFactory {
+				domains := persistence.NewMockDomainManager(ctrl)
+				domains.EXPECT().CreateDomain(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, request *persistence.CreateDomainRequest) (*persistence.CreateDomainResponse, error) {
+						assert.NotEmpty(t, request.Info.ID)
+						assert.Equal(t, domainName, request.Info.Name)
+						assert.Equal(t, persistence.DomainStatusRegistered, request.Info.Status)
+						assert.Equal(t, "Example Domain", request.Info.Description)
+						assert.Equal(t, int32(7), request.Config.Retention)
+						assert.Equal(t, types.ArchivalStatusDisabled, request.Config.HistoryArchivalStatus)
+						assert.Equal(t, types.ArchivalStatusDisabled, request.Config.VisibilityArchivalStatus)
+						assert.Equal(t, clusterName, request.ReplicationConfig.ActiveClusterName)
+						assert.Equal(t, []*persistence.ClusterReplicationConfig{{ClusterName: clusterName}}, request.ReplicationConfig.Clusters)
+						assert.Equal(t, constants.EmptyVersion, request.FailoverVersion)
+						assert.Equal(t, true, request.IsGlobalDomain)
+						return &persistence.CreateDomainResponse{ID: request.Info.ID}, nil
+					})
+
+				factory := persistenceclient.NewMockFactory(ctrl)
+				factory.EXPECT().NewDomainManager().Return(domains, nil)
+				return factory
+			},
+		},
+		{
+			name: "domain manager error",
+			setup: func(t *testing.T, ctrl *gomock.Controller) *persistenceclient.MockFactory {
+				factory := persistenceclient.NewMockFactory(ctrl)
+				factory.EXPECT().NewDomainManager().Return(nil, managerErr)
+				return factory
+			},
+			wantErrContains: "no domain manager",
+		},
+		{
+			name: "create domain error",
+			setup: func(t *testing.T, ctrl *gomock.Controller) *persistenceclient.MockFactory {
+				domains := persistence.NewMockDomainManager(ctrl)
+				domains.EXPECT().CreateDomain(gomock.Any(), gomock.Any()).Return(nil, createErr)
+
+				factory := persistenceclient.NewMockFactory(ctrl)
+				factory.EXPECT().NewDomainManager().Return(domains, nil)
+				return factory
+			},
+			wantErrContains: "failed to create domain: create failed",
+		},
+		{
+			name: "domain already exists",
+			setup: func(t *testing.T, ctrl *gomock.Controller) *persistenceclient.MockFactory {
+				domains := persistence.NewMockDomainManager(ctrl)
+				domains.EXPECT().CreateDomain(gomock.Any(), gomock.Any()).Return(nil, &types.DomainAlreadyExistsError{Message: "already exists"})
+
+				factory := persistenceclient.NewMockFactory(ctrl)
+				factory.EXPECT().NewDomainManager().Return(domains, nil)
+				return factory
+			},
+		},
+		{
+			name: "wrapped domain already exists",
+			setup: func(t *testing.T, ctrl *gomock.Controller) *persistenceclient.MockFactory {
+				domains := persistence.NewMockDomainManager(ctrl)
+				domains.EXPECT().CreateDomain(gomock.Any(), gomock.Any()).
+					Return(nil, fmt.Errorf("persistence layer: %w", &types.DomainAlreadyExistsError{Message: "already exists"}))
+
+				factory := persistenceclient.NewMockFactory(ctrl)
+				factory.EXPECT().NewDomainManager().Return(domains, nil)
+				return factory
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			err := createDefaultDomain(context.Background(), tt.setup(t, ctrl), clusterName, domainName)
+			if tt.wantErrContains != "" {
+				require.ErrorContains(t, err, tt.wantErrContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 // testOptions returns a fully defaulted Options suitable for unit tests.

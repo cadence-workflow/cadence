@@ -31,8 +31,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"github.com/urfave/cli/v2"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
+
+	"github.com/uber/cadence/tools/common/flag"
 )
 
 type CadenceSuite struct {
@@ -271,4 +274,70 @@ func TestRunServicesCascadeFailure(t *testing.T) {
 
 	// Check error content
 	assert.Contains(t, err.Error(), "service 2")
+}
+
+func TestGetSetupOptions(t *testing.T) {
+	tests := []struct {
+		name            string
+		args            []string
+		want            map[string]string
+		wantErrContains string
+	}{
+		{
+			name: "not set",
+			args: []string{"app"},
+			want: nil,
+		},
+		{
+			name: "single option",
+			args: []string{"app", "--setup-option", "replication_factor=1"},
+			want: map[string]string{"replication_factor": "1"},
+		},
+		{
+			name: "multiple options",
+			args: []string{"app", "--setup-option", "replication_factor=1", "--setup-option", "foo=bar"},
+			want: map[string]string{"replication_factor": "1", "foo": "bar"},
+		},
+		{
+			name: "value containing equals and commas",
+			args: []string{"app", "--setup-option", "opts=a=b,c=d"},
+			want: map[string]string{"opts": "a=b,c=d"},
+		},
+		{
+			name:            "missing equals",
+			args:            []string{"app", "--setup-option", "replication_factor"},
+			wantErrContains: `must be in key=value format`,
+		},
+		{
+			name:            "duplicate key",
+			args:            []string{"app", "--setup-option", "foo=bar", "--setup-option", "foo=baz"},
+			wantErrContains: `specified more than once`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				got    map[string]string
+				gotErr error
+			)
+			app := &cli.App{
+				Flags: []cli.Flag{
+					&flag.RepeatedStringFlag{Name: flagSetupOption, Usage: setupOptionUsage},
+				},
+				Action: func(c *cli.Context) error {
+					got, gotErr = getSetupOptions(c)
+					return nil
+				},
+			}
+			require.NoError(t, app.Run(tt.args))
+
+			if tt.wantErrContains != "" {
+				require.ErrorContains(t, gotErr, tt.wantErrContains)
+				return
+			}
+			require.NoError(t, gotErr)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

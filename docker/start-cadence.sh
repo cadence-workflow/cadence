@@ -14,5 +14,5 @@ else
     dockerize -template "$CONFIG_TEMPLATE_PATH:/etc/cadence/config/docker.yaml"
 fi
 
-exec cadence-server --root "$CADENCE_HOME" --env docker --config config start --services="$SERVICES"
+exec cadence-server --root "$CADENCE_HOME" --env docker --config config start --services="$SERVICES" "$@"
 
