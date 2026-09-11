@@ -24,16 +24,22 @@ package sampled
 
 import (
 	"sync"
+	"time"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/tokenbucket"
 )
 
 type RateLimiterFactoryFunc func(timeSource clock.TimeSource, numOfPriority int, qpsConfig dynamicproperties.IntPropertyFnWithDomainFilter) RateLimiterFactory
 
+// PriorityRateLimiter is a rate limiter with separate token pools for priority classes.
+// Priority 0 is the highest priority.
+type PriorityRateLimiter interface {
+	GetToken(priority, count int) (bool, time.Duration)
+}
+
 type RateLimiterFactory interface {
-	GetRateLimiter(domain string) tokenbucket.PriorityTokenBucket
+	GetRateLimiter(domain string) PriorityRateLimiter
 }
 
 type domainToBucketMap struct {
@@ -41,7 +47,7 @@ type domainToBucketMap struct {
 	timeSource    clock.TimeSource
 	qpsConfig     dynamicproperties.IntPropertyFnWithDomainFilter
 	numOfPriority int
-	mappings      map[string]tokenbucket.PriorityTokenBucket
+	mappings      map[string]PriorityRateLimiter
 }
 
 // NewDomainToBucketMap returns a rate limiter factory.
@@ -50,11 +56,11 @@ func NewDomainToBucketMap(timeSource clock.TimeSource, numOfPriority int, qpsCon
 		timeSource:    timeSource,
 		qpsConfig:     qpsConfig,
 		numOfPriority: numOfPriority,
-		mappings:      make(map[string]tokenbucket.PriorityTokenBucket),
+		mappings:      make(map[string]PriorityRateLimiter),
 	}
 }
 
-func (m *domainToBucketMap) GetRateLimiter(domain string) tokenbucket.PriorityTokenBucket {
+func (m *domainToBucketMap) GetRateLimiter(domain string) PriorityRateLimiter {
 	m.RLock()
 	rateLimiter, exist := m.mappings[domain]
 	m.RUnlock()
@@ -68,7 +74,7 @@ func (m *domainToBucketMap) GetRateLimiter(domain string) tokenbucket.PriorityTo
 		m.Unlock()
 		return rateLimiter
 	}
-	rateLimiter = tokenbucket.NewFullPriorityTokenBucket(m.numOfPriority, m.qpsConfig(domain), m.timeSource)
+	rateLimiter = newFullPriorityTokenBucket(m.numOfPriority, m.qpsConfig(domain), m.timeSource)
 	m.mappings[domain] = rateLimiter
 	m.Unlock()
 	return rateLimiter
