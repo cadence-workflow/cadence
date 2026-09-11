@@ -75,6 +75,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableTaskInfoLogByDomainID":               {dynamicproperties.MatchingEnableTaskInfoLogByDomainID, true},
 		"ActivityTaskSyncMatchWaitTime":             {dynamicproperties.MatchingActivityTaskSyncMatchWaitTime, time.Duration(24)},
 		"EnableTasklistIsolation":                   {dynamicproperties.EnableTasklistIsolation, false},
+		"EnableDistributedSemaphore":                {dynamicproperties.MatchingEnableDistributedSemaphore, false},
 		"AsyncTaskDispatchTimeout":                  {dynamicproperties.AsyncTaskDispatchTimeout, time.Duration(25)},
 		"LocalPollWaitTime":                         {dynamicproperties.LocalPollWaitTime, time.Duration(10)},
 		"LocalTaskWaitTime":                         {dynamicproperties.LocalTaskWaitTime, time.Duration(10)},

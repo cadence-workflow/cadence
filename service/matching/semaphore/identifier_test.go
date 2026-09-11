@@ -50,6 +50,18 @@ func TestNewIdentifier(t *testing.T) {
 	}
 }
 
+// Tests that the ring key separates the buckets of one semaphore. If they shared a key they
+// would all hash to one host, and splitting the semaphore into buckets would gain nothing.
+func TestRingKey(t *testing.T) {
+	first, err := NewIdentifier("domain-1", "sem-1", 0)
+	require.NoError(t, err)
+	second, err := NewIdentifier("domain-1", "sem-1", 1)
+	require.NoError(t, err)
+
+	assert.Equal(t, "domain-1_sem-1_0", first.RingKey())
+	assert.NotEqual(t, first.RingKey(), second.RingKey())
+}
+
 // Tests that Identifier works as a map key. Buckets are looked up by value, so the struct has to
 // stay comparable -- adding a slice or map field would break this at compile time, which is the
 // point.

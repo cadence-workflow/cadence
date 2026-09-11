@@ -40,3 +40,12 @@ func (id Identifier) validate() error {
 func (id Identifier) String() string {
 	return fmt.Sprintf("%s/%s/%d", id.DomainID, id.SemaphoreName, id.Bucket)
 }
+
+// RingKey is what the bucket is hashed on to find the host that owns it. One bucket is one
+// partition, so exactly one host serves it.
+//
+// Kept apart from String(), which is for logs: reformatting a log line must not move buckets
+// between hosts.
+func (id Identifier) RingKey() string {
+	return fmt.Sprintf("%s_%s_%d", id.DomainID, id.SemaphoreName, id.Bucket)
+}

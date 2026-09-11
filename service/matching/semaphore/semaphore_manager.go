@@ -14,10 +14,9 @@ import (
 )
 
 const (
-	// scanPageSize sizes one page of the startup scan. A full bucket is one token row per slot
-	// plus one owner row per hold, so 2*bucket_size covers the partition, and the +1 saves the
-	// empty second fetch an exactly-full page would cost. Paging runs to the end either way, so
-	// this only ever costs round trips.
+	// scanPageSize is one larger than a full bucket -- one token row per slot plus one owner row
+	// per hold -- so the startup scan takes a single round trip. An optimization only: paging
+	// runs to the end whatever the size.
 	scanPageSize = 2*persistence.MaxSemaphoreBucketSize + 1
 
 	// maxGrantAttempts caps how many slots one acquire tries, so a badly stale free-set cannot
