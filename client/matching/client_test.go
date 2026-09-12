@@ -134,7 +134,6 @@ func TestClient_withoutResponse(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 
 			// setting up client
@@ -570,7 +569,6 @@ func TestClient_withResponse(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 
 			// setting up client

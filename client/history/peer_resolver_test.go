@@ -132,7 +132,6 @@ func TestPeerResolver(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				controller := gomock.NewController(t)
 				serviceResolver := membership.NewMockResolver(controller)
@@ -205,7 +204,6 @@ func TestPeerResolver(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				controller := gomock.NewController(t)
 				serviceResolver := membership.NewMockResolver(controller)
