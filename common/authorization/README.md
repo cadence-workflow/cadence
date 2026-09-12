@@ -44,6 +44,24 @@ In order to configure, add an authorization section to Cadence server config [ex
         noopAuthorizer:
             enable: true
 
+## Authentication-only authorizer
+
+The authenticator uses the same `authorization.oauthAuthorizer.enable` flag: when enabled,
+it validates JWTs without checking permissions; otherwise, it is a no-op. It lets APIs
+such as `ListDomains` check credentials before checking access to individual domains.
+
+If you use a custom authorizer, then it's recommended you can provide an optional `resource.Params.Authenticator`
+implementing the same `Authorizer` interface. The authenticator checks credentials only; the
+authorizer also checks permissions. The authorizer must still validate credentials because
+other APIs call it directly. For an example of sharing credential validation,
+see `oauthAuthority` and `NewOAuthAuthorizerAndAuthenticator` in
+[oauthAuthority.go](oauthAuthority.go). If no custom authenticator is supplied, the configured OAuth
+or no-op behavior applies.
+
+This is an interim step toward separating authentication from authorization. The authorizer
+still validates credentials on each call; a future change could authenticate once per
+request and pass the caller's identity to the authorizer.
+
 ## Background
 
 The server constructs an authorization.Attributes object for each API call (actor, API name, domain, optional workflow/tasklist), evaluates the token, and returns an allow/deny Decision. JWTs are expected to contain Cadence-specific claims including groups and (optionally) an admin flag.

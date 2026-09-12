@@ -18,24 +18,33 @@ import (
 
 // apiHandler frontend handler wrapper for authentication and authorization
 type apiHandler struct {
-	handler    _sourceApi.Handler
-	authorizer authorization.Authorizer
+	handler       _sourceApi.Handler
+	authorizer    authorization.Authorizer
+	authenticator authorization.Authorizer
 	resource.Resource
 }
 
 // NewAPIHandler creates frontend handler with authentication support
-func NewAPIHandler(handler _sourceApi.Handler, resource resource.Resource, authorizer authorization.Authorizer, cfg config.Authorization) _sourceApi.Handler {
-	if authorizer == nil {
-		var err error
+func NewAPIHandler(handler _sourceApi.Handler, resource resource.Resource, authorizer authorization.Authorizer, authenticator authorization.Authorizer, cfg config.Authorization) _sourceApi.Handler {
+	// Built together so that they share one token validator, which matters when the
+	// configured scheme fetches verification keys from a remote endpoint.
+	var err error
+	switch {
+	case authorizer == nil && authenticator == nil:
+		authorizer, authenticator, err = authorization.NewAuthorizerAndAuthenticator(cfg, resource.GetLogger(), resource.GetDomainCache())
+	case authorizer == nil:
 		authorizer, err = authorization.NewAuthorizer(cfg, resource.GetLogger(), resource.GetDomainCache())
-		if err != nil {
-			resource.GetLogger().Fatal("Error when initiating the Authorizer", tag.Error(err))
-		}
+	case authenticator == nil:
+		authenticator, err = authorization.NewAuthenticator(cfg, resource.GetLogger())
+	}
+	if err != nil {
+		resource.GetLogger().Fatal("Unable to initialize access control", tag.Error(err))
 	}
 	return &apiHandler{
-		handler:    handler,
-		authorizer: authorizer,
-		Resource:   resource,
+		handler:       handler,
+		authorizer:    authorizer,
+		authenticator: authenticator,
+		Resource:      resource,
 	}
 }
 
@@ -324,7 +333,20 @@ func (a *apiHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *type
 }
 
 func (a *apiHandler) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequest) (lp2 *types.ListDomainsResponse, err error) {
-	return a.handler.ListDomains(ctx, lp1)
+	scope := a.GetMetricsClient().Scope(metrics.FrontendListDomainsScope).Tagged(metrics.NonDomainTag())
+	attr := &authorization.Attributes{
+		APIName:     "ListDomains",
+		Permission:  authorization.PermissionRead,
+		RequestBody: authorization.NewFilteredRequestBody(lp1),
+	}
+	isAuthorized, err := a.isAuthenticated(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.listAuthorizedDomains(ctx, lp1)
 }
 
 func (a *apiHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
