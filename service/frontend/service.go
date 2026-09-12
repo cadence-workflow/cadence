@@ -158,7 +158,7 @@ func (s *Service) Start() {
 	if s.params.ClusterRedirectionPolicy != nil {
 		handler = clusterredirection.NewAPIHandler(handler, s, s.config, *s.params.ClusterRedirectionPolicy)
 	}
-	handler = accesscontrolled.NewAPIHandler(handler, s, s.params.Authorizer, s.params.AuthorizationConfig)
+	handler = accesscontrolled.NewAPIHandler(handler, s, s.params.Authorizer, s.params.Authenticator, s.params.AuthorizationConfig)
 
 	// Register the latest (most decorated) handler
 	thriftHandler := thrift.NewAPIHandler(handler)

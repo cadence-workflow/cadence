@@ -28,7 +28,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc/api/encoding"
@@ -62,47 +61,6 @@ type (
 
 func TestOAuthSuite(t *testing.T) {
 	suite.Run(t, new(oauthSuite))
-}
-
-func TestOAuthAuthorizerAuthenticationOnly(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	privateKey, err := common.LoadRSAPrivateKey("../../config/credentials/keytest")
-	require.NoError(t, err)
-
-	now := time.Now()
-	token, err := jwt.NewWithClaims(jwt.SigningMethodRS256, JWTClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    jwtInternalIssuer,
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(time.Minute)),
-		},
-		Name: "non-admin-user",
-	}).SignedString(privateKey)
-	require.NoError(t, err)
-
-	ctx, call := encoding.NewInboundCall(context.Background())
-	require.NoError(t, call.ReadFromRequest(&transport.Request{
-		Headers: transport.NewHeaders().With(common.AuthorizationTokenHeaderName, token),
-	}))
-
-	authorizer, err := NewOAuthAuthorizer(config.OAuthAuthorizer{
-		Enable: true,
-		JwtCredentials: &config.JwtCredentials{
-			Algorithm: jwt.SigningMethodRS256.Name,
-			PublicKey: "../../config/credentials/keytest.pub",
-		},
-		MaxJwtTTL: 60,
-	}, log.NewMockLogger(ctrl), cache.NewMockDomainCache(ctrl))
-	require.NoError(t, err)
-
-	result, err := authorizer.Authorize(ctx, &Attributes{
-		APIName:            "ListDomains",
-		Permission:         PermissionRead,
-		AuthenticationOnly: true,
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, DecisionAllow, result.Decision)
 }
 
 func (s *oauthSuite) SetupTest() {
@@ -200,7 +158,7 @@ func (s *oauthSuite) TestEmptyToken() {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is not set in header"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
-	s.Equal(result.Decision, DecisionUnauthenticated)
+	s.Equal(result.Decision, DecisionDeny)
 }
 
 func (s *oauthSuite) TestGetDomainError() {
@@ -234,7 +192,7 @@ func (s *oauthSuite) TestMaxTTLLargerInToken() {
 		return strings.HasPrefix(fmt.Sprintf("%v", t[0].Field().Interface), "token TTL:")
 	}))
 	result, _ := authorizer.Authorize(s.ctx, &s.att)
-	s.Equal(result.Decision, DecisionUnauthenticated)
+	s.Equal(result.Decision, DecisionDeny)
 }
 
 func (s *oauthSuite) TestIncorrectToken() {
@@ -250,7 +208,7 @@ func (s *oauthSuite) TestIncorrectToken() {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is malformed: token contains an invalid number of segments"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
-	s.Equal(result.Decision, DecisionUnauthenticated)
+	s.Equal(result.Decision, DecisionDeny)
 }
 
 func (s *oauthSuite) TestIatExpiredToken() {
@@ -268,7 +226,7 @@ func (s *oauthSuite) TestIatExpiredToken() {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is expired"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
-	s.Equal(result.Decision, DecisionUnauthenticated)
+	s.Equal(result.Decision, DecisionDeny)
 }
 
 func (s *oauthSuite) TestDifferentGroup() {
@@ -343,10 +301,10 @@ func Test_oauthAuthority_validateTTL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			validator := &oauthAuthority{
+			authority := &oauthAuthority{
 				config: config.OAuthAuthorizer{MaxJwtTTL: tt.ttlConfig},
 			}
-			tt.wantErr(t, validator.validateTTL(tt.claims), fmt.Sprintf("validateTTL(%v)", tt.claims))
+			tt.wantErr(t, authority.validateTTL(tt.claims), fmt.Sprintf("validateTTL(%v)", tt.claims))
 		})
 	}
 }
@@ -499,11 +457,11 @@ func Test_oauthAuthority_parseExternal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := &oauthAuthority{
+			v := &oauthAuthority{
 				config: tt.config,
 			}
 			actualClaim := &JWTClaims{}
-			err := a.parseExternal(tt.mapToken, actualClaim)
+			err := v.parseExternal(tt.mapToken, actualClaim)
 			tt.wantErr(t, err)
 			assert.Equal(t, tt.wantGroups, actualClaim.Groups)
 			assert.Equal(t, tt.wantAdmin, actualClaim.Admin)

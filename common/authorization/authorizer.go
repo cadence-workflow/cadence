@@ -41,8 +41,6 @@ const (
 	DecisionDeny Decision = iota + 1
 	// DecisionAllow means auth decision is allow
 	DecisionAllow
-	// DecisionUnauthenticated means the caller did not provide valid credentials
-	DecisionUnauthenticated
 )
 
 const (
@@ -61,14 +59,13 @@ type (
 	// Attributes is input for authority to make decision.
 	// It can be extended in future if required auth on resources like WorkflowType and TaskList
 	Attributes struct {
-		Actor              string
-		APIName            string
-		DomainName         string
-		WorkflowType       *types.WorkflowType
-		TaskList           *types.TaskList
-		Permission         Permission
-		RequestBody        FilteredRequestBody // request object except for data inputs (PII)
-		AuthenticationOnly bool                // validate caller credentials without checking resource permissions
+		Actor        string
+		APIName      string
+		DomainName   string
+		WorkflowType *types.WorkflowType
+		TaskList     *types.TaskList
+		Permission   Permission
+		RequestBody  FilteredRequestBody // request object except for data inputs (PII)
 	}
 
 	// Result is result from authority.
