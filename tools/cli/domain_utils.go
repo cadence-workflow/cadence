@@ -304,7 +304,7 @@ var (
 		},
 		&cli.BoolFlag{
 			Name:  FlagSkipDestinationCheck,
-			Usage: "[Optional] Allow this failover to be issued from a cluster other than the destination. By default the server only accepts a failover request received by the cluster being failed over to, so that a domain cannot be pulled away from a healthy region by mistake.",
+			Usage: "[Optional] Allow this failover to be issued from a cluster other than the destination. By default the server only accepts a failover request received by the cluster being failed over to, so that a healthy region always initiates the failover process.",
 		},
 	}
 
