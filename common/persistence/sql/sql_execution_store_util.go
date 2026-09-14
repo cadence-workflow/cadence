@@ -35,16 +35,6 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-// errSemaphoreInfosOnSQL rejects a write carrying semaphore holds. The feature runs on
-// Cassandra only, so a hold reaching a SQL store means it was recorded somewhere that cannot
-// store it. Failing here keeps that visible instead of dropping the holds and leaving a run
-// waiting on a token nothing recorded.
-func errSemaphoreInfosOnSQL() error {
-	return &types.InternalServiceError{
-		Message: "semaphore holds cannot be stored on the SQL persistence backend",
-	}
-}
-
 func applyWorkflowMutationTx(
 	ctx context.Context,
 	tx sqlplugin.Tx,
@@ -62,10 +52,6 @@ func applyWorkflowMutationTx(
 	domainID := serialization.MustParseUUID(executionInfo.DomainID)
 	workflowID := executionInfo.WorkflowID
 	runID := serialization.MustParseUUID(executionInfo.RunID)
-
-	if len(workflowMutation.UpsertSemaphoreInfos) > 0 || len(workflowMutation.DeleteSemaphoreInfos) > 0 {
-		return errSemaphoreInfosOnSQL()
-	}
 
 	// TODO Remove me if UPDATE holds the lock to the end of a transaction
 	if err := lockAndCheckNextEventID(
@@ -226,10 +212,6 @@ func applyWorkflowSnapshotTxAsReset(
 	domainID := serialization.MustParseUUID(executionInfo.DomainID)
 	workflowID := executionInfo.WorkflowID
 	runID := serialization.MustParseUUID(executionInfo.RunID)
-
-	if len(workflowSnapshot.SemaphoreInfos) > 0 {
-		return errSemaphoreInfosOnSQL()
-	}
 
 	// TODO Is there a way to modify the various map tables without fear of other people adding rows after we delete, without locking the executions row?
 	if err := lockAndCheckNextEventID(
@@ -429,10 +411,6 @@ func applyWorkflowSnapshotTxAsNew(
 	domainID := serialization.MustParseUUID(executionInfo.DomainID)
 	workflowID := executionInfo.WorkflowID
 	runID := serialization.MustParseUUID(executionInfo.RunID)
-
-	if len(workflowSnapshot.SemaphoreInfos) > 0 {
-		return errSemaphoreInfosOnSQL()
-	}
 
 	if err := insertActiveClusterSelectionPolicy(
 		ctx,

@@ -759,10 +759,9 @@ type (
 		Version       int64
 		InitiatedID   int64
 		SemaphoreName string
-		// OwnerID is the identity this hold was granted under, stored in semaphore_tokens
-		// as holder.
-		OwnerID string
-		// TokenID names the granted slot, unset while the acquire waits.
+		OwnerID       string
+		// TokenID is the granted slot. A bucket only ever seeds positive ids, so a
+		// non-positive value means no token yet: the acquire is still waiting.
 		TokenID int
 		// AcquireDeadline is when a waiting acquire gives up.
 		AcquireDeadline time.Time
