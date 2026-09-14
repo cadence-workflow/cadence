@@ -214,6 +214,10 @@ $(BIN)/gci: internal/tools/go.mod go.work
 $(BIN)/goimports: internal/tools/go.mod go.work
 	$(call go_build_tool,golang.org/x/tools/cmd/goimports)
 
+# reruns failed tests and writes the JUnit report
+$(BIN)/gotestsum: internal/tools/go.mod go.work
+	$(call go_build_tool,gotest.tools/gotestsum)
+
 $(BIN)/gowrap: go.mod go.work
 	$(call go_build_tool,github.com/hexdigest/gowrap/cmd/gowrap)
 
@@ -630,6 +634,26 @@ TEST_DIRS := $(filter-out $(INTEG_TEST_XDC_ROOT)%, $(sort $(dir $(filter %_test.
 # ?= allows passing specific (space-separated) dirs for faster testing
 PKG_TEST_DIRS ?= $(filter-out $(INTEG_TEST_ROOT)% $(OPT_OUT_TEST_FOLDERS), $(TEST_DIRS))
 
+# JUnit reports, one per test command, uploaded per CI job.
+JUNIT_ROOT                      := $(BUILD)/junit
+
+# Runs a test command under gotestsum so that a flaky test is retried on its own instead
+# of by re-running the whole job, which on CI means bringing docker compose back up and
+# recompiling to re-run a suite that took ~12 minutes. The JUnit report it writes is also
+# where slow-test trends belong, so timing regressions can be caught from data rather than
+# from wall-clock assertions that fail whenever a runner is loaded.
+#
+# $(1) names the JUnit file, $(2) is the package list, $(3) the go test arguments.
+define run_tests
+$Q mkdir -p $(JUNIT_ROOT)
+$Q time $(BIN)/gotestsum \
+	--junitfile $(JUNIT_ROOT)/$(1).xml \
+	--rerun-fails=2 \
+	--rerun-fails-max-failures=8 \
+	--packages="$(2)" \
+	-- $(3)
+endef
+
 # Code coverage output files
 COVER_ROOT                      := $(BUILD)/coverage
 UNIT_COVER_FILE                 := $(COVER_ROOT)/unit_cover.out
@@ -684,7 +708,7 @@ test_e2e_xdc:
 	$Q rm -f test.log
 	$Q $(call looptest,$(INTEG_TEST_XDC_ROOT))
 
-cover_profile:
+cover_profile: $(BIN)/gotestsum
 	$Q mkdir -p $(BUILD)
 	$Q mkdir -p $(COVER_ROOT)
 	$Q echo "mode: atomic" > $(UNIT_COVER_FILE)
@@ -692,28 +716,28 @@ cover_profile:
 	$Q echo Running special test cases without race detector:
 	$Q go test ./cmd/server/cadence/
 	$Q echo Running package tests:
-	$Q go test $(PKG_TEST_DIRS) $(TEST_ARG) -coverprofile=$(UNIT_COVER_FILE)
+	$(call run_tests,unit,$(PKG_TEST_DIRS),$(TEST_ARG) -coverprofile=$(UNIT_COVER_FILE))
 
-cover_integration_profile:
+cover_integration_profile: $(BIN)/gotestsum
 	$Q mkdir -p $(BUILD)
 	$Q mkdir -p $(COVER_ROOT)
 	$Q echo "mode: atomic" > $(INTEG_COVER_FILE)
 
 	$Q echo Running integration test with $(PERSISTENCE_TYPE) $(PERSISTENCE_PLUGIN)
 	$Q mkdir -p $(BUILD)/$(INTEG_TEST_DIR)
-	$Q time go test $(INTEG_TEST_DIRS) $(TEST_ARG) $(TEST_TAG) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1;
+	$(call run_tests,integ_$(PERSISTENCE_TYPE)_$(PERSISTENCE_PLUGIN)_dirs,$(INTEG_TEST_DIRS),$(TEST_ARG) $(TEST_TAG) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out)
 	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
-	$Q time go test $(INTEG_TEST_ROOT) $(TEST_ARG) $(TEST_TAG) -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1;
+	$(call run_tests,integ_$(PERSISTENCE_TYPE)_$(PERSISTENCE_PLUGIN)_root,$(INTEG_TEST_ROOT),$(TEST_ARG) $(TEST_TAG) -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out)
 	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
 
-cover_ndc_profile:
+cover_ndc_profile: $(BIN)/gotestsum
 	$Q mkdir -p $(BUILD)
 	$Q mkdir -p $(COVER_ROOT)
 	$Q echo "mode: atomic" > $(INTEG_NDC_COVER_FILE)
 
 	$Q echo Running integration test for 3+ dc with $(PERSISTENCE_TYPE) $(PERSISTENCE_PLUGIN)
 	$Q mkdir -p $(BUILD)/$(INTEG_TEST_NDC_DIR)
-	$Q time go test -timeout $(TEST_TIMEOUT) $(INTEG_TEST_NDC_ROOT) $(TEST_TAG) -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_NDC_DIR)/coverage.out -count=$(TEST_RUN_COUNT) || exit 1;
+	$(call run_tests,integ_ndc_$(PERSISTENCE_TYPE)_$(PERSISTENCE_PLUGIN),$(INTEG_TEST_NDC_ROOT),-timeout $(TEST_TIMEOUT) $(TEST_TAG) -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_NDC_DIR)/coverage.out -count=$(TEST_RUN_COUNT))
 	$Q cat $(BUILD)/$(INTEG_TEST_NDC_DIR)/coverage.out | grep -v "^mode: \w\+" | grep -v "mode: set" >> $(INTEG_NDC_COVER_FILE)
 
 $(COVER_ROOT)/cover.out: $(UNIT_COVER_FILE) $(INTEG_COVER_FILE_CASS) $(INTEG_COVER_FILE_MYSQL) $(INTEG_COVER_FILE_POSTGRES) $(INTEG_NDC_COVER_FILE_CASS) $(INTEG_NDC_COVER_FILE_MYSQL) $(INTEG_NDC_COVER_FILE_POSTGRES)
