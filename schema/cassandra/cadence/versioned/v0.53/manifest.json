@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.53",
+  "MinCompatibleVersion": "0.53",
+  "Description": "Add semaphore_info type and the executions semaphore_map column",
+  "SchemaUpdateCqlFiles": [
+    "semaphore_info.cql"
+  ]
+}

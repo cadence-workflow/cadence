@@ -656,6 +656,7 @@ type (
 		ChildExecutionInfos map[int64]*ChildExecutionInfo
 		RequestCancelInfos  map[int64]*RequestCancelInfo
 		SignalInfos         map[int64]*SignalInfo
+		SemaphoreInfos      map[int64]*SemaphoreInfo
 		SignalRequestedIDs  map[string]struct{}
 		ExecutionInfo       *WorkflowExecutionInfo
 		ExecutionStats      *ExecutionStats
@@ -751,6 +752,20 @@ type (
 		SignalName            string
 		Input                 []byte
 		Control               []byte
+	}
+
+	// SemaphoreInfo is one hold a run has on a semaphore: a token it asked for, or holds.
+	SemaphoreInfo struct {
+		Version       int64
+		InitiatedID   int64
+		SemaphoreName string
+		// OwnerID is the identity this hold was granted under, stored in semaphore_tokens
+		// as holder.
+		OwnerID string
+		// TokenID names the granted slot, unset while the acquire waits.
+		TokenID int
+		// AcquireDeadline is when a waiting acquire gives up.
+		AcquireDeadline time.Time
 	}
 
 	// CreateShardRequest is used to create a shard in executions table
@@ -946,6 +961,8 @@ type (
 		DeleteRequestCancelInfos  []int64
 		UpsertSignalInfos         []*SignalInfo
 		DeleteSignalInfos         []int64
+		UpsertSemaphoreInfos      []*SemaphoreInfo
+		DeleteSemaphoreInfos      []int64
 		UpsertSignalRequestedIDs  []string
 		DeleteSignalRequestedIDs  []string
 		NewBufferedEvents         []*types.HistoryEvent
@@ -970,6 +987,7 @@ type (
 		ChildExecutionInfos []*ChildExecutionInfo
 		RequestCancelInfos  []*RequestCancelInfo
 		SignalInfos         []*SignalInfo
+		SemaphoreInfos      []*SemaphoreInfo
 		SignalRequestedIDs  []string
 
 		TasksByCategory map[HistoryTaskCategory][]Task

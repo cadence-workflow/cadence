@@ -685,6 +685,88 @@ func resetSignalInfoMap(signalInfos map[int64]*persistence.SignalInfo) map[int64
 	return sMap
 }
 
+func resetSemaphoreInfos(
+	batch gocql.Batch,
+	shardID int,
+	domainID string,
+	workflowID string,
+	runID string,
+	semaphoreInfos map[int64]*persistence.SemaphoreInfo,
+	timeStamp time.Time,
+) error {
+	batch.Query(templateResetSemaphoreInfoQuery,
+		resetSemaphoreInfoMap(semaphoreInfos),
+		timeStamp,
+		shardID,
+		rowTypeExecution,
+		domainID,
+		workflowID,
+		runID,
+		defaultVisibilityTimestamp,
+		rowTypeExecutionTaskID)
+	return nil
+}
+
+func resetSemaphoreInfoMap(semaphoreInfos map[int64]*persistence.SemaphoreInfo) map[int64]map[string]interface{} {
+	sMap := make(map[int64]map[string]interface{})
+	for _, s := range semaphoreInfos {
+		sInfo := make(map[string]interface{})
+		sInfo["version"] = s.Version
+		sInfo["initiated_id"] = s.InitiatedID
+		sInfo["semaphore_name"] = s.SemaphoreName
+		sInfo["owner_id"] = s.OwnerID
+		sInfo["token_id"] = s.TokenID
+		sInfo["acquire_deadline"] = s.AcquireDeadline
+		sMap[s.InitiatedID] = sInfo
+	}
+
+	return sMap
+}
+
+func updateSemaphoreInfos(
+	batch gocql.Batch,
+	shardID int,
+	domainID string,
+	workflowID string,
+	runID string,
+	semaphoreInfos map[int64]*persistence.SemaphoreInfo,
+	deleteInfos []int64,
+	timeStamp time.Time,
+) error {
+	for _, c := range semaphoreInfos {
+		batch.Query(templateUpdateSemaphoreInfoQuery,
+			c.InitiatedID,
+			c.Version,
+			c.InitiatedID,
+			c.SemaphoreName,
+			c.OwnerID,
+			c.TokenID,
+			c.AcquireDeadline,
+			timeStamp,
+			shardID,
+			rowTypeExecution,
+			domainID,
+			workflowID,
+			runID,
+			defaultVisibilityTimestamp,
+			rowTypeExecutionTaskID)
+	}
+
+	// deleteInfos are the initiatedIDs for SemaphoreInfo being deleted
+	for _, deleteInfo := range deleteInfos {
+		batch.Query(templateDeleteSemaphoreInfoQuery,
+			deleteInfo,
+			shardID,
+			rowTypeExecution,
+			domainID,
+			workflowID,
+			runID,
+			defaultVisibilityTimestamp,
+			rowTypeExecutionTaskID)
+	}
+	return nil
+}
+
 func updateSignalInfos(
 	batch gocql.Batch,
 	shardID int,
@@ -1239,6 +1321,10 @@ func createWorkflowExecutionWithMergeMaps(
 	if err != nil {
 		return err
 	}
+	err = updateSemaphoreInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SemaphoreInfos, nil, timeStamp)
+	if err != nil {
+		return err
+	}
 	return updateSignalsRequested(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalRequestedIDs, nil, timeStamp)
 }
 
@@ -1287,6 +1373,10 @@ func resetWorkflowExecutionAndMapsAndEventBuffer(
 		return err
 	}
 	err = resetSignalInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalInfos, timeStamp)
+	if err != nil {
+		return err
+	}
+	err = resetSemaphoreInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SemaphoreInfos, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1389,6 +1479,10 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 		return err
 	}
 	err = updateSignalInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalInfos, execution.SignalInfoKeysToDelete, timeStamp)
+	if err != nil {
+		return err
+	}
+	err = updateSemaphoreInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SemaphoreInfos, execution.SemaphoreInfoKeysToDelete, timeStamp)
 	if err != nil {
 		return err
 	}

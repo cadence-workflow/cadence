@@ -108,6 +108,10 @@ type (
 		updateSignalInfos    map[int64]*persistence.SignalInfo // Modified SignalInfo since last update
 		deleteSignalInfos    map[int64]struct{}                // Deleted SignalInfos since last update
 
+		pendingSemaphoreInfoIDs map[int64]*persistence.SemaphoreInfo // Initiated Event ID -> SemaphoreInfo
+		updateSemaphoreInfos    map[int64]*persistence.SemaphoreInfo // Modified SemaphoreInfo since last update
+		deleteSemaphoreInfos    map[int64]struct{}                   // Deleted SemaphoreInfos since last update
+
 		pendingSignalRequestedIDs map[string]struct{} // Set of signaled requestIds
 		updateSignalRequestedIDs  map[string]struct{} // Set of signaled requestIds since last update
 		deleteSignalRequestedIDs  map[string]struct{} // Deleted signaled requestIds
@@ -215,6 +219,10 @@ func newMutableStateBuilder(
 		pendingSignalInfoIDs: make(map[int64]*persistence.SignalInfo),
 		deleteSignalInfos:    make(map[int64]struct{}),
 
+		updateSemaphoreInfos:    make(map[int64]*persistence.SemaphoreInfo),
+		pendingSemaphoreInfoIDs: make(map[int64]*persistence.SemaphoreInfo),
+		deleteSemaphoreInfos:    make(map[int64]struct{}),
+
 		updateSignalRequestedIDs:  make(map[string]struct{}),
 		pendingSignalRequestedIDs: make(map[string]struct{}),
 		deleteSignalRequestedIDs:  make(map[string]struct{}),
@@ -316,6 +324,7 @@ func (e *mutableStateBuilder) CopyToPersistence() *persistence.WorkflowMutableSt
 	state.ChildExecutionInfos = e.pendingChildExecutionInfoIDs
 	state.RequestCancelInfos = e.pendingRequestCancelInfoIDs
 	state.SignalInfos = e.pendingSignalInfoIDs
+	state.SemaphoreInfos = e.pendingSemaphoreInfoIDs
 	state.SignalRequestedIDs = e.pendingSignalRequestedIDs
 	state.ExecutionInfo = e.executionInfo
 	state.BufferedEvents = e.bufferedEvents
@@ -343,6 +352,7 @@ func (e *mutableStateBuilder) Load(
 	e.pendingChildExecutionInfoIDs = state.ChildExecutionInfos
 	e.pendingRequestCancelInfoIDs = state.RequestCancelInfos
 	e.pendingSignalInfoIDs = state.SignalInfos
+	e.pendingSemaphoreInfoIDs = state.SemaphoreInfos
 	e.pendingSignalRequestedIDs = state.SignalRequestedIDs
 	e.executionInfo = state.ExecutionInfo
 	e.bufferedEvents = e.reorderAndFilterDuplicateEvents(state.BufferedEvents, "load")
@@ -1464,6 +1474,8 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		DeleteRequestCancelInfos:  slices.Collect(maps.Keys(e.deleteRequestCancelInfos)),
 		UpsertSignalInfos:         slices.Collect(maps.Values(e.updateSignalInfos)),
 		DeleteSignalInfos:         slices.Collect(maps.Keys(e.deleteSignalInfos)),
+		UpsertSemaphoreInfos:      slices.Collect(maps.Values(e.updateSemaphoreInfos)),
+		DeleteSemaphoreInfos:      slices.Collect(maps.Keys(e.deleteSemaphoreInfos)),
 		UpsertSignalRequestedIDs:  slices.Collect(maps.Keys(e.updateSignalRequestedIDs)),
 		DeleteSignalRequestedIDs:  slices.Collect(maps.Keys(e.deleteSignalRequestedIDs)),
 		NewBufferedEvents:         e.updateBufferedEvents,
@@ -1548,6 +1560,7 @@ func (e *mutableStateBuilder) CloseTransactionAsSnapshot(
 		ChildExecutionInfos: slices.Collect(maps.Values(e.pendingChildExecutionInfoIDs)),
 		RequestCancelInfos:  slices.Collect(maps.Values(e.pendingRequestCancelInfoIDs)),
 		SignalInfos:         slices.Collect(maps.Values(e.pendingSignalInfoIDs)),
+		SemaphoreInfos:      slices.Collect(maps.Values(e.pendingSemaphoreInfoIDs)),
 		SignalRequestedIDs:  slices.Collect(maps.Keys(e.pendingSignalRequestedIDs)),
 
 		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
@@ -1653,6 +1666,8 @@ func (e *mutableStateBuilder) cleanupTransaction() error {
 
 	e.updateSignalInfos = make(map[int64]*persistence.SignalInfo)
 	e.deleteSignalInfos = make(map[int64]struct{})
+	e.updateSemaphoreInfos = make(map[int64]*persistence.SemaphoreInfo)
+	e.deleteSemaphoreInfos = make(map[int64]struct{})
 
 	e.updateSignalRequestedIDs = make(map[string]struct{})
 	e.deleteSignalRequestedIDs = make(map[string]struct{})

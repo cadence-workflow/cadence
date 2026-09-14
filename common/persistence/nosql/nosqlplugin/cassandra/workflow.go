@@ -273,6 +273,14 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	}
 	state.SignalInfos = signalInfos
 
+	semaphoreInfos := make(map[int64]*persistence.SemaphoreInfo)
+	semMap := result["semaphore_map"].(map[int64]map[string]interface{})
+	for key, value := range semMap {
+		info := parseSemaphoreInfo(value)
+		semaphoreInfos[key] = info
+	}
+	state.SemaphoreInfos = semaphoreInfos
+
 	signalRequestedIDs := make(map[string]struct{})
 	sList := mustConvertToSlice(result["signal_requested"])
 	for _, v := range sList {

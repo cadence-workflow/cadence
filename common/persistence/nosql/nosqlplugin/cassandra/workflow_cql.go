@@ -223,6 +223,15 @@ const (
 		`control: ?` +
 		`}`
 
+	templateSemaphoreInfoType = `{` +
+		`version: ?, ` +
+		`initiated_id: ?, ` +
+		`semaphore_name: ?, ` +
+		`owner_id: ?, ` +
+		`token_id: ?, ` +
+		`acquire_deadline: ?` +
+		`}`
+
 	templateChecksumType = `{` +
 		`version: ?, ` +
 		`flavor: ?, ` +
@@ -314,7 +323,7 @@ const (
 
 	// TODO: remove replication_state after all 2DC workflows complete
 	templateGetWorkflowExecutionQuery = `SELECT execution, replication_state, activity_map, timer_map, ` +
-		`child_executions_map, request_cancel_map, signal_map, signal_requested, buffered_events_list, ` +
+		`child_executions_map, request_cancel_map, signal_map, semaphore_map, signal_requested, buffered_events_list, ` +
 		`buffered_replication_tasks_map, version_histories, version_histories_encoding, checksum, ` +
 		`next_event_id ` +
 		`FROM executions ` +
@@ -484,6 +493,28 @@ const (
 		`and visibility_ts = ? ` +
 		`and task_id = ? `
 
+	templateUpdateSemaphoreInfoQuery = `UPDATE executions ` +
+		`SET semaphore_map[ ? ] = ` + templateSemaphoreInfoType + ` ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateResetSemaphoreInfoQuery = `UPDATE executions ` +
+		`SET semaphore_map = ? ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
 	templateUpdateSignalRequestedQuery = `UPDATE executions ` +
 		`SET signal_requested = signal_requested + ? ` +
 		`, last_updated_time = ? ` +
@@ -569,6 +600,16 @@ const (
 		`and task_id = ? `
 
 	templateDeleteSignalInfoQuery = `DELETE signal_map[ ? ] ` +
+		`FROM executions ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateDeleteSemaphoreInfoQuery = `DELETE semaphore_map[ ? ] ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +

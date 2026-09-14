@@ -437,6 +437,31 @@ func parseRequestCancelInfo(
 	return info
 }
 
+func parseSemaphoreInfo(
+	result map[string]interface{},
+) *persistence.SemaphoreInfo {
+
+	info := &persistence.SemaphoreInfo{}
+	for k, v := range result {
+		switch k {
+		case "version":
+			info.Version = v.(int64)
+		case "initiated_id":
+			info.InitiatedID = v.(int64)
+		case "semaphore_name":
+			info.SemaphoreName = v.(string)
+		case "owner_id":
+			info.OwnerID = v.(string)
+		case "token_id":
+			info.TokenID = v.(int)
+		case "acquire_deadline":
+			info.AcquireDeadline = v.(time.Time)
+		}
+	}
+
+	return info
+}
+
 func parseSignalInfo(
 	result map[string]interface{},
 ) *persistence.SignalInfo {

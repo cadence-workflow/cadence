@@ -70,6 +70,10 @@ func (d *nosqlExecutionStore) prepareCreateWorkflowExecutionRequestWithMaps(newW
 	if err != nil {
 		return nil, err
 	}
+	executionRequest.SemaphoreInfos, err = d.prepareSemaphoreInfosForWorkflowTxn(newWorkflow.SemaphoreInfos)
+	if err != nil {
+		return nil, err
+	}
 	executionRequest.SignalRequestedIDs = newWorkflow.SignalRequestedIDs
 	executionRequest.MapsWriteMode = nosqlplugin.WorkflowExecutionMapsWriteModeCreate
 	executionRequest.CurrentTimeStamp = currentTimeStamp
@@ -146,6 +150,10 @@ func (d *nosqlExecutionStore) prepareResetWorkflowExecutionRequestWithMapsAndEve
 	if err != nil {
 		return nil, err
 	}
+	executionRequest.SemaphoreInfos, err = d.prepareSemaphoreInfosForWorkflowTxn(resetWorkflow.SemaphoreInfos)
+	if err != nil {
+		return nil, err
+	}
 	executionRequest.SignalRequestedIDs = resetWorkflow.SignalRequestedIDs
 	executionRequest.MapsWriteMode = nosqlplugin.WorkflowExecutionMapsWriteModeReset
 	// delete buffered events
@@ -192,6 +200,10 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 	if err != nil {
 		return nil, err
 	}
+	executionRequest.SemaphoreInfos, err = d.prepareSemaphoreInfosForWorkflowTxn(workflowMutation.UpsertSemaphoreInfos)
+	if err != nil {
+		return nil, err
+	}
 	executionRequest.SignalRequestedIDs = workflowMutation.UpsertSignalRequestedIDs
 
 	// delete from maps
@@ -200,6 +212,7 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 	executionRequest.ChildWorkflowInfoKeysToDelete = workflowMutation.DeleteChildExecutionInfos
 	executionRequest.RequestCancelInfoKeysToDelete = workflowMutation.DeleteRequestCancelInfos
 	executionRequest.SignalInfoKeysToDelete = workflowMutation.DeleteSignalInfos
+	executionRequest.SemaphoreInfoKeysToDelete = workflowMutation.DeleteSemaphoreInfos
 	executionRequest.SignalRequestedIDsKeysToDelete = workflowMutation.DeleteSignalRequestedIDs
 
 	// map write mode
@@ -417,6 +430,14 @@ func (d *nosqlExecutionStore) prepareRequestCancelsForWorkflowTxn(requestCancels
 func (d *nosqlExecutionStore) prepareSignalInfosForWorkflowTxn(signalInfos []*persistence.SignalInfo) (map[int64]*persistence.SignalInfo, error) {
 	m := map[int64]*persistence.SignalInfo{}
 	for _, c := range signalInfos {
+		m[c.InitiatedID] = c
+	}
+	return m, nil
+}
+
+func (d *nosqlExecutionStore) prepareSemaphoreInfosForWorkflowTxn(semaphoreInfos []*persistence.SemaphoreInfo) (map[int64]*persistence.SemaphoreInfo, error) {
+	m := map[int64]*persistence.SemaphoreInfo{}
+	for _, c := range semaphoreInfos {
 		m[c.InitiatedID] = c
 	}
 	return m, nil

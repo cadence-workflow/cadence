@@ -2374,7 +2374,7 @@ func TestResetWorkflowExecutionAndMapsAndEventBuffer(t *testing.T) {
 				VersionHistories: &persistence.DataBlob{},
 				Checksums:        &checksum.Checksum{},
 			},
-			// expecting 8 queries:
+			// expecting 9 queries:
 			// - 1 for execution record
 			// - 1 for deletion of buffered events
 			// - 1 for activity info map reset
@@ -2382,8 +2382,9 @@ func TestResetWorkflowExecutionAndMapsAndEventBuffer(t *testing.T) {
 			// - 1 for child execution info map reset
 			// - 1 for request cancel info map reset
 			// - 1 for signal info map reset
+			// - 1 for semaphore info map reset
 			// - 1 for signal requested IDs reset
-			wantQueries: 8,
+			wantQueries: 9,
 		},
 	}
 

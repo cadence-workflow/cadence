@@ -260,6 +260,16 @@ CREATE TYPE signal_info (
   control                   blob,
 );
 
+-- Semaphore hold in progress mutable state
+CREATE TYPE semaphore_info (
+  version                   bigint,
+  initiated_id              bigint,
+  semaphore_name            text,
+  owner_id                  text,
+  token_id                  int,
+  acquire_deadline          timestamp,
+);
+
 -- Activity or workflow task in a task list
 CREATE TYPE task (
   domain_id        uuid,
@@ -391,6 +401,7 @@ CREATE TABLE executions (
   child_executions_map           map<bigint, frozen<child_execution_info>>,
   request_cancel_map             map<bigint, frozen<request_cancel_info>>,
   signal_map                     map<bigint, frozen<signal_info>>,
+  semaphore_map                  map<bigint, frozen<semaphore_info>>,
   signal_requested               set<uuid>,
   buffered_events_list           list<frozen<serialized_event_batch>>,
   replication_state              frozen<replication_state>, -- Replication information part of mutable state
