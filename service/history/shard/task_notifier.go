@@ -124,20 +124,21 @@ func (n *taskNotifier) onConflictResolveWorkflowExecution(
 	)
 }
 
-// onReinjectHistoryTasks sends task notifications for a ReinjectHistoryTasks operation.
-// Unlike the other on* functions, reinjection can span multiple executions in a single
-// call, so there is no single WorkflowExecutionInfo to notify with; ExecutionInfo is left nil since
-// none of the transfer/timer notification consumers dereference it.
+// onCreateHistoryTasks sends task notifications for a CreateHistoryTasks operation, which is how
+// DLQ tasks are re-injected into the executions table.
+// Unlike the other on* functions, one such write can span multiple executions, so there is no
+// single WorkflowExecutionInfo to notify with; ExecutionInfo is left nil since none of the
+// transfer/timer notification consumers dereference it.
 // Must be called while holding the shard lock.
-func (n *taskNotifier) onReinjectHistoryTasks(
-	tasksByCategory persistence.HistoryTasksByCategory,
+func (n *taskNotifier) onCreateHistoryTasks(
+	request *persistence.CreateHistoryTasksRequest,
 	err error,
 ) {
 	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
-		n.notifyTasks(nil, tasksByCategory, persistenceError)
+		n.notifyTasks(nil, request.TasksByCategory, persistenceError)
 		return
 	}
-	n.logNotifyTaskDroppedOnPersistenceError(err, tasksByCategory)
+	n.logNotifyTaskDroppedOnPersistenceError(err, request.TasksByCategory)
 }
 
 // logNotifyTaskDroppedOnPersistenceError logs dropped task IDs per category, but only for a category

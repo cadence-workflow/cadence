@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	hcommon "github.com/uber/cadence/service/history/common"
 	"github.com/uber/cadence/service/history/config"
+	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/engine"
 )
 
@@ -393,4 +395,220 @@ func TestNotifyingExecutionManager_DeleteActiveClusterSelectionPolicy(t *testing
 	err := m.DeleteActiveClusterSelectionPolicy(context.Background(), &persistence.DeleteActiveClusterSelectionPolicyRequest{})
 
 	require.ErrorIs(t, err, assert.AnError)
+}
+
+// --- the same four writes, driven through shard.Context ---
+
+func TestShardNotification_CreateWorkflowExecution(t *testing.T) {
+	newRequest := func() *persistence.CreateWorkflowExecutionRequest {
+		return &persistence.CreateWorkflowExecutionRequest{
+			NewWorkflowSnapshot: persistence.WorkflowSnapshot{
+				ExecutionInfo:   &persistence.WorkflowExecutionInfo{DomainID: constants.TestDomainID, WorkflowID: constants.TestWorkflowID},
+				TasksByCategory: timerTasks(),
+			},
+			DomainName: constants.TestDomainName,
+		}
+	}
+
+	t.Run("no notification when task ID allocation fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		shard := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+		defer shard.Finish(t)
+
+		// No engine or execution manager expectations, so a notify or a write fails the test.
+		shard.SetEngine(engine.NewMockEngine(ctrl))
+		shard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestLocalDomainEntry, nil)
+
+		// Run out of task IDs, then fail the range renewal. The shard stays open on this error.
+		shard.contextImpl.taskSequenceNumber = shard.contextImpl.maxTaskSequenceNumber
+		shard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
+
+		_, err := shard.CreateWorkflowExecution(context.Background(), newRequest())
+
+		assert.ErrorIs(t, err, assert.AnError)
+		assert.NoError(t, shard.contextImpl.closedError(), "shard should stay open")
+	})
+
+	t.Run("notification sent on ambiguous write error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		shard := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+		defer shard.Finish(t)
+
+		var calls []string
+		mockEngine := engine.NewMockEngine(ctrl)
+		mockEngine.EXPECT().NotifyNewTimerTasks(gomock.Any()).
+			Do(func(*hcommon.NotifyTaskInfo) { calls = append(calls, "notify") }).Times(1)
+		shard.SetEngine(mockEngine)
+		shard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestLocalDomainEntry, nil)
+		shard.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).
+			Once().Return(nil, assert.AnError)
+		shard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).
+			Run(func(mock.Arguments) { calls = append(calls, "renewRange") }).Return(nil)
+
+		_, err := shard.CreateWorkflowExecution(context.Background(), newRequest())
+
+		assert.ErrorIs(t, err, assert.AnError)
+		// The order matters: the notification runs before the range renewal.
+		require.Equal(t, []string{"notify", "renewRange"}, calls)
+	})
+}
+
+func TestShardNotification_UpdateWorkflowExecution(t *testing.T) {
+	newRequest := func() *persistence.UpdateWorkflowExecutionRequest {
+		return &persistence.UpdateWorkflowExecutionRequest{
+			RangeID: testRangeID,
+			Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
+			UpdateWorkflowMutation: persistence.WorkflowMutation{
+				ExecutionInfo:   &persistence.WorkflowExecutionInfo{DomainID: constants.TestDomainID, WorkflowID: constants.TestWorkflowID},
+				TasksByCategory: timerTasks(),
+			},
+			DomainName: constants.TestDomainName,
+		}
+	}
+
+	t.Run("no notification when task ID allocation fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		shard := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+		defer shard.Finish(t)
+
+		// No engine or execution manager expectations, so a notify or a write fails the test.
+		shard.SetEngine(engine.NewMockEngine(ctrl))
+		shard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestLocalDomainEntry, nil)
+
+		// Run out of task IDs, then fail the range renewal. The shard stays open on this error.
+		shard.contextImpl.taskSequenceNumber = shard.contextImpl.maxTaskSequenceNumber
+		shard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
+
+		_, err := shard.UpdateWorkflowExecution(context.Background(), newRequest())
+
+		assert.ErrorIs(t, err, assert.AnError)
+		assert.NoError(t, shard.contextImpl.closedError(), "shard should stay open")
+	})
+
+	t.Run("notification sent on ambiguous write error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		shard := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+		defer shard.Finish(t)
+
+		var calls []string
+		mockEngine := engine.NewMockEngine(ctrl)
+		mockEngine.EXPECT().NotifyNewTimerTasks(gomock.Any()).
+			Do(func(*hcommon.NotifyTaskInfo) { calls = append(calls, "notify") }).Times(1)
+		shard.SetEngine(mockEngine)
+		shard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestLocalDomainEntry, nil)
+		shard.Resource.ExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.Anything).
+			Once().Return(nil, assert.AnError)
+		shard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).
+			Run(func(mock.Arguments) { calls = append(calls, "renewRange") }).Return(nil)
+
+		_, err := shard.UpdateWorkflowExecution(context.Background(), newRequest())
+
+		assert.ErrorIs(t, err, assert.AnError)
+		// The order matters: the notification runs before the range renewal.
+		require.Equal(t, []string{"notify", "renewRange"}, calls)
+	})
+}
+
+func TestShardNotification_ConflictResolveWorkflowExecution(t *testing.T) {
+	newRequest := func() *persistence.ConflictResolveWorkflowExecutionRequest {
+		return &persistence.ConflictResolveWorkflowExecutionRequest{
+			RangeID: testRangeID,
+			Mode:    persistence.ConflictResolveWorkflowModeUpdateCurrent,
+			ResetWorkflowSnapshot: persistence.WorkflowSnapshot{
+				ExecutionInfo:   &persistence.WorkflowExecutionInfo{DomainID: constants.TestDomainID, WorkflowID: constants.TestWorkflowID},
+				TasksByCategory: timerTasks(),
+			},
+			DomainName: constants.TestDomainName,
+		}
+	}
+
+	t.Run("no notification when task ID allocation fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		shard := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+		defer shard.Finish(t)
+
+		// No engine or execution manager expectations, so a notify or a write fails the test.
+		shard.SetEngine(engine.NewMockEngine(ctrl))
+		shard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestLocalDomainEntry, nil)
+
+		// Run out of task IDs, then fail the range renewal. The shard stays open on this error.
+		shard.contextImpl.taskSequenceNumber = shard.contextImpl.maxTaskSequenceNumber
+		shard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
+
+		_, err := shard.ConflictResolveWorkflowExecution(context.Background(), newRequest())
+
+		assert.ErrorIs(t, err, assert.AnError)
+		assert.NoError(t, shard.contextImpl.closedError(), "shard should stay open")
+	})
+
+	t.Run("notification sent on ambiguous write error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		shard := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+		defer shard.Finish(t)
+
+		var calls []string
+		mockEngine := engine.NewMockEngine(ctrl)
+		mockEngine.EXPECT().NotifyNewTimerTasks(gomock.Any()).
+			Do(func(*hcommon.NotifyTaskInfo) { calls = append(calls, "notify") }).Times(1)
+		shard.SetEngine(mockEngine)
+		shard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestLocalDomainEntry, nil)
+		shard.Resource.ExecutionMgr.On("ConflictResolveWorkflowExecution", mock.Anything, mock.Anything).
+			Once().Return(nil, assert.AnError)
+		shard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).
+			Run(func(mock.Arguments) { calls = append(calls, "renewRange") }).Return(nil)
+
+		_, err := shard.ConflictResolveWorkflowExecution(context.Background(), newRequest())
+
+		assert.ErrorIs(t, err, assert.AnError)
+		// The order matters: the notification runs before the range renewal.
+		require.Equal(t, []string{"notify", "renewRange"}, calls)
+	})
+}
+
+func TestShardNotification_ReinjectHistoryTasks(t *testing.T) {
+	newTasks := func() []persistence.Task {
+		return []persistence.Task{
+			&persistence.DecisionTimeoutTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: constants.TestDomainID, WorkflowID: constants.TestWorkflowID},
+			},
+		}
+	}
+
+	t.Run("no notification when task ID allocation fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		shard := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+		defer shard.Finish(t)
+
+		// No engine or execution manager expectations, so a notify or a write fails the test.
+		shard.SetEngine(engine.NewMockEngine(ctrl))
+		shard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestLocalDomainEntry, nil)
+
+		// Run out of task IDs, then fail the range renewal. The shard stays open on this error.
+		shard.contextImpl.taskSequenceNumber = shard.contextImpl.maxTaskSequenceNumber
+		shard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
+
+		err := shard.ReinjectHistoryTasks(context.Background(), newTasks())
+
+		assert.ErrorIs(t, err, assert.AnError)
+		assert.NoError(t, shard.contextImpl.closedError(), "shard should stay open")
+	})
+
+	t.Run("notification sent on ambiguous write error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		shard := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+		defer shard.Finish(t)
+
+		mockEngine := engine.NewMockEngine(ctrl)
+		mockEngine.EXPECT().NotifyNewTimerTasks(gomock.Any()).Times(1)
+		shard.SetEngine(mockEngine)
+		shard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestLocalDomainEntry, nil)
+		// No UpdateShard expectation: reinjectHistoryTasksLocked logs the write error and returns,
+		// it does not renew the range.
+		shard.Resource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.Anything).
+			Once().Return(assert.AnError)
+
+		err := shard.ReinjectHistoryTasks(context.Background(), newTasks())
+
+		assert.ErrorIs(t, err, assert.AnError)
+	})
 }

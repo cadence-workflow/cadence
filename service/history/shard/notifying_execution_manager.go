@@ -68,7 +68,7 @@ func (m *notifyingExecutionManager) ConflictResolveWorkflowExecution(ctx context
 
 func (m *notifyingExecutionManager) CreateHistoryTasks(ctx context.Context, request *persistence.CreateHistoryTasksRequest) error {
 	err := m.wrapped.CreateHistoryTasks(ctx, request)
-	m.notifier.onReinjectHistoryTasks(request.TasksByCategory, err)
+	m.notifier.onCreateHistoryTasks(request, err)
 	return err
 }
 

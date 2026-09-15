@@ -123,7 +123,6 @@ func (s *contextTestSuite) newContext() *contextImpl {
 		shardID:                      shardInfo.ShardID,
 		rangeID:                      shardInfo.RangeID,
 		shardInfo:                    shardInfo,
-		executionManager:             s.mockResource.ExecutionMgr,
 		activeClusterManager:         s.mockResource.ActiveClusterMgr,
 		closeCallback:                func(i int, item *historyShardsItem) {},
 		config:                       config,
@@ -138,13 +137,10 @@ func (s *contextTestSuite) newContext() *contextImpl {
 		eventsCache:                  eventsCache,
 	}
 
-	context.notifier = newTaskNotifier(
-		context.shardID,
-		context.config,
-		context.logger,
-		context.GetEngine,
-		context.fetchClusterCurrentTimesLocked,
-	)
+	context.executionManager = newNotifyingExecutionManager(s.mockResource.ExecutionMgr, newTaskNotifier(
+		context.shardID, context.config, context.logger,
+		context.GetEngine, context.fetchClusterCurrentTimesLocked,
+	))
 
 	s.Require().True(testMaxTransferSequenceNumber < (1<<context.config.RangeSizeBits), "bad config value")
 
@@ -1559,7 +1555,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 	for _, tc := range testCases {
 		mockExecutionMgr := &mocks.ExecutionManager{}
 		shardContext := &contextImpl{
-			executionManager: mockExecutionMgr,
+			executionManager: newNotifyingExecutionManager(mockExecutionMgr, nil),
 			shardInfo: &persistence.ShardInfo{
 				RangeID: 12,
 			},
