@@ -35,6 +35,10 @@ type Options struct {
 	ConnectTimeout time.Duration
 	// Time is the time source. Defaults to real time.
 	Time clock.TimeSource
+	// DefaultDomain is the name of a domain that should be created automatically if it doesn't exist. This is intended
+	// only to be used as part of auto-setup.
+	// Defaults to "", meaning no domain will be created.
+	DefaultDomain string
 }
 
 func OptionsFromConfig(cfg config.Config) Options {

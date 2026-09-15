@@ -250,7 +250,7 @@ func (s *cliAppSuite) TestDomainRegister() {
 		{
 			"when domain_data_entry value has no equals sign, it should return a format error",
 			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'noequals'",
-			"Invalid domain data",
+			"must be in key=value format",
 			nil,
 		},
 		{
@@ -319,7 +319,7 @@ func (s *cliAppSuite) TestDomainRegister() {
 		{
 			"when domain_data_entry is repeated with a duplicate key, it should return an error",
 			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'k1=v1' --domain_data_entry 'k1=v2'",
-			"Invalid domain data",
+			`key "k1" specified more than once`,
 			nil,
 		},
 	}
@@ -576,12 +576,8 @@ func (s *cliAppSuite) TestDomainUpdate() {
 		{
 			"when domain_data_entry is repeated on update with a duplicate key, it should return an error",
 			"cadence --do test-domain domain update --domain_data_entry 'k1=v1' --domain_data_entry 'k1=v2'",
-			"Invalid domain data",
-			func() {
-				s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), &types.DescribeDomainRequest{
-					Name: common.StringPtr("test-domain"),
-				}).Return(describeResponse, nil)
-			},
+			`key "k1" specified more than once`,
+			nil,
 		},
 	}
 

@@ -39,8 +39,9 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/persistence/schema"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/tools/common/flag"
 
-	_ "go.uber.org/automaxprocs" // defines automaxpocs for dockerized usage.
+	_ "go.uber.org/automaxprocs" // defines automaxprocs for dockerized usage.
 )
 
 // validServices is the list of all valid cadence services
@@ -55,6 +56,24 @@ func isValidService(in string) bool {
 	}
 	return false
 }
+
+const (
+	flagRoot        = "root"
+	flagConfig      = "config"
+	flagEnv         = "env"
+	flagZone        = "zone"
+	flagServices    = "services"
+	flagAutoSetup   = "auto-setup"
+	flagSetupOption = "setup-option"
+
+	envAutoSetup   = "CADENCE_AUTO_SETUP"
+	envSetupOption = "CADENCE_SETUP_OPTION"
+
+	// --setup-option is used in both setup-schema and the auto-setup case
+	setupOptionUsage = "A DB setup option in key=value format. Can be repeated to set multiple options, " +
+		"e.g. --setup-option replication_factor=1 --setup-option cluster=dca"
+	autoSetupDomain = "default"
+)
 
 // BuildCLI is the main entry point for the cadence server
 func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
@@ -72,28 +91,28 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 	app.Version = version
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
-			Name:    "root",
+			Name:    flagRoot,
 			Aliases: []string{"r"},
 			Value:   ".",
 			Usage:   "root directory of execution environment",
 			EnvVars: []string{config.EnvKeyRoot},
 		},
 		&cli.StringFlag{
-			Name:    "config",
+			Name:    flagConfig,
 			Aliases: []string{"c"},
 			Value:   "config",
 			Usage:   "config dir is a path relative to root, or an absolute path",
 			EnvVars: []string{config.EnvKeyConfigDir},
 		},
 		&cli.StringFlag{
-			Name:    "env",
+			Name:    flagEnv,
 			Aliases: []string{"e"},
 			Value:   "development",
 			Usage:   "runtime environment",
 			EnvVars: []string{config.EnvKeyEnvironment},
 		},
 		&cli.StringFlag{
-			Name:    "zone",
+			Name:    flagZone,
 			Aliases: []string{"az"},
 			Value:   "",
 			Usage:   "availability zone",
@@ -108,16 +127,34 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 			Usage:   "start cadence server",
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:    "services",
+					Name:    flagServices,
 					Aliases: []string{"s"},
 					Value:   strings.Join(defaultServices, ","),
 					Usage:   "list of services to start",
+				},
+				&cli.BoolFlag{
+					Name:    flagAutoSetup,
+					Value:   false,
+					Usage:   "Automatically setup the schema if it is not already set up. This is only intended for development and testing environments made up of one instance.",
+					EnvVars: []string{envAutoSetup},
+				},
+				&flag.RepeatedStringMapFlag{
+					Name:         flagSetupOption,
+					Usage:        setupOptionUsage,
+					EnvVarPrefix: envSetupOption,
 				},
 			},
 			Action: func(c *cli.Context) error {
 				host, err := os.Hostname()
 				if err != nil {
 					return fmt.Errorf("get hostname: %w", err)
+				}
+
+				if isAutoSetup(c) {
+					err = setupSchema(c)
+					if err != nil {
+						return fmt.Errorf("failed auto-setup: %w", err)
+					}
 				}
 
 				appCtx := appContext{
@@ -153,33 +190,53 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 		{
 			Name:  "update-schema",
 			Usage: "update the persistence schema to the latest version",
-			Action: func(c *cli.Context) error {
-				configDir := getConfigDir(c)
-				env := getEnvironment(c)
-				zone := getZone(c)
-
-				var cfg config.Config
-				if err := config.Load(env, configDir, zone, &cfg); err != nil {
-					return fmt.Errorf("load config: %w", err)
-				}
-				if err := cfg.ValidateAndFillDefaults(); err != nil {
-					return fmt.Errorf("validate config: %w", err)
-				}
-
-				err := schema.Update(c.Context, schema.Options{
-					ClusterName:    cfg.ClusterGroupMetadata.CurrentClusterName,
-					Config:         &cfg.Persistence,
-					ConnectTimeout: 30 * time.Second,
-				})
-				if err != nil {
-					return fmt.Errorf("update schema: %w", err)
-				}
-				return nil
+			Flags: []cli.Flag{
+				&flag.RepeatedStringMapFlag{
+					Name:         flagSetupOption,
+					Usage:        setupOptionUsage,
+					EnvVarPrefix: envSetupOption,
+				},
 			},
+			Action: setupSchema,
 		},
 	}
 
 	return app
+}
+
+func setupSchema(c *cli.Context) error {
+	configDir := getConfigDir(c)
+	env := getEnvironment(c)
+	zone := getZone(c)
+
+	var cfg config.Config
+	if err := config.Load(env, configDir, zone, &cfg); err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	if err := cfg.ValidateAndFillDefaults(); err != nil {
+		return fmt.Errorf("validate config: %w", err)
+	}
+
+	setupOptions := getSetupOptions(c)
+	// We intentionally don't want to support an explicit option for this as it's hacky and fragile. Users should
+	// register domains explicitly, but there's value in having some sort of default so they're not met with an empty
+	// screen.
+	defaultDomain := ""
+	if isAutoSetup(c) {
+		defaultDomain = autoSetupDomain
+	}
+
+	err := schema.Update(c.Context, schema.Options{
+		ClusterName:    cfg.ClusterGroupMetadata.CurrentClusterName,
+		Config:         &cfg.Persistence,
+		ConnectTimeout: 30 * time.Second,
+		SetupOptions:   setupOptions,
+		DefaultDomain:  defaultDomain,
+	})
+	if err != nil {
+		return fmt.Errorf("update schema: %w", err)
+	}
+	return nil
 }
 
 func runServices(services []string, appBuilder func(serviceName string) fxAppInterface) error {
@@ -245,17 +302,17 @@ type appContext struct {
 }
 
 func getEnvironment(c *cli.Context) string {
-	return strings.TrimSpace(c.String("env"))
+	return strings.TrimSpace(c.String(flagEnv))
 }
 
 func getZone(c *cli.Context) string {
-	return strings.TrimSpace(c.String("zone"))
+	return strings.TrimSpace(c.String(flagZone))
 }
 
 // getServices parses the services arg from cli
 // and returns a list of services to start
 func getServices(c *cli.Context) []string {
-	val := strings.TrimSpace(c.String("services"))
+	val := strings.TrimSpace(c.String(flagServices))
 	tokens := strings.Split(val, ",")
 
 	if len(tokens) == 0 {
@@ -272,11 +329,11 @@ func getServices(c *cli.Context) []string {
 }
 
 func getConfigDir(c *cli.Context) string {
-	return constructPathIfNeed(getRootDir(c), c.String("config"))
+	return constructPathIfNeed(getRootDir(c), c.String(flagConfig))
 }
 
 func getRootDir(c *cli.Context) string {
-	dirpath := c.String("root")
+	dirpath := c.String(flagRoot)
 	if len(dirpath) == 0 {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -285,6 +342,14 @@ func getRootDir(c *cli.Context) string {
 		return cwd
 	}
 	return dirpath
+}
+
+func isAutoSetup(c *cli.Context) bool {
+	return c.Bool(flagAutoSetup)
+}
+
+func getSetupOptions(c *cli.Context) map[string]string {
+	return c.Generic(flagSetupOption).(*flag.RepeatedStringMap).Value()
 }
 
 // constructPathIfNeed would append the dir as the root dir

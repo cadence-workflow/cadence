@@ -11,26 +11,6 @@ services:
       interval: 15s
       timeout: 30s
       retries: 10
-  # Setup schemas for primary and secondary clusters
-  cadence-schema-setup:
-    image: ubercadence/server:master-auto-setup
-    environment:
-      - "CASSANDRA_SEEDS=cassandra"
-      - "CASSANDRA_USER=cassandra"
-      - "CASSANDRA_PASSWORD=cassandra"
-      - "CASSANDRA_PROTO_VERSION=4"
-      - "RF=1"
-      - "PRIMARY_KEYSPACE=cadence_primary"
-      - "PRIMARY_VISIBILITY_KEYSPACE=cadence_visibility_primary"
-      - "SECONDARY_KEYSPACE=cadence_secondary"
-      - "SECONDARY_VISIBILITY_KEYSPACE=cadence_visibility_secondary"
-    volumes:
-      - ./setup-multiclusters-schema.sh:/setup-multiclusters-schema.sh
-    command: ["/setup-multiclusters-schema.sh"]
-    restart: "no"
-    depends_on:
-      cassandra:
-        condition: service_healthy
   prometheus:
     image: prom/prometheus:latest
     volumes:
@@ -70,8 +50,6 @@ services:
     depends_on:
       cassandra:
         condition: service_healthy
-      cadence-schema-setup:
-        condition: service_completed_successfully
       prometheus:
         condition: service_started
   cadence-secondary:
@@ -106,8 +84,6 @@ services:
     depends_on:
       cassandra:
         condition: service_healthy
-      cadence-schema-setup:
-        condition: service_completed_successfully
       prometheus:
         condition: service_started
   cadence-web:
