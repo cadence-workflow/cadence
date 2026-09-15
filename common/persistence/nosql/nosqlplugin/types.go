@@ -53,6 +53,7 @@ type (
 		ChildWorkflowInfos map[int64]*persistence.InternalChildExecutionInfo
 		RequestCancelInfos map[int64]*persistence.RequestCancelInfo
 		SignalInfos        map[int64]*persistence.SignalInfo
+		SemaphoreInfos     map[int64]*persistence.SemaphoreInfo
 		SignalRequestedIDs []string // This map has no value, hence use array to store keys
 
 		// For WorkflowExecutionMapsWriteMode of update only
@@ -61,6 +62,7 @@ type (
 		ChildWorkflowInfoKeysToDelete  []int64
 		RequestCancelInfoKeysToDelete  []int64
 		SignalInfoKeysToDelete         []int64
+		SemaphoreInfoKeysToDelete      []int64
 		SignalRequestedIDsKeysToDelete []string
 
 		// EventBufferWriteMode controls how to write into the buffered event list

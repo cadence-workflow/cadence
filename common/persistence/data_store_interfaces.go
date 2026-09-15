@@ -492,6 +492,7 @@ type (
 		ChildExecutionInfos map[int64]*InternalChildExecutionInfo
 		RequestCancelInfos  map[int64]*RequestCancelInfo
 		SignalInfos         map[int64]*SignalInfo
+		SemaphoreInfos      map[int64]*SemaphoreInfo
 		SignalRequestedIDs  map[string]struct{}
 		BufferedEvents      []*DataBlob
 
@@ -616,6 +617,8 @@ type (
 		DeleteRequestCancelInfos  []int64
 		UpsertSignalInfos         []*SignalInfo
 		DeleteSignalInfos         []int64
+		UpsertSemaphoreInfos      []*SemaphoreInfo
+		DeleteSemaphoreInfos      []int64
 		UpsertSignalRequestedIDs  []string
 		DeleteSignalRequestedIDs  []string
 		NewBufferedEvents         *DataBlob
@@ -644,6 +647,7 @@ type (
 		ChildExecutionInfos []*InternalChildExecutionInfo
 		RequestCancelInfos  []*RequestCancelInfo
 		SignalInfos         []*SignalInfo
+		SemaphoreInfos      []*SemaphoreInfo
 		SignalRequestedIDs  []string
 
 		TasksByCategory map[HistoryTaskCategory][]Task

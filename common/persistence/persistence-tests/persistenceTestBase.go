@@ -638,6 +638,8 @@ func (s *TestBase) UpdateWorkflowExecution(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -713,6 +715,8 @@ func (s *TestBase) UpsertChildExecutionsState(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -743,6 +747,8 @@ func (s *TestBase) UpsertRequestCancelState(
 		nil,
 		nil,
 		upsertCancelInfos,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -783,6 +789,8 @@ func (s *TestBase) UpsertSignalInfoState(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -804,6 +812,8 @@ func (s *TestBase) UpsertSignalsRequestedState(
 		nil,
 		s.ShardInfo.RangeID,
 		condition,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -851,6 +861,8 @@ func (s *TestBase) DeleteChildExecutionsState(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -881,6 +893,8 @@ func (s *TestBase) DeleteCancelState(
 		nil,
 		nil,
 		[]int64{deleteCancelInfo},
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -919,6 +933,82 @@ func (s *TestBase) DeleteSignalState(
 		[]int64{deleteSignalInfo},
 		nil,
 		nil,
+		nil,
+		nil,
+	)
+}
+
+// UpsertSemaphoreInfoState is a utility method to update mutable state of workflow execution
+func (s *TestBase) UpsertSemaphoreInfoState(
+	ctx context.Context,
+	updatedInfo *persistence.WorkflowExecutionInfo,
+	updatedStats *persistence.ExecutionStats,
+	updatedVersionHistories *persistence.VersionHistories,
+	condition int64,
+	upsertSemaphoreInfos []*persistence.SemaphoreInfo,
+) error {
+
+	return s.UpdateWorkflowExecutionWithRangeID(
+		ctx,
+		updatedInfo,
+		updatedStats,
+		updatedVersionHistories,
+		nil,
+		nil,
+		s.ShardInfo.RangeID,
+		condition,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		upsertSemaphoreInfos,
+		nil,
+		nil,
+		nil,
+	)
+}
+
+// DeleteSemaphoreState is a utility method to delete mutable state of workflow execution
+func (s *TestBase) DeleteSemaphoreState(
+	ctx context.Context,
+	updatedInfo *persistence.WorkflowExecutionInfo,
+	updatedStats *persistence.ExecutionStats,
+	updatedVersionHistories *persistence.VersionHistories,
+	condition int64,
+	deleteSemaphoreInfo int64,
+) error {
+
+	return s.UpdateWorkflowExecutionWithRangeID(
+		ctx,
+		updatedInfo,
+		updatedStats,
+		updatedVersionHistories,
+		nil,
+		nil,
+		s.ShardInfo.RangeID,
+		condition,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		[]int64{deleteSemaphoreInfo},
+		nil,
+		nil,
 	)
 }
 
@@ -940,6 +1030,8 @@ func (s *TestBase) DeleteSignalsRequestedState(
 		nil,
 		s.ShardInfo.RangeID,
 		condition,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -989,6 +1081,8 @@ func (s *TestBase) UpdateWorklowStateAndReplication(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -1013,6 +1107,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithRangeID(
 	deleteCancelInfos []int64,
 	upsertSignalInfos []*persistence.SignalInfo,
 	deleteSignalInfos []int64,
+	upsertSemaphoreInfos []*persistence.SemaphoreInfo,
+	deleteSemaphoreInfos []int64,
 	upsertSignalRequestedIDs []string,
 	deleteSignalRequestedIDs []string,
 ) error {
@@ -1037,6 +1133,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithRangeID(
 		deleteCancelInfos,
 		upsertSignalInfos,
 		deleteSignalInfos,
+		upsertSemaphoreInfos,
+		deleteSemaphoreInfos,
 		upsertSignalRequestedIDs,
 		deleteSignalRequestedIDs,
 	)
@@ -1064,6 +1162,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 	deleteCancelInfos []int64,
 	upsertSignalInfos []*persistence.SignalInfo,
 	deleteSignalInfos []int64,
+	upsertSemaphoreInfos []*persistence.SemaphoreInfo,
+	deleteSemaphoreInfos []int64,
 	upsertSignalRequestedIDs []string,
 	deleteSignalRequestedIDs []string,
 ) error {
@@ -1138,6 +1238,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 			DeleteRequestCancelInfos:  deleteCancelInfos,
 			UpsertSignalInfos:         upsertSignalInfos,
 			DeleteSignalInfos:         deleteSignalInfos,
+			UpsertSemaphoreInfos:      upsertSemaphoreInfos,
+			DeleteSemaphoreInfos:      deleteSemaphoreInfos,
 			UpsertSignalRequestedIDs:  upsertSignalRequestedIDs,
 			DeleteSignalRequestedIDs:  deleteSignalRequestedIDs,
 

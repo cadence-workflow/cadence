@@ -90,6 +90,7 @@ func (m *executionManagerImpl) GetWorkflowExecution(
 			TimerInfos:         response.State.TimerInfos,
 			RequestCancelInfos: response.State.RequestCancelInfos,
 			SignalInfos:        response.State.SignalInfos,
+			SemaphoreInfos:     response.State.SemaphoreInfos,
 			SignalRequestedIDs: response.State.SignalRequestedIDs,
 			ReplicationState:   response.State.ReplicationState, // TODO: remove this after all 2DC workflows complete
 			Checksum:           response.State.Checksum,
@@ -752,6 +753,8 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		DeleteRequestCancelInfos:  input.DeleteRequestCancelInfos,
 		UpsertSignalInfos:         input.UpsertSignalInfos,
 		DeleteSignalInfos:         input.DeleteSignalInfos,
+		UpsertSemaphoreInfos:      input.UpsertSemaphoreInfos,
+		DeleteSemaphoreInfos:      input.DeleteSemaphoreInfos,
 		UpsertSignalRequestedIDs:  input.UpsertSignalRequestedIDs,
 		DeleteSignalRequestedIDs:  input.DeleteSignalRequestedIDs,
 		NewBufferedEvents:         serializedNewBufferedEvents,
@@ -819,6 +822,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 		ChildExecutionInfos: serializedChildExecutionInfos,
 		RequestCancelInfos:  input.RequestCancelInfos,
 		SignalInfos:         input.SignalInfos,
+		SemaphoreInfos:      input.SemaphoreInfos,
 		SignalRequestedIDs:  input.SignalRequestedIDs,
 
 		TasksByCategory: input.TasksByCategory,

@@ -563,6 +563,9 @@ func TestSelectWorkflowExecution(t *testing.T) {
 					m["signal_map"] = map[int64]map[string]interface{}{
 						8: {"initiated_id": int64(7)},
 					}
+					m["semaphore_map"] = map[int64]map[string]interface{}{
+						10: {"initiated_id": int64(9), "semaphore_name": "sem1", "owner_id": "6:wid:rid:9", "token_id": 3},
+					}
 					m["signal_requested"] = []interface{}{
 						&fakeUUID{uuid: "aae7b881-48ea-4b23-8d11-aabfd1c1291e"},
 					}
@@ -589,6 +592,9 @@ func TestSelectWorkflowExecution(t *testing.T) {
 				},
 				SignalInfos: map[int64]*persistence.SignalInfo{
 					8: {InitiatedID: 7},
+				},
+				SemaphoreInfos: map[int64]*persistence.SemaphoreInfo{
+					10: {InitiatedID: 9, SemaphoreName: "sem1", OwnerID: "6:wid:rid:9", TokenID: 3},
 				},
 				SignalRequestedIDs: map[string]struct{}{
 					"aae7b881-48ea-4b23-8d11-aabfd1c1291e": {},
@@ -625,6 +631,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 					m["child_executions_map"] = map[int64]map[string]interface{}{}
 					m["request_cancel_map"] = map[int64]map[string]interface{}{}
 					m["signal_map"] = map[int64]map[string]interface{}{}
+					m["semaphore_map"] = map[int64]map[string]interface{}{}
 					m["signal_requested"] = []interface{}{}
 					m["buffered_events_list"] = []map[string]interface{}{}
 					m["checksum"] = map[string]interface{}{}
@@ -642,6 +649,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 				ChildExecutionInfos: map[int64]*persistence.InternalChildExecutionInfo{},
 				RequestCancelInfos:  map[int64]*persistence.RequestCancelInfo{},
 				SignalInfos:         map[int64]*persistence.SignalInfo{},
+				SemaphoreInfos:      map[int64]*persistence.SemaphoreInfo{},
 				SignalRequestedIDs:  map[string]struct{}{},
 				BufferedEvents:      []*persistence.DataBlob{},
 			},
