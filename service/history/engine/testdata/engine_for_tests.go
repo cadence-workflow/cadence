@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/service/history/queue"
 	"github.com/uber/cadence/service/history/replication"
 	"github.com/uber/cadence/service/history/shard"
+	"github.com/uber/cadence/service/history/taskdlq"
 )
 
 type EngineForTest struct {
@@ -58,6 +59,7 @@ type NewEngineFn func(
 	rawMatchingClient matching.Client,
 	failoverCoordinator failover.Coordinator,
 	queueFactories []queue.Factory,
+	dlqHostLimiter *taskdlq.HostLimiter,
 ) engine.Engine
 
 func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
@@ -147,6 +149,7 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 		shardCtx.Resource.MatchingClient,
 		failoverCoordinator,
 		queueFactories,
+		nil,
 	)
 
 	shardCtx.SetEngine(engine)
