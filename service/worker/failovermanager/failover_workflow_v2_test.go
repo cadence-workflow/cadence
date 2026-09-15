@@ -570,3 +570,29 @@ func TestFailoverWorkflowV2_WhenPausedItBlocksUntilResumedThenCompletes(t *testi
 	require.NoError(t, env.GetWorkflowResult(&result))
 	assert.ElementsMatch(t, []string{"d1", "d2"}, successDomainNames(result.SuccessDomains))
 }
+
+func TestFailoverWorkflowV2_WhenSkipDestinationClusterCheckIsSetItForwardsItToTheFailoverActivity(t *testing.T) {
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflowWithOptions(FailoverWorkflowV2, workflow.RegisterOptions{Name: FailoverWorkflowV2TypeName})
+	env.RegisterActivityWithOptions(FailoverActivityV2, activity.RegisterOptions{Name: failoverActivityV2Name})
+	env.RegisterActivityWithOptions(GetDomainsForFailoverV2Activity, activity.RegisterOptions{Name: getDomainsForFailoverV2ActivityName})
+
+	env.OnActivity(getDomainsForFailoverV2ActivityName, mock.Anything, mock.Anything).
+		Return(&GetDomainsForFailoverV2Result{
+			Preferences: []DomainFailoverPreferences{{DomainName: "d1", TargetCluster: "cluster1"}},
+		}, nil)
+	var gotParams FailoverActivityV2Params
+	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			gotParams = *args.Get(1).(*FailoverActivityV2Params)
+		}).
+		Return(&FailoverActivityV2Result{SuccessDomains: []DomainFailoverSuccess{{DomainName: "d1"}}}, nil)
+
+	env.ExecuteWorkflow(FailoverWorkflowV2TypeName, &FailoverV2Params{
+		SourceClusters: []string{"cluster0"}, TargetCluster: "cluster1", SkipDestinationClusterCheck: true,
+	})
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.True(t, gotParams.SkipDestinationClusterCheck)
+}

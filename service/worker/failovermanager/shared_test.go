@@ -368,3 +368,47 @@ func TestFailoverActivityV2_WhenDomainHasNoTimeoutItUsesForceFailover(t *testing
 	assert.Len(t, result.SuccessDomains, 1)
 	assert.Nil(t, capturedReq.FailoverTimeoutInSeconds)
 }
+
+func TestFailoverActivityV2_WhenSkipDestinationClusterCheckIsSetItIsForwardedOnEveryRequest(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	var got []*types.FailoverDomainRequest
+	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *types.FailoverDomainRequest, _ ...yarpc.CallOption) (*types.FailoverDomainResponse, error) {
+			got = append(got, req)
+			return nil, nil
+		}).Times(2)
+
+	_, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{
+		DomainPreferences: []DomainFailoverPreferences{
+			{DomainName: "d1", TargetCluster: "cluster1"},
+			{DomainName: "d2", ClusterAttributeUpdates: []ClusterAttributePreference{
+				{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
+			}},
+		},
+		SkipDestinationClusterCheck: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	for _, req := range got {
+		assert.True(t, req.SkipDestinationClusterCheck, "domain %s", req.DomainName)
+	}
+}
+
+func TestFailoverActivityV2_WhenSkipDestinationClusterCheckIsUnsetRequestsDoNotSkipIt(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	var got *types.FailoverDomainRequest
+	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *types.FailoverDomainRequest, _ ...yarpc.CallOption) (*types.FailoverDomainResponse, error) {
+			got = req
+			return nil, nil
+		}).Times(1)
+
+	_, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{
+		DomainPreferences: []DomainFailoverPreferences{{DomainName: "d1", TargetCluster: "cluster1"}},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.False(t, got.SkipDestinationClusterCheck)
+}
