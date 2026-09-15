@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/matching/semaphore"
 	"github.com/uber/cadence/service/matching/tasklist"
 )
 
@@ -65,6 +66,12 @@ func (e *matchingEngineImpl) runMembershipChangeLoop() {
 			err := e.shutDownNonOwnedTasklists()
 			if err != nil {
 				e.logger.Error("Error while trying to determine if tasklists have been shutdown",
+					tag.Error(err),
+					tag.MembershipChangeEvent(event),
+				)
+			}
+			if err := e.shutDownNonOwnedSemaphoreManagers(); err != nil {
+				e.logger.Error("Error while trying to unload semaphore buckets this host no longer owns",
 					tag.Error(err),
 					tag.MembershipChangeEvent(event),
 				)
@@ -137,5 +144,58 @@ func (e *matchingEngineImpl) getNonOwnedTasklistsLocked() ([]tasklist.Manager, e
 	e.logger.Info("Got list of non-owned-tasklists",
 		tag.Dynamic("tasklist-debug-info", toShutDown),
 	)
+	return toShutDown, nil
+}
+
+// shutDownNonOwnedSemaphoreManagers unloads the buckets the ring has moved to another host.
+func (e *matchingEngineImpl) shutDownNonOwnedSemaphoreManagers() error {
+	noLongerOwned, err := e.getNonOwnedSemaphoreManagers()
+	if err != nil {
+		return err
+	}
+
+	semaphoreShutdownWG := sync.WaitGroup{}
+
+	for _, sem := range noLongerOwned {
+		// for each of the semaphores that are no longer owned, kick off the
+		// process of stopping them. The stopping process is IO heavy and
+		// can take a while, so do them in parallel to efficiently unload tasklists not owned
+		semaphoreShutdownWG.Add(1)
+		go func(sem semaphore.Manager) {
+			defer func() {
+				if r := recover(); r != nil {
+					e.logger.Error("panic occurred while unloading a semaphore bucket", tag.Dynamic("recovered-panic", r))
+				}
+			}()
+			defer semaphoreShutdownWG.Done()
+
+			e.logger.Info("Unloading a semaphore bucket that is no longer owned by this host",
+				tag.Dynamic("semaphore-bucket", sem.Identifier().String()),
+			)
+			e.unloadSemaphoreManager(sem)
+		}(sem)
+	}
+	semaphoreShutdownWG.Wait()
+
+	return nil
+}
+
+func (e *matchingEngineImpl) getNonOwnedSemaphoreManagers() ([]semaphore.Manager, error) {
+	self, err := e.membershipResolver.WhoAmI()
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup self im membership: %w", err)
+	}
+
+	var toShutDown []semaphore.Manager
+	for _, mgr := range e.semaphoreRegistry.AllManagers() {
+		id := mgr.Identifier()
+		owner, err := e.membershipResolver.Lookup(service.Matching, id.RingKey())
+		if err != nil {
+			return nil, fmt.Errorf("failed to look up the owner of semaphore bucket %v: %w", id, err)
+		}
+		if owner.Identity() != self.Identity() {
+			toShutDown = append(toShutDown, mgr)
+		}
+	}
 	return toShutDown, nil
 }

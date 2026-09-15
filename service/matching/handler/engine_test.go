@@ -49,6 +49,7 @@ import (
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
+	"github.com/uber/cadence/service/matching/semaphore"
 	"github.com/uber/cadence/service/matching/tasklist"
 )
 
@@ -927,6 +928,7 @@ func TestIsShuttingDown(t *testing.T) {
 		shutdown:           make(chan struct{}),
 		executor:           mockExecutor,
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 	}
 	e.Start()
 	assert.False(t, e.isShuttingDown())
@@ -1945,5 +1947,263 @@ func TestShardDistributorOnboarded(t *testing.T) {
 			engine := &matchingEngineImpl{percentageOnboarded: pct}
 			assert.Equal(t, tt.want, engine.shardDistributorOnboarded())
 		})
+	}
+}
+
+const (
+	testSemaphoreDomainID   = "domain-id-1"
+	testSemaphoreDomainName = "domain-1"
+	testSemaphoreName       = "sem-1"
+)
+
+var (
+	testSelfHost  = membership.NewHostInfo("self:1234")
+	testOtherHost = membership.NewHostInfo("other:1234")
+)
+
+func mustNewSemaphoreIdentifier(t *testing.T, bucket int) semaphore.Identifier {
+	t.Helper()
+	id, err := semaphore.NewIdentifier(testSemaphoreDomainID, testSemaphoreName, bucket)
+	require.NoError(t, err)
+	return id
+}
+
+// newSemaphoreEngine builds an engine with the domain enabled and every bucket on ringOwner
+func newSemaphoreEngine(t *testing.T, ringOwner membership.HostInfo) (*matchingEngineImpl, *persistence.MockSemaphoreTokenManager) {
+	t.Helper()
+	ctrl := gomock.NewController(t)
+
+	domainCache := cache.NewMockDomainCache(ctrl)
+	domainCache.EXPECT().GetDomainName(testSemaphoreDomainID).Return(testSemaphoreDomainName, nil).AnyTimes()
+
+	resolver := membership.NewMockResolver(ctrl)
+	resolver.EXPECT().WhoAmI().Return(testSelfHost, nil).AnyTimes()
+	resolver.EXPECT().Lookup(service.Matching, gomock.Any()).Return(ringOwner, nil).AnyTimes()
+
+	tokens := persistence.NewMockSemaphoreTokenManager(ctrl)
+
+	return &matchingEngineImpl{
+		semaphoreRegistry:     semaphore.NewSemaphoreRegistry(),
+		semaphoreTokenManager: tokens,
+		domainCache:           domainCache,
+		membershipResolver:    resolver,
+		metricsClient:         metrics.NewNoopMetricsClient(),
+		logger:                log.NewNoop(),
+		config: &config.Config{
+			EnableDistributedSemaphore: func(string) bool { return true },
+		},
+	}, tokens
+}
+
+// newSemaphoreManager builds an unstarted manager for tests that drive one directly
+func newSemaphoreManager(t *testing.T, id semaphore.Identifier, tokens persistence.SemaphoreTokenManager) semaphore.Manager {
+	t.Helper()
+	mgr, err := semaphore.NewManager(semaphore.ManagerParams{ID: id, Tokens: tokens, Logger: log.NewNoop()})
+	require.NoError(t, err)
+	return mgr
+}
+
+// expectOneScan stubs the startup load and requires it to happen exactly once, which is what
+// shows concurrent callers shared a manager rather than each building one.
+func expectOneScan(m *persistence.MockSemaphoreTokenManager, tokens int) {
+	rows := make([]*persistence.SemaphoreOwnership, 0, tokens)
+	for i := 1; i <= tokens; i++ {
+		rows = append(rows, &persistence.SemaphoreOwnership{
+			RowType:       persistence.SemaphoreRowTypeToken,
+			DomainID:      testSemaphoreDomainID,
+			SemaphoreName: testSemaphoreName,
+			TokenID:       i,
+		})
+	}
+	m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).
+		Return(&persistence.ScanSemaphoreBucketResponse{Ownerships: rows}, nil)
+}
+
+func TestGetOrCreateSemaphoreManager(t *testing.T) {
+	t.Run("second request reuses the manager already built", func(t *testing.T) {
+		// A bucket is built once, so the second request costs no scan.
+		e, m := newSemaphoreEngine(t, testSelfHost)
+		expectOneScan(m, 3)
+		id := mustNewSemaphoreIdentifier(t, 0)
+
+		first, err := e.getOrCreateSemaphoreManager(id)
+		require.NoError(t, err)
+		second, err := e.getOrCreateSemaphoreManager(id)
+		require.NoError(t, err)
+		assert.Same(t, first, second, "the second call must reuse the registered manager")
+	})
+
+	t.Run("domain has semaphores disabled", func(t *testing.T) {
+		// Costs nothing: no scan, no manager, no registry entry. The flag is checked before
+		// anything is built for exactly that reason.
+		e, m := newSemaphoreEngine(t, testSelfHost)
+		e.config.EnableDistributedSemaphore = func(string) bool { return false }
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+
+		mgr, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
+		require.ErrorIs(t, err, ErrSemaphoreDisabled)
+		assert.Nil(t, mgr)
+		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "nothing may be registered for a disabled domain")
+
+		assert.NotErrorIs(t, err, semaphore.ErrNotReady)
+	})
+
+	t.Run("bucket is owned by another host", func(t *testing.T) {
+		// The error names that host, so the caller can go there instead of retrying here.
+		e, m := newSemaphoreEngine(t, testOtherHost)
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+
+		mgr, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
+		assert.Nil(t, mgr)
+
+		var notOwned *commonerrors.SemaphoreNotOwnedByHostError
+		require.ErrorAs(t, err, &notOwned)
+		assert.Equal(t, testOtherHost.Identity(), notOwned.OwnedByIdentity)
+		assert.Equal(t, testSelfHost.Identity(), notOwned.MyIdentity)
+		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "a bucket owned elsewhere must not be loaded here")
+	})
+
+	t.Run("matching engine is shutting down", func(t *testing.T) {
+		// No new buckets: loading one now would scan a partition this host is about to stop
+		// serving.
+		e, m := newSemaphoreEngine(t, testSelfHost)
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+		e.shutdown = make(chan struct{})
+		close(e.shutdown)
+
+		mgr, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
+		assert.Nil(t, mgr)
+
+		var notOwned *commonerrors.SemaphoreNotOwnedByHostError
+		require.ErrorAs(t, err, &notOwned)
+		assert.Equal(t, "not known", notOwned.OwnedByIdentity, "the next owner is not settled yet")
+	})
+
+	t.Run("manager that failed to start is not left registered", func(t *testing.T) {
+		// Its Acquire answers ErrNotReady with nothing to clear it, so leaving it in place
+		// would wedge the bucket until the host restarted.
+		e, m := newSemaphoreEngine(t, testSelfHost)
+		id := mustNewSemaphoreIdentifier(t, 0)
+
+		scanErr := errors.New("cassandra unavailable")
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).Return(nil, scanErr)
+
+		mgr, err := e.getOrCreateSemaphoreManager(id)
+		require.ErrorIs(t, err, scanErr)
+		assert.Nil(t, mgr)
+		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "a manager that cannot start must not stay registered")
+
+		// The next request builds a fresh one, so a passing outage is recoverable.
+		expectOneScan(m, 2)
+		retry, err := e.getOrCreateSemaphoreManager(id)
+		require.NoError(t, err)
+		assert.NotNil(t, retry)
+	})
+
+	t.Run("domain lookup fails", func(t *testing.T) {
+		// The failure comes back as itself. The name is only needed to read the flag, so
+		// failing to resolve it says nothing about the bucket.
+		ctrl := gomock.NewController(t)
+		domainCache := cache.NewMockDomainCache(ctrl)
+		lookupErr := errors.New("domain not found")
+		domainCache.EXPECT().GetDomainName(gomock.Any()).Return("", lookupErr)
+
+		e := &matchingEngineImpl{
+			semaphoreRegistry: semaphore.NewSemaphoreRegistry(),
+			domainCache:       domainCache,
+			metricsClient:     metrics.NewNoopMetricsClient(),
+			logger:            log.NewNoop(),
+			config:            &config.Config{},
+		}
+
+		_, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
+		assert.ErrorIs(t, err, lookupErr)
+	})
+
+	t.Run("load runs outside the creation lock", func(t *testing.T) {
+		// One slow load must not block other buckets. The scan for the first is held open until
+		// a second has been built, which can only finish if the two are independent -- under a
+		// shared lock the second call would sit behind a scan that is itself waiting on it, and
+		// the test would hang.
+		e, m := newSemaphoreEngine(t, testSelfHost)
+		slow := mustNewSemaphoreIdentifier(t, 0)
+		fast := mustNewSemaphoreIdentifier(t, 1)
+
+		slowScanStarted := make(chan struct{})
+		secondIsUp := make(chan struct{})
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(2).
+			DoAndReturn(func(_ context.Context, req *persistence.ScanSemaphoreBucketRequest) (*persistence.ScanSemaphoreBucketResponse, error) {
+				if req.Bucket == slow.Bucket {
+					close(slowScanStarted)
+					<-secondIsUp
+				}
+				return &persistence.ScanSemaphoreBucketResponse{}, nil
+			})
+
+		slowDone := make(chan error, 1)
+		go func() {
+			_, err := e.getOrCreateSemaphoreManager(slow)
+			slowDone <- err
+		}()
+		// Wait until the slow load is in flight, so the second creation really does overlap it
+		// rather than slipping in first and passing by luck.
+		<-slowScanStarted
+
+		second, err := e.getOrCreateSemaphoreManager(fast)
+		require.NoError(t, err)
+		require.NotNil(t, second)
+		close(secondIsUp)
+
+		require.NoError(t, <-slowDone)
+	})
+}
+
+func TestUnloadSemaphoreManager(t *testing.T) {
+	// Unloading takes a manager out of the registry and stops it, so the next request builds a
+	// fresh one instead of finding the retired manager.
+	e, m := newSemaphoreEngine(t, testSelfHost)
+	expectOneScan(m, 2)
+	id := mustNewSemaphoreIdentifier(t, 0)
+
+	mgr, err := e.getOrCreateSemaphoreManager(id)
+	require.NoError(t, err)
+
+	e.unloadSemaphoreManager(mgr)
+	assert.Empty(t, e.semaphoreRegistry.AllManagers())
+
+	_, err = mgr.Acquire(context.Background(), "owner-1")
+	assert.ErrorIs(t, err, semaphore.ErrNotReady, "an unloaded manager must stop serving")
+
+	expectOneScan(m, 2)
+	fresh, err := e.getOrCreateSemaphoreManager(id)
+	require.NoError(t, err)
+	assert.NotSame(t, mgr, fresh)
+}
+
+func TestStopSemaphoreManagers(t *testing.T) {
+	// Shutdown reaches every bucket, not just the task lists beside them. A manager left running
+	// holds its slice of the partition and keeps answering after the host has given up its work.
+	e, m := newSemaphoreEngine(t, testSelfHost)
+	m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
+	e.domainCache.(*cache.MockDomainCache).EXPECT().UnregisterDomainChangeCallback(service.Matching)
+	e.shutdown = make(chan struct{})
+	e.shutdownCompletion = &sync.WaitGroup{}
+	e.taskListRegistry = tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient())
+	e.executor = executorclient.NewNoopExecutor[tasklist.ShardProcessor]()
+
+	managers := make([]semaphore.Manager, 0, 3)
+	for i := range 3 {
+		mgr, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, i))
+		require.NoError(t, err)
+		managers = append(managers, mgr)
+	}
+
+	e.Stop()
+
+	// Refusing to serve is the only thing Stop is observable through.
+	for i, mgr := range managers {
+		_, err := mgr.Acquire(context.Background(), "owner-1")
+		assert.ErrorIs(t, err, semaphore.ErrNotReady, "manager %d was left running", i)
 	}
 }

@@ -31,6 +31,7 @@ import (
 
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
@@ -53,6 +54,7 @@ import (
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
+	"github.com/uber/cadence/service/matching/semaphore"
 	"github.com/uber/cadence/service/matching/tasklist"
 )
 
@@ -199,6 +201,7 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
 		logger:             log.NewNoop(),
@@ -234,6 +237,7 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
 		logger:             log.NewNoop(),
@@ -243,8 +247,12 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 
 	// this should trigger the error case on a membership event
 	// unfortunately, this is purely for code-coverage, no checks are involved
+	//
+	// One event is handled by several passes, each of which looks up this host, so the signal
+	// fires once however many times WhoAmI is called.
+	var handled sync.Once
 	mockResolver.EXPECT().WhoAmI().DoAndReturn(func() (membership.HostInfo, error) {
-		membershipChangeHandledWG.Done()
+		handled.Do(membershipChangeHandledWG.Done)
 		return membership.HostInfo{}, errors.New("failure")
 	}).MinTimes(1)
 
@@ -288,6 +296,7 @@ func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
 		logger:             logger,
@@ -337,6 +346,7 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 		shutdownCompletion:  &shutdownWG,
 		membershipResolver:  mockResolver,
 		taskListRegistry:    tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		semaphoreRegistry:   semaphore.NewSemaphoreRegistry(),
 		metricsClient:       metrics.NewNoopMetricsClient(),
 		percentageOnboarded: pct,
 		config: &config.Config{
@@ -356,4 +366,80 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	assertErr := &cadence_errors.TaskListNotOwnedByHostError{}
 	assert.ErrorAs(t, err, &assertErr)
 	assert.Nil(t, res)
+}
+
+// Tests that a ring change unloads the buckets that moved and leaves the ones this host still
+// owns alone. Without this pass a bucket keeps running on the wrong host until the process
+// exits, since a manager has no idle timer to fall back on.
+func TestShutDownNonOwnedSemaphoreManagers(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mine := mustNewSemaphoreIdentifier(t, 0)
+	moved := mustNewSemaphoreIdentifier(t, 1)
+
+	resolver := membership.NewMockResolver(ctrl)
+	resolver.EXPECT().WhoAmI().Return(testSelfHost, nil).AnyTimes()
+	resolver.EXPECT().Lookup(service.Matching, gomock.Any()).DoAndReturn(
+		func(_ string, key string) (membership.HostInfo, error) {
+			if key == moved.RingKey() {
+				return testOtherHost, nil
+			}
+			return testSelfHost, nil
+		}).AnyTimes()
+
+	tokens := persistence.NewMockSemaphoreTokenManager(ctrl)
+	tokens.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
+
+	e := &matchingEngineImpl{
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
+		membershipResolver: resolver,
+		logger:             log.NewNoop(),
+	}
+
+	start := func(id semaphore.Identifier) semaphore.Manager {
+		mgr := newSemaphoreManager(t, id, tokens)
+		require.NoError(t, mgr.Start(context.Background()))
+		e.semaphoreRegistry.Register(mgr)
+		return mgr
+	}
+	mineMgr := start(mine)
+	movedMgr := start(moved)
+
+	require.NoError(t, e.shutDownNonOwnedSemaphoreManagers())
+
+	remaining := e.semaphoreRegistry.AllManagers()
+	require.Len(t, remaining, 1)
+	assert.Same(t, mineMgr, remaining[0], "the bucket this host still owns stays loaded")
+
+	// Unregistering alone would leave it holding its free-set and answering grants.
+	_, err := movedMgr.Acquire(context.Background(), "owner-1")
+	assert.ErrorIs(t, err, semaphore.ErrNotReady, "the bucket that moved must be stopped too")
+}
+
+// Tests that a failed ring lookup is reported rather than treated as a lost bucket. Unloading on
+// a lookup error would drop every bucket on this host whenever membership is briefly unreadable.
+func TestShutDownNonOwnedSemaphoreManagersSurfacesALookupFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	lookupErr := errors.New("ring unavailable")
+	resolver := membership.NewMockResolver(ctrl)
+	resolver.EXPECT().WhoAmI().Return(testSelfHost, nil).AnyTimes()
+	resolver.EXPECT().Lookup(service.Matching, gomock.Any()).Return(membership.HostInfo{}, lookupErr).AnyTimes()
+
+	tokens := persistence.NewMockSemaphoreTokenManager(ctrl)
+	tokens.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
+
+	e := &matchingEngineImpl{
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
+		membershipResolver: resolver,
+		logger:             log.NewNoop(),
+	}
+	mgr := newSemaphoreManager(t, mustNewSemaphoreIdentifier(t, 0), tokens)
+	require.NoError(t, mgr.Start(context.Background()))
+	e.semaphoreRegistry.Register(mgr)
+
+	assert.ErrorIs(t, e.shutDownNonOwnedSemaphoreManagers(), lookupErr)
+	assert.Len(t, e.semaphoreRegistry.AllManagers(), 1, "a lookup failure must not unload anything")
 }

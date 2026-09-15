@@ -94,3 +94,82 @@ func (mr *MockManagerMockRecorder) Stop() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockManager)(nil).Stop))
 }
+
+// MockSemaphoreRegistry is a mock of SemaphoreRegistry interface.
+type MockSemaphoreRegistry struct {
+	ctrl     *gomock.Controller
+	recorder *MockSemaphoreRegistryMockRecorder
+	isgomock struct{}
+}
+
+// MockSemaphoreRegistryMockRecorder is the mock recorder for MockSemaphoreRegistry.
+type MockSemaphoreRegistryMockRecorder struct {
+	mock *MockSemaphoreRegistry
+}
+
+// NewMockSemaphoreRegistry creates a new mock instance.
+func NewMockSemaphoreRegistry(ctrl *gomock.Controller) *MockSemaphoreRegistry {
+	mock := &MockSemaphoreRegistry{ctrl: ctrl}
+	mock.recorder = &MockSemaphoreRegistryMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSemaphoreRegistry) EXPECT() *MockSemaphoreRegistryMockRecorder {
+	return m.recorder
+}
+
+// AllManagers mocks base method.
+func (m *MockSemaphoreRegistry) AllManagers() []Manager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AllManagers")
+	ret0, _ := ret[0].([]Manager)
+	return ret0
+}
+
+// AllManagers indicates an expected call of AllManagers.
+func (mr *MockSemaphoreRegistryMockRecorder) AllManagers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllManagers", reflect.TypeOf((*MockSemaphoreRegistry)(nil).AllManagers))
+}
+
+// ManagerByIdentifier mocks base method.
+func (m *MockSemaphoreRegistry) ManagerByIdentifier(id Identifier) (Manager, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ManagerByIdentifier", id)
+	ret0, _ := ret[0].(Manager)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// ManagerByIdentifier indicates an expected call of ManagerByIdentifier.
+func (mr *MockSemaphoreRegistryMockRecorder) ManagerByIdentifier(id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ManagerByIdentifier", reflect.TypeOf((*MockSemaphoreRegistry)(nil).ManagerByIdentifier), id)
+}
+
+// Register mocks base method.
+func (m *MockSemaphoreRegistry) Register(mgr Manager) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Register", mgr)
+}
+
+// Register indicates an expected call of Register.
+func (mr *MockSemaphoreRegistryMockRecorder) Register(mgr any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockSemaphoreRegistry)(nil).Register), mgr)
+}
+
+// Unregister mocks base method.
+func (m *MockSemaphoreRegistry) Unregister(mgr Manager) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Unregister", mgr)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Unregister indicates an expected call of Unregister.
+func (mr *MockSemaphoreRegistryMockRecorder) Unregister(mgr any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unregister", reflect.TypeOf((*MockSemaphoreRegistry)(nil).Unregister), mgr)
+}

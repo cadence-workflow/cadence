@@ -1848,6 +1848,14 @@ const (
 	// Default value: false
 	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingEnableAdaptiveScaler
+	// MatchingEnableDistributedSemaphore gates serving distributed semaphore buckets on matching
+	// hosts. While it is off no bucket is loaded, so no partition is scanned and nothing is held
+	// in memory.
+	// KeyName: matching.enableDistributedSemaphore
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	MatchingEnableDistributedSemaphore
 	// MatchingEnablePartitionEmptyCheck enables using TaskListStatus.empty to check if a partition is empty
 	// KeyName: matching.enablePartitionEmptyCheck
 	// Value type: Bool
@@ -4812,6 +4820,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableAdaptiveScaler",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingEnableAdaptiveScaler is to enable adaptive task list scaling",
+		DefaultValue: false,
+	},
+	MatchingEnableDistributedSemaphore: {
+		KeyName:      "matching.enableDistributedSemaphore",
+		Filters:      []Filter{DomainName},
+		Description:  "MatchingEnableDistributedSemaphore gates serving distributed semaphore buckets on matching hosts",
 		DefaultValue: false,
 	},
 	MatchingEnablePartitionEmptyCheck: {
