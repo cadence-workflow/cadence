@@ -38,7 +38,6 @@ import (
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -361,7 +360,7 @@ func (s *historyCacheSuite) TestGetOrCreateWorkflowExecution() {
 					WorkflowID: constants.TestWorkflowID,
 					DomainName: constants.TestDomainName,
 				}
-				mockShard.GetExecutionManager().(*mocks.ExecutionManager).On("GetCurrentExecution", mock.Anything, req).Return(nil, errors.New("test-error")).Times(1)
+				mockShard.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, req).Return(nil, errors.New("test-error")).Times(1)
 			},
 			workflowID:  constants.TestWorkflowID,
 			runID:       "",
@@ -390,7 +389,7 @@ func (s *historyCacheSuite) TestGetOrCreateWorkflowExecution() {
 				resp := &persistence.GetCurrentExecutionResponse{
 					RunID: constants.TestRunID,
 				}
-				mockShard.GetExecutionManager().(*mocks.ExecutionManager).On("GetCurrentExecution", mock.Anything, req).Return(resp, nil).Times(1)
+				mockShard.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, req).Return(resp, nil).Times(1)
 			},
 			workflowID: constants.TestWorkflowID,
 			runID:      "",

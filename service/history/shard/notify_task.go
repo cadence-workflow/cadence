@@ -153,15 +153,37 @@ func (n *taskNotifier) notifyTasksFromConflictResolveWorkflowExecution(
 	)
 }
 
-// notifyTasksFromReinjectHistoryTasks sends task notifications for a ReinjectHistoryTasks operation.
-// Unlike the other notifyTasksFrom* functions, reinjection can span multiple executions in a single
-// call, so there is no single WorkflowExecutionInfo to notify with; ExecutionInfo is left nil since
-// none of the transfer/timer notification consumers dereference it.
+// notifyTasksFromCreateHistoryTasks sends task notifications for a CreateHistoryTasks operation,
+// which is how DLQ tasks are re-injected into the executions table.
+// Unlike the other notifyTasksFrom* functions, one such write can span multiple executions, so
+// there is no single WorkflowExecutionInfo to notify with; ExecutionInfo is left nil since none of
+// the transfer/timer notification consumers dereference it.
 // Must be called while holding the shard lock.
-func (n *taskNotifier) notifyTasksFromReinjectHistoryTasks(
-	tasksByCategory persistence.HistoryTasksByCategory,
+func (n *taskNotifier) notifyTasksFromCreateHistoryTasks(
+	request *persistence.CreateHistoryTasksRequest,
 	err error,
 ) {
+	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
+		n.notifyTasks(nil, request.TasksByCategory, persistenceError)
+		return
+	}
+	n.logNotifyTaskDroppedOnPersistenceError(err, request.TasksByCategory)
+}
+
+// notifyTasksFromCreateFailoverMarkerTasks sends task notifications for a CreateFailoverMarkerTasks
+// operation. Failover markers are replication-category tasks, and notifyTasks reads only the
+// transfer and timer categories, so this is a no-op in practice. It exists so that no task-carrying
+// persistence write is exempt from the notification path by construction.
+// Must be called while holding the shard lock.
+func (n *taskNotifier) notifyTasksFromCreateFailoverMarkerTasks(
+	request *persistence.CreateFailoverMarkersRequest,
+	err error,
+) {
+	tasksByCategory := make(persistence.HistoryTasksByCategory, 1)
+	for _, marker := range request.Markers {
+		tasksByCategory[persistence.HistoryTaskCategoryReplication] = append(
+			tasksByCategory[persistence.HistoryTaskCategoryReplication], marker)
+	}
 	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
 		n.notifyTasks(nil, tasksByCategory, persistenceError)
 		return

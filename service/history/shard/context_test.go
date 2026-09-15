@@ -138,7 +138,7 @@ func (s *contextTestSuite) newContext() *contextImpl {
 		eventsCache:                  eventsCache,
 	}
 
-	context.initTaskNotifier()
+	context.initNotifyingExecutionManager()
 
 	s.Require().True(testMaxTransferSequenceNumber < (1<<context.config.RangeSizeBits), "bad config value")
 
@@ -153,7 +153,12 @@ func (s *contextTestSuite) TearDownTest() {
 func (s *contextTestSuite) TestAccessorMethods() {
 	s.Assert().EqualValues(testShardID, s.context.GetShardID())
 	s.Assert().Equal(s.mockResource, s.context.GetService())
-	s.Assert().Equal(s.mockResource.ExecutionMgr, s.context.GetExecutionManager())
+	// The shard hands out its execution manager already wrapped, so that task-carrying writes
+	// notify the queue processors even when reached through this accessor.
+	em := s.context.GetExecutionManager()
+	notifying, ok := em.(*notifyingExecutionManager)
+	s.Require().True(ok, "execution manager should be wrapped for task notification")
+	s.Assert().Equal(s.mockResource.ExecutionMgr, notifying.wrapped)
 	s.Assert().EqualValues(testTransferMaxReadLevel, s.context.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTransfer, cluster.TestCurrentClusterName).GetTaskID())
 	s.Assert().Equal(s.logger, s.context.GetLogger())
 	s.Assert().Equal(s.logger, s.context.GetThrottledLogger())
@@ -2226,7 +2231,16 @@ func TestPrefetchClusterTimesLocked(t *testing.T) {
 				ctx.contextImpl.remoteClusterCurrentTime = tc.remoteTime
 			}
 
-			result := ctx.contextImpl.notifier.fetchClusterCurrentTimesLocked(tc.tasks)
+			n := newTaskNotifier(
+				ctx.contextImpl.shardID,
+				ctx.contextImpl.config,
+				ctx.GetClusterMetadata(),
+				ctx.contextImpl.logger,
+				ctx.GetEngine,
+				ctx.contextImpl.getCurrentTimeLocked,
+			)
+
+			result := n.fetchClusterCurrentTimesLocked(tc.tasks)
 
 			if len(tc.expectedKeys) == 0 {
 				assert.Empty(t, result)
