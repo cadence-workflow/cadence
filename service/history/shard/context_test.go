@@ -138,6 +138,11 @@ func (s *contextTestSuite) newContext() *contextImpl {
 		eventsCache:                  eventsCache,
 	}
 
+	context.executionManager = newNotifyingExecutionManager(context.executionManager, newTaskNotifier(
+		context.shardID, context.config, context.logger,
+		context.GetEngine, context.fetchClusterCurrentTimesLocked,
+	))
+
 	s.Require().True(testMaxTransferSequenceNumber < (1<<context.config.RangeSizeBits), "bad config value")
 
 	return context
@@ -151,7 +156,12 @@ func (s *contextTestSuite) TearDownTest() {
 func (s *contextTestSuite) TestAccessorMethods() {
 	s.Assert().EqualValues(testShardID, s.context.GetShardID())
 	s.Assert().Equal(s.mockResource, s.context.GetService())
-	s.Assert().Equal(s.mockResource.ExecutionMgr, s.context.GetExecutionManager())
+	// The shard hands out its execution manager already wrapped, so that task-carrying writes
+	// notify the queue processors even when reached through this accessor.
+	em := s.context.GetExecutionManager()
+	notifying, ok := em.(*notifyingExecutionManager)
+	s.Require().True(ok, "execution manager should be wrapped for task notification")
+	s.Assert().Equal(s.mockResource.ExecutionMgr, notifying.wrapped)
 	s.Assert().EqualValues(testTransferMaxReadLevel, s.context.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTransfer, cluster.TestCurrentClusterName).GetTaskID())
 	s.Assert().Equal(s.logger, s.context.GetLogger())
 	s.Assert().Equal(s.logger, s.context.GetThrottledLogger())

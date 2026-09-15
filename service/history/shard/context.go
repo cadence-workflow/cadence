@@ -667,9 +667,7 @@ func (s *contextImpl) CreateWorkflowExecution(
 	s.Lock()
 	defer s.Unlock()
 
-	resp, err := s.createWorkflowExecutionLocked(ctx, request, domainEntry)
-	s.notifyTasksFromCreateWorkflowExecution(request, err)
-	return resp, err
+	return s.createWorkflowExecutionLocked(ctx, request, domainEntry)
 }
 
 func (s *contextImpl) createWorkflowExecutionLocked(
@@ -774,9 +772,7 @@ func (s *contextImpl) UpdateWorkflowExecution(
 	s.Lock()
 	defer s.Unlock()
 
-	resp, err := s.updateWorkflowExecutionLocked(ctx, request, domainEntry)
-	s.notifyTasksFromUpdateWorkflowExecution(request, err)
-	return resp, err
+	return s.updateWorkflowExecutionLocked(ctx, request, domainEntry)
 }
 
 func (s *contextImpl) updateWorkflowExecutionLocked(
@@ -887,9 +883,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 	s.Lock()
 	defer s.Unlock()
 
-	resp, err := s.conflictResolveWorkflowExecutionLocked(ctx, request, domainEntry)
-	s.notifyTasksFromConflictResolveWorkflowExecution(request, err)
-	return resp, err
+	return s.conflictResolveWorkflowExecutionLocked(ctx, request, domainEntry)
 }
 
 func (s *contextImpl) conflictResolveWorkflowExecutionLocked(
@@ -1589,16 +1583,14 @@ func (s *contextImpl) ReinjectHistoryTasks(
 	s.Lock()
 	defer s.Unlock()
 
-	tasksByCategory, err := s.reinjectHistoryTasksLocked(ctx, tasksByExecution, domainEntries)
-	s.notifyTasksFromReinjectHistoryTasks(tasksByCategory, err)
-	return err
+	return s.reinjectHistoryTasksLocked(ctx, tasksByExecution, domainEntries)
 }
 
 func (s *contextImpl) reinjectHistoryTasksLocked(
 	ctx context.Context,
 	tasksByExecution map[reinjectExecutionKey]persistence.HistoryTasksByCategory,
 	domainEntries map[string]*cache.DomainCacheEntry,
-) (persistence.HistoryTasksByCategory, error) {
+) error {
 	immediateTaskMaxReadLevel := int64(0)
 	// tasksByCategory is built after allocation of taskIDs. It is used to build the persistence request.
 	tasksByCategory := make(persistence.HistoryTasksByCategory)
@@ -1609,7 +1601,7 @@ func (s *contextImpl) reinjectHistoryTasksLocked(
 			executionTasks,
 			&immediateTaskMaxReadLevel,
 		); err != nil {
-			return tasksByCategory, err
+			return err
 		}
 		for category, categoryTasks := range executionTasks {
 			tasksByCategory[category] = append(tasksByCategory[category], categoryTasks...)
@@ -1617,7 +1609,7 @@ func (s *contextImpl) reinjectHistoryTasksLocked(
 	}
 
 	if err := s.closedError(); err != nil {
-		return tasksByCategory, err
+		return err
 	}
 	err := s.executionManager.CreateHistoryTasks(
 		ctx,
@@ -1643,7 +1635,7 @@ func (s *contextImpl) reinjectHistoryTasksLocked(
 			tag.Error(err),
 		)
 	}
-	return tasksByCategory, err
+	return err
 }
 
 func (s *contextImpl) AddingPendingFailoverMarker(
@@ -1862,6 +1854,12 @@ func acquireShard(
 		previousShardOwnerWasDifferent: ownershipChanged,
 		replicationBudgetManager:       shardItem.replicationBudgetManager,
 	}
+
+	// set after the literal: the notifier captures method values, so the context must exist first
+	context.executionManager = newNotifyingExecutionManager(context.executionManager, newTaskNotifier(
+		context.shardID, context.config, context.logger,
+		context.GetEngine, context.fetchClusterCurrentTimesLocked,
+	))
 
 	// TODO remove once migrated to global event cache
 	context.eventsCache = events.NewCache(

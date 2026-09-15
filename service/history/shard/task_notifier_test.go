@@ -165,7 +165,7 @@ func TestLogNotifyTaskDroppedOnPersistenceError(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			logger, obs := testlogger.NewObserved(t)
-			s := &contextImpl{
+			n := &taskNotifier{
 				shardID: 1,
 				logger:  logger,
 				config: &config.Config{
@@ -174,7 +174,7 @@ func TestLogNotifyTaskDroppedOnPersistenceError(t *testing.T) {
 				},
 			}
 
-			s.logNotifyTaskDroppedOnPersistenceError(assert.AnError, tc.sources...)
+			n.logNotifyTaskDroppedOnPersistenceError(assert.AnError, tc.sources...)
 
 			entries := obs.FilterMessage("notify tasks dropped due to persistence error").All()
 			if !tc.wantLogged {
