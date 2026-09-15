@@ -116,7 +116,6 @@ func TestCollectionLimitersCollectMetrics(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -464,7 +463,6 @@ func TestBoostRPS(t *testing.T) {
 		},
 	}
 	for name, tc := range tests {
-		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			assert.GreaterOrEqual(t, tc.weight, float64(0), "sanity check on weight")
