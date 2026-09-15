@@ -63,7 +63,6 @@ func NewTestContext(
 		shardID:                      shardInfo.ShardID,
 		rangeID:                      shardInfo.RangeID,
 		shardInfo:                    shardInfo,
-		executionManager:             resource.ExecutionMgr,
 		activeClusterManager:         resource.ActiveClusterMgr,
 		config:                       config,
 		logger:                       resource.GetLogger(),
@@ -80,13 +79,10 @@ func NewTestContext(
 		remoteClusterCurrentTime: make(map[string]time.Time),
 		eventsCache:              eventsCache,
 	}
-	shard.notifier = newTaskNotifier(
-		shard.shardID,
-		shard.config,
-		shard.logger,
-		shard.GetEngine,
-		shard.fetchClusterCurrentTimesLocked,
-	)
+	shard.executionManager = newNotifyingExecutionManager(resource.ExecutionMgr, newTaskNotifier(
+		shard.shardID, shard.config, shard.logger,
+		shard.GetEngine, shard.fetchClusterCurrentTimesLocked,
+	))
 	return &TestContext{
 		contextImpl:     shard,
 		Resource:        resource,
