@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -363,4 +365,97 @@ func TestNotifyingExecutionManager_DeleteActiveClusterSelectionPolicy(t *testing
 	err := m.DeleteActiveClusterSelectionPolicy(context.Background(), &persistence.DeleteActiveClusterSelectionPolicyRequest{})
 
 	require.ErrorIs(t, err, assert.AnError)
+}
+
+func testDomainEntry() *cache.DomainCacheEntry {
+	return cache.NewLocalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: testDomainID},
+		&persistence.DomainConfig{Retention: 7},
+		testCluster,
+	)
+}
+
+func updateRequestWithTimerTask() *persistence.UpdateWorkflowExecutionRequest {
+	return &persistence.UpdateWorkflowExecutionRequest{
+		RangeID: testRangeID,
+		Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
+		UpdateWorkflowMutation: persistence.WorkflowMutation{
+			ExecutionInfo: &persistence.WorkflowExecutionInfo{
+				DomainID:   testDomainID,
+				WorkflowID: testWorkflowID,
+			},
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTimer: {&persistence.DecisionTimeoutTask{}},
+			},
+		},
+		DomainName: testDomain,
+	}
+}
+
+// TestNoNotificationWhenWriteNeverAttempted pins a behavior change from moving notification behind
+// the execution manager: a failure before the persistence write is reached now notifies nothing.
+//
+// The notify call used to live in the shard method and ran on every path once the lock was taken,
+// so an allocation failure notified with an unclassified error. That counts as "possibly
+// successful" and reaches the cached queue reader as a Clear(). It no longer does, which is safe:
+// nothing was written, so the cache is still accurate. The cached reader's rangeID fallback does
+// not cover for us here -- it reads a single-increment bump as "same host, cache still valid" --
+// so the Clear() really is gone rather than arriving by another route.
+func TestNoNotificationWhenWriteNeverAttempted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	shard := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+	defer shard.Finish(t)
+
+	// A mock engine with no expectations: any notification fails the test.
+	shard.SetEngine(engine.NewMockEngine(ctrl))
+	shard.Resource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(testDomainEntry(), nil)
+
+	// Exhaust the task ID range so allocation must renew it, and make that renewal fail with an
+	// unclassified error -- the one branch that leaves the shard alive and its rangeID untouched.
+	shard.contextImpl.taskSequenceNumber = shard.contextImpl.maxTaskSequenceNumber
+	shard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
+
+	_, err := shard.UpdateWorkflowExecution(context.Background(), updateRequestWithTimerTask())
+
+	assert.ErrorIs(t, err, assert.AnError)
+	// The write was never attempted, so the execution manager saw nothing either.
+	shard.Resource.ExecutionMgr.AssertNotCalled(t, "UpdateWorkflowExecution", mock.Anything, mock.Anything)
+	assert.NoError(t, shard.contextImpl.closedError(), "shard should stay open on an unclassified renewal error")
+}
+
+// TestNotifyPrecedesRangeRenewalOnAmbiguousError pins the other ordering change: notification
+// happens inside the execution manager call, so on an ambiguous write error it now runs before the
+// shard renews its range rather than after.
+//
+// Both still happen in the same critical section, so nothing taking the shard lock can tell. It
+// matters only to the cached queue reader, which the notification clears synchronously: clearing
+// before the rangeID bump and clearing after it end in the same state, since a cleared cache has
+// nothing left to invalidate.
+func TestNotifyPrecedesRangeRenewalOnAmbiguousError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	shard := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+	defer shard.Finish(t)
+
+	var calls []string
+
+	mockEngine := engine.NewMockEngine(ctrl)
+	mockEngine.EXPECT().NotifyNewTimerTasks(gomock.Any()).Do(func(info interface{}) {
+		calls = append(calls, "notify")
+	}).Times(1)
+	shard.SetEngine(mockEngine)
+
+	shard.Resource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(testDomainEntry(), nil)
+	shard.Resource.ExecutionMgr.
+		On("UpdateWorkflowExecution", mock.Anything, mock.Anything).
+		Once().
+		Return(nil, assert.AnError)
+	shard.Resource.ShardMgr.
+		On("UpdateShard", mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) { calls = append(calls, "renewRange") }).
+		Return(nil)
+
+	_, err := shard.UpdateWorkflowExecution(context.Background(), updateRequestWithTimerTask())
+
+	assert.ErrorIs(t, err, assert.AnError)
+	require.Equal(t, []string{"notify", "renewRange"}, calls)
 }

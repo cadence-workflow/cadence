@@ -218,7 +218,7 @@ func TestTransferQueueProcessor_FailoverDomain(t *testing.T) {
 						},
 					},
 				}
-				mockShard.GetExecutionManager().(*mocks.ExecutionManager).On("GetHistoryTasks", mock.Anything, mock.Anything).Return(response, nil).Once()
+				mockShard.Resource.ExecutionMgr.On("GetHistoryTasks", mock.Anything, mock.Anything).Return(response, nil).Once()
 				mockShard.Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
 					Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).Maybe()
 				mockShard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Maybe()
