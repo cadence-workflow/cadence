@@ -20,6 +20,7 @@ import (
 {{$permissionMap = set $permissionMap "GetWorkflowExecutionHistory" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListArchivedWorkflowExecutions" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListClosedWorkflowExecutions" "PermissionRead"}}
+{{$permissionMap = set $permissionMap "ListDomains" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListOpenWorkflowExecutions" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListWorkflowExecutions" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "PollForActivityTask" "PermissionProcess"}}
@@ -54,7 +55,7 @@ import (
 {{$adminPermissionMap := dict }}
 {{$adminPermissionMap = set $adminPermissionMap "DescribeCluster" "PermissionRead"}}
 
-{{$nonDomainAuthAPIs := list "RegisterDomain" "DescribeDomain" "UpdateDomain" "DeprecateDomain" "DeleteDomain" "GetSearchAttributes" "GetClusterInfo" "ResetStickyTaskList" "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
+{{$nonDomainAuthAPIs := list "RegisterDomain" "DescribeDomain" "UpdateDomain" "DeprecateDomain" "DeleteDomain" "ListDomains" "GetSearchAttributes" "GetClusterInfo" "ResetStickyTaskList" "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$taskListAuthAPIs := list "PollForActivityTask" "PollForDecisionTask"}}
 {{$workflowTypeAuthAPIs := list "SignalWithStartWorkflowExecution" "StartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync" "StartWorkflowExecutionAsync"}}
 
@@ -68,11 +69,30 @@ import (
 type {{$decorator}} struct {
 	handler {{.Interface.Type}}
 	authorizer authorization.Authorizer
+	{{- if eq $handlerName "API"}}
+	authenticator authorization.Authorizer
+	{{- end}}
 	resource.Resource
 }
 
 // New{{$Decorator}} creates frontend handler with authentication support
-func New{{$Decorator}}(handler {{$.Interface.Type}}, resource resource.Resource, authorizer authorization.Authorizer, cfg config.Authorization) {{.Interface.Type}} {
+func New{{$Decorator}}(handler {{$.Interface.Type}}, resource resource.Resource, authorizer authorization.Authorizer, {{if eq $handlerName "API"}}authenticator authorization.Authorizer, {{end}}cfg config.Authorization) {{.Interface.Type}} {
+	{{- if eq $handlerName "API"}}
+	// Built together so that they share one token validator, which matters when the
+	// configured scheme fetches verification keys from a remote endpoint.
+	var err error
+	switch {
+	case authorizer == nil && authenticator == nil:
+		authorizer, authenticator, err = authorization.NewAuthorizerAndAuthenticator(cfg, resource.GetLogger(), resource.GetDomainCache())
+	case authorizer == nil:
+		authorizer, err = authorization.NewAuthorizer(cfg, resource.GetLogger(), resource.GetDomainCache())
+	case authenticator == nil:
+		authenticator, err = authorization.NewAuthenticator(cfg, resource.GetLogger())
+	}
+	if err != nil {
+		resource.GetLogger().Fatal("Unable to initialize access control", tag.Error(err))
+	}
+	{{- else}}
 	if authorizer == nil {
 		var err error
 		authorizer, err = authorization.NewAuthorizer(cfg, resource.GetLogger(), resource.GetDomainCache())
@@ -80,9 +100,13 @@ func New{{$Decorator}}(handler {{$.Interface.Type}}, resource resource.Resource,
 			resource.GetLogger().Fatal("Error when initiating the Authorizer", tag.Error(err))
 		}
 	}
+	{{- end}}
 	return &{{$decorator}}{
 		handler: handler,
 		authorizer: authorizer,
+		{{- if eq $handlerName "API"}}
+		authenticator: authenticator,
+		{{- end}}
 		Resource: resource,
 	}
 }
@@ -130,6 +154,8 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 	}
 	{{- if eq $handlerName "Admin"}}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
+	{{- else if eq $method.Name "ListDomains"}}
+	isAuthorized, err := a.isAuthenticated(ctx, attr, scope)
 	{{- else}}
 	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	{{- end}}
@@ -148,7 +174,11 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 		{{- end}}
 	}
 	{{- end}}
+	{{- if and (eq $handlerName "API") (eq $method.Name "ListDomains")}}
+	return a.listAuthorizedDomains(ctx, {{(index $method.Params 1).Name}})
+	{{- else}}
 	return a.handler.{{$method.Call}}
+	{{- end}}
 }
 {{- end}}
 {{end}}

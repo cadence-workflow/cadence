@@ -24,6 +24,8 @@ import (
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common"
@@ -82,11 +84,14 @@ func (s *factorySuite) TestFactoryNoopAuthorizer() {
 		err      error
 	}{
 		{cfgNoop(), &nopAuthority{}, nil},
-		{cfgOAuthVar, &oauthAuthority{
-			config:    cfgOAuthVar.OAuthAuthorizer,
-			log:       s.logger,
-			publicKey: publicKey,
-			parser:    jwt.NewParser(jwt.WithValidMethods([]string{cfgOAuthVar.OAuthAuthorizer.JwtCredentials.Algorithm}), jwt.WithIssuedAt()),
+		{cfgOAuthVar, &oauthAuthorizer{
+			authority: &oauthAuthority{
+				config:    cfgOAuthVar.OAuthAuthorizer,
+				log:       s.logger,
+				publicKey: publicKey,
+				parser:    jwt.NewParser(jwt.WithValidMethods([]string{cfgOAuthVar.OAuthAuthorizer.JwtCredentials.Algorithm}), jwt.WithIssuedAt()),
+			},
+			log: s.logger,
 		}, nil},
 	}
 
@@ -95,4 +100,65 @@ func (s *factorySuite) TestFactoryNoopAuthorizer() {
 		s.Equal(authorizer, test.expected)
 		s.Equal(err, test.err)
 	}
+}
+
+func TestNewAuthenticator(t *testing.T) {
+	logger := testlogger.New(t)
+
+	testCases := []struct {
+		name string
+		cfg  config.Authorization
+		want Authorizer
+	}{
+		{
+			name: "noop when oauth is disabled",
+			cfg:  cfgNoop(),
+			want: &nopAuthority{},
+		},
+		{
+			name: "oauth authenticator when oauth is enabled",
+			cfg:  cfgOAuth(),
+			want: &oauthAuthenticator{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			authenticator, err := NewAuthenticator(tc.cfg, logger)
+			require.NoError(t, err)
+			assert.IsType(t, tc.want, authenticator)
+		})
+	}
+}
+
+func TestNewAuthorizerAndAuthenticator(t *testing.T) {
+	logger := testlogger.New(t)
+
+	t.Run("noop when oauth is disabled", func(t *testing.T) {
+		authorizer, authenticator, err := NewAuthorizerAndAuthenticator(cfgNoop(), logger, nil)
+		require.NoError(t, err)
+		assert.Equal(t, &nopAuthority{}, authorizer)
+		assert.Equal(t, &nopAuthority{}, authenticator)
+	})
+
+	t.Run("oauth pair shares one authority", func(t *testing.T) {
+		authorizer, authenticator, err := NewAuthorizerAndAuthenticator(cfgOAuth(), logger, nil)
+		require.NoError(t, err)
+
+		require.IsType(t, &oauthAuthorizer{}, authorizer)
+		require.IsType(t, &oauthAuthenticator{}, authenticator)
+		assert.Same(t,
+			authorizer.(*oauthAuthorizer).authority,
+			authenticator.(*oauthAuthenticator).authority)
+	})
+
+	t.Run("propagates construction failures", func(t *testing.T) {
+		cfg := cfgOAuth()
+		cfg.OAuthAuthorizer.JwtCredentials.Algorithm = "SHA256"
+
+		authorizer, authenticator, err := NewAuthorizerAndAuthenticator(cfg, logger, nil)
+		assert.ErrorContains(t, err, `algorithm "SHA256" is not supported`)
+		assert.Nil(t, authorizer)
+		assert.Nil(t, authenticator)
+	})
 }
