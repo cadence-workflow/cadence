@@ -23,10 +23,59 @@
 package shard
 
 import (
+	"time"
+
+	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	hcommon "github.com/uber/cadence/service/history/common"
+	"github.com/uber/cadence/service/history/config"
+	"github.com/uber/cadence/service/history/engine"
 )
+
+// taskNotifier owns the task notification path: given a persistence request and the error its
+// write returned, it decides whether the transfer/timer queue processors should be told about the
+// tasks that request carried.
+//
+// It holds no reference back to the shard. Everything it needs from the shard arrives either as a
+// value at construction or behind one of the two function fields below.
+type taskNotifier struct {
+	shardID         int
+	config          *config.Config
+	clusterMetadata cluster.Metadata
+	logger          log.Logger
+
+	// getEngine must be late-bound: the history engine is attached to the shard after the shard
+	// is constructed, via SetEngine. The shard's engine field is read and written without
+	// synchronization, so resolving it through a method value here is identical to calling
+	// GetEngine() inline, which is what this code did before it moved.
+	getEngine func() engine.Engine
+
+	// getCurrentTime returns a cluster's current time WITHOUT taking the shard lock; the caller
+	// is required to already hold it. Every notification originates from a persistence write
+	// performed inside the shard's critical section, so that precondition holds by construction
+	// today. See notifyTasks.
+	getCurrentTime func(cluster string) time.Time
+}
+
+func newTaskNotifier(
+	shardID int,
+	config *config.Config,
+	clusterMetadata cluster.Metadata,
+	logger log.Logger,
+	getEngine func() engine.Engine,
+	getCurrentTime func(cluster string) time.Time,
+) *taskNotifier {
+	return &taskNotifier{
+		shardID:         shardID,
+		config:          config,
+		clusterMetadata: clusterMetadata,
+		logger:          logger,
+		getEngine:       getEngine,
+		getCurrentTime:  getCurrentTime,
+	}
+}
 
 // isOperationPossiblySuccessfulError returns true for errors where a persistence write
 // may have succeeded despite the error being returned (e.g. timeout, unknown network error).
@@ -56,48 +105,48 @@ func isNotifyTaskNeeded(err error) (notify, persistenceError bool) {
 }
 
 // notifyTasksFromCreateWorkflowExecution sends task notifications for a CreateWorkflowExecution operation.
-// Must be called while holding s.Lock().
-func (s *contextImpl) notifyTasksFromCreateWorkflowExecution(
+// Must be called while holding the shard lock.
+func (n *taskNotifier) notifyTasksFromCreateWorkflowExecution(
 	request *persistence.CreateWorkflowExecutionRequest,
 	err error,
 ) {
 	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
-		s.notifyTasksFromSnapshot(&request.NewWorkflowSnapshot, persistenceError)
+		n.notifyTasksFromSnapshot(&request.NewWorkflowSnapshot, persistenceError)
 		return
 	}
-	s.logNotifyTaskDroppedOnPersistenceError(err, snapshotTasks(&request.NewWorkflowSnapshot))
+	n.logNotifyTaskDroppedOnPersistenceError(err, snapshotTasks(&request.NewWorkflowSnapshot))
 }
 
 // notifyTasksFromUpdateWorkflowExecution sends task notifications for an UpdateWorkflowExecution operation.
-// Must be called while holding s.Lock().
-func (s *contextImpl) notifyTasksFromUpdateWorkflowExecution(
+// Must be called while holding the shard lock.
+func (n *taskNotifier) notifyTasksFromUpdateWorkflowExecution(
 	request *persistence.UpdateWorkflowExecutionRequest,
 	err error,
 ) {
 	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
-		s.notifyTasksFromMutation(&request.UpdateWorkflowMutation, persistenceError)
-		s.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
+		n.notifyTasksFromMutation(&request.UpdateWorkflowMutation, persistenceError)
+		n.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
 		return
 	}
-	s.logNotifyTaskDroppedOnPersistenceError(err,
+	n.logNotifyTaskDroppedOnPersistenceError(err,
 		mutationTasks(&request.UpdateWorkflowMutation),
 		snapshotTasks(request.NewWorkflowSnapshot),
 	)
 }
 
 // notifyTasksFromConflictResolveWorkflowExecution sends task notifications for a ConflictResolveWorkflowExecution operation.
-// Must be called while holding s.Lock().
-func (s *contextImpl) notifyTasksFromConflictResolveWorkflowExecution(
+// Must be called while holding the shard lock.
+func (n *taskNotifier) notifyTasksFromConflictResolveWorkflowExecution(
 	request *persistence.ConflictResolveWorkflowExecutionRequest,
 	err error,
 ) {
 	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
-		s.notifyTasksFromSnapshot(&request.ResetWorkflowSnapshot, persistenceError)
-		s.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
-		s.notifyTasksFromMutation(request.CurrentWorkflowMutation, persistenceError)
+		n.notifyTasksFromSnapshot(&request.ResetWorkflowSnapshot, persistenceError)
+		n.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
+		n.notifyTasksFromMutation(request.CurrentWorkflowMutation, persistenceError)
 		return
 	}
-	s.logNotifyTaskDroppedOnPersistenceError(err,
+	n.logNotifyTaskDroppedOnPersistenceError(err,
 		snapshotTasks(&request.ResetWorkflowSnapshot),
 		snapshotTasks(request.NewWorkflowSnapshot),
 		mutationTasks(request.CurrentWorkflowMutation),
@@ -108,16 +157,16 @@ func (s *contextImpl) notifyTasksFromConflictResolveWorkflowExecution(
 // Unlike the other notifyTasksFrom* functions, reinjection can span multiple executions in a single
 // call, so there is no single WorkflowExecutionInfo to notify with; ExecutionInfo is left nil since
 // none of the transfer/timer notification consumers dereference it.
-// Must be called while holding s.Lock().
-func (s *contextImpl) notifyTasksFromReinjectHistoryTasks(
+// Must be called while holding the shard lock.
+func (n *taskNotifier) notifyTasksFromReinjectHistoryTasks(
 	tasksByCategory persistence.HistoryTasksByCategory,
 	err error,
 ) {
 	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
-		s.notifyTasks(nil, tasksByCategory, persistenceError)
+		n.notifyTasks(nil, tasksByCategory, persistenceError)
 		return
 	}
-	s.logNotifyTaskDroppedOnPersistenceError(err, tasksByCategory)
+	n.logNotifyTaskDroppedOnPersistenceError(err, tasksByCategory)
 }
 
 // logNotifyTaskDroppedOnPersistenceError logs dropped task IDs per category, but only for a category
@@ -125,13 +174,12 @@ func (s *contextImpl) notifyTasksFromReinjectHistoryTasks(
 // dropped task surfaces as an observable mismatch. For other modes (and categories with no cached
 // reader, e.g. replication) the log is just noise, so when no cache is shadowing it returns before
 // touching the sources, keeping the steady-state path free of per-task work.
-func (s *contextImpl) logNotifyTaskDroppedOnPersistenceError(
+func (n *taskNotifier) logNotifyTaskDroppedOnPersistenceError(
 	err error,
 	sources ...map[persistence.HistoryTaskCategory][]persistence.Task,
 ) {
-	shardID := s.GetShardID()
-	timerCacheShadow := s.config.TimerProcessorCachedQueueReaderMode(shardID) == "shadow"
-	transferCacheShadow := s.config.TransferProcessorCachedQueueReaderMode(shardID) == "shadow"
+	timerCacheShadow := n.config.TimerProcessorCachedQueueReaderMode(n.shardID) == "shadow"
+	transferCacheShadow := n.config.TransferProcessorCachedQueueReaderMode(n.shardID) == "shadow"
 	if !timerCacheShadow && !transferCacheShadow {
 		return
 	}
@@ -148,7 +196,7 @@ func (s *contextImpl) logNotifyTaskDroppedOnPersistenceError(
 	if len(droppedTimerTaskIDs) == 0 && len(droppedTransferTaskIDs) == 0 {
 		return
 	}
-	s.logger.Info("notify tasks dropped due to persistence error",
+	n.logger.Info("notify tasks dropped due to persistence error",
 		tag.Error(err),
 		tag.Dynamic("droppedTimerTaskIDs", droppedTimerTaskIDs),
 		tag.Dynamic("droppedTransferTaskIDs", droppedTransferTaskIDs),
@@ -156,15 +204,15 @@ func (s *contextImpl) logNotifyTaskDroppedOnPersistenceError(
 }
 
 // notifyTasks notifies the transfer and timer queue processors of new tasks.
-// Must be called while holding s.Lock().
-func (s *contextImpl) notifyTasks(
+// Must be called while holding the shard lock.
+func (n *taskNotifier) notifyTasks(
 	executionInfo *persistence.WorkflowExecutionInfo,
 	tasksByCategory map[persistence.HistoryTaskCategory][]persistence.Task,
 	persistenceError bool,
 ) {
 
 	if transferTasks := tasksByCategory[persistence.HistoryTaskCategoryTransfer]; len(transferTasks) > 0 {
-		s.GetEngine().NotifyNewTransferTasks(&hcommon.NotifyTaskInfo{
+		n.getEngine().NotifyNewTransferTasks(&hcommon.NotifyTaskInfo{
 			ExecutionInfo:    executionInfo,
 			Tasks:            transferTasks,
 			PersistenceError: persistenceError,
@@ -172,31 +220,48 @@ func (s *contextImpl) notifyTasks(
 	}
 
 	if timerTasks := tasksByCategory[persistence.HistoryTaskCategoryTimer]; len(timerTasks) > 0 {
-		s.GetEngine().NotifyNewTimerTasks(&hcommon.NotifyTaskInfo{
+		n.getEngine().NotifyNewTimerTasks(&hcommon.NotifyTaskInfo{
 			ExecutionInfo:       executionInfo,
 			Tasks:               timerTasks,
 			PersistenceError:    persistenceError,
-			ClusterCurrentTimes: s.fetchClusterCurrentTimesLocked(timerTasks),
+			ClusterCurrentTimes: n.fetchClusterCurrentTimesLocked(timerTasks),
 		})
 	}
 }
 
 // notifyTasksFromSnapshot notifies queue processors of tasks from a workflow snapshot.
-// Must be called while holding s.Lock().
-func (s *contextImpl) notifyTasksFromSnapshot(snapshot *persistence.WorkflowSnapshot, persistenceError bool) {
+// Must be called while holding the shard lock.
+func (n *taskNotifier) notifyTasksFromSnapshot(snapshot *persistence.WorkflowSnapshot, persistenceError bool) {
 	if snapshot == nil {
 		return
 	}
-	s.notifyTasks(snapshot.ExecutionInfo, snapshot.TasksByCategory, persistenceError)
+	n.notifyTasks(snapshot.ExecutionInfo, snapshot.TasksByCategory, persistenceError)
 }
 
 // notifyTasksFromMutation notifies queue processors of tasks from a workflow mutation.
-// Must be called while holding s.Lock().
-func (s *contextImpl) notifyTasksFromMutation(mutation *persistence.WorkflowMutation, persistenceError bool) {
+// Must be called while holding the shard lock.
+func (n *taskNotifier) notifyTasksFromMutation(mutation *persistence.WorkflowMutation, persistenceError bool) {
 	if mutation == nil {
 		return
 	}
-	s.notifyTasks(mutation.ExecutionInfo, mutation.TasksByCategory, persistenceError)
+	n.notifyTasks(mutation.ExecutionInfo, mutation.TasksByCategory, persistenceError)
+}
+
+// fetchClusterCurrentTimesLocked returns current times for all standby clusters referenced by timerTasks.
+// Caller must hold the shard's Lock() or RLock(), since getCurrentTime does not take either.
+func (n *taskNotifier) fetchClusterCurrentTimesLocked(timerTasks []persistence.Task) map[string]time.Time {
+	currentCluster := n.clusterMetadata.GetCurrentClusterName()
+	clusterTimes := make(map[string]time.Time)
+	for _, task := range timerTasks {
+		clusterName, err := n.clusterMetadata.ClusterNameForFailoverVersion(task.GetVersion())
+		if err != nil || clusterName == currentCluster {
+			continue
+		}
+		if _, exists := clusterTimes[clusterName]; !exists {
+			clusterTimes[clusterName] = n.getCurrentTime(clusterName)
+		}
+	}
+	return clusterTimes
 }
 
 func snapshotTasks(snapshot *persistence.WorkflowSnapshot) map[persistence.HistoryTaskCategory][]persistence.Task {

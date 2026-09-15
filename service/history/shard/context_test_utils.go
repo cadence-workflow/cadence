@@ -80,6 +80,7 @@ func NewTestContext(
 		remoteClusterCurrentTime: make(map[string]time.Time),
 		eventsCache:              eventsCache,
 	}
+	shard.initTaskNotifier()
 	return &TestContext{
 		contextImpl:     shard,
 		Resource:        resource,

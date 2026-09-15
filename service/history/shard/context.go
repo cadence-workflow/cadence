@@ -135,6 +135,7 @@ type (
 		throttledLogger          log.Logger
 		engine                   engine.Engine
 		replicationBudgetManager cache.Manager
+		notifier                 *taskNotifier
 
 		sync.RWMutex
 		lastUpdated                  time.Time
@@ -201,6 +202,21 @@ func (s *contextImpl) GetService() resource.Resource {
 
 func (s *contextImpl) GetExecutionManager() persistence.ExecutionManager {
 	return s.executionManager
+}
+
+// initTaskNotifier wires up the task notification component. It must be called after the
+// contextImpl value exists, because it captures method values from it: the engine getter is
+// late-bound (SetEngine runs after construction) and the cluster-time getter is the lock-free
+// variant, which is only valid to call with the shard lock already held.
+func (s *contextImpl) initTaskNotifier() {
+	s.notifier = newTaskNotifier(
+		s.shardID,
+		s.config,
+		s.GetClusterMetadata(),
+		s.logger,
+		s.GetEngine,
+		s.getCurrentTimeLocked,
+	)
 }
 
 func (s *contextImpl) GetEngine() engine.Engine {
@@ -668,7 +684,7 @@ func (s *contextImpl) CreateWorkflowExecution(
 	defer s.Unlock()
 
 	resp, err := s.createWorkflowExecutionLocked(ctx, request, domainEntry)
-	s.notifyTasksFromCreateWorkflowExecution(request, err)
+	s.notifier.notifyTasksFromCreateWorkflowExecution(request, err)
 	return resp, err
 }
 
@@ -775,7 +791,7 @@ func (s *contextImpl) UpdateWorkflowExecution(
 	defer s.Unlock()
 
 	resp, err := s.updateWorkflowExecutionLocked(ctx, request, domainEntry)
-	s.notifyTasksFromUpdateWorkflowExecution(request, err)
+	s.notifier.notifyTasksFromUpdateWorkflowExecution(request, err)
 	return resp, err
 }
 
@@ -888,7 +904,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 	defer s.Unlock()
 
 	resp, err := s.conflictResolveWorkflowExecutionLocked(ctx, request, domainEntry)
-	s.notifyTasksFromConflictResolveWorkflowExecution(request, err)
+	s.notifier.notifyTasksFromConflictResolveWorkflowExecution(request, err)
 	return resp, err
 }
 
@@ -1590,7 +1606,7 @@ func (s *contextImpl) ReinjectHistoryTasks(
 	defer s.Unlock()
 
 	tasksByCategory, err := s.reinjectHistoryTasksLocked(ctx, tasksByExecution, domainEntries)
-	s.notifyTasksFromReinjectHistoryTasks(tasksByCategory, err)
+	s.notifier.notifyTasksFromReinjectHistoryTasks(tasksByCategory, err)
 	return err
 }
 
@@ -1863,6 +1879,8 @@ func acquireShard(
 		replicationBudgetManager:       shardItem.replicationBudgetManager,
 	}
 
+	context.initTaskNotifier()
+
 	// TODO remove once migrated to global event cache
 	context.eventsCache = events.NewCache(
 		context.shardID,
@@ -1961,23 +1979,6 @@ func (s *contextImpl) logConflictResolveWorkflowExecutionEvents(request *persist
 	simulation.LogEvents(events...)
 	events = s.getEventsFromWorkflowSnapshot(request.NewWorkflowSnapshot)
 	simulation.LogEvents(events...)
-}
-
-// fetchClusterCurrentTimesLocked returns current times for all standby clusters referenced by timerTasks.
-// Caller must hold s.Lock() or s.RLock().
-func (s *contextImpl) fetchClusterCurrentTimesLocked(timerTasks []persistence.Task) map[string]time.Time {
-	currentCluster := s.GetClusterMetadata().GetCurrentClusterName()
-	clusterTimes := make(map[string]time.Time)
-	for _, task := range timerTasks {
-		clusterName, err := s.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
-		if err != nil || clusterName == currentCluster {
-			continue
-		}
-		if _, exists := clusterTimes[clusterName]; !exists {
-			clusterTimes[clusterName] = s.getCurrentTimeLocked(clusterName)
-		}
-	}
-	return clusterTimes
 }
 
 func (s *contextImpl) GetHistoryTaskDLQWriter() TaskDLQWriter {

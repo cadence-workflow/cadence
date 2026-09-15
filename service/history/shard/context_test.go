@@ -138,6 +138,8 @@ func (s *contextTestSuite) newContext() *contextImpl {
 		eventsCache:                  eventsCache,
 	}
 
+	context.initTaskNotifier()
+
 	s.Require().True(testMaxTransferSequenceNumber < (1<<context.config.RangeSizeBits), "bad config value")
 
 	return context
@@ -2224,7 +2226,7 @@ func TestPrefetchClusterTimesLocked(t *testing.T) {
 				ctx.contextImpl.remoteClusterCurrentTime = tc.remoteTime
 			}
 
-			result := ctx.contextImpl.fetchClusterCurrentTimesLocked(tc.tasks)
+			result := ctx.contextImpl.notifier.fetchClusterCurrentTimesLocked(tc.tasks)
 
 			if len(tc.expectedKeys) == 0 {
 				assert.Empty(t, result)
