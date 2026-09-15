@@ -132,7 +132,8 @@ func (f *timerQueueFactory) createQueuev2(
 		logger,
 	)
 	config := shard.GetConfig()
-	metricsScope := shard.GetMetricsClient().Scope(metrics.TimerQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID()))
+	metricsScope := shard.GetMetricsClient().Scope(metrics.TimerQueueProcessorV2Scope)
+	shardMetricsScope := metricsScope.Tagged(metrics.ShardIDTag(shard.GetShardID()))
 	options := &Options{
 		PageSize:                             config.TimerTaskBatchSize,
 		DeleteBatchSize:                      config.TimerTaskDeleteBatchSize,
@@ -171,7 +172,7 @@ func (f *timerQueueFactory) createQueuev2(
 		executorWrapper,
 		logger,
 		shard.GetMetricsClient(),
-		metricsScope,
+		shardMetricsScope,
 		reader,
 		options,
 	)

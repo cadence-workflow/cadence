@@ -3023,7 +3023,6 @@ const (
 	CachedQueuePrefetchGapDetectedCounter
 	CachedQueuePrefetchLatency
 	CachedQueuePrefetchLatencyHistogram
-	CachedQueuePrefetchWindowSpanHistogram
 
 	TaskRequestsPerTaskList
 	TaskLatencyPerTaskListHistogram
@@ -4015,7 +4014,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CachedQueuePrefetchGapDetectedCounter:                         {metricName: "cached_queue_prefetch_gap_detected", metricType: Counter},
 		CachedQueuePrefetchLatency:                                    {metricName: "cached_queue_prefetch_latency", metricType: Timer},
 		CachedQueuePrefetchLatencyHistogram:                           {metricName: "cached_queue_prefetch_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
-		CachedQueuePrefetchWindowSpanHistogram:                        {metricName: "cached_queue_prefetch_window_span_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 	},
 	Matching: {
 		PollSuccessPerTaskListCounter:                                    {metricName: "poll_success_per_tl", metricRollupName: "poll_success"},

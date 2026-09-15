@@ -139,7 +139,8 @@ func (f *transferQueueFactory) createQueuev2(
 		logger,
 	)
 	config := shard.GetConfig()
-	metricsScope := shard.GetMetricsClient().Scope(metrics.TransferQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID()))
+	metricsScope := shard.GetMetricsClient().Scope(metrics.TransferQueueProcessorV2Scope)
+	shardMetricsScope := metricsScope.Tagged(metrics.ShardIDTag(shard.GetShardID()))
 	options := &Options{
 		PageSize:                             config.TransferTaskBatchSize,
 		DeleteBatchSize:                      config.TransferTaskDeleteBatchSize,
@@ -180,7 +181,7 @@ func (f *transferQueueFactory) createQueuev2(
 		executorWrapper,
 		logger,
 		shard.GetMetricsClient(),
-		metricsScope,
+		shardMetricsScope,
 		reader,
 		options,
 	)
