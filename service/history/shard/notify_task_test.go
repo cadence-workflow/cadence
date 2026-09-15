@@ -27,11 +27,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	hcommon "github.com/uber/cadence/service/history/common"
 	"github.com/uber/cadence/service/history/config"
+	"github.com/uber/cadence/service/history/engine"
 )
 
 func TestIsOperationPossiblySuccessfulError(t *testing.T) {
@@ -185,6 +188,103 @@ func TestLogNotifyTaskDroppedOnPersistenceError(t *testing.T) {
 			ctxMap := entries[0].ContextMap()
 			assert.Equal(t, tc.wantTimerIDs, toInt64s(ctxMap["droppedTimerTaskIDs"]))
 			assert.Equal(t, tc.wantTransferIDs, toInt64s(ctxMap["droppedTransferTaskIDs"]))
+		})
+	}
+}
+
+func TestNotifyTasksFromReinjectHistoryTasks(t *testing.T) {
+	tests := []struct {
+		name                 string
+		tasksByCategory      persistence.HistoryTasksByCategory
+		err                  error
+		wantEngineCall       bool // NotifyNewTransferTasks is actually invoked
+		wantPersistenceError bool
+		wantDropLogged       bool // the "dropped due to persistence error" log line fires
+	}{
+		{
+			name: "success: notifies with persistenceError=false",
+			tasksByCategory: persistence.HistoryTasksByCategory{
+				persistence.HistoryTaskCategoryTransfer: {transferTask(1)},
+			},
+			err:            nil,
+			wantEngineCall: true,
+		},
+		{
+			name: "ambiguous error: notifies with persistenceError=true",
+			tasksByCategory: persistence.HistoryTasksByCategory{
+				persistence.HistoryTaskCategoryTransfer: {transferTask(1)},
+			},
+			err:                  assert.AnError,
+			wantEngineCall:       true,
+			wantPersistenceError: true,
+		},
+		{
+			name: "definite failure (ShardOwnershipLostError): drops, no notify",
+			tasksByCategory: persistence.HistoryTasksByCategory{
+				persistence.HistoryTaskCategoryTransfer: {transferTask(1)},
+			},
+			err:            &persistence.ShardOwnershipLostError{},
+			wantDropLogged: true,
+		},
+		{
+			// tasksByCategory is a plain map built with make(); it's never nil in production, but
+			// notifyTasksFromReinjectHistoryTasks takes it as a parameter with no nil check, so a nil
+			// map must not panic. isNotifyTaskNeeded still treats the unclassified error as ambiguous,
+			// so this takes the notify branch, but a nil map has no tasks to range over in any
+			// category, so no engine call happens either.
+			name:            "nil tasksByCategory on ambiguous error: no panic, no engine call",
+			tasksByCategory: nil,
+			err:             assert.AnError,
+			wantEngineCall:  false,
+		},
+		{
+			name:            "nil tasksByCategory on success: no panic, no engine call",
+			tasksByCategory: nil,
+			err:             nil,
+			wantEngineCall:  false,
+		},
+		{
+			// A nil map on a definite failure takes the drop-log branch, but there are no task IDs
+			// to collect from a nil source, so the log line itself is suppressed (nothing to report).
+			name:            "nil tasksByCategory on definite failure: no panic, no log",
+			tasksByCategory: nil,
+			err:             &persistence.ShardOwnershipLostError{},
+			wantDropLogged:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			mockEngine := engine.NewMockEngine(controller)
+			logger, obs := testlogger.NewObserved(t)
+			s := &contextImpl{
+				shardID: 1,
+				logger:  logger,
+				engine:  mockEngine,
+				config: &config.Config{
+					TimerProcessorCachedQueueReaderMode:    func(int) string { return "shadow" },
+					TransferProcessorCachedQueueReaderMode: func(int) string { return "shadow" },
+				},
+			}
+
+			if tc.wantEngineCall {
+				mockEngine.EXPECT().NotifyNewTransferTasks(&hcommon.NotifyTaskInfo{
+					Tasks:            tc.tasksByCategory[persistence.HistoryTaskCategoryTransfer],
+					PersistenceError: tc.wantPersistenceError,
+				}).Times(1)
+			}
+
+			assert.NotPanics(t, func() {
+				s.notifyTasksFromReinjectHistoryTasks(tc.tasksByCategory, tc.err)
+			})
+
+			entries := obs.FilterMessage("notify tasks dropped due to persistence error").All()
+			if tc.wantDropLogged {
+				assert.Len(t, entries, 1)
+			} else {
+				assert.Empty(t, entries)
+			}
 		})
 	}
 }

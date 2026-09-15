@@ -623,6 +623,28 @@ func (s *contextTestSuite) TestReinjectHistoryTasks() {
 		s.Equal(assert.AnError, err)
 		s.NoError(s.context.closedError())
 	})
+
+	s.Run("shard closes before persistence is attempted: CreateHistoryTasks is skipped but notify still fires", func() {
+		s.SetupTest()
+		mockEngine := engine.NewMockEngine(s.controller)
+		s.context.SetEngine(mockEngine)
+		// Close the shard as a side effect of the (out-of-lock) domain lookup, so the closedError()
+		// check right before CreateHistoryTasks sees it and skips the call (no .On registered for
+		// CreateHistoryTasks, so the mock would fail the test if it were called anyway).
+		// ErrShardClosed isn't in the definitive-failure whitelist, so — consistent with
+		// CreateWorkflowExecution/UpdateWorkflowExecution/ConflictResolveWorkflowExecution — it's
+		// still treated as ambiguous and triggers a notification with PersistenceError set.
+		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).DoAndReturn(func(string) (*cache.DomainCacheEntry, error) {
+			s.context.closeShard()
+			return s.setupAllocateTimerIDsTest(), nil
+		})
+		mockEngine.EXPECT().NotifyNewTransferTasks(gomock.Any()).Times(1).Do(func(info *hcommon.NotifyTaskInfo) {
+			s.True(info.PersistenceError)
+		})
+
+		err := s.context.ReinjectHistoryTasks(context.Background(), []persistence.Task{newTransferTask()})
+		s.ErrorContains(err, "shard closed")
+	})
 }
 
 func (s *contextTestSuite) TestCreateWorkflowExecution() {
