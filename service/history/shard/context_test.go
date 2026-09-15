@@ -138,6 +138,14 @@ func (s *contextTestSuite) newContext() *contextImpl {
 		eventsCache:                  eventsCache,
 	}
 
+	context.notifier = newTaskNotifier(
+		context.shardID,
+		context.config,
+		context.logger,
+		context.GetEngine,
+		context.fetchClusterCurrentTimesLocked,
+	)
+
 	s.Require().True(testMaxTransferSequenceNumber < (1<<context.config.RangeSizeBits), "bad config value")
 
 	return context

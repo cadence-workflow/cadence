@@ -135,6 +135,7 @@ type (
 		throttledLogger          log.Logger
 		engine                   engine.Engine
 		replicationBudgetManager cache.Manager
+		notifier                 *taskNotifier
 
 		sync.RWMutex
 		lastUpdated                  time.Time
@@ -668,7 +669,7 @@ func (s *contextImpl) CreateWorkflowExecution(
 	defer s.Unlock()
 
 	resp, err := s.createWorkflowExecutionLocked(ctx, request, domainEntry)
-	s.notifyTasksFromCreateWorkflowExecution(request, err)
+	s.notifier.onCreateWorkflowExecution(request, err)
 	return resp, err
 }
 
@@ -775,7 +776,7 @@ func (s *contextImpl) UpdateWorkflowExecution(
 	defer s.Unlock()
 
 	resp, err := s.updateWorkflowExecutionLocked(ctx, request, domainEntry)
-	s.notifyTasksFromUpdateWorkflowExecution(request, err)
+	s.notifier.onUpdateWorkflowExecution(request, err)
 	return resp, err
 }
 
@@ -888,7 +889,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 	defer s.Unlock()
 
 	resp, err := s.conflictResolveWorkflowExecutionLocked(ctx, request, domainEntry)
-	s.notifyTasksFromConflictResolveWorkflowExecution(request, err)
+	s.notifier.onConflictResolveWorkflowExecution(request, err)
 	return resp, err
 }
 
@@ -1590,7 +1591,7 @@ func (s *contextImpl) ReinjectHistoryTasks(
 	defer s.Unlock()
 
 	tasksByCategory, err := s.reinjectHistoryTasksLocked(ctx, tasksByExecution, domainEntries)
-	s.notifyTasksFromReinjectHistoryTasks(tasksByCategory, err)
+	s.notifier.onReinjectHistoryTasks(tasksByCategory, err)
 	return err
 }
 
@@ -1862,6 +1863,15 @@ func acquireShard(
 		previousShardOwnerWasDifferent: ownershipChanged,
 		replicationBudgetManager:       shardItem.replicationBudgetManager,
 	}
+
+	// set after the literal: the notifier captures method values, so the context must exist first
+	context.notifier = newTaskNotifier(
+		context.shardID,
+		context.config,
+		context.logger,
+		context.GetEngine,
+		context.fetchClusterCurrentTimesLocked,
+	)
 
 	// TODO remove once migrated to global event cache
 	context.eventsCache = events.NewCache(
