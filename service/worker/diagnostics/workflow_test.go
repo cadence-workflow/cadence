@@ -111,6 +111,7 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	workflowTimeoutDataInBytes, err := json.Marshal(workflowTimeoutData)
 	s.NoError(err)
 	actMetadata := failure.FailureIssuesMetadata{
+		EventID:             3,
 		Identity:            "localhost",
 		ActivityScheduledID: 1,
 		ActivityStartedID:   2,
@@ -380,6 +381,7 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRootCause() {
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureIssues() {
 	actMetadata := failure.FailureIssuesMetadata{
+		EventID:             3,
 		Identity:            "localhost",
 		ActivityScheduledID: 1,
 		ActivityStartedID:   2,
