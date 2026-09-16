@@ -68,6 +68,9 @@ type (
 	// FailoverActivityV2Params is the arg for the shared FailoverActivityV2.
 	FailoverActivityV2Params struct {
 		DomainPreferences []DomainFailoverPreferences
+		// SkipDestinationClusterCheck is forwarded onto every FailoverDomain request. When false the
+		// server only accepts each request if this cluster is the destination it names.
+		SkipDestinationClusterCheck bool
 	}
 
 	// DomainFailoverSuccess records a domain that was successfully failed over.
@@ -93,15 +96,16 @@ type (
 // FailoverActivityV2 is the single apply activity shared by FailoverWorkflowV2 and
 // RebalanceWorkflowV2. It applies each DomainFailoverPreferences entry via FailoverDomain.
 func FailoverActivityV2(ctx context.Context, params *FailoverActivityV2Params) (*FailoverActivityV2Result, error) {
-	return failoverDomains(ctx, params.DomainPreferences)
+	return failoverDomains(ctx, params.DomainPreferences, params.SkipDestinationClusterCheck)
 }
 
 // executeFailoverBatch returns a batchExecutor that invokes the shared FailoverActivityV2. On
 // activity error every domain in the batch is reported failed with that error (false-positive semantics).
-func executeFailoverBatch() batchExecutor {
+// skipDestinationClusterCheck is forwarded onto every FailoverDomain request the activity issues.
+func executeFailoverBatch(skipDestinationClusterCheck bool) batchExecutor {
 	return func(ctx workflow.Context, batch []DomainFailoverPreferences) (success []DomainFailoverSuccess, failed []DomainFailoverFailure) {
 		ao := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())
-		actParams := &FailoverActivityV2Params{DomainPreferences: batch}
+		actParams := &FailoverActivityV2Params{DomainPreferences: batch, SkipDestinationClusterCheck: skipDestinationClusterCheck}
 		var actResult FailoverActivityV2Result
 		if err := workflow.ExecuteActivity(ao, FailoverActivityV2, actParams).Get(ctx, &actResult); err != nil {
 			return nil, failuresFromBatch(batch, err)
@@ -113,12 +117,15 @@ func executeFailoverBatch() batchExecutor {
 // failoverDomains is the shared per-domain loop. For each entry it issues a single FailoverDomain request carrying the
 // preferred ActiveClusterName and any per-attribute ActiveClusters overrides.
 // Returns lists of domains delineated by success or failure, failures carrying the error.
-func failoverDomains(ctx context.Context, prefs []DomainFailoverPreferences) (*FailoverActivityV2Result, error) {
+func failoverDomains(ctx context.Context, prefs []DomainFailoverPreferences, skipDestinationClusterCheck bool) (*FailoverActivityV2Result, error) {
 	frontendClient := getClient(ctx)
 	var successDomains []DomainFailoverSuccess
 	var failedDomains []DomainFailoverFailure
 	for _, p := range prefs {
-		failoverRequest := &types.FailoverDomainRequest{DomainName: p.DomainName}
+		failoverRequest := &types.FailoverDomainRequest{
+			DomainName:                  p.DomainName,
+			SkipDestinationClusterCheck: skipDestinationClusterCheck,
+		}
 		if p.TargetCluster != "" {
 			failoverRequest.DomainActiveClusterName = common.StringPtr(p.TargetCluster)
 		}

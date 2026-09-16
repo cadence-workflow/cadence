@@ -1118,6 +1118,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Name:  FlagFailoverV2,
 					Usage: "Use the V2 failover workflow, which fails all managed domains out of --source_cluster onto --target_cluster (N-region safe, records a restore snapshot)",
 				},
+				&cli.BoolFlag{
+					Name:  FlagSkipDestinationCheck,
+					Usage: "Only with --failover_v2: allow the failover to be issued from a cluster other than --target_cluster. By default the server rejects FailoverDomain requests that are not received by the destination cluster.",
+				},
 			},
 			Action: AdminFailoverStart,
 		},

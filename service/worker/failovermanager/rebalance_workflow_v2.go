@@ -117,7 +117,10 @@ func RebalanceWorkflowV2(ctx workflow.Context, params *RebalanceV2Params) (*Reba
 		params.BatchSize,
 		waitBetween,
 		checkPause,
-		executeFailoverBatch(),
+		// Rebalance reconciles domains to their stored preferences and may move one domain's
+		// attributes onto several clusters at once, so it always opts out of the server's
+		// destination-cluster check rather than needing to run in every destination.
+		executeFailoverBatch(true),
 	)
 
 	wfState = WorkflowCompleted
