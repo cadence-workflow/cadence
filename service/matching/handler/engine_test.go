@@ -28,11 +28,13 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
@@ -1982,24 +1984,44 @@ func newSemaphoreEngine(t *testing.T, ringOwner membership.HostInfo) (*matchingE
 
 	tokens := persistence.NewMockSemaphoreTokenManager(ctrl)
 
-	return &matchingEngineImpl{
+	engine := &matchingEngineImpl{
 		semaphoreRegistry:     semaphore.NewSemaphoreRegistry(),
 		semaphoreTokenManager: tokens,
 		domainCache:           domainCache,
 		membershipResolver:    resolver,
 		metricsClient:         metrics.NewNoopMetricsClient(),
 		logger:                log.NewNoop(),
+		// A clock that only moves when a test moves it, so no bucket is evicted mid-test.
+		timeSource: clock.NewMockedTimeSource(),
 		config: &config.Config{
 			EnableDistributedSemaphore: func(string) bool { return true },
+			SemaphoreIdleTime:          func(string) time.Duration { return time.Minute },
 		},
-	}, tokens
+	}
+
+	// Every loaded bucket runs an idle clock, so unload whatever the test left behind.
+	t.Cleanup(func() {
+		for _, mgr := range engine.semaphoreRegistry.AllManagers() {
+			mgr.Stop()
+		}
+	})
+	return engine, tokens
 }
 
-// newSemaphoreManager builds an unstarted manager for tests that drive one directly
+// newSemaphoreManager builds an unstarted manager for tests that drive one directly. Its clock
+// only moves when a test moves it, so the bucket is never evicted mid-test.
 func newSemaphoreManager(t *testing.T, id semaphore.Identifier, tokens persistence.SemaphoreTokenManager) semaphore.Manager {
 	t.Helper()
-	mgr, err := semaphore.NewManager(semaphore.ManagerParams{ID: id, Tokens: tokens, Logger: log.NewNoop()})
+	mgr, err := semaphore.NewManager(semaphore.ManagerParams{
+		ID:         id,
+		Tokens:     tokens,
+		Logger:     log.NewNoop(),
+		IdleTTL:    time.Minute,
+		Registry:   semaphore.NewSemaphoreRegistry(),
+		TimeSource: clock.NewMockedTimeSource(),
+	})
 	require.NoError(t, err)
+	t.Cleanup(mgr.Stop)
 	return mgr
 }
 

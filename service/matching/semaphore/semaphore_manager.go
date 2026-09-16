@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
+	"time"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/matching/liveness"
 )
 
 const (
@@ -89,10 +92,19 @@ type semaphoreManagerImpl struct {
 	tokens persistence.SemaphoreTokenManager
 	logger log.Logger
 
+	// registry is the map this manager registered itself in. Stop removes it from there, so a
+	// manager that unloads itself on idle is not handed to the next caller.
+	registry SemaphoreRegistry
+	// liveness unloads the bucket once it has gone IdleTTL without serving a request.
+	liveness *liveness.Liveness
+
 	// startupDoneCh is closed when startup ends, whatever the outcome, and Acquire waits on it.
 	// startupOnce keeps the close to one, since closing twice panics.
 	startupDoneCh chan struct{}
 	startupOnce   sync.Once
+	// stopOnce runs the teardown once. A second caller blocks until the first has finished,
+	// rather than returning while the registry entry and the idle clock are still going.
+	stopOnce sync.Once
 
 	// mu guards the state below, never held across a persistence call: concurrent acquires
 	// for one owner must race to the conditional write.
@@ -113,6 +125,11 @@ type ManagerParams struct {
 	ID     Identifier
 	Tokens persistence.SemaphoreTokenManager
 	Logger log.Logger
+
+	// IdleTTL is how long the manager may go without a request before it unloads itself.
+	IdleTTL    time.Duration
+	Registry   SemaphoreRegistry
+	TimeSource clock.TimeSource
 }
 
 func validateParams(p ManagerParams) error {
@@ -125,6 +142,17 @@ func validateParams(p ManagerParams) error {
 	if p.Logger == nil {
 		return fmt.Errorf("%w: ManagerParams.Logger is required", ErrInvalidRequest)
 	}
+	// Rejected rather than passed through: liveness builds a ticker from this and a
+	// non-positive interval panics, which would take the host down on a bad config value.
+	if p.IdleTTL <= 0 {
+		return fmt.Errorf("%w: ManagerParams.IdleTTL must be positive", ErrInvalidRequest)
+	}
+	if p.Registry == nil {
+		return fmt.Errorf("%w: ManagerParams.Registry is required", ErrInvalidRequest)
+	}
+	if p.TimeSource == nil {
+		return fmt.Errorf("%w: ManagerParams.TimeSource is required", ErrInvalidRequest)
+	}
 	return nil
 }
 
@@ -134,14 +162,21 @@ func NewManager(p ManagerParams) (Manager, error) {
 	if err := validateParams(p); err != nil {
 		return nil, err
 	}
-	return &semaphoreManagerImpl{
+	m := &semaphoreManagerImpl{
 		id:            p.ID,
 		tokens:        p.Tokens,
 		logger:        p.Logger.WithTags(tag.Dynamic("semaphore-bucket", p.ID.String())),
+		registry:      p.Registry,
 		startupDoneCh: make(chan struct{}),
 		freeIndex:     make(map[int]int),
 		held:          make(map[string]int),
-	}, nil
+	}
+	m.liveness = liveness.NewLiveness(p.TimeSource, p.IdleTTL, func() {
+		m.logger.Info("Semaphore manager unloading after no recent requests",
+			tag.Dynamic("idle-ttl", p.IdleTTL))
+		m.Stop()
+	})
+	return m, nil
 }
 
 // Identifier names the bucket this manager serves.
@@ -186,9 +221,11 @@ func (m *semaphoreManagerImpl) Start(ctx context.Context) error {
 	}
 	m.freeList, m.freeIndex, m.held = freeList, freeIndex, held
 	m.state = managerStateRunning
-	// Counted under the lock: the assignment above aliases the locals into the manager, so
-	// reading their length after the unlock would race a concurrent grant.
 	freeSlots, heldSlots := len(m.freeList), len(m.held)
+	// Armed here, not earlier or later. Earlier, the idle clock would run during the scan, so a
+	// slow load could unload the bucket before its first request. Later, outside the lock, a
+	// concurrent Stop could finish first and leave the idle clock running with nothing to stop it.
+	m.liveness.Start()
 	m.mu.Unlock()
 
 	m.logger.Info("Semaphore manager started",
@@ -202,11 +239,21 @@ func (m *semaphoreManagerImpl) Start(ctx context.Context) error {
 // Stop gives up the bucket: later acquires get ErrNotReady. A grant
 // already past the state check still finishes its write.
 func (m *semaphoreManagerImpl) Stop() {
-	m.mu.Lock()
-	m.state = managerStateStopped
-	m.mu.Unlock()
-	m.markStartupDone()
-	m.logger.Info("Semaphore manager stopped", tag.LifeCycleStopped)
+	m.stopOnce.Do(func() {
+		m.mu.Lock()
+		m.state = managerStateStopped
+		m.mu.Unlock()
+
+		// Leave the registry before anything else. A stopped manager still held there would be
+		// returned to every later caller, and each one would be refused with ErrNotReady for as
+		// long as the host lived. Unregister is a no-op when the bucket has already been
+		// replaced or removed, so the ring-change path calling Unregister first stays correct.
+		m.registry.Unregister(m)
+		m.liveness.Stop()
+
+		m.markStartupDone()
+		m.logger.Info("Semaphore manager stopped", tag.LifeCycleStopped)
+	})
 }
 
 func (m *semaphoreManagerImpl) isRunning() bool {
@@ -221,6 +268,9 @@ func (m *semaphoreManagerImpl) Acquire(ctx context.Context, ownerID string) (Acq
 	if ownerID == "" {
 		return AcquireResult{}, fmt.Errorf("%w: ownerID is required", ErrInvalidRequest)
 	}
+	// Marked before the startup wait, so a bucket whose first request arrives during a slow
+	// scan is not counted as idle the moment it finishes loading.
+	m.liveness.MarkAlive()
 
 	// Wait for startup to finish before reading any state, since the free-set is empty until
 	// the scan fills it.

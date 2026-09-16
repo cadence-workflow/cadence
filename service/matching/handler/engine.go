@@ -427,9 +427,12 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 	}
 	logger := e.logger.WithTags(tag.Dynamic("semaphore-bucket", id.String()))
 	mgr, err := semaphore.NewManager(semaphore.ManagerParams{
-		ID:     id,
-		Tokens: e.semaphoreTokenManager,
-		Logger: e.logger,
+		ID:         id,
+		Tokens:     e.semaphoreTokenManager,
+		Logger:     e.logger,
+		IdleTTL:    e.config.SemaphoreIdleTime(domainName),
+		Registry:   e.semaphoreRegistry,
+		TimeSource: e.timeSource,
 	})
 	if err != nil {
 		e.semaphoreCreationLock.Unlock()

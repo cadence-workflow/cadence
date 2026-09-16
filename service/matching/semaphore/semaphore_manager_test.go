@@ -13,12 +13,15 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
 var testBucketID = Identifier{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 2}
+
+const testIdleTTL = 100 * time.Millisecond
 
 func tokenRow(tokenID int, holder string) *persistence.SemaphoreOwnership {
 	return &persistence.SemaphoreOwnership{
@@ -67,12 +70,33 @@ func expectScan(t *testing.T, m *persistence.MockSemaphoreTokenManager, pages []
 		})
 }
 
-// newTestManager builds an unstarted manager.
+// newTestManager builds an unstarted manager on a clock that only moves when a test moves it,
+// so nothing is evicted unless the test asks for it.
 func newTestManager(t *testing.T, m persistence.SemaphoreTokenManager) *semaphoreManagerImpl {
 	t.Helper()
-	mgr, err := NewManager(ManagerParams{ID: testBucketID, Tokens: m, Logger: testlogger.New(t)})
+	mgr, _, _ := newTestManagerWithRegistry(t, m)
+	return mgr
+}
+
+func newTestManagerWithRegistry(
+	t *testing.T,
+	m persistence.SemaphoreTokenManager,
+) (*semaphoreManagerImpl, SemaphoreRegistry, clock.MockedTimeSource) {
+	t.Helper()
+	registry := NewSemaphoreRegistry()
+	mockClock := clock.NewMockedTimeSource()
+	mgr, err := NewManager(ManagerParams{
+		ID:         testBucketID,
+		Tokens:     m,
+		Logger:     testlogger.New(t),
+		IdleTTL:    testIdleTTL,
+		Registry:   registry,
+		TimeSource: mockClock,
+	})
 	require.NoError(t, err)
-	return mgr.(*semaphoreManagerImpl)
+	// Every manager runs an idle clock, so stop it rather than leak the goroutine.
+	t.Cleanup(mgr.Stop)
+	return mgr.(*semaphoreManagerImpl), registry, mockClock
 }
 
 // startManager returns a started manager whose startup scan read the given single page of rows.
@@ -113,13 +137,32 @@ func TestNewManagerValidatesItsParams(t *testing.T) {
 	tokens := persistence.NewMockSemaphoreTokenManager(ctrl)
 	logger := testlogger.New(t)
 
+	full := ManagerParams{
+		ID:         testBucketID,
+		Tokens:     tokens,
+		Logger:     logger,
+		IdleTTL:    testIdleTTL,
+		Registry:   NewSemaphoreRegistry(),
+		TimeSource: clock.NewMockedTimeSource(),
+	}
+	// Each case drops exactly one required field from an otherwise valid set.
+	without := func(drop func(p *ManagerParams)) ManagerParams {
+		p := full
+		drop(&p)
+		return p
+	}
+
 	tests := []struct {
 		name   string
 		params ManagerParams
 	}{
-		{name: "no identifier", params: ManagerParams{Tokens: tokens, Logger: logger}},
-		{name: "no token manager", params: ManagerParams{ID: testBucketID, Logger: logger}},
-		{name: "no logger", params: ManagerParams{ID: testBucketID, Tokens: tokens}},
+		{name: "no identifier", params: without(func(p *ManagerParams) { p.ID = Identifier{} })},
+		{name: "no token manager", params: without(func(p *ManagerParams) { p.Tokens = nil })},
+		{name: "no logger", params: without(func(p *ManagerParams) { p.Logger = nil })},
+		{name: "no idle ttl", params: without(func(p *ManagerParams) { p.IdleTTL = 0 })},
+		{name: "negative idle ttl", params: without(func(p *ManagerParams) { p.IdleTTL = -time.Second })},
+		{name: "no registry", params: without(func(p *ManagerParams) { p.Registry = nil })},
+		{name: "no time source", params: without(func(p *ManagerParams) { p.TimeSource = nil })},
 	}
 
 	for _, tc := range tests {
@@ -135,12 +178,7 @@ func TestNewManagerValidatesItsParams(t *testing.T) {
 // both key on this.
 func TestNewManagerReportsItsIdentifier(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	mgr, err := NewManager(ManagerParams{
-		ID:     testBucketID,
-		Tokens: persistence.NewMockSemaphoreTokenManager(ctrl),
-		Logger: testlogger.New(t),
-	})
-	require.NoError(t, err)
+	mgr := newTestManager(t, persistence.NewMockSemaphoreTokenManager(ctrl))
 	assert.Equal(t, testBucketID, mgr.Identifier())
 }
 
@@ -1004,4 +1042,94 @@ func TestAcquireOutcomeString(t *testing.T) {
 			assert.Equal(t, tc.want, tc.outcome.String())
 		})
 	}
+}
+
+// startIdleManager returns a started manager already registered the way the engine registers it.
+func startIdleManager(
+	t *testing.T,
+	m *persistence.MockSemaphoreTokenManager,
+	rows []*persistence.SemaphoreOwnership,
+) (*semaphoreManagerImpl, SemaphoreRegistry, clock.MockedTimeSource) {
+	t.Helper()
+	expectScan(t, m, [][]*persistence.SemaphoreOwnership{rows})
+	mgr, registry, mockClock := newTestManagerWithRegistry(t, m)
+	registry.Register(mgr)
+	require.NoError(t, mgr.Start(context.Background()))
+	return mgr, registry, mockClock
+}
+
+func isRegistered(registry SemaphoreRegistry, mgr Manager) bool {
+	current, ok := registry.ManagerByIdentifier(testBucketID)
+	return ok && current == mgr
+}
+
+// Tests the whole eviction path: once the bucket has gone its TTL without a request it stops
+// itself and leaves the registry, so the next caller builds a fresh manager rather than being
+// handed a stopped one.
+func TestAnIdleManagerUnloadsItselfAndLeavesTheRegistry(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	ctrl := gomock.NewController(t)
+	m := persistence.NewMockSemaphoreTokenManager(ctrl)
+	mgr, registry, mockClock := startIdleManager(t, m, freeTokens(1))
+
+	require.True(t, isRegistered(registry, mgr), "a started bucket is reachable")
+
+	mockClock.Advance(testIdleTTL)
+	require.Eventually(t, func() bool {
+		return !isRegistered(registry, mgr)
+	}, time.Second, 5*time.Millisecond, "an idle bucket unloads itself")
+
+	assert.False(t, mgr.isRunning(), "the unloaded manager is stopped, not merely unregistered")
+}
+
+// Tests that serving a request resets the idle clock, so a bucket under steady traffic is never
+// unloaded out from under it.
+func TestAcquireKeepsAManagerLoaded(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	ctrl := gomock.NewController(t)
+	m := persistence.NewMockSemaphoreTokenManager(ctrl)
+	// A full bucket answers NoSlot without any write, which is enough to count as a request.
+	mgr, registry, mockClock := startIdleManager(t, m,
+		[]*persistence.SemaphoreOwnership{tokenRow(1, "owner-x"), ownerRow("owner-x", 1)})
+	t.Cleanup(mgr.Stop)
+
+	mockClock.Advance(testIdleTTL / 2)
+	got, err := mgr.Acquire(context.Background(), "owner-a")
+	require.NoError(t, err)
+	require.Equal(t, AcquireOutcomeNoSlot, got.Outcome)
+
+	// Past the original deadline, but within the TTL measured from the request.
+	mockClock.Advance(testIdleTTL / 2)
+	require.Never(t, func() bool {
+		return !isRegistered(registry, mgr)
+	}, 50*time.Millisecond, 5*time.Millisecond, "a bucket that just served a request stays loaded")
+
+	mockClock.Advance(testIdleTTL)
+	require.Eventually(t, func() bool {
+		return !isRegistered(registry, mgr)
+	}, time.Second, 5*time.Millisecond, "the idle clock still runs once traffic stops")
+}
+
+// Tests that a manager already replaced in the registry does not take its replacement with it
+// when it stops, which is what the ring-change path relies on.
+func TestStopLeavesAReplacementManagerAlone(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	ctrl := gomock.NewController(t)
+	m := persistence.NewMockSemaphoreTokenManager(ctrl)
+	old, registry, _ := startIdleManager(t, m, freeTokens(1))
+
+	replacement, err := NewManager(ManagerParams{
+		ID:         testBucketID,
+		Tokens:     m,
+		Logger:     testlogger.New(t),
+		IdleTTL:    testIdleTTL,
+		Registry:   registry,
+		TimeSource: clock.NewMockedTimeSource(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(replacement.Stop)
+	registry.Register(replacement)
+
+	old.Stop()
+	assert.True(t, isRegistered(registry, replacement), "the replacement is still the live bucket")
 }

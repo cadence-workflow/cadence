@@ -2851,6 +2851,12 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: DomainName,TasklistName,TaskType
 	MaxTasklistIdleTime
+	// MatchingSemaphoreIdleTime is the max time a semaphore bucket being idle before it is unloaded
+	// KeyName: matching.semaphoreIdleTime
+	// Value type: Duration
+	// Default value: 5m (5*time.Minute)
+	// Allowed filters: DomainName
+	MatchingSemaphoreIdleTime
 	// MatchingShutdownDrainDuration is the duration of traffic drain during shutdown
 	// KeyName: matching.shutdownDrainDuration
 	// Value type: Duration
@@ -5675,6 +5681,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "matching.maxTasklistIdleTime",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MaxTasklistIdleTime is the max time tasklist being idle",
+		DefaultValue: time.Minute * 5,
+	},
+	MatchingSemaphoreIdleTime: {
+		KeyName:      "matching.semaphoreIdleTime",
+		Filters:      []Filter{DomainName},
+		Description:  "MatchingSemaphoreIdleTime is the max time a semaphore bucket being idle before it is unloaded",
 		DefaultValue: time.Minute * 5,
 	},
 	MatchingShutdownDrainDuration: {
