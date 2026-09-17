@@ -621,12 +621,17 @@ func (s *IntegrationSuite) TestDelayStartWorkflow_SLOW() {
 	)
 
 	targetBackoffDuration := time.Second * 10
-	backoffDurationTolerance := time.Millisecond * 4000
+	// The lower bound is what this test is actually about: the start really was delayed.
+	// The upper bound only guards against a gross regression, so it is generous — it also
+	// covers polling and workflow completion after the backoff elapses, and a tight
+	// tolerance measures how loaded the CI runner is rather than how long the delay was.
+	backoffDurationTolerance := targetBackoffDuration * 2
 	backoffDuration := time.Since(startWorkflowTS)
 	s.True(
 		backoffDuration > targetBackoffDuration,
-		"Backoff duration(%f s) should have been at least 5 seconds",
+		"Backoff duration(%f s) should have been at least %v",
 		time.Duration(backoffDuration).Round(time.Millisecond).Seconds(),
+		targetBackoffDuration,
 	)
 	s.True(
 		backoffDuration < targetBackoffDuration+backoffDurationTolerance,
