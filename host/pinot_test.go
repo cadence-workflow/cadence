@@ -131,7 +131,11 @@ func (s *PinotIntegrationSuite) SetupSuite() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			errCh <- registerFn()
+			if err := registerFn(); err != nil {
+				errCh <- fmt.Errorf("register %s: %w", domain, err)
+			} else {
+				errCh <- nil
+			}
 		}()
 	}
 

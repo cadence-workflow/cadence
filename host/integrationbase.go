@@ -146,7 +146,11 @@ func (s *IntegrationBase) setupSuite() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			errCh <- registerFn()
+			if err := registerFn(); err != nil {
+				errCh <- fmt.Errorf("register %s: %w", domain, err)
+			} else {
+				errCh <- nil
+			}
 		}()
 	}
 
@@ -189,6 +193,10 @@ func (s *IntegrationBase) setupSuite() {
 	s.Require().NoError(s.waitForDomains(domains))
 }
 
+// waitForDomains waits for domains to be available in the cache.
+// Note: This helper uses real-time time.Sleep and relies on the domain cache's
+// background ticker. Reusing this from a suite with a fully mocked time source
+// may cause it to hang until timeout unless the mock clock is explicitly advanced.
 func (s *IntegrationBase) waitForDomains(domains []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
