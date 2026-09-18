@@ -233,6 +233,142 @@ func Test__AddActivityTaskScheduledEvent(t *testing.T) {
 	}
 }
 
+func TestRetryActivity(t *testing.T) {
+	scheduleID := int64(1)
+	failureReason := "some-reason"
+	failureDetails := []byte("some-details")
+	farFuture := currentTime.Add(24 * time.Hour)
+
+	tests := []struct {
+		name           string
+		ai             *persistence.ActivityInfo
+		failureOptions *types.FailureOptions
+		expected       *persistence.ActivityInfo
+	}{
+		{
+			name: "no retry policy",
+			ai: &persistence.ActivityInfo{
+				ScheduleID:         scheduleID,
+				HasRetryPolicy:     false,
+				InitialInterval:    1,
+				BackoffCoefficient: 1,
+				MaximumAttempts:    5,
+				ExpirationTime:     farFuture,
+			},
+			failureOptions: nil,
+		},
+		{
+			name: "retry with policy",
+			ai: &persistence.ActivityInfo{
+				ScheduleID:         scheduleID,
+				HasRetryPolicy:     true,
+				InitialInterval:    1,
+				BackoffCoefficient: 1,
+				MaximumAttempts:    5,
+				ExpirationTime:     farFuture,
+				StartedIdentity:    "worker-1",
+			},
+			failureOptions: nil,
+			expected: &persistence.ActivityInfo{
+				ScheduleID:          scheduleID,
+				HasRetryPolicy:      true,
+				InitialInterval:     1,
+				BackoffCoefficient:  1,
+				MaximumAttempts:     5,
+				ExpirationTime:      farFuture,
+				Version:             commonconstants.EmptyVersion,
+				Attempt:             1,
+				ScheduledTime:       currentTime.Add(time.Second),
+				StartedID:           commonconstants.EmptyEventID,
+				TimerTaskStatus:     TimerTaskStatusNone,
+				LastFailureReason:   failureReason,
+				LastWorkerIdentity:  "worker-1",
+				LastFailureDetails:  failureDetails,
+				LastFailureCategory: types.FailureCategoryStandard,
+				StartedIdentity:     "worker-1",
+			},
+		},
+		{
+			name: "fatal failure category prevents retry",
+			ai: &persistence.ActivityInfo{
+				ScheduleID:         scheduleID,
+				HasRetryPolicy:     true,
+				InitialInterval:    1,
+				BackoffCoefficient: 1,
+				MaximumAttempts:    5,
+				ExpirationTime:     farFuture,
+			},
+			failureOptions: &types.FailureOptions{
+				FailureCategory: types.FailureCategoryFatal.Ptr(),
+			},
+		},
+		{
+			name: "NextRetryIntervalSeconds overrides backoff",
+			ai: &persistence.ActivityInfo{
+				ScheduleID:         scheduleID,
+				HasRetryPolicy:     true,
+				InitialInterval:    1,
+				BackoffCoefficient: 2,
+				MaximumAttempts:    5,
+				ExpirationTime:     farFuture,
+				Attempt:            3,
+				StartedIdentity:    "worker-1",
+			},
+			failureOptions: &types.FailureOptions{
+				NextRetryIntervalSeconds: common.Int32Ptr(42),
+			},
+			expected: &persistence.ActivityInfo{
+				ScheduleID:               scheduleID,
+				HasRetryPolicy:           true,
+				InitialInterval:          1,
+				BackoffCoefficient:       2,
+				MaximumAttempts:          5,
+				ExpirationTime:           farFuture,
+				Version:                  commonconstants.EmptyVersion,
+				Attempt:                  4,
+				ScheduledTime:            currentTime.Add(42 * time.Second),
+				StartedID:                commonconstants.EmptyEventID,
+				TimerTaskStatus:          TimerTaskStatusNone,
+				LastFailureReason:        failureReason,
+				LastWorkerIdentity:       "worker-1",
+				LastFailureDetails:       failureDetails,
+				LastFailureCategory:      types.FailureCategoryStandard,
+				LastRetryIntervalSeconds: 42,
+				StartedIdentity:          "worker-1",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mb := testMutableStateBuilder(t)
+
+			mockTaskGen := NewMockMutableStateTaskGenerator(ctrl)
+			mb.taskGenerator = mockTaskGen
+
+			mb.pendingActivityInfoIDs[scheduleID] = tc.ai
+
+			if tc.expected != nil {
+				mockTaskGen.EXPECT().GenerateActivityRetryTasks(scheduleID).Return(nil)
+			}
+
+			retried, err := mb.RetryActivity(tc.ai, failureReason, failureDetails, tc.failureOptions)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected != nil, retried)
+
+			if tc.expected != nil {
+				assert.Equal(t, tc.expected, tc.ai)
+				assert.Equal(t, tc.ai, mb.updateActivityInfos[scheduleID])
+				assert.Contains(t, mb.syncActivityTasks, scheduleID)
+			} else {
+				assert.NotContains(t, mb.updateActivityInfos, scheduleID)
+				assert.NotContains(t, mb.syncActivityTasks, scheduleID)
+			}
+		})
+	}
+}
+
 func Test__UpdateActivityProgress(t *testing.T) {
 	mb := testMutableStateBuilder(t)
 	ai := &persistence.ActivityInfo{
