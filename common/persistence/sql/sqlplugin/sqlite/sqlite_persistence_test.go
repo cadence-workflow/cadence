@@ -69,6 +69,10 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 	s.T().Skip("skip the test until we store workflow_request in sqlite")
 }
 
+func (s *ExecutionManagerSuite) TestWorkflowMutableStateSemaphoreInfo() {
+	s.T().Skip("skip the test until we store semaphore_info in sqlite")
+}
+
 func TestSQLiteExecutionManagerSuite(t *testing.T) {
 	s := new(ExecutionManagerSuite)
 	s.TestBase = SQLiteTestBase(t)
