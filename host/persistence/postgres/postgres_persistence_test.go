@@ -74,6 +74,10 @@ func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
 	s.T().Skip("skip the test until we support ActiveClusterSelectionPolicy in postgres sql")
 }
 
+func (s *ExecutionManagerSuite) TestWorkflowMutableStateSemaphoreInfo() {
+	s.T().Skip("skip the test until we store semaphore_info in postgres sql")
+}
+
 func TestPostgresSQLExecutionManagerSuite(t *testing.T) {
 	s := new(ExecutionManagerSuite)
 	s.TestBase = PostgresTestBase(t)

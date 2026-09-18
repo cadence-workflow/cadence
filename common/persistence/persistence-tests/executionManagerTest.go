@@ -3759,12 +3759,6 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateSignalInfo() {
 
 // TestWorkflowMutableStateSemaphoreInfo test
 func (s *ExecutionManagerSuite) TestWorkflowMutableStateSemaphoreInfo() {
-	// Only the NoSQL execution store reads and writes semaphore holds, so on a SQL store the
-	// upsert below is dropped and the read back finds nothing.
-	if s.PersistenceConfig.DataStores[s.PersistenceConfig.DefaultStore].SQL != nil {
-		s.T().Skipf("semaphore holds are not stored in %v", s.ExecutionManager.GetName())
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 

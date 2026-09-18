@@ -66,6 +66,10 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 	s.T().Skip("skip the test until we store workflow_request in mysql")
 }
 
+func (s *ExecutionManagerSuite) TestWorkflowMutableStateSemaphoreInfo() {
+	s.T().Skip("skip the test until we store semaphore_info in mysql")
+}
+
 func TestMySQLExecutionManagerSuite(t *testing.T) {
 	s := new(ExecutionManagerSuite)
 	s.TestBase = MySQLTestBase(t)
