@@ -322,10 +322,18 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			expectedReturnedHistory: expectedEndingReturnHistoryStateFn(1, nil),
 			expectedPolicy:          nil,
 		},
-		"active-active domain, decision carries no policy - inherits the current run's policy": {
+		"active-active domain - policy carried by the attributes is used for the new run": {
 			domainEntry:     domainEntryActiveActive,
 			startingState:   createStartingExecutionInfoWithPolicy(policyRegion1),
 			startingHistory: createValidStartingHistory(2),
+			// the decision validator has already filled in the policy (see decision/checker.go)
+			attributes: &types.ContinueAsNewWorkflowExecutionDecisionAttributes{
+				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(60),
+				WorkflowType:                        &types.WorkflowType{Name: "helloWorldWorkflow"},
+				TaskList:                            &types.TaskList{Name: "helloWorldGroup"},
+				Input:                               []uint8{110, 117, 108, 108, 10},
+				ActiveClusterSelectionPolicy:        policyRegion1,
+			},
 			actClMgrAffordance: func(actClMgr *activecluster.MockManager) {
 				actClMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(
 					gomock.Any(),
@@ -350,7 +358,7 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			expectedReturnedHistory: expectedEndingReturnHistoryStateFn(2, policyRegion1),
 			expectedPolicy:          policyRegion1,
 		},
-		"active-active domain, decision carries an explicit policy - uses it": {
+		"active-active domain - attributes policy differing from the current run is not overridden": {
 			domainEntry:     domainEntryActiveActive,
 			startingState:   createStartingExecutionInfoWithPolicy(policyRegion1),
 			startingHistory: createValidStartingHistory(2),

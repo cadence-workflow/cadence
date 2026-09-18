@@ -1022,3 +1022,60 @@ func TestWorkflowSizeChecker_failWorkflowSizeExceedsLimit(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateContinueAsNewWorkflowExecutionAttributes_ActiveClusterSelectionPolicy(t *testing.T) {
+	currentPolicy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
+	}
+	decisionPolicy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region0"},
+	}
+
+	tests := map[string]struct {
+		currentPolicy  *types.ActiveClusterSelectionPolicy
+		decisionPolicy *types.ActiveClusterSelectionPolicy
+		expectedPolicy *types.ActiveClusterSelectionPolicy
+	}{
+		"non active-active execution, decision carries no policy": {
+			currentPolicy:  nil,
+			decisionPolicy: nil,
+			expectedPolicy: nil,
+		},
+		"decision carries no policy - inherits the current execution's policy": {
+			currentPolicy:  currentPolicy,
+			decisionPolicy: nil,
+			expectedPolicy: currentPolicy,
+		},
+		"decision carries a policy - it is kept": {
+			currentPolicy:  currentPolicy,
+			decisionPolicy: decisionPolicy,
+			expectedPolicy: decisionPolicy,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			domainCache := cache.NewMockDomainCache(ctrl)
+			domainCache.EXPECT().GetDomainName("domain-id").Return("domain", nil)
+			v := newAttrValidator(domainCache, metrics.NewNoopMetricsClient(), config.NewForTest(), log.NewNoop())
+
+			executionInfo := &persistence.WorkflowExecutionInfo{
+				DomainID:                     "domain-id",
+				WorkflowTypeName:             "workflow-type",
+				TaskList:                     "task-list",
+				WorkflowTimeout:              60,
+				DecisionStartToCloseTimeout:  10,
+				ActiveClusterSelectionPolicy: tc.currentPolicy,
+			}
+			attributes := &types.ContinueAsNewWorkflowExecutionDecisionAttributes{
+				ActiveClusterSelectionPolicy: tc.decisionPolicy,
+			}
+
+			err := v.validateContinueAsNewWorkflowExecutionAttributes(attributes, executionInfo, metrics.HistoryRespondDecisionTaskCompletedScope, "domain")
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedPolicy, attributes.ActiveClusterSelectionPolicy)
+		})
+	}
+}

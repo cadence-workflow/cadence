@@ -1230,9 +1230,6 @@ func (e *mutableStateBuilder) AddContinueAsNewEvent(
 		}
 	}
 
-	if attributes.ActiveClusterSelectionPolicy == nil {
-		attributes.ActiveClusterSelectionPolicy = e.executionInfo.ActiveClusterSelectionPolicy
-	}
 	continueAsNewEvent := e.hBuilder.AddContinuedAsNewEvent(decisionCompletedEventID, newRunID, attributes)
 	currentStartEvent, err := e.GetStartEvent(ctx)
 	if err != nil {
