@@ -1848,6 +1848,14 @@ const (
 	// Default value: false
 	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingEnableAdaptiveScaler
+	// MatchingEnableDistributedSemaphore gates serving distributed semaphore buckets on matching
+	// hosts. While it is off no bucket is loaded, so no partition is scanned and nothing is held
+	// in memory.
+	// KeyName: matching.enableDistributedSemaphore
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	MatchingEnableDistributedSemaphore
 	// MatchingEnablePartitionEmptyCheck enables using TaskListStatus.empty to check if a partition is empty
 	// KeyName: matching.enablePartitionEmptyCheck
 	// Value type: Bool
@@ -2843,6 +2851,12 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: DomainName,TasklistName,TaskType
 	MaxTasklistIdleTime
+	// MatchingSemaphoreIdleTime is the max time a semaphore bucket being idle before it is unloaded
+	// KeyName: matching.semaphoreIdleTime
+	// Value type: Duration
+	// Default value: 5m (5*time.Minute)
+	// Allowed filters: DomainName
+	MatchingSemaphoreIdleTime
 	// MatchingShutdownDrainDuration is the duration of traffic drain during shutdown
 	// KeyName: matching.shutdownDrainDuration
 	// Value type: Duration
@@ -4814,6 +4828,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "MatchingEnableAdaptiveScaler is to enable adaptive task list scaling",
 		DefaultValue: false,
 	},
+	MatchingEnableDistributedSemaphore: {
+		KeyName:      "matching.enableDistributedSemaphore",
+		Filters:      []Filter{DomainName},
+		Description:  "MatchingEnableDistributedSemaphore gates serving distributed semaphore buckets on matching hosts",
+		DefaultValue: false,
+	},
 	MatchingEnablePartitionEmptyCheck: {
 		KeyName:      "matching.enablePartitionEmptyCheck",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
@@ -5661,6 +5681,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "matching.maxTasklistIdleTime",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MaxTasklistIdleTime is the max time tasklist being idle",
+		DefaultValue: time.Minute * 5,
+	},
+	MatchingSemaphoreIdleTime: {
+		KeyName:      "matching.semaphoreIdleTime",
+		Filters:      []Filter{DomainName},
+		Description:  "MatchingSemaphoreIdleTime is the max time a semaphore bucket being idle before it is unloaded",
 		DefaultValue: time.Minute * 5,
 	},
 	MatchingShutdownDrainDuration: {

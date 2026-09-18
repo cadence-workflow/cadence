@@ -20,4 +20,19 @@ type (
 		// Identifier names the bucket this manager serves.
 		Identifier() Identifier
 	}
+
+	// SemaphoreRegistry tracks the managers this host is serving, keyed by identifier. It only
+	// tracks them: starting and stopping belongs to whoever creates them.
+	SemaphoreRegistry interface {
+		// Register adds mgr under its own identifier, replacing whatever was held for that
+		// bucket.
+		Register(mgr Manager)
+		// Unregister drops mgr and reports whether it was the manager actually held.
+		Unregister(mgr Manager) bool
+		// ManagerByIdentifier returns the manager held for id, if there is one. It may still
+		// be starting: Acquire is what waits for that.
+		ManagerByIdentifier(id Identifier) (Manager, bool)
+		// AllManagers returns a snapshot of what is registered.
+		AllManagers() []Manager
+	}
 )

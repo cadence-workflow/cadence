@@ -281,6 +281,8 @@ func (db *CDB) SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *no
 		rows = append(rows, row)
 		row = &nosqlplugin.SemaphoreOwnershipRow{}
 
+		// Must match query.PageSize above: the token below points past the driver's whole
+		// page, so breaking earlier would skip rows.
 		if filter.PageSize > 0 && len(rows) >= filter.PageSize {
 			break
 		}

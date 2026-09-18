@@ -99,7 +99,11 @@ type (
 
 		// isolation configuration
 		EnableTasklistIsolation dynamicproperties.BoolPropertyFnWithDomainFilter
-		AllIsolationGroups      func() []string
+		// EnableDistributedSemaphore gates serving semaphore buckets on this host.
+		EnableDistributedSemaphore dynamicproperties.BoolPropertyFnWithDomainFilter
+		// SemaphoreIdleTime is the max time a semaphore bucket being idle before it is unloaded
+		SemaphoreIdleTime  dynamicproperties.DurationPropertyFnWithDomainFilter
+		AllIsolationGroups func() []string
 		// hostname info
 		HostName string
 		// RPCConfig contains RPC configuration including ports and bindOnLocalHost
@@ -214,6 +218,8 @@ func NewConfig(dc *dynamicconfig.Collection, operationalDC *dynamicconfig.Collec
 		EnableTaskInfoLogByDomainID:                dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.MatchingEnableTaskInfoLogByDomainID),
 		ActivityTaskSyncMatchWaitTime:              dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingActivityTaskSyncMatchWaitTime),
 		EnableTasklistIsolation:                    dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
+		EnableDistributedSemaphore:                 dc.GetBoolPropertyFilteredByDomain(dynamicproperties.MatchingEnableDistributedSemaphore),
+		SemaphoreIdleTime:                          dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingSemaphoreIdleTime),
 		AppendTaskTimeout:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AppendTaskTimeout),
 		AsyncTaskDispatchTimeout:                   dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AsyncTaskDispatchTimeout),
 		LocalPollWaitTime:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.LocalPollWaitTime),
