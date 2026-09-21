@@ -6213,6 +6213,9 @@ func FromIsolationGroupMetrics(t *types.IsolationGroupMetrics) *shared.Isolation
 }
 
 func ToIsolationGroupMetrics(t *shared.IsolationGroupMetrics) *types.IsolationGroupMetrics {
+	if t == nil {
+		return nil
+	}
 	return &types.IsolationGroupMetrics{
 		NewTasksPerSecond: t.GetNewTasksPerSecond(),
 		PollerCount:       t.GetPollerCount(),
