@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Edit(docker/grafana/provisioning/dashboards/*)",
-      "Write(docker/grafana/provisioning/dashboards/*)"
-    ]
-  }
-}
