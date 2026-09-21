@@ -47,6 +47,7 @@ services:
       - "STATSD_HISTORY_PREFIX=cadence-history-primary"
       - "STATSD_WORKER_PREFIX=cadence-worker-primary"
       - "CLUSTER_REDIRECT_POLICY=selected-apis-forwarding"
+      - "ENABLE_METRICS_MIGRATION=true"
     depends_on:
       cassandra:
         condition: service_healthy
@@ -81,6 +82,7 @@ services:
       - "STATSD_HISTORY_PREFIX=cadence-history-secondary"
       - "STATSD_WORKER_PREFIX=cadence-worker-secondary"
       - "CLUSTER_REDIRECT_POLICY=selected-apis-forwarding"
+      - "ENABLE_METRICS_MIGRATION=true"
     depends_on:
       cassandra:
         condition: service_healthy

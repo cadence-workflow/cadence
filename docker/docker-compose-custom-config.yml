@@ -55,6 +55,7 @@ services:
       # The config file supports environment variables
       - "CADENCE_CONFIG_FILE=/etc/cadence/config/custom.yaml"
       - "CASSANDRA_SEEDS=cassandra" # still needed by start.sh script
+      - "ENABLE_METRICS_MIGRATION=true"
     volumes:
       # Mount your custom config file here
       # Example uses the provided custom-config.yaml from config/server/

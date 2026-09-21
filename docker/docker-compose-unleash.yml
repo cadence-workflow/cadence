@@ -113,6 +113,7 @@ services:
       - "UNLEASH_ENVIRONMENT=development"
       - "UNLEASH_API_TOKEN=default:development.unleash-insecure-api-token"
       - "UNLEASH_BOOTSTRAP_FILE=/etc/cadence/unleash/bootstrap.json"
+      - "ENABLE_METRICS_MIGRATION=true"
     volumes:
       - ./unleash/bootstrap.json:/etc/cadence/unleash/bootstrap.json:ro
     depends_on:

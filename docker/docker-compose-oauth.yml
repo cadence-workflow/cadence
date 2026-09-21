@@ -37,6 +37,7 @@ services:
       - "ENABLE_OAUTH=true"
       - "OAUTH_PUBLIC_KEY=config/credentials/keytest.pub"
       - "OAUTH_PRIVATE_KEY=config/credentials/keytest"
+      - "ENABLE_METRICS_MIGRATION=true"
     depends_on:
       - cassandra
       - prometheus
