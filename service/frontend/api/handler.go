@@ -1949,7 +1949,6 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 	var nextEventID int64
 	var isWorkflowRunning bool
 	var workflowCloseStatus string
-	var workflowCloseTime *time.Time
 
 	// process the token for paging
 	queryNextEventID := constants.EndEventID
@@ -2101,17 +2100,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 		return nil, err
 	}
 
-	// Extract close time from history events for closed workflows
-	if !isWorkflowRunning && len(history.Events) > 0 {
-		// Get the last event (close event) timestamp
-		lastEvent := history.Events[len(history.Events)-1]
-		if lastEvent.Timestamp != nil {
-			t := time.Unix(0, *lastEvent.Timestamp)
-			workflowCloseTime = &t
-		}
-	}
-
-	wh.emitGetWorkflowExecutionHistoryMetrics(domainName, domainID, execution.GetWorkflowID(), workflowCloseStatus, workflowCloseTime)
+	wh.emitWorkflowQueryAgeDays(domainName, workflowCloseStatus, history.Events)
 
 	return &types.GetWorkflowExecutionHistoryResponse{
 		History:       history,
@@ -3303,32 +3292,51 @@ func (wh *WorkflowHandler) emitDescribeWorkflowExecutionMetrics(domain string, r
 	scope.IncCounter(metrics.DescribeWorkflowStatusCount)
 }
 
-func (wh *WorkflowHandler) emitGetWorkflowExecutionHistoryMetrics(domainName, domainID, workflowID, workflowCloseStatus string, closeTime *time.Time) {
-	domainEntry, err := wh.GetDomainCache().GetDomainByID(domainID)
-	if err != nil {
-		wh.GetLogger().Warn("Failed to get domain entry for metrics", tag.WorkflowDomainName(domainName), tag.Error(err))
+func (wh *WorkflowHandler) emitWorkflowQueryAgeDays(domainName, workflowCloseStatus string, events []*types.HistoryEvent) {
+	if len(events) == 0 {
 		return
 	}
 
-	retentionDays := domainEntry.GetRetentionDays(workflowID)
+	lastEvent := events[len(events)-1]
+	if !isWorkflowCloseEvent(lastEvent) || lastEvent.Timestamp == nil {
+		return
+	}
+
+	closeTime := time.Unix(0, *lastEvent.Timestamp)
+	ageDays := time.Since(closeTime).Hours() / 24
+
+	// Use close status from mutable state if set, otherwise infer from the event type.
+	// Only "COMPLETED" is kept as-is; everything else becomes "other" to limit cardinality.
+	statusTag := workflowCloseStatus
+	if statusTag == "" {
+		if lastEvent.GetEventType() == types.EventTypeWorkflowExecutionCompleted {
+			statusTag = types.WorkflowExecutionCloseStatusCompleted.String()
+		}
+	}
+	if statusTag != types.WorkflowExecutionCloseStatusCompleted.String() {
+		statusTag = "other"
+	}
 
 	scope := wh.GetMetricsClient().Scope(
 		metrics.FrontendGetWorkflowExecutionHistoryScope,
 		metrics.DomainTag(domainName),
-		metrics.WorkflowCloseStatusTag(workflowCloseStatus),
+		metrics.WorkflowCloseStatusTag(statusTag),
 	)
+	scope.RecordHistogramValue(metrics.WorkflowQueryAgeDays, ageDays)
+}
 
-	// For closed workflows with close time, calculate days remaining until retention expires
-	// For running workflows emitting the retention days value
-	metricValue := float64(retentionDays)
-	if closeTime != nil {
-		// (closeTime + retentionDays) - now = days remaining
-		retentionExpiry := closeTime.Add(time.Duration(retentionDays) * 24 * time.Hour)
-		daysRemaining := time.Until(retentionExpiry).Hours() / 24
-		metricValue = daysRemaining
+func isWorkflowCloseEvent(event *types.HistoryEvent) bool {
+	switch event.GetEventType() {
+	case types.EventTypeWorkflowExecutionCompleted,
+		types.EventTypeWorkflowExecutionFailed,
+		types.EventTypeWorkflowExecutionTimedOut,
+		types.EventTypeWorkflowExecutionCanceled,
+		types.EventTypeWorkflowExecutionTerminated,
+		types.EventTypeWorkflowExecutionContinuedAsNew:
+		return true
+	default:
+		return false
 	}
-
-	scope.UpdateGauge(metrics.WorkflowExecutionHistoryAccess, metricValue)
 }
 
 // Some error types are introduced later that some clients might not support
