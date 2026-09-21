@@ -106,6 +106,6 @@ history.enableTimerQueueV2:
 history.enableTransferQueueV2:
 - value: true
   constraints: {}
-history.taskSchedulerEnableRateLimiter
+history.taskSchedulerEnableRateLimiter:
 - value: true
   constraints: {}
