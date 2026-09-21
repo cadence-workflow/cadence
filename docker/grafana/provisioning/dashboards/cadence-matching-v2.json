@@ -107,7 +107,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(lease_failures_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(lease_failures_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "key": 0.7777396193042576,
                         "legendFormat": "lease_failures_per_tl",
                         "range": true
@@ -128,7 +128,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(lease_requests_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(lease_requests_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "lease_requests_per_tl",
                         "range": true
                       },
@@ -148,7 +148,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(condition_failed_errors_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(condition_failed_errors_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "condition_failed_errors_per_tl",
                         "range": true
                       },
@@ -917,7 +917,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(asyncmatch_forward_poll_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(asyncmatch_forward_poll_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "key": 0.4838158323084185,
                         "legendFormat": "asyncmatch_forward_poll_per_tl",
                         "range": true
@@ -938,7 +938,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(asyncmatch_local_poll_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(asyncmatch_local_poll_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "asyncmatch_local_poll_per_tl",
                         "range": true
                       },
@@ -958,7 +958,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(asyncmatch_local_poll_after_forward_failed_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(asyncmatch_local_poll_after_forward_failed_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "asyncmatch_local_poll_after_forward_failed_per_tl",
                         "range": true
                       },
@@ -978,7 +978,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(async_forward_task_throttle_errors_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(async_forward_task_throttle_errors_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "async_forward_task_throttle_errors_per_tl",
                         "range": true
                       },
@@ -1098,7 +1098,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(asyncmatch_forward_poll_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(asyncmatch_forward_poll_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "key": 0.4838158323084185,
                         "legendFormat": "asyncmatch_forward_poll_per_tl",
                         "range": true
@@ -1119,7 +1119,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(asyncmatch_local_poll_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(asyncmatch_local_poll_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "asyncmatch_local_poll_per_tl",
                         "range": true
                       },
@@ -1139,7 +1139,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(asyncmatch_local_poll_after_forward_failed_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(asyncmatch_local_poll_after_forward_failed_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "asyncmatch_local_poll_after_forward_failed_per_tl",
                         "range": true
                       },
@@ -1159,7 +1159,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(async_forward_task_throttle_errors_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(async_forward_task_throttle_errors_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "async_forward_task_throttle_errors_per_tl",
                         "range": true
                       },
@@ -1603,7 +1603,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(poll_local_match_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(poll_local_match_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "key": 0.4838158323084185,
                         "legendFormat": "poll_local_match_latency_per_tl_ns",
                         "range": true
@@ -1624,7 +1624,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(poll_forward_match_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(poll_forward_match_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "poll_forward_match_latency_per_tl_ns",
                         "range": true
                       },
@@ -1644,7 +1644,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(poll_local_match_after_forward_failed_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(poll_local_match_after_forward_failed_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "poll_local_match_after_forward_failed_latency_per_tl_ns",
                         "range": true
                       },
@@ -1764,7 +1764,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(poll_local_match_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(poll_local_match_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "key": 0.4838158323084185,
                         "legendFormat": "poll_local_match_latency_per_tl_ns",
                         "range": true
@@ -1785,7 +1785,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(poll_forward_match_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(poll_forward_match_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "poll_forward_match_latency_per_tl_ns",
                         "range": true
                       },
@@ -1805,7 +1805,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(poll_local_match_after_forward_failed_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(poll_local_match_after_forward_failed_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "poll_local_match_after_forward_failed_latency_per_tl_ns",
                         "range": true
                       },
@@ -1925,7 +1925,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(syncmatch_local_poll_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(syncmatch_local_poll_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "key": 0.4838158323084185,
                         "legendFormat": "syncmatch_local_poll_latency_per_tl_ns",
                         "range": true
@@ -1946,7 +1946,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(syncmatch_local_poll_after_forward_failed_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(syncmatch_local_poll_after_forward_failed_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "syncmatch_local_poll_after_forward_failed_latency_per_tl_ns",
                         "range": true
                       },
@@ -1966,7 +1966,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(syncmatch_forward_poll_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(syncmatch_forward_poll_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "syncmatch_forward_poll_latency_per_tl_ns",
                         "range": true
                       },
@@ -2390,7 +2390,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(syncmatch_local_poll_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(syncmatch_local_poll_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "key": 0.4838158323084185,
                         "legendFormat": "syncmatch_local_poll_latency_per_tl_ns",
                         "range": true
@@ -2411,7 +2411,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(syncmatch_forward_poll_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(syncmatch_forward_poll_latency_per_tl_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "syncmatch_forward_poll_latency_per_tl_ns",
                         "range": true
                       },
@@ -2730,7 +2730,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (deployment) (rate(cadence_requests{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"activity\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum by (deployment) (rate(cadence_requests{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"activity\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "{{deployment}} cadence_requests",
                         "range": true
                       },
@@ -2750,7 +2750,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (deployment) (rate(cadence_requests_rollup{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"activity\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum by (deployment) (rate(cadence_requests_rollup{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"activity\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "{{deployment}} cadence_requests_rollup",
                         "range": true
                       },
@@ -2770,7 +2770,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (deployment) (rate(cadence_errors{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"activity\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum by (deployment) (rate(cadence_errors{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"activity\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "{{deployment}} cadence_errors",
                         "range": true
                       },
@@ -2790,7 +2790,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (deployment) (rate(cadence_errors_rollup{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"activity\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum by (deployment) (rate(cadence_errors_rollup{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"activity\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "{{deployment}} cadence_errors_rollup",
                         "range": true
                       },
@@ -3664,7 +3664,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (deployment) (rate(cadence_requests{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"decision\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum by (deployment) (rate(cadence_requests{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"decision\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "{{deployment}} cadence_requests",
                         "range": true
                       },
@@ -3684,7 +3684,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (deployment) (rate(cadence_requests_rollup{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"decision\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum by (deployment) (rate(cadence_requests_rollup{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"decision\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "{{deployment}} cadence_requests_rollup",
                         "range": true
                       },
@@ -3704,7 +3704,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (deployment) (rate(cadence_errors{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"decision\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum by (deployment) (rate(cadence_errors{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"decision\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "{{deployment}} cadence_errors",
                         "range": true
                       },
@@ -3724,7 +3724,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (deployment) (rate(cadence_errors_rollup{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"decision\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum by (deployment) (rate(cadence_errors_rollup{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=~\"adaptivescaler|TaskListMgr\", tasklistType=\"decision\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "{{deployment}} cadence_errors_rollup",
                         "range": true
                       },
@@ -4629,7 +4629,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(sync_throttle_count_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(sync_throttle_count_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "sync_throttle_count_per_tl",
                         "range": true
                       },
@@ -4649,7 +4649,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(buffer_throttle_count_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(buffer_throttle_count_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "buffer_throttle_count_per_tl",
                         "range": true
                       },
@@ -5937,7 +5937,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(local_to_local_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForActivityTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(local_to_local_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForActivityTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "local_to_local_matches_per_tl",
                         "m3ql_original": "fetch service:$service deployment:$deployment domain:$domain tasklist:$tasklist operation:pollfordecisiontask type:counter | scaleToSeconds 1 | sum name | aliasByTags name",
                         "range": true
@@ -5959,7 +5959,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(local_to_remote_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForActivityTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(local_to_remote_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForActivityTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "local_to_remote_matches_per_tl",
                         "range": true
@@ -5981,7 +5981,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(remote_to_local_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForActivityTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(remote_to_local_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForActivityTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "remote_to_local_matches_per_tl",
                         "range": true
@@ -6003,7 +6003,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(remote_to_remote_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForActivityTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(remote_to_remote_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForActivityTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "remote_to_remote_matches_per_tl",
                         "range": true
@@ -6247,7 +6247,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (metric) (rate(((label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_bad_request\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_service_busy\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_entity_not_exists\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_execution_already_started\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_domain_already_exists\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_cancellation_already_requested\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_context_timeout\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_limit_exceeded\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_workflow_not_ready\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_shard_ownership_lost\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_internal_error\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_remote_sync_match_failed\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_authorize_failed\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\")))[$__rate_interval:$__interval]))",
+                        "expr": "sum by (metric) (rate(((label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_bad_request\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_service_busy\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_entity_not_exists\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_execution_already_started\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_domain_already_exists\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_cancellation_already_requested\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_context_timeout\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_limit_exceeded\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_workflow_not_ready\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_shard_ownership_lost\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_internal_error\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_remote_sync_match_failed\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_errors_authorize_failed\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\")))[$__rate_interval]))",
                         "legendFormat": "{{metric}}",
                         "m3ql_original": "fetch service:cadence-matching deployment:$deployment name:cadence_errors_* | transformNull 0 | sum name | scaleToSeconds 1 | aliasByTags name"
                       },
@@ -6367,7 +6367,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (metric) (rate(((label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_client_errors\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_client_requests\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\")))[$__rate_interval:$__interval]))",
+                        "expr": "sum by (metric) (rate(((label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_client_errors\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"cadence_client_requests\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\")))[$__rate_interval]))",
                         "legendFormat": "{{metric}}",
                         "m3ql_original": "fetch service:cadence-matching deployment:$deployment cadence-role:history name:{cadence_client_errors,cadence_client_requests} | transformNull 0 | sum name | scaleToSeconds 1 | aliasByTags name"
                       },
@@ -6877,7 +6877,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(local_to_local_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForDecisionTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(local_to_local_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForDecisionTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "local_to_local_matches_per_tl",
                         "m3ql_original": "fetch service:$service deployment:$deployment domain:$domain tasklist:$tasklist operation:pollfordecisiontask type:counter | scaleToSeconds 1 | sum name | aliasByTags name",
                         "range": true
@@ -6899,7 +6899,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(local_to_remote_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForDecisionTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(local_to_remote_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForDecisionTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "local_to_remote_matches_per_tl",
                         "range": true
@@ -6921,7 +6921,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(remote_to_local_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForDecisionTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(remote_to_local_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForDecisionTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "remote_to_local_matches_per_tl",
                         "range": true
@@ -6943,7 +6943,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(remote_to_remote_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForDecisionTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(remote_to_remote_matches_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"PollForDecisionTask\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "remote_to_remote_matches_per_tl",
                         "range": true
@@ -8940,7 +8940,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (host)(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_gc_cpu_total\"}[$__rate_interval]))",
+                        "expr": "topk(\n  30,\n  (\n    max_over_time(\n      (\n        sum by (host) (\n          memory_gc_cpu_total{\n            cadence_service=~\"cadence[-_]matching\",\n            deployment=~\"$deployment\"\n          }\n        )\n      )[1m:]\n    )\n    /\n    max_over_time(\n      (\n        sum by (host) (\n          memory_cpu_total{\n            cadence_service=~\"cadence[-_]matching\",\n            deployment=~\"$deployment\"\n          }\n        )\n      )[1m:]\n    )\n  )\n)",
                         "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_gc_cpu_total\n  | sum host\n  | summarize 1m max\n  | divideSeries (fetch service:$service deployment:$deployment name:memory_cpu_total\n  | sum host\n  | summarize 1m max)\n  | sort max desc\n  | head 30\n  | aliasByTags host"
                       },
@@ -9052,8 +9052,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_num_gc\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    rate(\n      memory_num_gc{\n        cadence_service=~\"cadence[-_]matching\",\n        deployment=~\"$deployment\"\n      }[$__rate_interval]\n    )\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_num_gc\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -9164,8 +9164,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_next_gc\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_next_gc{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_next_gc\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -9276,8 +9276,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_total_alloc\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_total_alloc{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_total_alloc\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -9388,8 +9388,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"num_goroutines\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    num_goroutines{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:num_goroutines\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -9500,8 +9500,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_heap\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heap{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heap\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -9612,8 +9612,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_heapinuse\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapinuse{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapinuse\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -9724,8 +9724,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_heapidle\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapidle{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapidle\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -9836,8 +9836,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_heapreleased\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapreleased{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapreleased\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -9948,8 +9948,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_heapobjects\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapobjects{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapobjects\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -10060,8 +10060,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (host)(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_mallocs\"}[$__rate_interval]))",
-                        "legendFormat": "{{host}} {{service}}",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_mallocs{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_mallocs\n  | sum host\n  | diff (fetch service:$service deployment:$deployment name:memory_frees\n  | sum host)\n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -10172,8 +10172,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_stacksys\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_stacksys{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_stacksys\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -10284,7 +10284,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(poll_errors_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(poll_errors_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "poll_errors_per_tl",
                         "range": true
                       },
@@ -10304,7 +10304,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(poll_success_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(poll_success_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "poll_success_per_tl",
                         "range": true
                       },
@@ -10324,7 +10324,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(poll_success_sync_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(poll_success_sync_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "poll_success_sync_per_tl",
                         "range": true
                       },
@@ -10344,7 +10344,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(poll_timeouts_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate(poll_timeouts_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", operation=\"TaskListMgr\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
                         "legendFormat": "poll_timeouts_per_tl",
                         "range": true
                       },
@@ -10464,8 +10464,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_frees\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_frees{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_frees\n  | derivative \n  | scaleToSeconds 1\n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -10576,8 +10576,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_mallocs\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_mallocs{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_mallocs\n  | derivative \n  | scaleToSeconds 1\n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -10688,8 +10688,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", __name__=\"memory_stack\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_stack{\n      cadence_service=~\"cadence[-_]matching\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_stack\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"

@@ -78,7 +78,7 @@
             "datasource": {
               "type": "prometheus"
             },
-            "group": "grafana-m3ql",
+            "group": "prometheus",
             "kind": "DataQuery",
             "spec": {},
             "version": "v0"
@@ -813,7 +813,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (operation) (\n  rate(\n    cache_requests{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"mutablestate\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate(\n    cache_requests{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"mutablestate\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "{{operation}} cache_requests",
                         "range": true
                       },
@@ -833,7 +833,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (operation) (\n  rate(\n    cache_errors{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"mutablestate\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate(\n    cache_errors{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"mutablestate\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "{{operation}} cache_errors",
                         "range": true
                       },
@@ -853,7 +853,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (operation) (\n  rate(\n    cache_miss{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"mutablestate\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate(\n    cache_miss{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"mutablestate\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "{{operation}} cache_miss",
                         "range": true
                       },
@@ -873,7 +873,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (operation) (\n  rate(\n    acquire_lock_failed{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"mutablestate\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate(\n    acquire_lock_failed{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"mutablestate\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "{{operation}} acquire_lock_failed",
                         "range": true
                       },
@@ -985,7 +985,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    cache_requests{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"events\",\n      operation=\"EventsCacheGetEvent\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    cache_requests{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"events\",\n      operation=\"EventsCacheGetEvent\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "cache_requests",
                         "range": true
                       },
@@ -1005,7 +1005,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    cache_errors{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"events\",\n      operation=\"EventsCacheGetEvent\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    cache_errors{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"events\",\n      operation=\"EventsCacheGetEvent\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "cache_errors",
                         "range": true
                       },
@@ -1025,7 +1025,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    cache_miss{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"events\",\n      operation=\"EventsCacheGetEvent\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    cache_miss{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      cache_type=\"events\",\n      operation=\"EventsCacheGetEvent\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "cache_miss",
                         "range": true
                       },
@@ -1811,7 +1811,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (metric, deployment) (rate((get_replication_messages_for_shard_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\"})[$__rate_interval:$__interval]))",
+                        "expr": "sum by (metric, deployment) (rate((get_replication_messages_for_shard_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\"})[$__rate_interval]))",
                         "legendFormat": "{{deployment}}",
                         "m3ql_original": "fetch service:cadence-history deployment:$deployment name:get_replication_messages_for_shard_ns\n| removeEmpty\n| sum name deployment\n| scaleToSeconds 1\n| transformNull 0\n| aliasByTags deployment"
                       },
@@ -2261,7 +2261,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    schedule_activity_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    schedule_activity_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "schedule_activity_decision",
                         "range": true
                       },
@@ -2281,7 +2281,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    complete_workflow_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    complete_workflow_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "complete_workflow_decision",
                         "range": true
                       },
@@ -2301,7 +2301,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    fail_workflow_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    fail_workflow_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "fail_workflow_decision",
                         "range": true
                       },
@@ -2321,7 +2321,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    cancel_workflow_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    cancel_workflow_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "cancel_workflow_decision",
                         "range": true
                       },
@@ -2341,7 +2341,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    start_timer_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    start_timer_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "start_timer_decision",
                         "range": true
                       },
@@ -2361,7 +2361,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    cancel_activity_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    cancel_activity_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "cancel_activity_decision",
                         "range": true
                       },
@@ -2381,7 +2381,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    cancel_timer_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    cancel_timer_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "cancel_timer_decision",
                         "range": true
                       },
@@ -2401,7 +2401,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    record_marker_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    record_marker_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "record_marker_decision",
                         "range": true
                       },
@@ -2421,7 +2421,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    cancel_external_workflow_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    cancel_external_workflow_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "cancel_external_workflow_decision",
                         "range": true
                       },
@@ -2441,7 +2441,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    continue_as_new_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    continue_as_new_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "continue_as_new_decision",
                         "range": true
                       },
@@ -2461,7 +2461,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    child_workflow_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    child_workflow_decision{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "child_workflow_decision",
                         "range": true
                       },
@@ -3163,7 +3163,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    multiple_completion_decisions{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    multiple_completion_decisions{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "multiple_completion_decisions",
                         "range": true
                       },
@@ -3183,7 +3183,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    failed_decisions{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    failed_decisions{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"RespondDecisionTaskCompleted\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "failed_decisions",
                         "range": true
                       },
@@ -3519,7 +3519,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (operation) (\n  rate(\n    stale_mutable_state{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate(\n    stale_mutable_state{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "{{operation}} stale_mutable_state",
                         "range": true
                       },
@@ -3539,7 +3539,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (operation) (\n  rate(\n    concurrency_update_failure{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate(\n    concurrency_update_failure{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "{{operation}} concurrency_update_failure",
                         "range": true
                       },
@@ -4091,7 +4091,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    acquire_shards_count{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence[-_]history\",\n      operation=\"ShardController\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    acquire_shards_count{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence[-_]history\",\n      operation=\"ShardController\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "acquire_shards_count",
                         "range": true
                       },
@@ -4111,7 +4111,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    membership_changed_count{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence[-_]history\",\n      operation=\"ShardController\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    membership_changed_count{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence[-_]history\",\n      operation=\"ShardController\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "membership_changed_count",
                         "range": true
                       },
@@ -4131,7 +4131,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    shard_closed_count{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence[-_]history\",\n      operation=\"ShardController\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    shard_closed_count{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence[-_]history\",\n      operation=\"ShardController\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "shard_closed_count",
                         "range": true
                       },
@@ -4151,7 +4151,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    sharditem_created_count{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence[-_]history\",\n      operation=\"ShardController\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    sharditem_created_count{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence[-_]history\",\n      operation=\"ShardController\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "sharditem_created_count",
                         "range": true
                       },
@@ -4171,7 +4171,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    sharditem_removed_count{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence[-_]history\",\n      operation=\"ShardController\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    sharditem_removed_count{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence[-_]history\",\n      operation=\"ShardController\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "sharditem_removed_count",
                         "range": true
                       },
@@ -4890,7 +4890,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (metric, domain) (rate((graceful_failover_latency_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"FailoverMarker\"})[$__rate_interval:$__interval]))",
+                        "expr": "sum by (metric, domain) (rate((graceful_failover_latency_ns{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"FailoverMarker\"})[$__rate_interval]))",
                         "legendFormat": "{{domain}}",
                         "m3ql_original": "fetch service:cadence-history deployment:$deployment operation:failovermarker name:graceful_failover_latency_ns domain:!all\n| removeEmpty\n| sum name domain\n| scaleToSeconds 1\n| transformNull 0\n| aliasByTags domain"
                       },
@@ -5114,7 +5114,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (metric, deployment) (rate((label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"ReplicateHistoryEvents\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\"))[$__rate_interval:$__interval]))",
+                        "expr": "sum by (metric, deployment) (rate((label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"ReplicateHistoryEvents\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\"))[$__rate_interval]))",
                         "legendFormat": "{{metric}} {{deployment}}",
                         "m3ql_original": "fetch service:cadence-history deployment:$deployment operation:replicatehistoryevents\n| transformNull 0 \n| scaleToSeconds 1 \n| sum name deployment\n| aliasByTags name deployment"
                       },
@@ -6180,7 +6180,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (host)(rate(memory_gc_cpu_total{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
+                        "expr": "topk(\n  30,\n  (\n    max_over_time(\n      (\n        sum by (host) (\n          memory_gc_cpu_total{\n            cadence_service=~\"cadence[-_]history\",\n            deployment=~\"$deployment\"\n          }\n        )\n      )[1m:]\n    )\n    /\n    max_over_time(\n      (\n        sum by (host) (\n          memory_cpu_total{\n            cadence_service=~\"cadence[-_]history\",\n            deployment=~\"$deployment\"\n          }\n        )\n      )[1m:]\n    )\n  )\n)",
                         "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_gc_cpu_total\n  | sum host\n  | summarize 1m max\n  | divideSeries (fetch service:$service deployment:$deployment name:memory_cpu_total\n  | sum host\n  | summarize 1m max)\n  | sort max desc\n  | head 30\n  | aliasByTags host"
                       },
@@ -6292,8 +6292,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_num_gc{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    rate(\n      memory_num_gc{\n        cadence_service=~\"cadence[-_]history\",\n        deployment=~\"$deployment\"\n      }[$__rate_interval]\n    )\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_num_gc\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -6404,8 +6404,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_next_gc{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_next_gc{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_next_gc\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -6516,8 +6516,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_total_alloc{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_total_alloc{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_total_alloc\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -6628,8 +6628,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(num_goroutines{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    num_goroutines{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:num_goroutines\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -6740,8 +6740,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_heap{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heap{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heap\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -6852,8 +6852,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_heapinuse{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapinuse{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapinuse\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -6964,8 +6964,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_heapidle{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapidle{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapidle\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -7076,8 +7076,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_heapreleased{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapreleased{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapreleased\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -7188,8 +7188,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_heapobjects{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapobjects{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapobjects\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -7300,8 +7300,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (host)(rate(memory_mallocs{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "{{host}} {{service}}",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_mallocs{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_mallocs\n  | sum host\n  | diff (fetch service:$service deployment:$deployment name:memory_frees\n  | sum host)\n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -7412,8 +7412,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_stacksys{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_stacksys{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_stacksys\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -7524,8 +7524,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_frees{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_frees{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_frees\n  | derivative \n  | scaleToSeconds 1\n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -7636,8 +7636,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_mallocs{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_mallocs{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_mallocs\n  | derivative \n  | scaleToSeconds 1\n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -7748,8 +7748,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(memory_stack{deployment=~\"$deployment\", cadence_service=~\"cadence[-_]history\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_stack{\n      cadence_service=~\"cadence[-_]history\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_stack\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -8193,7 +8193,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    mutable_state_checksum_mismatch{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"WorkflowContext\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    mutable_state_checksum_mismatch{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"WorkflowContext\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "mutable_state_checksum_mismatch",
                         "range": true
                       },
@@ -8213,7 +8213,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum (\n  rate(\n    stale_mutable_state{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"WorkflowContext\"\n    }[$__rate_interval:$__interval]\n  )\n)",
+                        "expr": "sum (\n  rate(\n    stale_mutable_state{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-history|cadence_history\",\n      operation=\"WorkflowContext\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "stale_mutable_state",
                         "range": true
                       },
@@ -9875,7 +9875,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate((ack_level_update{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TimerQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate((ack_level_update{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TimerQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval]))",
                         "legendFormat": "ack_level_update",
                         "m3ql_original": "fetch service: cadence-history deployment: $deployment operation: timerqueueprocessorv2 name:{ack_level_update*,task_batch_complete_counter} shard_id:$shard | removeEmpty | transformNull 0 | sum name | scaleToSeconds 1 | aliasByTags name"
                       },
@@ -9895,7 +9895,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate((ack_level_update_failed{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TimerQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate((ack_level_update_failed{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TimerQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval]))",
                         "legendFormat": "ack_level_update_failed",
                         "m3ql_original": "fetch service: cadence-history deployment: $deployment operation: timerqueueprocessorv2 name:{ack_level_update*,task_batch_complete_counter} shard_id:$shard | removeEmpty | transformNull 0 | sum name | scaleToSeconds 1 | aliasByTags name"
                       },
@@ -9915,7 +9915,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate((task_batch_complete_counter{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TimerQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate((task_batch_complete_counter{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TimerQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval]))",
                         "legendFormat": "task_batch_complete_counter",
                         "m3ql_original": "fetch service: cadence-history deployment: $deployment operation: timerqueueprocessorv2 name:{ack_level_update*,task_batch_complete_counter} shard_id:$shard | removeEmpty | transformNull 0 | sum name | scaleToSeconds 1 | aliasByTags name"
                       },
@@ -10035,7 +10035,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate((ack_level_update{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TransferQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate((ack_level_update{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TransferQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval]))",
                         "legendFormat": "ack_level_update",
                         "m3ql_original": "fetch service: cadence-history deployment: $deployment operation: transferqueueprocessorv2 name: {ack_level_update*,task_batch_complete_counter} shard_id:$shard | transformNull 0 | scaleToSeconds 1 | sum name | aliasByTags name"
                       },
@@ -10055,7 +10055,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate((ack_level_update_failed{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TransferQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate((ack_level_update_failed{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TransferQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval]))",
                         "legendFormat": "ack_level_update_failed",
                         "m3ql_original": "fetch service: cadence-history deployment: $deployment operation: transferqueueprocessorv2 name: {ack_level_update*,task_batch_complete_counter} shard_id:$shard | transformNull 0 | scaleToSeconds 1 | sum name | aliasByTags name"
                       },
@@ -10075,7 +10075,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate((task_batch_complete_counter{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TransferQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate((task_batch_complete_counter{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TransferQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval]))",
                         "legendFormat": "task_batch_complete_counter",
                         "m3ql_original": "fetch service: cadence-history deployment: $deployment operation: transferqueueprocessorv2 name: {ack_level_update*,task_batch_complete_counter} shard_id:$shard | transformNull 0 | scaleToSeconds 1 | sum name | aliasByTags name"
                       },
@@ -10187,7 +10187,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate((corrupted_history_task_counter{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TimerQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate((corrupted_history_task_counter{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TimerQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval]))",
                         "legendFormat": "{{metric}}",
                         "m3ql_original": "fetch service: cadence-history deployment: $deployment operation: timerqueueprocessorv2 name: corrupted_history_task_counter shard_id:$shard | removeEmpty | transformNull 0 | sum name | scaleToSeconds 1 | aliasByTags name"
                       },
@@ -10307,7 +10307,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate((corrupted_history_task_counter{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TransferQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval:$__interval]))",
+                        "expr": "sum(rate((corrupted_history_task_counter{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TransferQueueProcessorV2\", shard_id=~\"$shard\"})[$__rate_interval]))",
                         "legendFormat": "{{metric}}",
                         "m3ql_original": "fetch service: cadence-history deployment: $deployment operation: transferqueueprocessorv2 name: corrupted_history_task_counter shard_id:$shard | transformNull 0 | scaleToSeconds 1 | sum name | aliasByTags name"
                       },
@@ -13258,7 +13258,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": false
@@ -13596,7 +13596,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": false
@@ -14304,7 +14304,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": false
@@ -14406,7 +14406,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": false
@@ -14508,7 +14508,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": true
@@ -14664,7 +14664,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (__name__) (rate(((cadence_errors{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\"} or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_bad_request\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_service_busy\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_entity_not_exists\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_execution_already_started\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_domain_already_exists\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_cancellation_already_requested\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_context_timeout\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_limit_exceeded\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_workflow_not_ready\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_shard_ownership_lost\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_internal_error\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_remote_sync_match_failed\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_authorize_failed\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\")))[$__rate_interval:$__interval]))",
+                        "expr": "sum by (__name__) (rate(((cadence_errors{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\"} or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_bad_request\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_service_busy\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_entity_not_exists\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_execution_already_started\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_domain_already_exists\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_cancellation_already_requested\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_context_timeout\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_limit_exceeded\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_workflow_not_ready\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_shard_ownership_lost\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_internal_error\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_remote_sync_match_failed\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_errors_authorize_failed\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\")))[$__rate_interval]))",
                         "legendFormat": "{{metric}}",
                         "m3ql_original": "fetch service:cadence-history deployment:$deployment  name:cadence_errors* | transformNull 0 | scaleToSeconds 1 | sum name | aliasByTags name"
                       },
@@ -15063,7 +15063,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": true
@@ -15158,7 +15158,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": true
@@ -15255,7 +15255,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": true
@@ -16198,7 +16198,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": true
@@ -16294,7 +16294,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": true
@@ -17201,7 +17201,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": false
@@ -17530,7 +17530,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": true
@@ -18894,7 +18894,7 @@
                   "color": "rgba(255,0,255,0.7)"
                 },
                 "filterValues": {
-                  "le": 1E-9
+                  "le": 1e-09
                 },
                 "legend": {
                   "show": true
@@ -18935,7 +18935,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (metric) (rate((label_replace(cached_queue_{hits,misses}{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TransferQueueProcessorV2\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\"))[$__rate_interval:$__interval]))",
+                        "expr": "sum by (metric) (rate((label_replace(cached_queue_{hits,misses}{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TransferQueueProcessorV2\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\"))[$__rate_interval]))",
                         "legendFormat": "{{metric}}",
                         "m3ql_original": "fetch service:cadence-history \n      deployment:$deployment\n      shard_id:$shard\n      operation:transferqueueprocessorv2\n      name:cached_queue_{hits,misses}\n  | transformNull 0 \n  | sum name \n  | scaleToSeconds 1 \n  | tagSub name \"cached_queue_\" \"\"\n  | summarize $summarize avg\n  | aliasByTags name"
                       },
@@ -19711,7 +19711,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (metric) (rate((label_replace(cached_queue_{hits,misses}{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TimerQueueProcessorV2\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\"))[$__rate_interval:$__interval]))",
+                        "expr": "sum by (metric) (rate((label_replace(cached_queue_{hits,misses}{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=\"TimerQueueProcessorV2\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\"))[$__rate_interval]))",
                         "legendFormat": "{{metric}}",
                         "m3ql_original": "fetch service:cadence-history \n      deployment:$deployment\n      shard_id:$shard\n      operation:timerqueueprocessorv2\n      name:cached_queue_{hits,misses}\n  | transformNull 0 \n  | sum name \n  | scaleToSeconds 1 \n  | tagSub name \"cached_queue_\" \"\"\n  | summarize $summarize avg\n  | aliasByTags name"
                       },
@@ -24002,7 +24002,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (__name__) (rate(((cadence_client_errors{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\"} or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_client_requests\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\")))[$__rate_interval:$__interval]))",
+                        "expr": "sum by (__name__) (rate(((cadence_client_errors{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\"} or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", __name__=\"cadence_client_requests\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\")))[$__rate_interval]))",
                         "legendFormat": "{{metric}}",
                         "m3ql_original": "fetch service:cadence-history deployment:$deployment name:{cadence_client_errors,cadence_client_requests} | transformNull 0 | sum name | scaleToSeconds 1 | aliasByTags name"
                       },

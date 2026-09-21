@@ -78,7 +78,7 @@
             "datasource": {
               "type": "prometheus"
             },
-            "group": "grafana-m3ql",
+            "group": "prometheus",
             "kind": "DataQuery",
             "spec": {},
             "version": "v0"
@@ -257,8 +257,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_heapidle\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapidle{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapidle\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -377,8 +377,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_heapreleased\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapreleased{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapreleased\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -497,8 +497,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_heapobjects\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapobjects{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapobjects\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -617,8 +617,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (host)(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_mallocs\"}[$__rate_interval]))",
-                        "legendFormat": "{{host}} {{service}}",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_mallocs{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_mallocs\n  | sum host\n  | diff (fetch service:$service deployment:$deployment name:memory_frees\n  | sum host)\n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -737,8 +737,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_mallocs\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_mallocs{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_mallocs\n  | derivative \n  | scaleToSeconds 1\n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -857,8 +857,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_frees\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_frees{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_frees\n  | derivative \n  | scaleToSeconds 1\n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -977,8 +977,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_stacksys\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_stacksys{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_stacksys\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -1097,8 +1097,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_stack\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_stack{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_stack\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -2454,7 +2454,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (metric) (rate(((label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"cadence_client_errors\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"cadence_client_requests\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\")))[$__rate_interval:$__interval]))",
+                        "expr": "sum by (metric) (rate(((label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"cadence_client_errors\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\") or label_replace({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"cadence_client_requests\"}, \"metric\", \"$1\", \"__name__\", \"(.*)\")))[$__rate_interval]))",
                         "key": 0.42651392099317587,
                         "legendFormat": "{{metric}}",
                         "m3ql_original": "fetch service:cadence-frontend deployment:$deployment name:{cadence_client_errors,cadence_client_requests} | transformNull 0 | sum name | scaleToSeconds 1 | aliasByTags name"
@@ -4295,7 +4295,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (host)(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_gc_cpu_total\"}[$__rate_interval]))",
+                        "expr": "topk(\n  30,\n  (\n    max_over_time(\n      (\n        sum by (host) (\n          memory_gc_cpu_total{\n            cadence_service=~\"cadence[-_]frontend\",\n            deployment=~\"$deployment\"\n          }\n        )\n      )[1m:]\n    )\n    /\n    max_over_time(\n      (\n        sum by (host) (\n          memory_cpu_total{\n            cadence_service=~\"cadence[-_]frontend\",\n            deployment=~\"$deployment\"\n          }\n        )\n      )[1m:]\n    )\n  )\n)",
                         "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_gc_cpu_total\n  | sum host\n  | summarize 1m max\n  | divideSeries (fetch service:$service deployment:$deployment name:memory_cpu_total\n  | sum host\n  | summarize 1m max)\n  | sort max desc\n  | head 30\n  | aliasByTags host"
                       },
@@ -4418,8 +4418,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_num_gc\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    rate(\n      memory_num_gc{\n        cadence_service=~\"cadence[-_]frontend\",\n        deployment=~\"$deployment\"\n      }[$__rate_interval]\n    )\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_num_gc\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -4541,8 +4541,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_next_gc\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_next_gc{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_next_gc\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -4664,8 +4664,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_total_alloc\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_total_alloc{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_total_alloc\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -4787,8 +4787,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"num_goroutines\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    num_goroutines{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:num_goroutines\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -4907,8 +4907,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_heap\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heap{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heap\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"
@@ -5027,8 +5027,8 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate({deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", __name__=\"memory_heapinuse\"}[$__rate_interval]))",
-                        "legendFormat": "__auto",
+                        "expr": "topk(\n  30,\n  max by (host) (\n    memory_heapinuse{\n      cadence_service=~\"cadence[-_]frontend\",\n      deployment=~\"$deployment\"\n    }\n  )\n)",
+                        "legendFormat": "{{host}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:memory_heapinuse\n  | removeEmpty \n  | sort max desc\n  | head 30\n  | aliasByTags host service"
                       },
                       "version": "v0"

@@ -238,8 +238,8 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (service) (\n  rate({\n    __name__=\"persistence_errors\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
-                        "legendFormat": "{{service}}",
+                        "expr": "sum by (cadence_service) (\n  rate({\n    __name__=\"persistence_errors\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
+                        "legendFormat": "{{cadence_service}}",
                         "range": true,
                         "target": "fetch\n    deployment:$deployment\n    service:$services\n    name:persistence_errors_*\n    name:!persistence_errors**per_domain\n    operation:$operation\n    | transformNull 0\n    | scaleToSeconds 1\n    | sum service name\n    | sort avg\n    | aliasByTags service name"
                       },
@@ -260,8 +260,8 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (service) (\n  rate({\n    __name__=\"persistence_errors_timeout\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
-                        "legendFormat": "{{service}}",
+                        "expr": "sum by (cadence_service) (\n  rate({\n    __name__=\"persistence_errors_timeout\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
+                        "legendFormat": "{{cadence_service}}",
                         "range": true,
                         "target": "fetch\n    deployment:$deployment\n    service:$services\n    name:persistence_errors_*\n    name:!persistence_errors**per_domain\n    operation:$operation\n    | transformNull 0\n    | scaleToSeconds 1\n    | sum service name\n    | sort avg\n    | aliasByTags service name"
                       },
@@ -282,8 +282,8 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (service) (\n  rate({\n    __name__=\"persistence_errors_busy\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
-                        "legendFormat": "{{service}}",
+                        "expr": "sum by (cadence_service) (\n  rate({\n    __name__=\"persistence_errors_busy\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
+                        "legendFormat": "{{cadence_service}}",
                         "range": true,
                         "target": "fetch\n    deployment:$deployment\n    service:$services\n    name:persistence_errors_*\n    name:!persistence_errors**per_domain\n    operation:$operation\n    | transformNull 0\n    | scaleToSeconds 1\n    | sum service name\n    | sort avg\n    | aliasByTags service name"
                       },
@@ -304,8 +304,8 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (service) (\n  rate({\n    __name__=\"persistence_errors_entity_not_exists\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
-                        "legendFormat": "{{service}}",
+                        "expr": "sum by (cadence_service) (\n  rate({\n    __name__=\"persistence_errors_entity_not_exists\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
+                        "legendFormat": "{{cadence_service}}",
                         "range": true,
                         "target": "fetch\n    deployment:$deployment\n    service:$services\n    name:persistence_errors_*\n    name:!persistence_errors**per_domain\n    operation:$operation\n    | transformNull 0\n    | scaleToSeconds 1\n    | sum service name\n    | sort avg\n    | aliasByTags service name"
                       },
@@ -326,8 +326,8 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (service) (\n  rate({\n    __name__=\"persistence_errors_execution_already_started\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
-                        "legendFormat": "{{service}}",
+                        "expr": "sum by (cadence_service) (\n  rate({\n    __name__=\"persistence_errors_execution_already_started\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
+                        "legendFormat": "{{cadence_service}}",
                         "range": true,
                         "target": "fetch\n    deployment:$deployment\n    service:$services\n    name:persistence_errors_*\n    name:!persistence_errors**per_domain\n    operation:$operation\n    | transformNull 0\n    | scaleToSeconds 1\n    | sum service name\n    | sort avg\n    | aliasByTags service name"
                       },
@@ -348,8 +348,8 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (service) (\n  rate({\n    __name__=\"persistence_errors_shard_already_exists\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
-                        "legendFormat": "{{service}}",
+                        "expr": "sum by (cadence_service) (\n  rate({\n    __name__=\"persistence_errors_shard_already_exists\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
+                        "legendFormat": "{{cadence_service}}",
                         "range": true,
                         "target": "fetch\n    deployment:$deployment\n    service:$services\n    name:persistence_errors_*\n    name:!persistence_errors**per_domain\n    operation:$operation\n    | transformNull 0\n    | scaleToSeconds 1\n    | sum service name\n    | sort avg\n    | aliasByTags service name"
                       },
@@ -370,8 +370,8 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (service) (\n  rate({\n    __name__=\"persistence_errors_shard_ownership_lost\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
-                        "legendFormat": "{{service}}",
+                        "expr": "sum by (cadence_service) (\n  rate({\n    __name__=\"persistence_errors_shard_ownership_lost\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
+                        "legendFormat": "{{cadence_service}}",
                         "range": true,
                         "target": "fetch\n    deployment:$deployment\n    service:$services\n    name:persistence_errors_*\n    name:!persistence_errors**per_domain\n    operation:$operation\n    | transformNull 0\n    | scaleToSeconds 1\n    | sum service name\n    | sort avg\n    | aliasByTags service name"
                       },
@@ -392,8 +392,8 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (service) (\n  rate({\n    __name__=\"persistence_errors_condition_failed\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
-                        "legendFormat": "{{service}}",
+                        "expr": "sum by (cadence_service) (\n  rate({\n    __name__=\"persistence_errors_condition_failed\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
+                        "legendFormat": "{{cadence_service}}",
                         "range": true,
                         "target": "fetch\n    deployment:$deployment\n    service:$services\n    name:persistence_errors_*\n    name:!persistence_errors**per_domain\n    operation:$operation\n    | transformNull 0\n    | scaleToSeconds 1\n    | sum service name\n    | sort avg\n    | aliasByTags service name"
                       },
@@ -414,8 +414,8 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (service) (\n  rate({\n    __name__=\"persistence_errors_timeout_bucket\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
-                        "legendFormat": "{{service}}",
+                        "expr": "sum by (cadence_service) (\n  rate({\n    __name__=\"persistence_errors_timeout_bucket\",\n    __name__!~\"persistence_errors|persistence_errors_timeout|persistence_errors_busy|persistence_errors_entity_not_exists|persistence_errors_execution_already_started|persistence_errors_shard_already_exists|persistence_errors_shard_ownership_lost|persistence_errors_condition_failed|persistence_errors_timeout_bucketper_domain\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n) ",
+                        "legendFormat": "{{cadence_service}}",
                         "range": true,
                         "target": "fetch\n    deployment:$deployment\n    service:$services\n    name:persistence_errors_*\n    name:!persistence_errors**per_domain\n    operation:$operation\n    | transformNull 0\n    | scaleToSeconds 1\n    | sum service name\n    | sort avg\n    | aliasByTags service name"
                       },
@@ -542,7 +542,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "100 *\n(\n  1 -\n  (\n    sum by (operation) (\n      rate(\n        persistence_errors{\n          cadence_service=~\"$service\",\n          deployment=~\"$deployment\",\n          operation=~\"$operation\"\n        }[$__rate_interval]\n      )\n    )\n    or on (operation)\n    (\n      sum by (operation) (\n        rate(\n          persistence_requests{\n            cadence_service=~\"$service\",\n            deployment=~\"$deployment\",\n            operation=~\"$operation\"\n          }[$__rate_interval]\n        )\n      ) * 0\n    )\n  )\n  /\n  sum by (operation) (\n    rate(\n      persistence_requests{\n        cadence_service=~\"$service\",\n        deployment=~\"$deployment\",\n        operation=~\"$operation\"\n      }[$__rate_interval]\n    )\n  )\n)",
+                        "expr": "100 *\n(\n  1 -\n  (\n    sum by (operation) (\n      rate(\n        persistence_errors{\n          cadence_service=~\"$services\",\n          deployment=~\"$deployment\",\n          operation=~\"$operation\"\n        }[$__rate_interval]\n      )\n    )\n    or on (operation)\n    (\n      sum by (operation) (\n        rate(\n          persistence_requests{\n            cadence_service=~\"$services\",\n            deployment=~\"$deployment\",\n            operation=~\"$operation\"\n          }[$__rate_interval]\n        )\n      ) * 0\n    )\n  )\n  /\n  sum by (operation) (\n    rate(\n      persistence_requests{\n        cadence_service=~\"$services\",\n        deployment=~\"$deployment\",\n        operation=~\"$operation\"\n      }[$__rate_interval]\n    )\n  )\n)",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:{persistence_requests,persistence_requests_rollup} operation:$operation | transformNull 0 |  sum operation | scaleToSeconds 1 | sort max | aliasByTags operation  "
@@ -564,7 +564,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "100 *\n(\n  1 -\n  (\n    sum by (operation) (\n      rate(\n        persistence_errors_rollup{\n          cadence_service=~\"$service\",\n          deployment=~\"$deployment\",\n          operation=~\"$operation\"\n        }[$__rate_interval]\n      )\n    )\n    or on (operation)\n    (\n      sum by (operation) (\n        rate(\n          persistence_requests_rollup{\n            cadence_service=~\"$service\",\n            deployment=~\"$deployment\",\n            operation=~\"$operation\"\n          }[$__rate_interval]\n        )\n      ) * 0\n    )\n  )\n  /\n  sum by (operation) (\n    rate(\n      persistence_requests_rollup{\n        cadence_service=~\"$service\",\n        deployment=~\"$deployment\",\n        operation=~\"$operation\"\n      }[$__rate_interval]\n    )\n  )\n)",
+                        "expr": "100 *\n(\n  1 -\n  (\n    sum by (operation) (\n      rate(\n        persistence_errors_rollup{\n          cadence_service=~\"$services\",\n          deployment=~\"$deployment\",\n          operation=~\"$operation\"\n        }[$__rate_interval]\n      )\n    )\n    or on (operation)\n    (\n      sum by (operation) (\n        rate(\n          persistence_requests_rollup{\n            cadence_service=~\"$services\",\n            deployment=~\"$deployment\",\n            operation=~\"$operation\"\n          }[$__rate_interval]\n        )\n      ) * 0\n    )\n  )\n  /\n  sum by (operation) (\n    rate(\n      persistence_requests_rollup{\n        cadence_service=~\"$services\",\n        deployment=~\"$deployment\",\n        operation=~\"$operation\"\n      }[$__rate_interval]\n    )\n  )\n)",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:{persistence_requests,persistence_requests_rollup} operation:$operation | transformNull 0 |  sum operation | scaleToSeconds 1 | sort max | aliasByTags operation  "
@@ -718,7 +718,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate(persistence_errors{\n    cadence_service=~\"$service\",\n    deployment=~\"$deployment\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n)",
+                        "expr": "sum by (operation) (\n  rate(persistence_errors{\n    cadence_service=~\"$services\",\n    deployment=~\"$deployment\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n)",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:{persistence_errors,persistence_errors_rollup} | removeEmpty | transformNull 0 |  sum operation | scaleToSeconds 1 |  aliasByTags operation  "
@@ -740,7 +740,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate(persistence_errors_rollup{\n    cadence_service=~\"$service\",\n    deployment=~\"$deployment\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n)",
+                        "expr": "sum by (operation) (\n  rate(persistence_errors_rollup{\n    cadence_service=~\"$services\",\n    deployment=~\"$deployment\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n)",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:{persistence_errors,persistence_errors_rollup} | removeEmpty | transformNull 0 |  sum operation | scaleToSeconds 1 |  aliasByTags operation  "
@@ -863,7 +863,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  50 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$service\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)\n",
+                        "expr": "histogram_quantile(\n  50 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$services\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)\n",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch  deployment:$deployment service:$services name:{persistence_latency_ns,persistence_latency_ns_rollup} operation:$operation\n| removeEmpty\n| sum bucketid bucket operation\n| histogramPercentile bucketid bucket p99\n| transformNull 0\n| sort max\n| aliasByTags operation\n"
@@ -885,7 +885,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  50 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_rollup_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$service\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)",
+                        "expr": "histogram_quantile(\n  50 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_rollup_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$services\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)",
                         "instant": false,
                         "legendFormat": "__auto",
                         "range": true
@@ -1174,7 +1174,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  0.99,\n  sum by (le, operation, dc) (\n    persistence_latency_ns_bucket{\n      deployment=~\"$deployment\",\n      operation=~\"UpdateWorkflowExecution|CreateWorkflowExecution|DeleteWorkflowExecution|LeaseTaskList|UpdateTaskList|DeleteTaskList|CreateShard|UpdateShard|CreateTask\"\n    }\n  )\n  or\n  sum by (le, operation, dc) (\n    persistence_latency_ns_rollup_bucket{\n      deployment=~\"$deployment\",\n      operation=~\"UpdateWorkflowExecution|CreateWorkflowExecution|DeleteWorkflowExecution|LeaseTaskList|UpdateTaskList|DeleteTaskList|CreateShard|UpdateShard|CreateTask\"\n    }\n  )\n)",
+                        "expr": "histogram_quantile(\n  0.99,\n  sum by (le, operation, dc) (\n    rate(\n      persistence_latency_ns_bucket{\n        deployment=~\"$deployment\",\n        operation=~\"UpdateWorkflowExecution|CreateWorkflowExecution|DeleteWorkflowExecution|LeaseTaskList|UpdateTaskList|DeleteTaskList|CreateShard|UpdateShard|CreateTask\"\n      }[$__rate_interval]\n    )\n  )\n  or\n  sum by (le, operation, dc) (\n    rate(\n      persistence_latency_ns_rollup_bucket{\n        deployment=~\"$deployment\",\n        operation=~\"UpdateWorkflowExecution|CreateWorkflowExecution|DeleteWorkflowExecution|LeaseTaskList|UpdateTaskList|DeleteTaskList|CreateShard|UpdateShard|CreateTask\"\n      }[$__rate_interval]\n    )\n  )\n)",
                         "legendFormat": "{{operation}} {{dc}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:{persistence_latency_ns,persistence_latency_ns_rollup} operation:{updateworkflowexecution,createworkflowexecution,deleteworkflowexecution,leasetasklist,updatetasklist,deletetasklist,createshard,updateshard,createtask}\n| removeEmpty\n| sum bucketid bucket operation dc\n| histogramPercentile bucketid bucket p99\n| transformNull 0\n| sort avg desc\n| aliasByTags operation dc"
@@ -1248,7 +1248,8 @@
                         "value": 80
                       }
                     ]
-                  }
+                  },
+                  "unit": "s"
                 },
                 "overrides": []
               },
@@ -1296,7 +1297,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate(\n    persistence_empty_response{\n      cadence_service=~\"$service\",\n      deployment=~\"$deployment\",\n      operation=~\"$operation\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate(\n    persistence_empty_response{\n      cadence_service=~\"$services\",\n      deployment=~\"$deployment\",\n      operation=~\"$operation\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:persistence_empty_response operation:$operation | transformNull 0 |  sum operation | scaleToSeconds 1 | sort max | aliasByTags operation  "
@@ -1419,7 +1420,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "avg_over_time(\n  (\n    histogram_quantile(\n      0.50,\n      sum by (le, operation, task_category) (\n        persistence_response_row_size_bucket{\n          cadence_service=~\"$service\",\n          deployment=~\"$deployment\",\n          operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n        }\n      )\n    )\n  )[5m:]\n)",
+                        "expr": "avg_over_time(\n  (\n    histogram_quantile(\n      0.50,\n      sum by (le, operation, task_category) (\n        rate(\n          persistence_response_row_size_bucket{\n            cadence_service=~\"$services\",\n            deployment=~\"$deployment\",\n            operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n          }[$__rate_interval]\n        )\n      )\n    )\n  )[5m:]\n)",
                         "legendFormat": "{{operation}} {{task_category}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:persistence_response_row_size operation:{gethistorytasks,rangecompletehistorytask,completehistorytask} |  sum bucket bucketid operation task_category | histogramPercentile bucketid bucket 50 | moving 5m avg | sort avg | aliasByTags operation task_category"
@@ -1543,7 +1544,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "avg_over_time(\n  (\n    histogram_quantile(\n      0.50,\n      sum by (le, operation) (\n        persistence_response_payload_size_bucket{\n          cadence_service=~\"$service\",\n          deployment=~\"$deployment\",\n          operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n        }\n      )\n    )\n  )[5m:]\n)",
+                        "expr": "avg_over_time(\n  (\n    histogram_quantile(\n      0.50,\n      sum by (le, operation) (\n        rate(\n          persistence_response_payload_size_bucket{\n            cadence_service=~\"$services\",\n            deployment=~\"$deployment\",\n            operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n          }[$__rate_interval]\n        )\n      )\n    )\n  )[5m:]\n)",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:persistence_response_payload_size operation:{gethistorytasks,rangecompletehistorytask,completehistorytask} | sum bucket bucketid operation | histogramPercentile bucketid bucket 50 | moving 5m avg | sort avg | aliasByTags operation"
@@ -1789,7 +1790,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation, task_category) (\n  rate(persistence_errors{\n    cadence_service=~\"$service\",\n    deployment=~\"$deployment\",\n    operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n  }[$__rate_interval])\n)",
+                        "expr": "sum by (operation, task_category) (\n  rate(persistence_errors{\n    cadence_service=~\"$services\",\n    deployment=~\"$deployment\",\n    operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n  }[$__rate_interval])\n)",
                         "legendFormat": "{{operation}} {{task_category}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:{persistence_errors,persistence_errors_rollup} operation:{gethistorytasks,rangecompletehistorytask,completehistorytask}  | removeEmpty | transformNull 0 |  sum operation task_category | scaleToSeconds 1 |  aliasByTags operation task_category  "
@@ -1911,7 +1912,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation, task_category) (\n  rate(\n    persistence_empty_response{\n      cadence_service=~\"$service\",\n      deployment=~\"$deployment\",\n      operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation, task_category) (\n  rate(\n    persistence_empty_response{\n      cadence_service=~\"$services\",\n      deployment=~\"$deployment\",\n      operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "{{operation}} {{task_category}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:persistence_empty_response operation:{gethistorytasks,rangecompletehistorytask,completehistorytask}| transformNull 0 |  sum operation task_category | scaleToSeconds 1 | sort max | aliasByTags operation task_category  "
@@ -2033,7 +2034,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "avg_over_time(\n  histogram_quantile(\n    0.50,\n    sum by (operation, task_category, le) (\n      rate(\n        persistence_response_payload_size_bucket{\n          cadence_service=~\"$service\",\n          deployment=~\"$deployment\",\n          operation=~\"$operation\"\n        }[$__rate_interval])\n    )\n  )[5m:]\n)",
+                        "expr": "avg_over_time(\n  histogram_quantile(\n    0.50,\n    sum by (operation, task_category, le) (\n      rate(\n        persistence_response_payload_size_bucket{\n          cadence_service=~\"$services\",\n          deployment=~\"$deployment\",\n          operation=~\"$operation\"\n        }[$__rate_interval])\n    )\n  )[5m:]\n)",
                         "legendFormat": "{{operation}} {{task_category}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:persistence_response_payload_size operation:$operation  | sum bucket bucketid operation task_category | histogramPercentile bucketid bucket 50 | moving 5m avg | sort avg | aliasByTags operation task_category"
@@ -2158,7 +2159,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "avg_over_time(\n  histogram_quantile(\n    0.50,\n    sum by (operation, le) (\n      rate(\n        persistence_response_row_size_bucket{\n          cadence_service=~\"$service\",\n          deployment=~\"$deployment\",\n          operation=~\"$operation\"\n        }[$__rate_interval]\n      )\n    )\n  )[5m:]\n)",
+                        "expr": "avg_over_time(\n  histogram_quantile(\n    0.50,\n    sum by (operation, le) (\n      rate(\n        persistence_response_row_size_bucket{\n          cadence_service=~\"$services\",\n          deployment=~\"$deployment\",\n          operation=~\"$operation\"\n        }[$__rate_interval]\n      )\n    )\n  )[5m:]\n)",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:persistence_response_row_size operation:$operation |  sum bucket bucketid operation | histogramPercentile bucketid bucket 50 | moving 5m avg | sort avg | aliasByTags operation"
@@ -2282,7 +2283,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  50/ 100,\n  sum by (le, operation, task_category) (\n    rate(persistence_latency_ns_bucket{\n      cadence_service=~\"$service\",\n      deployment=~\"$deployment\",\n      operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n    }[$__rate_interval])\n  )\n)",
+                        "expr": "histogram_quantile(\n  50/ 100,\n  sum by (le, operation, task_category) (\n    rate(persistence_latency_ns_bucket{\n      cadence_service=~\"$services\",\n      deployment=~\"$deployment\",\n      operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n    }[$__rate_interval])\n  )\n)",
                         "legendFormat": "{{operation}} {{task_category}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:{persistence_latency_ns,persistence_latency_ns_rollup} operation:{gethistorytasks,rangecompletehistorytask,completehistorytask}\n| removeEmpty\n| sum bucketid bucket operation task_category\n| histogramPercentile bucketid bucket p99\n| transformNull 0\n| sort max\n| aliasByTags operation task_category"
@@ -2405,7 +2406,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "avg_over_time(\n  (\n    histogram_quantile(\n      0.99,\n      sum by (le, operation) (\n        persistence_latency_ns_bucket{\n          service=~\"cadence-frontend|cadence-history|cadence-matching|cadence-worker\",\n          deployment=~\"$deployment\",\n          operation=~\".*Domain.*\"\n        }\n      )\n    )\n  )[1m:]\n)",
+                        "expr": "avg_over_time(\n  (\n    histogram_quantile(\n      0.99,\n      sum by (le, operation) (\n        rate(\n          persistence_latency_ns_bucket{\n            cadence_service=~\"$services\",\n            deployment=~\"$deployment\",\n            operation=~\".*Domain.*\"\n          }[$__rate_interval]\n        )\n      )\n    )\n  )[1m:]\n)",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch service:{cadence-frontend,cadence-history,cadence-matching,cadence-worker} deployment:$deployment name:persistence_latency_ns operation:*domain*\n| removeEmpty\n| sum bucketid bucket name operation\n| histogramPercentile bucketid bucket 50 99\n| transformNull 0\n| summarize 1min avg\n| aliasByTags operation histogramPercentile"
@@ -2527,7 +2528,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "avg_over_time(\n  (\n    sum by (operation, task_category) (\n      rate(\n        persistence_requests{\n          cadence_service=~\"$service\",\n          deployment=~\"$deployment\",\n          operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n        }[$__rate_interval]\n      )\n    )\n  )[1h:]\n)",
+                        "expr": "avg_over_time(\n  (\n    sum by (operation, task_category) (\n      rate(\n        persistence_requests{\n          cadence_service=~\"$services\",\n          deployment=~\"$deployment\",\n          operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n        }[$__rate_interval]\n      )\n    )\n  )[1h:]\n)",
                         "legendFormat": "{{operation}} {{task_category}}",
                         "range": true,
                         "target": "historyTasks = (fetch deployment:*prod* name:{persistence_requests,persistence_requests_rollup} operation:{gethistorytasks,rangecompletehistorytask,completehistorytask} | transformNull 0 |  sum operation task_category | scaleToSeconds 1 | moving 1h avg | sort max | aliasByTags operation task_category);\notherRequests = (fetch deployment:*prod* name:{persistence_requests,persistence_requests_rollup} operation:!{gethistorytasks,rangecompletehistorytask,completehistorytask} | transformNull 0 |  sum operation | scaleToSeconds 1 | sort max  | moving 1h avg | aliasByTags operation);\n\nhistoryTasks | otherRequests | sort max"
@@ -2549,7 +2550,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "avg_over_time(\n  (\n    sum by (operation) (\n      rate(\n        persistence_requests_rollup{\n          cadence_service=~\"$service\",\n          deployment=~\"$deployment\",\n          operation=~\"$operation\"\n        }[$__rate_interval]\n      )\n    )\n  )[1h:]\n)",
+                        "expr": "avg_over_time(\n  (\n    sum by (operation) (\n      rate(\n        persistence_requests_rollup{\n          cadence_service=~\"$services\",\n          deployment=~\"$deployment\",\n          operation=~\"$operation\"\n        }[$__rate_interval]\n      )\n    )\n  )[1h:]\n)",
                         "instant": false,
                         "legendFormat": "{{operation}}",
                         "range": true
@@ -2674,7 +2675,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate(\n    persistence_requests{\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate(\n    persistence_requests{\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution requests",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 1,50,99,100\n  | sort \n  | alias \"p{{.__percentile}}\""
@@ -2696,7 +2697,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 1,50,99,100\n  | sort \n  | alias \"p{{.__percentile}}\""
@@ -2718,7 +2719,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 1,50,99,100\n  | sort \n  | alias \"p{{.__percentile}}\""
@@ -2740,7 +2741,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_busy\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_busy\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 1,50,99,100\n  | sort \n  | alias \"p{{.__percentile}}\""
@@ -2762,7 +2763,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_entity_not_exists\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_entity_not_exists\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 1,50,99,100\n  | sort \n  | alias \"p{{.__percentile}}\""
@@ -2784,7 +2785,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_execution_already_started\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_execution_already_started\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 1,50,99,100\n  | sort \n  | alias \"p{{.__percentile}}\""
@@ -2806,7 +2807,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_already_exists\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_already_exists\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 1,50,99,100\n  | sort \n  | alias \"p{{.__percentile}}\""
@@ -2828,7 +2829,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_ownership_lost\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_ownership_lost\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 1,50,99,100\n  | sort \n  | alias \"p{{.__percentile}}\""
@@ -2850,7 +2851,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_condition_failed\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_condition_failed\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 1,50,99,100\n  | sort \n  | alias \"p{{.__percentile}}\""
@@ -2872,7 +2873,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout_bucket\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout_bucket\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 1,50,99,100\n  | sort \n  | alias \"p{{.__percentile}}\""
@@ -2894,7 +2895,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate(\n    persistence_requests{\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate(\n    persistence_requests{\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution requests",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 50\n  | scale 1.5\n  | alias \"1.5 x p50\""
@@ -2916,7 +2917,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 50\n  | scale 1.5\n  | alias \"1.5 x p50\""
@@ -2938,7 +2939,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 50\n  | scale 1.5\n  | alias \"1.5 x p50\""
@@ -2960,7 +2961,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_busy\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_busy\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 50\n  | scale 1.5\n  | alias \"1.5 x p50\""
@@ -2982,7 +2983,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_entity_not_exists\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_entity_not_exists\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 50\n  | scale 1.5\n  | alias \"1.5 x p50\""
@@ -3004,7 +3005,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_execution_already_started\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_execution_already_started\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 50\n  | scale 1.5\n  | alias \"1.5 x p50\""
@@ -3026,7 +3027,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_already_exists\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_already_exists\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 50\n  | scale 1.5\n  | alias \"1.5 x p50\""
@@ -3048,7 +3049,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_ownership_lost\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_ownership_lost\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 50\n  | scale 1.5\n  | alias \"1.5 x p50\""
@@ -3070,7 +3071,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_condition_failed\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_condition_failed\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 50\n  | scale 1.5\n  | alias \"1.5 x p50\""
@@ -3092,7 +3093,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout_bucket\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout_bucket\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | percentileOfSeries 50\n  | scale 1.5\n  | alias \"1.5 x p50\""
@@ -3321,7 +3322,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate(\n    persistence_requests{\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate(\n    persistence_requests{\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution requests",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 50 average desc\n  | aliasByTags shard_id"
@@ -3343,7 +3344,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 50 average desc\n  | aliasByTags shard_id"
@@ -3365,7 +3366,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 50 average desc\n  | aliasByTags shard_id"
@@ -3387,7 +3388,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_busy\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_busy\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 50 average desc\n  | aliasByTags shard_id"
@@ -3409,7 +3410,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_entity_not_exists\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_entity_not_exists\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 50 average desc\n  | aliasByTags shard_id"
@@ -3431,7 +3432,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_execution_already_started\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_execution_already_started\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 50 average desc\n  | aliasByTags shard_id"
@@ -3453,7 +3454,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_already_exists\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_already_exists\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 50 average desc\n  | aliasByTags shard_id"
@@ -3475,7 +3476,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_ownership_lost\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_ownership_lost\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 50 average desc\n  | aliasByTags shard_id"
@@ -3497,7 +3498,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_condition_failed\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_condition_failed\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 50 average desc\n  | aliasByTags shard_id"
@@ -3519,7 +3520,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout_bucket\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout_bucket\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 50 average desc\n  | aliasByTags shard_id"
@@ -3640,7 +3641,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate(\n    persistence_requests{\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate(\n    persistence_requests{\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution requests",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 10 average asc\n  | aliasByTags shard_id"
@@ -3662,7 +3663,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 10 average asc\n  | aliasByTags shard_id"
@@ -3684,7 +3685,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 10 average asc\n  | aliasByTags shard_id"
@@ -3706,7 +3707,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_busy\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_busy\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 10 average asc\n  | aliasByTags shard_id"
@@ -3728,7 +3729,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_entity_not_exists\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_entity_not_exists\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 10 average asc\n  | aliasByTags shard_id"
@@ -3750,7 +3751,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_execution_already_started\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_execution_already_started\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 10 average asc\n  | aliasByTags shard_id"
@@ -3772,7 +3773,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_already_exists\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_already_exists\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 10 average asc\n  | aliasByTags shard_id"
@@ -3794,7 +3795,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_ownership_lost\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_shard_ownership_lost\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 10 average asc\n  | aliasByTags shard_id"
@@ -3816,7 +3817,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_condition_failed\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_condition_failed\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 10 average asc\n  | aliasByTags shard_id"
@@ -3838,7 +3839,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout_bucket\",\n    deployment=~\"$deployment\",\n    service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
+                        "expr": "sum by (operation) (\n  rate({\n    __name__=\"persistence_errors_timeout_bucket\",\n    deployment=~\"$deployment\",\n    cadence_service=~\"$services\",\n    operation=\"DeleteWorkflowExecution\"\n    }[$__rate_interval]\n  )\n)",
                         "legendFormat": "DeleteWorkflowExecution errors",
                         "range": true,
                         "target": "fetch service:cadence-history deployment:$deployment\n       shard_id:* operation:deleteworkflowexecution\n       name:persistence_requests_per_shard\n  | sum shard_id\n  | summarize 1h sum\n  | topK 10 average asc\n  | aliasByTags shard_id"
@@ -4089,7 +4090,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  50 / 100,\n  sum by (host, le) (\n    rate(\n      persistence_latency_histogram_per_host_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$service\",\n        operation=\"persistence_operations\"\n      }[$__rate_interval]\n    )\n  )\n)",
+                        "expr": "histogram_quantile(\n  50 / 100,\n  sum by (host, le) (\n    rate(\n      persistence_latency_histogram_per_host_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n        operation=\"persistence_operations\"\n      }[$__rate_interval]\n    )\n  )\n)",
                         "legendFormat": "__auto",
                         "range": true,
                         "target": "fetch  deployment:$deployment service:$services name:persistence_latency_histogram_per_host operation:persistence_operations\n| removeEmpty \n| transformNull 0 | sum bucketid bucket host\n| histogramPercentile bucketid bucket 99\n| sort max\n| aliasByTags host"
@@ -4212,7 +4213,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  50 / 100,\n  sum by (le) (\n    rate(\n      persistence_latency_ns_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$service\",\n      }[$__rate_interval]\n    )\n  )\n  +\n  sum by (le) (\n    rate(\n      persistence_latency_ns_rollup_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$service\",\n      }[$__rate_interval]\n    )\n  )\n)\n",
+                        "expr": "histogram_quantile(\n  50 / 100,\n  sum by (le) (\n    rate(\n      persistence_latency_ns_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n      }[$__rate_interval]\n    )\n  )\n  +\n  sum by (le) (\n    rate(\n      persistence_latency_ns_rollup_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n      }[$__rate_interval]\n    )\n  )\n)\n",
                         "instant": false,
                         "legendFormat": "p50",
                         "range": true
@@ -4235,7 +4236,7 @@
                       "spec": {
                         "editorMode": "code",
                         "exemplar": false,
-                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (le) (\n    rate(\n      persistence_latency_ns_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$service\",\n      }[$__rate_interval]\n    )\n  )\n  +\n  sum by (le) (\n    rate(\n      persistence_latency_ns_rollup_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$service\",\n      }[$__rate_interval]\n    )\n  )\n)\n",
+                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (le) (\n    rate(\n      persistence_latency_ns_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n      }[$__rate_interval]\n    )\n  )\n  +\n  sum by (le) (\n    rate(\n      persistence_latency_ns_rollup_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n      }[$__rate_interval]\n    )\n  )\n)\n",
                         "interval": "",
                         "legendFormat": "p99",
                         "range": true,
@@ -4258,7 +4259,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  99.9 / 100,\n  sum by (le) (\n    rate(\n      persistence_latency_ns_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$service\",\n      }[$__rate_interval]\n    )\n  )\n  +\n  sum by (le) (\n    rate(\n      persistence_latency_ns_rollup_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$service\",\n      }[$__rate_interval]\n    )\n  )\n)\n",
+                        "expr": "histogram_quantile(\n  99.9 / 100,\n  sum by (le) (\n    rate(\n      persistence_latency_ns_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n      }[$__rate_interval]\n    )\n  )\n  +\n  sum by (le) (\n    rate(\n      persistence_latency_ns_rollup_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n      }[$__rate_interval]\n    )\n  )\n)\n",
                         "instant": false,
                         "legendFormat": "p99.9",
                         "range": true
@@ -4381,7 +4382,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (host, le) (\n    rate(\n      persistence_latency_histogram_per_host_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$service\",\n        operation=\"persistence_operations\"\n      }[$__rate_interval]\n    )\n  )\n)",
+                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (host, le) (\n    rate(\n      persistence_latency_histogram_per_host_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n        operation=\"persistence_operations\"\n      }[$__rate_interval]\n    )\n  )\n)",
                         "legendFormat": "__auto",
                         "range": true,
                         "target": "fetch  deployment:$deployment service:$services name:persistence_latency_histogram_per_host operation:persistence_operations\n| removeEmpty \n| transformNull 0 | sum bucketid bucket host\n| histogramPercentile bucketid bucket 99\n| sort max\n| aliasByTags host"
@@ -4504,7 +4505,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  99.9 / 100,\n  sum by (host, le) (\n    rate(\n      persistence_latency_histogram_per_host_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$service\",\n        operation=\"persistence_operations\"\n      }[$__rate_interval]\n    )\n  )\n)",
+                        "expr": "histogram_quantile(\n  99.9 / 100,\n  sum by (host, le) (\n    rate(\n      persistence_latency_histogram_per_host_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n        operation=\"persistence_operations\"\n      }[$__rate_interval]\n    )\n  )\n)",
                         "legendFormat": "__auto",
                         "range": true,
                         "target": "fetch  deployment:$deployment service:$services name:persistence_latency_histogram_per_host operation:persistence_operations\n| removeEmpty \n| transformNull 0 | sum bucketid bucket host\n| histogramPercentile bucketid bucket 99\n| sort max\n| aliasByTags host"
@@ -4627,7 +4628,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate(persistence_requests{\n    cadence_service=~\"$service\",\n    deployment=~\"$deployment\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n)",
+                        "expr": "sum by (operation) (\n  rate(persistence_requests{\n    cadence_service=~\"$services\",\n    deployment=~\"$deployment\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n)",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:{persistence_requests,persistence_requests_rollup} operation:$operation | transformNull 0 |  sum operation | scaleToSeconds 1 | sort max | aliasByTags operation  "
@@ -4649,7 +4650,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (operation) (\n  rate(persistence_requests_rollup{\n    cadence_service=~\"$service\",\n    deployment=~\"$deployment\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n)",
+                        "expr": "sum by (operation) (\n  rate(persistence_requests_rollup{\n    cadence_service=~\"$services\",\n    deployment=~\"$deployment\",\n    operation=~\"$operation\"\n  }[$__rate_interval])\n)",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:{persistence_requests,persistence_requests_rollup} operation:$operation | transformNull 0 |  sum operation | scaleToSeconds 1 | sort max | aliasByTags operation  "
@@ -4772,7 +4773,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$service\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)\n",
+                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$services\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)\n",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch  deployment:$deployment service:$services name:{persistence_latency_ns,persistence_latency_ns_rollup} operation:$operation\n| removeEmpty\n| sum bucketid bucket operation\n| histogramPercentile bucketid bucket p99\n| transformNull 0\n| sort max\n| aliasByTags operation\n"
@@ -4794,7 +4795,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_rollup_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$service\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)",
+                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_rollup_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$services\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)",
                         "instant": false,
                         "legendFormat": "__auto",
                         "range": true
@@ -4917,7 +4918,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  99.9 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$service\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)\n",
+                        "expr": "histogram_quantile(\n  99.9 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$services\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)\n",
                         "legendFormat": "{{operation}}",
                         "range": true,
                         "target": "fetch  deployment:$deployment service:$services name:{persistence_latency_ns,persistence_latency_ns_rollup} operation:$operation\n| removeEmpty\n| sum bucketid bucket operation\n| histogramPercentile bucketid bucket p99\n| transformNull 0\n| sort max\n| aliasByTags operation\n"
@@ -4939,7 +4940,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  99.9 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_rollup_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$service\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)",
+                        "expr": "histogram_quantile(\n  99.9 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_rollup_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$services\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)",
                         "instant": false,
                         "legendFormat": "__auto",
                         "range": true
@@ -5062,7 +5063,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (le, operation, task_category) (\n    rate(persistence_latency_ns_bucket{\n      cadence_service=~\"$service\",\n      deployment=~\"$deployment\",\n      operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n    }[$__rate_interval])\n  )\n)",
+                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (le, operation, task_category) (\n    rate(persistence_latency_ns_bucket{\n      cadence_service=~\"$services\",\n      deployment=~\"$deployment\",\n      operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n    }[$__rate_interval])\n  )\n)",
                         "legendFormat": "{{operation}} {{task_category}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:{persistence_latency_ns,persistence_latency_ns_rollup} operation:{gethistorytasks,rangecompletehistorytask,completehistorytask}\n| removeEmpty\n| sum bucketid bucket operation task_category\n| histogramPercentile bucketid bucket p99\n| transformNull 0\n| sort max\n| aliasByTags operation task_category"
@@ -5185,7 +5186,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (le, operation, task_category) (\n    rate(persistence_latency_ns_bucket{\n      cadence_service=~\"$service\",\n      deployment=~\"$deployment\",\n      operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n    }[$__rate_interval])\n  )\n)",
+                        "expr": "histogram_quantile(\n  99 / 100,\n  sum by (le, operation, task_category) (\n    rate(persistence_latency_ns_bucket{\n      cadence_service=~\"$services\",\n      deployment=~\"$deployment\",\n      operation=~\"GetHistoryTasks|RangeCompleteHistoryTask|CompleteHistoryTask\"\n    }[$__rate_interval])\n  )\n)",
                         "legendFormat": "{{operation}} {{task_category}}",
                         "range": true,
                         "target": "fetch deployment:$deployment name:{persistence_latency_ns,persistence_latency_ns_rollup} operation:{gethistorytasks,rangecompletehistorytask,completehistorytask}\n| removeEmpty\n| sum bucketid bucket operation task_category\n| histogramPercentile bucketid bucket p99\n| transformNull 0\n| sort max\n| aliasByTags operation task_category"
@@ -5859,7 +5860,7 @@
           "hide": "dontHide",
           "includeAll": true,
           "multi": true,
-          "name": "service",
+          "name": "services",
           "options": [],
           "query": {
             "datasource": {
@@ -5903,7 +5904,7 @@
             "group": "prometheus",
             "kind": "DataQuery",
             "spec": {
-              "qryType": 3,
+              "qryType": 1,
               "query": "label_values(operation)",
               "refId": "PrometheusVariableQueryEditor-VariableQuery"
             },
