@@ -25,9 +25,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
 )
 
@@ -366,4 +368,99 @@ func TestTaskSource(t *testing.T) {
 		roundTripObj := ToTaskSource(thriftObj)
 		assert.Equal(t, tc.input, roundTripObj)
 	}
+}
+
+func TaskSourceFuzzer(e *types.TaskSource, c fuzz.Continue) {
+	*e = types.TaskSource(c.Intn(2))
+}
+
+func QueryConsistencyLevelFuzzer(e *types.QueryConsistencyLevel, c fuzz.Continue) {
+	*e = types.QueryConsistencyLevel(c.Intn(2))
+}
+
+func QueryRejectConditionFuzzer(e *types.QueryRejectCondition, c fuzz.Continue) {
+	*e = types.QueryRejectCondition(c.Intn(2))
+}
+
+func TestActivityTaskDispatchInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActivityTaskDispatchInfo, ToActivityTaskDispatchInfo,
+		testutils.WithExcludedFields("ScheduledEvent"))
+}
+
+func TestMatchingAddActivityTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingAddActivityTaskRequest, ToMatchingAddActivityTaskRequest,
+		testutils.WithCustomFuncs(TaskSourceFuzzer),
+		testutils.WithExcludedFields("ScheduledEvent"))
+}
+
+func TestMatchingAddDecisionTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingAddDecisionTaskRequest, ToMatchingAddDecisionTaskRequest,
+		testutils.WithCustomFuncs(TaskSourceFuzzer))
+}
+
+func TestMatchingCancelOutstandingPollRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingCancelOutstandingPollRequest, ToMatchingCancelOutstandingPollRequest)
+}
+
+func TestMatchingDescribeTaskListRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingDescribeTaskListRequest, ToMatchingDescribeTaskListRequest)
+}
+
+func TestMatchingListTaskListPartitionsRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingListTaskListPartitionsRequest, ToMatchingListTaskListPartitionsRequest)
+}
+
+func TestMatchingPollForActivityTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingPollForActivityTaskRequest, ToMatchingPollForActivityTaskRequest)
+}
+
+func TestMatchingPollForActivityTaskResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingPollForActivityTaskResponse, ToMatchingPollForActivityTaskResponse,
+		testutils.WithExcludedFields("BacklogCountHint", "PartitionConfig", "LoadBalancerHints"))
+}
+
+func TestMatchingPollForDecisionTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingPollForDecisionTaskRequest, ToMatchingPollForDecisionTaskRequest)
+}
+
+func TestMatchingPollForDecisionTaskResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingPollForDecisionTaskResponse, ToMatchingPollForDecisionTaskResponse,
+		testutils.WithExcludedFields("DecisionInfo", "PartitionConfig", "LoadBalancerHints"))
+}
+
+func TestMatchingQueryWorkflowRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingQueryWorkflowRequest, ToMatchingQueryWorkflowRequest,
+		testutils.WithCustomFuncs(QueryConsistencyLevelFuzzer, QueryRejectConditionFuzzer))
+}
+
+func TestMatchingQueryWorkflowResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingQueryWorkflowResponse, ToMatchingQueryWorkflowResponse,
+		testutils.WithExcludedFields("PartitionConfig"))
+}
+
+func TestMatchingRespondQueryTaskCompletedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingRespondQueryTaskCompletedRequest, ToMatchingRespondQueryTaskCompletedRequest)
+}
+
+func TestTaskSourceFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromTaskSource, ToTaskSource,
+		testutils.WithCustomFuncs(TaskSourceFuzzer))
+}
+
+func TestMatchingDescribeTaskListResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingDescribeTaskListResponse, ToMatchingDescribeTaskListResponse,
+		testutils.WithExcludedFields("PartitionConfig"))
+}
+
+func TestMatchingGetTaskListsByDomainRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingGetTaskListsByDomainRequest, ToMatchingGetTaskListsByDomainRequest)
+}
+
+func TestMatchingGetTaskListsByDomainResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingGetTaskListsByDomainResponse, ToMatchingGetTaskListsByDomainResponse,
+		testutils.WithExcludedFields("PartitionConfig"))
+}
+
+func TestMatchingListTaskListPartitionsResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingListTaskListPartitionsResponse, ToMatchingListTaskListPartitionsResponse)
 }
