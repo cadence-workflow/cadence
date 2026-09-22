@@ -57,7 +57,7 @@ type RootCause string
 
 const (
 	RootCauseTypeMissingPollers                        RootCause = "There are no pollers for the tasklist"
-	RootCauseTypePollersStatus                         RootCause = "There are pollers for the tasklist. Check backlog status"
+	RootCauseTypePollersStatus                         RootCause = "There are pollers for the tasklist but the activity was not picked up. Check historical backlog metrics"
 	RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy       RootCause = "Heartbeat timeout and retry policy are not configured"
 	RootCauseTypeHeartBeatingNotEnabledWithRetryPolicy RootCause = "Heartbeat timeout not enabled for activity but there is a retry policy configured"
 	RootCauseTypeHeartBeatingEnabledWithoutRetryPolicy RootCause = "Heartbeat timeout enabled for activity but there is no retry policy configured"

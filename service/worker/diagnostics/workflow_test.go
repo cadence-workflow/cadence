@@ -140,7 +140,7 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 		},
 	}
 	taskListBacklog := int64(10)
-	pollersMetadataInBytes, err := json.Marshal(timeout.PollersMetadata{TaskListName: "test", TaskListBacklog: taskListBacklog})
+	pollersMetadataInBytes, err := json.Marshal(timeout.PollersMetadata{TaskListName: "test", CurrentTaskListBacklog: taskListBacklog})
 	s.NoError(err)
 	blobSizeMetadataInBytes, err := json.Marshal(failure.FailureRootcauseMetadata{
 		BlobSizeMetadata: &failure.BlobSizeMetadata{
@@ -178,7 +178,7 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 			IssueID:       1,
 			RootCauseType: invariant.RootCauseTypePollersStatus.String(),
 			Metadata: &timeout.TimeoutRootcauseMetadata{
-				PollersMetadata: &timeout.PollersMetadata{TaskListName: "test", TaskListBacklog: taskListBacklog},
+				PollersMetadata: &timeout.PollersMetadata{TaskListName: "test", CurrentTaskListBacklog: taskListBacklog},
 			},
 		}}
 	s.workflowEnv.OnActivity(identifyIssuesActivity, mock.Anything, mock.Anything).Return(issues, nil)
@@ -341,7 +341,7 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutIssues() {
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRootCause() {
 	taskListBacklog := int64(10)
-	pollersMetadataInBytes, err := json.Marshal(timeout.PollersMetadata{TaskListBacklog: taskListBacklog})
+	pollersMetadataInBytes, err := json.Marshal(timeout.PollersMetadata{CurrentTaskListBacklog: taskListBacklog})
 	s.NoError(err)
 	heartBeatingMetadataInBytes, err := json.Marshal(timeout.HeartbeatingMetadata{TimeElapsed: 5 * time.Second})
 	s.NoError(err)
@@ -362,7 +362,7 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRootCause() {
 			IssueID:       1,
 			RootCauseType: invariant.RootCauseTypePollersStatus.String(),
 			Metadata: &timeout.TimeoutRootcauseMetadata{
-				PollersMetadata: &timeout.PollersMetadata{TaskListBacklog: taskListBacklog},
+				PollersMetadata: &timeout.PollersMetadata{CurrentTaskListBacklog: taskListBacklog},
 			},
 		},
 		{

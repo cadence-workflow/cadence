@@ -101,7 +101,8 @@ func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInpu
 func (t *timeout) RootCause(ctx context.Context, params invariant.InvariantRootCauseInput) ([]invariant.InvariantRootCauseResult, error) {
 	result := make([]invariant.InvariantRootCauseResult, 0)
 	for _, issue := range params.Issues {
-		if issue.InvariantType == TimeoutTypeActivity.String() || issue.InvariantType == TimeoutTypeExecution.String() {
+		if issue.InvariantType == TimeoutTypeExecution.String() ||
+			(issue.InvariantType == TimeoutTypeActivity.String() && issue.Reason == types.TimeoutTypeScheduleToStart.String()) {
 			pollerStatus, err := t.checkTasklist(ctx, issue, params.Domain)
 			if err != nil {
 				return nil, err
@@ -158,8 +159,8 @@ func (t *timeout) checkTasklist(ctx context.Context, issue invariant.InvariantCh
 
 	tasklistBacklog := resp.GetTaskListStatus().GetBacklogCountHint()
 	polllersMetadataInBytes := invariant.MarshalData(PollersMetadata{
-		TaskListName:    taskList.Name,
-		TaskListBacklog: tasklistBacklog,
+		TaskListName:           taskList.Name,
+		CurrentTaskListBacklog: tasklistBacklog,
 	})
 	if len(resp.GetPollers()) == 0 {
 		return invariant.InvariantRootCauseResult{
