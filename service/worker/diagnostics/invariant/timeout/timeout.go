@@ -102,10 +102,16 @@ func (t *timeout) RootCause(ctx context.Context, params invariant.InvariantRootC
 	result := make([]invariant.InvariantRootCauseResult, 0)
 	for _, issue := range params.Issues {
 		if issue.InvariantType == TimeoutTypeExecution.String() ||
-			(issue.InvariantType == TimeoutTypeActivity.String() && issue.Reason == types.TimeoutTypeScheduleToStart.String()) {
+			(issue.InvariantType == TimeoutTypeActivity.String() &&
+				(issue.Reason == types.TimeoutTypeScheduleToStart.String() ||
+					issue.Reason == types.TimeoutTypeScheduleToClose.String())) {
 			pollerStatus, err := t.checkTasklist(ctx, issue, params.Domain)
 			if err != nil {
 				return nil, err
+			}
+			if issue.Reason == types.TimeoutTypeScheduleToClose.String() &&
+				pollerStatus.RootCause == invariant.RootCauseTypePollersStatus {
+				pollerStatus.RootCause = invariant.RootCauseTypeScheduleToCloseTimeoutPollersStatus
 			}
 			result = append(result, pollerStatus)
 		}
