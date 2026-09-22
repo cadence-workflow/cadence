@@ -26,6 +26,9 @@ import (
 	"fmt"
 	"sync"
 
+	"golang.org/x/sync/errgroup"
+
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/service"
@@ -154,30 +157,22 @@ func (e *matchingEngineImpl) shutDownNonOwnedSemaphoreManagers() error {
 		return err
 	}
 
-	semaphoreShutdownWG := sync.WaitGroup{}
-
+	// Unloading stops the manager, which can take a while, so the buckets go in parallel. A
+	// panic in one becomes that goroutine's error rather than taking the host down, and reaches
+	// the caller, which logs it against the membership event that triggered this.
+	g := &errgroup.Group{}
 	for _, sem := range noLongerOwned {
-		// for each of the semaphores that are no longer owned, kick off the
-		// process of stopping them. The stopping process is IO heavy and
-		// can take a while, so do them in parallel to efficiently unload tasklists not owned
-		semaphoreShutdownWG.Add(1)
-		go func(sem semaphore.Manager) {
-			defer func() {
-				if r := recover(); r != nil {
-					e.logger.Error("panic occurred while unloading a semaphore bucket", tag.Dynamic("recovered-panic", r))
-				}
-			}()
-			defer semaphoreShutdownWG.Done()
+		g.Go(func() (retErr error) {
+			defer func() { log.CapturePanic(recover(), e.logger, &retErr) }()
 
 			e.logger.Info("Unloading a semaphore bucket that is no longer owned by this host",
-				tag.Dynamic("semaphore-bucket", sem.Identifier().String()),
+				sem.Identifier().LogTags()...,
 			)
 			e.unloadSemaphoreManager(sem)
-		}(sem)
+			return nil
+		})
 	}
-	semaphoreShutdownWG.Wait()
-
-	return nil
+	return g.Wait()
 }
 
 func (e *matchingEngineImpl) getNonOwnedSemaphoreManagers() ([]semaphore.Manager, error) {

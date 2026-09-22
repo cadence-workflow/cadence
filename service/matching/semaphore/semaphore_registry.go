@@ -13,10 +13,27 @@ func NewSemaphoreRegistry() SemaphoreRegistry {
 	return &semaphoreRegistryImpl{managers: make(map[Identifier]Manager)}
 }
 
-func (r *semaphoreRegistryImpl) Register(mgr Manager) {
+func (r *semaphoreRegistryImpl) GetOrCreate(id Identifier, create func() (Manager, error)) (Manager, error) {
+	// Almost every call finds a manager already there, so look under the read lock first.
+	r.mu.RLock()
+	mgr, ok := r.managers[id]
+	r.mu.RUnlock()
+	if ok {
+		return mgr, nil
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.managers[mgr.Identifier()] = mgr
+	// Checked again: another caller may have built one between the two locks.
+	if existing, ok := r.managers[id]; ok {
+		return existing, nil
+	}
+	mgr, err := create()
+	if err != nil {
+		return nil, err
+	}
+	r.managers[id] = mgr
+	return mgr, nil
 }
 
 func (r *semaphoreRegistryImpl) Unregister(mgr Manager) bool {

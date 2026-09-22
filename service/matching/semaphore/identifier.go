@@ -1,6 +1,10 @@
 package semaphore
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/uber/cadence/common/log/tag"
+)
 
 // Identifier names what one Manager serves: one bucket of one semaphore. A semaphore of `size`
 // slots is split into ceil(size/bucket_size) buckets, and a bucket is one partition of
@@ -39,6 +43,16 @@ func (id Identifier) validate() error {
 
 func (id Identifier) String() string {
 	return fmt.Sprintf("%s/%s/%d", id.DomainID, id.SemaphoreName, id.Bucket)
+}
+
+// LogTags identifies the bucket in a log line. Three fields rather than one joined string, so
+// a query can select every bucket of one semaphore as readily as a single bucket.
+func (id Identifier) LogTags() []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainID(id.DomainID),
+		tag.SemaphoreName(id.SemaphoreName),
+		tag.SemaphoreBucket(id.Bucket),
+	}
 }
 
 // RingKey is what the bucket is hashed on to find the host that owns it. One bucket is one

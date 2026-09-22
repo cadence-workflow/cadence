@@ -90,7 +90,7 @@ func newTestManagerWithRegistry(
 		Tokens:     m,
 		Logger:     testlogger.New(t),
 		IdleTTL:    testIdleTTL,
-		Registry:   registry,
+		OnStopFn:   func(m Manager) { registry.Unregister(m) },
 		TimeSource: mockClock,
 	})
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestNewManagerValidatesItsParams(t *testing.T) {
 		Tokens:     tokens,
 		Logger:     logger,
 		IdleTTL:    testIdleTTL,
-		Registry:   NewSemaphoreRegistry(),
+		OnStopFn:   func(Manager) {},
 		TimeSource: clock.NewMockedTimeSource(),
 	}
 	// Each case drops exactly one required field from an otherwise valid set.
@@ -161,7 +161,7 @@ func TestNewManagerValidatesItsParams(t *testing.T) {
 		{name: "no logger", params: without(func(p *ManagerParams) { p.Logger = nil })},
 		{name: "no idle ttl", params: without(func(p *ManagerParams) { p.IdleTTL = 0 })},
 		{name: "negative idle ttl", params: without(func(p *ManagerParams) { p.IdleTTL = -time.Second })},
-		{name: "no registry", params: without(func(p *ManagerParams) { p.Registry = nil })},
+		{name: "no stop callback", params: without(func(p *ManagerParams) { p.OnStopFn = nil })},
 		{name: "no time source", params: without(func(p *ManagerParams) { p.TimeSource = nil })},
 	}
 
@@ -286,15 +286,29 @@ func TestStartLeavesStateUntouchedWhenTheScanFails(t *testing.T) {
 	assert.Empty(t, mgr.held)
 }
 
-func TestSecondStartIsRejected(t *testing.T) {
+func TestSecondStartIsANoOp(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := persistence.NewMockSemaphoreTokenManager(ctrl)
 
-	// Exactly one scan: the second Start must be turned away before it reaches persistence.
+	// Exactly one scan: the second Start must return before it reaches persistence.
 	mgr := startManager(t, m, freeTokens(1, 2))
 
-	assert.Error(t, mgr.Start(context.Background()))
+	assert.NoError(t, mgr.Start(context.Background()))
 	assert.Equal(t, 2, mgr.freeCount(), "the first load's free-set survives")
+}
+
+// Tests that a manager whose load failed takes itself out of the registry, so the next request
+// builds a fresh one instead of finding a manager that can never serve.
+func TestAFailedLoadUnregistersTheManager(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := persistence.NewMockSemaphoreTokenManager(ctrl)
+	m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Return(nil, errors.New("scan failed"))
+
+	mgr, registry, _ := newTestManagerWithRegistry(t, m)
+	registerForTest(t, registry, mgr)
+
+	require.Error(t, mgr.Start(context.Background()))
+	assert.False(t, isRegistered(registry, mgr))
 }
 
 // Testing a manager is started and then stopped leaves no goroutine running.
@@ -1053,7 +1067,7 @@ func startIdleManager(
 	t.Helper()
 	expectScan(t, m, [][]*persistence.SemaphoreOwnership{rows})
 	mgr, registry, mockClock := newTestManagerWithRegistry(t, m)
-	registry.Register(mgr)
+	registerForTest(t, registry, mgr)
 	require.NoError(t, mgr.Start(context.Background()))
 	return mgr, registry, mockClock
 }
@@ -1110,9 +1124,10 @@ func TestAcquireKeepsAManagerLoaded(t *testing.T) {
 	}, time.Second, 5*time.Millisecond, "the idle clock still runs once traffic stops")
 }
 
-// Tests that a manager already replaced in the registry does not take its replacement with it
-// when it stops, which is what the ring-change path relies on.
-func TestStopLeavesAReplacementManagerAlone(t *testing.T) {
+// Tests that a manager stopping late unregisters only itself, so a manager that has already
+// replaced it stays registered. The registry tests that guard directly; this one pins the
+// teardown path passing the manager being removed rather than only its identifier.
+func TestALateStopUnregistersOnlyItself(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	ctrl := gomock.NewController(t)
 	m := persistence.NewMockSemaphoreTokenManager(ctrl)
@@ -1123,13 +1138,16 @@ func TestStopLeavesAReplacementManagerAlone(t *testing.T) {
 		Tokens:     m,
 		Logger:     testlogger.New(t),
 		IdleTTL:    testIdleTTL,
-		Registry:   registry,
+		OnStopFn:   func(m Manager) { registry.Unregister(m) },
 		TimeSource: clock.NewMockedTimeSource(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(replacement.Stop)
-	registry.Register(replacement)
+	// The window the ring-change path opens: unloadSemaphoreManager unregisters the old manager,
+	// a request loads a replacement, and only then does the old manager's Stop run.
+	require.True(t, registry.Unregister(old))
+	registerForTest(t, registry, replacement)
 
 	old.Stop()
-	assert.True(t, isRegistered(registry, replacement), "the replacement is still the live bucket")
+	assert.True(t, isRegistered(registry, replacement), "the replacement is still the registered manager")
 }

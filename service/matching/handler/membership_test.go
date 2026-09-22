@@ -400,7 +400,7 @@ func TestShutDownNonOwnedSemaphoreManagers(t *testing.T) {
 	start := func(id semaphore.Identifier) semaphore.Manager {
 		mgr := newSemaphoreManager(t, id, tokens)
 		require.NoError(t, mgr.Start(context.Background()))
-		e.semaphoreRegistry.Register(mgr)
+		registerSemaphoreManagerForTest(t, e, mgr)
 		return mgr
 	}
 	mineMgr := start(mine)
@@ -415,6 +415,32 @@ func TestShutDownNonOwnedSemaphoreManagers(t *testing.T) {
 	// Unregistering alone would leave it holding its free-set and answering grants.
 	_, err := movedMgr.Acquire(context.Background(), "owner-1")
 	assert.ErrorIs(t, err, semaphore.ErrNotReady, "the bucket that moved must be stopped too")
+}
+
+// Tests that a panic while unloading is contained and reported. It must not take the host down,
+// and it must not be swallowed either: the caller logs the error against the membership event
+// that triggered the unload, which is the only place that context exists.
+func TestShutDownNonOwnedSemaphoreManagersReportsAPanic(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	resolver := membership.NewMockResolver(ctrl)
+	resolver.EXPECT().WhoAmI().Return(testSelfHost, nil).AnyTimes()
+	resolver.EXPECT().Lookup(service.Matching, gomock.Any()).Return(testOtherHost, nil).AnyTimes()
+
+	mgr := semaphore.NewMockManager(ctrl)
+	mgr.EXPECT().Identifier().Return(mustNewSemaphoreIdentifier(t, 0)).AnyTimes()
+	mgr.EXPECT().Stop().Do(func() { panic("stop blew up") })
+
+	e := &matchingEngineImpl{
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
+		membershipResolver: resolver,
+		logger:             log.NewNoop(),
+	}
+	registerSemaphoreManagerForTest(t, e, mgr)
+
+	var err error
+	require.NotPanics(t, func() { err = e.shutDownNonOwnedSemaphoreManagers() })
+	assert.ErrorContains(t, err, "stop blew up")
 }
 
 // Tests that a failed ring lookup is reported rather than treated as a lost bucket. Unloading on
@@ -438,7 +464,7 @@ func TestShutDownNonOwnedSemaphoreManagersSurfacesALookupFailure(t *testing.T) {
 	}
 	mgr := newSemaphoreManager(t, mustNewSemaphoreIdentifier(t, 0), tokens)
 	require.NoError(t, mgr.Start(context.Background()))
-	e.semaphoreRegistry.Register(mgr)
+	registerSemaphoreManagerForTest(t, e, mgr)
 
 	assert.ErrorIs(t, e.shutDownNonOwnedSemaphoreManagers(), lookupErr)
 	assert.Len(t, e.semaphoreRegistry.AllManagers(), 1, "a lookup failure must not unload anything")

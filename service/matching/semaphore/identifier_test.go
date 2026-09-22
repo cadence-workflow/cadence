@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // Tests that NewIdentifier rejects the values persistence would reject anyway, so a
@@ -76,4 +77,17 @@ func TestIdentifierIsUsableAsAMapKey(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "first", buckets[same])
 	assert.Len(t, buckets, 2)
+}
+
+// Tests that a bucket logs as separate fields rather than one joined string, which is what lets
+// a log query select a whole semaphore instead of only an exact bucket.
+func TestLogTags(t *testing.T) {
+	id, err := NewIdentifier("domain-1", "sem-1", 2)
+	require.NoError(t, err)
+
+	got := id.LogTags()
+	require.Len(t, got, 3)
+	assert.Equal(t, zap.String("wf-domain-id", "domain-1"), got[0].Field())
+	assert.Equal(t, zap.String("semaphore-name", "sem-1"), got[1].Field())
+	assert.Equal(t, zap.Int("semaphore-bucket", 2), got[2].Field())
 }

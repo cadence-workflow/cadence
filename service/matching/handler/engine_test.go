@@ -2016,12 +2016,22 @@ func newSemaphoreManager(t *testing.T, id semaphore.Identifier, tokens persisten
 		Tokens:     tokens,
 		Logger:     log.NewNoop(),
 		IdleTTL:    time.Minute,
-		Registry:   semaphore.NewSemaphoreRegistry(),
+		OnStopFn:   func(semaphore.Manager) {},
 		TimeSource: clock.NewMockedTimeSource(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(mgr.Stop)
 	return mgr
+}
+
+// registerSemaphoreManagerForTest puts mgr in the engine's registry the way a request does.
+func registerSemaphoreManagerForTest(t *testing.T, e *matchingEngineImpl, mgr semaphore.Manager) {
+	t.Helper()
+	got, err := e.semaphoreRegistry.GetOrCreate(mgr.Identifier(), func() (semaphore.Manager, error) {
+		return mgr, nil
+	})
+	require.NoError(t, err)
+	require.Same(t, mgr, got, "the bucket was already held by another manager")
 }
 
 // expectOneScan stubs the startup load and requires it to happen exactly once, which is what
@@ -2052,6 +2062,25 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		second, err := e.getOrCreateSemaphoreManager(id)
 		require.NoError(t, err)
 		assert.Same(t, first, second, "the second call must reuse the registered manager")
+	})
+
+	t.Run("a registered manager that was never started is started by the next request", func(t *testing.T) {
+		// A request can register a manager and then not reach Start: the handler recovers panics,
+		// so its goroutine just goes away. Nothing else would ever start that manager -- acquires
+		// wait on a load that never runs, and the idle clock that would unload it is armed by
+		// that same load -- so the bucket would answer nothing for the life of the host.
+		e, m := newSemaphoreEngine(t, testSelfHost)
+		id := mustNewSemaphoreIdentifier(t, 0)
+		// Times(1): if the request does not start this manager, no scan happens and the
+		// expectation goes unmet.
+		expectOneScan(m, 2)
+
+		unstarted := newSemaphoreManager(t, id, m)
+		registerSemaphoreManagerForTest(t, e, unstarted)
+
+		got, err := e.getOrCreateSemaphoreManager(id)
+		require.NoError(t, err)
+		assert.Same(t, unstarted, got, "the registered manager is the one that gets started")
 	})
 
 	t.Run("domain has semaphores disabled", func(t *testing.T) {

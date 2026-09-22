@@ -133,6 +133,21 @@ func (mr *MockSemaphoreRegistryMockRecorder) AllManagers() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllManagers", reflect.TypeOf((*MockSemaphoreRegistry)(nil).AllManagers))
 }
 
+// GetOrCreate mocks base method.
+func (m *MockSemaphoreRegistry) GetOrCreate(id Identifier, create func() (Manager, error)) (Manager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrCreate", id, create)
+	ret0, _ := ret[0].(Manager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrCreate indicates an expected call of GetOrCreate.
+func (mr *MockSemaphoreRegistryMockRecorder) GetOrCreate(id, create any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrCreate", reflect.TypeOf((*MockSemaphoreRegistry)(nil).GetOrCreate), id, create)
+}
+
 // ManagerByIdentifier mocks base method.
 func (m *MockSemaphoreRegistry) ManagerByIdentifier(id Identifier) (Manager, bool) {
 	m.ctrl.T.Helper()
@@ -146,18 +161,6 @@ func (m *MockSemaphoreRegistry) ManagerByIdentifier(id Identifier) (Manager, boo
 func (mr *MockSemaphoreRegistryMockRecorder) ManagerByIdentifier(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ManagerByIdentifier", reflect.TypeOf((*MockSemaphoreRegistry)(nil).ManagerByIdentifier), id)
-}
-
-// Register mocks base method.
-func (m *MockSemaphoreRegistry) Register(mgr Manager) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Register", mgr)
-}
-
-// Register indicates an expected call of Register.
-func (mr *MockSemaphoreRegistryMockRecorder) Register(mgr any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockSemaphoreRegistry)(nil).Register), mgr)
 }
 
 // Unregister mocks base method.
