@@ -565,7 +565,7 @@ func Test__RootCause(t *testing.T) {
 				{
 					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
-					Reason:        "START_TO_CLOSE",
+					Reason:        "HEARTBEAT",
 					Metadata:      activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t),
 				},
 			},
@@ -585,7 +585,7 @@ func Test__RootCause(t *testing.T) {
 				{
 					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
-					Reason:        "START_TO_CLOSE",
+					Reason:        "HEARTBEAT",
 					Metadata:      activityHeartBeatTimeoutDataInBytes(t),
 				},
 			},
