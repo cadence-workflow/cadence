@@ -3289,6 +3289,11 @@ func (wh *WorkflowHandler) emitDescribeWorkflowExecutionMetrics(domain string, r
 
 	scope = scope.Tagged(metrics.WorkflowCloseStatusTag(status))
 	scope.IncCounter(metrics.DescribeWorkflowStatusCount)
+
+	info := response.WorkflowExecutionInfo
+	if info != nil && info.CloseStatus != nil && info.CloseTime != nil {
+		wh.emitWorkflowAgeDays(metrics.FrontendDescribeWorkflowExecutionStatusScope, domain, *info.CloseTime, *info.CloseStatus)
+	}
 }
 
 func (wh *WorkflowHandler) emitWorkflowQueryAgeDays(domainName string, events []*types.HistoryEvent) {
@@ -3301,22 +3306,41 @@ func (wh *WorkflowHandler) emitWorkflowQueryAgeDays(domainName string, events []
 		return
 	}
 
-	closeTime := time.Unix(0, *lastEvent.Timestamp)
+	wh.emitWorkflowAgeDays(metrics.FrontendGetWorkflowExecutionHistoryScope, domainName, *lastEvent.Timestamp, eventTypeToCloseStatus(lastEvent.GetEventType()))
+}
+
+func (wh *WorkflowHandler) emitWorkflowAgeDays(scopeIdx metrics.ScopeIdx, domainName string, closeTimeNanos int64, closeStatus types.WorkflowExecutionCloseStatus) {
+	closeTime := time.Unix(0, closeTimeNanos)
 	ageDays := time.Since(closeTime).Hours() / 24
 
 	// Collapse close statuses to "success" or "failure" to limit tag cardinality.
 	statusTag := "failure"
-	switch lastEvent.GetEventType() {
-	case types.EventTypeWorkflowExecutionCompleted, types.EventTypeWorkflowExecutionContinuedAsNew:
+	switch closeStatus {
+	case types.WorkflowExecutionCloseStatusCompleted, types.WorkflowExecutionCloseStatusContinuedAsNew:
 		statusTag = "success"
 	}
 
-	scope := wh.GetMetricsClient().Scope(
-		metrics.FrontendGetWorkflowExecutionHistoryScope,
-		metrics.DomainTag(domainName),
-		metrics.WorkflowCloseStatusTag(statusTag),
-	)
+	scope := wh.GetMetricsClient().Scope(scopeIdx, metrics.DomainTag(domainName), metrics.WorkflowCloseStatusTag(statusTag))
 	scope.RecordHistogramValue(metrics.WorkflowQueryAgeDays, ageDays)
+}
+
+func eventTypeToCloseStatus(eventType types.EventType) types.WorkflowExecutionCloseStatus {
+	switch eventType {
+	case types.EventTypeWorkflowExecutionCompleted:
+		return types.WorkflowExecutionCloseStatusCompleted
+	case types.EventTypeWorkflowExecutionFailed:
+		return types.WorkflowExecutionCloseStatusFailed
+	case types.EventTypeWorkflowExecutionTimedOut:
+		return types.WorkflowExecutionCloseStatusTimedOut
+	case types.EventTypeWorkflowExecutionCanceled:
+		return types.WorkflowExecutionCloseStatusCanceled
+	case types.EventTypeWorkflowExecutionTerminated:
+		return types.WorkflowExecutionCloseStatusTerminated
+	case types.EventTypeWorkflowExecutionContinuedAsNew:
+		return types.WorkflowExecutionCloseStatusContinuedAsNew
+	default:
+		return types.WorkflowExecutionCloseStatusFailed
+	}
 }
 
 func isWorkflowCloseEvent(event *types.HistoryEvent) bool {

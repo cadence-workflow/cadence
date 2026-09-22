@@ -4881,6 +4881,69 @@ func TestWorkflowDescribeEmitStatusMetrics(t *testing.T) {
 	}
 }
 
+func TestDescribeWorkflowQueryAgeDays(t *testing.T) {
+	now := time.Now()
+
+	tests := map[string]struct {
+		closeStatus    types.WorkflowExecutionCloseStatus
+		closeTimeNanos int64
+		expectedStatus string
+		expectedBucket float64
+	}{
+		"completed":        {types.WorkflowExecutionCloseStatusCompleted, now.Add(-71 * time.Hour).UnixNano(), "success", 3},
+		"continued as new": {types.WorkflowExecutionCloseStatusContinuedAsNew, now.Add(-23 * time.Hour).UnixNano(), "success", 1},
+		"failed":           {types.WorkflowExecutionCloseStatusFailed, now.Add(-23 * time.Hour).UnixNano(), "failure", 1},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+			scope := tally.NewTestScope("", nil)
+			wh := WorkflowHandler{Resource: &resource.Test{
+				MetricsScope:  scope,
+				MetricsClient: metrics.NewClient(scope, 1, metrics.MigrationConfig{}),
+			}}
+
+			wh.emitDescribeWorkflowExecutionMetrics("test-domain", &types.DescribeWorkflowExecutionResponse{
+				WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+					CloseStatus: &td.closeStatus,
+					CloseTime:   &td.closeTimeNanos,
+				},
+			}, nil)
+
+			var found bool
+			for _, h := range scope.Snapshot().Histograms() {
+				if h.Name() == "workflow_query_age_days" {
+					found = true
+					assert.Equal(t, "DescribeWorkflowExecutionStatus", h.Tags()["operation"])
+					assert.Equal(t, "test-domain", h.Tags()["domain"])
+					assert.Equal(t, td.expectedStatus, h.Tags()["workflow_close_status"])
+					assert.Equal(t, int64(1), h.Values()[td.expectedBucket])
+					break
+				}
+			}
+			assert.True(t, found, "expected age histogram")
+		})
+	}
+
+	t.Run("running workflow skips histogram", func(t *testing.T) {
+		scope := tally.NewTestScope("", nil)
+		wh := WorkflowHandler{Resource: &resource.Test{
+			MetricsScope:  scope,
+			MetricsClient: metrics.NewClient(scope, 1, metrics.MigrationConfig{}),
+		}}
+
+		wh.emitDescribeWorkflowExecutionMetrics("test-domain", &types.DescribeWorkflowExecutionResponse{
+			WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
+		}, nil)
+
+		for _, h := range scope.Snapshot().Histograms() {
+			if h.Name() == "workflow_query_age_days" {
+				t.Error("expected no age histogram for running workflow")
+			}
+		}
+	})
+}
+
 type counterSnapshotMock struct {
 	name  string
 	tags  map[string]string
