@@ -1948,7 +1948,6 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 	lastFirstEventID := constants.FirstEventID
 	var nextEventID int64
 	var isWorkflowRunning bool
-	var workflowCloseStatus string
 
 	// process the token for paging
 	queryNextEventID := constants.EndEventID
@@ -1980,7 +1979,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 			}
 
 			vh := persistence.NewVersionHistoryItemFromInternalType(token.VersionHistoryItem)
-			token.BranchToken, _, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, workflowCloseStatus, err =
+			token.BranchToken, _, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, _, err =
 				queryHistory(domainID, execution, queryNextEventID, token.BranchToken, vh)
 			if err != nil {
 				return nil, err
@@ -1993,7 +1992,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 		if !isCloseEventOnly {
 			queryNextEventID = constants.FirstEventID
 		}
-		token.BranchToken, runID, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, workflowCloseStatus, err =
+		token.BranchToken, runID, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, _, err =
 			queryHistory(domainID, execution, queryNextEventID, nil, nil)
 		if err != nil {
 			return nil, err
@@ -2100,7 +2099,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 		return nil, err
 	}
 
-	wh.emitWorkflowQueryAgeDays(domainName, workflowCloseStatus, history.Events)
+	wh.emitWorkflowQueryAgeDays(domainName, history.Events)
 
 	return &types.GetWorkflowExecutionHistoryResponse{
 		History:       history,
@@ -3292,7 +3291,7 @@ func (wh *WorkflowHandler) emitDescribeWorkflowExecutionMetrics(domain string, r
 	scope.IncCounter(metrics.DescribeWorkflowStatusCount)
 }
 
-func (wh *WorkflowHandler) emitWorkflowQueryAgeDays(domainName, workflowCloseStatus string, events []*types.HistoryEvent) {
+func (wh *WorkflowHandler) emitWorkflowQueryAgeDays(domainName string, events []*types.HistoryEvent) {
 	if len(events) == 0 {
 		return
 	}
@@ -3305,16 +3304,11 @@ func (wh *WorkflowHandler) emitWorkflowQueryAgeDays(domainName, workflowCloseSta
 	closeTime := time.Unix(0, *lastEvent.Timestamp)
 	ageDays := time.Since(closeTime).Hours() / 24
 
-	// Use close status from mutable state if set, otherwise infer from the event type.
-	// Only "COMPLETED" is kept as-is; everything else becomes "other" to limit cardinality.
-	statusTag := workflowCloseStatus
-	if statusTag == "" {
-		if lastEvent.GetEventType() == types.EventTypeWorkflowExecutionCompleted {
-			statusTag = types.WorkflowExecutionCloseStatusCompleted.String()
-		}
-	}
-	if statusTag != types.WorkflowExecutionCloseStatusCompleted.String() {
-		statusTag = "other"
+	// Collapse close statuses to "success" or "failure" to limit tag cardinality.
+	statusTag := "failure"
+	switch lastEvent.GetEventType() {
+	case types.EventTypeWorkflowExecutionCompleted, types.EventTypeWorkflowExecutionContinuedAsNew:
+		statusTag = "success"
 	}
 
 	scope := wh.GetMetricsClient().Scope(

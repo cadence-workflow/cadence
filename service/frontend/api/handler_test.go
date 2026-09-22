@@ -4899,53 +4899,50 @@ func TestEmitWorkflowQueryAgeDays(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		domainName          string
-		workflowCloseStatus string
-		events              []*types.HistoryEvent
-		expectMetric        bool
-		expectedStatus      string
-		expectedBucket      float64
+		domainName     string
+		events         []*types.HistoryEvent
+		expectMetric   bool
+		expectedStatus string
+		expectedBucket float64
 	}{
 		"no events": {
 			domainName: "test-domain",
 			events:     nil,
 		},
-		"completed with status from PollMutableState": {
-			domainName:          "test-domain",
-			workflowCloseStatus: "COMPLETED",
+		"completed workflow": {
+			domainName: "test-domain",
 			events: []*types.HistoryEvent{
 				{ID: 10, EventType: types.EventTypeWorkflowExecutionCompleted.Ptr(), Timestamp: ts(now.Add(-71 * time.Hour))},
 			},
 			expectMetric:   true,
-			expectedStatus: "COMPLETED",
+			expectedStatus: "success",
 			expectedBucket: 3,
 		},
-		"failed with status from PollMutableState": {
-			domainName:          "test-domain",
-			workflowCloseStatus: "FAILED",
+		"continued as new workflow": {
+			domainName: "test-domain",
+			events: []*types.HistoryEvent{
+				{ID: 10, EventType: types.EventTypeWorkflowExecutionContinuedAsNew.Ptr(), Timestamp: ts(now.Add(-23 * time.Hour))},
+			},
+			expectMetric:   true,
+			expectedStatus: "success",
+			expectedBucket: 1,
+		},
+		"failed workflow": {
+			domainName: "test-domain",
 			events: []*types.HistoryEvent{
 				{ID: 8, EventType: types.EventTypeWorkflowExecutionFailed.Ptr(), Timestamp: ts(now.Add(-23 * time.Hour))},
 			},
 			expectMetric:   true,
-			expectedStatus: "other",
+			expectedStatus: "failure",
 			expectedBucket: 1,
 		},
-		"completed on continuation page without close status": {
+		"timed out workflow": {
 			domainName: "test-domain",
 			events: []*types.HistoryEvent{
-				{ID: 50, EventType: types.EventTypeWorkflowExecutionCompleted.Ptr(), Timestamp: ts(now.Add(-1 * time.Hour))},
+				{ID: 50, EventType: types.EventTypeWorkflowExecutionTimedOut.Ptr(), Timestamp: ts(now.Add(-1 * time.Hour))},
 			},
 			expectMetric:   true,
-			expectedStatus: "COMPLETED",
-			expectedBucket: 1,
-		},
-		"failed on continuation page without close status": {
-			domainName: "test-domain",
-			events: []*types.HistoryEvent{
-				{ID: 50, EventType: types.EventTypeWorkflowExecutionFailed.Ptr(), Timestamp: ts(now.Add(-1 * time.Hour))},
-			},
-			expectMetric:   true,
-			expectedStatus: "other",
+			expectedStatus: "failure",
 			expectedBucket: 1,
 		},
 		"last event is not a close event": {
@@ -4955,8 +4952,7 @@ func TestEmitWorkflowQueryAgeDays(t *testing.T) {
 			},
 		},
 		"nil timestamp": {
-			domainName:          "test-domain",
-			workflowCloseStatus: "COMPLETED",
+			domainName: "test-domain",
 			events: []*types.HistoryEvent{
 				{ID: 10, EventType: types.EventTypeWorkflowExecutionCompleted.Ptr(), Timestamp: nil},
 			},
@@ -4972,7 +4968,7 @@ func TestEmitWorkflowQueryAgeDays(t *testing.T) {
 			}
 			wh := WorkflowHandler{Resource: &mockR}
 
-			wh.emitWorkflowQueryAgeDays(td.domainName, td.workflowCloseStatus, td.events)
+			wh.emitWorkflowQueryAgeDays(td.domainName, td.events)
 
 			snap := scope.Snapshot()
 			histograms := snap.Histograms()

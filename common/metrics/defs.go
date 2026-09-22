@@ -4363,13 +4363,7 @@ var ResponsePayloadSizeBuckets = append(
 )
 
 // WorkflowAgeDaysBuckets contains day-granularity buckets (0 through 31) for tracking queried workflow age
-var WorkflowAgeDaysBuckets = func() tally.ValueBuckets {
-	buckets := make(tally.ValueBuckets, 32)
-	for i := range buckets {
-		buckets[i] = float64(i)
-	}
-	return buckets
-}()
+var WorkflowAgeDaysBuckets = tally.MustMakeLinearValueBuckets(0, 1, 32)
 
 // ExponentialDurationBuckets is a set of exponential duration buckets
 var ExponentialDurationBuckets = func() tally.DurationBuckets {
