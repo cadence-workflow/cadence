@@ -68,8 +68,8 @@ type (
 	// FailoverActivityV2Params is the arg for the shared FailoverActivityV2.
 	FailoverActivityV2Params struct {
 		DomainPreferences []DomainFailoverPreferences
-		// SkipDestinationClusterCheck is forwarded onto every FailoverDomain request. When false the
-		// server only accepts each request if this cluster is the destination it names.
+		// SkipDestinationClusterCheck is set on every FailoverDomain request the activity issues. When
+		// false the server only accepts each request if this cluster is the destination it names.
 		SkipDestinationClusterCheck bool
 	}
 
@@ -101,7 +101,7 @@ func FailoverActivityV2(ctx context.Context, params *FailoverActivityV2Params) (
 
 // executeFailoverBatch returns a batchExecutor that invokes the shared FailoverActivityV2. On
 // activity error every domain in the batch is reported failed with that error (false-positive semantics).
-// skipDestinationClusterCheck is forwarded onto every FailoverDomain request the activity issues.
+// skipDestinationClusterCheck is set on every FailoverDomain request the activity issues.
 func executeFailoverBatch(skipDestinationClusterCheck bool) batchExecutor {
 	return func(ctx workflow.Context, batch []DomainFailoverPreferences) (success []DomainFailoverSuccess, failed []DomainFailoverFailure) {
 		ao := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())

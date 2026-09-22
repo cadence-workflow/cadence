@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/cadence"
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/testsuite"
 	"go.uber.org/cadence/workflow"
@@ -571,7 +572,7 @@ func TestFailoverWorkflowV2_WhenPausedItBlocksUntilResumedThenCompletes(t *testi
 	assert.ElementsMatch(t, []string{"d1", "d2"}, successDomainNames(result.SuccessDomains))
 }
 
-func TestFailoverWorkflowV2_WhenSkipDestinationClusterCheckIsSetItForwardsItToTheFailoverActivity(t *testing.T) {
+func TestFailoverWorkflowV2_WhenSkipDestinationClusterCheckIsSetTheFailoverActivityReceivesIt(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestWorkflowEnvironment()
 	env.RegisterWorkflowWithOptions(FailoverWorkflowV2, workflow.RegisterOptions{Name: FailoverWorkflowV2TypeName})
@@ -595,4 +596,86 @@ func TestFailoverWorkflowV2_WhenSkipDestinationClusterCheckIsSetItForwardsItToTh
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
 	assert.True(t, gotParams.SkipDestinationClusterCheck)
+}
+
+func TestFailoverWorkflowV2_WhenSkipDestinationClusterCheckIsSetTheGetDomainsActivityReceivesIt(t *testing.T) {
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflowWithOptions(FailoverWorkflowV2, workflow.RegisterOptions{Name: FailoverWorkflowV2TypeName})
+	env.RegisterActivityWithOptions(FailoverActivityV2, activity.RegisterOptions{Name: failoverActivityV2Name})
+	env.RegisterActivityWithOptions(GetDomainsForFailoverV2Activity, activity.RegisterOptions{Name: getDomainsForFailoverV2ActivityName})
+
+	var gotParams GetDomainsForFailoverV2Params
+	env.OnActivity(getDomainsForFailoverV2ActivityName, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			gotParams = *args.Get(1).(*GetDomainsForFailoverV2Params)
+		}).
+		Return(&GetDomainsForFailoverV2Result{}, nil)
+
+	env.ExecuteWorkflow(FailoverWorkflowV2TypeName, &FailoverV2Params{
+		SourceClusters: []string{"cluster0"}, TargetCluster: "cluster1", SkipDestinationClusterCheck: true,
+	})
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.True(t, gotParams.SkipDestinationClusterCheck)
+}
+
+func TestFailoverWorkflowV2_WhenThisClusterIsNotTheDestinationItFailsBeforeAnyFailover(t *testing.T) {
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflowWithOptions(FailoverWorkflowV2, workflow.RegisterOptions{Name: FailoverWorkflowV2TypeName})
+	env.RegisterActivityWithOptions(FailoverActivityV2, activity.RegisterOptions{Name: failoverActivityV2Name})
+	env.RegisterActivityWithOptions(GetDomainsForFailoverV2Activity, activity.RegisterOptions{Name: getDomainsForFailoverV2ActivityName})
+
+	env.OnActivity(getDomainsForFailoverV2ActivityName, mock.Anything, mock.Anything).
+		Return(nil, cadence.NewCustomError(errMsgV2NotDestinationCluster))
+	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) {
+			t.Fatal("FailoverActivityV2 must not run when this cluster is not the destination")
+		}).
+		Return(nil, nil)
+
+	env.ExecuteWorkflow(FailoverWorkflowV2TypeName, &FailoverV2Params{
+		SourceClusters: []string{"cluster0"}, TargetCluster: "cluster1",
+	})
+	require.True(t, env.IsWorkflowCompleted())
+	err := env.GetWorkflowError()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), errMsgV2NotDestinationCluster)
+}
+
+func TestGetDomainsForFailoverV2Activity_WhenThisClusterIsNotTheDestinationItFails(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnvOnCluster(t, "cluster0")
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Times(0)
+
+	_, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
+		SourceClusters: []string{"cluster0"},
+		TargetCluster:  "cluster1",
+	})
+	require.Error(t, err)
+	var customErr *cadence.CustomError
+	require.ErrorAs(t, err, &customErr)
+	assert.Equal(t, errMsgV2NotDestinationCluster, customErr.Reason())
+}
+
+func TestGetDomainsForFailoverV2Activity_WhenSkipDestinationClusterCheckIsSetItRunsFromAnyCluster(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnvOnCluster(t, "cluster0")
+	domains := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			createDomainResponse(createDomainResponseParams{name: "managed-on-source", activeClusterName: "cluster0", isManaged: true, isGlobal: true}),
+		},
+	}
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+	expectPollersPresent(mockResource)
+
+	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
+		SourceClusters:              []string{"cluster0"},
+		TargetCluster:               "cluster1",
+		SkipDestinationClusterCheck: true,
+	})
+	require.NoError(t, err)
+	var result GetDomainsForFailoverV2Result
+	require.NoError(t, val.Get(&result))
+	require.Len(t, result.Preferences, 1)
+	assert.Equal(t, "cluster1", result.Preferences[0].TargetCluster)
 }

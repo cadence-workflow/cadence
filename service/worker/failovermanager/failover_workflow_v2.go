@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/cadence"
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/zap"
@@ -51,6 +52,10 @@ const (
 	errMsgV2SourceClusterEmpty = "sourceClusters is empty"
 	errMsgV2TargetClusterEmpty = "targetCluster is empty"
 	errMsgV2SameCluster        = "targetCluster is also listed as a sourceCluster"
+	// errMsgV2NotDestinationCluster is returned before any domain is touched when the worker running the
+	// failover is not in TargetCluster and SkipDestinationClusterCheck is unset; the server would reject
+	// every FailoverDomain request for the same reason.
+	errMsgV2NotDestinationCluster = "failover must be run from the destination cluster (targetCluster); set skipDestinationClusterCheck to run it from elsewhere"
 )
 
 type (
@@ -70,7 +75,8 @@ type (
 		// If empty, cluster attributes are not included.
 		ClusterAttributes []types.ClusterAttribute
 		// SkipDestinationClusterCheck lets the failover run from a cluster other than TargetCluster.
-		// By default the server rejects FailoverDomain requests not received by the destination.
+		// By default the workflow fails before touching any domain unless it runs in TargetCluster,
+		// mirroring the server, which rejects FailoverDomain requests not received by the destination.
 		SkipDestinationClusterCheck bool
 	}
 
@@ -108,6 +114,8 @@ type (
 		// ClusterAttributes specifies which cluster attributes should be included for failover.
 		// If empty, cluster attributes are not included.
 		ClusterAttributes []types.ClusterAttribute
+		// SkipDestinationClusterCheck disables the up-front check that this worker runs in TargetCluster.
+		SkipDestinationClusterCheck bool
 	}
 
 	// GetDomainsForFailoverV2Result is what GetDomainsForFailoverV2Activity returns: the per-domain
@@ -183,10 +191,11 @@ func FailoverWorkflowV2(ctx workflow.Context, params *FailoverV2Params) (*Failov
 func executeGetDomainsForFailoverV2(ctx workflow.Context, params *FailoverV2Params) (*GetDomainsForFailoverV2Result, error) {
 	ao := workflow.WithActivityOptions(ctx, getGetDomainsActivityOptions())
 	actParams := &GetDomainsForFailoverV2Params{
-		SourceClusters:    params.SourceClusters,
-		TargetCluster:     params.TargetCluster,
-		Domains:           params.Domains,
-		ClusterAttributes: params.ClusterAttributes,
+		SourceClusters:              params.SourceClusters,
+		TargetCluster:               params.TargetCluster,
+		Domains:                     params.Domains,
+		ClusterAttributes:           params.ClusterAttributes,
+		SkipDestinationClusterCheck: params.SkipDestinationClusterCheck,
 	}
 	var result GetDomainsForFailoverV2Result
 	if err := workflow.ExecuteActivity(ao, GetDomainsForFailoverV2Activity, actParams).Get(ctx, &result); err != nil {
@@ -199,7 +208,18 @@ func executeGetDomainsForFailoverV2(ctx workflow.Context, params *FailoverV2Para
 // domain, any domain-level active cluster or cluster attribute currently on one of SourceClusters is
 // marked to move to TargetCluster; a snapshot of the prior values is recorded for restore. Domains not
 // active in any of SourceClusters are skipped, keeping the operation N-region safe.
+//
+// Unless SkipDestinationClusterCheck is set, it first confirms this worker runs in TargetCluster and
+// fails with errMsgV2NotDestinationCluster otherwise: the server applies the same rule to every
+// FailoverDomain request, so failing here saves the workflow from issuing calls it knows will be rejected.
 func GetDomainsForFailoverV2Activity(ctx context.Context, params *GetDomainsForFailoverV2Params) (*GetDomainsForFailoverV2Result, error) {
+	if !params.SkipDestinationClusterCheck {
+		if current := getCurrentClusterName(ctx); current != params.TargetCluster {
+			return nil, cadence.NewCustomError(errMsgV2NotDestinationCluster, map[string]string{
+				"currentCluster": current, "targetCluster": params.TargetCluster,
+			})
+		}
+	}
 	logger := activity.GetLogger(ctx)
 	domains, err := getAllDomains(ctx, params.Domains)
 	if err != nil {

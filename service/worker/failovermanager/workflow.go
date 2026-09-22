@@ -352,7 +352,9 @@ func getGetDomainsActivityOptions() workflow.ActivityOptions {
 				errMsgParamsIsNil,
 				errMsgTargetClusterIsEmpty,
 				errMsgSourceClusterIsEmpty,
-				errMsgTargetClusterIsSameAsSource},
+				errMsgTargetClusterIsSameAsSource,
+				errMsgV2NotDestinationCluster,
+			},
 		},
 	}
 }
@@ -465,6 +467,11 @@ func getClient(ctx context.Context) frontend.Client {
 func getRemoteClient(ctx context.Context, clusterName string) (frontend.Client, error) {
 	manager := ctx.Value(failoverManagerContextKey).(*FailoverManager)
 	return manager.clientBean.GetRemoteFrontendClient(clusterName)
+}
+
+func getCurrentClusterName(ctx context.Context) string {
+	manager := ctx.Value(failoverManagerContextKey).(*FailoverManager)
+	return manager.cfg.ClusterMetadata.GetCurrentClusterName()
 }
 
 func getAllDomains(ctx context.Context, targetDomains []string) ([]*types.DescribeDomainResponse, error) {
