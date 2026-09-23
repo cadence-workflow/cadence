@@ -178,6 +178,11 @@ func (e *mutableStateBuilder) CheckResettable() error {
 			Message: "it is not allowed resetting to a point that workflow has pending signals to send.",
 		}
 	}
+	if len(e.GetPendingSemaphoreInfos()) > 0 {
+		return &types.BadRequestError{
+			Message: "it is not allowed resetting to a point that workflow has pending semaphore holds.",
+		}
+	}
 	return nil
 }
 

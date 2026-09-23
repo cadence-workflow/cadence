@@ -945,6 +945,20 @@ func (mr *MockMutableStateMockRecorder) DeleteDecision() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDecision", reflect.TypeOf((*MockMutableState)(nil).DeleteDecision))
 }
 
+// DeletePendingSemaphore mocks base method.
+func (m *MockMutableState) DeletePendingSemaphore(initiatedEventID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeletePendingSemaphore", initiatedEventID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeletePendingSemaphore indicates an expected call of DeletePendingSemaphore.
+func (mr *MockMutableStateMockRecorder) DeletePendingSemaphore(initiatedEventID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeletePendingSemaphore", reflect.TypeOf((*MockMutableState)(nil).DeletePendingSemaphore), initiatedEventID)
+}
+
 // DeleteSignalRequested mocks base method.
 func (m *MockMutableState) DeleteSignalRequested(requestID string) {
 	m.ctrl.T.Helper()
@@ -1369,6 +1383,20 @@ func (mr *MockMutableStateMockRecorder) GetPendingRequestCancelExternalInfos() *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingRequestCancelExternalInfos", reflect.TypeOf((*MockMutableState)(nil).GetPendingRequestCancelExternalInfos))
 }
 
+// GetPendingSemaphoreInfos mocks base method.
+func (m *MockMutableState) GetPendingSemaphoreInfos() map[int64]*persistence.SemaphoreInfo {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPendingSemaphoreInfos")
+	ret0, _ := ret[0].(map[int64]*persistence.SemaphoreInfo)
+	return ret0
+}
+
+// GetPendingSemaphoreInfos indicates an expected call of GetPendingSemaphoreInfos.
+func (mr *MockMutableStateMockRecorder) GetPendingSemaphoreInfos() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingSemaphoreInfos", reflect.TypeOf((*MockMutableState)(nil).GetPendingSemaphoreInfos))
+}
+
 // GetPendingSignalExternalInfos mocks base method.
 func (m *MockMutableState) GetPendingSignalExternalInfos() map[int64]*persistence.SignalInfo {
 	m.ctrl.T.Helper()
@@ -1452,6 +1480,21 @@ func (m *MockMutableState) GetRetryBackoffDuration(errReason string) time.Durati
 func (mr *MockMutableStateMockRecorder) GetRetryBackoffDuration(errReason any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRetryBackoffDuration", reflect.TypeOf((*MockMutableState)(nil).GetRetryBackoffDuration), errReason)
+}
+
+// GetSemaphoreInfo mocks base method.
+func (m *MockMutableState) GetSemaphoreInfo(arg0 int64) (*persistence.SemaphoreInfo, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreInfo", arg0)
+	ret0, _ := ret[0].(*persistence.SemaphoreInfo)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// GetSemaphoreInfo indicates an expected call of GetSemaphoreInfo.
+func (mr *MockMutableStateMockRecorder) GetSemaphoreInfo(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreInfo", reflect.TypeOf((*MockMutableState)(nil).GetSemaphoreInfo), arg0)
 }
 
 // GetSignalInfo mocks base method.
@@ -2586,4 +2629,16 @@ func (m *MockMutableState) UpdateWorkflowStateCloseStatus(state, closeStatus int
 func (mr *MockMutableStateMockRecorder) UpdateWorkflowStateCloseStatus(state, closeStatus any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkflowStateCloseStatus", reflect.TypeOf((*MockMutableState)(nil).UpdateWorkflowStateCloseStatus), state, closeStatus)
+}
+
+// UpsertSemaphoreInfo mocks base method.
+func (m *MockMutableState) UpsertSemaphoreInfo(arg0 *persistence.SemaphoreInfo) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpsertSemaphoreInfo", arg0)
+}
+
+// UpsertSemaphoreInfo indicates an expected call of UpsertSemaphoreInfo.
+func (mr *MockMutableStateMockRecorder) UpsertSemaphoreInfo(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertSemaphoreInfo", reflect.TypeOf((*MockMutableState)(nil).UpsertSemaphoreInfo), arg0)
 }

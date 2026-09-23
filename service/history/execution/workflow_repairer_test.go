@@ -84,6 +84,7 @@ func setupDetectionMocks(ms *MockMutableState, domainID, workflowID, runID strin
 	ms.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{}).AnyTimes()
 	ms.EXPECT().GetPendingRequestCancelExternalInfos().Return(map[int64]*persistence.RequestCancelInfo{}).AnyTimes()
 	ms.EXPECT().GetPendingSignalExternalInfos().Return(map[int64]*persistence.SignalInfo{}).AnyTimes()
+	ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{}).AnyTimes()
 }
 
 func setupVersionHistories(ms *MockMutableState) {
@@ -142,6 +143,7 @@ func setupSuccessfulRebuild(
 	mockRebuiltMS.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{}).AnyTimes()
 	mockRebuiltMS.EXPECT().GetPendingRequestCancelExternalInfos().Return(map[int64]*persistence.RequestCancelInfo{}).AnyTimes()
 	mockRebuiltMS.EXPECT().GetPendingSignalExternalInfos().Return(map[int64]*persistence.SignalInfo{}).AnyTimes()
+	mockRebuiltMS.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{}).AnyTimes()
 
 	mockStateRebuilder.EXPECT().Rebuild(
 		gomock.Any(),
@@ -256,6 +258,7 @@ func TestWorkflowRepairer_VerifyAndRepairWorkflowIfNeeded(t *testing.T) {
 				ms.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{}).AnyTimes()
 				ms.EXPECT().GetPendingRequestCancelExternalInfos().Return(map[int64]*persistence.RequestCancelInfo{}).AnyTimes()
 				ms.EXPECT().GetPendingSignalExternalInfos().Return(map[int64]*persistence.SignalInfo{}).AnyTimes()
+				ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{}).AnyTimes()
 			},
 			wantRepaired: false,
 		},
@@ -374,6 +377,7 @@ func TestWorkflowRepairer_VerifyAndRepairWorkflowIfNeeded(t *testing.T) {
 				mockRebuiltMS.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{}).AnyTimes()
 				mockRebuiltMS.EXPECT().GetPendingRequestCancelExternalInfos().Return(map[int64]*persistence.RequestCancelInfo{}).AnyTimes()
 				mockRebuiltMS.EXPECT().GetPendingSignalExternalInfos().Return(map[int64]*persistence.SignalInfo{}).AnyTimes()
+				mockRebuiltMS.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{}).AnyTimes()
 
 				sr.EXPECT().Rebuild(
 					gomock.Any(), gomock.Any(), gomock.Any(),
@@ -409,6 +413,7 @@ func TestWorkflowRepairer_VerifyAndRepairWorkflowIfNeeded(t *testing.T) {
 				mockRebuiltMS.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{}).AnyTimes()
 				mockRebuiltMS.EXPECT().GetPendingRequestCancelExternalInfos().Return(map[int64]*persistence.RequestCancelInfo{}).AnyTimes()
 				mockRebuiltMS.EXPECT().GetPendingSignalExternalInfos().Return(map[int64]*persistence.SignalInfo{}).AnyTimes()
+				mockRebuiltMS.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{}).AnyTimes()
 				sr.EXPECT().Rebuild(
 					gomock.Any(), gomock.Any(), gomock.Any(),
 					[]byte(testBranchToken), int64(9), int64(1),
@@ -444,6 +449,7 @@ func TestWorkflowRepairer_VerifyAndRepairWorkflowIfNeeded(t *testing.T) {
 				mockRebuiltMS.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{}).AnyTimes()
 				mockRebuiltMS.EXPECT().GetPendingRequestCancelExternalInfos().Return(map[int64]*persistence.RequestCancelInfo{}).AnyTimes()
 				mockRebuiltMS.EXPECT().GetPendingSignalExternalInfos().Return(map[int64]*persistence.SignalInfo{}).AnyTimes()
+				mockRebuiltMS.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{}).AnyTimes()
 
 				sr.EXPECT().Rebuild(
 					gomock.Any(), gomock.Any(), gomock.Any(),
@@ -482,6 +488,7 @@ func TestWorkflowRepairer_VerifyAndRepairWorkflowIfNeeded(t *testing.T) {
 				mockRebuiltMS.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{}).AnyTimes()
 				mockRebuiltMS.EXPECT().GetPendingRequestCancelExternalInfos().Return(map[int64]*persistence.RequestCancelInfo{}).AnyTimes()
 				mockRebuiltMS.EXPECT().GetPendingSignalExternalInfos().Return(map[int64]*persistence.SignalInfo{}).AnyTimes()
+				mockRebuiltMS.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{}).AnyTimes()
 
 				sr.EXPECT().Rebuild(
 					gomock.Any(), gomock.Any(), gomock.Any(),
@@ -524,6 +531,7 @@ func TestWorkflowRepairer_VerifyAndRepairWorkflowIfNeeded(t *testing.T) {
 				mockRebuiltMS.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{}).AnyTimes()
 				mockRebuiltMS.EXPECT().GetPendingRequestCancelExternalInfos().Return(map[int64]*persistence.RequestCancelInfo{}).AnyTimes()
 				mockRebuiltMS.EXPECT().GetPendingSignalExternalInfos().Return(map[int64]*persistence.SignalInfo{}).AnyTimes()
+				mockRebuiltMS.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{}).AnyTimes()
 
 				sr.EXPECT().Rebuild(
 					gomock.Any(), gomock.Any(), gomock.Any(),
@@ -626,6 +634,7 @@ func TestWorkflowRepairer_VerifyAndRepairWorkflowIfNeeded(t *testing.T) {
 				ms.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{}).AnyTimes()
 				ms.EXPECT().GetPendingRequestCancelExternalInfos().Return(map[int64]*persistence.RequestCancelInfo{}).AnyTimes()
 				ms.EXPECT().GetPendingSignalExternalInfos().Return(map[int64]*persistence.SignalInfo{}).AnyTimes()
+				ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{}).AnyTimes()
 
 				// Rebuilt state has nil version histories + standard exec info → checksum = matchingChecksum = stored.
 				setupSuccessfulRebuild(ctrl, sr, true)
