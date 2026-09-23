@@ -26,33 +26,65 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/types"
 )
 
-func getBackoffInterval(
-	now time.Time,
-	expirationTime time.Time,
+// backoffInterval is calculated in seconds, then multiplied by time.Second. This scales it by 1e9 and would result
+// in an overflow for any value above this.
+var maxBackoffIntervalSeconds = int64(math.Trunc(math.MaxInt64 / 1e9))
+
+func shouldRetry(
+	nextScheduledTime time.Time,
 	currAttempt int32,
 	maxAttempts int32,
-	initInterval int32,
-	maxInterval int32,
-	backoffCoefficient float64,
+	expirationTime time.Time,
 	failureReason string,
 	nonRetriableErrors []string,
-) time.Duration {
-
+	failureCategory types.FailureCategory,
+) bool {
+	if failureCategory == types.FailureCategoryFatal {
+		return false
+	}
 	if maxAttempts == 0 && expirationTime.IsZero() {
-		return backoff.NoBackoff
+		return false
 	}
 
 	if maxAttempts > 0 && currAttempt >= maxAttempts-1 {
 		// currAttempt starts from 0.
 		// MaximumAttempts is the total attempts, including initial (non-retry) attempt.
-		return backoff.NoBackoff
+		return false
+	}
+	if !expirationTime.IsZero() && nextScheduledTime.After(expirationTime) {
+		return false
+	}
+	// make sure we don't retry size exceeded error reasons. Note that FailureReasonFailureDetailsExceedsLimit is retryable.
+	if failureReason == common.FailureReasonCancelDetailsExceedsLimit ||
+		failureReason == common.FailureReasonCompleteResultExceedsLimit ||
+		failureReason == common.FailureReasonHeartbeatExceedsLimit ||
+		failureReason == common.FailureReasonDecisionBlobSizeExceedsLimit {
+		return false
 	}
 
+	// check if error is non-retriable
+	for _, er := range nonRetriableErrors {
+		if er == failureReason {
+			return false
+		}
+	}
+
+	return true
+}
+
+func getBackoffInterval(
+	currAttempt int32,
+	initInterval int32,
+	maxInterval int32,
+	backoffCoefficient float64,
+) time.Duration {
+
 	nextInterval := int64(float64(initInterval) * math.Pow(backoffCoefficient, float64(currAttempt)))
-	if nextInterval <= 0 {
-		// math.Pow() could overflow
+	// Handle overflows and ensure multiplying it by time.Second won't overflow later
+	if nextInterval <= 0 || nextInterval > maxBackoffIntervalSeconds {
 		if maxInterval > 0 {
 			nextInterval = int64(maxInterval)
 		} else {
@@ -65,26 +97,5 @@ func getBackoffInterval(
 		nextInterval = int64(maxInterval)
 	}
 
-	backoffInterval := time.Duration(nextInterval) * time.Second
-	nextScheduleTime := now.Add(backoffInterval)
-	if !expirationTime.IsZero() && nextScheduleTime.After(expirationTime) {
-		return backoff.NoBackoff
-	}
-
-	// make sure we don't retry size exceeded error reasons. Note that FailureReasonFailureDetailsExceedsLimit is retryable.
-	if failureReason == common.FailureReasonCancelDetailsExceedsLimit ||
-		failureReason == common.FailureReasonCompleteResultExceedsLimit ||
-		failureReason == common.FailureReasonHeartbeatExceedsLimit ||
-		failureReason == common.FailureReasonDecisionBlobSizeExceedsLimit {
-		return backoff.NoBackoff
-	}
-
-	// check if error is non-retriable
-	for _, er := range nonRetriableErrors {
-		if er == failureReason {
-			return backoff.NoBackoff
-		}
-	}
-
-	return backoffInterval
+	return time.Duration(nextInterval) * time.Second
 }

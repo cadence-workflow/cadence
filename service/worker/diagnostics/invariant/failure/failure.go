@@ -32,7 +32,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					IssueID:       issueID,
 					InvariantType: DecisionCausedFailure.String(),
 					Reason:        DecisionBlobSizeLimit.String(),
-					Metadata:      invariant.MarshalData(FailureIssuesMetadata{Identity: identity}),
+					Metadata:      invariant.MarshalData(FailureIssuesMetadata{EventID: event.ID, Identity: identity}),
 				})
 				issueID++
 			} else if *reason == common.FailureReasonHistorySizeExceedsLimit {
@@ -41,8 +41,8 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					InvariantType: WorkflowFailed.String(),
 					Reason:        HistorySizeExceedsLimit.String(),
 					Metadata: invariant.MarshalData(FailureIssuesMetadata{
-						Identity:      identity,
-						FailedEventID: event.ID,
+						EventID:  event.ID,
+						Identity: identity,
 					}),
 				})
 				issueID++
@@ -51,7 +51,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					IssueID:       issueID,
 					InvariantType: WorkflowFailed.String(),
 					Reason:        ErrorTypeFromReason(*reason).String(),
-					Metadata:      invariant.MarshalData(FailureIssuesMetadata{Identity: identity}),
+					Metadata:      invariant.MarshalData(FailureIssuesMetadata{EventID: event.ID, Identity: identity}),
 				})
 				issueID++
 			}
@@ -67,6 +67,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					InvariantType: ActivityFailed.String(),
 					Reason:        HeartBeatBlobSizeLimit.String(),
 					Metadata: invariant.MarshalData(FailureIssuesMetadata{
+						EventID:             event.ID,
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
@@ -80,6 +81,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					InvariantType: ActivityFailed.String(),
 					Reason:        ActivityOutputBlobSizeLimit.String(),
 					Metadata: invariant.MarshalData(FailureIssuesMetadata{
+						EventID:             event.ID,
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
@@ -93,6 +95,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					InvariantType: ActivityFailed.String(),
 					Reason:        ErrorTypeFromReason(*reason).String(),
 					Metadata: invariant.MarshalData(FailureIssuesMetadata{
+						EventID:             event.ID,
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,

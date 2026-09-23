@@ -29,12 +29,14 @@ func (f FailureType) String() string {
 	return string(f)
 }
 
+// FailureIssuesMetadata is the metadata for every failure issue. EventID is the
+// WorkflowExecutionFailed or ActivityTaskFailed event the issue was found on.
 type FailureIssuesMetadata struct {
+	EventID             int64
 	Identity            string
 	ActivityType        string
 	ActivityScheduledID int64
 	ActivityStartedID   int64
-	FailedEventID       int64 `json:",omitempty"`
 }
 
 // BlobSizeMetadata includes the details of blob size limits

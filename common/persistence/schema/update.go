@@ -23,15 +23,20 @@ package schema
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
 
+	"github.com/pborman/uuid"
+
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
+	"github.com/uber/cadence/common/types"
 )
 
 // Backoff whenever we fail to connect to a DB
@@ -61,6 +66,12 @@ func Update(ctx context.Context, options Options) error {
 	err = runUpdateSchema(ctx, factory, options)
 	if err != nil {
 		return err
+	}
+	if options.DefaultDomain != "" {
+		err = createDefaultDomain(ctx, factory, options.ClusterName, options.DefaultDomain)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -230,6 +241,41 @@ func collectSchemaUpdates(ctx context.Context, adminDBs []persistence.AdminDB) (
 	}
 
 	return schemaDBs, updates, nil
+}
+
+func createDefaultDomain(ctx context.Context, factory persistenceClient.Factory, clusterName, domain string) error {
+	domains, err := factory.NewDomainManager()
+	if err != nil {
+		return err
+	}
+	defer domains.Close()
+	_, err = domains.CreateDomain(ctx, &persistence.CreateDomainRequest{
+		Info: &persistence.DomainInfo{
+			ID:          uuid.New(),
+			Name:        domain,
+			Status:      persistence.DomainStatusRegistered,
+			Description: "Example Domain",
+		},
+		Config: &persistence.DomainConfig{
+			Retention:                7,
+			HistoryArchivalStatus:    types.ArchivalStatusDisabled,
+			VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+		},
+		ReplicationConfig: &persistence.DomainReplicationConfig{
+			ActiveClusterName: clusterName,
+			Clusters:          []*persistence.ClusterReplicationConfig{{ClusterName: clusterName}},
+		},
+		FailoverVersion: constants.EmptyVersion,
+		IsGlobalDomain:  true,
+	})
+	if err != nil {
+		var domainAlreadyExistsError *types.DomainAlreadyExistsError
+		if errors.As(err, &domainAlreadyExistsError) {
+			return nil
+		}
+		return fmt.Errorf("failed to create domain: %w", err)
+	}
+	return nil
 }
 
 func applyUpdates(ctx context.Context, logger log.Logger, updates []schemaUpdateTask) error {

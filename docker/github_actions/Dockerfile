@@ -1,26 +1,13 @@
 FROM golang:1.25.14-trixie
 
-# Tried to set Python to ignore warnings due to the instructions at this link:
-# https://github.com/yaml/pyyaml/wiki/PyYAML-yaml.load(input)-Deprecation
-# But this causes all the pip installs to fail, so don't do this:
-# ENV PYTHONWARNINGS=ignore::yaml.YAMLLoadWarning
-# ENV PYTHONWARNINGS=ignore
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl \
       gettext-base \
       libyaml-dev \
-      python3-pip \
-      python3-setuptools \
       time \
       unzip \
       ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-
-# Debian trixie's pip enforces PEP 668 
-# this is a single-purpose CI container, so installing into the system
-# environment is intentional (same approach as the release Dockerfile).
-RUN pip3 install --break-system-packages cqlsh==6.2.2 && cqlsh --version
 
 # verbose test output from `make`, can be disabled with V=0
 ENV V=0

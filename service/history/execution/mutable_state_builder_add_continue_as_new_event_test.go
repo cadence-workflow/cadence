@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
@@ -92,6 +93,8 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 		0,
 		0,
 	)
+	policyRegion0 := &types.ActiveClusterSelectionPolicy{ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region0"}}
+	policyRegion1 := &types.ActiveClusterSelectionPolicy{ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"}}
 
 	// the mutable state builder confusingly both returns a new builder with this fuction
 	// as well as mutating its internal state, making it difficult to test repeatedly, since
@@ -137,6 +140,11 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			},
 			SearchAttributes: map[string][]uint8{"BinaryChecksums": {91, 34, 54, 100, 102, 48, 51, 98, 102, 53, 49, 49, 48, 100, 54, 56, 49, 54, 54, 55, 56, 53, 50, 97, 56, 52, 53, 54, 53, 49, 57, 53, 51, 54, 34, 93}}}
 
+	}
+	createStartingExecutionInfoWithPolicy := func(policy *types.ActiveClusterSelectionPolicy) *persistence.WorkflowExecutionInfo {
+		executionInfo := createStartingExecutionInfo()
+		executionInfo.ActiveClusterSelectionPolicy = policy
+		return executionInfo
 	}
 
 	createValidStartingHistory := func(version int64) []*types.HistoryEvent {
@@ -186,7 +194,7 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 		}
 	}
 
-	expectedEndingReturnExecutionStateFn := func(version int64) *persistence.WorkflowExecutionInfo {
+	expectedEndingReturnExecutionStateFn := func(version int64, policy *types.ActiveClusterSelectionPolicy) *persistence.WorkflowExecutionInfo {
 		return &persistence.WorkflowExecutionInfo{
 			DomainID:                           "5391dbea-5b30-4323-82ca-e1c95339bb3e",
 			WorkflowID:                         "helloworld_b4db8bd0-74b7-4250-ade7-ac72a1efb171",
@@ -211,6 +219,7 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			DecisionTimeout:                    60,
 			DecisionScheduledTimestamp:         ts3,
 			DecisionOriginalScheduledTimestamp: ts3,
+			ActiveClusterSelectionPolicy:       policy,
 			AutoResetPoints: &types.ResetPoints{
 				Points: []*types.ResetPointInfo{{
 					BinaryChecksum:           "6df03bf5110d681667852a8456519536",
@@ -224,7 +233,7 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 		}
 	}
 
-	expectedEndingReturnHistoryStateFn := func(version int64) []*types.HistoryEvent {
+	expectedEndingReturnHistoryStateFn := func(version int64, policy *types.ActiveClusterSelectionPolicy) []*types.HistoryEvent {
 		return []*types.HistoryEvent{
 			{
 				ID:        1,
@@ -243,6 +252,7 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 					ContinuedExecutionRunID:             "5adce5c5-b7b2-4418-9bf0-4207303f6343",
 					OriginalExecutionRunID:              "a run id",
 					FirstExecutionRunID:                 "5adce5c5-b7b2-4418-9bf0-4207303f6343",
+					ActiveClusterSelectionPolicy:        policy,
 					PrevAutoResetPoints: &types.ResetPoints{Points: []*types.ResetPointInfo{{
 						BinaryChecksum:           "6df03bf5110d681667852a8456519536",
 						RunID:                    "5adce5c5-b7b2-4418-9bf0-4207303f6343",
@@ -274,6 +284,11 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 		// history is a substruct of current state, but because they're both
 		// pointing to each other, they're assembled at the test start
 		startingHistory []*types.HistoryEvent
+		// attributes overrides the default continue-as-new decision attributes when non-nil
+		attributes *types.ContinueAsNewWorkflowExecutionDecisionAttributes
+		// expectedPolicy is the policy the new run and the ContinuedAsNew event must carry;
+		// nil for non-active-active domains
+		expectedPolicy *types.ActiveClusterSelectionPolicy
 
 		// expectations
 		historyManagerAffordance func(historyManager *persistence.MockHistoryManager)
@@ -288,7 +303,7 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			startingState:   createStartingExecutionInfo(),
 			startingHistory: createValidStartingHistory(domainFailoverVersion),
 			actClMgrAffordance: func(actClMgr *activecluster.MockManager) {
-				actClMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).Return(&types.ActiveClusterInfo{
+				actClMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainID, gomock.Nil()).Return(&types.ActiveClusterInfo{
 					FailoverVersion: domainFailoverVersion,
 				}, nil)
 			},
@@ -303,16 +318,30 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			taskgeneratorAffordance: func(taskGenerator *MockMutableStateTaskGenerator, msb *mutableStateBuilder) {
 				taskGenerator.EXPECT().GenerateWorkflowCloseTasks(gomock.Any(), msb.config.WorkflowDeletionJitterRange("domain"))
 			},
-			expectedReturnedState:   expectedEndingReturnExecutionStateFn(1),
-			expectedReturnedHistory: expectedEndingReturnHistoryStateFn(1),
+			expectedReturnedState:   expectedEndingReturnExecutionStateFn(1, nil),
+			expectedReturnedHistory: expectedEndingReturnHistoryStateFn(1, nil),
+			expectedPolicy:          nil,
 		},
-		"a continue-as-new event with no errors - active-active domain": {
+		"active-active domain - policy carried by the attributes is used for the new run": {
 			domainEntry:     domainEntryActiveActive,
-			startingState:   createStartingExecutionInfo(),
-			startingHistory: createValidStartingHistory(1),
+			startingState:   createStartingExecutionInfoWithPolicy(policyRegion1),
+			startingHistory: createValidStartingHistory(2),
+			// the decision validator has already filled in the policy (see decision/checker.go)
+			attributes: &types.ContinueAsNewWorkflowExecutionDecisionAttributes{
+				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(60),
+				WorkflowType:                        &types.WorkflowType{Name: "helloWorldWorkflow"},
+				TaskList:                            &types.TaskList{Name: "helloWorldGroup"},
+				Input:                               []uint8{110, 117, 108, 108, 10},
+				ActiveClusterSelectionPolicy:        policyRegion1,
+			},
 			actClMgrAffordance: func(actClMgr *activecluster.MockManager) {
-				actClMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).Return(&types.ActiveClusterInfo{
-					FailoverVersion: 2, // this version will be used by new mutable state builder for new tasks
+				actClMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(
+					gomock.Any(),
+					domainID,
+					&types.ClusterAttribute{Scope: "region", Name: "region1"},
+				).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: "cluster1",
+					FailoverVersion:   2,
 				}, nil)
 			},
 			historyManagerAffordance: func(historyManager *persistence.MockHistoryManager) {
@@ -325,8 +354,44 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			taskgeneratorAffordance: func(taskGenerator *MockMutableStateTaskGenerator, msb *mutableStateBuilder) {
 				taskGenerator.EXPECT().GenerateWorkflowCloseTasks(gomock.Any(), msb.config.WorkflowDeletionJitterRange("domain"))
 			},
-			expectedReturnedState:   expectedEndingReturnExecutionStateFn(2),
-			expectedReturnedHistory: expectedEndingReturnHistoryStateFn(2),
+			expectedReturnedState:   expectedEndingReturnExecutionStateFn(2, policyRegion1),
+			expectedReturnedHistory: expectedEndingReturnHistoryStateFn(2, policyRegion1),
+			expectedPolicy:          policyRegion1,
+		},
+		"active-active domain - attributes policy differing from the current run is not overridden": {
+			domainEntry:     domainEntryActiveActive,
+			startingState:   createStartingExecutionInfoWithPolicy(policyRegion1),
+			startingHistory: createValidStartingHistory(2),
+			attributes: &types.ContinueAsNewWorkflowExecutionDecisionAttributes{
+				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(60),
+				WorkflowType:                        &types.WorkflowType{Name: "helloWorldWorkflow"},
+				TaskList:                            &types.TaskList{Name: "helloWorldGroup"},
+				Input:                               []uint8{110, 117, 108, 108, 10},
+				ActiveClusterSelectionPolicy:        policyRegion0,
+			},
+			actClMgrAffordance: func(actClMgr *activecluster.MockManager) {
+				actClMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(
+					gomock.Any(),
+					domainID,
+					&types.ClusterAttribute{Scope: "region", Name: "region0"},
+				).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: "cluster0",
+					FailoverVersion:   2,
+				}, nil)
+			},
+			historyManagerAffordance: func(historyManager *persistence.MockHistoryManager) {
+				historyManager.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(&persistence.ReadHistoryBranchResponse{
+					HistoryEvents: []*types.HistoryEvent{
+						createFetchedHistory(2),
+					},
+				}, nil)
+			},
+			taskgeneratorAffordance: func(taskGenerator *MockMutableStateTaskGenerator, msb *mutableStateBuilder) {
+				taskGenerator.EXPECT().GenerateWorkflowCloseTasks(gomock.Any(), msb.config.WorkflowDeletionJitterRange("domain"))
+			},
+			expectedReturnedState:   expectedEndingReturnExecutionStateFn(2, policyRegion0),
+			expectedReturnedHistory: expectedEndingReturnHistoryStateFn(2, policyRegion0),
+			expectedPolicy:          policyRegion0,
 		},
 		"a continue-as-new with failure to get the history event": {
 			domainEntry:     domainEntry,
@@ -415,11 +480,9 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 				td.actClMgrAffordance(actClMgr)
 			}
 
-			_, returnedBuilder, err := msb.AddContinueAsNewEvent(context.Background(),
-				firstEventID,
-				decisionCompletedEventID,
-				"",
-				&types.ContinueAsNewWorkflowExecutionDecisionAttributes{
+			attributes := td.attributes
+			if attributes == nil {
+				attributes = &types.ContinueAsNewWorkflowExecutionDecisionAttributes{
 					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(60),
 					WorkflowType: &types.WorkflowType{
 						Name: "helloWorldWorkflow",
@@ -428,7 +491,14 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 						Name: "helloWorldGroup",
 					},
 					Input: []uint8{110, 117, 108, 108, 10},
-				})
+				}
+			}
+
+			_, returnedBuilder, err := msb.AddContinueAsNewEvent(context.Background(),
+				firstEventID,
+				decisionCompletedEventID,
+				"",
+				attributes)
 
 			if td.expectedErr != nil {
 				assert.ErrorAs(t, err, &td.expectedErr)
@@ -449,6 +519,12 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 				cmpopts.IgnoreFields(types.WorkflowExecutionStartedEventAttributes{}, "OriginalExecutionRunID"),
 				cmpopts.IgnoreFields(types.WorkflowExecutionStartedEventAttributes{}, "RequestID")),
 			)
+
+			current := msb.hBuilder.history
+			last := current[len(current)-1]
+			require.Equal(t, types.EventTypeWorkflowExecutionContinuedAsNew, last.GetEventType())
+			assert.Equal(t, td.expectedPolicy, last.WorkflowExecutionContinuedAsNewEventAttributes.ActiveClusterSelectionPolicy)
+			assert.Equal(t, td.expectedPolicy, resultExecutionInfo.ActiveClusterSelectionPolicy)
 		})
 	}
 }

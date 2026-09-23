@@ -936,17 +936,20 @@ func (e *mutableStateBuilder) GetRetryBackoffDuration(
 		return backoff.NoBackoff
 	}
 
-	return getBackoffInterval(
-		e.timeSource.Now(),
-		info.ExpirationTime,
+	backoffInterval := getBackoffInterval(
 		info.Attempt,
-		info.MaximumAttempts,
 		info.InitialInterval,
 		info.MaximumInterval,
 		info.BackoffCoefficient,
-		errReason,
-		info.NonRetriableErrors,
 	)
+	if backoffInterval == backoff.NoBackoff {
+		return backoff.NoBackoff
+	}
+	nextScheduledTime := e.timeSource.Now().Add(backoffInterval)
+	if shouldRetry(nextScheduledTime, info.Attempt, info.MaximumAttempts, info.ExpirationTime, errReason, info.NonRetriableErrors, types.FailureCategoryStandard) {
+		return backoffInterval
+	}
+	return backoff.NoBackoff
 }
 
 func (e *mutableStateBuilder) GetCronBackoffDuration(

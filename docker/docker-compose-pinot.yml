@@ -93,6 +93,7 @@ services:
       - "ENABLE_ES=true"
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
+      - "ENABLE_METRICS_MIGRATION=true"
     depends_on:
       - cassandra
       - prometheus

@@ -356,3 +356,16 @@ shard-distributor-matching:
       heartbeat_interval: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_HEARTBEAT_INTERVAL "1s" }}
       ttl_shard: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_TTL_SHARD "5m" }}
       ttl_report: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_TTL_REPORT "1m" }}
+
+{{- $enableMetricsMigration := default .Env.ENABLE_METRICS_MIGRATION "false" | lower -}}
+{{- if eq $enableMetricsMigration "true" }}
+gauge-migration:
+  default: gauge
+  names: {}
+histograms:
+  default: histogram
+  names: {}
+counter-migration:
+  default: counter
+  names: {}
+{{- end }}

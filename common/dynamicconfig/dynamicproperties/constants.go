@@ -2746,12 +2746,12 @@ const (
 	HistoryTaskDLQMode
 
 	// TimerProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used.
-	// "disabled" (default): no cached reader, plain scheduledQueue is used.
+	// "disabled": no cached reader, plain scheduledQueue is used.
 	// "shadow": cached reader is created and prefetches, but all reads are forwarded to the base reader.
-	// "enabled": cached reader fully active.
+	// "enabled" (default): cached reader fully active.
 	// KeyName: history.timerProcessorCachedQueueReaderMode
 	// Value type: string enum: "disabled", "shadow", "enabled"
-	// Default value: "disabled"
+	// Default value: "enabled"
 	// Allowed filters: ShardID
 	TimerProcessorCachedQueueReaderMode
 
@@ -5562,7 +5562,7 @@ var StringKeys = map[StringKey]DynamicString{
 	TimerProcessorCachedQueueReaderMode: {
 		KeyName:      "history.timerProcessorCachedQueueReaderMode",
 		Description:  "TimerProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used: disabled/shadow/enabled",
-		DefaultValue: "disabled",
+		DefaultValue: "enabled",
 		Filters:      []Filter{ShardID},
 	},
 	TransferProcessorCachedQueueReaderMode: {

@@ -1,23 +1,3 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
 package execution
 
 import (
@@ -26,263 +6,333 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 )
 
-func Test_NextRetry2(t *testing.T) {
-	// a := assert.New(t)
-	now, _ := time.Parse(time.RFC3339, "2018-04-13T16:08:08+00:00")
-	reason := "good-reason"
-	identity := "some-worker-identity"
+func TestShouldRetry(t *testing.T) {
+	baseTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	// no retry without retry policy
-	ai := &persistence.ActivityInfo{
-		ScheduleToStartTimeout: int32((30 * time.Minute).Seconds()),
-		ScheduleToCloseTimeout: int32((30 * time.Minute).Seconds()),
-		StartToCloseTimeout:    int32((30 * time.Minute).Seconds()),
-		HasRetryPolicy:         true,
-		NonRetriableErrors:     []string{"bad-reason", "ugly-reason"},
-		StartedIdentity:        identity,
-		MaximumAttempts:        0,
-		InitialInterval:        60,
-		BackoffCoefficient:     1,
-		MaximumInterval:        6000,
-		ExpirationTime:         now.Add(86400 * time.Second),
-		Attempt:                5,
+	tests := []struct {
+		name               string
+		nextScheduledTime  time.Time
+		currAttempt        int32
+		maxAttempts        int32
+		expirationTime     time.Time
+		failureReason      string
+		nonRetriableErrors []string
+		failureCategory    types.FailureCategory
+		expected           bool
+	}{
+		{
+			name:              "fatal failure category",
+			nextScheduledTime: baseTime.Add(time.Second),
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureCategory:   types.FailureCategoryFatal,
+			expected:          false,
+		},
+		{
+			name:              "standard failure category allows retry",
+			nextScheduledTime: baseTime.Add(time.Second),
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          true,
+		},
+		{
+			name:              "poll failure category allows retry",
+			nextScheduledTime: baseTime.Add(time.Second),
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureCategory:   types.FailureCategoryPoll,
+			expected:          true,
+		},
+		{
+			name:              "no policy - zero max attempts and zero expiration",
+			nextScheduledTime: baseTime.Add(time.Second),
+			maxAttempts:       0,
+			expirationTime:    time.Time{},
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          false,
+		},
+		{
+			name:              "unlimited retries with expiration set",
+			nextScheduledTime: baseTime.Add(time.Second),
+			maxAttempts:       0,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          true,
+		},
+		{
+			name:              "max attempts reached - attempt equals max minus one",
+			nextScheduledTime: baseTime.Add(time.Second),
+			currAttempt:       4,
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          false,
+		},
+		{
+			name:              "max attempts not reached - attempt less than max minus one",
+			nextScheduledTime: baseTime.Add(time.Second),
+			currAttempt:       3,
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          true,
+		},
+		{
+			name:              "max attempts of 1 means no retry",
+			nextScheduledTime: baseTime.Add(time.Second),
+			currAttempt:       0,
+			maxAttempts:       1,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          false,
+		},
+		{
+			name:              "next schedule time after expiration",
+			nextScheduledTime: baseTime.Add(2 * time.Hour),
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          false,
+		},
+		{
+			name:              "next schedule time before expiration",
+			nextScheduledTime: baseTime.Add(30 * time.Minute),
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          true,
+		},
+		{
+			name:              "zero expiration time means unlimited",
+			nextScheduledTime: baseTime.Add(time.Hour),
+			maxAttempts:       5,
+			expirationTime:    time.Time{},
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          true,
+		},
+		{
+			name:              "cancel details exceeds limit",
+			nextScheduledTime: baseTime.Add(time.Second),
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureReason:     common.FailureReasonCancelDetailsExceedsLimit,
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          false,
+		},
+		{
+			name:              "complete result exceeds limit",
+			nextScheduledTime: baseTime.Add(time.Second),
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureReason:     common.FailureReasonCompleteResultExceedsLimit,
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          false,
+		},
+		{
+			name:              "heartbeat exceeds limit",
+			nextScheduledTime: baseTime.Add(time.Second),
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureReason:     common.FailureReasonHeartbeatExceedsLimit,
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          false,
+		},
+		{
+			name:              "decision blob size exceeds limit",
+			nextScheduledTime: baseTime.Add(time.Second),
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureReason:     common.FailureReasonDecisionBlobSizeExceedsLimit,
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          false,
+		},
+		{
+			name:              "failure details exceeds limit is retryable",
+			nextScheduledTime: baseTime.Add(time.Second),
+			maxAttempts:       5,
+			expirationTime:    baseTime.Add(time.Hour),
+			failureReason:     common.FailureReasonFailureDetailsExceedsLimit,
+			failureCategory:   types.FailureCategoryStandard,
+			expected:          true,
+		},
+		{
+			name:               "failure reason matches non-retriable error",
+			nextScheduledTime:  baseTime.Add(time.Second),
+			maxAttempts:        5,
+			expirationTime:     baseTime.Add(time.Hour),
+			failureReason:      "bad-reason",
+			nonRetriableErrors: []string{"bad-reason", "ugly-reason"},
+			failureCategory:    types.FailureCategoryStandard,
+			expected:           false,
+		},
+		{
+			name:               "failure reason does not match non-retriable errors",
+			nextScheduledTime:  baseTime.Add(time.Second),
+			maxAttempts:        5,
+			expirationTime:     baseTime.Add(time.Hour),
+			failureReason:      "good-reason",
+			nonRetriableErrors: []string{"bad-reason", "ugly-reason"},
+			failureCategory:    types.FailureCategoryStandard,
+			expected:           true,
+		},
+		{
+			name:               "empty non-retriable errors list",
+			nextScheduledTime:  baseTime.Add(time.Second),
+			maxAttempts:        5,
+			expirationTime:     baseTime.Add(time.Hour),
+			failureReason:      "any-reason",
+			nonRetriableErrors: nil,
+			failureCategory:    types.FailureCategoryStandard,
+			expected:           true,
+		},
 	}
 
-	dur := getBackoffInterval(
-		now,
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	)
-
-	t.Logf("dur: %v", dur)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := shouldRetry(
+				tc.nextScheduledTime,
+				tc.currAttempt,
+				tc.maxAttempts,
+				tc.expirationTime,
+				tc.failureReason,
+				tc.nonRetriableErrors,
+				tc.failureCategory,
+			)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
 }
 
-func Test_NextRetry(t *testing.T) {
-	a := assert.New(t)
-	now, _ := time.Parse(time.RFC3339, "2018-04-13T16:08:08+00:00")
-	reason := "good-reason"
-	identity := "some-worker-identity"
-
-	// no retry without retry policy
-	ai := &persistence.ActivityInfo{
-		ScheduleToStartTimeout: 5,
-		ScheduleToCloseTimeout: 30,
-		StartToCloseTimeout:    25,
-		HasRetryPolicy:         false,
-		NonRetriableErrors:     []string{"bad-reason", "ugly-reason"},
-		StartedIdentity:        identity,
+func TestGetBackoffInterval(t *testing.T) {
+	tests := []struct {
+		name               string
+		currAttempt        int32
+		initInterval       int32
+		maxInterval        int32
+		backoffCoefficient float64
+		expected           time.Duration
+	}{
+		{
+			name:               "first attempt with coefficient 1",
+			currAttempt:        0,
+			initInterval:       1,
+			maxInterval:        0,
+			backoffCoefficient: 1,
+			expected:           time.Second,
+		},
+		{
+			name:               "exponential backoff - attempt 1",
+			currAttempt:        1,
+			initInterval:       1,
+			maxInterval:        0,
+			backoffCoefficient: 2,
+			expected:           2 * time.Second,
+		},
+		{
+			name:               "exponential backoff - attempt 2",
+			currAttempt:        2,
+			initInterval:       1,
+			maxInterval:        0,
+			backoffCoefficient: 2,
+			expected:           4 * time.Second,
+		},
+		{
+			name:               "exponential backoff - attempt 3",
+			currAttempt:        3,
+			initInterval:       1,
+			maxInterval:        0,
+			backoffCoefficient: 2,
+			expected:           8 * time.Second,
+		},
+		{
+			name:               "max interval caps the backoff",
+			currAttempt:        4,
+			initInterval:       1,
+			maxInterval:        10,
+			backoffCoefficient: 2,
+			expected:           10 * time.Second,
+		},
+		{
+			name:               "interval exactly at max",
+			currAttempt:        3,
+			initInterval:       1,
+			maxInterval:        8,
+			backoffCoefficient: 2,
+			expected:           8 * time.Second,
+		},
+		{
+			name:               "interval below max is not capped",
+			currAttempt:        2,
+			initInterval:       1,
+			maxInterval:        10,
+			backoffCoefficient: 2,
+			expected:           4 * time.Second,
+		},
+		{
+			name:               "overflow with max interval falls back to max",
+			currAttempt:        64,
+			initInterval:       1,
+			maxInterval:        10,
+			backoffCoefficient: 2,
+			expected:           10 * time.Second,
+		},
+		{
+			name:               "overflow without max interval returns no backoff",
+			currAttempt:        64,
+			initInterval:       1,
+			maxInterval:        0,
+			backoffCoefficient: 2,
+			expected:           backoff.NoBackoff,
+		},
+		{
+			name:               "zero init interval with max interval falls back to max",
+			currAttempt:        0,
+			initInterval:       0,
+			maxInterval:        5,
+			backoffCoefficient: 2,
+			expected:           5 * time.Second,
+		},
+		{
+			name:               "zero init interval without max interval returns no backoff",
+			currAttempt:        0,
+			initInterval:       0,
+			maxInterval:        0,
+			backoffCoefficient: 2,
+			expected:           backoff.NoBackoff,
+		},
+		{
+			name:               "larger init interval",
+			currAttempt:        0,
+			initInterval:       60,
+			maxInterval:        6000,
+			backoffCoefficient: 1,
+			expected:           60 * time.Second,
+		},
+		{
+			name:               "larger init interval with backoff",
+			currAttempt:        2,
+			initInterval:       10,
+			maxInterval:        0,
+			backoffCoefficient: 3,
+			expected:           90 * time.Second,
+		},
 	}
-	a.Equal(backoff.NoBackoff, getBackoffInterval(
-		clock.NewRealTimeSource().Now(),
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
 
-	// no retry if cancel requested
-	ai.HasRetryPolicy = true
-	ai.CancelRequested = true
-	a.Equal(backoff.NoBackoff, getBackoffInterval(
-		clock.NewRealTimeSource().Now(),
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-
-	// no retry if both MaximumAttempts and ExpirationTime are not set
-	ai.CancelRequested = false
-	a.Equal(backoff.NoBackoff, getBackoffInterval(
-		clock.NewRealTimeSource().Now(),
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-
-	// no retry if MaximumAttempts is 1 (for initial attempt)
-	ai.InitialInterval = 1
-	ai.MaximumAttempts = 1
-	a.Equal(backoff.NoBackoff, getBackoffInterval(
-		clock.NewRealTimeSource().Now(),
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-
-	// backoff retry, intervals: 1s, 2s, 4s, 8s.
-	ai.MaximumAttempts = 5
-	ai.BackoffCoefficient = 2
-	a.Equal(time.Second, getBackoffInterval(
-		now,
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-	ai.Attempt++
-
-	a.Equal(time.Second*2, getBackoffInterval(
-		now,
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-	ai.Attempt++
-
-	a.Equal(time.Second*4, getBackoffInterval(
-		now,
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-	ai.Attempt++
-
-	// test non-retriable error
-	reason = "bad-reason"
-	a.Equal(backoff.NoBackoff, getBackoffInterval(
-		now,
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-
-	reason = "good-reason"
-
-	a.Equal(time.Second*8, getBackoffInterval(
-		now,
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-	ai.Attempt++
-
-	// no retry as max attempt reached
-	a.Equal(ai.MaximumAttempts-1, ai.Attempt)
-	a.Equal(backoff.NoBackoff, getBackoffInterval(
-		now,
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-
-	// increase max attempts, with max interval cap at 10s
-	ai.MaximumAttempts = 6
-	ai.MaximumInterval = 10
-	a.Equal(time.Second*10, getBackoffInterval(
-		now,
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-	ai.Attempt++
-
-	// no retry because expiration time before next interval
-	ai.MaximumAttempts = 8
-	ai.ExpirationTime = now.Add(time.Second * 5)
-	a.Equal(backoff.NoBackoff, getBackoffInterval(
-		now,
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-
-	// extend expiration, next interval should be 10s
-	ai.ExpirationTime = now.Add(time.Minute)
-	a.Equal(time.Second*10, getBackoffInterval(
-		now,
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-	ai.Attempt++
-
-	// with big max retry, math.Pow() could overflow, verify that it uses the MaxInterval
-	ai.Attempt = 64
-	ai.MaximumAttempts = 100
-	a.Equal(time.Second*10, getBackoffInterval(
-		now,
-		ai.ExpirationTime,
-		ai.Attempt,
-		ai.MaximumAttempts,
-		ai.InitialInterval,
-		ai.MaximumInterval,
-		ai.BackoffCoefficient,
-		reason,
-		ai.NonRetriableErrors,
-	))
-	ai.Attempt++
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := getBackoffInterval(
+				tc.currAttempt,
+				tc.initInterval,
+				tc.maxInterval,
+				tc.backoffCoefficient,
+			)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
 }

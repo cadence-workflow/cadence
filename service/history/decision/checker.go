@@ -699,6 +699,12 @@ func (v *attrValidator) validateContinueAsNewWorkflowExecutionAttributes(
 		attributes.TaskStartToCloseTimeoutSeconds = common.Int32Ptr(executionInfo.DecisionStartToCloseTimeout)
 	}
 
+	// Inherit active cluster selection policy from previous execution if not provided on decision,
+	// otherwise the new run would be resolved against the domain-level default cluster
+	if attributes.ActiveClusterSelectionPolicy == nil {
+		attributes.ActiveClusterSelectionPolicy = executionInfo.ActiveClusterSelectionPolicy
+	}
+
 	// Check next run decision task delay
 	if attributes.GetBackoffStartIntervalInSeconds() < 0 {
 		return &types.BadRequestError{Message: "BackoffStartInterval is less than 0."}

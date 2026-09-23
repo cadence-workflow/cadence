@@ -83,6 +83,7 @@ services:
       - "KAFKA_SEEDS=kafka"
       - "VISIBILITY_NAME=cadence-visibility-primary"
       - "PRIMARY_FRONTEND_SERVICE=cadence"
+      - "ENABLE_METRICS_MIGRATION=true"
     depends_on:
       cassandra:
         condition: service_healthy
@@ -126,6 +127,7 @@ services:
       - "KAFKA_SEEDS=kafka"
       - "VISIBILITY_NAME=cadence-visibility-secondary"
       - "SECONDARY_FRONTEND_SERVICE=cadence-secondary"
+      - "ENABLE_METRICS_MIGRATION=true"
     depends_on:
       - mysql
       - prometheus

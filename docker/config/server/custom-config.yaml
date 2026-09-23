@@ -137,3 +137,13 @@ shard-distributor-matching:
       heartbeat_interval: "1s"
       ttl_shard: "5m"
       ttl_report: "1m"
+
+gauge-migration:
+  default: gauge
+  names: {}
+histograms:
+  default: histogram
+  names: {}
+counter-migration:
+  default: counter
+  names: {}

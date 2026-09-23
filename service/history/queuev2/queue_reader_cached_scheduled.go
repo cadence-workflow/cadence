@@ -403,13 +403,8 @@ func (q *cachedScheduledQueueReader) prefetch() error {
 
 	q.metrics.IncCounter(metrics.CachedQueuePrefetchSuccessCounter)
 
-	// Whether prefetch is keeping up with newly created tasks.
-	windowSpan := q.exclusiveUpperBound.GetScheduledTime().Sub(q.inclusiveLowerBound.GetScheduledTime())
-	q.metrics.ExponentialHistogram(metrics.CachedQueuePrefetchWindowSpanHistogram, windowSpan)
-
 	q.logger.Debug("prefetch complete",
 		tag.Dynamic("tasksFetched", len(resp.Tasks)),
-		tag.Dynamic("windowSpan", windowSpan),
 		tag.Dynamic("cacheState", q.getState()),
 	)
 	return nil

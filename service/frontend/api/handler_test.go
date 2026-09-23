@@ -4891,6 +4891,112 @@ func (cs *counterSnapshotMock) Name() string            { return cs.name }
 func (cs *counterSnapshotMock) Tags() map[string]string { return cs.tags }
 func (cs *counterSnapshotMock) Value() int64            { return cs.value }
 
+func TestEmitWorkflowQueryAgeDays(t *testing.T) {
+	now := time.Now()
+	ts := func(t time.Time) *int64 {
+		v := t.UnixNano()
+		return &v
+	}
+
+	tests := map[string]struct {
+		domainName     string
+		events         []*types.HistoryEvent
+		expectMetric   bool
+		expectedStatus string
+		expectedBucket float64
+	}{
+		"no events": {
+			domainName: "test-domain",
+			events:     nil,
+		},
+		"completed workflow": {
+			domainName: "test-domain",
+			events: []*types.HistoryEvent{
+				{ID: 10, EventType: types.EventTypeWorkflowExecutionCompleted.Ptr(), Timestamp: ts(now.Add(-71 * time.Hour))},
+			},
+			expectMetric:   true,
+			expectedStatus: "success",
+			expectedBucket: 3,
+		},
+		"continued as new workflow": {
+			domainName: "test-domain",
+			events: []*types.HistoryEvent{
+				{ID: 10, EventType: types.EventTypeWorkflowExecutionContinuedAsNew.Ptr(), Timestamp: ts(now.Add(-23 * time.Hour))},
+			},
+			expectMetric:   true,
+			expectedStatus: "success",
+			expectedBucket: 1,
+		},
+		"failed workflow": {
+			domainName: "test-domain",
+			events: []*types.HistoryEvent{
+				{ID: 8, EventType: types.EventTypeWorkflowExecutionFailed.Ptr(), Timestamp: ts(now.Add(-23 * time.Hour))},
+			},
+			expectMetric:   true,
+			expectedStatus: "failure",
+			expectedBucket: 1,
+		},
+		"timed out workflow": {
+			domainName: "test-domain",
+			events: []*types.HistoryEvent{
+				{ID: 50, EventType: types.EventTypeWorkflowExecutionTimedOut.Ptr(), Timestamp: ts(now.Add(-1 * time.Hour))},
+			},
+			expectMetric:   true,
+			expectedStatus: "failure",
+			expectedBucket: 1,
+		},
+		"last event is not a close event": {
+			domainName: "test-domain",
+			events: []*types.HistoryEvent{
+				{ID: 5, EventType: types.EventTypeDecisionTaskCompleted.Ptr(), Timestamp: ts(now.Add(-1 * time.Hour))},
+			},
+		},
+		"nil timestamp": {
+			domainName: "test-domain",
+			events: []*types.HistoryEvent{
+				{ID: 10, EventType: types.EventTypeWorkflowExecutionCompleted.Ptr(), Timestamp: nil},
+			},
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+			scope := tally.NewTestScope("", nil)
+			mockR := resource.Test{
+				MetricsScope:  scope,
+				MetricsClient: metrics.NewClient(scope, 1, metrics.MigrationConfig{}),
+			}
+			wh := WorkflowHandler{Resource: &mockR}
+
+			wh.emitWorkflowQueryAgeDays(td.domainName, td.events)
+
+			snap := scope.Snapshot()
+			histograms := snap.Histograms()
+
+			if !td.expectMetric {
+				for _, h := range histograms {
+					if h.Name() == "workflow_query_age_days" {
+						t.Errorf("expected no histogram emission, but found one: %v", h)
+					}
+				}
+				return
+			}
+
+			var found bool
+			for _, h := range histograms {
+				if h.Name() == "workflow_query_age_days" {
+					found = true
+					assert.Equal(t, td.expectedStatus, h.Tags()["workflow_close_status"])
+					assert.Equal(t, td.domainName, h.Tags()["domain"])
+					assert.Equal(t, int64(1), h.Values()[td.expectedBucket], "sample should land in bucket %v", td.expectedBucket)
+					break
+				}
+			}
+			assert.True(t, found, "expected histogram emission but none found")
+		})
+	}
+}
+
 func TestConstructRestartWorkflowRequest(t *testing.T) {
 	testCases := []struct {
 		name               string

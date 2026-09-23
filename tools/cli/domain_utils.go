@@ -93,7 +93,7 @@ var (
 			Usage:   "Domain data of key value pairs (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
 			Value:   &flag.StringMap{},
 		},
-		&flag.RepeatedStringFlag{
+		&flag.RepeatedStringMapFlag{
 			Name:  FlagDomainDataEntry,
 			Usage: "A domain-data key=value entry whose value may contain commas (e.g. JSON). Can be repeated to set multiple entries, e.g. --domain_data_entry 'cluster=dca' --domain_data_entry 'instance=cadence'",
 		},
@@ -165,7 +165,7 @@ var (
 			Usage: "Domain data of key value pairs (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
 			Value: &flag.StringMap{},
 		},
-		&flag.RepeatedStringFlag{
+		&flag.RepeatedStringMapFlag{
 			Name:  FlagDomainDataEntry,
 			Usage: "A domain-data key=value entry whose value may contain commas (e.g. JSON). Can be repeated to set multiple entries, e.g. --domain_data_entry 'cluster=dca' --domain_data_entry 'instance=cadence'",
 		},
@@ -301,6 +301,10 @@ var (
 			Name:    FlagFailoverTimeout,
 			Aliases: []string{"fts"},
 			Usage:   "[Optional] Graceful failover timeout in seconds. When set, the incoming active cluster waits up to this duration for pending replication tasks to drain before taking over",
+		},
+		&cli.BoolFlag{
+			Name:  FlagSkipDestinationCheck,
+			Usage: "[Optional] Allow this failover to be issued from a cluster other than the destination. By default the server only accepts a failover request received by the cluster being failed over to, so that a healthy region always initiates the failover process.",
 		},
 	}
 

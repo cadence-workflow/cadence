@@ -57,6 +57,7 @@ services:
       - "VISIBILITY_ARCHIVAL_DIR_MODE=0040000"
       - "DOMAIN_DEFAULTS_VISIBILITY_ARCHIVAL_STATUS=enabled"
       - "DOMAIN_DEFAULTS_VISIBILITY_ARCHIVAL_URI=file:///etc/cadence/archival/visibility"
+      - "ENABLE_METRICS_MIGRATION=true"
     volumes:
       - ./archival:/etc/cadence/archival
     depends_on:

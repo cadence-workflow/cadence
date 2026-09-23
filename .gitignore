@@ -49,3 +49,4 @@ settings.local.json
 .mcp.json
 *.bak
 CLAUDE.local.md
+.claude/settings.json

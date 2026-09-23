@@ -53,6 +53,7 @@ const (
 func Test__identifyIssues(t *testing.T) {
 	dwtest := testDiagnosticWorkflow(t, testWorkflowExecutionHistoryResponseWithMultipleIssues())
 	actMetadata := failure.FailureIssuesMetadata{
+		EventID:             4,
 		Identity:            "localhost",
 		ActivityType:        "test-activity",
 		ActivityScheduledID: 2,
@@ -97,6 +98,7 @@ func Test__identifyIssues(t *testing.T) {
 func Test__rootCauseIssues(t *testing.T) {
 	dwtest := testDiagnosticWorkflow(t, testWorkflowExecutionHistoryResponse())
 	actMetadata := failure.FailureIssuesMetadata{
+		EventID:             3,
 		Identity:            "localhost",
 		ActivityScheduledID: 1,
 		ActivityStartedID:   2,
@@ -271,6 +273,7 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 		History: &types.History{
 			Events: []*types.HistoryEvent{
 				{
+					ID: 11,
 					WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{
 						Reason:                       common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
 						DecisionTaskCompletedEventID: 10,
@@ -307,7 +310,7 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 	}
 	retryMetadataInBytes, err := json.Marshal(retryMetadata)
 	require.NoError(t, err)
-	failureMetadataInBytes, err := json.Marshal(failure.FailureIssuesMetadata{})
+	failureMetadataInBytes, err := json.Marshal(failure.FailureIssuesMetadata{EventID: 11})
 	require.NoError(t, err)
 	expectedResult := []invariant.InvariantCheckResult{
 		{
