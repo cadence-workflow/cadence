@@ -26,7 +26,7 @@ ready=false
 for _ in $(seq 1 90); do
     if "${compose[@]}" -f "$compose_file" exec -T cadence \
         cadence --address cadence:7933 --context_timeout 5 \
-        admin domain list >/dev/null 2>&1; then
+        --domain default domain describe >/dev/null 2>&1; then
         ready=true
         break
     fi

@@ -10,11 +10,3 @@ services:
       DB: sqlite
       DBNAME: /tmp/cadence.db
       VISIBILITY_DBNAME: /tmp/cadence_visibility.db
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - cadence --address cadence:7933 --context_timeout 5 admin domain list >/dev/null 2>&1
-      interval: 2s
-      timeout: 10s
-      retries: 60
-      start_period: 10s
