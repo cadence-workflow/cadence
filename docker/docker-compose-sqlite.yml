@@ -10,3 +10,9 @@ services:
       DB: sqlite
       DBNAME: /tmp/cadence.db
       VISIBILITY_DBNAME: /tmp/cadence_visibility.db
+    ports:
+      - "7933:7933"
+      - "7833:7833"
+      - "7934:7934"
+      - "7935:7935"
+      - "7939:7939"
