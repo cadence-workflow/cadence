@@ -217,7 +217,7 @@ func (wh *WorkflowHandler) DiagnoseWorkflowExecution(ctx context.Context, reques
 	}
 
 	wfExecution := request.GetWorkflowExecution()
-	diagnosticWorkflowDomain := "cadence-system"
+	diagnosticWorkflowDomain := constants.SystemLocalDomainName
 	diagnosticWorkflowID := fmt.Sprintf("%s-%s", request.GetDomain(), wfExecution.GetRunID())
 
 	diagnosticWorkflowInput := diagnostics.DiagnosticsStarterWorkflowInput{
