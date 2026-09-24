@@ -13,6 +13,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -168,7 +169,7 @@ func TestNewManagerValidatesItsParams(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mgr, err := NewManager(tc.params)
-			assert.ErrorIs(t, err, ErrInvalidRequest, "a misconfigured manager is never worth retrying")
+			assert.IsType(t, &types.BadRequestError{}, err, "a misconfigured manager is never worth retrying")
 			assert.Equal(t, Manager(nil), mgr, "an error carries no manager")
 		})
 	}
@@ -321,15 +322,13 @@ func TestStartStop(t *testing.T) {
 	mgr.Stop()
 }
 
-// Tests that Acquire refuses an empty owner id. Every grant is conditional on the owner, so an
-// empty one is a caller bug and must not reach persistence.
 func TestAcquireRejectsAnEmptyOwnerID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := persistence.NewMockSemaphoreTokenManager(ctrl)
 	mgr := startManager(t, m, freeTokens(1))
 
 	got, err := mgr.Acquire(context.Background(), "")
-	assert.ErrorIs(t, err, ErrInvalidRequest)
+	assert.IsType(t, &types.BadRequestError{}, err)
 	assert.Equal(t, AcquireResult{}, got)
 	assert.Equal(t, 1, mgr.freeCount(), "a rejected request must not touch the free-set")
 }
@@ -412,6 +411,11 @@ func TestAcquireBeforeTheBucketIsUsable(t *testing.T) {
 			got, err := mgr.Acquire(ctx, "owner-a")
 			assert.ErrorIs(t, err, ErrNotReady)
 			assert.Equal(t, AcquireResult{}, got, "an error carries no result")
+			// Why ErrNotReady is a ServiceBusyError and not one of the terminal types: a retry
+			// reaches a fresh manager, so the caller has to be told to come back. A type
+			// handleErr has no case for would be flattened to InternalServiceError instead, and
+			// logged as uncategorized on every unloaded bucket.
+			assert.True(t, common.IsServiceTransientError(err), "a retry can get a different answer")
 		})
 	}
 }
@@ -669,7 +673,7 @@ func TestGrantRejectsAnAlreadyHeldWriteWithNoToken(t *testing.T) {
 		&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantAlreadyHeld}, nil)
 
 	_, err := mgr.grant(context.Background(), "owner-a")
-	require.ErrorIs(t, err, ErrInconsistentState, "a caller must be able to tell this apart from contention")
+	require.IsType(t, &types.InternalServiceError{}, err, "a caller must be able to tell this apart from contention")
 	require.ErrorContains(t, err, "already-held slot without a token")
 
 	// The write did not apply, so the reserved slot goes back.
@@ -686,54 +690,23 @@ func TestGrantRejectsAnAlreadyHeldWriteWithNoToken(t *testing.T) {
 	assert.Equal(t, AcquireOutcomeAcquired, got.Outcome)
 }
 
-func TestGrantRetriesATransientWriteFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	m := persistence.NewMockSemaphoreTokenManager(ctrl)
-	mgr := startManager(t, m, freeTokens(1, 2, 3))
-
-	gomock.InOrder(
-		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(nil, &persistence.TimeoutError{Msg: "write timed out"}),
-		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
-			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil),
-	)
-
-	got, err := mgr.grant(context.Background(), "owner-a")
-	require.NoError(t, err)
-	assert.Equal(t, AcquireOutcomeAcquired, got.Outcome)
-	assert.Equal(t, 2, mgr.freeCount(), "only the granted slot leaves the free-set")
-	assertFreeSetIsConsistent(t, mgr)
-}
-
-func TestGrantReportsTheErrorWhenEveryAttemptFails(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	m := persistence.NewMockSemaphoreTokenManager(ctrl)
-	mgr := startManager(t, m, freeTokens(1, 2, 3))
-
-	writeErr := &persistence.TimeoutError{Msg: "write timed out"}
-	m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(maxGrantAttempts).Return(nil, writeErr)
-
-	got, err := mgr.grant(context.Background(), "owner-a")
-	assert.ErrorIs(t, err, writeErr)
-	assert.Equal(t, AcquireResult{}, got)
-	assert.Equal(t, 3, mgr.freeCount(), "every drawn slot comes back")
-	assertFreeSetIsConsistent(t, mgr)
-}
-
 // Tests that a failed write costs no slot: the id goes back every time, so an outage cannot
 // drain the free-set one write at a time.
 func TestGrantReturnsTheSlotWhenTheWriteFails(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := persistence.NewMockSemaphoreTokenManager(ctrl)
 	const slots = 5
+	const acquires = 3
 	mgr := startManager(t, m, freeTokens(1, 2, 3, 4, 5))
 
-	writeErr := errors.New("cassandra unavailable")
-	m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(slots*3).Return(nil, writeErr)
+	writeErr := &persistence.TimeoutError{Msg: "write timed out"}
+	// One write per acquire: grant puts the id back and returns the error without trying again.
+	m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(acquires).Return(nil, writeErr)
 
-	for i := range slots * 3 {
+	for i := range acquires {
 		_, err := mgr.grant(context.Background(), fmt.Sprintf("owner-%d", i))
 		require.ErrorIs(t, err, writeErr)
-		require.Equal(t, slots, mgr.freeCount(), "the slot must come back after attempt %d", i)
+		require.Equal(t, slots, mgr.freeCount(), "the slot must come back after acquire %d", i)
 	}
 	assertFreeSetIsConsistent(t, mgr)
 }
@@ -749,7 +722,7 @@ func TestGrantRejectsAnUnrecognizedWriteOutcome(t *testing.T) {
 		&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantUnknown}, nil)
 
 	_, err := mgr.grant(context.Background(), "owner-a")
-	require.ErrorIs(t, err, ErrInconsistentState, "a caller must be able to tell this apart from contention")
+	require.IsType(t, &types.InternalServiceError{}, err, "a caller must be able to tell this apart from contention")
 	require.ErrorContains(t, err, "unexpected grant outcome")
 	assert.Equal(t, 1, mgr.freeCount())
 }

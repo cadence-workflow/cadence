@@ -64,14 +64,7 @@ type AcquireResult struct {
 }
 
 // ErrNotReady means this host cannot answer for the bucket: not started, scan failed, or stopped.
-var ErrNotReady = errors.New("semaphore manager is not ready")
-
-// ErrInvalidRequest means the request itself is wrong. Never retryable, fix the call.
-var ErrInvalidRequest = errors.New("invalid semaphore request")
-
-// ErrInconsistentState means storage returned something that should be impossible. Never
-// retryable: it is a bug, not contention.
-var ErrInconsistentState = errors.New("semaphore state is inconsistent")
+var ErrNotReady = &types.ServiceBusyError{Message: "semaphore manager is not ready"}
 
 // managerState gates Acquire. A Manager only moves forward: created to running, or either to
 // stopped. Nothing brings a stopped manager back.
@@ -136,21 +129,21 @@ func validateParams(p ManagerParams) error {
 		return err
 	}
 	if p.Tokens == nil {
-		return fmt.Errorf("%w: ManagerParams.Tokens is required", ErrInvalidRequest)
+		return &types.BadRequestError{Message: "ManagerParams.Tokens is required"}
 	}
 	if p.Logger == nil {
-		return fmt.Errorf("%w: ManagerParams.Logger is required", ErrInvalidRequest)
+		return &types.BadRequestError{Message: "ManagerParams.Logger is required"}
 	}
 	// Rejected rather than passed through: liveness builds a ticker from this and a
 	// non-positive interval panics, which would take the host down on a bad config value.
 	if p.IdleTTL <= 0 {
-		return fmt.Errorf("%w: ManagerParams.IdleTTL must be positive", ErrInvalidRequest)
+		return &types.BadRequestError{Message: "ManagerParams.IdleTTL must be positive"}
 	}
 	if p.OnStopFn == nil {
-		return fmt.Errorf("%w: ManagerParams.OnStopFn is required", ErrInvalidRequest)
+		return &types.BadRequestError{Message: "ManagerParams.OnStopFn is required"}
 	}
 	if p.TimeSource == nil {
-		return fmt.Errorf("%w: ManagerParams.TimeSource is required", ErrInvalidRequest)
+		return &types.BadRequestError{Message: "ManagerParams.TimeSource is required"}
 	}
 	return nil
 }
@@ -294,7 +287,7 @@ func (m *semaphoreManagerImpl) isRunning() bool {
 // this host cannot find one.
 func (m *semaphoreManagerImpl) Acquire(ctx context.Context, ownerID string) (AcquireResult, error) {
 	if ownerID == "" {
-		return AcquireResult{}, fmt.Errorf("%w: ownerID is required", ErrInvalidRequest)
+		return AcquireResult{}, &types.BadRequestError{Message: "ownerID is required"}
 	}
 	// Marked before the startup wait, so a bucket whose first request arrives during a slow
 	// scan is not counted as idle the moment it finishes loading.
@@ -327,7 +320,7 @@ func (m *semaphoreManagerImpl) enqueue(ctx context.Context, ownerID string) erro
 // grant tries to get ownerID a slot, up to maxGrantAttempts times:
 //   - Check the reverse index first to confirm this owner holds a token
 //   - Otherwise draw a random free id and settle it with a conditional write
-//   - A write refused as taken, or one that failed on a blip, costs an attempt and is retried
+//   - A write refused as taken costs an attempt, and a different slot is drawn
 //
 // It answers with one of three outcomes:
 //   - Acquired: the write applied, and TokenID is the new token.
@@ -348,10 +341,6 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 			return AcquireResult{Outcome: AcquireOutcomeAlreadyHeld, TokenID: tokenID}, nil
 		}
 	}
-
-	// Remembers a write failure that was retried. Without it, running out of attempts would
-	// look like a full bucket instead of a store this host could not reach.
-	var lastErr error
 
 	for range maxGrantAttempts {
 		// Stop as soon as the caller gives up. Letting the write fail instead reports a
@@ -381,14 +370,7 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 			// If it did land, the next grant to draw it is refused and drops it.
 			// Keeping it out would lose a slot per failed write, emptying the free-set.
 			m.unreserve(tokenID)
-			if !persistence.IsTransientError(err) {
-				return AcquireResult{}, err
-			}
-			// A blip, retry. Safe even if the write did land,
-			// because the owner row is inserted IF NOT EXISTS,
-			// so the next attempt reports AlreadyHeld.
-			lastErr = err
-			continue
+			return AcquireResult{}, err
 		}
 
 		switch resp.Outcome {
@@ -409,7 +391,7 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 				// AlreadyHeld must name a token, so a zero means the owner row has no
 				// held_token: a corrupt row or a store bug. Recording it
 				// would leave this owner failing every later acquire on a token that cannot exist.
-				return AcquireResult{}, fmt.Errorf("%w: grant reported an already-held slot without a token for bucket %v", ErrInconsistentState, m.id)
+				return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("grant reported an already-held slot without a token for bucket %v", m.id)}
 			}
 			m.recordHold(ownerID, resp.HeldToken)
 			return AcquireResult{Outcome: AcquireOutcomeAlreadyHeld, TokenID: resp.HeldToken}, nil
@@ -419,11 +401,8 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 			// but that is one store's guarantee, not the interface's, so check anyway. An
 			// outcome we cannot read says nothing about the slot, so the id goes back.
 			m.unreserve(tokenID)
-			return AcquireResult{}, fmt.Errorf("%w: unexpected grant outcome %v for bucket %v", ErrInconsistentState, resp.Outcome, m.id)
+			return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("unexpected grant outcome %v for bucket %v", resp.Outcome, m.id)}
 		}
-	}
-	if lastErr != nil {
-		return AcquireResult{}, lastErr
 	}
 	return AcquireResult{Outcome: AcquireOutcomeNoSlot}, nil
 }
