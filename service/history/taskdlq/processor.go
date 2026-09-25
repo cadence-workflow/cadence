@@ -204,13 +204,14 @@ func NewProcessorFromShard(
 	})
 }
 
-// Start launches the background processing loop. Idempotent. The given context only
-// bounds the startup work; the loop's lifetime is controlled by Stop.
+// Start launches the background processing loop. Idempotent. The loop runs until
+// either Stop is called or the given context is canceled, whichever comes first, so
+// callers should pass a context whose lifetime matches the owning component's.
 func (p *ProcessorImpl) Start(ctx context.Context) error {
 	if !atomic.CompareAndSwapInt32(&p.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return nil
 	}
-	p.ctx, p.cancel = context.WithCancel(context.Background())
+	p.ctx, p.cancel = context.WithCancel(ctx)
 	p.logger.Debug("DLQ processor starting", tag.ShardID(p.shardID))
 	p.wg.Add(1)
 	go p.processLoop()

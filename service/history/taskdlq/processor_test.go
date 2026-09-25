@@ -887,6 +887,46 @@ func TestProcessShard_WhenDeleteTasksFailsAndDLQBecomesEmpty_OrphanedRowsNotClea
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
 
+func TestStart_WhenParentContextCanceled_LoopExitsAndStopReturns(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ts := clock.NewMockedTimeSource()
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	// The loop must exit on parent cancellation before the first sweep ever fires,
+	// so no store call is expected.
+
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        ts,
+	})
+
+	parent, cancel := context.WithCancel(context.Background())
+	require.NoError(t, proc.Start(parent))
+	ts.BlockUntil(1) // loop is parked on its sweep timer
+	cancel()
+
+	// Advancing the timer after cancellation must not trigger a sweep: the loop
+	// is gone. Give it a moment to observe cancellation first.
+	loopDone := make(chan struct{})
+	go func() {
+		proc.wg.Wait()
+		close(loopDone)
+	}()
+	select {
+	case <-loopDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("processing loop did not exit after parent context cancellation")
+	}
+	ts.Advance(defaultTestProcessingInterval)
+
+	// Stop still transitions cleanly and returns promptly.
+	require.NoError(t, proc.Stop(context.Background()))
+}
+
 func TestStartStop_ShouldBeIdempotent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
