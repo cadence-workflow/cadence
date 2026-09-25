@@ -140,7 +140,7 @@ func standbyTaskPostActionWriteToDLQ(
 			logger.Debug("Failed to get domain name from domain cache. Defaulting to domain ID.", tag.WorkflowDomainID(domainID), tag.Error(err))
 			domainName = domainID
 		}
-		isDeadLetterQueueEnabled := enabled(domainID)
+		isDeadLetterQueueEnabled := enabled(domainName)
 
 		taskTags := []tag.Tag{
 			tag.WorkflowID(task.GetWorkflowID()),

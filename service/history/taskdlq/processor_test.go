@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -64,11 +65,22 @@ func newMockTimerTask(ctrl *gomock.Controller, ts time.Time, taskID int64) *pers
 type newProcessorParams struct {
 	ShardID           int
 	Manager           persistence.HistoryTaskDLQManager
+	DomainCache       cache.DomainCache
 	Reinjector        TaskReinjector
 	DomainMode        string
 	ProcessingEnabled bool
 	TimeSource        clock.TimeSource
 	MaxReadLevel      MaxReadLevelFn
+}
+
+// fakeIdentityDomainCache is a cache.DomainCache test double whose GetDomainName returns the
+// given ID unchanged.
+type fakeIdentityDomainCache struct {
+	cache.DomainCache
+}
+
+func (fakeIdentityDomainCache) GetDomainName(id string) (string, error) {
+	return id, nil
 }
 
 // newProcessor builds a ProcessorImpl with the given dependencies and sensible test defaults.
@@ -77,9 +89,14 @@ func newProcessor(
 	params newProcessorParams,
 ) *ProcessorImpl {
 	t.Helper()
+	domainCache := params.DomainCache
+	if domainCache == nil {
+		domainCache = fakeIdentityDomainCache{}
+	}
 	return NewProcessor(ProcessorParams{
 		ShardID:                1,
 		Manager:                params.Manager,
+		DomainCache:            domainCache,
 		Reinjector:             params.Reinjector,
 		PageSize:               10,
 		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
@@ -1168,6 +1185,7 @@ func TestFailoverPartitions_JitterDelaysProcessing(t *testing.T) {
 	proc := NewProcessor(ProcessorParams{
 		ShardID:                1,
 		Manager:                mgr,
+		DomainCache:            fakeIdentityDomainCache{},
 		Reinjector:             reinjector,
 		PageSize:               10,
 		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
@@ -1220,6 +1238,7 @@ func TestFailoverPartitions_ZeroJitterProcessesImmediately(t *testing.T) {
 	proc := NewProcessor(ProcessorParams{
 		ShardID:                1,
 		Manager:                mgr,
+		DomainCache:            fakeIdentityDomainCache{},
 		Reinjector:             reinjector,
 		PageSize:               10,
 		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
@@ -1249,4 +1268,76 @@ func TestFailoverPartitions_ZeroJitterProcessesImmediately(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("failover partition not processed with zero jitter window")
 	}
+}
+
+// TestProcessPartition_ChecksDomainModeByDomainName verifies the domain mode filter is queried
+// by domain name, not domain ID.
+func TestProcessPartition_ChecksDomainModeByDomainName(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetDomainName("domain-id-1").Return("domain-name-1", nil)
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).Times(0)
+
+	var capturedDomain string
+	proc := NewProcessor(ProcessorParams{
+		ShardID:     1,
+		Manager:     mgr,
+		DomainCache: mockDomainCache,
+		Reinjector:  NewMockTaskReinjector(ctrl),
+		PageSize:    10,
+		Interval:    dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
+		DomainMode: func(domain string) string {
+			capturedDomain = domain
+			return constants.HistoryTaskDLQModeDisabled
+		},
+		Enabled:       dynamicproperties.GetBoolPropertyFn(false),
+		TimeSource:    clock.NewMockedTimeSource(),
+		MetricsClient: metrics.NewNoopMetricsClient(),
+		Logger:        testlogger.New(t),
+	})
+
+	assert.NoError(t, proc.ProcessPartition(context.Background(), "domain-id-1", "scope", "name"))
+	assert.Equal(t, "domain-name-1", capturedDomain)
+}
+
+// TestProcessShard_ChecksDomainModeByDomainName verifies the domain mode filter is queried by
+// domain name, not domain ID, when reached via ProcessShard.
+func TestProcessShard_ChecksDomainModeByDomainName(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetDomainName("domain-id-2").Return("domain-name-2", nil)
+
+	al := baseAckLevel(1)
+	al.DomainID = "domain-id-2"
+
+	store := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	store.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	store.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Times(0)
+
+	var capturedDomain string
+	proc := NewProcessor(ProcessorParams{
+		ShardID:     1,
+		Manager:     store,
+		DomainCache: mockDomainCache,
+		Reinjector:  NewMockTaskReinjector(ctrl),
+		PageSize:    10,
+		Interval:    dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
+		DomainMode: func(domain string) string {
+			capturedDomain = domain
+			return constants.HistoryTaskDLQModeDisabled
+		},
+		Enabled:       dynamicproperties.GetBoolPropertyFn(true),
+		TimeSource:    clock.NewMockedTimeSource(),
+		MetricsClient: metrics.NewNoopMetricsClient(),
+		Logger:        testlogger.New(t),
+	})
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
+	assert.Equal(t, "domain-name-2", capturedDomain)
 }
