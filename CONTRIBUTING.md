@@ -124,7 +124,7 @@ Then you will be able to run a basic local Cadence server for development.
 
 Then register a domain:
 ```
-./cadence --do samples-domain domain register
+./cadence --do cadence-samples domain register
 ```
 
 ### Sample Repo
@@ -148,9 +148,9 @@ $./bin/helloworld -m worker &
 [1] 16520
 2021-09-24T21:07:03.242-0700	INFO	common/sample_helper.go:109	Logger created.
 2021-09-24T21:07:03.243-0700	DEBUG	common/factory.go:151	Creating RPC dispatcher outbound	{"ServiceName": "cadence-frontend", "HostPort": "127.0.0.1:7933"}
-2021-09-24T21:07:03.250-0700	INFO	common/sample_helper.go:161	Domain successfully registered.	{"Domain": "samples-domain"}
-2021-09-24T21:07:03.291-0700	INFO	internal/internal_worker.go:833	Started Workflow Worker	{"Domain": "samples-domain", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup"}
-2021-09-24T21:07:03.300-0700	INFO	internal/internal_worker.go:858	Started Activity Worker	{"Domain": "samples-domain", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup"}
+2021-09-24T21:07:03.250-0700	INFO	common/sample_helper.go:161	Domain successfully registered.	{"Domain": "cadence-samples"}
+2021-09-24T21:07:03.291-0700	INFO	internal/internal_worker.go:833	Started Workflow Worker	{"Domain": "cadence-samples", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup"}
+2021-09-24T21:07:03.300-0700	INFO	internal/internal_worker.go:858	Started Activity Worker	{"Domain": "cadence-samples", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup"}
 ```
 Then
 ```
@@ -162,12 +162,12 @@ You will see the result like :
 $./bin/helloworld
 2021-09-24T21:07:06.220-0700	INFO	common/sample_helper.go:109	Logger created.
 2021-09-24T21:07:06.220-0700	DEBUG	common/factory.go:151	Creating RPC dispatcher outbound	{"ServiceName": "cadence-frontend", "HostPort": "127.0.0.1:7933"}
-2021-09-24T21:07:06.226-0700	INFO	common/sample_helper.go:161	Domain successfully registered.	{"Domain": "samples-domain"}
+2021-09-24T21:07:06.226-0700	INFO	common/sample_helper.go:161	Domain successfully registered.	{"Domain": "cadence-samples"}
 2021-09-24T21:07:06.272-0700	INFO	common/sample_helper.go:195	Started Workflow	{"WorkflowID": "helloworld_75cf142b-c0de-407e-9115-1d33e9b7551a", "RunID": "98a229b8-8fdd-4d1f-bf41-df00fb06f441"}
-2021-09-24T21:07:06.347-0700	INFO	helloworld/helloworld_workflow.go:31	helloworld workflow started	{"Domain": "samples-domain", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup", "WorkflowType": "helloWorldWorkflow", "WorkflowID": "helloworld_75cf142b-c0de-407e-9115-1d33e9b7551a", "RunID": "98a229b8-8fdd-4d1f-bf41-df00fb06f441"}
-2021-09-24T21:07:06.347-0700	DEBUG	internal/internal_event_handlers.go:489	ExecuteActivity	{"Domain": "samples-domain", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup", "WorkflowType": "helloWorldWorkflow", "WorkflowID": "helloworld_75cf142b-c0de-407e-9115-1d33e9b7551a", "RunID": "98a229b8-8fdd-4d1f-bf41-df00fb06f441", "ActivityID": "0", "ActivityType": "main.helloWorldActivity"}
-2021-09-24T21:07:06.437-0700	INFO	helloworld/helloworld_workflow.go:62	helloworld activity started	{"Domain": "samples-domain", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup", "ActivityID": "0", "ActivityType": "main.helloWorldActivity", "WorkflowType": "helloWorldWorkflow", "WorkflowID": "helloworld_75cf142b-c0de-407e-9115-1d33e9b7551a", "RunID": "98a229b8-8fdd-4d1f-bf41-df00fb06f441"}
-2021-09-24T21:07:06.513-0700	INFO	helloworld/helloworld_workflow.go:55	Workflow completed.	{"Domain": "samples-domain", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup", "WorkflowType": "helloWorldWorkflow", "WorkflowID": "helloworld_75cf142b-c0de-407e-9115-1d33e9b7551a", "RunID": "98a229b8-8fdd-4d1f-bf41-df00fb06f441", "Result": "Hello Cadence!"}
+2021-09-24T21:07:06.347-0700	INFO	helloworld/helloworld_workflow.go:31	helloworld workflow started	{"Domain": "cadence-samples", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup", "WorkflowType": "helloWorldWorkflow", "WorkflowID": "helloworld_75cf142b-c0de-407e-9115-1d33e9b7551a", "RunID": "98a229b8-8fdd-4d1f-bf41-df00fb06f441"}
+2021-09-24T21:07:06.347-0700	DEBUG	internal/internal_event_handlers.go:489	ExecuteActivity	{"Domain": "cadence-samples", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup", "WorkflowType": "helloWorldWorkflow", "WorkflowID": "helloworld_75cf142b-c0de-407e-9115-1d33e9b7551a", "RunID": "98a229b8-8fdd-4d1f-bf41-df00fb06f441", "ActivityID": "0", "ActivityType": "main.helloWorldActivity"}
+2021-09-24T21:07:06.437-0700	INFO	helloworld/helloworld_workflow.go:62	helloworld activity started	{"Domain": "cadence-samples", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup", "ActivityID": "0", "ActivityType": "main.helloWorldActivity", "WorkflowType": "helloWorldWorkflow", "WorkflowID": "helloworld_75cf142b-c0de-407e-9115-1d33e9b7551a", "RunID": "98a229b8-8fdd-4d1f-bf41-df00fb06f441"}
+2021-09-24T21:07:06.513-0700	INFO	helloworld/helloworld_workflow.go:55	Workflow completed.	{"Domain": "cadence-samples", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup", "WorkflowType": "helloWorldWorkflow", "WorkflowID": "helloworld_75cf142b-c0de-407e-9115-1d33e9b7551a", "RunID": "98a229b8-8fdd-4d1f-bf41-df00fb06f441", "Result": "Hello Cadence!"}
 ```
 
 See [instructions](service/worker/README.md) for setting up replication(XDC).
