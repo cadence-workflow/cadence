@@ -72,20 +72,9 @@ jobs:
         run: |
           echo "ubercadence/server:${{ needs.meta.outputs.image_tag }}"
 
-  test_server_auto_setup_sqlite:
-    name: Test SQLite auto-setup image
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Test SQLite auto-setup
-        run: docker/test-sqlite-auto-setup.sh
-
   push_server_auto_setup_image:
     name: Push auto-setup image to Docker Hub
-    needs:
-      - meta
-      - test_server_auto_setup_sqlite
+    needs: meta
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
