@@ -317,7 +317,9 @@ func (e *historyEngineImpl) Start() {
 	for _, processor := range e.queueProcessors {
 		processor.Start()
 	}
-	e.dlqProcessor.Start()
+	if err := e.dlqProcessor.Start(context.Background()); err != nil {
+		e.logger.Error("failed to start history task DLQ processor", tag.Error(err))
+	}
 	e.replicationDLQHandler.Start()
 	e.replicationMetricsEmitter.Start()
 
@@ -345,7 +347,9 @@ func (e *historyEngineImpl) Stop() {
 	for _, processor := range e.queueProcessors {
 		processor.Stop()
 	}
-	e.dlqProcessor.Stop()
+	if err := e.dlqProcessor.Stop(context.Background()); err != nil {
+		e.logger.Error("failed to stop history task DLQ processor", tag.Error(err))
+	}
 	e.replicationDLQHandler.Stop()
 	e.replicationMetricsEmitter.Stop()
 

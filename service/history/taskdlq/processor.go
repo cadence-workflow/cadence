@@ -48,7 +48,7 @@ type (
 	// the shard this processor was created for. ProcessPartition is the on-demand failover
 	// path and can be called at any time regardless of daemon state.
 	Processor interface {
-		common.Daemon
+		common.DaemonV2
 
 		// ProcessShard sweeps all DLQ partitions for a shard (periodic path).
 		// Errors in individual partitions are logged and skipped; the combined
@@ -204,27 +204,41 @@ func NewProcessorFromShard(
 	})
 }
 
-// Start starts the processor and launches the background processing loop.
-func (p *ProcessorImpl) Start() {
+// Start launches the background processing loop. Idempotent. The given context only
+// bounds the startup work; the loop's lifetime is controlled by Stop.
+func (p *ProcessorImpl) Start(ctx context.Context) error {
 	if !atomic.CompareAndSwapInt32(&p.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
-		return
+		return nil
 	}
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 	p.logger.Debug("DLQ processor starting", tag.ShardID(p.shardID))
 	p.wg.Add(1)
 	go p.processLoop()
 	p.logger.Debug("DLQ processor started", tag.ShardID(p.shardID))
+	return nil
 }
 
-// Stop signals the background loop to exit and waits for it to finish. Idempotent.
-func (p *ProcessorImpl) Stop() {
+// Stop signals the background loop to exit and waits for it to finish or for ctx to
+// expire, whichever comes first. Idempotent.
+func (p *ProcessorImpl) Stop(ctx context.Context) error {
 	if !atomic.CompareAndSwapInt32(&p.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
-		return
+		return nil
 	}
 	p.logger.Debug("DLQ processor stopping", tag.ShardID(p.shardID))
 	p.cancel()
-	p.wg.Wait()
-	p.logger.Debug("DLQ processor stopped", tag.ShardID(p.shardID))
+	done := make(chan struct{})
+	go func() {
+		p.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		p.logger.Debug("DLQ processor stopped", tag.ShardID(p.shardID))
+		return nil
+	case <-ctx.Done():
+		p.logger.Warn("DLQ processor stop timed out waiting for the processing loop", tag.ShardID(p.shardID))
+		return ctx.Err()
+	}
 }
 
 // processLoop is the background goroutine that periodically calls ProcessShard and drains
