@@ -43,7 +43,9 @@ import (
 type Params struct {
 	ServiceName     string
 	TChannelAddress string
+	TChannelPort    uint16
 	GRPCAddress     string
+	GRPCPort        uint16
 	GRPCMaxMsgSize  int
 	HTTP            *httpParams
 
@@ -169,7 +171,9 @@ func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Coll
 		ServiceName:      serviceName,
 		HTTP:             http,
 		TChannelAddress:  net.JoinHostPort(listenIP.String(), strconv.Itoa(int(serviceConfig.RPC.Port))),
+		TChannelPort:     serviceConfig.RPC.Port,
 		GRPCAddress:      net.JoinHostPort(listenIP.String(), strconv.Itoa(int(serviceConfig.RPC.GRPCPort))),
+		GRPCPort:         serviceConfig.RPC.GRPCPort,
 		GRPCMaxMsgSize:   serviceConfig.RPC.GRPCMaxMsgSize,
 		OutboundsBuilder: CombineOutbounds(outboundsBuilders...),
 		InboundTLS:       inboundTLS,
