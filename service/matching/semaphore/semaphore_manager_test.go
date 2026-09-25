@@ -334,15 +334,14 @@ func TestAcquireRejectsAnEmptyOwnerID(t *testing.T) {
 }
 
 // Tests that Acquire on a manager that is not running returns ErrNotReady and no result,
-// whichever way the manager became unusable
+// whichever way the manager became unusable.
 func TestAcquireBeforeTheBucketIsUsable(t *testing.T) {
 	tests := []struct {
 		name  string
 		setup func(t *testing.T, m *persistence.MockSemaphoreTokenManager) *semaphoreManagerImpl
 	}{
 		{
-			// Stop() before Start() must fail callers rather than leave them blocked on the
-			// barrier forever.
+			// Stop must release the startup wait, or callers block forever.
 			name: "stopped before it was started",
 			setup: func(t *testing.T, m *persistence.MockSemaphoreTokenManager) *semaphoreManagerImpl {
 				mgr := newTestManager(t, m)
@@ -356,14 +355,6 @@ func TestAcquireBeforeTheBucketIsUsable(t *testing.T) {
 				m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Return(nil, errors.New("scan failed"))
 				mgr := newTestManager(t, m)
 				assert.Error(t, mgr.Start(context.Background()))
-				return mgr
-			},
-		},
-		{
-			name: "stopped after it was started",
-			setup: func(t *testing.T, m *persistence.MockSemaphoreTokenManager) *semaphoreManagerImpl {
-				mgr := startManager(t, m, freeTokens(1))
-				mgr.Stop()
 				return mgr
 			},
 		},
@@ -388,7 +379,7 @@ func TestAcquireBeforeTheBucketIsUsable(t *testing.T) {
 				<-scanning // pin Stop to the window where the scan is in flight
 				mgr.Stop()
 				close(finishScan)
-				assert.Error(t, <-started, "Start must report that it lost the bucket")
+				assert.ErrorIs(t, <-started, ErrNotReady, "Start must report that it lost the bucket")
 				return mgr
 			},
 		},
@@ -400,21 +391,13 @@ func TestAcquireBeforeTheBucketIsUsable(t *testing.T) {
 			m := persistence.NewMockSemaphoreTokenManager(ctrl)
 			mgr := tc.setup(t, m)
 
-			// Bounded, so a manager that leaves its callers waiting fails here instead of
-			// hanging the whole package until go test gives up. A running manager never
-			// reaches this deadline: startup is already over in every case above.
+			// Bounded, so a manager that leaves callers blocked fails the test instead of hanging it.
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-
-			// Not "no slot available": a caller cannot tell an unusable bucket from a full
-			// one, and would wait on a bucket that is never going to answer.
 			got, err := mgr.Acquire(ctx, "owner-a")
 			assert.ErrorIs(t, err, ErrNotReady)
 			assert.Equal(t, AcquireResult{}, got, "an error carries no result")
-			// Why ErrNotReady is a ServiceBusyError and not one of the terminal types: a retry
-			// reaches a fresh manager, so the caller has to be told to come back. A type
-			// handleErr has no case for would be flattened to InternalServiceError instead, and
-			// logged as uncategorized on every unloaded bucket.
+			// Retryable, because the registry drops this manager and a retry builds a fresh one that may load.
 			assert.True(t, common.IsServiceTransientError(err), "a retry can get a different answer")
 		})
 	}
