@@ -945,18 +945,18 @@ func (mr *MockMutableStateMockRecorder) DeleteDecision() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDecision", reflect.TypeOf((*MockMutableState)(nil).DeleteDecision))
 }
 
-// DeletePendingSemaphore mocks base method.
-func (m *MockMutableState) DeletePendingSemaphore(initiatedEventID int64) error {
+// DeleteSemaphoreInfo mocks base method.
+func (m *MockMutableState) DeleteSemaphoreInfo(initiatedEventID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeletePendingSemaphore", initiatedEventID)
+	ret := m.ctrl.Call(m, "DeleteSemaphoreInfo", initiatedEventID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeletePendingSemaphore indicates an expected call of DeletePendingSemaphore.
-func (mr *MockMutableStateMockRecorder) DeletePendingSemaphore(initiatedEventID any) *gomock.Call {
+// DeleteSemaphoreInfo indicates an expected call of DeleteSemaphoreInfo.
+func (mr *MockMutableStateMockRecorder) DeleteSemaphoreInfo(initiatedEventID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeletePendingSemaphore", reflect.TypeOf((*MockMutableState)(nil).DeletePendingSemaphore), initiatedEventID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSemaphoreInfo", reflect.TypeOf((*MockMutableState)(nil).DeleteSemaphoreInfo), initiatedEventID)
 }
 
 // DeleteSignalRequested mocks base method.

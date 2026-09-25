@@ -115,7 +115,7 @@ type (
 		DeleteDecision()
 		DeleteUserTimer(timerID string) error
 		DeleteActivity(scheduleEventID int64) error
-		DeletePendingSemaphore(initiatedEventID int64) error
+		DeleteSemaphoreInfo(initiatedEventID int64) error
 		DeleteSignalRequested(requestID string)
 		FailDecision(bool)
 		FlushBufferedEvents() error

@@ -79,11 +79,11 @@ func Test__UpsertSemaphoreInfo(t *testing.T) {
 	})
 }
 
-func Test__DeletePendingSemaphore(t *testing.T) {
+func Test__DeleteSemaphoreInfo(t *testing.T) {
 	t.Run("hold found", func(t *testing.T) {
 		mb := testMutableStateBuilder(t)
 		mb.UpsertSemaphoreInfo(testSemaphoreInfo(2))
-		err := mb.DeletePendingSemaphore(2)
+		err := mb.DeleteSemaphoreInfo(2)
 		assert.NoError(t, err)
 		assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
 		assert.NotContains(t, mb.updateSemaphoreInfos, int64(2))
@@ -93,7 +93,7 @@ func Test__DeletePendingSemaphore(t *testing.T) {
 	// is still queued for deletion so a row left behind by an earlier failure is cleaned up.
 	t.Run("hold not found", func(t *testing.T) {
 		mb := testMutableStateBuilder(t)
-		err := mb.DeletePendingSemaphore(2)
+		err := mb.DeleteSemaphoreInfo(2)
 		assert.NoError(t, err)
 		assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
 	})

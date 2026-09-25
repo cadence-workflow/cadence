@@ -35,8 +35,9 @@ func (e *mutableStateBuilder) UpsertSemaphoreInfo(
 	e.updateSemaphoreInfos[info.InitiatedID] = info
 }
 
-// DeletePendingSemaphore deletes details about a SemaphoreInfo
-func (e *mutableStateBuilder) DeletePendingSemaphore(
+// DeleteSemaphoreInfo removes the record of the hold started by initiatedEventID. It does not
+// touch the semaphore's definition or release the slot in Matching.
+func (e *mutableStateBuilder) DeleteSemaphoreInfo(
 	initiatedEventID int64,
 ) error {
 
