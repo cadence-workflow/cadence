@@ -20,7 +20,11 @@
 
 package domain
 
-import "github.com/uber/cadence/common/types"
+import (
+	"fmt"
+
+	"github.com/uber/cadence/common/types"
+)
 
 var (
 	// err indicating that this cluster is not the primary, so cannot do domain registration or update
@@ -40,3 +44,11 @@ var (
 	errInvalidRetentionPeriod = &types.BadRequestError{Message: "A valid retention period is not set on request."}
 	errInvalidArchivalConfig  = &types.BadRequestError{Message: "Invalid to enable archival without specifying a uri."}
 )
+
+// errFailoverNotFromDestinationCluster is returned when a FailoverDomain request names a
+// destination other than the cluster that received it and did not set SkipDestinationClusterCheck.
+func errFailoverNotFromDestinationCluster(currentCluster, targetCluster string) error {
+	return &types.BadRequestError{Message: fmt.Sprintf(
+		"Failover requests must be sent to the destination cluster: this request targets cluster %q but was received by cluster %q. Re-run it against the destination cluster's frontend, or set skipDestinationClusterCheck to override.",
+		targetCluster, currentCluster)}
+}
