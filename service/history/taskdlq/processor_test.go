@@ -65,22 +65,12 @@ func newMockTimerTask(ctrl *gomock.Controller, ts time.Time, taskID int64) *pers
 type newProcessorParams struct {
 	ShardID           int
 	Manager           persistence.HistoryTaskDLQManager
-	DomainCache       cache.DomainCache
+	DomainName        DomainNameFn
 	Reinjector        TaskReinjector
 	DomainMode        string
 	ProcessingEnabled bool
 	TimeSource        clock.TimeSource
 	MaxReadLevel      MaxReadLevelFn
-}
-
-// fakeIdentityDomainCache is a cache.DomainCache test double whose GetDomainName returns the
-// given ID unchanged.
-type fakeIdentityDomainCache struct {
-	cache.DomainCache
-}
-
-func (fakeIdentityDomainCache) GetDomainName(id string) (string, error) {
-	return id, nil
 }
 
 // newProcessor builds a ProcessorImpl with the given dependencies and sensible test defaults.
@@ -89,14 +79,14 @@ func newProcessor(
 	params newProcessorParams,
 ) *ProcessorImpl {
 	t.Helper()
-	domainCache := params.DomainCache
-	if domainCache == nil {
-		domainCache = fakeIdentityDomainCache{}
+	domainName := params.DomainName
+	if domainName == nil {
+		domainName = func(id string) (string, error) { return id, nil }
 	}
 	return NewProcessor(ProcessorParams{
 		ShardID:                1,
 		Manager:                params.Manager,
-		DomainCache:            domainCache,
+		DomainName:             domainName,
 		Reinjector:             params.Reinjector,
 		PageSize:               10,
 		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
@@ -1185,7 +1175,7 @@ func TestFailoverPartitions_JitterDelaysProcessing(t *testing.T) {
 	proc := NewProcessor(ProcessorParams{
 		ShardID:                1,
 		Manager:                mgr,
-		DomainCache:            fakeIdentityDomainCache{},
+		DomainName:             func(id string) (string, error) { return id, nil },
 		Reinjector:             reinjector,
 		PageSize:               10,
 		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
@@ -1238,7 +1228,7 @@ func TestFailoverPartitions_ZeroJitterProcessesImmediately(t *testing.T) {
 	proc := NewProcessor(ProcessorParams{
 		ShardID:                1,
 		Manager:                mgr,
-		DomainCache:            fakeIdentityDomainCache{},
+		DomainName:             func(id string) (string, error) { return id, nil },
 		Reinjector:             reinjector,
 		PageSize:               10,
 		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
@@ -1284,12 +1274,12 @@ func TestProcessPartition_ChecksDomainModeByDomainName(t *testing.T) {
 
 	var capturedDomain string
 	proc := NewProcessor(ProcessorParams{
-		ShardID:     1,
-		Manager:     mgr,
-		DomainCache: mockDomainCache,
-		Reinjector:  NewMockTaskReinjector(ctrl),
-		PageSize:    10,
-		Interval:    dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
+		ShardID:    1,
+		Manager:    mgr,
+		DomainName: mockDomainCache.GetDomainName,
+		Reinjector: NewMockTaskReinjector(ctrl),
+		PageSize:   10,
+		Interval:   dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
 		DomainMode: func(domain string) string {
 			capturedDomain = domain
 			return constants.HistoryTaskDLQModeDisabled
@@ -1322,12 +1312,12 @@ func TestProcessShard_ChecksDomainModeByDomainName(t *testing.T) {
 
 	var capturedDomain string
 	proc := NewProcessor(ProcessorParams{
-		ShardID:     1,
-		Manager:     store,
-		DomainCache: mockDomainCache,
-		Reinjector:  NewMockTaskReinjector(ctrl),
-		PageSize:    10,
-		Interval:    dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
+		ShardID:    1,
+		Manager:    store,
+		DomainName: mockDomainCache.GetDomainName,
+		Reinjector: NewMockTaskReinjector(ctrl),
+		PageSize:   10,
+		Interval:   dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
 		DomainMode: func(domain string) string {
 			capturedDomain = domain
 			return constants.HistoryTaskDLQModeDisabled

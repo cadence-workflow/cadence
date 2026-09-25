@@ -34,7 +34,6 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
@@ -89,10 +88,13 @@ type (
 	// of the given category in the current processing round.
 	MaxReadLevelFn func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey
 
+	// DomainNameFn resolves a domain ID to its domain name (e.g. cache.DomainCache.GetDomainName).
+	DomainNameFn func(domainID string) (string, error)
+
 	ProcessorImpl struct {
 		shardID                int
 		mgr                    persistence.HistoryTaskDLQManager
-		domainCache            cache.DomainCache
+		getDomainName          DomainNameFn
 		reinjector             TaskReinjector
 		maxReadLevel           MaxReadLevelFn
 		pageSize               int
@@ -125,10 +127,10 @@ type (
 
 	// ProcessorParams are the dependencies needed to build a Processor.
 	ProcessorParams struct {
-		ShardID     int
-		Manager     persistence.HistoryTaskDLQManager
-		DomainCache cache.DomainCache
-		Reinjector  TaskReinjector
+		ShardID    int
+		Manager    persistence.HistoryTaskDLQManager
+		DomainName DomainNameFn
+		Reinjector TaskReinjector
 		// MaxReadLevel provides the exclusive upper bound for each processing round.
 		// Optional: defaults to an unbounded read (MaximumHistoryTaskKey) when nil.
 		MaxReadLevel           MaxReadLevelFn
@@ -160,7 +162,7 @@ func NewProcessor(params ProcessorParams) *ProcessorImpl {
 	return &ProcessorImpl{
 		shardID:                params.ShardID,
 		mgr:                    params.Manager,
-		domainCache:            params.DomainCache,
+		getDomainName:          params.DomainName,
 		reinjector:             params.Reinjector,
 		maxReadLevel:           maxReadLevel,
 		pageSize:               params.PageSize,
@@ -207,7 +209,7 @@ func NewProcessorFromShard(
 	return NewProcessor(ProcessorParams{
 		ShardID:                shard.GetShardID(),
 		Manager:                shard.GetService().GetHistoryTaskDLQManager(),
-		DomainCache:            shard.GetDomainCache(),
+		DomainName:             shard.GetDomainCache().GetDomainName,
 		Reinjector:             shard,
 		MaxReadLevel:           NewShardMaxReadLevelFn(shard),
 		PageSize:               pageSize,
@@ -370,7 +372,7 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 
 // domainName resolves a domain ID to its domain name, falling back to the ID if the lookup fails.
 func (p *ProcessorImpl) domainName(domainID string) string {
-	domainName, err := p.domainCache.GetDomainName(domainID)
+	domainName, err := p.getDomainName(domainID)
 	if err != nil {
 		p.logger.Debug("Failed to get domain name from domain cache. Defaulting to domain ID.", tag.WorkflowDomainID(domainID), tag.Error(err))
 		return domainID
