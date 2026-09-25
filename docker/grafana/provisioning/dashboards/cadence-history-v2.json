@@ -4628,7 +4628,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "expr": "histogram_quantile(0.99,\n  sum by (le) (\n    rate(\n      acquire_shards_latency_ns_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"cadence[-_]history\",\n        operation=\"ShardController\"\n      }[$__rate_interval]\n    )\n  )\n)",
-                        "legendFormat": "acquire_shards_latency_ns",
+                        "legendFormat": "acquire_shards_latency",
                         "range": true
                       },
                       "version": "v0"
@@ -11841,7 +11841,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "expr": "histogram_quantile(0.99, sum by (le) (rate(task_latency_schedule_bucket{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=~\"TimerActive.*\"}[$__rate_interval])))",
-                        "legendFormat": "",
+                        "legendFormat": "active task schedule latency",
                         "range": true
                       },
                       "version": "v0"
@@ -11860,7 +11860,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "target": "fetch service: cadence-history deployment: $deployment operation:timerstandby* name:task_latency_schedule | removeEmpty | sum bucketid bucket | histogramPercentile bucketid bucket p99 | transformNull 0 | alias \"standby task schedule latency\""
+                        "expr": "histogram_quantile(0.99, sum by (le) (rate(task_latency_schedule_bucket{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=~\"TimerStandby.*\"}[$__rate_interval])))",
+                        "legendFormat": "standby task schedule latency",
+                        "range": true
                       },
                       "version": "v0"
                     },
@@ -12250,7 +12252,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "expr": "histogram_quantile(0.99, sum by (le) (rate(task_latency_schedule_bucket{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=~\"TransferActive.*\"}[$__rate_interval])))",
-                        "legendFormat": "",
+                        "legendFormat": "active task schedule latency",
                         "range": true
                       },
                       "version": "v0"
@@ -12269,7 +12271,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "target": "fetch service: cadence-history deployment: $deployment operation:transferstandby* name:task_latency_schedule | removeEmpty | sum bucketid bucket | histogramPercentile bucketid bucket p99 | transformNull 0 | alias \"standby task schedule latency\""
+                        "expr": "histogram_quantile(0.99, sum by (le) (rate(task_latency_schedule_bucket{deployment=~\"$deployment\", cadence_service=~\"cadence-history|cadence_history\", operation=~\"TransferStandby.*\"}[$__rate_interval])))",
+                        "legendFormat": "standby task schedule latency",
+                        "range": true
                       },
                       "version": "v0"
                     },
