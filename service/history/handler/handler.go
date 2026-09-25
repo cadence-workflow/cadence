@@ -61,6 +61,7 @@ import (
 	"github.com/uber/cadence/service/history/resource"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/task"
+	"github.com/uber/cadence/service/history/taskdlq"
 	"github.com/uber/cadence/service/history/workflowcache"
 )
 
@@ -87,6 +88,7 @@ type (
 		ratelimitAggregator      algorithm.RequestWeighted
 		queueFactories           []queue.Factory
 		replicationBudgetManager cache.Manager
+		dlqHostLimiter           *taskdlq.HostLimiter
 	}
 )
 
@@ -106,6 +108,7 @@ func NewHandler(
 		rateLimiter:         quotas.NewDynamicRateLimiter(config.RPS.AsFloat64()),
 		workflowIDCache:     wfCache,
 		ratelimitAggregator: resource.GetRatelimiterAlgorithm(),
+		dlqHostLimiter:      taskdlq.NewHostLimiter(config.HistoryTaskDLQProcessorHostConcurrency()),
 	}
 
 	// prevent us from trying to serve requests before shard controller is started and ready
@@ -258,6 +261,7 @@ func (h *handlerImpl) CreateEngine(
 		h.GetMatchingRawClient(),
 		h.failoverCoordinator,
 		h.queueFactories,
+		h.dlqHostLimiter,
 	)
 }
 
