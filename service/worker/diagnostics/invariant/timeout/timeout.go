@@ -101,22 +101,24 @@ func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInpu
 func (t *timeout) RootCause(ctx context.Context, params invariant.InvariantRootCauseInput) ([]invariant.InvariantRootCauseResult, error) {
 	result := make([]invariant.InvariantRootCauseResult, 0)
 	for _, issue := range params.Issues {
-		if issue.InvariantType == TimeoutTypeExecution.String() ||
-			(issue.InvariantType == TimeoutTypeActivity.String() &&
-				(issue.Reason == types.TimeoutTypeScheduleToStart.String() ||
-					issue.Reason == types.TimeoutTypeScheduleToClose.String())) {
+		isExecutionTimeout := issue.InvariantType == TimeoutTypeExecution.String()
+		isActivityTimeout := issue.InvariantType == TimeoutTypeActivity.String()
+		isScheduleToClose := issue.Reason == types.TimeoutTypeScheduleToClose.String()
+		isActivityPollerTimeout := isActivityTimeout &&
+			(issue.Reason == types.TimeoutTypeScheduleToStart.String() || isScheduleToClose)
+
+		if isExecutionTimeout || isActivityPollerTimeout {
 			pollerStatus, err := t.checkTasklist(ctx, issue, params.Domain)
 			if err != nil {
 				return nil, err
 			}
-			if issue.Reason == types.TimeoutTypeScheduleToClose.String() &&
-				pollerStatus.RootCause == invariant.RootCauseTypePollersStatus {
+			if isScheduleToClose && pollerStatus.RootCause == invariant.RootCauseTypePollersStatus {
 				pollerStatus.RootCause = invariant.RootCauseTypeScheduleToCloseTimeoutPollersStatus
 			}
 			result = append(result, pollerStatus)
 		}
 
-		if issue.InvariantType == TimeoutTypeActivity.String() {
+		if isActivityTimeout {
 			heartbeatStatus, err := checkHeartbeatStatus(issue)
 			if err != nil {
 				return nil, err
