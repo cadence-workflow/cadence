@@ -10,7 +10,6 @@ import (
 	"go.uber.org/fx/fxtest"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
@@ -28,6 +27,8 @@ func TestFxApp(t *testing.T) {
 					return testSetupParams{}, err
 				}
 				factory.EXPECT().GetTChannel().Return(tch)
+				factory.EXPECT().GetGRPCPort().Return(uint16(7833))
+				factory.EXPECT().GetTChannelPort().Return(uint16(7933))
 
 				yamlConfig := `
 ringpop:
@@ -60,7 +61,6 @@ type testSetupParams struct {
 
 	Service        string `name:"service-full-name"`
 	ConfigProvider uconfig.Provider
-	ServiceConfig  config.Service
 	Logger         log.Logger
 	RPCFactory     rpc.Factory
 }

@@ -11,7 +11,7 @@ toolchain go1.25.14
 // relative file path.
 replace github.com/uber/cadence => ../../..
 
-// ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version
+// tchannel-go depends on older version of thrift, yarpc brings up newer version
 replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
 
 require (

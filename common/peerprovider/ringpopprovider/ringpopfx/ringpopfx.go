@@ -6,7 +6,6 @@ import (
 	uconfig "go.uber.org/config"
 	"go.uber.org/fx"
 
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
@@ -23,7 +22,6 @@ type Params struct {
 
 	ServiceFullName string `name:"service-full-name"`
 	ConfigProvider  uconfig.Provider
-	ServiceConfig   config.Service
 	Logger          log.Logger
 	RPCFactory      rpc.Factory
 	Lifecycle       fx.Lifecycle
@@ -54,8 +52,8 @@ func New(params Params) (Result, error) {
 	}
 
 	provider, err := ringpopprovider.New(params.ServiceFullName, &ringpopCfg, params.RPCFactory.GetTChannel(), membership.PortMap{
-		membership.PortGRPC:     params.ServiceConfig.RPC.GRPCPort,
-		membership.PortTchannel: params.ServiceConfig.RPC.Port,
+		membership.PortGRPC:     params.RPCFactory.GetGRPCPort(),
+		membership.PortTchannel: params.RPCFactory.GetTChannelPort(),
 	}, params.Logger)
 	if err != nil {
 		return Result{}, err
