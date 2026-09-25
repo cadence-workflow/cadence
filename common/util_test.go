@@ -45,6 +45,7 @@ import (
 
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/constants"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -94,6 +95,14 @@ func TestIsServiceTransientError(t *testing.T) {
 		},
 		"ShardOwnershipLostError": {
 			err:  &types.ShardOwnershipLostError{},
+			want: true,
+		},
+		"TaskListNotOwnedByHostError": {
+			err:  &cadence_errors.TaskListNotOwnedByHostError{},
+			want: true,
+		},
+		"SemaphoreNotOwnedByHostError": {
+			err:  &cadence_errors.SemaphoreNotOwnedByHostError{},
 			want: true,
 		},
 	} {

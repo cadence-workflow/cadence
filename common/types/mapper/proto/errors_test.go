@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/yarpc/yarpcerrors"
 
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
@@ -60,6 +61,29 @@ func TestFromUnknownErrorMapsToUnknownError(t *testing.T) {
 
 	assert.True(t, yarpcerrors.IsUnknown(clientErr))
 	assert.ErrorContains(t, clientErr, err.Error())
+}
+
+func TestSemaphoreNotOwnedByHostError(t *testing.T) {
+	err := &testdata.SemaphoreNotOwnedByHostError
+	wireErr := FromError(err)
+	assert.True(t, yarpcerrors.IsAborted(wireErr))
+	assert.Equal(t, err, ToError(wireErr))
+}
+
+func TestSemaphoreNotOwnedByHostErrorFuzz(t *testing.T) {
+	seed := time.Now().UnixNano()
+	defer func() {
+		if t.Failed() {
+			t.Logf("fuzz seed: %v", seed)
+		}
+	}()
+
+	f := fuzz.NewWithSeed(seed)
+	for i := 0; i < testutils.DefaultIterations; i++ {
+		newErr := &cadence_errors.SemaphoreNotOwnedByHostError{}
+		f.Fuzz(newErr)
+		assert.Equal(t, newErr, ToError(FromError(newErr)), "iteration %d", i)
+	}
 }
 
 func TestToDeadlineExceededMapsToItself(t *testing.T) {

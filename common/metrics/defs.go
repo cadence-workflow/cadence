@@ -2540,7 +2540,10 @@ const (
 	CadenceErrStickyWorkerUnavailablePerTaskListCounter
 	CadenceErrReadOnlyPartitionPerTaskListCounter
 	CadenceErrTaskListNotOwnedByHostPerTaskListCounter
+
+	// common metrics that are emitted per semaphore
 	CadenceErrSemaphoreNotOwnedByHostCounter
+	CadenceErrSemaphoreContextTimeoutCounter
 
 	CadenceShardSuccessGauge
 	CadenceShardFailureGauge
@@ -3545,6 +3548,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		},
 		CadenceErrSemaphoreNotOwnedByHostCounter: {
 			metricName: "cadence_errors_semaphore_not_owned_by_host", metricType: Counter,
+		},
+		CadenceErrSemaphoreContextTimeoutCounter: {
+			metricName: "cadence_errors_semaphore_context_timeout", metricType: Counter,
 		},
 		CadenceShardSuccessGauge:             {metricName: "cadence_shard_success", metricType: Gauge},
 		CadenceShardFailureGauge:             {metricName: "cadence_shard_failure", metricType: Gauge},

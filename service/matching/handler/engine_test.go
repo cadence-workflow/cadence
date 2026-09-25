@@ -2097,7 +2097,8 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		assert.Nil(t, mgr)
 		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "nothing may be registered for a disabled domain")
 
-		assert.NotErrorIs(t, err, semaphore.ErrNotReady)
+		assert.IsType(t, &types.BadRequestError{}, err)
+		assert.False(t, common.IsServiceTransientError(err), "the flag will not change on a retry")
 	})
 
 	t.Run("bucket is owned by another host", func(t *testing.T) {
@@ -2317,25 +2318,43 @@ func TestAddSemaphoreTask(t *testing.T) {
 		assert.IsType(t, &types.BadRequestError{}, err)
 	})
 
-	t.Run("a bucket the ring puts elsewhere returns the ownership error unchanged", func(t *testing.T) {
-		// It has to survive as its own type: it names the host that does own the bucket, and it
-		// is what makes the caller retry rather than give up.
-		e, m := newSemaphoreEngine(t, testOtherHost)
-		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
-
-		_, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
-		var notOwned *commonerrors.SemaphoreNotOwnedByHostError
-		require.ErrorAs(t, err, &notOwned)
-		assert.Equal(t, testOtherHost.Identity(), notOwned.OwnedByIdentity, "the caller needs to be told where the bucket went")
-	})
-
-	t.Run("a domain with semaphores turned off is refused terminally", func(t *testing.T) {
+	t.Run("a request arriving while the bucket loads gives up at its own deadline", func(t *testing.T) {
 		e, m := newSemaphoreEngine(t, testSelfHost)
-		e.config.EnableDistributedSemaphore = func(string) bool { return false }
-		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+		scanning, finishScan := make(chan struct{}), make(chan struct{})
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+			func(context.Context, *persistence.ScanSemaphoreBucketRequest) (*persistence.ScanSemaphoreBucketResponse, error) {
+				close(scanning)
+				<-finishScan
+				return &persistence.ScanSemaphoreBucketResponse{}, nil
+			})
 
-		_, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
-		assert.IsType(t, &types.BadRequestError{}, err)
-		assert.False(t, common.IsServiceTransientError(err), "the flag will not change on a retry")
+		// The first request triggers the load and is held inside it.
+		firstDone := make(chan error, 1)
+		go func() {
+			_, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
+			firstDone <- err
+		}()
+		<-scanning
+		defer func() {
+			close(finishScan)
+			assert.NoError(t, <-firstDone)
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+		hCtx := newSemaphoreHandlerContextForTest()
+		hCtx.Context = ctx
+
+		secondDone := make(chan error, 1)
+		go func() {
+			_, err := e.AddSemaphoreTask(hCtx, semaphoreRequest(0, testSemaphoreOwnerID))
+			secondDone <- err
+		}()
+		select {
+		case err := <-secondDone:
+			assert.ErrorIs(t, err, context.DeadlineExceeded)
+		case <-time.After(5 * time.Second):
+			t.Fatal("the second request waited on the load instead of its own deadline")
+		}
 	})
 }

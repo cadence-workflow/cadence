@@ -548,6 +548,11 @@ func (h *handlerImpl) AddSemaphoreTask(
 	}
 
 	response, err := h.engine.AddSemaphoreTask(hCtx, request)
+	if err != nil && hCtx.Err() != nil {
+		// The caller's deadline passed or it cancelled: counted, not logged as a failure.
+		hCtx.scope.IncCounter(metrics.CadenceErrSemaphoreContextTimeoutCounter)
+		return nil, &types.InternalServiceError{Message: hCtx.Err().Error()}
+	}
 	return response, hCtx.handleErr(err)
 }
 

@@ -153,7 +153,9 @@ func (m *semaphoreManagerImpl) markStartupDone() {
 	m.startupOnce.Do(func() { close(m.startupDoneCh) })
 }
 
-// Start builds the free-set and the reverse index by scanning the partition.
+// Start builds the free-set and the reverse index by scanning the partition. Only the caller that
+// finds the manager unstarted runs the scan; the rest return at once and wait in Acquire, under
+// their own deadline rather than the scan's.
 func (m *semaphoreManagerImpl) Start(ctx context.Context) error {
 	m.mu.Lock()
 	found := m.state
@@ -165,10 +167,9 @@ func (m *semaphoreManagerImpl) Start(ctx context.Context) error {
 	switch found {
 	case managerStateCreated:
 		return m.load(ctx)
-	case managerStateStarting:
-		// A load is already in flight over the same partition, so wait for it.
-		return m.awaitStartup(ctx)
-	case managerStateRunning:
+	case managerStateStarting, managerStateRunning:
+		// A load already in flight is not waited on here: ctx carries the scan's deadline, not
+		// the caller's, and waiting under it would hold a caller long after it gave up.
 		return nil
 	default:
 		return ErrNotReady

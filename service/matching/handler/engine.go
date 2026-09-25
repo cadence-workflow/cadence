@@ -442,8 +442,9 @@ func (e *matchingEngineImpl) AddSemaphoreTask(
 	}, nil
 }
 
-// getOrCreateSemaphoreManager returns this host's manager for one bucket, started and ready to
-// serve, building it the first time the bucket is asked for.
+// getOrCreateSemaphoreManager returns this host's manager for one bucket, building it the first
+// time the bucket is asked for. The manager may still be loading when another request started it;
+// Acquire waits for that under the caller's own deadline.
 func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier) (semaphore.Manager, error) {
 	// Fast path: almost every request finds a manager already loaded, and skips the domain
 	// lookup and the ring check below.
@@ -480,11 +481,9 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 		}
 	}
 
-	// Start is called whether this request built the manager or found one already registered. It
-	// costs nothing for one already running, and waits for one still loading. Calling it on a
-	// manager someone else registered is insurance: a manager that never gets started cannot
-	// recover on its own, since its acquires block on a load nobody is running and the idle timer
-	// that would discard it is only started by that load. A failed load unregisters itself.
+	// Always call Start, even on a manager found in the registry: if the request that registered
+	// it never started it, nothing else will, and the bucket would stay stuck. Start is free when
+	// the manager is already running or loading.
 	startCtx, cancel := context.WithTimeout(context.Background(), semaphoreManagerStartTimeout)
 	defer cancel()
 	if err := mgr.Start(startCtx); err != nil {

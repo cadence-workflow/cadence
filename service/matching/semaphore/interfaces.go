@@ -9,10 +9,9 @@ type (
 	// before it can serve, and stopped once it is done serving: Acquire waits on startup, or
 	// until its own context deadline.
 	Manager interface {
-		// Start builds the free-set and the reverse index by scanning the partition. Safe to
-		// call again and from several callers at once: the first loads, the rest wait for that
-		// load, and a manager already running returns straight away. A failed load stops the
-		// manager, so the next caller builds a fresh one. A stopped manager returns ErrNotReady.
+		// Start loads the bucket by scanning its partition. Only the first call loads; later
+		// calls return at once, even while that load is still running. Returns ErrNotReady
+		// once the manager has stopped.
 		Start(ctx context.Context) error
 		// Stop shuts the manager down: later acquires get ErrNotReady. Safe to call again, and
 		// called by the manager itself once the bucket has gone IdleTTL without a request.
