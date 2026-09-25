@@ -563,6 +563,17 @@ func (s *configStoreClientSuite) TestValidateConfig_InvalidConfig() {
 	s.Error(err)
 }
 
+// testMatcherValue is a Matcher implementation used only to prove that
+// matchFilters() dispatches to Matches() for any filter-map value implementing
+// the interface, independent of which Filter key it's stored under.
+type testMatcherValue struct {
+	matches bool
+}
+
+func (v testMatcherValue) Matches(constraint interface{}) bool {
+	return v.matches
+}
+
 func (s *configStoreClientSuite) TestMatchFilters() {
 	testCases := []struct {
 		v       *types.DynamicConfigValue
@@ -680,6 +691,44 @@ func (s *configStoreClientSuite) TestMatchFilters() {
 			},
 			filters: map[dynamicproperties.Filter]interface{}{
 				dynamicproperties.TaskListName: "sample-task-list",
+			},
+			matched: false,
+		},
+		{
+			// a filter-map value implementing Matcher is dispatched to Matches(),
+			// not compared via equality
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "domainName",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper("the constraint value"),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: testMatcherValue{matches: true},
+			},
+			matched: true,
+		},
+		{
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "domainName",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper("the constraint value"),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: testMatcherValue{matches: false},
 			},
 			matched: false,
 		},
