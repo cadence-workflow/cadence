@@ -721,3 +721,65 @@ type LoadBalancerHints struct {
 	BacklogCount  int64
 	RatePerSecond float64
 }
+
+// SemaphoreAcquireOutcome says how one acquire ended. Every value is a result rather than a
+// failure; matching reports problems as errors.
+type SemaphoreAcquireOutcome int32
+
+const (
+	// SemaphoreAcquireOutcomeInvalid takes the zero value, so an outcome nobody set cannot be
+	// mistaken for a granted slot.
+	SemaphoreAcquireOutcomeInvalid SemaphoreAcquireOutcome = iota
+	SemaphoreAcquireOutcomeAcquired
+	SemaphoreAcquireOutcomeNoSlot
+)
+
+// AddSemaphoreTaskRequest asks the matching host that owns a bucket for a token slot.
+type AddSemaphoreTaskRequest struct {
+	DomainUUID    string
+	SemaphoreName string
+	// Bucket is the partition to serve from. History picks it and routes on it; with DomainUUID
+	// and SemaphoreName it names the manager that serves the request.
+	Bucket  int32
+	OwnerID string
+}
+
+// GetDomainUUID is an internal getter (TBD...)
+func (v *AddSemaphoreTaskRequest) GetDomainUUID() (o string) {
+	if v != nil {
+		return v.DomainUUID
+	}
+	return
+}
+
+// GetSemaphoreName is an internal getter (TBD...)
+func (v *AddSemaphoreTaskRequest) GetSemaphoreName() (o string) {
+	if v != nil {
+		return v.SemaphoreName
+	}
+	return
+}
+
+// GetBucket is an internal getter (TBD...)
+func (v *AddSemaphoreTaskRequest) GetBucket() (o int32) {
+	if v != nil {
+		return v.Bucket
+	}
+	return
+}
+
+// GetOwnerID is an internal getter (TBD...)
+func (v *AddSemaphoreTaskRequest) GetOwnerID() (o string) {
+	if v != nil {
+		return v.OwnerID
+	}
+	return
+}
+
+// AddSemaphoreTaskResponse reports how the acquire ended.
+type AddSemaphoreTaskResponse struct {
+	Outcome SemaphoreAcquireOutcome
+	// TokenID is the slot held, or 0 when none was granted: slot ids start at 1 and are bounded
+	// by the per-bucket token budget, so 0 is never a real slot.
+	TokenID int32
+}

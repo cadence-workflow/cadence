@@ -53,6 +53,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/rpc"
+	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
@@ -139,10 +140,9 @@ var (
 // startup, so keeping the two apart costs the caller nothing.
 const semaphoreManagerStartTimeout = 30 * time.Second
 
-// ErrSemaphoreDisabled means the domain has distributed semaphores turned off. It is terminal,
-// unlike semaphore.ErrNotReady, which means "still starting, come back": nothing will change
-// here until an operator flips the flag.
-var ErrSemaphoreDisabled = errors.New("distributed semaphore is not enabled for this domain")
+// ErrSemaphoreDisabled means the domain has distributed semaphores turned off. A BadRequestError
+// so handleErr treats it as terminal: no retry will flip the flag.
+var ErrSemaphoreDisabled = &types.BadRequestError{Message: "distributed semaphore is not enabled for this domain"}
 
 var _ Engine = (*matchingEngineImpl)(nil) // Asserts that interface is indeed implemented
 
@@ -397,8 +397,54 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	return mgr, nil
 }
 
-// getOrCreateSemaphoreManager returns this host's manager for one bucket, started and ready to
-// serve, building it the first time the bucket is asked for.
+// AddSemaphoreTask claims a token slot in one semaphore bucket for one owner.
+func (e *matchingEngineImpl) AddSemaphoreTask(
+	hCtx *handlerContext,
+	request *types.AddSemaphoreTaskRequest,
+) (*types.AddSemaphoreTaskResponse, error) {
+	domainID := request.GetDomainUUID()
+	semaphoreName := request.GetSemaphoreName()
+	bucket := int(request.GetBucket())
+	ownerID := request.GetOwnerID()
+
+	owner, err := commonsemaphore.ParseOwner(ownerID)
+	if err != nil {
+		return nil, &types.BadRequestError{Message: fmt.Sprintf("invalid owner id: %v", err)}
+	}
+
+	e.emitInfoOrDebugLog(
+		domainID,
+		"Received AddSemaphoreTask",
+		tag.WorkflowID(owner.WorkflowID),
+		tag.WorkflowRunID(owner.RunID),
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowScheduleID(owner.HoldID),
+	)
+
+	identifier, err := semaphore.NewIdentifier(domainID, semaphoreName, bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	semMgr, err := e.getOrCreateSemaphoreManager(identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := semMgr.Acquire(hCtx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.AddSemaphoreTaskResponse{
+		Outcome: resp.Outcome,
+		TokenID: int32(resp.TokenID),
+	}, nil
+}
+
+// getOrCreateSemaphoreManager returns this host's manager for one bucket, building it the first
+// time the bucket is asked for. The manager may still be loading when another request started it;
+// Acquire waits for that under the caller's own deadline.
 func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier) (semaphore.Manager, error) {
 	// Fast path: almost every request finds a manager already loaded, and skips the domain
 	// lookup and the ring check below.
@@ -435,11 +481,9 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 		}
 	}
 
-	// Start is called whether this request built the manager or found one already registered. It
-	// costs nothing for one already running, and waits for one still loading. Calling it on a
-	// manager someone else registered is insurance: a manager that never gets started cannot
-	// recover on its own, since its acquires block on a load nobody is running and the idle timer
-	// that would discard it is only started by that load. A failed load unregisters itself.
+	// Always call Start, even on a manager found in the registry: if the request that registered
+	// it never started it, nothing else will, and the bucket would stay stuck. Start is free when
+	// the manager is already running or loading.
 	startCtx, cancel := context.WithTimeout(context.Background(), semaphoreManagerStartTimeout)
 	defer cancel()
 	if err := mgr.Start(startCtx); err != nil {

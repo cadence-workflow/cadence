@@ -45,6 +45,7 @@ import (
 
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/constants"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -94,6 +95,14 @@ func TestIsServiceTransientError(t *testing.T) {
 		},
 		"ShardOwnershipLostError": {
 			err:  &types.ShardOwnershipLostError{},
+			want: true,
+		},
+		"TaskListNotOwnedByHostError": {
+			err:  &cadence_errors.TaskListNotOwnedByHostError{},
+			want: true,
+		},
+		"SemaphoreNotOwnedByHostError": {
+			err:  &cadence_errors.SemaphoreNotOwnedByHostError{},
 			want: true,
 		},
 	} {
@@ -1609,6 +1618,11 @@ func TestSecondsToDuration(t *testing.T) {
 			require.Equal(t, want, got)
 		})
 	}
+}
+
+func TestNewPerSemaphoreScope(t *testing.T) {
+	assert.NotNil(t, NewPerSemaphoreScope("test-domain", "test-semaphore", metrics.NewNoopMetricsClient(), 0))
+	assert.NotNil(t, NewPerSemaphoreScope("", "", metrics.NewNoopMetricsClient(), 0))
 }
 
 func TestNewPerTaskListScope(t *testing.T) {
