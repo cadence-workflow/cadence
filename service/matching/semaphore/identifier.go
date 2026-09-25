@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/types"
 )
 
 // Identifier names what one Manager serves: one bucket of one semaphore. A semaphore of `size`
@@ -30,13 +31,13 @@ func NewIdentifier(domainID, semaphoreName string, bucket int) (Identifier, erro
 
 func (id Identifier) validate() error {
 	if id.DomainID == "" {
-		return fmt.Errorf("%w: domainID is required", ErrInvalidRequest)
+		return &types.BadRequestError{Message: "domainID is required"}
 	}
 	if id.SemaphoreName == "" {
-		return fmt.Errorf("%w: semaphoreName is required", ErrInvalidRequest)
+		return &types.BadRequestError{Message: "semaphoreName is required"}
 	}
 	if id.Bucket < 0 {
-		return fmt.Errorf("%w: bucket must not be negative, got %d", ErrInvalidRequest, id.Bucket)
+		return &types.BadRequestError{Message: fmt.Sprintf("bucket must not be negative, got %d", id.Bucket)}
 	}
 	return nil
 }
