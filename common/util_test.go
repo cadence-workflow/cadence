@@ -1611,6 +1611,11 @@ func TestSecondsToDuration(t *testing.T) {
 	}
 }
 
+func TestNewPerSemaphoreScope(t *testing.T) {
+	assert.NotNil(t, NewPerSemaphoreScope("test-domain", "test-semaphore", metrics.NewNoopMetricsClient(), 0))
+	assert.NotNil(t, NewPerSemaphoreScope("", "", metrics.NewNoopMetricsClient(), 0))
+}
+
 func TestNewPerTaskListScope(t *testing.T) {
 	assert.NotNil(t, NewPerTaskListScope("test-domain", "test-tasklist", types.TaskListKindNormal, metrics.NewNoopMetricsClient(), 0))
 	assert.NotNil(t, NewPerTaskListScope("test-domain", "test-tasklist", types.TaskListKindSticky, metrics.NewNoopMetricsClient(), 0))

@@ -465,7 +465,7 @@ func TestAcquireHandsBackWhatTheGrantDecided(t *testing.T) {
 				m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
 					&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
 			},
-			want: AcquireResult{Outcome: AcquireOutcomeAcquired, TokenID: 7},
+			want: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 7},
 		},
 		{
 			name: "an owner that already holds one gets the same token back",
@@ -474,13 +474,13 @@ func TestAcquireHandsBackWhatTheGrantDecided(t *testing.T) {
 				m.EXPECT().GetSemaphoreOwnershipByToken(gomock.Any(), gomock.Any()).Return(
 					&persistence.GetSemaphoreOwnershipByTokenResponse{Ownership: tokenRow(5, "owner-a")}, nil)
 			},
-			want: AcquireResult{Outcome: AcquireOutcomeAlreadyHeld, TokenID: 5},
+			want: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 5},
 		},
 		{
 			// Nothing free to draw and no write to contradict the free-set.
 			name: "a full bucket answers no-slot",
 			rows: []*persistence.SemaphoreOwnership{tokenRow(1, "owner-x"), ownerRow("owner-x", 1)},
-			want: AcquireResult{Outcome: AcquireOutcomeNoSlot},
+			want: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeNoSlot},
 		},
 		{
 			// The one id on offer turns out to be held, so the free-set was wrong -- but the
@@ -492,7 +492,7 @@ func TestAcquireHandsBackWhatTheGrantDecided(t *testing.T) {
 				m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
 					&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantSlotTaken}, nil)
 			},
-			want: AcquireResult{Outcome: AcquireOutcomeNoSlot},
+			want: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeNoSlot},
 		},
 	}
 
@@ -544,7 +544,7 @@ func TestGrantOnAFreeSlot(t *testing.T) {
 
 	got, err := mgr.grant(context.Background(), "owner-a")
 	require.NoError(t, err)
-	assert.Equal(t, AcquireResult{Outcome: AcquireOutcomeAcquired, TokenID: 7}, got)
+	assert.Equal(t, AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 7}, got)
 	assert.Equal(t, 0, mgr.freeCount(), "the granted slot must leave the free-set")
 	// The other half of recordHold: without this the next acquire by owner-a would draw a
 	// second slot instead of being answered from the index.
@@ -572,7 +572,7 @@ func TestGrantRetriesADifferentSlotWhenTheWriteSaysTaken(t *testing.T) {
 
 	got, err := mgr.grant(context.Background(), "owner-a")
 	require.NoError(t, err)
-	assert.Equal(t, AcquireOutcomeAcquired, got.Outcome)
+	assert.Equal(t, types.SemaphoreAcquireOutcomeAcquired, got.Outcome)
 	require.Len(t, tried, 2)
 	assert.NotEqual(t, tried[0], tried[1], "a retry must draw a different slot")
 	assert.Equal(t, tried[1], got.TokenID)
@@ -590,7 +590,8 @@ func TestGrantGivesUpAfterMaxAttempts(t *testing.T) {
 
 	got, err := mgr.grant(context.Background(), "owner-a")
 	require.NoError(t, err)
-	assert.Equal(t, AcquireOutcomeNoSlot, got.Outcome, "giving up must under-admit, not error")
+	assert.Equal(t, types.SemaphoreAcquireOutcomeNoSlot, got.Outcome)
+	assert.Zero(t, got.TokenID)
 	assert.Equal(t, 10-maxGrantAttempts, mgr.freeCount(), "every slot proved taken stays out")
 }
 
@@ -655,7 +656,7 @@ func TestGrantWhenTheWriteSaysTheOwnerAlreadyHolds(t *testing.T) {
 
 			got, err := mgr.grant(context.Background(), "owner-a")
 			require.NoError(t, err)
-			assert.Equal(t, AcquireResult{Outcome: AcquireOutcomeAlreadyHeld, TokenID: tc.heldToken}, got)
+			assert.Equal(t, AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: tc.heldToken}, got)
 			assert.Equal(t, tc.wantFreeCount, mgr.freeCount())
 		})
 	}
@@ -687,7 +688,7 @@ func TestGrantRejectsAnAlreadyHeldWriteWithNoToken(t *testing.T) {
 
 	got, err := mgr.grant(context.Background(), "owner-a")
 	require.NoError(t, err)
-	assert.Equal(t, AcquireOutcomeAcquired, got.Outcome)
+	assert.Equal(t, types.SemaphoreAcquireOutcomeAcquired, got.Outcome)
 }
 
 // Tests that a failed write costs no slot: the id goes back every time, so an outage cannot
@@ -778,7 +779,7 @@ func TestGrantWhenTheReverseIndexIsStale(t *testing.T) {
 
 			got, err := mgr.grant(context.Background(), "owner-a")
 			require.NoError(t, err)
-			assert.Equal(t, AcquireOutcomeAcquired, got.Outcome,
+			assert.Equal(t, types.SemaphoreAcquireOutcomeAcquired, got.Outcome,
 				"a stale index entry must fall through to a normal pick")
 			assert.Equal(t, tc.wantFreeCount, mgr.freeCount())
 		})
@@ -962,7 +963,7 @@ func TestConcurrentGrantsHandOutDistinctSlots(t *testing.T) {
 	seen := make(map[int]bool, owners)
 	for i, res := range results {
 		require.NoError(t, errs[i])
-		require.Equal(t, AcquireOutcomeAcquired, res.Outcome)
+		require.Equal(t, types.SemaphoreAcquireOutcomeAcquired, res.Outcome)
 		assert.False(t, seen[res.TokenID], "slot %d handed out twice", res.TokenID)
 		seen[res.TokenID] = true
 	}
@@ -1008,26 +1009,6 @@ func TestLifecycleUnderConcurrentGrants(t *testing.T) {
 		wg.Wait()
 
 		assertFreeSetIsConsistent(t, mgr)
-	}
-}
-
-// Tests that every outcome renders a name, and that an unrecognised one renders Unknown rather
-// than an empty string.
-func TestAcquireOutcomeString(t *testing.T) {
-	tests := []struct {
-		outcome AcquireOutcome
-		want    string
-	}{
-		{AcquireOutcomeAcquired, "Acquired"},
-		{AcquireOutcomeAlreadyHeld, "AlreadyHeld"},
-		{AcquireOutcomeNoSlot, "NoSlot"},
-		{AcquireOutcomeUnknown, "Unknown"},
-		{AcquireOutcome(99), "Unknown"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.want, func(t *testing.T) {
-			assert.Equal(t, tc.want, tc.outcome.String())
-		})
 	}
 }
 
@@ -1083,7 +1064,7 @@ func TestAcquireKeepsAManagerLoaded(t *testing.T) {
 	mockClock.Advance(testIdleTTL / 2)
 	got, err := mgr.Acquire(context.Background(), "owner-a")
 	require.NoError(t, err)
-	require.Equal(t, AcquireOutcomeNoSlot, got.Outcome)
+	require.Equal(t, types.SemaphoreAcquireOutcomeNoSlot, got.Outcome)
 
 	// Past the original deadline, but within the TTL measured from the request.
 	mockClock.Advance(testIdleTTL / 2)

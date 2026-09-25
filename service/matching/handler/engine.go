@@ -53,6 +53,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/rpc"
+	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
@@ -139,10 +140,9 @@ var (
 // startup, so keeping the two apart costs the caller nothing.
 const semaphoreManagerStartTimeout = 30 * time.Second
 
-// ErrSemaphoreDisabled means the domain has distributed semaphores turned off. It is terminal,
-// unlike semaphore.ErrNotReady, which means "still starting, come back": nothing will change
-// here until an operator flips the flag.
-var ErrSemaphoreDisabled = errors.New("distributed semaphore is not enabled for this domain")
+// ErrSemaphoreDisabled means the domain has distributed semaphores turned off. A BadRequestError
+// so handleErr treats it as terminal: no retry will flip the flag.
+var ErrSemaphoreDisabled = &types.BadRequestError{Message: "distributed semaphore is not enabled for this domain"}
 
 var _ Engine = (*matchingEngineImpl)(nil) // Asserts that interface is indeed implemented
 
@@ -395,6 +395,51 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		Host:      e.config.HostName,
 	})
 	return mgr, nil
+}
+
+// AddSemaphoreTask claims a token slot in one semaphore bucket for one owner.
+func (e *matchingEngineImpl) AddSemaphoreTask(
+	hCtx *handlerContext,
+	request *types.AddSemaphoreTaskRequest,
+) (*types.AddSemaphoreTaskResponse, error) {
+	domainID := request.GetDomainUUID()
+	semaphoreName := request.GetSemaphoreName()
+	bucket := int(request.GetBucket())
+	ownerID := request.GetOwnerID()
+
+	owner, err := commonsemaphore.ParseOwner(ownerID)
+	if err != nil {
+		return nil, &types.BadRequestError{Message: fmt.Sprintf("invalid owner id: %v", err)}
+	}
+
+	e.emitInfoOrDebugLog(
+		domainID,
+		"Received AddSemaphoreTask",
+		tag.WorkflowID(owner.WorkflowID),
+		tag.WorkflowRunID(owner.RunID),
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowScheduleID(owner.HoldID),
+	)
+
+	identifier, err := semaphore.NewIdentifier(domainID, semaphoreName, bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	semMgr, err := e.getOrCreateSemaphoreManager(identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := semMgr.Acquire(hCtx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.AddSemaphoreTaskResponse{
+		Outcome: resp.Outcome,
+		TokenID: int32(resp.TokenID),
+	}, nil
 }
 
 // getOrCreateSemaphoreManager returns this host's manager for one bucket, started and ready to

@@ -1528,6 +1528,8 @@ const (
 	MatchingUpdateTaskListPartitionConfigScope
 	// MatchingRefreshTaskListPartitionConfigScope tracks RefreshTaskListPartitionConfig API calls received by service
 	MatchingRefreshTaskListPartitionConfigScope
+	// MatchingAddSemaphoreTaskScope tracks AddSemaphoreTask API calls received by service
+	MatchingAddSemaphoreTaskScope
 
 	NumMatchingScopes
 )
@@ -2267,6 +2269,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingGetTaskListsByDomainScope:           {operation: "GetTaskListsByDomain"},
 		MatchingUpdateTaskListPartitionConfigScope:  {operation: "UpdateTaskListPartitionConfig"},
 		MatchingRefreshTaskListPartitionConfigScope: {operation: "RefreshTaskListPartitionConfig"},
+		MatchingAddSemaphoreTaskScope:               {operation: "AddSemaphoreTask"},
 	},
 	// Worker Scope Names
 	Worker: {
@@ -2537,6 +2540,7 @@ const (
 	CadenceErrStickyWorkerUnavailablePerTaskListCounter
 	CadenceErrReadOnlyPartitionPerTaskListCounter
 	CadenceErrTaskListNotOwnedByHostPerTaskListCounter
+	CadenceErrSemaphoreNotOwnedByHostCounter
 
 	CadenceShardSuccessGauge
 	CadenceShardFailureGauge
@@ -3538,6 +3542,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		},
 		CadenceErrTaskListNotOwnedByHostPerTaskListCounter: {
 			metricName: "cadence_errors_task_list_not_owned_by_host_per_tl", metricRollupName: "cadence_errors_task_list_not_owned_by_host_rollup", metricType: Counter,
+		},
+		CadenceErrSemaphoreNotOwnedByHostCounter: {
+			metricName: "cadence_errors_semaphore_not_owned_by_host", metricType: Counter,
 		},
 		CadenceShardSuccessGauge:             {metricName: "cadence_shard_success", metricType: Gauge},
 		CadenceShardFailureGauge:             {metricName: "cadence_shard_failure", metricType: Gauge},

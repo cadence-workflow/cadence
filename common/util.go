@@ -994,6 +994,20 @@ func GetTaskListTag(taskListName string, taskListKind types.TaskListKind) metric
 	return taskListTag
 }
 
+func NewPerSemaphoreScope(
+	domainName string,
+	semaphoreName string,
+	client metrics.Client,
+	scopeIdx metrics.ScopeIdx,
+) metrics.Scope {
+	domainTag := metrics.DomainUnknownTag()
+	if domainName != "" {
+		domainTag = metrics.DomainTag(domainName)
+	}
+	semaphoreNameTag := metrics.SemaphoreNameTag(semaphoreName)
+	return client.Scope(scopeIdx, domainTag, semaphoreNameTag)
+}
+
 // NewPerTaskListScope creates a tasklist metrics scope
 func NewPerTaskListScope(
 	domainName string,

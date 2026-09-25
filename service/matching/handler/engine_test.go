@@ -38,6 +38,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
@@ -47,6 +48,7 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
@@ -2256,4 +2258,84 @@ func TestStopSemaphoreManagers(t *testing.T) {
 		_, err := mgr.Acquire(context.Background(), "owner-1")
 		assert.ErrorIs(t, err, semaphore.ErrNotReady, "manager %d was left running", i)
 	}
+}
+
+// testSemaphoreOwnerID is built through the encoder rather than written out, so it is canonical
+// the same way a real owner id is.
+var testSemaphoreOwnerID = commonsemaphore.Owner{WorkflowID: "wf-1", RunID: "run-1", HoldID: 7}.String()
+
+func newSemaphoreHandlerContextForTest() *handlerContext {
+	return &handlerContext{
+		Context: context.Background(),
+		scope:   metrics.NewNoopMetricsClient().Scope(0),
+		logger:  log.NewNoop(),
+	}
+}
+
+func semaphoreRequest(bucket int32, ownerID string) *types.AddSemaphoreTaskRequest {
+	return &types.AddSemaphoreTaskRequest{
+		DomainUUID:    testSemaphoreDomainID,
+		SemaphoreName: testSemaphoreName,
+		Bucket:        bucket,
+		OwnerID:       ownerID,
+	}
+}
+
+func TestAddSemaphoreTask(t *testing.T) {
+	t.Run("a free slot is granted and named in the response", func(t *testing.T) {
+		e, m := newSemaphoreEngine(t, testSelfHost)
+		expectOneScan(m, 3)
+		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
+			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
+
+		resp, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
+		require.NoError(t, err)
+		assert.Equal(t, types.SemaphoreAcquireOutcomeAcquired, resp.Outcome)
+		assert.GreaterOrEqual(t, resp.TokenID, int32(1), "slot ids start at 1, so 0 would mean no slot")
+	})
+
+	t.Run("a full bucket answers no-slot rather than an error", func(t *testing.T) {
+		// Nothing is wrong: the caller asked and the answer is no. Reporting it as an error would
+		// make an ordinary saturated semaphore look like a fault.
+		e, m := newSemaphoreEngine(t, testSelfHost)
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).
+			Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
+
+		resp, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
+		require.NoError(t, err)
+		assert.Equal(t, types.SemaphoreAcquireOutcomeNoSlot, resp.Outcome)
+		assert.Zero(t, resp.TokenID)
+	})
+
+	t.Run("an owner id that cannot be decoded is refused before any store call", func(t *testing.T) {
+		// Reconciliation reads the stored owner id to attribute a held slot to a workflow, so one
+		// it cannot decode names a hold nothing could ever recover.
+		e, m := newSemaphoreEngine(t, testSelfHost)
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, "not-an-owner-id"))
+		assert.IsType(t, &types.BadRequestError{}, err)
+	})
+
+	t.Run("a bucket the ring puts elsewhere returns the ownership error unchanged", func(t *testing.T) {
+		// It has to survive as its own type: it names the host that does own the bucket, and it
+		// is what makes the caller retry rather than give up.
+		e, m := newSemaphoreEngine(t, testOtherHost)
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
+		var notOwned *commonerrors.SemaphoreNotOwnedByHostError
+		require.ErrorAs(t, err, &notOwned)
+		assert.Equal(t, testOtherHost.Identity(), notOwned.OwnedByIdentity, "the caller needs to be told where the bucket went")
+	})
+
+	t.Run("a domain with semaphores turned off is refused terminally", func(t *testing.T) {
+		e, m := newSemaphoreEngine(t, testSelfHost)
+		e.config.EnableDistributedSemaphore = func(string) bool { return false }
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
+		assert.IsType(t, &types.BadRequestError{}, err)
+		assert.False(t, common.IsServiceTransientError(err), "the flag will not change on a retry")
+	})
 }
