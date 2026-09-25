@@ -63,9 +63,10 @@ type AcquireResult struct {
 	TokenID int
 }
 
-// ErrNotReady means this host cannot answer for the bucket: not started, scan failed, or stopped.
-// It is a ServiceBusyError so callers retry, and so Matching's handleErr passes it through
-// instead of logging it as an unexpected failure.
+// ErrNotReady means this manager was stopped and can no longer serve its bucket: its load
+// failed, it went idle, the bucket moved to another host, or the engine shut down. It is a
+// ServiceBusyError so callers retry, and so Matching's handleErr passes it through instead of
+// logging it as an unexpected failure.
 var ErrNotReady = &types.ServiceBusyError{Message: "semaphore manager is not ready"}
 
 // managerState gates Acquire. A Manager only moves forward: created to running, or either to
