@@ -864,7 +864,7 @@ func TestStop_WhenLoopIsStuck_ReturnsContextError(t *testing.T) {
 	defer close(release)
 
 	ts.BlockUntil(1)
-	ts.Advance(defaultTestProcessingInterval)
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
 	select {
 	case <-inGetAckLevels:
 	case <-time.After(5 * time.Second):
@@ -948,7 +948,7 @@ func TestStart_WhenParentContextCanceled_LoopExitsAndStopReturns(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("processing loop did not exit after parent context cancellation")
 	}
-	ts.Advance(defaultTestProcessingInterval)
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
 
 	// Stop still transitions cleanly and returns promptly.
 	require.NoError(t, proc.Stop(context.Background()))
@@ -1280,8 +1280,8 @@ func TestFailoverPartitions_JitterDelaysProcessing(t *testing.T) {
 		return nil, nil
 	})
 
-	proc.Start()
-	defer proc.Stop()
+	require.NoError(t, proc.Start(context.Background()))
+	defer proc.Stop(context.Background())
 	ts.BlockUntil(1) // the periodic sweep timer is armed
 
 	proc.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
@@ -1333,8 +1333,8 @@ func TestFailoverPartitions_ZeroJitterProcessesImmediately(t *testing.T) {
 		return nil, nil
 	})
 
-	proc.Start()
-	defer proc.Stop()
+	require.NoError(t, proc.Start(context.Background()))
+	defer proc.Stop(context.Background())
 
 	proc.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
 	select {
