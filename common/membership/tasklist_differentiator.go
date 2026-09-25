@@ -6,7 +6,7 @@ import (
 	"github.com/dgryski/go-farm"
 )
 
-const uuidRegex = `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`
+const uuidRegex = `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{10,12}`
 
 var uuidRegexp = regexp.MustCompile(uuidRegex)
 
