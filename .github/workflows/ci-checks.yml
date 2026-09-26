@@ -73,8 +73,12 @@ jobs:
 
 
   golang-integration-test-with-cassandra:
-    name: Golang integration test with cassandra
+    name: Golang integration test with cassandra (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -94,18 +98,22 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-cassandra-integration-coverage
+          name: go-cassandra-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
   golang-integration-test-with-cassandra-running-history-queue-v2:
-    name: Golang integration test with running history queue v2
+    name: Golang integration test with running history queue v2 (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -124,18 +132,22 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2 bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-cassandra-queue-v2 bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-cassandra-running-history-queue-v2-integration-coverage
+          name: go-cassandra-running-history-queue-v2-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
   golang-integration-test-with-cassandra-running-history-queue-v2-alert:
-    name: Golang integration test with running history queue v2 with alert
+    name: Golang integration test with running history queue v2 with alert (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
     continue-on-error: true
 
     steps:
@@ -155,18 +167,22 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2-alert bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-cassandra-queue-v2-alert bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-cassandra-running-history-queue-v2-alert-integration-coverage
+          name: go-cassandra-running-history-queue-v2-alert-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
   golang-integration-test-with-cassandra-and-elasticsearch-v7:
-    name: Golang integration test with cassandra and elasticsearch v7
+    name: Golang integration test with cassandra and elasticsearch v7 (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -186,13 +202,13 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose-es7.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-cassandra-and-elasticsearch-v7-integration-coverage
+          name: go-cassandra-and-elasticsearch-v7-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
 
@@ -229,8 +245,12 @@ jobs:
 
 
   golang-integration-test-with-cassandra-with-opensearch-v2:
-    name: Golang integration test with cassandra with opensearch v2
+    name: Golang integration test with cassandra with opensearch v2 (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -250,13 +270,13 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose-opensearch2.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-cassandra-and-opensearch-v2-integration-coverage
+          name: go-cassandra-and-opensearch-v2-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
 
@@ -293,8 +313,12 @@ jobs:
 
 
   golang-integration-test-with-mysql:
-    name: Golang integration test with mysql
+    name: Golang integration test with mysql (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -314,13 +338,13 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-mysql bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-mysql-integration-coverage
+          name: go-mysql-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
           
 
@@ -357,8 +381,12 @@ jobs:
 
 
   golang-integration-test-with-postgres:
-    name: Golang integration test with postgres
+    name: Golang integration test with postgres (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -378,19 +406,23 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-postgres bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-postgres-integration-coverage
+          name: go-postgres-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
              
 
   golang-integration-test-with-sqlite:
-    name: Golang integration test with sqlite
+    name: Golang integration test with sqlite (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -409,13 +441,13 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite bash -c "make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-sqlite bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-sqlite-integration-coverage
+          name: go-sqlite-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
 
