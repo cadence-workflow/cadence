@@ -81,6 +81,21 @@ persistence:
                 maxConns: 20
                 maxIdleConns: 20
                 maxConnLifetime: "1h"
+        {{- else if eq $db "sqlite" }}
+        default:
+            sql:
+                pluginName: "sqlite"
+                databaseName: "{{ default .Env.DBNAME "/tmp/cadence.db" }}"
+                maxConns: 1
+                maxIdleConns: 1
+                maxConnLifetime: "128h"
+        visibility:
+            sql:
+                pluginName: "sqlite"
+                databaseName: "{{ default .Env.VISIBILITY_DBNAME "/tmp/cadence_visibility.db" }}"
+                maxConns: 1
+                maxIdleConns: 1
+                maxConnLifetime: "128h"
         {{- end }}
         {{- if eq $es "true" }}
         es-visibility:

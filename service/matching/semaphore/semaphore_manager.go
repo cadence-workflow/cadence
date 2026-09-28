@@ -101,21 +101,21 @@ func validateParams(p ManagerParams) error {
 		return err
 	}
 	if p.Tokens == nil {
-		return &types.BadRequestError{Message: "ManagerParams.Tokens is required"}
+		return fmt.Errorf("ManagerParams.Tokens is required")
 	}
 	if p.Logger == nil {
-		return &types.BadRequestError{Message: "ManagerParams.Logger is required"}
+		return fmt.Errorf("ManagerParams.Logger is required")
 	}
 	// Rejected rather than passed through: liveness builds a ticker from this and a
 	// non-positive interval panics, which would take the host down on a bad config value.
 	if p.IdleTTL <= 0 {
-		return &types.BadRequestError{Message: "ManagerParams.IdleTTL must be positive"}
+		return fmt.Errorf("ManagerParams.IdleTTL must be positive")
 	}
 	if p.OnStopFn == nil {
-		return &types.BadRequestError{Message: "ManagerParams.OnStopFn is required"}
+		return fmt.Errorf("ManagerParams.OnStopFn is required")
 	}
 	if p.TimeSource == nil {
-		return &types.BadRequestError{Message: "ManagerParams.TimeSource is required"}
+		return fmt.Errorf("ManagerParams.TimeSource is required")
 	}
 	return nil
 }
@@ -123,7 +123,7 @@ func validateParams(p ManagerParams) error {
 // NewManager builds the manager for one bucket, call Start before Acquire.
 func NewManager(p ManagerParams) (Manager, error) {
 	if err := validateParams(p); err != nil {
-		return nil, err
+		return nil, &types.BadRequestError{Message: err.Error()}
 	}
 	m := &semaphoreManagerImpl{
 		id:            p.ID,
@@ -344,6 +344,7 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 			// Keeping it out would lose a slot per failed write, emptying the free-set.
 			m.unreserve(tokenID)
 			return AcquireResult{}, err
+			return AcquireResult{}, err
 		}
 
 		switch resp.Outcome {
@@ -365,6 +366,7 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 				// held_token: a corrupt row or a store bug. Recording it
 				// would leave this owner failing every later acquire on a token that cannot exist.
 				return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("grant reported an already-held slot without a token for bucket %v", m.id)}
+				return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("grant reported an already-held slot without a token for bucket %v", m.id)}
 			}
 			m.recordHold(ownerID, resp.HeldToken)
 			return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: resp.HeldToken}, nil
@@ -374,6 +376,7 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 			// but that is one store's guarantee, not the interface's, so check anyway. An
 			// outcome we cannot read says nothing about the slot, so the id goes back.
 			m.unreserve(tokenID)
+			return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("unexpected grant outcome %v for bucket %v", resp.Outcome, m.id)}
 			return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("unexpected grant outcome %v for bucket %v", resp.Outcome, m.id)}
 		}
 	}
