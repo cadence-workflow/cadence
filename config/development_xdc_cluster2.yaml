@@ -73,6 +73,7 @@ clusterGroupMetadata:
   primaryClusterName: "cluster0"
   currentClusterName: "cluster2"
   clusterRedirectionPolicy:
+    # the "-v3" variants ("selected-apis-forwarding-v3", "all-domain-apis-forwarding-v3") also forward StartWorkflowExecutionAsync and SignalWithStartWorkflowExecutionAsync to the active cluster at accept time, instead of enqueuing locally and forwarding when the async consumer processes the message
     policy: "all-domain-apis-forwarding" # if network communication overhead between clusters is high, consider use "selected-apis-forwarding" instead, but workflow/activity workers need to be connected to each cluster to keep high availability
   clusterGroup:
     cluster0:

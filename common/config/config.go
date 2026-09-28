@@ -443,6 +443,15 @@ type (
 		// 4) "selected-apis-forwarding-v2" will forward all of "selected-apis-forwarding", and also activity responses
 		// and heartbeats, but not other worker APIs.
 		//
+		// 5) "selected-apis-forwarding-v3" (and "all-domain-apis-forwarding-v3") forward everything "-v2" does,
+		// plus the two async start APIs (StartWorkflowExecutionAsync, SignalWithStartWorkflowExecutionAsync).
+		// Trade-off: with a "-v3" policy, an async request received by a passive region fails immediately if the
+		// active region is unreachable, whereas pre-v3 policies enqueue the request locally and drain it later
+		// once the active region becomes reachable again.
+		// Rollout: a frontend binary that predates the "-v3" names panics at startup on an unknown policy, so switch
+		// the config to "-v3" only after every frontend runs a binary that knows it, and revert the config before
+		// rolling the binary back.
+		//
 		// "selected-apis-forwarding(-v2)" and "all-domain-apis-forwarding" can work with EnableDomainNotActiveAutoForwarding dynamicconfig to select certain domains using the policy.
 		//
 		// Usage recommendation: when enabling XDC(global domain) feature, either "all-domain-apis-forwarding" or "selected-apis-forwarding(-v2)" should be used to ensure seamless domain failover(high availability)

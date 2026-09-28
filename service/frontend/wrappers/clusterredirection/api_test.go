@@ -77,6 +77,25 @@ func TestForwardingPolicyV2ContainsV1(t *testing.T) {
 	}
 }
 
+func TestForwardingPolicyV3ContainsV2(t *testing.T) {
+	require.NotEqual(t, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2)
+	for k := range selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2 {
+		_, ok := selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3[k]
+		require.True(t, ok, "v3 does not contain a key that is in v2: %v", k)
+	}
+
+	diff := map[string]struct{}{}
+	for k := range selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3 {
+		if _, ok := selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2[k]; !ok {
+			diff[k] = struct{}{}
+		}
+	}
+	require.Equal(t, map[string]struct{}{
+		"StartWorkflowExecutionAsync":           {},
+		"SignalWithStartWorkflowExecutionAsync": {},
+	}, diff, "v3 minus v2 must be exactly the two async start APIs")
+}
+
 func TestClusterRedirectionHandlerSuite(t *testing.T) {
 	s := new(clusterRedirectionHandlerSuite)
 	suite.Run(t, s)
