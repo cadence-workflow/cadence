@@ -111,6 +111,12 @@ type historyEngineImpl struct {
 	failoverMarkerNotifier    failover.MarkerNotifier
 	dlqProcessor              taskdlq.Processor
 
+	// lifecycleCtx is the parent context for background components owned by this
+	// engine (currently the DLQ processor). It is created in Start and canceled in
+	// Stop, so their lifetime is bounded by the engine's.
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
+
 	updateWithActionFn func(
 		context.Context,
 		log.Logger,
@@ -299,6 +305,7 @@ func NewEngineWithShardContext(
 		shard,
 		100,
 		config.HistoryTaskDLQProcessorInterval,
+		config.HistoryTaskDLQProcessorFailoverJitterMaxDelay,
 		config.HistoryTaskDLQMode,
 		config.HistoryTaskDLQProcessorEnabled,
 	)
@@ -317,7 +324,12 @@ func (e *historyEngineImpl) Start() {
 	for _, processor := range e.queueProcessors {
 		processor.Start()
 	}
-	e.dlqProcessor.Start()
+	// TODO(https://github.com/cadence-workflow/cadence/issues/8577): derive this from a
+	// context passed down by the shard controller once Engine implements common.DaemonV2.
+	e.lifecycleCtx, e.lifecycleCancel = context.WithCancel(context.Background())
+	if err := e.dlqProcessor.Start(e.lifecycleCtx); err != nil {
+		e.logger.Error("failed to start history task DLQ processor", tag.Error(err))
+	}
 	e.replicationDLQHandler.Start()
 	e.replicationMetricsEmitter.Start()
 
@@ -345,7 +357,15 @@ func (e *historyEngineImpl) Stop() {
 	for _, processor := range e.queueProcessors {
 		processor.Stop()
 	}
-	e.dlqProcessor.Stop()
+	if e.lifecycleCancel != nil {
+		e.lifecycleCancel()
+	}
+	// TODO(https://github.com/cadence-workflow/cadence/issues/8577): bound this by the
+	// shutdown context passed down by the shard controller once Engine implements
+	// common.DaemonV2.
+	if err := e.dlqProcessor.Stop(context.Background()); err != nil {
+		e.logger.Error("failed to stop history task DLQ processor", tag.Error(err))
+	}
 	e.replicationDLQHandler.Stop()
 	e.replicationMetricsEmitter.Stop()
 

@@ -439,7 +439,7 @@ func rootCauseHeartBeatRelated(rootCause invariant.RootCause) bool {
 }
 
 func rootCausePollersRelated(rootCause invariant.RootCause) bool {
-	for _, rc := range []invariant.RootCause{invariant.RootCauseTypePollersStatus, invariant.RootCauseTypeMissingPollers} {
+	for _, rc := range []invariant.RootCause{invariant.RootCauseTypePollersStatus, invariant.RootCauseTypeMissingPollers, invariant.RootCauseTypeScheduleToCloseTimeoutPollersStatus} {
 		if rc == rootCause {
 			return true
 		}

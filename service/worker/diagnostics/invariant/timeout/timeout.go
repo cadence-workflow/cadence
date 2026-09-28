@@ -101,15 +101,24 @@ func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInpu
 func (t *timeout) RootCause(ctx context.Context, params invariant.InvariantRootCauseInput) ([]invariant.InvariantRootCauseResult, error) {
 	result := make([]invariant.InvariantRootCauseResult, 0)
 	for _, issue := range params.Issues {
-		if issue.InvariantType == TimeoutTypeActivity.String() || issue.InvariantType == TimeoutTypeExecution.String() {
+		isExecutionTimeout := issue.InvariantType == TimeoutTypeExecution.String()
+		isActivityTimeout := issue.InvariantType == TimeoutTypeActivity.String()
+		isScheduleToClose := issue.Reason == types.TimeoutTypeScheduleToClose.String()
+		isActivityPollerTimeout := isActivityTimeout &&
+			(issue.Reason == types.TimeoutTypeScheduleToStart.String() || isScheduleToClose)
+
+		if isExecutionTimeout || isActivityPollerTimeout {
 			pollerStatus, err := t.checkTasklist(ctx, issue, params.Domain)
 			if err != nil {
 				return nil, err
 			}
+			if isScheduleToClose && pollerStatus.RootCause == invariant.RootCauseTypePollersStatus {
+				pollerStatus.RootCause = invariant.RootCauseTypeScheduleToCloseTimeoutPollersStatus
+			}
 			result = append(result, pollerStatus)
 		}
 
-		if issue.InvariantType == TimeoutTypeActivity.String() {
+		if isActivityTimeout {
 			heartbeatStatus, err := checkHeartbeatStatus(issue)
 			if err != nil {
 				return nil, err
@@ -158,8 +167,8 @@ func (t *timeout) checkTasklist(ctx context.Context, issue invariant.InvariantCh
 
 	tasklistBacklog := resp.GetTaskListStatus().GetBacklogCountHint()
 	polllersMetadataInBytes := invariant.MarshalData(PollersMetadata{
-		TaskListName:    taskList.Name,
-		TaskListBacklog: tasklistBacklog,
+		TaskListName:           taskList.Name,
+		CurrentTaskListBacklog: tasklistBacklog,
 	})
 	if len(resp.GetPollers()) == 0 {
 		return invariant.InvariantRootCauseResult{

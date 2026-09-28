@@ -887,7 +887,7 @@
                         "editorMode": "code",
                         "expr": "histogram_quantile(\n  50 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_rollup_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$services\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)",
                         "instant": false,
-                        "legendFormat": "__auto",
+                        "legendFormat": "{{operation}}",
                         "range": true
                       },
                       "version": "v0"
@@ -4091,7 +4091,7 @@
                       "spec": {
                         "editorMode": "code",
                         "expr": "histogram_quantile(\n  50 / 100,\n  sum by (host, le) (\n    rate(\n      persistence_latency_histogram_per_host_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n        operation=\"persistence_operations\"\n      }[$__rate_interval]\n    )\n  )\n)",
-                        "legendFormat": "__auto",
+                        "legendFormat": "{{host}}",
                         "range": true,
                         "target": "fetch  deployment:$deployment service:$services name:persistence_latency_histogram_per_host operation:persistence_operations\n| removeEmpty \n| transformNull 0 | sum bucketid bucket host\n| histogramPercentile bucketid bucket 99\n| sort max\n| aliasByTags host"
                       },
@@ -4383,7 +4383,7 @@
                       "spec": {
                         "editorMode": "code",
                         "expr": "histogram_quantile(\n  99 / 100,\n  sum by (host, le) (\n    rate(\n      persistence_latency_histogram_per_host_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n        operation=\"persistence_operations\"\n      }[$__rate_interval]\n    )\n  )\n)",
-                        "legendFormat": "__auto",
+                        "legendFormat": "{{host}}",
                         "range": true,
                         "target": "fetch  deployment:$deployment service:$services name:persistence_latency_histogram_per_host operation:persistence_operations\n| removeEmpty \n| transformNull 0 | sum bucketid bucket host\n| histogramPercentile bucketid bucket 99\n| sort max\n| aliasByTags host"
                       },
@@ -4506,7 +4506,7 @@
                       "spec": {
                         "editorMode": "code",
                         "expr": "histogram_quantile(\n  99.9 / 100,\n  sum by (host, le) (\n    rate(\n      persistence_latency_histogram_per_host_bucket{\n        deployment=~\"$deployment\",\n        cadence_service=~\"$services\",\n        operation=\"persistence_operations\"\n      }[$__rate_interval]\n    )\n  )\n)",
-                        "legendFormat": "__auto",
+                        "legendFormat": "{{host}}",
                         "range": true,
                         "target": "fetch  deployment:$deployment service:$services name:persistence_latency_histogram_per_host operation:persistence_operations\n| removeEmpty \n| transformNull 0 | sum bucketid bucket host\n| histogramPercentile bucketid bucket 99\n| sort max\n| aliasByTags host"
                       },
@@ -4797,7 +4797,7 @@
                         "editorMode": "code",
                         "expr": "histogram_quantile(\n  99 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_rollup_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$services\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)",
                         "instant": false,
-                        "legendFormat": "__auto",
+                        "legendFormat": "{{operation}}",
                         "range": true
                       },
                       "version": "v0"
@@ -4942,7 +4942,7 @@
                         "editorMode": "code",
                         "expr": "histogram_quantile(\n  99.9 / 100,\n  sum by (le, operation) (\n    rate(persistence_latency_ns_rollup_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"$services\",\n      operation=~\"$operation\"\n    }[$__rate_interval])\n  )\n)",
                         "instant": false,
-                        "legendFormat": "__auto",
+                        "legendFormat": "{{operation}}",
                         "range": true
                       },
                       "version": "v0"

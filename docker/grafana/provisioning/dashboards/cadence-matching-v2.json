@@ -270,7 +270,7 @@
                       "spec": {
                         "editorMode": "code",
                         "expr": "histogram_quantile(\n  0.5,\n  sum by (operation, le) (\n    rate(cadence_latency_per_tl_ns_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-matching|cadence_matching\",\n      operation=~\"$procedure\",\n      domain=~\"$domain\",\n      tasklist=~\"$tasklist\"\n    }[$__rate_interval])\n  )\n) ",
-                        "legendFormat": "__auto",
+                        "legendFormat": "{{operation}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment domain:$domain tasklist:$tasklist operation:addactivitytask name:cadence_latency_per_tl_ns caller:cadence-history\n| removeEmpty\n| sum bucketid bucket name\n| histogramPercentile bucketid bucket p99\n| transformNull 0\n| aliasByTags histogramPercentile",
                         "range": true
                       },
@@ -5816,7 +5816,7 @@
                       "spec": {
                         "editorMode": "code",
                         "expr": "sum by (operation)(rate(cadence_errors_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
-                        "legendFormat": "{{metric}}",
+                        "legendFormat": "{{operation}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment domain:$domain tasklist:$tasklist operation:addactivitytask type:counter caller:cadence-history | scaleToSeconds 1 | sum name | aliasByTags name",
                         "range": true
                       },
@@ -6126,7 +6126,7 @@
                       "spec": {
                         "editorMode": "code",
                         "expr": "histogram_quantile(\n  0.99,\n  sum by (operation, le) (\n    rate(cadence_latency_per_tl_ns_bucket{\n      deployment=~\"$deployment\",\n      cadence_service=~\"cadence-matching|cadence_matching\",\n      operation=~\"$procedure\",\n      domain=~\"$domain\",\n      tasklist=~\"$tasklist\"\n    }[$__rate_interval])\n  )\n) ",
-                        "legendFormat": "__auto",
+                        "legendFormat": "{{operation}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment domain:$domain tasklist:$tasklist operation:addactivitytask name:cadence_latency_per_tl_ns caller:cadence-history\n| removeEmpty\n| sum bucketid bucket name\n| histogramPercentile bucketid bucket p99\n| transformNull 0\n| aliasByTags histogramPercentile",
                         "range": true
                       },
@@ -10802,7 +10802,7 @@
                       "spec": {
                         "editorMode": "code",
                         "expr": "sum by (operation)(rate(cadence_requests_per_tl{deployment=~\"$deployment\", cadence_service=~\"cadence-matching|cadence_matching\", domain=~\"$domain\", tasklist=~\"$tasklist\"}[$__rate_interval]))",
-                        "legendFormat": "{{metric}}",
+                        "legendFormat": "{{operation}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment domain:$domain tasklist:$tasklist operation:addactivitytask type:counter caller:cadence-history | scaleToSeconds 1 | sum name | aliasByTags name",
                         "range": true
                       },

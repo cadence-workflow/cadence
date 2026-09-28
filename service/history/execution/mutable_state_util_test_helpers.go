@@ -54,6 +54,10 @@ func CreatePersistenceMutableState(t *testing.T, ms MutableState) *persistence.W
 	for id, info := range builder.GetPendingSignalExternalInfos() {
 		signalInfos[id] = CopySignalInfo(t, info)
 	}
+	semaphoreInfos := make(map[int64]*persistence.SemaphoreInfo)
+	for id, info := range builder.GetPendingSemaphoreInfos() {
+		semaphoreInfos[id] = CopySemaphoreInfo(t, info)
+	}
 	childInfos := make(map[int64]*persistence.ChildExecutionInfo)
 	for id, info := range builder.GetPendingChildExecutionInfos() {
 		childInfos[id] = CopyChildInfo(t, info)
@@ -79,6 +83,7 @@ func CreatePersistenceMutableState(t *testing.T, ms MutableState) *persistence.W
 		TimerInfos:          timerInfos,
 		BufferedEvents:      bufferedEvents,
 		SignalInfos:         signalInfos,
+		SemaphoreInfos:      semaphoreInfos,
 		RequestCancelInfos:  cancellationInfos,
 		ChildExecutionInfos: childInfos,
 		VersionHistories:    versionHistories,
@@ -230,6 +235,18 @@ func CopySignalInfo(t *testing.T, sourceInfo *persistence.SignalInfo) *persisten
 		SignalName:            sourceInfo.SignalName,
 		Input:                 slices.Clone(sourceInfo.Input),
 		Control:               slices.Clone(sourceInfo.Control),
+	}
+}
+
+// CopySemaphoreInfo copies SemaphoreInfo
+func CopySemaphoreInfo(t *testing.T, sourceInfo *persistence.SemaphoreInfo) *persistence.SemaphoreInfo {
+	return &persistence.SemaphoreInfo{
+		Version:         sourceInfo.Version,
+		InitiatedID:     sourceInfo.InitiatedID,
+		SemaphoreName:   sourceInfo.SemaphoreName,
+		OwnerID:         sourceInfo.OwnerID,
+		TokenID:         sourceInfo.TokenID,
+		AcquireDeadline: sourceInfo.AcquireDeadline,
 	}
 }
 

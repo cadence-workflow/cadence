@@ -110,7 +110,7 @@
                         "editorMode": "code",
                         "expr": "sum by(operation)(rate(cadence_requests{deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", operation=~\"$procedure\", signalname!~\".+\"}[$__rate_interval])) ",
                         "key": 0.5190158647646326,
-                        "legendFormat": "{{metric}}",
+                        "legendFormat": "{{operation}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:cadence_{errors_*} operation:startworkflowexecution | transformNull 0 | sum name | scaleToSeconds 1 | aliasByTags name",
                         "range": true
                       },
@@ -1354,7 +1354,7 @@
                         "editorMode": "code",
                         "expr": "sum by(operation)(rate(cadence_errors{deployment=~\"$deployment\", cadence_service=~\"cadence-frontend|cadence_frontend\", operation=~\"$procedure\", signalname!~\".+\"}[$__rate_interval])) ",
                         "key": 0.5190158647646326,
-                        "legendFormat": "{{metric}}",
+                        "legendFormat": "{{operation}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:cadence_{errors_*} operation:startworkflowexecution | transformNull 0 | sum name | scaleToSeconds 1 | aliasByTags name",
                         "range": true
                       },
@@ -1504,7 +1504,7 @@
                         "editorMode": "code",
                         "expr": "100 * (\n  1 -\n  (\n    (\n      sum by (operation) (\n        rate(cadence_errors{\n          deployment=~\"$deployment\",\n          cadence_service=~\"cadence-frontend|cadence_frontend\",\n          operation=~\"$procedure\",\n          signalname!~\".+\"\n        }[$__rate_interval])\n      )\n      or on (operation)\n      (\n        sum by (operation) (\n          rate(cadence_requests{\n            deployment=~\"$deployment\",\n            cadence_service=~\"cadence-frontend|cadence_frontend\",\n            operation=~\"$procedure\",\n            signalname!~\".+\"\n          }[$__rate_interval])\n        ) * 0\n      )\n    )\n    /\n    sum by (operation) (\n      rate(cadence_requests{\n        deployment=~\"$deployment\",\n        cadence_service=~\"cadence-frontend|cadence_frontend\",\n        operation=~\"$procedure\",\n        signalname!~\".+\"\n      }[$__rate_interval])\n    )\n  )\n)",
                         "key": 0.5190158647646326,
-                        "legendFormat": "{{metric}}",
+                        "legendFormat": "{{operation}}",
                         "m3ql_original": "fetch service:$service deployment:$deployment name:cadence_{errors_*} operation:startworkflowexecution | transformNull 0 | sum name | scaleToSeconds 1 | aliasByTags name",
                         "range": true
                       },

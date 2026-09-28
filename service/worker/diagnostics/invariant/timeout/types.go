@@ -39,8 +39,8 @@ type ActivityTimeoutMetadata struct {
 }
 
 type PollersMetadata struct {
-	TaskListName    string
-	TaskListBacklog int64
+	TaskListName           string
+	CurrentTaskListBacklog int64
 }
 
 type HeartbeatingMetadata struct {

@@ -17,13 +17,13 @@ import (
 )
 
 const (
-	workflowTimeoutSecond = int32(110)
-	taskTimeoutSecond     = int32(50)
-	testTimeStamp         = int64(2547596872371000000)
-	timeUnit              = time.Second
-	testTasklist          = "test-tasklist"
-	testDomain            = "test-domain"
-	testTaskListBacklog   = int64(10)
+	workflowTimeoutSecond      = int32(110)
+	taskTimeoutSecond          = int32(50)
+	testTimeStamp              = int64(2547596872371000000)
+	timeUnit                   = time.Second
+	testTasklist               = "test-tasklist"
+	testDomain                 = "test-domain"
+	testCurrentTaskListBacklog = int64(10)
 )
 
 func Test__Check(t *testing.T) {
@@ -346,6 +346,14 @@ func activityScheduleToStartTimeoutDataInBytes(t *testing.T) []byte {
 	return dataInBytes
 }
 
+func activityScheduleToCloseTimeoutDataInBytes(t *testing.T) []byte {
+	data := activityScheduleToStartTimeoutData()
+	data.ActivityTimeout.TimeoutType = types.TimeoutTypeScheduleToClose.Ptr()
+	dataInBytes, err := json.Marshal(data)
+	require.NoError(t, err)
+	return dataInBytes
+}
+
 func activityStartToCloseTimeoutDataInBytes(t *testing.T) []byte {
 	data := activityStartToCloseTimeoutData()
 	dataInBytes, err := json.Marshal(data)
@@ -393,7 +401,7 @@ func childWfTimeoutDataInBytes(t *testing.T) []byte {
 
 func Test__RootCause(t *testing.T) {
 	actStartToCloseTimeoutData := activityStartToCloseTimeoutData()
-	pollersMetadataInBytes, err := json.Marshal(PollersMetadata{TaskListName: testTasklist, TaskListBacklog: testTaskListBacklog})
+	pollersMetadataInBytes, err := json.Marshal(PollersMetadata{TaskListName: testTasklist, CurrentTaskListBacklog: testCurrentTaskListBacklog})
 	require.NoError(t, err)
 	heartBeatingMetadataInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.ActivityTimeout.TimeElapsed})
 	require.NoError(t, err)
@@ -420,7 +428,7 @@ func Test__RootCause(t *testing.T) {
 				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
 					Pollers: nil,
 					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
+						BacklogCountHint: common.Int64Ptr(testCurrentTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -451,7 +459,7 @@ func Test__RootCause(t *testing.T) {
 						},
 					},
 					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
+						BacklogCountHint: common.Int64Ptr(testCurrentTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -474,24 +482,8 @@ func Test__RootCause(t *testing.T) {
 					Metadata:      activityStartToCloseTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *publicservicetest.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
-					Pollers: []*shared.PollerInfo{
-						{
-							Identity: common.StringPtr("dca24-xy"),
-						},
-					},
-					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
-					},
-				}, nil)
-			},
+			clientExpects: func(client *publicservicetest.MockClient) {},
 			expectedResult: []invariant.InvariantRootCauseResult{
-				{
-					IssueID:   0,
-					RootCause: invariant.RootCauseTypePollersStatus,
-					Metadata:  pollersMetadataInBytes,
-				},
 				{
 					IssueID:   0,
 					RootCause: invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy,
@@ -518,7 +510,7 @@ func Test__RootCause(t *testing.T) {
 						},
 					},
 					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
+						BacklogCountHint: common.Int64Ptr(testCurrentTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -532,13 +524,13 @@ func Test__RootCause(t *testing.T) {
 			err: nil,
 		},
 		{
-			name: "activity timeout and heart beating enabled with retry policy",
+			name: "activity schedule to close timeout with pollers",
 			input: []invariant.InvariantCheckResult{
 				{
 					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
-					Reason:        "START_TO_CLOSE",
-					Metadata:      activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t),
+					Reason:        "SCHEDULE_TO_CLOSE",
+					Metadata:      activityScheduleToCloseTimeoutDataInBytes(t),
 				},
 			},
 			clientExpects: func(client *publicservicetest.MockClient) {
@@ -549,16 +541,36 @@ func Test__RootCause(t *testing.T) {
 						},
 					},
 					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
+						BacklogCountHint: common.Int64Ptr(testCurrentTaskListBacklog),
 					},
 				}, nil)
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
 					IssueID:   0,
-					RootCause: invariant.RootCauseTypePollersStatus,
+					RootCause: invariant.RootCauseTypeScheduleToCloseTimeoutPollersStatus,
 					Metadata:  pollersMetadataInBytes,
 				},
+				{
+					IssueID:   0,
+					RootCause: invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy,
+					Metadata:  heartBeatingMetadataInBytes,
+				},
+			},
+			err: nil,
+		},
+		{
+			name: "activity timeout and heart beating enabled with retry policy",
+			input: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: TimeoutTypeActivity.String(),
+					Reason:        "HEARTBEAT",
+					Metadata:      activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t),
+				},
+			},
+			clientExpects: func(client *publicservicetest.MockClient) {},
+			expectedResult: []invariant.InvariantRootCauseResult{
 				{
 					IssueID:   0,
 					RootCause: invariant.RootCauseTypeHeartBeatingEnabledMissingHeartbeat,
@@ -573,28 +585,12 @@ func Test__RootCause(t *testing.T) {
 				{
 					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
-					Reason:        "START_TO_CLOSE",
+					Reason:        "HEARTBEAT",
 					Metadata:      activityHeartBeatTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *publicservicetest.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
-					Pollers: []*shared.PollerInfo{
-						{
-							Identity: common.StringPtr("dca24-xy"),
-						},
-					},
-					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
-					},
-				}, nil)
-			},
+			clientExpects: func(client *publicservicetest.MockClient) {},
 			expectedResult: []invariant.InvariantRootCauseResult{
-				{
-					IssueID:   0,
-					RootCause: invariant.RootCauseTypePollersStatus,
-					Metadata:  pollersMetadataInBytes,
-				},
 				{
 					IssueID:   0,
 					RootCause: invariant.RootCauseTypeHeartBeatingEnabledWithoutRetryPolicy,

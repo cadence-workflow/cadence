@@ -25,12 +25,15 @@ package taskdlq
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
@@ -41,6 +44,10 @@ import (
 	"github.com/uber/cadence/service/history/shard"
 )
 
+// sweepIntervalJitterCoefficient spreads periodic sweeps across shards; see
+// emitDLQSizeMetricsLoop in service/history/replication/dlq_handler.go for precedent.
+const sweepIntervalJitterCoefficient = 0.15
+
 type (
 	// Processor reads tasks from the history task DLQ and executes them synchronously.
 	//
@@ -48,7 +55,7 @@ type (
 	// the shard this processor was created for. ProcessPartition is the on-demand failover
 	// path and can be called at any time regardless of daemon state.
 	Processor interface {
-		common.Daemon
+		common.DaemonV2
 
 		// ProcessShard sweeps all DLQ partitions for a shard (periodic path).
 		// Errors in individual partitions are logged and skipped; the combined
@@ -81,18 +88,23 @@ type (
 	// of the given category in the current processing round.
 	MaxReadLevelFn func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey
 
+	// DomainNameFn resolves a domain ID to its domain name (e.g. cache.DomainCache.GetDomainName).
+	DomainNameFn func(domainID string) (string, error)
+
 	ProcessorImpl struct {
-		shardID       int
-		mgr           persistence.HistoryTaskDLQManager
-		reinjector    TaskReinjector
-		maxReadLevel  MaxReadLevelFn
-		pageSize      int
-		interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
-		domainMode    dynamicproperties.StringPropertyFnWithDomainFilter
-		enabled       dynamicproperties.BoolPropertyFn
-		timeSource    clock.TimeSource
-		metricsClient metrics.Client
-		logger        log.Logger
+		shardID                int
+		mgr                    persistence.HistoryTaskDLQManager
+		getDomainName          DomainNameFn
+		reinjector             TaskReinjector
+		maxReadLevel           MaxReadLevelFn
+		pageSize               int
+		interval               dynamicproperties.DurationPropertyFnWithShardIDFilter
+		failoverJitterMaxDelay dynamicproperties.DurationPropertyFn
+		domainMode             dynamicproperties.StringPropertyFnWithDomainFilter
+		enabled                dynamicproperties.BoolPropertyFn
+		timeSource             clock.TimeSource
+		metricsClient          metrics.Client
+		logger                 log.Logger
 
 		status    int32
 		ctx       context.Context
@@ -117,17 +129,19 @@ type (
 	ProcessorParams struct {
 		ShardID    int
 		Manager    persistence.HistoryTaskDLQManager
+		DomainName DomainNameFn
 		Reinjector TaskReinjector
 		// MaxReadLevel provides the exclusive upper bound for each processing round.
 		// Optional: defaults to an unbounded read (MaximumHistoryTaskKey) when nil.
-		MaxReadLevel  MaxReadLevelFn
-		PageSize      int
-		Interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
-		DomainMode    dynamicproperties.StringPropertyFnWithDomainFilter
-		Enabled       dynamicproperties.BoolPropertyFn
-		TimeSource    clock.TimeSource
-		MetricsClient metrics.Client
-		Logger        log.Logger
+		MaxReadLevel           MaxReadLevelFn
+		PageSize               int
+		Interval               dynamicproperties.DurationPropertyFnWithShardIDFilter
+		FailoverJitterMaxDelay dynamicproperties.DurationPropertyFn
+		DomainMode             dynamicproperties.StringPropertyFnWithDomainFilter
+		Enabled                dynamicproperties.BoolPropertyFn
+		TimeSource             clock.TimeSource
+		MetricsClient          metrics.Client
+		Logger                 log.Logger
 	}
 )
 
@@ -146,21 +160,23 @@ func NewProcessor(params ProcessorParams) *ProcessorImpl {
 		}
 	}
 	return &ProcessorImpl{
-		shardID:         params.ShardID,
-		mgr:             params.Manager,
-		reinjector:      params.Reinjector,
-		maxReadLevel:    maxReadLevel,
-		pageSize:        params.PageSize,
-		interval:        params.Interval,
-		domainMode:      params.DomainMode,
-		enabled:         params.Enabled,
-		timeSource:      params.TimeSource,
-		metricsClient:   params.MetricsClient,
-		logger:          params.Logger,
-		status:          common.DaemonStatusInitialized,
-		cancel:          func() {}, // no-op until Start() sets the real cancel
-		pendingFailover: make(map[string]Partition),
-		failoverSignal:  make(chan struct{}, 1),
+		shardID:                params.ShardID,
+		mgr:                    params.Manager,
+		getDomainName:          params.DomainName,
+		reinjector:             params.Reinjector,
+		maxReadLevel:           maxReadLevel,
+		pageSize:               params.PageSize,
+		interval:               params.Interval,
+		failoverJitterMaxDelay: params.FailoverJitterMaxDelay,
+		domainMode:             params.DomainMode,
+		enabled:                params.Enabled,
+		timeSource:             params.TimeSource,
+		metricsClient:          params.MetricsClient,
+		logger:                 params.Logger,
+		status:                 common.DaemonStatusInitialized,
+		cancel:                 func() {}, // no-op until Start() sets the real cancel
+		pendingFailover:        make(map[string]Partition),
+		failoverSignal:         make(chan struct{}, 1),
 	}
 }
 
@@ -186,45 +202,63 @@ func NewProcessorFromShard(
 	// TODO(c-warren): Convert pageSize to a dynamic property.
 	pageSize int,
 	interval dynamicproperties.DurationPropertyFnWithShardIDFilter,
+	failoverJitterMaxDelay dynamicproperties.DurationPropertyFn,
 	domainMode dynamicproperties.StringPropertyFnWithDomainFilter,
 	enabled dynamicproperties.BoolPropertyFn,
 ) *ProcessorImpl {
 	return NewProcessor(ProcessorParams{
-		ShardID:       shard.GetShardID(),
-		Manager:       shard.GetService().GetHistoryTaskDLQManager(),
-		Reinjector:    shard,
-		MaxReadLevel:  NewShardMaxReadLevelFn(shard),
-		PageSize:      pageSize,
-		Interval:      interval,
-		DomainMode:    domainMode,
-		Enabled:       enabled,
-		TimeSource:    shard.GetTimeSource(),
-		MetricsClient: shard.GetMetricsClient(),
-		Logger:        shard.GetLogger(),
+		ShardID:                shard.GetShardID(),
+		Manager:                shard.GetService().GetHistoryTaskDLQManager(),
+		DomainName:             shard.GetDomainCache().GetDomainName,
+		Reinjector:             shard,
+		MaxReadLevel:           NewShardMaxReadLevelFn(shard),
+		PageSize:               pageSize,
+		Interval:               interval,
+		FailoverJitterMaxDelay: failoverJitterMaxDelay,
+		DomainMode:             domainMode,
+		Enabled:                enabled,
+		TimeSource:             shard.GetTimeSource(),
+		MetricsClient:          shard.GetMetricsClient(),
+		Logger:                 shard.GetLogger(),
 	})
 }
 
-// Start starts the processor and launches the background processing loop.
-func (p *ProcessorImpl) Start() {
+// Start launches the background processing loop. Idempotent. The loop runs until
+// either Stop is called or the given context is canceled, whichever comes first, so
+// callers should pass a context whose lifetime matches the owning component's.
+func (p *ProcessorImpl) Start(ctx context.Context) error {
 	if !atomic.CompareAndSwapInt32(&p.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
-		return
+		return nil
 	}
-	p.ctx, p.cancel = context.WithCancel(context.Background())
+	p.ctx, p.cancel = context.WithCancel(ctx)
 	p.logger.Debug("DLQ processor starting", tag.ShardID(p.shardID))
 	p.wg.Add(1)
 	go p.processLoop()
 	p.logger.Debug("DLQ processor started", tag.ShardID(p.shardID))
+	return nil
 }
 
-// Stop signals the background loop to exit and waits for it to finish. Idempotent.
-func (p *ProcessorImpl) Stop() {
+// Stop signals the background loop to exit and waits for it to finish or for ctx to
+// expire, whichever comes first. Idempotent.
+func (p *ProcessorImpl) Stop(ctx context.Context) error {
 	if !atomic.CompareAndSwapInt32(&p.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
-		return
+		return nil
 	}
 	p.logger.Debug("DLQ processor stopping", tag.ShardID(p.shardID))
 	p.cancel()
-	p.wg.Wait()
-	p.logger.Debug("DLQ processor stopped", tag.ShardID(p.shardID))
+	done := make(chan struct{})
+	go func() {
+		p.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		p.logger.Debug("DLQ processor stopped", tag.ShardID(p.shardID))
+		return nil
+	case <-ctx.Done():
+		p.logger.Warn("DLQ processor stop timed out waiting for the processing loop", tag.ShardID(p.shardID))
+		return ctx.Err()
+	}
 }
 
 // processLoop is the background goroutine that periodically calls ProcessShard and drains
@@ -238,7 +272,7 @@ func (p *ProcessorImpl) processLoop() {
 	defer p.wg.Done()
 	defer func() { log.CapturePanic(recover(), p.logger, nil) }()
 
-	timer := p.timeSource.NewTimer(p.interval(p.shardID))
+	timer := p.timeSource.NewTimer(p.sweepInterval())
 	defer timer.Stop()
 
 	for {
@@ -252,9 +286,15 @@ func (p *ProcessorImpl) processLoop() {
 			p.runSweep()
 			// A failover may have preempted the sweep; drain it before the next tick.
 			p.processPendingFailovers()
-			timer.Reset(p.interval(p.shardID))
+			timer.Reset(p.sweepInterval())
 		}
 	}
+}
+
+// sweepInterval returns the configured sweep interval with jitter applied so
+// shards' periodic sweeps don't run in synchronized cluster-wide waves.
+func (p *ProcessorImpl) sweepInterval() time.Duration {
+	return backoff.JitDuration(p.interval(p.shardID), sweepIntervalJitterCoefficient)
 }
 
 // runSweep runs one periodic ProcessShard synchronously under a cancelable context.
@@ -285,6 +325,24 @@ func (p *ProcessorImpl) runSweep() {
 
 // processPendingFailovers drains the pending failover set and processes each partition.
 func (p *ProcessorImpl) processPendingFailovers() {
+	p.failoverMu.Lock()
+	if len(p.pendingFailover) == 0 {
+		p.failoverMu.Unlock()
+		return
+	}
+	p.failoverMu.Unlock()
+
+	if window := p.failoverJitterMaxDelay(); window > 0 {
+		delay := time.Duration(rand.Int63n(int64(window)) + 1)
+		timer := p.timeSource.NewTimer(delay)
+		select {
+		case <-timer.Chan():
+		case <-p.ctx.Done():
+			timer.Stop()
+			return
+		}
+	}
+
 	p.failoverMu.Lock()
 	parts := make([]Partition, 0, len(p.pendingFailover))
 	for _, part := range p.pendingFailover {
@@ -327,9 +385,19 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 	return p.processAckLevels(ctx, ackLevels)
 }
 
+// domainName resolves a domain ID to its domain name, falling back to the ID if the lookup fails.
+func (p *ProcessorImpl) domainName(domainID string) string {
+	domainName, err := p.getDomainName(domainID)
+	if err != nil {
+		p.logger.Debug("Failed to get domain name from domain cache. Defaulting to domain ID.", tag.WorkflowDomainID(domainID), tag.Error(err))
+		return domainID
+	}
+	return domainName
+}
+
 func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error {
 	// Fast-fail for direct callers; processAckLevel also guards each partition individually.
-	if p.domainMode(domainID) != constants.HistoryTaskDLQModeEnabled {
+	if p.domainMode(p.domainName(domainID)) != constants.HistoryTaskDLQModeEnabled {
 		p.logger.Debug("DLQ not enabled for domain, skipping partition processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(domainID))
 		return nil
 	}
@@ -413,7 +481,7 @@ func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persis
 // to the executions table.
 // Returns an error when the domain is not enabled or when the tasks cannot be fetched or re-injected.
 func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.HistoryDLQAckLevel) error {
-	if p.domainMode(al.DomainID) != constants.HistoryTaskDLQModeEnabled {
+	if p.domainMode(p.domainName(al.DomainID)) != constants.HistoryTaskDLQModeEnabled {
 		p.logger.Debug("DLQ not enabled for domain, skipping ack level processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(al.DomainID))
 		return nil
 	}
