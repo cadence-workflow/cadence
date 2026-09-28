@@ -1162,6 +1162,8 @@ type Decision struct {
 	StartChildWorkflowExecutionDecisionAttributes            *StartChildWorkflowExecutionDecisionAttributes            `json:"startChildWorkflowExecutionDecisionAttributes,omitempty"`
 	SignalExternalWorkflowExecutionDecisionAttributes        *SignalExternalWorkflowExecutionDecisionAttributes        `json:"signalExternalWorkflowExecutionDecisionAttributes,omitempty"`
 	UpsertWorkflowSearchAttributesDecisionAttributes         *UpsertWorkflowSearchAttributesDecisionAttributes         `json:"upsertWorkflowSearchAttributesDecisionAttributes,omitempty"`
+	AcquireSemaphoreDecisionAttributes                       *AcquireSemaphoreDecisionAttributes                       `json:"acquireSemaphoreDecisionAttributes,omitempty"`
+	ReleaseSemaphoreDecisionAttributes                       *ReleaseSemaphoreDecisionAttributes                       `json:"releaseSemaphoreDecisionAttributes,omitempty"`
 }
 
 // GetDecisionType is an internal getter (TBD...)
@@ -1695,6 +1697,10 @@ func (e DecisionType) String() string {
 		return "SignalExternalWorkflowExecution"
 	case 12:
 		return "UpsertWorkflowSearchAttributes"
+	case 13:
+		return "AcquireSemaphore"
+	case 14:
+		return "ReleaseSemaphore"
 	}
 	return fmt.Sprintf("DecisionType(%d)", w)
 }
@@ -1741,6 +1747,12 @@ func (e *DecisionType) UnmarshalText(value []byte) error {
 	case "UPSERTWORKFLOWSEARCHATTRIBUTES":
 		*e = DecisionTypeUpsertWorkflowSearchAttributes
 		return nil
+	case "ACQUIRESEMAPHORE":
+		*e = DecisionTypeAcquireSemaphore
+		return nil
+	case "RELEASESEMAPHORE":
+		*e = DecisionTypeReleaseSemaphore
+		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
@@ -1783,6 +1795,10 @@ const (
 	DecisionTypeSignalExternalWorkflowExecution
 	// DecisionTypeUpsertWorkflowSearchAttributes is an option for DecisionType
 	DecisionTypeUpsertWorkflowSearchAttributes
+	// DecisionTypeAcquireSemaphore is an option for DecisionType
+	DecisionTypeAcquireSemaphore
+	// DecisionTypeReleaseSemaphore is an option for DecisionType
+	DecisionTypeReleaseSemaphore
 )
 
 // DeleteDomainRequest is an internal type (TBD...)
@@ -3178,6 +3194,12 @@ func (e EventType) String() string {
 		return "ExternalWorkflowExecutionSignaled"
 	case 41:
 		return "UpsertWorkflowSearchAttributes"
+	case 42:
+		return "SemaphoreAcquireInitiated"
+	case 43:
+		return "SemaphoreAcquired"
+	case 44:
+		return "SemaphoreReleased"
 	}
 	return fmt.Sprintf("EventType(%d)", w)
 }
@@ -3311,6 +3333,15 @@ func (e *EventType) UnmarshalText(value []byte) error {
 	case "UPSERTWORKFLOWSEARCHATTRIBUTES":
 		*e = EventTypeUpsertWorkflowSearchAttributes
 		return nil
+	case "SEMAPHOREACQUIREINITIATED":
+		*e = EventTypeSemaphoreAcquireInitiated
+		return nil
+	case "SEMAPHOREACQUIRED":
+		*e = EventTypeSemaphoreAcquired
+		return nil
+	case "SEMAPHORERELEASED":
+		*e = EventTypeSemaphoreReleased
+		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
@@ -3411,6 +3442,12 @@ const (
 	EventTypeExternalWorkflowExecutionSignaled
 	// EventTypeUpsertWorkflowSearchAttributes is an option for EventType
 	EventTypeUpsertWorkflowSearchAttributes
+	// EventTypeSemaphoreAcquireInitiated is an option for EventType
+	EventTypeSemaphoreAcquireInitiated
+	// EventTypeSemaphoreAcquired is an option for EventType
+	EventTypeSemaphoreAcquired
+	// EventTypeSemaphoreReleased is an option for EventType
+	EventTypeSemaphoreReleased
 )
 
 // ExternalWorkflowExecutionCancelRequestedEventAttributes is an internal type (TBD...)
@@ -3727,6 +3764,9 @@ type HistoryEvent struct {
 	SignalExternalWorkflowExecutionFailedEventAttributes           *SignalExternalWorkflowExecutionFailedEventAttributes           `json:"signalExternalWorkflowExecutionFailedEventAttributes,omitempty"`
 	ExternalWorkflowExecutionSignaledEventAttributes               *ExternalWorkflowExecutionSignaledEventAttributes               `json:"externalWorkflowExecutionSignaledEventAttributes,omitempty"`
 	UpsertWorkflowSearchAttributesEventAttributes                  *UpsertWorkflowSearchAttributesEventAttributes                  `json:"upsertWorkflowSearchAttributesEventAttributes,omitempty"`
+	SemaphoreAcquireInitiatedEventAttributes                       *SemaphoreAcquireInitiatedEventAttributes                       `json:"semaphoreAcquireInitiatedEventAttributes,omitempty"`
+	SemaphoreAcquiredEventAttributes                               *SemaphoreAcquiredEventAttributes                               `json:"semaphoreAcquiredEventAttributes,omitempty"`
+	SemaphoreReleasedEventAttributes                               *SemaphoreReleasedEventAttributes                               `json:"semaphoreReleasedEventAttributes,omitempty"`
 }
 
 // GetTimestamp is an internal getter (TBD...)
@@ -4077,6 +4117,30 @@ func (v *HistoryEvent) GetExternalWorkflowExecutionSignaledEventAttributes() (o 
 func (v *HistoryEvent) GetUpsertWorkflowSearchAttributesEventAttributes() (o *UpsertWorkflowSearchAttributesEventAttributes) {
 	if v != nil && v.UpsertWorkflowSearchAttributesEventAttributes != nil {
 		return v.UpsertWorkflowSearchAttributesEventAttributes
+	}
+	return
+}
+
+// GetSemaphoreAcquireInitiatedEventAttributes is an internal getter
+func (v *HistoryEvent) GetSemaphoreAcquireInitiatedEventAttributes() (o *SemaphoreAcquireInitiatedEventAttributes) {
+	if v != nil && v.SemaphoreAcquireInitiatedEventAttributes != nil {
+		return v.SemaphoreAcquireInitiatedEventAttributes
+	}
+	return
+}
+
+// GetSemaphoreAcquiredEventAttributes is an internal getter
+func (v *HistoryEvent) GetSemaphoreAcquiredEventAttributes() (o *SemaphoreAcquiredEventAttributes) {
+	if v != nil && v.SemaphoreAcquiredEventAttributes != nil {
+		return v.SemaphoreAcquiredEventAttributes
+	}
+	return
+}
+
+// GetSemaphoreReleasedEventAttributes is an internal getter
+func (v *HistoryEvent) GetSemaphoreReleasedEventAttributes() (o *SemaphoreReleasedEventAttributes) {
+	if v != nil && v.SemaphoreReleasedEventAttributes != nil {
+		return v.SemaphoreReleasedEventAttributes
 	}
 	return
 }
@@ -8301,6 +8365,131 @@ func (v *UpsertWorkflowSearchAttributesEventAttributes) GetSearchAttributes() (o
 // Size returns the approximate memory used in bytes
 func (v *UpsertWorkflowSearchAttributesEventAttributes) ByteSize() uint64 {
 	return 0
+}
+
+// AcquireSemaphoreDecisionAttributes asks for a token from the named semaphore.
+type AcquireSemaphoreDecisionAttributes struct {
+	SemaphoreName string `json:"semaphoreName,omitempty"`
+	// WaitTimeoutSeconds is how long this acquire may wait for a token before History fails the
+	// run. When unset, the semaphore's own default applies, or the global default if the
+	// semaphore has none.
+	WaitTimeoutSeconds *int32 `json:"waitTimeoutSeconds,omitempty"`
+}
+
+// GetSemaphoreName is an internal getter
+func (v *AcquireSemaphoreDecisionAttributes) GetSemaphoreName() (o string) {
+	if v != nil {
+		return v.SemaphoreName
+	}
+	return
+}
+
+// GetWaitTimeoutSeconds is an internal getter
+func (v *AcquireSemaphoreDecisionAttributes) GetWaitTimeoutSeconds() (o int32) {
+	if v != nil && v.WaitTimeoutSeconds != nil {
+		return *v.WaitTimeoutSeconds
+	}
+	return
+}
+
+// ReleaseSemaphoreDecisionAttributes gives back the token held by the acquire that InitiatedEventID started.
+type ReleaseSemaphoreDecisionAttributes struct {
+	InitiatedEventID int64 `json:"initiatedEventId,omitempty"`
+}
+
+// GetInitiatedEventID is an internal getter
+func (v *ReleaseSemaphoreDecisionAttributes) GetInitiatedEventID() (o int64) {
+	if v != nil {
+		return v.InitiatedEventID
+	}
+	return
+}
+
+// SemaphoreAcquireInitiatedEventAttributes records an acquire request.
+type SemaphoreAcquireInitiatedEventAttributes struct {
+	SemaphoreName string `json:"semaphoreName,omitempty"`
+	// WaitTimeoutSeconds is the timeout this acquire actually uses, after the fallbacks. Recorded
+	// so a replay reads the same value even if a default changes later.
+	WaitTimeoutSeconds           *int32 `json:"waitTimeoutSeconds,omitempty"`
+	DecisionTaskCompletedEventID int64  `json:"decisionTaskCompletedEventId,omitempty"`
+}
+
+// GetSemaphoreName is an internal getter
+func (v *SemaphoreAcquireInitiatedEventAttributes) GetSemaphoreName() (o string) {
+	if v != nil {
+		return v.SemaphoreName
+	}
+	return
+}
+
+// GetWaitTimeoutSeconds is an internal getter
+func (v *SemaphoreAcquireInitiatedEventAttributes) GetWaitTimeoutSeconds() (o int32) {
+	if v != nil && v.WaitTimeoutSeconds != nil {
+		return *v.WaitTimeoutSeconds
+	}
+	return
+}
+
+// GetDecisionTaskCompletedEventID is an internal getter
+func (v *SemaphoreAcquireInitiatedEventAttributes) GetDecisionTaskCompletedEventID() (o int64) {
+	if v != nil {
+		return v.DecisionTaskCompletedEventID
+	}
+	return
+}
+
+// SemaphoreAcquiredEventAttributes records the token granted to the acquire that InitiatedEventID started.
+type SemaphoreAcquiredEventAttributes struct {
+	TokenID          int32 `json:"tokenId,omitempty"`
+	InitiatedEventID int64 `json:"initiatedEventId,omitempty"`
+}
+
+// GetTokenID is an internal getter
+func (v *SemaphoreAcquiredEventAttributes) GetTokenID() (o int32) {
+	if v != nil {
+		return v.TokenID
+	}
+	return
+}
+
+// GetInitiatedEventID is an internal getter
+func (v *SemaphoreAcquiredEventAttributes) GetInitiatedEventID() (o int64) {
+	if v != nil {
+		return v.InitiatedEventID
+	}
+	return
+}
+
+// SemaphoreReleasedEventAttributes records that the token held by the acquire InitiatedEventID
+// started was given back.
+type SemaphoreReleasedEventAttributes struct {
+	TokenID                      int32 `json:"tokenId,omitempty"`
+	InitiatedEventID             int64 `json:"initiatedEventId,omitempty"`
+	DecisionTaskCompletedEventID int64 `json:"decisionTaskCompletedEventId,omitempty"`
+}
+
+// GetTokenID is an internal getter
+func (v *SemaphoreReleasedEventAttributes) GetTokenID() (o int32) {
+	if v != nil {
+		return v.TokenID
+	}
+	return
+}
+
+// GetInitiatedEventID is an internal getter
+func (v *SemaphoreReleasedEventAttributes) GetInitiatedEventID() (o int64) {
+	if v != nil {
+		return v.InitiatedEventID
+	}
+	return
+}
+
+// GetDecisionTaskCompletedEventID is an internal getter
+func (v *SemaphoreReleasedEventAttributes) GetDecisionTaskCompletedEventID() (o int64) {
+	if v != nil {
+		return v.DecisionTaskCompletedEventID
+	}
+	return
 }
 
 // VersionHistories is an internal type (TBD...)

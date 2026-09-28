@@ -1115,6 +1115,8 @@ func FromDecision(t *types.Decision) *shared.Decision {
 		StartChildWorkflowExecutionDecisionAttributes:            FromStartChildWorkflowExecutionDecisionAttributes(t.StartChildWorkflowExecutionDecisionAttributes),
 		SignalExternalWorkflowExecutionDecisionAttributes:        FromSignalExternalWorkflowExecutionDecisionAttributes(t.SignalExternalWorkflowExecutionDecisionAttributes),
 		UpsertWorkflowSearchAttributesDecisionAttributes:         FromUpsertWorkflowSearchAttributesDecisionAttributes(t.UpsertWorkflowSearchAttributesDecisionAttributes),
+		AcquireSemaphoreDecisionAttributes:                       FromAcquireSemaphoreDecisionAttributes(t.AcquireSemaphoreDecisionAttributes),
+		ReleaseSemaphoreDecisionAttributes:                       FromReleaseSemaphoreDecisionAttributes(t.ReleaseSemaphoreDecisionAttributes),
 	}
 }
 
@@ -1138,6 +1140,8 @@ func ToDecision(t *shared.Decision) *types.Decision {
 		StartChildWorkflowExecutionDecisionAttributes:            ToStartChildWorkflowExecutionDecisionAttributes(t.StartChildWorkflowExecutionDecisionAttributes),
 		SignalExternalWorkflowExecutionDecisionAttributes:        ToSignalExternalWorkflowExecutionDecisionAttributes(t.SignalExternalWorkflowExecutionDecisionAttributes),
 		UpsertWorkflowSearchAttributesDecisionAttributes:         ToUpsertWorkflowSearchAttributesDecisionAttributes(t.UpsertWorkflowSearchAttributesDecisionAttributes),
+		AcquireSemaphoreDecisionAttributes:                       ToAcquireSemaphoreDecisionAttributes(t.AcquireSemaphoreDecisionAttributes),
+		ReleaseSemaphoreDecisionAttributes:                       ToReleaseSemaphoreDecisionAttributes(t.ReleaseSemaphoreDecisionAttributes),
 	}
 }
 
@@ -1528,6 +1532,12 @@ func FromDecisionType(t *types.DecisionType) *shared.DecisionType {
 	case types.DecisionTypeUpsertWorkflowSearchAttributes:
 		v := shared.DecisionTypeUpsertWorkflowSearchAttributes
 		return &v
+	case types.DecisionTypeAcquireSemaphore:
+		v := shared.DecisionTypeAcquireSemaphore
+		return &v
+	case types.DecisionTypeReleaseSemaphore:
+		v := shared.DecisionTypeReleaseSemaphore
+		return &v
 	}
 	panic("unexpected enum value")
 }
@@ -1576,6 +1586,12 @@ func ToDecisionType(t *shared.DecisionType) *types.DecisionType {
 		return &v
 	case shared.DecisionTypeUpsertWorkflowSearchAttributes:
 		v := types.DecisionTypeUpsertWorkflowSearchAttributes
+		return &v
+	case shared.DecisionTypeAcquireSemaphore:
+		v := types.DecisionTypeAcquireSemaphore
+		return &v
+	case shared.DecisionTypeReleaseSemaphore:
+		v := types.DecisionTypeReleaseSemaphore
 		return &v
 	}
 	panic("unexpected enum value")
@@ -2545,6 +2561,15 @@ func FromEventType(t *types.EventType) *shared.EventType {
 	case types.EventTypeUpsertWorkflowSearchAttributes:
 		v := shared.EventTypeUpsertWorkflowSearchAttributes
 		return &v
+	case types.EventTypeSemaphoreAcquireInitiated:
+		v := shared.EventTypeSemaphoreAcquireInitiated
+		return &v
+	case types.EventTypeSemaphoreAcquired:
+		v := shared.EventTypeSemaphoreAcquired
+		return &v
+	case types.EventTypeSemaphoreReleased:
+		v := shared.EventTypeSemaphoreReleased
+		return &v
 	}
 	panic("unexpected enum value")
 }
@@ -2680,6 +2705,15 @@ func ToEventType(t *shared.EventType) *types.EventType {
 		return &v
 	case shared.EventTypeUpsertWorkflowSearchAttributes:
 		v := types.EventTypeUpsertWorkflowSearchAttributes
+		return &v
+	case shared.EventTypeSemaphoreAcquireInitiated:
+		v := types.EventTypeSemaphoreAcquireInitiated
+		return &v
+	case shared.EventTypeSemaphoreAcquired:
+		v := types.EventTypeSemaphoreAcquired
+		return &v
+	case shared.EventTypeSemaphoreReleased:
+		v := types.EventTypeSemaphoreReleased
 		return &v
 	}
 	panic("unexpected enum value")
@@ -2978,6 +3012,9 @@ func FromHistoryEvent(t *types.HistoryEvent) *shared.HistoryEvent {
 		SignalExternalWorkflowExecutionFailedEventAttributes:           FromSignalExternalWorkflowExecutionFailedEventAttributes(t.SignalExternalWorkflowExecutionFailedEventAttributes),
 		ExternalWorkflowExecutionSignaledEventAttributes:               FromExternalWorkflowExecutionSignaledEventAttributes(t.ExternalWorkflowExecutionSignaledEventAttributes),
 		UpsertWorkflowSearchAttributesEventAttributes:                  FromUpsertWorkflowSearchAttributesEventAttributes(t.UpsertWorkflowSearchAttributesEventAttributes),
+		SemaphoreAcquireInitiatedEventAttributes:                       FromSemaphoreAcquireInitiatedEventAttributes(t.SemaphoreAcquireInitiatedEventAttributes),
+		SemaphoreAcquiredEventAttributes:                               FromSemaphoreAcquiredEventAttributes(t.SemaphoreAcquiredEventAttributes),
+		SemaphoreReleasedEventAttributes:                               FromSemaphoreReleasedEventAttributes(t.SemaphoreReleasedEventAttributes),
 	}
 }
 
@@ -3034,6 +3071,9 @@ func ToHistoryEvent(t *shared.HistoryEvent) *types.HistoryEvent {
 		SignalExternalWorkflowExecutionFailedEventAttributes:           ToSignalExternalWorkflowExecutionFailedEventAttributes(t.SignalExternalWorkflowExecutionFailedEventAttributes),
 		ExternalWorkflowExecutionSignaledEventAttributes:               ToExternalWorkflowExecutionSignaledEventAttributes(t.ExternalWorkflowExecutionSignaledEventAttributes),
 		UpsertWorkflowSearchAttributesEventAttributes:                  ToUpsertWorkflowSearchAttributesEventAttributes(t.UpsertWorkflowSearchAttributesEventAttributes),
+		SemaphoreAcquireInitiatedEventAttributes:                       ToSemaphoreAcquireInitiatedEventAttributes(t.SemaphoreAcquireInitiatedEventAttributes),
+		SemaphoreAcquiredEventAttributes:                               ToSemaphoreAcquiredEventAttributes(t.SemaphoreAcquiredEventAttributes),
+		SemaphoreReleasedEventAttributes:                               ToSemaphoreReleasedEventAttributes(t.SemaphoreReleasedEventAttributes),
 	}
 }
 
@@ -6555,6 +6595,118 @@ func ToUpsertWorkflowSearchAttributesDecisionAttributes(t *shared.UpsertWorkflow
 	}
 	return &types.UpsertWorkflowSearchAttributesDecisionAttributes{
 		SearchAttributes: ToSearchAttributes(t.SearchAttributes),
+	}
+}
+
+// FromAcquireSemaphoreDecisionAttributes converts internal AcquireSemaphoreDecisionAttributes type to thrift
+func FromAcquireSemaphoreDecisionAttributes(t *types.AcquireSemaphoreDecisionAttributes) *shared.AcquireSemaphoreDecisionAttributes {
+	if t == nil {
+		return nil
+	}
+	return &shared.AcquireSemaphoreDecisionAttributes{
+		SemaphoreName:      &t.SemaphoreName,
+		WaitTimeoutSeconds: t.WaitTimeoutSeconds,
+	}
+}
+
+// ToAcquireSemaphoreDecisionAttributes converts thrift AcquireSemaphoreDecisionAttributes type to internal
+func ToAcquireSemaphoreDecisionAttributes(t *shared.AcquireSemaphoreDecisionAttributes) *types.AcquireSemaphoreDecisionAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.AcquireSemaphoreDecisionAttributes{
+		SemaphoreName:      t.GetSemaphoreName(),
+		WaitTimeoutSeconds: t.WaitTimeoutSeconds,
+	}
+}
+
+// FromReleaseSemaphoreDecisionAttributes converts internal ReleaseSemaphoreDecisionAttributes type to thrift
+func FromReleaseSemaphoreDecisionAttributes(t *types.ReleaseSemaphoreDecisionAttributes) *shared.ReleaseSemaphoreDecisionAttributes {
+	if t == nil {
+		return nil
+	}
+	return &shared.ReleaseSemaphoreDecisionAttributes{
+		InitiatedEventId: &t.InitiatedEventID,
+	}
+}
+
+// ToReleaseSemaphoreDecisionAttributes converts thrift ReleaseSemaphoreDecisionAttributes type to internal
+func ToReleaseSemaphoreDecisionAttributes(t *shared.ReleaseSemaphoreDecisionAttributes) *types.ReleaseSemaphoreDecisionAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.ReleaseSemaphoreDecisionAttributes{
+		InitiatedEventID: t.GetInitiatedEventId(),
+	}
+}
+
+// FromSemaphoreAcquireInitiatedEventAttributes converts internal SemaphoreAcquireInitiatedEventAttributes type to thrift
+func FromSemaphoreAcquireInitiatedEventAttributes(t *types.SemaphoreAcquireInitiatedEventAttributes) *shared.SemaphoreAcquireInitiatedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &shared.SemaphoreAcquireInitiatedEventAttributes{
+		SemaphoreName:                &t.SemaphoreName,
+		WaitTimeoutSeconds:           t.WaitTimeoutSeconds,
+		DecisionTaskCompletedEventId: &t.DecisionTaskCompletedEventID,
+	}
+}
+
+// ToSemaphoreAcquireInitiatedEventAttributes converts thrift SemaphoreAcquireInitiatedEventAttributes type to internal
+func ToSemaphoreAcquireInitiatedEventAttributes(t *shared.SemaphoreAcquireInitiatedEventAttributes) *types.SemaphoreAcquireInitiatedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreAcquireInitiatedEventAttributes{
+		SemaphoreName:                t.GetSemaphoreName(),
+		WaitTimeoutSeconds:           t.WaitTimeoutSeconds,
+		DecisionTaskCompletedEventID: t.GetDecisionTaskCompletedEventId(),
+	}
+}
+
+// FromSemaphoreAcquiredEventAttributes converts internal SemaphoreAcquiredEventAttributes type to thrift
+func FromSemaphoreAcquiredEventAttributes(t *types.SemaphoreAcquiredEventAttributes) *shared.SemaphoreAcquiredEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &shared.SemaphoreAcquiredEventAttributes{
+		TokenId:          &t.TokenID,
+		InitiatedEventId: &t.InitiatedEventID,
+	}
+}
+
+// ToSemaphoreAcquiredEventAttributes converts thrift SemaphoreAcquiredEventAttributes type to internal
+func ToSemaphoreAcquiredEventAttributes(t *shared.SemaphoreAcquiredEventAttributes) *types.SemaphoreAcquiredEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreAcquiredEventAttributes{
+		TokenID:          t.GetTokenId(),
+		InitiatedEventID: t.GetInitiatedEventId(),
+	}
+}
+
+// FromSemaphoreReleasedEventAttributes converts internal SemaphoreReleasedEventAttributes type to thrift
+func FromSemaphoreReleasedEventAttributes(t *types.SemaphoreReleasedEventAttributes) *shared.SemaphoreReleasedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &shared.SemaphoreReleasedEventAttributes{
+		TokenId:                      &t.TokenID,
+		InitiatedEventId:             &t.InitiatedEventID,
+		DecisionTaskCompletedEventId: &t.DecisionTaskCompletedEventID,
+	}
+}
+
+// ToSemaphoreReleasedEventAttributes converts thrift SemaphoreReleasedEventAttributes type to internal
+func ToSemaphoreReleasedEventAttributes(t *shared.SemaphoreReleasedEventAttributes) *types.SemaphoreReleasedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreReleasedEventAttributes{
+		TokenID:                      t.GetTokenId(),
+		InitiatedEventID:             t.GetInitiatedEventId(),
+		DecisionTaskCompletedEventID: t.GetDecisionTaskCompletedEventId(),
 	}
 }
 

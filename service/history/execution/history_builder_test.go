@@ -2237,3 +2237,76 @@ func (s *historyBuilderSuite) validateTimerCancelFailedEvent(event *types.Histor
 func (s *historyBuilderSuite) printHistory() string {
 	return thrift.FromHistory(s.builder.GetHistory()).String()
 }
+
+func TestHistoryBuilderSemaphoreEvents(t *testing.T) {
+	tests := []struct {
+		name      string
+		eventType types.EventType
+		add       func(b *HistoryBuilder) *types.HistoryEvent
+		want      func(e *types.HistoryEvent)
+	}{
+		{
+			name:      "acquire initiated",
+			eventType: types.EventTypeSemaphoreAcquireInitiated,
+			add: func(b *HistoryBuilder) *types.HistoryEvent {
+				return b.AddSemaphoreAcquireInitiatedEvent(4, "semaphore-name", 30)
+			},
+			want: func(e *types.HistoryEvent) {
+				e.SemaphoreAcquireInitiatedEventAttributes = &types.SemaphoreAcquireInitiatedEventAttributes{
+					SemaphoreName:                "semaphore-name",
+					WaitTimeoutSeconds:           common.Int32Ptr(30),
+					DecisionTaskCompletedEventID: 4,
+				}
+			},
+		},
+		{
+			name:      "acquired",
+			eventType: types.EventTypeSemaphoreAcquired,
+			add: func(b *HistoryBuilder) *types.HistoryEvent {
+				return b.AddSemaphoreAcquiredEvent(5, 17)
+			},
+			want: func(e *types.HistoryEvent) {
+				e.SemaphoreAcquiredEventAttributes = &types.SemaphoreAcquiredEventAttributes{
+					TokenID:          17,
+					InitiatedEventID: 5,
+				}
+			},
+		},
+		{
+			name:      "released",
+			eventType: types.EventTypeSemaphoreReleased,
+			add: func(b *HistoryBuilder) *types.HistoryEvent {
+				return b.AddSemaphoreReleasedEvent(9, 5, 17)
+			},
+			want: func(e *types.HistoryEvent) {
+				e.SemaphoreReleasedEventAttributes = &types.SemaphoreReleasedEventAttributes{
+					TokenID:                      17,
+					InitiatedEventID:             5,
+					DecisionTaskCompletedEventID: 9,
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mb := testMutableStateBuilder(t)
+			b := NewHistoryBuilder(mb)
+
+			event := tt.add(b)
+
+			want := &types.HistoryEvent{
+				// TODO: all three events get the buffered placeholder ID for now. When
+				// SemaphoreAcquireInitiated and SemaphoreReleased are added to shouldBufferEvent's
+				// never-buffered list, expect a real event ID for those two.
+				ID:        commonconstants.BufferedEventID,
+				Timestamp: common.Int64Ptr(currentTime.UnixNano()),
+				EventType: tt.eventType.Ptr(),
+				Version:   mb.GetCurrentVersion(),
+				TaskID:    commonconstants.EmptyEventTaskID,
+			}
+			tt.want(want)
+			require.Equal(t, want, event)
+			require.Equal(t, []*types.HistoryEvent{event}, b.history)
+		})
+	}
+}

@@ -618,6 +618,54 @@ func (b *HistoryBuilder) AddUpsertWorkflowSearchAttributesEvent(
 	return b.addEventToHistory(event)
 }
 
+// AddSemaphoreAcquireInitiatedEvent adds SemaphoreAcquireInitiated event to history.
+// The caller passes the timeout the acquire will actually use, already worked out from the
+// decision or the defaults, so the event records a fixed number that replay can rely on.
+func (b *HistoryBuilder) AddSemaphoreAcquireInitiatedEvent(
+	decisionTaskCompletedEventID int64,
+	semaphoreName string,
+	waitTimeoutSeconds int32,
+) *types.HistoryEvent {
+	event := b.msBuilder.CreateNewHistoryEvent(types.EventTypeSemaphoreAcquireInitiated)
+	event.SemaphoreAcquireInitiatedEventAttributes = &types.SemaphoreAcquireInitiatedEventAttributes{
+		SemaphoreName:                semaphoreName,
+		WaitTimeoutSeconds:           common.Int32Ptr(waitTimeoutSeconds),
+		DecisionTaskCompletedEventID: decisionTaskCompletedEventID,
+	}
+
+	return b.addEventToHistory(event)
+}
+
+// AddSemaphoreAcquiredEvent adds SemaphoreAcquired event to history
+func (b *HistoryBuilder) AddSemaphoreAcquiredEvent(
+	initiatedEventID int64,
+	tokenID int32,
+) *types.HistoryEvent {
+	event := b.msBuilder.CreateNewHistoryEvent(types.EventTypeSemaphoreAcquired)
+	event.SemaphoreAcquiredEventAttributes = &types.SemaphoreAcquiredEventAttributes{
+		TokenID:          tokenID,
+		InitiatedEventID: initiatedEventID,
+	}
+
+	return b.addEventToHistory(event)
+}
+
+// AddSemaphoreReleasedEvent adds SemaphoreReleased event to history
+func (b *HistoryBuilder) AddSemaphoreReleasedEvent(
+	decisionTaskCompletedEventID int64,
+	initiatedEventID int64,
+	tokenID int32,
+) *types.HistoryEvent {
+	event := b.msBuilder.CreateNewHistoryEvent(types.EventTypeSemaphoreReleased)
+	event.SemaphoreReleasedEventAttributes = &types.SemaphoreReleasedEventAttributes{
+		TokenID:                      tokenID,
+		InitiatedEventID:             initiatedEventID,
+		DecisionTaskCompletedEventID: decisionTaskCompletedEventID,
+	}
+
+	return b.addEventToHistory(event)
+}
+
 // AddSignalExternalWorkflowExecutionFailedEvent adds SignalExternalWorkflowExecutionFailed event to history
 func (b *HistoryBuilder) AddSignalExternalWorkflowExecutionFailedEvent(decisionTaskCompletedEventID, initiatedEventID int64,
 	domain, workflowID, runID string, control []byte, cause types.SignalExternalWorkflowExecutionFailedCause) *types.HistoryEvent {
