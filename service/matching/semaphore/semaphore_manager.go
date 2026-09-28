@@ -35,7 +35,8 @@ type AcquireResult struct {
 	TokenID int
 }
 
-// ErrNotReady means this host cannot answer for the bucket: not started, scan failed, or stopped.
+// ErrNotReady means this manager has stopped: its load failed, it went idle, the bucket moved
+// to another host, or the engine shut down. A ServiceBusyError, so callers retry.
 var ErrNotReady = &types.ServiceBusyError{Message: "semaphore manager is not ready"}
 
 // managerState gates Acquire. A Manager only moves forward: created to running, or either to
@@ -344,7 +345,6 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 			// Keeping it out would lose a slot per failed write, emptying the free-set.
 			m.unreserve(tokenID)
 			return AcquireResult{}, err
-			return AcquireResult{}, err
 		}
 
 		switch resp.Outcome {
@@ -366,7 +366,6 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 				// held_token: a corrupt row or a store bug. Recording it
 				// would leave this owner failing every later acquire on a token that cannot exist.
 				return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("grant reported an already-held slot without a token for bucket %v", m.id)}
-				return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("grant reported an already-held slot without a token for bucket %v", m.id)}
 			}
 			m.recordHold(ownerID, resp.HeldToken)
 			return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: resp.HeldToken}, nil
@@ -376,7 +375,6 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 			// but that is one store's guarantee, not the interface's, so check anyway. An
 			// outcome we cannot read says nothing about the slot, so the id goes back.
 			m.unreserve(tokenID)
-			return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("unexpected grant outcome %v for bucket %v", resp.Outcome, m.id)}
 			return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("unexpected grant outcome %v for bucket %v", resp.Outcome, m.id)}
 		}
 	}
