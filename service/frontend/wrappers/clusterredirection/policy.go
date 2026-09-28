@@ -377,6 +377,16 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 
 	currentActiveCluster := domainEntry.GetReplicationConfig().ActiveClusterName
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		if _, selected := policy.selectedAPIs[apiName]; !policy.allDomainAPIs && !selected && requestedConsistencyLevel != types.QueryConsistencyLevelStrong {
+			// No branch below can forward this request, so skip the per-request active cluster lookup.
+			policy.logger.Debug(
+				"API is not whitelisted, routing to current cluster",
+				tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+				tag.ClusterName(policy.currentClusterName),
+				tag.OperationName(apiName),
+			)
+			return policy.currentClusterName, false
+		}
 		workflowActiveCluster := policy.activeClusterForActiveActiveDomainRequest(ctx, domainEntry, workflowExecution, requestedActiveClusterSelectionPolicy, apiName)
 		policy.logger.Debug(
 			"Active-active domain, routing to active cluster",
@@ -440,6 +450,18 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 	return currentActiveCluster, true
 }
 
+// startWorkflowAPIs resolve the active cluster from the request's cluster attribute.
+var startWorkflowAPIs = map[string]struct{}{
+	"StartWorkflowExecution":      {},
+	"StartWorkflowExecutionAsync": {},
+}
+
+// signalWithStartWorkflowAPIs prefer the running workflow's policy, else the request's.
+var signalWithStartWorkflowAPIs = map[string]struct{}{
+	"SignalWithStartWorkflowExecution":      {},
+	"SignalWithStartWorkflowExecutionAsync": {},
+}
+
 func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActiveActiveDomainRequest(
 	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
@@ -448,7 +470,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActi
 	apiName string,
 ) string {
 	policy.logger.Debug("Determining active cluster for active-active domain request", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.Dynamic("execution", workflowExecution), tag.OperationName(apiName))
-	if apiName == "SignalWithStartWorkflowExecution" {
+	if _, ok := signalWithStartWorkflowAPIs[apiName]; ok {
 		existingActiveClusterSelectionPolicy, running, err := policy.activeClusterManager.GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx, domainEntry.GetInfo().ID, workflowExecution.WorkflowID)
 		if err != nil {
 			policy.logger.Error("Failed to get active cluster selection policy for current workflow, using current cluster", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName), tag.Error(err))
@@ -459,7 +481,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActi
 			requestedActiveClusterSelectionPolicy = existingActiveClusterSelectionPolicy
 		}
 		return policy.activeClusterByClusterAttribute(ctx, domainEntry, requestedActiveClusterSelectionPolicy, apiName)
-	} else if apiName == "StartWorkflowExecution" {
+	} else if _, ok := startWorkflowAPIs[apiName]; ok {
 		return policy.activeClusterByClusterAttribute(ctx, domainEntry, requestedActiveClusterSelectionPolicy, apiName)
 	}
 
