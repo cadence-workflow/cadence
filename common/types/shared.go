@@ -4321,6 +4321,18 @@ func (v *HistoryEvent) ByteSize() uint64 {
 		size += v.UpsertWorkflowSearchAttributesEventAttributes.ByteSize()
 	}
 
+	if v.SemaphoreAcquireInitiatedEventAttributes != nil {
+		size += v.SemaphoreAcquireInitiatedEventAttributes.ByteSize()
+	}
+
+	if v.SemaphoreAcquiredEventAttributes != nil {
+		size += v.SemaphoreAcquiredEventAttributes.ByteSize()
+	}
+
+	if v.SemaphoreReleasedEventAttributes != nil {
+		size += v.SemaphoreReleasedEventAttributes.ByteSize()
+	}
+
 	return size
 }
 
@@ -8438,6 +8450,11 @@ func (v *SemaphoreAcquireInitiatedEventAttributes) GetDecisionTaskCompletedEvent
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *SemaphoreAcquireInitiatedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // SemaphoreAcquiredEventAttributes records the token granted to the acquire that InitiatedEventID started.
 type SemaphoreAcquiredEventAttributes struct {
 	TokenID          int32 `json:"tokenId,omitempty"`
@@ -8458,6 +8475,11 @@ func (v *SemaphoreAcquiredEventAttributes) GetInitiatedEventID() (o int64) {
 		return v.InitiatedEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *SemaphoreAcquiredEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // SemaphoreReleasedEventAttributes records that the token held by the acquire InitiatedEventID
@@ -8490,6 +8512,11 @@ func (v *SemaphoreReleasedEventAttributes) GetDecisionTaskCompletedEventID() (o 
 		return v.DecisionTaskCompletedEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *SemaphoreReleasedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // VersionHistories is an internal type (TBD...)
