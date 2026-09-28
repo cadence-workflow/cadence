@@ -24,20 +24,20 @@ type Identifier struct {
 func NewIdentifier(domainID, semaphoreName string, bucket int) (Identifier, error) {
 	id := Identifier{DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket}
 	if err := id.validate(); err != nil {
-		return Identifier{}, err
+		return Identifier{}, &types.BadRequestError{Message: err.Error()}
 	}
 	return id, nil
 }
 
 func (id Identifier) validate() error {
 	if id.DomainID == "" {
-		return &types.BadRequestError{Message: "domainID is required"}
+		return fmt.Errorf("domainID is required")
 	}
 	if id.SemaphoreName == "" {
-		return &types.BadRequestError{Message: "semaphoreName is required"}
+		return fmt.Errorf("semaphoreName is required")
 	}
 	if id.Bucket < 0 {
-		return &types.BadRequestError{Message: fmt.Sprintf("bucket must not be negative, got %d", id.Bucket)}
+		return fmt.Errorf("bucket must not be negative, got %d", id.Bucket)
 	}
 	return nil
 }

@@ -132,21 +132,21 @@ func validateParams(p ManagerParams) error {
 		return err
 	}
 	if p.Tokens == nil {
-		return &types.BadRequestError{Message: "ManagerParams.Tokens is required"}
+		return fmt.Errorf("ManagerParams.Tokens is required")
 	}
 	if p.Logger == nil {
-		return &types.BadRequestError{Message: "ManagerParams.Logger is required"}
+		return fmt.Errorf("ManagerParams.Logger is required")
 	}
 	// Rejected rather than passed through: liveness builds a ticker from this and a
 	// non-positive interval panics, which would take the host down on a bad config value.
 	if p.IdleTTL <= 0 {
-		return &types.BadRequestError{Message: "ManagerParams.IdleTTL must be positive"}
+		return fmt.Errorf("ManagerParams.IdleTTL must be positive")
 	}
 	if p.OnStopFn == nil {
-		return &types.BadRequestError{Message: "ManagerParams.OnStopFn is required"}
+		return fmt.Errorf("ManagerParams.OnStopFn is required")
 	}
 	if p.TimeSource == nil {
-		return &types.BadRequestError{Message: "ManagerParams.TimeSource is required"}
+		return fmt.Errorf("ManagerParams.TimeSource is required")
 	}
 	return nil
 }
@@ -154,7 +154,7 @@ func validateParams(p ManagerParams) error {
 // NewManager builds the manager for one bucket, call Start before Acquire.
 func NewManager(p ManagerParams) (Manager, error) {
 	if err := validateParams(p); err != nil {
-		return nil, err
+		return nil, &types.BadRequestError{Message: err.Error()}
 	}
 	m := &semaphoreManagerImpl{
 		id:            p.ID,
