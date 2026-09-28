@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -948,6 +949,129 @@ func TestActiveActiveNonForwardedAPISkipsResolver(t *testing.T) {
 			)
 			require.Equal(t, tt.wantTarget, target)
 			require.Equal(t, tt.wantForwarded, forwarded)
+		})
+	}
+}
+
+func TestAsyncAPIsForwardingByPolicyList(t *testing.T) {
+	logger := testlogger.New(t)
+	mockConfig := frontendcfg.NewConfig(
+		dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), logger),
+		0,
+		false,
+		"hostname",
+		logger,
+	)
+	// system.enableDomainNotActiveAutoForwarding defaults to true (see
+	// common/dynamicconfig/dynamicproperties/constants.go EnableDomainNotActiveAutoForwarding.DefaultValue),
+	// so no explicit override of mockConfig.EnableDomainNotActiveAutoForwarding is needed.
+
+	domainName := "async-forwarding-domain"
+	domainID := "async-forwarding-domain-id"
+	domainEntry := cache.NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: domainID, Name: domainName},
+		&persistence.DomainConfig{Retention: 1},
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		1234, // not used
+	)
+
+	asyncAPIs := []string{"StartWorkflowExecutionAsync", "SignalWithStartWorkflowExecutionAsync"}
+
+	tests := []struct {
+		name           string
+		allowlist      map[string]struct{}
+		wantTargetSame bool // true: target == current cluster; false: target == alternative (active) cluster
+	}{
+		{name: "v1", allowlist: selectedAPIsForwardingRedirectionPolicyAPIAllowlist, wantTargetSame: true},
+		{name: "v2", allowlist: selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2, wantTargetSame: true},
+		{name: "v3", allowlist: selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3, wantTargetSame: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			activeClusterManager := activecluster.NewMockManager(controller)
+			metricsClient := metrics.NewNoopMetricsClient()
+
+			policy := newSelectedOrAllAPIsForwardingPolicy(
+				cluster.TestCurrentClusterName,
+				mockConfig,
+				false,
+				tt.allowlist,
+				"",
+				logger,
+				activeClusterManager,
+				metricsClient,
+			)
+
+			for _, apiName := range asyncAPIs {
+				var target string
+				callFn := func(targetCluster string) error {
+					target = targetCluster
+					return nil
+				}
+				err := policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+				require.NoError(t, err)
+
+				wantTarget := cluster.TestAlternativeClusterName
+				if tt.wantTargetSame {
+					wantTarget = cluster.TestCurrentClusterName
+				}
+				require.Equal(t, wantTarget, target, "api=%s policy=%s", apiName, tt.name)
+			}
+		})
+	}
+}
+
+func TestRedirectionPolicyGenerator_V3(t *testing.T) {
+	logger := testlogger.New(t)
+	mockConfig := frontendcfg.NewConfig(
+		dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), logger),
+		0,
+		false,
+		"hostname",
+		logger,
+	)
+	metricsClient := metrics.NewNoopMetricsClient()
+	controller := gomock.NewController(t)
+	activeClusterManager := activecluster.NewMockManager(controller)
+
+	tests := []struct {
+		name              string
+		policyName        string
+		wantAllDomainAPIs bool
+	}{
+		{name: "selected-v3", policyName: DCRedirectionPolicySelectedAPIsForwardingV3, wantAllDomainAPIs: false},
+		{name: "all-domain-v3", policyName: DCRedirectionPolicyAllDomainAPIsForwardingV3, wantAllDomainAPIs: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			generated := RedirectionPolicyGenerator(
+				cluster.TestActiveClusterMetadata,
+				mockConfig,
+				config.ClusterRedirectionPolicy{Policy: tt.policyName},
+				logger,
+				activeClusterManager,
+				metricsClient,
+			)
+
+			p, ok := generated.(*selectedOrAllAPIsForwardingRedirectionPolicy)
+			require.True(t, ok, "expected *selectedOrAllAPIsForwardingRedirectionPolicy, got %T", generated)
+			require.Equal(t, tt.wantAllDomainAPIs, p.allDomainAPIs)
+
+			// Identify the V3 map by content: same length as V3, and both async keys present.
+			require.Len(t, p.selectedAPIs, len(selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3))
+			for _, k := range []string{"StartWorkflowExecutionAsync", "SignalWithStartWorkflowExecutionAsync"} {
+				_, ok := p.selectedAPIs[k]
+				require.True(t, ok, "expected V3 allowlist to contain %s", k)
+			}
 		})
 	}
 }

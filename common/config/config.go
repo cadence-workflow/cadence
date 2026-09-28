@@ -443,6 +443,18 @@ type (
 		// 4) "selected-apis-forwarding-v2" will forward all of "selected-apis-forwarding", and also activity responses
 		// and heartbeats, but not other worker APIs.
 		//
+		// 5) "selected-apis-forwarding-v3" forwards everything "-v2" does, plus the two async start APIs
+		// (StartWorkflowExecutionAsync, SignalWithStartWorkflowExecutionAsync). Those requests are forwarded to the active
+		// cluster when accepted rather than enqueued locally and forwarded when the async consumer processes them.
+		// "all-domain-apis-forwarding(-v2)" already forwards the async APIs on accept unless allDomainApisForwardingTargetCluster
+		// is set and does not match the active cluster. "all-domain-apis-forwarding-v3" differs from "-v2" only on that
+		// fallback path, where it uses the "-v3" selected list.
+		// Trade-off: a request forwarded on accept fails while the active region is unreachable. A request enqueued locally
+		// is drained once the active region is reachable again.
+		// Rollout: a frontend binary that predates the "-v3" names panics at startup on an unknown policy, so switch
+		// the config to "-v3" only after every frontend runs a binary that knows it, and revert the config before
+		// rolling the binary back.
+		//
 		// "selected-apis-forwarding(-v2)" and "all-domain-apis-forwarding" can work with EnableDomainNotActiveAutoForwarding dynamicconfig to select certain domains using the policy.
 		//
 		// Usage recommendation: when enabling XDC(global domain) feature, either "all-domain-apis-forwarding" or "selected-apis-forwarding(-v2)" should be used to ensure seamless domain failover(high availability)
