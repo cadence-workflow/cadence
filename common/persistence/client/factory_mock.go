@@ -69,6 +69,21 @@ func (mr *MockFactoryMockRecorder) NewAdminDBs() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAdminDBs", reflect.TypeOf((*MockFactory)(nil).NewAdminDBs))
 }
 
+// NewAsyncWorkflowQueueManager mocks base method.
+func (m *MockFactory) NewAsyncWorkflowQueueManager() (persistence.AsyncWorkflowQueueManager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewAsyncWorkflowQueueManager")
+	ret0, _ := ret[0].(persistence.AsyncWorkflowQueueManager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewAsyncWorkflowQueueManager indicates an expected call of NewAsyncWorkflowQueueManager.
+func (mr *MockFactoryMockRecorder) NewAsyncWorkflowQueueManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAsyncWorkflowQueueManager", reflect.TypeOf((*MockFactory)(nil).NewAsyncWorkflowQueueManager))
+}
+
 // NewConfigStoreManager mocks base method.
 func (m *MockFactory) NewConfigStoreManager() (persistence.ConfigStoreManager, error) {
 	m.ctrl.T.Helper()
@@ -313,6 +328,21 @@ func (m *MockDataStoreFactory) NewAdminDBs(pType persistence.DBType) ([]persiste
 func (mr *MockDataStoreFactoryMockRecorder) NewAdminDBs(pType any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAdminDBs", reflect.TypeOf((*MockDataStoreFactory)(nil).NewAdminDBs), pType)
+}
+
+// NewAsyncWorkflowQueueStore mocks base method.
+func (m *MockDataStoreFactory) NewAsyncWorkflowQueueStore() (persistence.AsyncWorkflowQueueStore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewAsyncWorkflowQueueStore")
+	ret0, _ := ret[0].(persistence.AsyncWorkflowQueueStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewAsyncWorkflowQueueStore indicates an expected call of NewAsyncWorkflowQueueStore.
+func (mr *MockDataStoreFactoryMockRecorder) NewAsyncWorkflowQueueStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAsyncWorkflowQueueStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewAsyncWorkflowQueueStore))
 }
 
 // NewConfigStore mocks base method.

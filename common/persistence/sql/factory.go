@@ -267,3 +267,9 @@ func (c *dbConn) Close() error {
 	}
 	return nil
 }
+
+// NewAsyncWorkflowQueueStore returns an unimplemented async workflow queue store.
+// It never opens a connection: NewBeanFromFactory calls this on every service start.
+func (f *Factory) NewAsyncWorkflowQueueStore() (p.AsyncWorkflowQueueStore, error) {
+	return p.NewUnimplementedAsyncWorkflowQueueStore("sql"), nil
+}
