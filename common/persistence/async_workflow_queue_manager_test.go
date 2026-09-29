@@ -201,6 +201,11 @@ func TestAsyncWorkflowQueueManager_EnqueueAsyncWorkflowMessage(t *testing.T) {
 			wantBadRequest: true,
 		},
 		{
+			name:           "empty payload encoding",
+			mutate:         func(r *EnqueueAsyncWorkflowMessageRequest) { r.PayloadEncoding = "" },
+			wantBadRequest: true,
+		},
+		{
 			name:           "request type above range",
 			mutate:         func(r *EnqueueAsyncWorkflowMessageRequest) { r.RequestType = AsyncWorkflowRequestType(2) },
 			wantBadRequest: true,
@@ -537,6 +542,11 @@ func TestAsyncWorkflowQueueManager_EnqueueAsyncWorkflowMessageToDLQ(t *testing.T
 		{
 			name:           "message empty payload",
 			mutate:         func(r *EnqueueAsyncWorkflowMessageToDLQRequest) { r.Message.Payload = nil },
+			wantBadRequest: true,
+		},
+		{
+			name:           "message empty payload encoding",
+			mutate:         func(r *EnqueueAsyncWorkflowMessageToDLQRequest) { r.Message.PayloadEncoding = "" },
 			wantBadRequest: true,
 		},
 		{

@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -59,7 +60,7 @@ func (m *asyncWorkflowQueueManagerImpl) EnqueueAsyncWorkflowMessage(
 	if err := validateAsyncWorkflowMessageFields(
 		request.ShardID, request.SourceCluster, request.MessageID,
 		request.DomainName, request.WorkflowID, request.RequestID,
-		request.RequestType, request.Payload,
+		request.RequestType, request.Payload, request.PayloadEncoding,
 	); err != nil {
 		return err
 	}
@@ -129,7 +130,7 @@ func (m *asyncWorkflowQueueManagerImpl) EnqueueAsyncWorkflowMessageToDLQ(
 	if err := validateAsyncWorkflowMessageFields(
 		msg.ShardID, msg.SourceCluster, msg.MessageID,
 		msg.DomainName, msg.WorkflowID, msg.RequestID,
-		msg.RequestType, msg.Payload,
+		msg.RequestType, msg.Payload, msg.PayloadEncoding,
 	); err != nil {
 		return err
 	}
@@ -208,6 +209,7 @@ func validateAsyncWorkflowMessageFields(
 	domainName, workflowID, requestID string,
 	requestType AsyncWorkflowRequestType,
 	payload []byte,
+	payloadEncoding constants.EncodingType,
 ) error {
 	if err := validateAsyncWorkflowKey(shardID, sourceCluster); err != nil {
 		return err
@@ -226,6 +228,9 @@ func validateAsyncWorkflowMessageFields(
 	}
 	if len(payload) == 0 {
 		return asyncWorkflowBadRequest("Payload must not be empty")
+	}
+	if payloadEncoding == "" {
+		return asyncWorkflowBadRequest("PayloadEncoding must not be empty")
 	}
 	switch requestType {
 	case AsyncWorkflowRequestTypeStartWorkflow, AsyncWorkflowRequestTypeSignalWithStartWorkflow:
