@@ -1848,14 +1848,6 @@ const (
 	// Default value: false
 	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingEnableAdaptiveScaler
-	// MatchingEnableDistributedSemaphore gates serving distributed semaphore buckets on matching
-	// hosts. While it is off no bucket is loaded, so no partition is scanned and nothing is held
-	// in memory.
-	// KeyName: matching.enableDistributedSemaphore
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	MatchingEnableDistributedSemaphore
 	// MatchingEnablePartitionEmptyCheck enables using TaskListStatus.empty to check if a partition is empty
 	// KeyName: matching.enablePartitionEmptyCheck
 	// Value type: Bool
@@ -2151,6 +2143,14 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableStickyQuery
+	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
+	// frontend, and serving semaphore buckets on matching. While it is off matching loads no bucket,
+	// so no partition is scanned and nothing is held in memory.
+	// KeyName: system.enableDistributedSemaphore
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableDistributedSemaphore
 	// EnableFailoverManager indicates if failover manager is enabled
 	// KeyName: system.enableFailoverManager
 	// Value type: Bool
@@ -4834,12 +4834,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "MatchingEnableAdaptiveScaler is to enable adaptive task list scaling",
 		DefaultValue: false,
 	},
-	MatchingEnableDistributedSemaphore: {
-		KeyName:      "matching.enableDistributedSemaphore",
-		Filters:      []Filter{DomainName},
-		Description:  "MatchingEnableDistributedSemaphore gates serving distributed semaphore buckets on matching hosts",
-		DefaultValue: false,
-	},
 	MatchingEnablePartitionEmptyCheck: {
 		KeyName:      "matching.enablePartitionEmptyCheck",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
@@ -5085,6 +5079,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{DomainName},
 		Description:  "EnableStickyQuery indicates if sticky query should be enabled per domain",
 		DefaultValue: true,
+	},
+	EnableDistributedSemaphore: {
+		KeyName:      "system.enableDistributedSemaphore",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, and serving semaphore buckets on matching",
+		DefaultValue: false,
 	},
 	EnableFailoverManager: {
 		KeyName:      "system.enableFailoverManager",

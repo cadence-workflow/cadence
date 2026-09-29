@@ -95,5 +95,7 @@ type (
 		UnpauseSchedule(context.Context, *types.UnpauseScheduleRequest) (*types.UnpauseScheduleResponse, error)
 		BackfillSchedule(context.Context, *types.BackfillScheduleRequest) (*types.BackfillScheduleResponse, error)
 		ListSchedules(context.Context, *types.ListSchedulesRequest) (*types.ListSchedulesResponse, error)
+
+		CreateSemaphore(context.Context, *types.CreateSemaphoreRequest) (*types.CreateSemaphoreResponse, error)
 	}
 )

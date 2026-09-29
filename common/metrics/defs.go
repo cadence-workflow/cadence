@@ -1201,6 +1201,8 @@ const (
 	FrontendBackfillScheduleScope
 	// FrontendListSchedulesScope is the metric scope for frontend.ListSchedules
 	FrontendListSchedulesScope
+	// FrontendCreateSemaphoreScope is the metric scope for frontend.CreateSemaphore
+	FrontendCreateSemaphoreScope
 
 	NumFrontendScopes
 )
@@ -2101,6 +2103,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendUnpauseScheduleScope:                       {operation: "UnpauseSchedule"},
 		FrontendBackfillScheduleScope:                      {operation: "BackfillSchedule"},
 		FrontendListSchedulesScope:                         {operation: "ListSchedules"},
+		FrontendCreateSemaphoreScope:                       {operation: "CreateSemaphore"},
 		FrontendGetSearchAttributesScope:                   {operation: "GetSearchAttributes"},
 		FrontendGetClusterInfoScope:                        {operation: "GetClusterInfo"},
 	},

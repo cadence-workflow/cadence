@@ -36,6 +36,11 @@ func (g APIHandler) CreateSchedule(ctx context.Context, request *apiv1.CreateSch
 	return proto.FromCreateScheduleResponse(response), proto.FromError(err)
 }
 
+func (g APIHandler) CreateSemaphore(ctx context.Context, request *apiv1.CreateSemaphoreRequest) (*apiv1.CreateSemaphoreResponse, error) {
+	response, err := g.h.CreateSemaphore(ctx, proto.ToCreateSemaphoreRequest(request))
+	return proto.FromCreateSemaphoreResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) DeleteDomain(ctx context.Context, request *apiv1.DeleteDomainRequest) (*apiv1.DeleteDomainResponse, error) {
 	err := g.h.DeleteDomain(ctx, proto.ToDeleteDomainRequest(request))
 	return &apiv1.DeleteDomainResponse{}, proto.FromError(err)
