@@ -163,7 +163,7 @@ func TestNewConfig(t *testing.T) {
 		"TransferProcessorEnableValidator":                       {dynamicproperties.TransferProcessorEnableValidator, true},
 		"TransferProcessorValidationInterval":                    {dynamicproperties.TransferProcessorValidationInterval, time.Second},
 		"TransferProcessorVisibilityArchivalTimeLimit":           {dynamicproperties.TransferProcessorVisibilityArchivalTimeLimit, time.Second},
-		"TransferProcessorCachedQueueReaderMode":                 {dynamicproperties.TransferProcessorCachedQueueReaderMode, "enabled"},
+		"TransferProcessorCachedQueueReaderMode":                 {dynamicproperties.TransferProcessorCachedQueueReaderMode, "disabled"},
 		"TransferProcessorCacheMaxSize":                          {dynamicproperties.TransferProcessorCacheMaxSize, 103},
 		"TransferProcessorCachedQueueReaderShadowSampleInterval": {dynamicproperties.TransferProcessorCachedQueueReaderShadowSampleInterval, time.Second},
 		"ReplicatorTaskDeleteBatchSize":                          {dynamicproperties.ReplicatorTaskDeleteBatchSize, 53},
