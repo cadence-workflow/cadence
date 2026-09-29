@@ -996,6 +996,22 @@ const (
 	PersistenceUpdateHistoryDLQAckLevelScope
 	// PersistenceDeleteHistoryDLQTasksScope tracks DeleteTasks calls to the persistence layer
 	PersistenceDeleteHistoryDLQTasksScope
+	// PersistenceEnqueueAsyncWorkflowMessageScope tracks EnqueueAsyncWorkflowMessage calls to the persistence layer
+	PersistenceEnqueueAsyncWorkflowMessageScope
+	// PersistenceReadAsyncWorkflowMessagesScope tracks ReadAsyncWorkflowMessages calls to the persistence layer
+	PersistenceReadAsyncWorkflowMessagesScope
+	// PersistenceGetAsyncWorkflowAckLevelsScope tracks GetAsyncWorkflowAckLevels calls to the persistence layer
+	PersistenceGetAsyncWorkflowAckLevelsScope
+	// PersistenceUpdateAsyncWorkflowAckLevelScope tracks UpdateAsyncWorkflowAckLevel calls to the persistence layer
+	PersistenceUpdateAsyncWorkflowAckLevelScope
+	// PersistenceRangeDeleteAsyncWorkflowMessagesScope tracks RangeDeleteAsyncWorkflowMessages calls to the persistence layer
+	PersistenceRangeDeleteAsyncWorkflowMessagesScope
+	// PersistenceEnqueueAsyncWorkflowMessageToDLQScope tracks EnqueueAsyncWorkflowMessageToDLQ calls to the persistence layer
+	PersistenceEnqueueAsyncWorkflowMessageToDLQScope
+	// PersistenceReadAsyncWorkflowMessagesFromDLQScope tracks ReadAsyncWorkflowMessagesFromDLQ calls to the persistence layer
+	PersistenceReadAsyncWorkflowMessagesFromDLQScope
+	// PersistenceRangeDeleteAsyncWorkflowMessagesFromDLQScope tracks RangeDeleteAsyncWorkflowMessagesFromDLQ calls to the persistence layer
+	PersistenceRangeDeleteAsyncWorkflowMessagesFromDLQScope
 
 	NumCommonScopes
 )
@@ -2002,12 +2018,20 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		ActiveClusterManager:                   {operation: "ActiveClusterManager"},
 		ActiveClusterManagerWorkflowCacheScope: {operation: "ActiveClusterManagerWorkflowCache"},
 
-		PersistenceCreateHistoryDLQTaskScope:                {operation: "CreateHistoryDLQTask"},
-		PersistenceCreateHistoryDLQAckLevelIfNotExistsScope: {operation: "CreateHistoryDLQAckLevelIfNotExists"},
-		PersistenceGetHistoryDLQAckLevelsScope:              {operation: "GetHistoryDLQAckLevels"},
-		PersistenceGetHistoryDLQTasksScope:                  {operation: "GetHistoryDLQTasks"},
-		PersistenceUpdateHistoryDLQAckLevelScope:            {operation: "UpdateHistoryDLQAckLevel"},
-		PersistenceDeleteHistoryDLQTasksScope:               {operation: "DeleteHistoryDLQTasks"},
+		PersistenceCreateHistoryDLQTaskScope:                    {operation: "CreateHistoryDLQTask"},
+		PersistenceCreateHistoryDLQAckLevelIfNotExistsScope:     {operation: "CreateHistoryDLQAckLevelIfNotExists"},
+		PersistenceGetHistoryDLQAckLevelsScope:                  {operation: "GetHistoryDLQAckLevels"},
+		PersistenceGetHistoryDLQTasksScope:                      {operation: "GetHistoryDLQTasks"},
+		PersistenceUpdateHistoryDLQAckLevelScope:                {operation: "UpdateHistoryDLQAckLevel"},
+		PersistenceDeleteHistoryDLQTasksScope:                   {operation: "DeleteHistoryDLQTasks"},
+		PersistenceEnqueueAsyncWorkflowMessageScope:             {operation: "EnqueueAsyncWorkflowMessage"},
+		PersistenceReadAsyncWorkflowMessagesScope:               {operation: "ReadAsyncWorkflowMessages"},
+		PersistenceGetAsyncWorkflowAckLevelsScope:               {operation: "GetAsyncWorkflowAckLevels"},
+		PersistenceUpdateAsyncWorkflowAckLevelScope:             {operation: "UpdateAsyncWorkflowAckLevel"},
+		PersistenceRangeDeleteAsyncWorkflowMessagesScope:        {operation: "RangeDeleteAsyncWorkflowMessages"},
+		PersistenceEnqueueAsyncWorkflowMessageToDLQScope:        {operation: "EnqueueAsyncWorkflowMessageToDLQ"},
+		PersistenceReadAsyncWorkflowMessagesFromDLQScope:        {operation: "ReadAsyncWorkflowMessagesFromDLQ"},
+		PersistenceRangeDeleteAsyncWorkflowMessagesFromDLQScope: {operation: "RangeDeleteAsyncWorkflowMessagesFromDLQ"},
 	},
 	// Frontend Scope Names
 	Frontend: {
