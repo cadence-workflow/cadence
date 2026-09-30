@@ -139,9 +139,6 @@ var (
 // startup, so keeping the two apart costs the caller nothing.
 const semaphoreManagerStartTimeout = 30 * time.Second
 
-// ErrSemaphoreDisabled means the domain has distributed semaphores turned off. It is terminal,
-// unlike semaphore.ErrNotReady, which means "still starting, come back": nothing will change
-// here until an operator flips the flag.
 var ErrSemaphoreDisabled = errors.New("distributed semaphore is not enabled for this domain")
 
 var _ Engine = (*matchingEngineImpl)(nil) // Asserts that interface is indeed implemented

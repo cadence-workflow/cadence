@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/uber/cadence/common/types"
 )
 
 // Tests that NewIdentifier rejects the values persistence would reject anyway, so a
@@ -42,7 +44,7 @@ func TestNewIdentifier(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			id, err := NewIdentifier(tc.domainID, tc.semaphoreName, tc.bucket)
 			if tc.wantErr {
-				assert.ErrorIs(t, err, ErrInvalidRequest, "a bad identifier is never worth retrying")
+				assert.IsType(t, &types.BadRequestError{}, err, "a bad identifier is never worth retrying")
 				return
 			}
 			require.NoError(t, err)
