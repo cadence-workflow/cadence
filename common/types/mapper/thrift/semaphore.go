@@ -11,9 +11,9 @@ func FromSemaphore(t *types.Semaphore) *shared.Semaphore {
 		return nil
 	}
 	return &shared.Semaphore{
-		SemaphoreName: common.StringPtr(t.SemaphoreName),
-		Size:          common.Int32Ptr(t.Size),
-		BucketSize:    common.Int32Ptr(t.BucketSize),
+		SemaphoreName:  common.StringPtr(t.SemaphoreName),
+		Capacity:       common.Int32Ptr(t.Capacity),
+		BucketCapacity: common.Int32Ptr(t.BucketCapacity),
 	}
 }
 
@@ -22,9 +22,9 @@ func ToSemaphore(t *shared.Semaphore) *types.Semaphore {
 		return nil
 	}
 	return &types.Semaphore{
-		SemaphoreName: t.GetSemaphoreName(),
-		Size:          t.GetSize(),
-		BucketSize:    t.GetBucketSize(),
+		SemaphoreName:  t.GetSemaphoreName(),
+		Capacity:       t.GetCapacity(),
+		BucketCapacity: t.GetBucketCapacity(),
 	}
 }
 
@@ -33,10 +33,10 @@ func FromCreateSemaphoreRequest(t *types.CreateSemaphoreRequest) *shared.CreateS
 		return nil
 	}
 	return &shared.CreateSemaphoreRequest{
-		Domain:        common.StringPtr(t.Domain),
-		SemaphoreName: common.StringPtr(t.SemaphoreName),
-		Size:          common.Int32Ptr(t.Size),
-		BucketSize:    common.Int32Ptr(t.BucketSize),
+		Domain:         common.StringPtr(t.Domain),
+		SemaphoreName:  common.StringPtr(t.SemaphoreName),
+		Capacity:       common.Int32Ptr(t.Capacity),
+		BucketCapacity: common.Int32Ptr(t.BucketCapacity),
 	}
 }
 
@@ -45,10 +45,10 @@ func ToCreateSemaphoreRequest(t *shared.CreateSemaphoreRequest) *types.CreateSem
 		return nil
 	}
 	return &types.CreateSemaphoreRequest{
-		Domain:        t.GetDomain(),
-		SemaphoreName: t.GetSemaphoreName(),
-		Size:          t.GetSize(),
-		BucketSize:    t.GetBucketSize(),
+		Domain:         t.GetDomain(),
+		SemaphoreName:  t.GetSemaphoreName(),
+		Capacity:       t.GetCapacity(),
+		BucketCapacity: t.GetBucketCapacity(),
 	}
 }
 

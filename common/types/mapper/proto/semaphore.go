@@ -11,9 +11,9 @@ func FromSemaphore(t *types.Semaphore) *apiv1.Semaphore {
 		return nil
 	}
 	return &apiv1.Semaphore{
-		SemaphoreName: t.SemaphoreName,
-		Size_:         t.Size,
-		BucketSize:    t.BucketSize,
+		SemaphoreName:  t.SemaphoreName,
+		Capacity:       t.Capacity,
+		BucketCapacity: t.BucketCapacity,
 	}
 }
 
@@ -22,9 +22,9 @@ func ToSemaphore(t *apiv1.Semaphore) *types.Semaphore {
 		return nil
 	}
 	return &types.Semaphore{
-		SemaphoreName: t.SemaphoreName,
-		Size:          t.Size_,
-		BucketSize:    t.BucketSize,
+		SemaphoreName:  t.SemaphoreName,
+		Capacity:       t.Capacity,
+		BucketCapacity: t.BucketCapacity,
 	}
 }
 
@@ -33,10 +33,10 @@ func FromCreateSemaphoreRequest(t *types.CreateSemaphoreRequest) *apiv1.CreateSe
 		return nil
 	}
 	return &apiv1.CreateSemaphoreRequest{
-		Domain:        t.Domain,
-		SemaphoreName: t.SemaphoreName,
-		Size_:         t.Size,
-		BucketSize:    t.BucketSize,
+		Domain:         t.Domain,
+		SemaphoreName:  t.SemaphoreName,
+		Capacity:       t.Capacity,
+		BucketCapacity: t.BucketCapacity,
 	}
 }
 
@@ -45,10 +45,10 @@ func ToCreateSemaphoreRequest(t *apiv1.CreateSemaphoreRequest) *types.CreateSema
 		return nil
 	}
 	return &types.CreateSemaphoreRequest{
-		Domain:        t.Domain,
-		SemaphoreName: t.SemaphoreName,
-		Size:          t.Size_,
-		BucketSize:    t.BucketSize,
+		Domain:         t.Domain,
+		SemaphoreName:  t.SemaphoreName,
+		Capacity:       t.Capacity,
+		BucketCapacity: t.BucketCapacity,
 	}
 }
 

@@ -36,14 +36,14 @@ func (wh *WorkflowHandler) CreateSemaphore(
 	if semaphoreName == "" {
 		return nil, &types.BadRequestError{Message: "SemaphoreName is not set on request."}
 	}
-	size := request.GetSize()
-	if size <= 0 {
-		return nil, &types.BadRequestError{Message: fmt.Sprintf("Size must be positive, got %d.", size)}
+	capacity := request.GetCapacity()
+	if capacity <= 0 {
+		return nil, &types.BadRequestError{Message: fmt.Sprintf("Capacity must be positive, got %d.", capacity)}
 	}
-	bucketSize := request.GetBucketSize()
-	if bucketSize < 0 || bucketSize > persistence.MaxSemaphoreBucketSize {
+	bucketCapacity := request.GetBucketCapacity()
+	if bucketCapacity < 0 || bucketCapacity > persistence.MaxSemaphoreBucketSize {
 		return nil, &types.BadRequestError{Message: fmt.Sprintf(
-			"BucketSize must be between 0 and %d, got %d.", persistence.MaxSemaphoreBucketSize, bucketSize,
+			"BucketCapacity must be between 0 and %d, got %d.", persistence.MaxSemaphoreBucketSize, bucketCapacity,
 		)}
 	}
 
@@ -52,11 +52,12 @@ func (wh *WorkflowHandler) CreateSemaphore(
 		return nil, err
 	}
 
+	// The API calls them capacity and bucket_capacity; persistence stores them as size and bucket_size.
 	resp, err := wh.GetSemaphoreMetadataManager().CreateSemaphore(ctx, &persistence.CreateSemaphoreRequest{
 		DomainID:      domainID,
 		SemaphoreName: semaphoreName,
-		Size:          int(size),
-		BucketSize:    int(bucketSize),
+		Size:          int(capacity),
+		BucketSize:    int(bucketCapacity),
 	})
 	if err != nil {
 		if errors.As(err, new(*persistence.ConditionFailedError)) {
@@ -71,8 +72,8 @@ func (wh *WorkflowHandler) CreateSemaphore(
 
 func toSemaphore(s *persistence.SemaphoreMetadata) *types.Semaphore {
 	return &types.Semaphore{
-		SemaphoreName: s.SemaphoreName,
-		Size:          int32(s.Size),
-		BucketSize:    int32(s.BucketSize),
+		SemaphoreName:  s.SemaphoreName,
+		Capacity:       int32(s.Size),
+		BucketCapacity: int32(s.BucketSize),
 	}
 }

@@ -21,12 +21,12 @@ import (
 
 func TestCreateSemaphore(t *testing.T) {
 	const semaphoreName = "my-semaphore"
-	request := func(size, bucketSize int32) *types.CreateSemaphoreRequest {
+	request := func(capacity, bucketCapacity int32) *types.CreateSemaphoreRequest {
 		return &types.CreateSemaphoreRequest{
-			Domain:        testDomain,
-			SemaphoreName: semaphoreName,
-			Size:          size,
-			BucketSize:    bucketSize,
+			Domain:         testDomain,
+			SemaphoreName:  semaphoreName,
+			Capacity:       capacity,
+			BucketCapacity: bucketCapacity,
 		}
 	}
 	stored := func(size, bucketSize int) *persistence.SemaphoreMetadata {
@@ -37,11 +37,11 @@ func TestCreateSemaphore(t *testing.T) {
 			BucketSize:    bucketSize,
 		}
 	}
-	semaphore := func(size, bucketSize int32) *types.CreateSemaphoreResponse {
+	semaphore := func(capacity, bucketCapacity int32) *types.CreateSemaphoreResponse {
 		return &types.CreateSemaphoreResponse{Semaphore: &types.Semaphore{
-			SemaphoreName: semaphoreName,
-			Size:          size,
-			BucketSize:    bucketSize,
+			SemaphoreName:  semaphoreName,
+			Capacity:       capacity,
+			BucketCapacity: bucketCapacity,
 		}}
 	}
 	tests := map[string]struct {
@@ -52,40 +52,40 @@ func TestCreateSemaphore(t *testing.T) {
 		want    *types.CreateSemaphoreResponse
 		wantErr error
 	}{
-		"nil request": {
+		"when the request is nil, it is rejected": {
 			request: nil,
 			wantErr: validate.ErrRequestNotSet,
 		},
-		"domain not set": {
-			request: &types.CreateSemaphoreRequest{SemaphoreName: semaphoreName, Size: 10},
+		"when the domain is not set, the request is rejected": {
+			request: &types.CreateSemaphoreRequest{SemaphoreName: semaphoreName, Capacity: 10},
 			wantErr: validate.ErrDomainNotSet,
 		},
-		"disabled for the domain": {
+		"when the feature is disabled for the domain, the request is rejected": {
 			request:  request(10, 0),
 			disabled: true,
 			wantErr:  &types.BadRequestError{},
 		},
-		"semaphore name not set": {
-			request: &types.CreateSemaphoreRequest{Domain: testDomain, Size: 10},
+		"when the semaphore name is not set, the request is rejected": {
+			request: &types.CreateSemaphoreRequest{Domain: testDomain, Capacity: 10},
 			wantErr: &types.BadRequestError{},
 		},
-		"zero size": {
+		"when the capacity is 0, the request is rejected": {
 			request: request(0, 0),
 			wantErr: &types.BadRequestError{},
 		},
-		"negative size": {
+		"when the capacity is negative, the request is rejected": {
 			request: request(-1, 0),
 			wantErr: &types.BadRequestError{},
 		},
-		"negative bucket size": {
+		"when the bucket capacity is negative, the request is rejected": {
 			request: request(10, -1),
 			wantErr: &types.BadRequestError{},
 		},
-		"bucket size above the maximum": {
+		"when the bucket capacity is above the maximum, the request is rejected": {
 			request: request(10, persistence.MaxSemaphoreBucketSize+1),
 			wantErr: &types.BadRequestError{},
 		},
-		"created": {
+		"when the request is valid, the semaphore is created": {
 			request: request(1000, 100),
 			create: func(m *persistence.MockSemaphoreMetadataManager) {
 				m.EXPECT().CreateSemaphore(gomock.Any(), &persistence.CreateSemaphoreRequest{
@@ -97,7 +97,7 @@ func TestCreateSemaphore(t *testing.T) {
 			},
 			want: semaphore(1000, 100),
 		},
-		"created with the server's bucket size": {
+		"when the bucket capacity is not set, the server's default is used": {
 			request: request(1000, 0),
 			create: func(m *persistence.MockSemaphoreMetadataManager) {
 				m.EXPECT().CreateSemaphore(gomock.Any(), &persistence.CreateSemaphoreRequest{
@@ -108,14 +108,14 @@ func TestCreateSemaphore(t *testing.T) {
 			},
 			want: semaphore(1000, 100),
 		},
-		"create fails": {
+		"when the store fails, the error is returned": {
 			request: request(1000, 100),
 			create: func(m *persistence.MockSemaphoreMetadataManager) {
 				m.EXPECT().CreateSemaphore(gomock.Any(), gomock.Any()).Return(nil, &types.InternalServiceError{})
 			},
 			wantErr: &types.InternalServiceError{},
 		},
-		"already exists": {
+		"when the semaphore already exists, a BadRequestError is returned": {
 			request: request(1000, 100),
 			create: func(m *persistence.MockSemaphoreMetadataManager) {
 				m.EXPECT().CreateSemaphore(gomock.Any(), gomock.Any()).
@@ -173,7 +173,7 @@ func TestCreateSemaphoreUnknownDomain(t *testing.T) {
 	_, err := handler.CreateSemaphore(context.Background(), &types.CreateSemaphoreRequest{
 		Domain:        testDomain,
 		SemaphoreName: "my-semaphore",
-		Size:          10,
+		Capacity:      10,
 	})
 	assert.True(t, errors.Is(err, notFound))
 }
