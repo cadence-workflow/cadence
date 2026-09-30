@@ -55,6 +55,8 @@ type FactoryImpl struct {
 	startOnce      sync.Once
 	stopOnce       sync.Once
 	maxMessageSize int
+	grpcPort       uint16
+	tchannelPort   uint16
 	channel        tchannel.Channel
 	dispatcher     *yarpc.Dispatcher
 	outbounds      *Outbounds
@@ -156,6 +158,8 @@ func NewFactory(logger log.Logger, p Params) Factory {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &FactoryImpl{
 		maxMessageSize: p.GRPCMaxMsgSize,
+		grpcPort:       p.GRPCPort,
+		tchannelPort:   p.TChannelPort,
 		dispatcher:     dispatcher,
 		channel:        ch.Channel(),
 		outbounds:      outbounds,
@@ -174,6 +178,14 @@ func (d *FactoryImpl) GetDispatcher() *yarpc.Dispatcher {
 // GetTChannel GetChannel returns Tchannel Channel used by Ringpop
 func (d *FactoryImpl) GetTChannel() tchannel.Channel {
 	return d.channel
+}
+
+func (d *FactoryImpl) GetGRPCPort() uint16 {
+	return d.grpcPort
+}
+
+func (d *FactoryImpl) GetTChannelPort() uint16 {
+	return d.tchannelPort
 }
 
 func (d *FactoryImpl) GetMaxMessageSize() int {
