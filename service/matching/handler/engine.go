@@ -53,7 +53,6 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/rpc"
-	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
@@ -407,9 +406,9 @@ func (e *matchingEngineImpl) AddSemaphoreTask(
 	bucket := int(request.GetBucket())
 	ownerID := request.GetOwnerID()
 
-	owner, err := commonsemaphore.ParseOwner(ownerID)
+	owner, err := semaphore.ParseRequestOwner(ownerID)
 	if err != nil {
-		return nil, &types.BadRequestError{Message: fmt.Sprintf("invalid owner id: %v", err)}
+		return nil, err
 	}
 
 	e.emitInfoOrDebugLog(

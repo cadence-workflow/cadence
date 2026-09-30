@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common/log/tag"
+	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -27,6 +28,16 @@ func NewIdentifier(domainID, semaphoreName string, bucket int) (Identifier, erro
 		return Identifier{}, &types.BadRequestError{Message: err.Error()}
 	}
 	return id, nil
+}
+
+// ParseRequestOwner decodes an owner_id from an RPC request, returning a BadRequestError if
+// it is malformed.
+func ParseRequestOwner(ownerID string) (commonsemaphore.Owner, error) {
+	owner, err := commonsemaphore.ParseOwner(ownerID)
+	if err != nil {
+		return commonsemaphore.Owner{}, &types.BadRequestError{Message: fmt.Sprintf("invalid owner id: %v", err)}
+	}
+	return owner, nil
 }
 
 func (id Identifier) validate() error {

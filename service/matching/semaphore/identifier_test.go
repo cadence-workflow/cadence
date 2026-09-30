@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -49,6 +50,35 @@ func TestNewIdentifier(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantString, id.String())
+		})
+	}
+}
+
+// Tests that ParseRequestOwner turns a malformed owner_id into a BadRequestError. ParseOwner's
+// own tests cover each malformed shape, so this only checks the wrapping.
+func TestParseRequestOwner(t *testing.T) {
+	valid := commonsemaphore.Owner{WorkflowID: "wf-1", RunID: "run-1", HoldID: 7}
+
+	tests := []struct {
+		name    string
+		ownerID string
+		want    commonsemaphore.Owner
+		wantErr bool
+	}{
+		{name: "valid", ownerID: valid.String(), want: valid},
+		{name: "no length prefix", ownerID: "wf-1", wantErr: true},
+		{name: "empty", ownerID: "", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseRequestOwner(tc.ownerID)
+			if tc.wantErr {
+				assert.IsType(t, &types.BadRequestError{}, err, "a malformed owner id is never worth retrying")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
