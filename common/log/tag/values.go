@@ -478,6 +478,7 @@ var (
 	MatchingClientOperationRespondQueryTaskCompleted      = clientOperation("matching-respond-query-task-completed")
 	MatchingClientOperationUpdateTaskListPartitionConfig  = clientOperation("matching-update-task-list-partition-config")
 	MatchingClientOperationRefreshTaskListPartitionConfig = clientOperation("matching-refresh-task-list-partition-config")
+	MatchingClientOperationAddSemaphoreTask               = clientOperation("matching-add-semaphore-task")
 )
 
 // Pre-defined values for TagIDType

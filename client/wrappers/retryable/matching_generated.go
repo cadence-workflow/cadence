@@ -53,6 +53,17 @@ func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDeci
 	return resp, err
 }
 
+func (c *matchingClient) AddSemaphoreTask(ctx context.Context, ap1 *types.AddSemaphoreTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddSemaphoreTaskResponse, err error) {
+	var resp *types.AddSemaphoreTaskResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.AddSemaphoreTask(ctx, ap1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
 	op := func(ctx context.Context) error {
 		return c.client.CancelOutstandingPoll(ctx, cp1, p1...)
