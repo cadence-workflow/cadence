@@ -27,7 +27,8 @@ func NumBuckets(size, bucketSize int) (int, error) {
 //
 // The acquire and the later release for one owner_id each compute this separately, so they must
 // get the same answer. Never change the hash or add a seed: a release sent to a different bucket
-// cannot free the slot its acquire took.
+// cannot free the slot its acquire took. For the same reason, numBuckets must come from NumBuckets
+// on the semaphore's stored size and bucket_size, which never change after creation.
 func OwnerIDToBucket(ownerID string, numBuckets int) (int, error) {
 	if numBuckets < 1 {
 		return 0, fmt.Errorf("numBuckets must be positive, got %d", numBuckets)
