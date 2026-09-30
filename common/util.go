@@ -309,11 +309,12 @@ func IsExpectedError(err error) bool {
 func IsServiceTransientError(err error) bool {
 
 	var (
-		typesInternalServiceError        *types.InternalServiceError
-		typesServiceBusyError            *types.ServiceBusyError
-		typesShardOwnershipLostError     *types.ShardOwnershipLostError
-		typesTaskListNotOwnedByHostError *cadence_errors.TaskListNotOwnedByHostError
-		yarpcErrorsStatus                *yarpcerrors.Status
+		typesInternalServiceError         *types.InternalServiceError
+		typesServiceBusyError             *types.ServiceBusyError
+		typesShardOwnershipLostError      *types.ShardOwnershipLostError
+		typesTaskListNotOwnedByHostError  *cadence_errors.TaskListNotOwnedByHostError
+		typesSemaphoreNotOwnedByHostError *cadence_errors.SemaphoreNotOwnedByHostError
+		yarpcErrorsStatus                 *yarpcerrors.Status
 	)
 
 	switch {
@@ -324,6 +325,8 @@ func IsServiceTransientError(err error) bool {
 	case errors.As(err, &typesShardOwnershipLostError):
 		return true
 	case errors.As(err, &typesTaskListNotOwnedByHostError):
+		return true
+	case errors.As(err, &typesSemaphoreNotOwnedByHostError):
 		return true
 	case errors.As(err, &yarpcErrorsStatus):
 		// We only selectively retry the following yarpc errors client can safe retry with a backoff
@@ -992,6 +995,20 @@ func GetTaskListTag(taskListName string, taskListKind types.TaskListKind) metric
 		taskListTag = ephemeralTaskListMetricTag
 	}
 	return taskListTag
+}
+
+func NewPerSemaphoreScope(
+	domainName string,
+	semaphoreName string,
+	client metrics.Client,
+	scopeIdx metrics.ScopeIdx,
+) metrics.Scope {
+	domainTag := metrics.DomainUnknownTag()
+	if domainName != "" {
+		domainTag = metrics.DomainTag(domainName)
+	}
+	semaphoreNameTag := metrics.SemaphoreNameTag(semaphoreName)
+	return client.Scope(scopeIdx, domainTag, semaphoreNameTag)
 }
 
 // NewPerTaskListScope creates a tasklist metrics scope

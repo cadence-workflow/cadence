@@ -108,7 +108,7 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/uber-go/mapdecode v1.0.0 // indirect
-	github.com/uber/cadence-idl v0.0.0-20260923164242-97f38da6bdfb // indirect
+	github.com/uber/cadence-idl v0.0.0-20260930191656-06c46f0bd6d0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect

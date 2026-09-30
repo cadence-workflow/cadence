@@ -640,6 +640,11 @@ func (h *Impl) GetDomainAuditManager() persistence.DomainAuditManager {
 	return h.persistenceBean.GetDomainAuditManager()
 }
 
+// GetSemaphoreMetadataManager return semaphore metadata manager
+func (h *Impl) GetSemaphoreMetadataManager() persistence.SemaphoreMetadataManager {
+	return h.persistenceBean.GetSemaphoreMetadataManager()
+}
+
 // GetTaskManager return task manager
 func (h *Impl) GetTaskManager() persistence.TaskManager {
 	return h.persistenceBean.GetTaskManager()

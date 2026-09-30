@@ -428,3 +428,29 @@ func TestMatchingRefreshTaskListPartitionConfigRequestFuzz(t *testing.T) {
 func TestMatchingRefreshTaskListPartitionConfigResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromMatchingRefreshTaskListPartitionConfigResponse, ToMatchingRefreshTaskListPartitionConfigResponse)
 }
+
+func TestMatchingAddSemaphoreTaskRequest(t *testing.T) {
+	for _, item := range []*types.AddSemaphoreTaskRequest{nil, {}, &testdata.MatchingAddSemaphoreTaskRequest} {
+		assert.Equal(t, item, ToMatchingAddSemaphoreTaskRequest(FromMatchingAddSemaphoreTaskRequest(item)))
+	}
+}
+
+func TestMatchingAddSemaphoreTaskResponse(t *testing.T) {
+	for _, item := range []*types.AddSemaphoreTaskResponse{nil, {}, &testdata.MatchingAddSemaphoreTaskResponse} {
+		assert.Equal(t, item, ToMatchingAddSemaphoreTaskResponse(FromMatchingAddSemaphoreTaskResponse(item)))
+	}
+}
+
+func SemaphoreAcquireOutcomeFuzzer(e *types.SemaphoreAcquireOutcome, c fuzz.Continue) {
+	*e = types.SemaphoreAcquireOutcome(c.Intn(3)) // 0-2: Invalid, Acquired, NoSlot
+}
+
+func TestMatchingAddSemaphoreTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingAddSemaphoreTaskRequest, ToMatchingAddSemaphoreTaskRequest)
+}
+
+func TestMatchingAddSemaphoreTaskResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingAddSemaphoreTaskResponse, ToMatchingAddSemaphoreTaskResponse,
+		testutils.WithCustomFuncs(SemaphoreAcquireOutcomeFuzzer),
+	)
+}

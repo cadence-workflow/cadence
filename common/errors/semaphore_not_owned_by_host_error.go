@@ -9,18 +9,19 @@ var _ error = &SemaphoreNotOwnedByHostError{}
 type SemaphoreNotOwnedByHostError struct {
 	OwnedByIdentity string
 	MyIdentity      string
-	Bucket          string
+	// BucketID names the bucket in full, as "<domainID>/<semaphoreName>/<bucket>".
+	BucketID string
 }
 
 func (m *SemaphoreNotOwnedByHostError) Error() string {
-	return fmt.Sprintf("semaphore bucket is not owned by this host: OwnedBy: %s, Me: %s, Bucket: %s",
-		m.OwnedByIdentity, m.MyIdentity, m.Bucket)
+	return fmt.Sprintf("semaphore bucket is not owned by this host: OwnedBy: %s, Me: %s, BucketID: %s",
+		m.OwnedByIdentity, m.MyIdentity, m.BucketID)
 }
 
-func NewSemaphoreNotOwnedByHostError(ownedByIdentity string, myIdentity string, bucket string) *SemaphoreNotOwnedByHostError {
+func NewSemaphoreNotOwnedByHostError(ownedByIdentity string, myIdentity string, bucketID string) *SemaphoreNotOwnedByHostError {
 	return &SemaphoreNotOwnedByHostError{
 		OwnedByIdentity: ownedByIdentity,
 		MyIdentity:      myIdentity,
-		Bucket:          bucket,
+		BucketID:        bucketID,
 	}
 }
