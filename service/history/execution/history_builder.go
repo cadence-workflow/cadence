@@ -620,7 +620,7 @@ func (b *HistoryBuilder) AddUpsertWorkflowSearchAttributesEvent(
 
 // AddSemaphoreAcquireInitiatedEvent adds SemaphoreAcquireInitiated event to history.
 // The caller passes the timeout the acquire will actually use, already worked out from the
-// decision or the defaults, so the event records a fixed number that replay can rely on.
+// decision or the server's default, so the event records a fixed number that replay can rely on.
 func (b *HistoryBuilder) AddSemaphoreAcquireInitiatedEvent(
 	decisionTaskCompletedEventID int64,
 	semaphoreName string,

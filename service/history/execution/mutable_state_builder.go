@@ -897,7 +897,9 @@ func (e *mutableStateBuilder) shouldBufferEvent(
 		types.EventTypeMarkerRecorded,
 		types.EventTypeStartChildWorkflowExecutionInitiated,
 		types.EventTypeSignalExternalWorkflowExecutionInitiated,
-		types.EventTypeUpsertWorkflowSearchAttributes:
+		types.EventTypeUpsertWorkflowSearchAttributes,
+		types.EventTypeSemaphoreAcquireInitiated,
+		types.EventTypeSemaphoreReleased:
 		// do not buffer event if event is directly generated from a corresponding decision
 
 		// sanity check there is no decision on the fly

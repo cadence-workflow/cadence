@@ -8383,8 +8383,7 @@ func (v *UpsertWorkflowSearchAttributesEventAttributes) ByteSize() uint64 {
 type AcquireSemaphoreDecisionAttributes struct {
 	SemaphoreName string `json:"semaphoreName,omitempty"`
 	// WaitTimeoutSeconds is how long this acquire may wait for a token before History fails the
-	// run. When unset, the semaphore's own default applies, or the global default if the
-	// semaphore has none.
+	// run. When unset or zero, the server's default applies.
 	WaitTimeoutSeconds *int32 `json:"waitTimeoutSeconds,omitempty"`
 }
 
@@ -8420,8 +8419,8 @@ func (v *ReleaseSemaphoreDecisionAttributes) GetInitiatedEventID() (o int64) {
 // SemaphoreAcquireInitiatedEventAttributes records an acquire request.
 type SemaphoreAcquireInitiatedEventAttributes struct {
 	SemaphoreName string `json:"semaphoreName,omitempty"`
-	// WaitTimeoutSeconds is the timeout this acquire actually uses, after the fallbacks. Recorded
-	// so a replay reads the same value even if a default changes later.
+	// WaitTimeoutSeconds is the timeout this acquire actually uses: the decision's value, or the
+	// server's default. Recorded so a replay reads the same value even if the default changes later.
 	WaitTimeoutSeconds           *int32 `json:"waitTimeoutSeconds,omitempty"`
 	DecisionTaskCompletedEventID int64  `json:"decisionTaskCompletedEventId,omitempty"`
 }

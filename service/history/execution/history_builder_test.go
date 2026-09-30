@@ -2240,13 +2240,14 @@ func (s *historyBuilderSuite) printHistory() string {
 
 func TestHistoryBuilderSemaphoreEvents(t *testing.T) {
 	tests := []struct {
-		name      string
-		eventType types.EventType
-		add       func(b *HistoryBuilder) *types.HistoryEvent
-		want      func(e *types.HistoryEvent)
+		name         string
+		eventType    types.EventType
+		wantBuffered bool
+		add          func(b *HistoryBuilder) *types.HistoryEvent
+		want         func(e *types.HistoryEvent)
 	}{
 		{
-			name:      "acquire initiated",
+			name:      "when acquire initiated, gets a real event ID",
 			eventType: types.EventTypeSemaphoreAcquireInitiated,
 			add: func(b *HistoryBuilder) *types.HistoryEvent {
 				return b.AddSemaphoreAcquireInitiatedEvent(4, "semaphore-name", 30)
@@ -2260,8 +2261,9 @@ func TestHistoryBuilderSemaphoreEvents(t *testing.T) {
 			},
 		},
 		{
-			name:      "acquired",
-			eventType: types.EventTypeSemaphoreAcquired,
+			name:         "when acquired, gets the buffered placeholder ID",
+			eventType:    types.EventTypeSemaphoreAcquired,
+			wantBuffered: true,
 			add: func(b *HistoryBuilder) *types.HistoryEvent {
 				return b.AddSemaphoreAcquiredEvent(5, 17)
 			},
@@ -2273,7 +2275,7 @@ func TestHistoryBuilderSemaphoreEvents(t *testing.T) {
 			},
 		},
 		{
-			name:      "released",
+			name:      "when released, gets a real event ID",
 			eventType: types.EventTypeSemaphoreReleased,
 			add: func(b *HistoryBuilder) *types.HistoryEvent {
 				return b.AddSemaphoreReleasedEvent(9, 5, 17)
@@ -2291,14 +2293,15 @@ func TestHistoryBuilderSemaphoreEvents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mb := testMutableStateBuilder(t)
 			b := NewHistoryBuilder(mb)
+			wantID := mb.GetNextEventID()
+			if tt.wantBuffered {
+				wantID = commonconstants.BufferedEventID
+			}
 
 			event := tt.add(b)
 
 			want := &types.HistoryEvent{
-				// TODO: all three events get the buffered placeholder ID for now. When
-				// SemaphoreAcquireInitiated and SemaphoreReleased are added to shouldBufferEvent's
-				// never-buffered list, expect a real event ID for those two.
-				ID:        commonconstants.BufferedEventID,
+				ID:        wantID,
 				Timestamp: common.Int64Ptr(currentTime.UnixNano()),
 				EventType: tt.eventType.Ptr(),
 				Version:   mb.GetCurrentVersion(),
