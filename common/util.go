@@ -500,6 +500,9 @@ func ValidateRetryPolicy(policy *types.RetryPolicy) error {
 	if policy.GetExpirationIntervalInSeconds() < 0 {
 		return &types.BadRequestError{Message: "ExpirationIntervalInSeconds cannot be less than 0 on retry policy."}
 	}
+	if jitter := policy.GetJitterCoefficient(); math.IsNaN(jitter) || jitter < 0 || jitter > 1 {
+		return &types.BadRequestError{Message: "JitterCoefficient must be between 0 and 1 on retry policy."}
+	}
 	if policy.GetMaximumAttempts() == 0 && policy.GetExpirationIntervalInSeconds() == 0 {
 		return &types.BadRequestError{Message: "MaximumAttempts and ExpirationIntervalInSeconds are both 0. At least one of them must be specified."}
 	}

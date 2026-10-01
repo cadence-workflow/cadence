@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"math/rand"
 	"reflect"
 	"runtime"
@@ -735,6 +736,18 @@ func TestValidateRetryPolicy_Success(t *testing.T) {
 			MaximumAttempts:             0,
 			ExpirationIntervalInSeconds: 1,
 		},
+		"JitterCoefficient is between 0 and 1": {
+			InitialIntervalInSeconds: 2,
+			BackoffCoefficient:       1,
+			MaximumAttempts:          1,
+			JitterCoefficient:        0.2,
+		},
+		"JitterCoefficient equals 1": {
+			InitialIntervalInSeconds: 2,
+			BackoffCoefficient:       1,
+			MaximumAttempts:          1,
+			JitterCoefficient:        1,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.NoError(t, ValidateRetryPolicy(policy))
@@ -800,6 +813,33 @@ func TestValidateRetryPolicy_Error(t *testing.T) {
 				ExpirationIntervalInSeconds: -1,
 			},
 			wantErr: &types.BadRequestError{Message: "ExpirationIntervalInSeconds cannot be less than 0 on retry policy."},
+		},
+		"JitterCoefficient less than 0": {
+			policy: &types.RetryPolicy{
+				InitialIntervalInSeconds: 2,
+				BackoffCoefficient:       1,
+				MaximumAttempts:          1,
+				JitterCoefficient:        -0.1,
+			},
+			wantErr: &types.BadRequestError{Message: "JitterCoefficient must be between 0 and 1 on retry policy."},
+		},
+		"JitterCoefficient greater than 1": {
+			policy: &types.RetryPolicy{
+				InitialIntervalInSeconds: 2,
+				BackoffCoefficient:       1,
+				MaximumAttempts:          1,
+				JitterCoefficient:        1.1,
+			},
+			wantErr: &types.BadRequestError{Message: "JitterCoefficient must be between 0 and 1 on retry policy."},
+		},
+		"JitterCoefficient is NaN": {
+			policy: &types.RetryPolicy{
+				InitialIntervalInSeconds: 2,
+				BackoffCoefficient:       1,
+				MaximumAttempts:          1,
+				JitterCoefficient:        math.NaN(),
+			},
+			wantErr: &types.BadRequestError{Message: "JitterCoefficient must be between 0 and 1 on retry policy."},
 		},
 		"MaximumAttempts and ExpirationIntervalInSeconds equal 0": {
 			policy: &types.RetryPolicy{
