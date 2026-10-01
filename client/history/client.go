@@ -1141,6 +1141,14 @@ func (c *clientImpl) GetFailoverInfo(
 	return c.client.GetFailoverInfo(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
 }
 
+func (c *clientImpl) EnqueueAsyncWorkflowMessage(ctx context.Context, request *types.EnqueueAsyncWorkflowMessageRequest, opts ...yarpc.CallOption) (*types.EnqueueAsyncWorkflowMessageResponse, error) {
+	peer, err := c.peerResolver.FromShardID(int(request.GetShardID()))
+	if err != nil {
+		return nil, err
+	}
+	return c.client.EnqueueAsyncWorkflowMessage(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+}
+
 func (c *clientImpl) RatelimitUpdate(ctx context.Context, request *types.RatelimitUpdateRequest, opts ...yarpc.CallOption) (*types.RatelimitUpdateResponse, error) {
 	if len(opts) == 0 {
 		// unfortunately there is not really any way to ensure "must have a shard key option"

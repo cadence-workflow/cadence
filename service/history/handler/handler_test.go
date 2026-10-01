@@ -3829,3 +3829,94 @@ func Test_sortReplicationShardMessages(t *testing.T) {
 		})
 	}
 }
+
+func TestEnqueueAsyncWorkflowMessage(t *testing.T) {
+	request := &types.EnqueueAsyncWorkflowMessageRequest{
+		ShardID:     7,
+		DomainName:  "test-domain",
+		WorkflowID:  "wf-1",
+		RequestID:   "req-1",
+		RequestType: types.AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution.Ptr(),
+		Payload:     &types.DataBlob{EncodingType: types.EncodingTypeThriftRW.Ptr(), Data: []byte("envelope")},
+	}
+	errShardNotOwned := errors.New("shard not owned")
+	errEngine := &types.BadRequestError{Message: "engine rejected the request"}
+
+	tests := []struct {
+		name         string
+		request      *types.EnqueueAsyncWorkflowMessageRequest
+		shuttingDown bool
+		setup        func(controller *shard.MockController, eng *engine.MockEngine)
+		want         *types.EnqueueAsyncWorkflowMessageResponse
+		wantErr      error
+	}{
+		{
+			name:         "shutting down is rejected without touching the controller",
+			request:      request,
+			shuttingDown: true,
+			setup:        func(controller *shard.MockController, eng *engine.MockEngine) {},
+			wantErr:      constants.ErrShuttingDown,
+		},
+		{
+			name:    "nil request is rejected without touching the controller",
+			request: nil,
+			setup:   func(controller *shard.MockController, eng *engine.MockEngine) {},
+			wantErr: &types.BadRequestError{Message: "Request is nil."},
+		},
+		{
+			name:    "engine lookup error is returned",
+			request: request,
+			setup: func(controller *shard.MockController, eng *engine.MockEngine) {
+				controller.EXPECT().GetEngineForShard(7).Return(nil, errShardNotOwned).Times(1)
+			},
+			wantErr: errShardNotOwned,
+		},
+		{
+			name:    "engine error is passed through",
+			request: request,
+			setup: func(controller *shard.MockController, eng *engine.MockEngine) {
+				controller.EXPECT().GetEngineForShard(7).Return(eng, nil).Times(1)
+				eng.EXPECT().EnqueueAsyncWorkflowMessage(gomock.Any(), request).Return(nil, errEngine).Times(1)
+			},
+			wantErr: errEngine,
+		},
+		{
+			name:    "success returns the engine response",
+			request: request,
+			setup: func(controller *shard.MockController, eng *engine.MockEngine) {
+				controller.EXPECT().GetEngineForShard(7).Return(eng, nil).Times(1)
+				eng.EXPECT().EnqueueAsyncWorkflowMessage(gomock.Any(), request).Return(&types.EnqueueAsyncWorkflowMessageResponse{MessageID: 42}, nil).Times(1)
+			},
+			want: &types.EnqueueAsyncWorkflowMessageResponse{MessageID: 42},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			res := resource.NewMockResource(ctrl)
+			res.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
+			res.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+			controller := shard.NewMockController(ctrl)
+			eng := engine.NewMockEngine(ctrl)
+			tc.setup(controller, eng)
+			h := &handlerImpl{
+				Resource:   res,
+				controller: controller,
+			}
+			if tc.shuttingDown {
+				h.prepareToShutDown()
+			}
+
+			resp, err := h.EnqueueAsyncWorkflowMessage(context.Background(), tc.request)
+			if tc.wantErr != nil {
+				require.Error(t, err)
+				assert.Equal(t, tc.wantErr, err)
+				assert.Nil(t, resp)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, resp)
+		})
+	}
+}

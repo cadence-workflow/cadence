@@ -2287,3 +2287,35 @@ func validateTaskToken(token *common.TaskToken) error {
 	}
 	return nil
 }
+
+// errAsyncWorkflowRequestNotSet is returned when EnqueueAsyncWorkflowMessage receives a nil request.
+var errAsyncWorkflowRequestNotSet = &types.BadRequestError{Message: "Request is nil."}
+
+// EnqueueAsyncWorkflowMessage queues one accepted async workflow request on the shard that owns its workflow id.
+func (h *handlerImpl) EnqueueAsyncWorkflowMessage(
+	ctx context.Context,
+	request *types.EnqueueAsyncWorkflowMessageRequest,
+) (resp *types.EnqueueAsyncWorkflowMessageResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), h.GetLogger(), &retError) }()
+	h.startWG.Wait()
+
+	scope, sw := h.startRequestProfile(ctx, metrics.HistoryEnqueueAsyncWorkflowMessageScope)
+	defer sw.Stop()
+
+	if h.isShuttingDown() {
+		return nil, constants.ErrShuttingDown
+	}
+	if request == nil {
+		return nil, h.error(errAsyncWorkflowRequestNotSet, scope, "", "", "")
+	}
+
+	engine, err := h.controller.GetEngineForShard(int(request.GetShardID()))
+	if err != nil {
+		return nil, h.error(err, scope, "", request.GetWorkflowID(), "")
+	}
+	resp, err = engine.EnqueueAsyncWorkflowMessage(ctx, request)
+	if err != nil {
+		return nil, h.error(err, scope, "", request.GetWorkflowID(), "")
+	}
+	return resp, nil
+}

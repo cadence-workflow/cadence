@@ -473,6 +473,7 @@ var (
 	HistoryClientOperationRespondDecisionTaskCompleted      = clientOperation("history-respond-decision-task-completed")
 	HistoryClientOperationRespondDecisionTaskFailed         = clientOperation("history-respond-decision-task-failed")
 	HistoryClientOperationRatelimitUpdate                   = clientOperation("history-ratelimit-update")
+	HistoryClientOperationEnqueueAsyncWorkflowMessage       = clientOperation("history-enqueue-async-workflow-message")
 
 	MatchingClientOperationAddActivityTask                = clientOperation("matching-add-activity-task")
 	MatchingClientOperationAddDecisionTask                = clientOperation("matching-add-decision-task")

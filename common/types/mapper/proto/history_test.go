@@ -822,3 +822,92 @@ func TestHistoryStartWorkflowExecutionRequestFuzz(t *testing.T) {
 		testutils.WithExcludedFields("StartRequest"),
 	)
 }
+
+func TestHistoryEnqueueAsyncWorkflowMessageRequest(t *testing.T) {
+	for _, item := range []*types.EnqueueAsyncWorkflowMessageRequest{nil, {}, &testdata.HistoryEnqueueAsyncWorkflowMessageRequest} {
+		assert.Equal(t, item, ToHistoryEnqueueAsyncWorkflowMessageRequest(FromHistoryEnqueueAsyncWorkflowMessageRequest(item)))
+	}
+}
+
+func TestHistoryEnqueueAsyncWorkflowMessageRequestRequestTypes(t *testing.T) {
+	for _, requestType := range []*types.AsyncWorkflowRequestType{
+		nil,
+		types.AsyncWorkflowRequestTypeStartWorkflowExecution.Ptr(),
+		types.AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution.Ptr(),
+	} {
+		item := &types.EnqueueAsyncWorkflowMessageRequest{
+			ShardID:     3,
+			DomainName:  testdata.DomainName,
+			WorkflowID:  testdata.WorkflowID,
+			RequestID:   testdata.RequestID,
+			RequestType: requestType,
+			Payload:     &testdata.DataBlob,
+		}
+		assert.Equal(t, item, ToHistoryEnqueueAsyncWorkflowMessageRequest(FromHistoryEnqueueAsyncWorkflowMessageRequest(item)))
+	}
+}
+
+func TestHistoryEnqueueAsyncWorkflowMessageResponse(t *testing.T) {
+	for _, item := range []*types.EnqueueAsyncWorkflowMessageResponse{nil, {}, &testdata.HistoryEnqueueAsyncWorkflowMessageResponse} {
+		assert.Equal(t, item, ToHistoryEnqueueAsyncWorkflowMessageResponse(FromHistoryEnqueueAsyncWorkflowMessageResponse(item)))
+	}
+}
+
+func TestAsyncWorkflowRequestTypeMapping(t *testing.T) {
+	tests := []struct {
+		name     string
+		internal *types.AsyncWorkflowRequestType
+		proto    historyv1.AsyncWorkflowRequestType
+	}{
+		{
+			name:     "nil maps to invalid",
+			internal: nil,
+			proto:    historyv1.AsyncWorkflowRequestType_ASYNC_WORKFLOW_REQUEST_TYPE_INVALID,
+		},
+		{
+			name:     "start workflow execution",
+			internal: types.AsyncWorkflowRequestTypeStartWorkflowExecution.Ptr(),
+			proto:    historyv1.AsyncWorkflowRequestType_ASYNC_WORKFLOW_REQUEST_TYPE_START_WORKFLOW_EXECUTION,
+		},
+		{
+			name:     "signal with start workflow execution",
+			internal: types.AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution.Ptr(),
+			proto:    historyv1.AsyncWorkflowRequestType_ASYNC_WORKFLOW_REQUEST_TYPE_SIGNAL_WITH_START_WORKFLOW_EXECUTION,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.proto, FromAsyncWorkflowRequestType(tt.internal))
+			assert.Equal(t, tt.internal, ToAsyncWorkflowRequestType(tt.proto))
+		})
+	}
+}
+
+func TestAsyncWorkflowRequestTypeMappingUnknownValues(t *testing.T) {
+	assert.Equal(t,
+		historyv1.AsyncWorkflowRequestType_ASYNC_WORKFLOW_REQUEST_TYPE_INVALID,
+		FromAsyncWorkflowRequestType(types.AsyncWorkflowRequestType(9).Ptr()),
+	)
+	assert.Nil(t, ToAsyncWorkflowRequestType(historyv1.AsyncWorkflowRequestType(99)))
+}
+
+// WithAsyncWorkflowRequestTypeFuzzer restricts fuzzed request types to the two valid values (0 and 1).
+// The INVALID (nil) round trip is covered by the deterministic tests above, not by the fuzzer.
+func WithAsyncWorkflowRequestTypeFuzzer() testutils.FuzzOption {
+	return testutils.WithCustomFuncs(
+		func(e *types.AsyncWorkflowRequestType, c fuzz.Continue) {
+			*e = types.AsyncWorkflowRequestType(c.Intn(2)) // 0-1: StartWorkflowExecution, SignalWithStartWorkflowExecution
+		},
+	)
+}
+
+func TestHistoryEnqueueAsyncWorkflowMessageRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryEnqueueAsyncWorkflowMessageRequest, ToHistoryEnqueueAsyncWorkflowMessageRequest,
+		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
+		WithAsyncWorkflowRequestTypeFuzzer(),
+	)
+}
+
+func TestHistoryEnqueueAsyncWorkflowMessageResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryEnqueueAsyncWorkflowMessageResponse, ToHistoryEnqueueAsyncWorkflowMessageResponse)
+}

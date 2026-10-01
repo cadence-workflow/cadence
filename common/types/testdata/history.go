@@ -594,6 +594,17 @@ var (
 		CompletedShardCount: 0,
 		PendingShards:       []int32{1, 2, 3},
 	}
+	HistoryEnqueueAsyncWorkflowMessageRequest = types.EnqueueAsyncWorkflowMessageRequest{
+		ShardID:     7,
+		DomainName:  DomainName,
+		WorkflowID:  WorkflowID,
+		RequestID:   RequestID,
+		RequestType: types.AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution.Ptr(),
+		Payload:     &DataBlob,
+	}
+	HistoryEnqueueAsyncWorkflowMessageResponse = types.EnqueueAsyncWorkflowMessageResponse{
+		MessageID: 42,
+	}
 	RatelimitUpdateRequest = types.RatelimitUpdateRequest{
 		Any: &types.Any{
 			ValueType: history.WeightedRatelimitUsageAnyType, // only correct value currently

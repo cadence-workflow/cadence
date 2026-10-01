@@ -87,4 +87,5 @@ type Handler interface {
 	TerminateWorkflowExecution(context.Context, *types.HistoryTerminateWorkflowExecutionRequest) error
 	GetFailoverInfo(context.Context, *types.GetFailoverInfoRequest) (*types.GetFailoverInfoResponse, error)
 	RatelimitUpdate(context.Context, *types.RatelimitUpdateRequest) (*types.RatelimitUpdateResponse, error)
+	EnqueueAsyncWorkflowMessage(context.Context, *types.EnqueueAsyncWorkflowMessageRequest) (*types.EnqueueAsyncWorkflowMessageResponse, error)
 }

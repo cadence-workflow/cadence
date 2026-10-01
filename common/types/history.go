@@ -20,6 +20,13 @@
 
 package types
 
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"unsafe"
+)
+
 // DescribeMutableStateRequest is an internal type (TBD...)
 type DescribeMutableStateRequest struct {
 	DomainUUID string             `json:"domainUUID,omitempty"`
@@ -1302,6 +1309,137 @@ func (v *GetFailoverInfoResponse) GetCompletedShardCount() (o int32) {
 func (v *GetFailoverInfoResponse) GetPendingShards() (o []int32) {
 	if v != nil {
 		return v.PendingShards
+	}
+	return
+}
+
+// AsyncWorkflowRequestType identifies which async API produced a queued request.
+type AsyncWorkflowRequestType int32
+
+// Ptr is a helper function for getting pointer value
+func (e AsyncWorkflowRequestType) Ptr() *AsyncWorkflowRequestType {
+	return &e
+}
+
+// String returns a readable string representation of AsyncWorkflowRequestType.
+func (e AsyncWorkflowRequestType) String() string {
+	w := int32(e)
+	switch w {
+	case 0:
+		return "StartWorkflowExecution"
+	case 1:
+		return "SignalWithStartWorkflowExecution"
+	}
+	return fmt.Sprintf("AsyncWorkflowRequestType(%d)", w)
+}
+
+// UnmarshalText parses enum value from string representation
+func (e *AsyncWorkflowRequestType) UnmarshalText(value []byte) error {
+	switch s := strings.ToUpper(string(value)); s {
+	case "STARTWORKFLOWEXECUTION":
+		*e = AsyncWorkflowRequestTypeStartWorkflowExecution
+		return nil
+	case "SIGNALWITHSTARTWORKFLOWEXECUTION":
+		*e = AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "AsyncWorkflowRequestType", err)
+		}
+		*e = AsyncWorkflowRequestType(val)
+		return nil
+	}
+}
+
+// MarshalText encodes AsyncWorkflowRequestType to text.
+func (e AsyncWorkflowRequestType) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (e *AsyncWorkflowRequestType) ByteSize() uint64 {
+	if e == nil {
+		return 0
+	}
+	return uint64(unsafe.Sizeof(*e))
+}
+
+const (
+	// AsyncWorkflowRequestTypeStartWorkflowExecution is a StartWorkflowExecutionAsync request.
+	AsyncWorkflowRequestTypeStartWorkflowExecution AsyncWorkflowRequestType = iota
+	// AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution is a SignalWithStartWorkflowExecutionAsync request.
+	AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution
+)
+
+// EnqueueAsyncWorkflowMessageRequest is the history-internal request to queue one accepted async
+// workflow request on the history shard that owns WorkflowID.
+type EnqueueAsyncWorkflowMessageRequest struct {
+	ShardID     int32                     `json:"shardID,omitempty"`
+	DomainName  string                    `json:"domainName,omitempty"`
+	WorkflowID  string                    `json:"workflowID,omitempty"`
+	RequestID   string                    `json:"requestID,omitempty"`
+	RequestType *AsyncWorkflowRequestType `json:"requestType,omitempty"`
+	Payload     *DataBlob                 `json:"payload,omitempty"`
+}
+
+// GetShardID returns the shard ID.
+func (v *EnqueueAsyncWorkflowMessageRequest) GetShardID() (o int32) {
+	if v != nil {
+		return v.ShardID
+	}
+	return
+}
+
+// GetDomainName returns the domain name.
+func (v *EnqueueAsyncWorkflowMessageRequest) GetDomainName() (o string) {
+	if v != nil {
+		return v.DomainName
+	}
+	return
+}
+
+// GetWorkflowID returns the workflow ID.
+func (v *EnqueueAsyncWorkflowMessageRequest) GetWorkflowID() (o string) {
+	if v != nil {
+		return v.WorkflowID
+	}
+	return
+}
+
+// GetRequestID returns the request ID.
+func (v *EnqueueAsyncWorkflowMessageRequest) GetRequestID() (o string) {
+	if v != nil {
+		return v.RequestID
+	}
+	return
+}
+
+// GetRequestType returns the async workflow request type.
+func (v *EnqueueAsyncWorkflowMessageRequest) GetRequestType() (o AsyncWorkflowRequestType) {
+	if v != nil && v.RequestType != nil {
+		return *v.RequestType
+	}
+	return
+}
+
+// GetPayload returns the request payload.
+func (v *EnqueueAsyncWorkflowMessageRequest) GetPayload() (o *DataBlob) {
+	if v != nil {
+		return v.Payload
+	}
+	return
+}
+
+// EnqueueAsyncWorkflowMessageResponse carries the message id the owning shard allocated.
+type EnqueueAsyncWorkflowMessageResponse struct {
+	MessageID int64 `json:"messageID,omitempty"`
+}
+
+// GetMessageID returns the allocated message ID.
+func (v *EnqueueAsyncWorkflowMessageResponse) GetMessageID() (o int64) {
+	if v != nil {
+		return v.MessageID
 	}
 	return
 }

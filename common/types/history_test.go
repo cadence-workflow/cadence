@@ -1542,3 +1542,71 @@ func TestQueueState_Copy(t *testing.T) {
 		assert.Equal(t, info, infoCopy)
 	}
 }
+
+func TestAsyncWorkflowRequestType(t *testing.T) {
+	tests := []struct {
+		name  string
+		value AsyncWorkflowRequestType
+		text  string
+	}{
+		{name: "start workflow execution", value: AsyncWorkflowRequestTypeStartWorkflowExecution, text: "StartWorkflowExecution"},
+		{name: "signal with start workflow execution", value: AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution, text: "SignalWithStartWorkflowExecution"},
+		{name: "unknown value", value: AsyncWorkflowRequestType(9), text: "AsyncWorkflowRequestType(9)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.text, tt.value.String())
+			assert.Equal(t, tt.value, *tt.value.Ptr())
+
+			text, err := tt.value.MarshalText()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.text, string(text))
+		})
+	}
+}
+
+func TestAsyncWorkflowRequestTypeUnmarshalText(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    AsyncWorkflowRequestType
+		wantErr bool
+	}{
+		{name: "start workflow execution", input: "StartWorkflowExecution", want: AsyncWorkflowRequestTypeStartWorkflowExecution},
+		{name: "signal with start workflow execution", input: "SignalWithStartWorkflowExecution", want: AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution},
+		{name: "case insensitive", input: "signalwithstartworkflowexecution", want: AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution},
+		{name: "numeric fallback", input: "1", want: AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution},
+		{name: "garbage", input: "nope", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got AsyncWorkflowRequestType
+			err := got.UnmarshalText([]byte(tt.input))
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestEnqueueAsyncWorkflowMessageGettersNilSafe(t *testing.T) {
+	var req *EnqueueAsyncWorkflowMessageRequest
+	assert.Equal(t, int32(0), req.GetShardID())
+	assert.Equal(t, "", req.GetDomainName())
+	assert.Equal(t, "", req.GetWorkflowID())
+	assert.Equal(t, "", req.GetRequestID())
+	assert.Equal(t, AsyncWorkflowRequestType(0), req.GetRequestType())
+	assert.Nil(t, req.GetPayload())
+
+	var resp *EnqueueAsyncWorkflowMessageResponse
+	assert.Equal(t, int64(0), resp.GetMessageID())
+
+	signal := AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution
+	set := &EnqueueAsyncWorkflowMessageRequest{ShardID: 7, RequestType: &signal}
+	assert.Equal(t, int32(7), set.GetShardID())
+	assert.Equal(t, signal, set.GetRequestType())
+	assert.Equal(t, AsyncWorkflowRequestType(0), (&EnqueueAsyncWorkflowMessageRequest{}).GetRequestType())
+}

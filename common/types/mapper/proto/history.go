@@ -1623,3 +1623,74 @@ func ToHistoryRatelimitUpdateResponse(t *historyv1.RatelimitUpdateResponse) *typ
 		Any: ToAny(t.Data),
 	}
 }
+
+func FromHistoryEnqueueAsyncWorkflowMessageRequest(t *types.EnqueueAsyncWorkflowMessageRequest) *historyv1.EnqueueAsyncWorkflowMessageRequest {
+	if t == nil {
+		return nil
+	}
+	return &historyv1.EnqueueAsyncWorkflowMessageRequest{
+		ShardId:     t.ShardID,
+		DomainName:  t.DomainName,
+		WorkflowId:  t.WorkflowID,
+		RequestId:   t.RequestID,
+		RequestType: FromAsyncWorkflowRequestType(t.RequestType),
+		Payload:     FromDataBlob(t.Payload),
+	}
+}
+
+func ToHistoryEnqueueAsyncWorkflowMessageRequest(t *historyv1.EnqueueAsyncWorkflowMessageRequest) *types.EnqueueAsyncWorkflowMessageRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.EnqueueAsyncWorkflowMessageRequest{
+		ShardID:     t.ShardId,
+		DomainName:  t.DomainName,
+		WorkflowID:  t.WorkflowId,
+		RequestID:   t.RequestId,
+		RequestType: ToAsyncWorkflowRequestType(t.RequestType),
+		Payload:     ToDataBlob(t.Payload),
+	}
+}
+
+func FromHistoryEnqueueAsyncWorkflowMessageResponse(t *types.EnqueueAsyncWorkflowMessageResponse) *historyv1.EnqueueAsyncWorkflowMessageResponse {
+	if t == nil {
+		return nil
+	}
+	return &historyv1.EnqueueAsyncWorkflowMessageResponse{
+		MessageId: t.MessageID,
+	}
+}
+
+func ToHistoryEnqueueAsyncWorkflowMessageResponse(t *historyv1.EnqueueAsyncWorkflowMessageResponse) *types.EnqueueAsyncWorkflowMessageResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.EnqueueAsyncWorkflowMessageResponse{
+		MessageID: t.MessageId,
+	}
+}
+
+func FromAsyncWorkflowRequestType(t *types.AsyncWorkflowRequestType) historyv1.AsyncWorkflowRequestType {
+	if t == nil {
+		return historyv1.AsyncWorkflowRequestType_ASYNC_WORKFLOW_REQUEST_TYPE_INVALID
+	}
+	switch *t {
+	case types.AsyncWorkflowRequestTypeStartWorkflowExecution:
+		return historyv1.AsyncWorkflowRequestType_ASYNC_WORKFLOW_REQUEST_TYPE_START_WORKFLOW_EXECUTION
+	case types.AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution:
+		return historyv1.AsyncWorkflowRequestType_ASYNC_WORKFLOW_REQUEST_TYPE_SIGNAL_WITH_START_WORKFLOW_EXECUTION
+	}
+	return historyv1.AsyncWorkflowRequestType_ASYNC_WORKFLOW_REQUEST_TYPE_INVALID
+}
+
+func ToAsyncWorkflowRequestType(t historyv1.AsyncWorkflowRequestType) *types.AsyncWorkflowRequestType {
+	switch t {
+	case historyv1.AsyncWorkflowRequestType_ASYNC_WORKFLOW_REQUEST_TYPE_INVALID:
+		return nil
+	case historyv1.AsyncWorkflowRequestType_ASYNC_WORKFLOW_REQUEST_TYPE_START_WORKFLOW_EXECUTION:
+		return types.AsyncWorkflowRequestTypeStartWorkflowExecution.Ptr()
+	case historyv1.AsyncWorkflowRequestType_ASYNC_WORKFLOW_REQUEST_TYPE_SIGNAL_WITH_START_WORKFLOW_EXECUTION:
+		return types.AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution.Ptr()
+	}
+	return nil
+}

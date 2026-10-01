@@ -89,4 +89,8 @@ type Client interface {
 	// and unlike most endpoints this will NOT be forwarded to a new peer if the ring membership changes.
 	// To correctly forward keys to the new hosts, they must be re-sharded to find their new hosts.
 	RatelimitUpdate(ctx context.Context, request *types.RatelimitUpdateRequest, opts ...yarpc.CallOption) (*types.RatelimitUpdateResponse, error)
+
+	// EnqueueAsyncWorkflowMessage queues one accepted async workflow request on the history shard that owns
+	// request.WorkflowID. Routed by request.ShardID. gRPC only.
+	EnqueueAsyncWorkflowMessage(context.Context, *types.EnqueueAsyncWorkflowMessageRequest, ...yarpc.CallOption) (*types.EnqueueAsyncWorkflowMessageResponse, error)
 }

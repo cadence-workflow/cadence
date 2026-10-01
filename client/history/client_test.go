@@ -471,6 +471,21 @@ func TestClient_withResponse(t *testing.T) {
 			want: &types.RatelimitUpdateResponse{},
 		},
 		{
+			name: "EnqueueAsyncWorkflowMessage",
+			op: func(c Client) (any, error) {
+				return c.EnqueueAsyncWorkflowMessage(context.Background(), &types.EnqueueAsyncWorkflowMessageRequest{
+					ShardID:    7,
+					WorkflowID: "test-workflow",
+				})
+			},
+			mock: func(p *MockPeerResolver, c *MockClient) {
+				p.EXPECT().FromShardID(7).Return("test-peer", nil).Times(1)
+				c.EXPECT().EnqueueAsyncWorkflowMessage(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer")}).
+					Return(&types.EnqueueAsyncWorkflowMessageResponse{MessageID: 42}, nil).Times(1)
+			},
+			want: &types.EnqueueAsyncWorkflowMessageResponse{MessageID: 42},
+		},
+		{
 			name: "StartWorkflowExecution peer resolve failure",
 			op: func(c Client) (any, error) {
 				return c.StartWorkflowExecution(context.Background(), &types.HistoryStartWorkflowExecutionRequest{
@@ -793,6 +808,35 @@ func TestClient_withResponse(t *testing.T) {
 				p.EXPECT().FromDomainID("test-domain").Return("test-peer", nil).Times(1)
 				c.EXPECT().GetFailoverInfo(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer")}).
 					Return(nil, fmt.Errorf("GetFailoverInfo failed")).Times(1)
+			},
+			wantError: true,
+		},
+		{
+			name: "EnqueueAsyncWorkflowMessage peer resolve failure",
+			op: func(c Client) (any, error) {
+				return c.EnqueueAsyncWorkflowMessage(context.Background(), &types.EnqueueAsyncWorkflowMessageRequest{
+					ShardID:    7,
+					WorkflowID: "test-workflow",
+				})
+			},
+			mock: func(p *MockPeerResolver, c *MockClient) {
+				// the downstream client must not be called when the shard cannot be resolved
+				p.EXPECT().FromShardID(7).Return("", fmt.Errorf("some error")).Times(1)
+			},
+			wantError: true,
+		},
+		{
+			name: "EnqueueAsyncWorkflowMessage fail",
+			op: func(c Client) (any, error) {
+				return c.EnqueueAsyncWorkflowMessage(context.Background(), &types.EnqueueAsyncWorkflowMessageRequest{
+					ShardID:    7,
+					WorkflowID: "test-workflow",
+				})
+			},
+			mock: func(p *MockPeerResolver, c *MockClient) {
+				p.EXPECT().FromShardID(7).Return("test-peer", nil).Times(1)
+				c.EXPECT().EnqueueAsyncWorkflowMessage(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer")}).
+					Return(nil, fmt.Errorf("EnqueueAsyncWorkflowMessage failed")).Times(1)
 			},
 			wantError: true,
 		},

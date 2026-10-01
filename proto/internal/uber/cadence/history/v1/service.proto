@@ -238,6 +238,11 @@ service HistoryAPI {
   // Request and response structures are intentionally loosely defined, to allow plugging
   // in externally-defined algorithms without changing protocol-level details.
   rpc RatelimitUpdate(RatelimitUpdateRequest) returns(RatelimitUpdateResponse);
+
+  // EnqueueAsyncWorkflowMessage writes one accepted async workflow request (StartWorkflowExecutionAsync or
+  // SignalWithStartWorkflowExecutionAsync) onto the queue of the history shard that owns workflow_id.
+  // Routed by shard_id; the owning shard verifies that workflow_id hashes to shard_id.
+  rpc EnqueueAsyncWorkflowMessage(EnqueueAsyncWorkflowMessageRequest) returns (EnqueueAsyncWorkflowMessageResponse);
 }
 
 
@@ -777,4 +782,25 @@ message RatelimitUpdateResponse {
   // repeated serialization of the type name, and to allow impls
   // to choose whatever structures are most-convenient for them.
   shared.v1.Any data = 1;
+}
+
+// AsyncWorkflowRequestType identifies which async API produced a queued request.
+enum AsyncWorkflowRequestType {
+  ASYNC_WORKFLOW_REQUEST_TYPE_INVALID = 0;
+  ASYNC_WORKFLOW_REQUEST_TYPE_START_WORKFLOW_EXECUTION = 1;
+  ASYNC_WORKFLOW_REQUEST_TYPE_SIGNAL_WITH_START_WORKFLOW_EXECUTION = 2;
+}
+
+message EnqueueAsyncWorkflowMessageRequest {
+  int32 shard_id = 1;
+  string domain_name = 2;
+  string workflow_id = 3;
+  string request_id = 4;
+  AsyncWorkflowRequestType request_type = 5;
+  // The whole sqlblobs.AsyncRequestMessage envelope; opaque to history.
+  api.v1.DataBlob payload = 6;
+}
+
+message EnqueueAsyncWorkflowMessageResponse {
+  int64 message_id = 1;
 }

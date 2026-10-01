@@ -67,6 +67,12 @@ func (c *historyClient) DescribeWorkflowExecution(ctx context.Context, hp1 *type
 	return c.client.DescribeWorkflowExecution(ctx, hp1, p1...)
 }
 
+func (c *historyClient) EnqueueAsyncWorkflowMessage(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageRequest, p1 ...yarpc.CallOption) (ep2 *types.EnqueueAsyncWorkflowMessageResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.EnqueueAsyncWorkflowMessage(ctx, ep1, p1...)
+}
+
 func (c *historyClient) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetCrossClusterTasksRequest, p1 ...yarpc.CallOption) (gp2 *types.GetCrossClusterTasksResponse, err error) {
 	return c.client.GetCrossClusterTasks(ctx, gp1, p1...)
 }

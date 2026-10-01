@@ -119,6 +119,21 @@ func (mr *MockEngineMockRecorder) DescribeWorkflowExecution(ctx, request any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeWorkflowExecution", reflect.TypeOf((*MockEngine)(nil).DescribeWorkflowExecution), ctx, request)
 }
 
+// EnqueueAsyncWorkflowMessage mocks base method.
+func (m *MockEngine) EnqueueAsyncWorkflowMessage(ctx context.Context, request *types.EnqueueAsyncWorkflowMessageRequest) (*types.EnqueueAsyncWorkflowMessageResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueueAsyncWorkflowMessage", ctx, request)
+	ret0, _ := ret[0].(*types.EnqueueAsyncWorkflowMessageResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnqueueAsyncWorkflowMessage indicates an expected call of EnqueueAsyncWorkflowMessage.
+func (mr *MockEngineMockRecorder) EnqueueAsyncWorkflowMessage(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueAsyncWorkflowMessage", reflect.TypeOf((*MockEngine)(nil).EnqueueAsyncWorkflowMessage), ctx, request)
+}
+
 // GetDLQReplicationMessages mocks base method.
 func (m *MockEngine) GetDLQReplicationMessages(ctx context.Context, taskInfos []*types.ReplicationTaskInfo) ([]*types.ReplicationTask, error) {
 	m.ctrl.T.Helper()

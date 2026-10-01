@@ -43,6 +43,11 @@ func (g historyClient) DescribeWorkflowExecution(ctx context.Context, hp1 *types
 	return proto.ToHistoryDescribeWorkflowExecutionResponse(response), proto.ToError(err)
 }
 
+func (g historyClient) EnqueueAsyncWorkflowMessage(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageRequest, p1 ...yarpc.CallOption) (ep2 *types.EnqueueAsyncWorkflowMessageResponse, err error) {
+	response, err := g.c.EnqueueAsyncWorkflowMessage(ctx, proto.FromHistoryEnqueueAsyncWorkflowMessageRequest(ep1), p1...)
+	return proto.ToHistoryEnqueueAsyncWorkflowMessageResponse(response), proto.ToError(err)
+}
+
 func (g historyClient) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetCrossClusterTasksRequest, p1 ...yarpc.CallOption) (gp2 *types.GetCrossClusterTasksResponse, err error) {
 	response, err := g.c.GetCrossClusterTasks(ctx, proto.FromHistoryGetCrossClusterTasksRequest(gp1), p1...)
 	return proto.ToHistoryGetCrossClusterTasksResponse(response), proto.ToError(err)

@@ -162,6 +162,26 @@ func (mr *MockClientMockRecorder) DescribeWorkflowExecution(arg0, arg1 any, arg2
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeWorkflowExecution", reflect.TypeOf((*MockClient)(nil).DescribeWorkflowExecution), varargs...)
 }
 
+// EnqueueAsyncWorkflowMessage mocks base method.
+func (m *MockClient) EnqueueAsyncWorkflowMessage(arg0 context.Context, arg1 *types.EnqueueAsyncWorkflowMessageRequest, arg2 ...yarpc.CallOption) (*types.EnqueueAsyncWorkflowMessageResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "EnqueueAsyncWorkflowMessage", varargs...)
+	ret0, _ := ret[0].(*types.EnqueueAsyncWorkflowMessageResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnqueueAsyncWorkflowMessage indicates an expected call of EnqueueAsyncWorkflowMessage.
+func (mr *MockClientMockRecorder) EnqueueAsyncWorkflowMessage(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueAsyncWorkflowMessage", reflect.TypeOf((*MockClient)(nil).EnqueueAsyncWorkflowMessage), varargs...)
+}
+
 // GetCrossClusterTasks mocks base method.
 func (m *MockClient) GetCrossClusterTasks(arg0 context.Context, arg1 *types.GetCrossClusterTasksRequest, arg2 ...yarpc.CallOption) (*types.GetCrossClusterTasksResponse, error) {
 	m.ctrl.T.Helper()
