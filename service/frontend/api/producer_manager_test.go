@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/cache"
@@ -38,6 +39,8 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
+
+const testNumHistoryShards = 16
 
 func TestGetProducerByDomain(t *testing.T) {
 	testCases := []struct {
@@ -204,6 +207,35 @@ func TestGetProducerByDomain(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:   "Success case - history client and shard count reach CreateProducer",
+			domain: "test-domain",
+			mockSetup: func(mockDomainCache *cache.MockDomainCache, mockProvider *queue.MockProvider, mockQueue *provider.MockQueue, mockProducerCache *cache.MockCache) {
+				mockDomainCache.EXPECT().GetDomain("test-domain").Return(cache.NewGlobalDomainCacheEntryForTest(
+					nil,
+					&persistence.DomainConfig{
+						AsyncWorkflowConfig: types.AsyncWorkflowConfiguration{
+							Enabled:             true,
+							PredefinedQueueName: "queue1",
+						},
+					},
+					nil,
+					0,
+				), nil)
+				mockProvider.EXPECT().GetPredefinedQueue("queue1").Return(mockQueue, nil)
+				mockQueue.EXPECT().ID().Return("history")
+				mockProducerCache.EXPECT().Get("history").Return(nil)
+				mockQueue.EXPECT().CreateProducer(gomock.Any()).DoAndReturn(func(p *provider.Params) (messaging.Producer, error) {
+					assert.NotNil(t, p.HistoryClient)
+					assert.Equal(t, testNumHistoryShards, p.NumHistoryShards)
+					return messaging.NewNoopProducer(), nil
+				})
+				mockProducerCache.EXPECT().PutIfNotExist("history", gomock.Any()).DoAndReturn(func(_ string, v interface{}) (interface{}, error) {
+					return v, nil
+				})
+			},
+			wantErr: false,
+		},
+		{
 			name:   "Error case - async wf not enabled",
 			domain: "test-domain",
 			mockSetup: func(mockDomainCache *cache.MockDomainCache, mockProvider *queue.MockProvider, mockQueue *provider.MockQueue, mockProducerCache *cache.MockCache) {
@@ -231,10 +263,13 @@ func TestGetProducerByDomain(t *testing.T) {
 			mockProvider := queue.NewMockProvider(mockCtrl)
 			mockQueue := provider.NewMockQueue(mockCtrl)
 			mockProducerCache := cache.NewMockCache(mockCtrl)
+			mockHistoryClient := history.NewMockClient(mockCtrl)
 
 			producerManager := NewProducerManager(
 				mockDomainCache,
 				mockProvider,
+				mockHistoryClient,
+				testNumHistoryShards,
 				log.NewNoop(),
 				metrics.NewNoopMetricsClient(),
 			)

@@ -145,6 +145,8 @@ func NewWorkflowHandler(
 		producerManager: NewProducerManager(
 			resource.GetDomainCache(),
 			resource.GetAsyncWorkflowQueueProvider(),
+			resource.GetHistoryClient(),
+			config.NumHistoryShards,
 			resource.GetLogger(),
 			resource.GetMetricsClient(),
 		),

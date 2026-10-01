@@ -91,3 +91,28 @@ Cadence server will start a consumer to poll from the kafka topic within a minut
 The `test-domain` is now ready to accept async workflow requests. Update your worker (or modify samples code) to use one of the async APIs:
 - [StartWorkflowExecutionAsync](https://github.com/cadence-workflow/cadence-idl/blob/0e56e57909d9fa738eaa8d7a9561ea16acdf51e4/proto/uber/cadence/api/v1/service_workflow.proto#L49)
 - [SignalWithStartWorkflowExecutionAsync](https://github.com/cadence-workflow/cadence-idl/blob/0e56e57909d9fa738eaa8d7a9561ea16acdf51e4/proto/uber/cadence/api/v1/service_workflow.proto#L63)
+
+## History-backed queue
+
+Besides Kafka, an async workflow queue can be backed by the Cadence history service itself, with no external queue system. Set the queue `type` to `"history"` in `asyncWorkflowQueues`. The `history` type has no provider config keys; `config` is an empty object:
+
+```
+asyncWorkflowQueues:
+  queue1:
+    type: "history"
+    config: {}
+```
+
+When a domain uses a history-backed queue, the frontend does not publish to a broker. For every `StartWorkflowExecutionAsync` or `SignalWithStartWorkflowExecutionAsync` request it computes the history shard that owns the workflow id and sends the request to that shard, and the owning shard persists it through the history datastore. The workers service does not poll anything for this queue type; history drains its own queue.
+
+Requirements: the history-backed queue store and the in-history consumer that drains it are delivered separately from the producer path described here. Until both are present in your Cadence build, requests accepted for a domain on a `history` queue are not processed, so do not point production domains at it yet.
+
+A domain is pointed at a history-backed queue the same way as at a Kafka queue, with `PredefinedQueueName`:
+
+```
+docker run -t --rm --network host ubercadence/cli:master \
+    --address localhost:7933 \
+    --domain test-domain \
+    admin async-wf-queue update \
+    --json "{\"PredefinedQueueName\":\"queue1\", \"Enabled\": true}"
+```
