@@ -45,9 +45,7 @@ import (
 const (
 	defaultGRPCSizeLimit = 4 * 1024 * 1024
 	factoryComponentName = "rpc-factory"
-	// peerUpdateInterval is how often peer choosers are updated even when membership has not changed.
-	// This removes hosts that were added back after leaving membership, e.g. because the shard distributor still routed to them.
-	peerUpdateInterval = 30 * time.Second
+	peerUpdateInterval   = 30 * time.Second
 )
 
 var (
