@@ -1176,7 +1176,7 @@ func resetActivityInfoMap(activityInfos map[int64]*persistence.InternalActivityI
 		aInfo["has_retry_policy"] = a.HasRetryPolicy
 		aInfo["init_interval"] = int32(a.InitialInterval.Seconds())
 		aInfo["backoff_coefficient"] = a.BackoffCoefficient
-		aInfo["jitter_coefficient"] = nil
+		aInfo["jitter_coefficient"] = a.JitterCoefficient
 		aInfo["max_interval"] = int32(a.MaximumInterval.Seconds())
 		aInfo["expiration_time"] = a.ExpirationTime
 		aInfo["max_attempts"] = a.MaximumAttempts
@@ -1232,6 +1232,7 @@ func updateActivityInfos(
 			a.HasRetryPolicy,
 			int32(a.InitialInterval.Seconds()),
 			a.BackoffCoefficient,
+			a.JitterCoefficient,
 			int32(a.MaximumInterval.Seconds()),
 			a.ExpirationTime,
 			a.MaximumAttempts,
@@ -1554,6 +1555,7 @@ func updateWorkflowExecution(
 		execution.HasRetryPolicy,
 		int32(execution.InitialInterval.Seconds()),
 		execution.BackoffCoefficient,
+		execution.JitterCoefficient,
 		int32(execution.MaximumInterval.Seconds()),
 		execution.ExpirationTime,
 		execution.MaximumAttempts,
@@ -1656,6 +1658,7 @@ func createWorkflowExecution(
 		execution.HasRetryPolicy,
 		int32(execution.InitialInterval.Seconds()),
 		execution.BackoffCoefficient,
+		execution.JitterCoefficient,
 		int32(execution.MaximumInterval.Seconds()),
 		execution.ExpirationTime,
 		execution.MaximumAttempts,

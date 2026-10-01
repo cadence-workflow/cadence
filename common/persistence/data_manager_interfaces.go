@@ -473,6 +473,7 @@ type (
 		HasRetryPolicy     bool
 		InitialInterval    int32
 		BackoffCoefficient float64
+		JitterCoefficient  float64
 		MaximumInterval    int32
 		ExpirationTime     time.Time
 		MaximumAttempts    int32
@@ -696,6 +697,7 @@ type (
 		HasRetryPolicy           bool
 		InitialInterval          int32
 		BackoffCoefficient       float64
+		JitterCoefficient        float64
 		MaximumInterval          int32
 		ExpirationTime           time.Time
 		MaximumAttempts          int32

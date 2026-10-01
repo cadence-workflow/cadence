@@ -2332,10 +2332,11 @@ func TestIsCurrentWorkflowGuaranteed(t *testing.T) {
 func TestGetRetryBackoffDuration(t *testing.T) {
 
 	tests := []struct {
-		name            string
-		retryPolicy     *persistence.WorkflowExecutionInfo
-		errorReason     string
-		expectedBackoff time.Duration
+		name               string
+		retryPolicy        *persistence.WorkflowExecutionInfo
+		errorReason        string
+		expectedBackoff    time.Duration
+		expectedMinBackoff time.Duration
 	}{
 		{
 			name: "NoRetryPolicy",
@@ -2359,6 +2360,36 @@ func TestGetRetryBackoffDuration(t *testing.T) {
 			errorReason:     "some error reason",
 			expectedBackoff: 24 * time.Second,
 		},
+		{
+			name: "WithRetryPolicyAndJitter",
+			retryPolicy: &persistence.WorkflowExecutionInfo{
+				HasRetryPolicy:     true,
+				ExpirationTime:     time.Now().Add(time.Hour),
+				Attempt:            1,
+				MaximumAttempts:    5,
+				BackoffCoefficient: 2.0,
+				JitterCoefficient:  0.5,
+				InitialInterval:    12,
+				NonRetriableErrors: []string{"non-retriable-error"},
+			},
+			errorReason:        "some error reason",
+			expectedBackoff:    24 * time.Second,
+			expectedMinBackoff: 12 * time.Second,
+		},
+		{
+			name: "WithJitterRoundsUpToWholeSecond",
+			retryPolicy: &persistence.WorkflowExecutionInfo{
+				HasRetryPolicy:     true,
+				ExpirationTime:     time.Now().Add(time.Hour),
+				Attempt:            0,
+				MaximumAttempts:    5,
+				BackoffCoefficient: 2.0,
+				JitterCoefficient:  0.5,
+				InitialInterval:    1,
+			},
+			errorReason:     "some error reason",
+			expectedBackoff: time.Second,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2371,8 +2402,18 @@ func TestGetRetryBackoffDuration(t *testing.T) {
 			msb.executionInfo = tt.retryPolicy
 			msb.timeSource = clock.NewMockedTimeSourceAt(t1)
 
-			duration := msb.GetRetryBackoffDuration(tt.errorReason)
-			assert.Equal(t, tt.expectedBackoff, duration)
+			for i := 0; i < 100; i++ {
+				duration := msb.GetRetryBackoffDuration(tt.errorReason)
+				if tt.expectedMinBackoff != 0 {
+					assert.GreaterOrEqual(t, duration, tt.expectedMinBackoff)
+					assert.LessOrEqual(t, duration, tt.expectedBackoff)
+				} else {
+					assert.Equal(t, tt.expectedBackoff, duration)
+				}
+				if duration != backoff.NoBackoff {
+					assert.Zero(t, duration%time.Second, "workflow retry backoff must be whole seconds")
+				}
+			}
 		})
 	}
 }

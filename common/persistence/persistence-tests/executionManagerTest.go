@@ -1514,6 +1514,7 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 				HasRetryPolicy:              true,
 				InitialInterval:             rand.Int31(),
 				BackoffCoefficient:          7.78,
+				JitterCoefficient:           0.15,
 				MaximumInterval:             rand.Int31(),
 				ExpirationTime:              time.Now(),
 				MaximumAttempts:             rand.Int31(),
@@ -1581,6 +1582,7 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.HasRetryPolicy, info.HasRetryPolicy)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.InitialInterval, info.InitialInterval)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.BackoffCoefficient, info.BackoffCoefficient)
+	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.JitterCoefficient, info.JitterCoefficient)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.MaximumAttempts, info.MaximumAttempts)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.MaximumInterval, info.MaximumInterval)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.ExpirationSeconds, info.ExpirationSeconds)
@@ -1679,6 +1681,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	updatedInfo.SignalCount = 9
 	updatedInfo.InitialInterval = math.MaxInt32
 	updatedInfo.BackoffCoefficient = 4.45
+	updatedInfo.JitterCoefficient = 0.25
 	updatedInfo.MaximumInterval = math.MaxInt32
 	updatedInfo.MaximumAttempts = math.MaxInt32
 	updatedInfo.ExpirationSeconds = math.MaxInt32
@@ -1741,6 +1744,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.EqualValues(updatedStats.HistorySize, state1.ExecutionStats.HistorySize)
 	s.Equal(updatedInfo.InitialInterval, info1.InitialInterval)
 	s.Equal(updatedInfo.BackoffCoefficient, info1.BackoffCoefficient)
+	s.Equal(updatedInfo.JitterCoefficient, info1.JitterCoefficient)
 	s.Equal(updatedInfo.MaximumInterval, info1.MaximumInterval)
 	s.Equal(updatedInfo.MaximumAttempts, info1.MaximumAttempts)
 	s.Equal(updatedInfo.ExpirationSeconds, info1.ExpirationSeconds)
@@ -1793,6 +1797,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.EqualValues(updatedStats.HistorySize, state2.ExecutionStats.HistorySize)
 	s.Equal(updatedInfo.InitialInterval, info2.InitialInterval)
 	s.Equal(updatedInfo.BackoffCoefficient, info2.BackoffCoefficient)
+	s.Equal(updatedInfo.JitterCoefficient, info2.JitterCoefficient)
 	s.Equal(updatedInfo.MaximumInterval, info2.MaximumInterval)
 	s.Equal(updatedInfo.MaximumAttempts, info2.MaximumAttempts)
 	s.Equal(updatedInfo.ExpirationSeconds, info2.ExpirationSeconds)
@@ -1842,6 +1847,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.EqualValues(updatedStats.HistorySize, state3.ExecutionStats.HistorySize)
 	s.Equal(updatedInfo.InitialInterval, info3.InitialInterval)
 	s.Equal(updatedInfo.BackoffCoefficient, info3.BackoffCoefficient)
+	s.Equal(updatedInfo.JitterCoefficient, info3.JitterCoefficient)
 	s.Equal(updatedInfo.MaximumInterval, info3.MaximumInterval)
 	s.Equal(updatedInfo.MaximumAttempts, info3.MaximumAttempts)
 	s.Equal(updatedInfo.ExpirationSeconds, info3.ExpirationSeconds)
@@ -1891,6 +1897,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.EqualValues(updatedStats.HistorySize, state4.ExecutionStats.HistorySize)
 	s.Equal(updatedInfo.InitialInterval, info4.InitialInterval)
 	s.Equal(updatedInfo.BackoffCoefficient, info4.BackoffCoefficient)
+	s.Equal(updatedInfo.JitterCoefficient, info4.JitterCoefficient)
 	s.Equal(updatedInfo.MaximumInterval, info4.MaximumInterval)
 	s.Equal(updatedInfo.MaximumAttempts, info4.MaximumAttempts)
 	s.Equal(updatedInfo.ExpirationSeconds, info4.ExpirationSeconds)
@@ -3456,6 +3463,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateActivities() {
 		MaximumInterval:          math.MaxInt32,
 		MaximumAttempts:          math.MaxInt32,
 		BackoffCoefficient:       5.55,
+		JitterCoefficient:        0.35,
 		ExpirationTime:           time.UnixMilli(1755030646003).UTC(),
 		NonRetriableErrors:       []string{"accessDenied", "badRequest"},
 		LastFailureReason:        "some random error",

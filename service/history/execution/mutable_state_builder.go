@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"math/rand"
 	"runtime/debug"
 	"slices"
@@ -946,10 +947,13 @@ func (e *mutableStateBuilder) GetRetryBackoffDuration(
 		info.InitialInterval,
 		info.MaximumInterval,
 		info.BackoffCoefficient,
+		info.JitterCoefficient,
 	)
 	if backoffInterval == backoff.NoBackoff {
 		return backoff.NoBackoff
 	}
+	// Round up so a sub-second jittered interval doesn't become an immediate retry
+	backoffInterval = time.Duration(math.Ceil(backoffInterval.Seconds())) * time.Second
 	nextScheduledTime := e.timeSource.Now().Add(backoffInterval)
 	if shouldRetry(nextScheduledTime, info.Attempt, info.MaximumAttempts, info.ExpirationTime, errReason, info.NonRetriableErrors, types.FailureCategoryStandard) {
 		return backoffInterval
