@@ -1699,6 +1699,24 @@ const (
 	// Value type: Int
 	// Default value: 0
 	RewriteSampleRate
+	// AsyncWorkflowQueuePageSize is the number of messages read per page from the async workflow queue by the history shard consumer.
+	// KeyName: history.asyncWorkflowQueuePageSize
+	// Value type: Int
+	// Default value: 100
+	// Allowed filters: ShardID
+	AsyncWorkflowQueuePageSize
+
+	// AsyncWorkflowQueueWorkerCount is the number of workers processing async workflow queue messages in the history service.
+	// KeyName: history.asyncWorkflowQueueWorkerCount
+	// Value type: Int
+	// Default value: 100
+	AsyncWorkflowQueueWorkerCount
+
+	// AsyncWorkflowQueueSchedulerQueueSize is the size of the task queue of the async workflow queue consumer scheduler in the history service.
+	// KeyName: history.asyncWorkflowQueueSchedulerQueueSize
+	// Value type: Int
+	// Default value: 10000
+	AsyncWorkflowQueueSchedulerQueueSize
 
 	// LastIntKey must be the last one in this const group
 	LastIntKey
@@ -2467,6 +2485,13 @@ const (
 	// Value type: Bool
 	// Default value: false
 	EnforceSchemaVerificationV2
+
+	// AsyncWorkflowQueueConsumerEnabled enables the per-shard async workflow queue consumer in the history service.
+	// KeyName: history.asyncWorkflowQueueConsumerEnabled
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: ShardID
+	AsyncWorkflowQueueConsumerEnabled
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -3462,6 +3487,27 @@ const (
 	// Default value: 1s
 	// Allowed filters: Domain
 	MatchingRecordTaskStartedTimeout
+
+	// AsyncWorkflowQueuePollInterval is the interval between reads of the async workflow queue by the history shard consumer.
+	// KeyName: history.asyncWorkflowQueuePollInterval
+	// Value type: Duration
+	// Default value: 1s
+	// Allowed filters: ShardID
+	AsyncWorkflowQueuePollInterval
+
+	// AsyncWorkflowQueueCommitInterval is the interval at which the history shard consumer persists its async workflow queue ack level.
+	// KeyName: history.asyncWorkflowQueueCommitInterval
+	// Value type: Duration
+	// Default value: 5s
+	// Allowed filters: ShardID
+	AsyncWorkflowQueueCommitInterval
+
+	// AsyncWorkflowQueueGCInterval is the interval at which the history shard consumer deletes acknowledged async workflow queue messages.
+	// KeyName: history.asyncWorkflowQueueGCInterval
+	// Value type: Duration
+	// Default value: 1m
+	// Allowed filters: ShardID
+	AsyncWorkflowQueueGCInterval
 
 	// LastDurationKey must be the last one in this const group
 	LastDurationKey
@@ -4715,6 +4761,22 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "How often a full rewrite of activity and timer collections is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction). 0 disables. Only applies to backends in RewriteOptimizationBackends. A rate too high causes sentinel accumulation, growing collections and increasing read latency on shard movement or cache eviction.",
 		DefaultValue: 0,
 	},
+	AsyncWorkflowQueuePageSize: {
+		KeyName:      "history.asyncWorkflowQueuePageSize",
+		Filters:      []Filter{ShardID},
+		Description:  "AsyncWorkflowQueuePageSize is the number of messages read per page from the async workflow queue",
+		DefaultValue: 100,
+	},
+	AsyncWorkflowQueueWorkerCount: {
+		KeyName:      "history.asyncWorkflowQueueWorkerCount",
+		Description:  "AsyncWorkflowQueueWorkerCount is the number of workers processing async workflow queue messages",
+		DefaultValue: 100,
+	},
+	AsyncWorkflowQueueSchedulerQueueSize: {
+		KeyName:      "history.asyncWorkflowQueueSchedulerQueueSize",
+		Description:  "AsyncWorkflowQueueSchedulerQueueSize is the size of the async workflow queue consumer scheduler task queue",
+		DefaultValue: 10000,
+	},
 }
 
 var BoolKeys = map[BoolKey]DynamicBool{
@@ -5385,6 +5447,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnforceSchemaVerificationV2: {
 		KeyName:      "system.enforceSchemaVerificationV2",
 		Description:  "EnforceSchemaVerificationV2 enables more thorough schema verification, including advanced visibility",
+		DefaultValue: false,
+	},
+	AsyncWorkflowQueueConsumerEnabled: {
+		KeyName:      "history.asyncWorkflowQueueConsumerEnabled",
+		Filters:      []Filter{ShardID},
+		Description:  "AsyncWorkflowQueueConsumerEnabled enables the per-shard async workflow queue consumer",
 		DefaultValue: false,
 	},
 }
@@ -6243,6 +6311,24 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName},
 		Description:  "MatchingRecordTaskStartedTimeout is the request timeout for RecordActivityTaskStarted and RecordDecisionTaskStarted",
 		DefaultValue: time.Second,
+	},
+	AsyncWorkflowQueuePollInterval: {
+		KeyName:      "history.asyncWorkflowQueuePollInterval",
+		Filters:      []Filter{ShardID},
+		Description:  "AsyncWorkflowQueuePollInterval is the interval between reads of the async workflow queue",
+		DefaultValue: time.Second,
+	},
+	AsyncWorkflowQueueCommitInterval: {
+		KeyName:      "history.asyncWorkflowQueueCommitInterval",
+		Filters:      []Filter{ShardID},
+		Description:  "AsyncWorkflowQueueCommitInterval is the interval at which the async workflow queue ack level is persisted",
+		DefaultValue: time.Second * 5,
+	},
+	AsyncWorkflowQueueGCInterval: {
+		KeyName:      "history.asyncWorkflowQueueGCInterval",
+		Filters:      []Filter{ShardID},
+		Description:  "AsyncWorkflowQueueGCInterval is the interval at which acknowledged async workflow queue messages are deleted",
+		DefaultValue: time.Minute,
 	},
 }
 
