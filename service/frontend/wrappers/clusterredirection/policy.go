@@ -76,6 +76,21 @@ const (
 	// and falling back to DCRedirectionPolicySelectedAPIsForwardingV2 when the current active cluster is not the
 	// cluster migration target.
 	DCRedirectionPolicyAllDomainAPIsForwardingV2 = "all-domain-apis-forwarding-v2"
+	// DCRedirectionPolicySelectedAPIsForwardingV3 forwards everything in DCRedirectionPolicySelectedAPIsForwardingV2,
+	// as well as the two async workflow-start APIs.
+	// This is done so that async start/signal-with-start requests received by a passive cluster are forwarded
+	// to the active cluster at accept time, rather than being enqueued locally and forwarded later when the
+	// async request is consumed off the queue.
+	//
+	// 1-12. from DCRedirectionPolicySelectedAPIsForwardingV2
+	// 13. StartWorkflowExecutionAsync
+	// 14. SignalWithStartWorkflowExecutionAsync
+	// please also reference selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3
+	DCRedirectionPolicySelectedAPIsForwardingV3 = "selected-apis-forwarding-v3"
+	// DCRedirectionPolicyAllDomainAPIsForwardingV3 means forwarding all the worker and non-worker APIs based domain,
+	// and falling back to DCRedirectionPolicySelectedAPIsForwardingV3 when the current active cluster is not the
+	// cluster migration target.
+	DCRedirectionPolicyAllDomainAPIsForwardingV3 = "all-domain-apis-forwarding-v3"
 )
 
 type (
@@ -162,6 +177,34 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2 = map[string]struct{}{
 	"BackfillSchedule": {},
 }
 
+// selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3 contains a list of non-worker APIs which can be redirected.
+// This is paired with DCRedirectionPolicySelectedAPIsForwardingV3 - keep both lists up to date.
+var selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3 = map[string]struct{}{
+	// from selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2
+	"StartWorkflowExecution":           {},
+	"SignalWithStartWorkflowExecution": {},
+	"SignalWorkflowExecution":          {},
+	"RequestCancelWorkflowExecution":   {},
+	"TerminateWorkflowExecution":       {},
+	"ResetWorkflowExecution":           {},
+	"RespondActivityTaskCanceled":      {},
+	"RespondActivityTaskCanceledByID":  {},
+	"RespondActivityTaskCompleted":     {},
+	"RespondActivityTaskCompletedByID": {},
+	"RespondActivityTaskFailed":        {},
+	"RespondActivityTaskFailedByID":    {},
+	// schedule write APIs — reads (DescribeSchedule, ListSchedules) are served locally on standby
+	"CreateSchedule":   {},
+	"DeleteSchedule":   {},
+	"UpdateSchedule":   {},
+	"PauseSchedule":    {},
+	"UnpauseSchedule":  {},
+	"BackfillSchedule": {},
+	// additional endpoints: async requests are forwarded at accept time instead of enqueued locally
+	"StartWorkflowExecutionAsync":           {},
+	"SignalWithStartWorkflowExecutionAsync": {},
+}
+
 // allowedAPIsForDeprecatedDomains contains a list of APIs that are allowed to be called on deprecated domains
 var allowedAPIsForDeprecatedDomains = map[string]struct{}{
 	"ListWorkflowExecutions":     {},
@@ -197,6 +240,12 @@ func RedirectionPolicyGenerator(
 	case DCRedirectionPolicyAllDomainAPIsForwardingV2:
 		currentClusterName := clusterMetadata.GetCurrentClusterName()
 		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, true, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2, policy.AllDomainApisForwardingTargetCluster, logger, activeClusterManager, metricsClient)
+	case DCRedirectionPolicySelectedAPIsForwardingV3:
+		currentClusterName := clusterMetadata.GetCurrentClusterName()
+		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, false, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3, "", logger, activeClusterManager, metricsClient)
+	case DCRedirectionPolicyAllDomainAPIsForwardingV3:
+		currentClusterName := clusterMetadata.GetCurrentClusterName()
+		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, true, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3, policy.AllDomainApisForwardingTargetCluster, logger, activeClusterManager, metricsClient)
 
 	default:
 		panic(fmt.Sprintf("Unknown DC redirection policy %v", policy.Policy))
@@ -440,6 +489,18 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 	return currentActiveCluster, true
 }
 
+// startWorkflowAPIs resolve the active cluster from the request's cluster attribute.
+var startWorkflowAPIs = map[string]struct{}{
+	"StartWorkflowExecution":      {},
+	"StartWorkflowExecutionAsync": {},
+}
+
+// signalWithStartWorkflowAPIs prefer the running workflow's policy, else the request's.
+var signalWithStartWorkflowAPIs = map[string]struct{}{
+	"SignalWithStartWorkflowExecution":      {},
+	"SignalWithStartWorkflowExecutionAsync": {},
+}
+
 func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActiveActiveDomainRequest(
 	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
@@ -448,7 +509,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActi
 	apiName string,
 ) string {
 	policy.logger.Debug("Determining active cluster for active-active domain request", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.Dynamic("execution", workflowExecution), tag.OperationName(apiName))
-	if apiName == "SignalWithStartWorkflowExecution" {
+	if _, ok := signalWithStartWorkflowAPIs[apiName]; ok {
 		existingActiveClusterSelectionPolicy, running, err := policy.activeClusterManager.GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx, domainEntry.GetInfo().ID, workflowExecution.WorkflowID)
 		if err != nil {
 			policy.logger.Error("Failed to get active cluster selection policy for current workflow, using current cluster", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName), tag.Error(err))
@@ -459,7 +520,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActi
 			requestedActiveClusterSelectionPolicy = existingActiveClusterSelectionPolicy
 		}
 		return policy.activeClusterByClusterAttribute(ctx, domainEntry, requestedActiveClusterSelectionPolicy, apiName)
-	} else if apiName == "StartWorkflowExecution" {
+	} else if _, ok := startWorkflowAPIs[apiName]; ok {
 		return policy.activeClusterByClusterAttribute(ctx, domainEntry, requestedActiveClusterSelectionPolicy, apiName)
 	}
 
