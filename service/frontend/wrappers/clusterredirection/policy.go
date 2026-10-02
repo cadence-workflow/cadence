@@ -440,6 +440,18 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 	return currentActiveCluster, true
 }
 
+// startWorkflowAPIs resolve the active cluster from the request's cluster attribute.
+var startWorkflowAPIs = map[string]struct{}{
+	"StartWorkflowExecution":      {},
+	"StartWorkflowExecutionAsync": {},
+}
+
+// signalWithStartWorkflowAPIs prefer the running workflow's policy, else the request's.
+var signalWithStartWorkflowAPIs = map[string]struct{}{
+	"SignalWithStartWorkflowExecution":      {},
+	"SignalWithStartWorkflowExecutionAsync": {},
+}
+
 func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActiveActiveDomainRequest(
 	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
@@ -448,7 +460,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActi
 	apiName string,
 ) string {
 	policy.logger.Debug("Determining active cluster for active-active domain request", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.Dynamic("execution", workflowExecution), tag.OperationName(apiName))
-	if apiName == "SignalWithStartWorkflowExecution" {
+	if _, ok := signalWithStartWorkflowAPIs[apiName]; ok {
 		existingActiveClusterSelectionPolicy, running, err := policy.activeClusterManager.GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx, domainEntry.GetInfo().ID, workflowExecution.WorkflowID)
 		if err != nil {
 			policy.logger.Error("Failed to get active cluster selection policy for current workflow, using current cluster", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName), tag.Error(err))
@@ -459,7 +471,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActi
 			requestedActiveClusterSelectionPolicy = existingActiveClusterSelectionPolicy
 		}
 		return policy.activeClusterByClusterAttribute(ctx, domainEntry, requestedActiveClusterSelectionPolicy, apiName)
-	} else if apiName == "StartWorkflowExecution" {
+	} else if _, ok := startWorkflowAPIs[apiName]; ok {
 		return policy.activeClusterByClusterAttribute(ctx, domainEntry, requestedActiveClusterSelectionPolicy, apiName)
 	}
 
