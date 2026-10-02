@@ -65,9 +65,11 @@ const (
 	flagServices    = "services"
 	flagAutoSetup   = "auto-setup"
 	flagSetupOption = "setup-option"
+	flagResume      = "resume"
 
 	envAutoSetup   = "CADENCE_AUTO_SETUP"
 	envSetupOption = "CADENCE_SETUP_OPTION"
+	envResume      = "CADENCE_SETUP_RESUME"
 
 	// --setup-option is used in both setup-schema and the auto-setup case
 	setupOptionUsage = "A DB setup option in key=value format. Can be repeated to set multiple options, " +
@@ -196,6 +198,12 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 					Usage:        setupOptionUsage,
 					EnvVarPrefix: envSetupOption,
 				},
+				&cli.BoolFlag{
+					Name: flagResume,
+					Usage: "Resume a schema update that was interrupted after applying some of its statements. " +
+						"Statements in the first pending update for each DB whose schema element already exists are skipped.",
+					EnvVars: []string{envResume},
+				},
 			},
 			Action: setupSchema,
 		},
@@ -232,6 +240,7 @@ func setupSchema(c *cli.Context) error {
 		ConnectTimeout: 90 * time.Second,
 		SetupOptions:   setupOptions,
 		DefaultDomain:  defaultDomain,
+		Resume:         c.Bool(flagResume),
 	})
 	if err != nil {
 		return fmt.Errorf("update schema: %w", err)

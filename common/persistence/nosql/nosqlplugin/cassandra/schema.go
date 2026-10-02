@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -72,7 +73,7 @@ func (db *CDB) GetSchemaVersion(ctx context.Context) (persistence.Version, error
 	return persistence.ParseVersion(version)
 }
 
-func (db *CDB) UpdateSchema(ctx context.Context, update *persistence.SchemaUpdate) error {
+func (db *CDB) UpdateSchema(ctx context.Context, update *persistence.SchemaUpdate, mode persistence.SchemaUpdateMode) error {
 	current, err := db.GetSchemaVersion(ctx)
 	if err != nil {
 		return err
@@ -80,7 +81,7 @@ func (db *CDB) UpdateSchema(ctx context.Context, update *persistence.SchemaUpdat
 	if !current.IsBefore(update.Version) {
 		return fmt.Errorf("unable to update backwards from %s to %s", current, update.Version)
 	}
-	err = db.applyUpdate(ctx, update)
+	err = db.applyUpdate(ctx, update, mode)
 	if err != nil {
 		return fmt.Errorf("unable to apply update: %w", err)
 	}
@@ -96,10 +97,19 @@ func (db *CDB) UpdateSchema(ctx context.Context, update *persistence.SchemaUpdat
 	return query.Exec()
 }
 
-func (db *CDB) applyUpdate(ctx context.Context, update *persistence.SchemaUpdate) error {
+func (db *CDB) applyUpdate(ctx context.Context, update *persistence.SchemaUpdate, mode persistence.SchemaUpdateMode) error {
 	for _, ddl := range update.DDLStatements {
 		err := db.session.Query(ddl).Exec()
 		if err != nil {
+			if db.client.IsSchemaElementExistsError(err) {
+				if mode != persistence.SchemaUpdateModeResume {
+					return &persistence.DuplicateSchemaElementError{Statement: ddl, Err: err}
+				}
+				// A previous attempt was interrupted after applying some statements but before recording the
+				// new version, so skip the statements that were already applied.
+				db.logger.Warn("Skipping already applied DDL statement", tag.Value(ddl), tag.Error(err))
+				continue
+			}
 			return err
 		}
 	}

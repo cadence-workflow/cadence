@@ -208,3 +208,71 @@ func TestClient_IsCassandraConsistencyError(t *testing.T) {
 		})
 	}
 }
+
+func TestClient_IsSchemaElementExistsError(t *testing.T) {
+	client := client{}
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{name: "nil", err: nil, expected: false},
+		{name: "generic error", err: fmt.Errorf("already exists"), expected: false},
+		{name: "already exists", err: &gocql.RequestErrAlreadyExists{Keyspace: "k", Table: "t"}, expected: true},
+		{
+			name:     "wrapped already exists",
+			err:      fmt.Errorf("wrapped: %w", &gocql.RequestErrAlreadyExists{Keyspace: "k", Table: "t"}),
+			expected: true,
+		},
+		{
+			name:     "duplicate type (4.x)",
+			err:      MockError{code: gocql.ErrCodeInvalid, message: "A user type with name 't' already exists"},
+			expected: true,
+		},
+		{
+			name:     "duplicate index (4.x)",
+			err:      MockError{code: gocql.ErrCodeInvalid, message: "Index 'i' already exists"},
+			expected: true,
+		},
+		{
+			name:     "duplicate column (4.x)",
+			err:      MockError{code: gocql.ErrCodeInvalid, message: "Column with name 'c' already exists"},
+			expected: true,
+		},
+		{
+			name:     "duplicate type field (4.x)",
+			err:      MockError{code: gocql.ErrCodeInvalid, message: "Cannot add field f to type t: a field with name f already exists"},
+			expected: true,
+		},
+		{
+			name:     "duplicate column (3.x)",
+			err:      MockError{code: gocql.ErrCodeInvalid, message: "Invalid column name c because it conflicts with an existing column"},
+			expected: true,
+		},
+		{
+			name:     "duplicate type field (3.x)",
+			err:      MockError{code: gocql.ErrCodeInvalid, message: "Cannot add new field f to type t: a field of the same name already exists"},
+			expected: true,
+		},
+		{
+			name:     "same index under a different name",
+			err:      MockError{code: gocql.ErrCodeInvalid, message: "Index i2 is a duplicate of existing index i"},
+			expected: false,
+		},
+		{
+			name:     "other invalid request",
+			err:      MockError{code: gocql.ErrCodeInvalid, message: "unconfigured table t"},
+			expected: false,
+		},
+		{
+			name:     "matching message with wrong code",
+			err:      MockError{code: gocql.ErrCodeSyntax, message: "Column with name 'c' already exists"},
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, client.IsSchemaElementExistsError(tt.err))
+		})
+	}
+}
