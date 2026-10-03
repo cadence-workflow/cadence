@@ -148,7 +148,9 @@ jobs:
       fail-fast: false
       matrix:
         shard: [0, 1]
-    continue-on-error: true
+    # continue-on-error lives on the gate job, not here: a job with
+    # continue-on-error reports result == "success" to its dependents even when
+    # it fails, which would make the gate's shard check a no-op.
 
     steps:
       - name: Checkout
