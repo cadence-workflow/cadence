@@ -72,9 +72,13 @@ jobs:
         run: docker compose -f docker/github_actions/docker-compose.yml run coverage-report bash -c "./scripts/github_actions/golint.sh"
 
 
-  golang-integration-test-with-cassandra:
-    name: Golang integration test with cassandra
+  golang-integration-test-with-cassandra-shards:
+    name: Golang integration test with cassandra (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -94,18 +98,22 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-cassandra-integration-coverage
+          name: go-cassandra-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
-  golang-integration-test-with-cassandra-running-history-queue-v2:
-    name: Golang integration test with running history queue v2
+  golang-integration-test-with-cassandra-running-history-queue-v2-shards:
+    name: Golang integration test with running history queue v2 (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -124,19 +132,25 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2 bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-cassandra-queue-v2 bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-cassandra-running-history-queue-v2-integration-coverage
+          name: go-cassandra-running-history-queue-v2-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
-  golang-integration-test-with-cassandra-running-history-queue-v2-alert:
-    name: Golang integration test with running history queue v2 with alert
+  golang-integration-test-with-cassandra-running-history-queue-v2-alert-shards:
+    name: Golang integration test with running history queue v2 with alert (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
-    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
+    # continue-on-error lives on the gate job, not here: a job with
+    # continue-on-error reports result == "success" to its dependents even when
+    # it fails, which would make the gate's shard check a no-op.
 
     steps:
       - name: Checkout
@@ -155,18 +169,22 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2-alert bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-cassandra-queue-v2-alert bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-cassandra-running-history-queue-v2-alert-integration-coverage
+          name: go-cassandra-running-history-queue-v2-alert-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
-  golang-integration-test-with-cassandra-and-elasticsearch-v7:
-    name: Golang integration test with cassandra and elasticsearch v7
+  golang-integration-test-with-cassandra-and-elasticsearch-v7-shards:
+    name: Golang integration test with cassandra and elasticsearch v7 (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -186,13 +204,13 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose-es7.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-cassandra-and-elasticsearch-v7-integration-coverage
+          name: go-cassandra-and-elasticsearch-v7-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
 
@@ -228,9 +246,13 @@ jobs:
           path: .build/coverage/*.out
 
 
-  golang-integration-test-with-cassandra-with-opensearch-v2:
-    name: Golang integration test with cassandra with opensearch v2
+  golang-integration-test-with-cassandra-with-opensearch-v2-shards:
+    name: Golang integration test with cassandra with opensearch v2 (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -250,13 +272,13 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose-opensearch2.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-cassandra-and-opensearch-v2-integration-coverage
+          name: go-cassandra-and-opensearch-v2-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
 
@@ -292,9 +314,13 @@ jobs:
           path: .build/coverage/*.out
 
 
-  golang-integration-test-with-mysql:
-    name: Golang integration test with mysql
+  golang-integration-test-with-mysql-shards:
+    name: Golang integration test with mysql (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -314,13 +340,13 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-mysql bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-mysql-integration-coverage
+          name: go-mysql-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
           
 
@@ -356,9 +382,13 @@ jobs:
           path: .build/coverage/*.out
 
 
-  golang-integration-test-with-postgres:
-    name: Golang integration test with postgres
+  golang-integration-test-with-postgres-shards:
+    name: Golang integration test with postgres (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -378,19 +408,23 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-postgres bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-postgres-integration-coverage
+          name: go-postgres-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
              
 
-  golang-integration-test-with-sqlite:
-    name: Golang integration test with sqlite
+  golang-integration-test-with-sqlite-shards:
+    name: Golang integration test with sqlite (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
 
     steps:
       - name: Checkout
@@ -409,13 +443,13 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite bash -c "make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run -e TEST_SHARD_COUNT=${{ strategy.job-total }} -e TEST_SHARD_INDEX=${{ matrix.shard }} integration-test-sqlite bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-sqlite-integration-coverage
+          name: go-sqlite-integration-coverage-shard-${{ matrix.shard }}
           path: .build/coverage/*.out
 
 
@@ -483,3 +517,105 @@ jobs:
     steps:
       - name: Etcd integration tests removed
         run: echo "Etcd-based shard distributor server has been removed; no tests to run."
+
+  # Gate jobs. The sharded matrix jobs above report per-shard check names,
+  # which branch protection does not know about. Each gate below re-publishes
+  # the original required status check name and fails if any of its shards
+  # failed, so protected branches keep working unchanged.
+
+  golang-integration-test-with-cassandra:
+    name: Golang integration test with cassandra
+    runs-on: ubuntu-latest
+    needs: golang-integration-test-with-cassandra-shards
+    if: always()
+    steps:
+      - name: Check shard results
+        run: |
+          result="${{ needs.golang-integration-test-with-cassandra-shards.result }}"
+          echo "shards result: $result"
+          [ "$result" = "success" ] || exit 1
+
+  golang-integration-test-with-cassandra-running-history-queue-v2:
+    name: Golang integration test with running history queue v2
+    runs-on: ubuntu-latest
+    needs: golang-integration-test-with-cassandra-running-history-queue-v2-shards
+    if: always()
+    steps:
+      - name: Check shard results
+        run: |
+          result="${{ needs.golang-integration-test-with-cassandra-running-history-queue-v2-shards.result }}"
+          echo "shards result: $result"
+          [ "$result" = "success" ] || exit 1
+
+  golang-integration-test-with-cassandra-running-history-queue-v2-alert:
+    name: Golang integration test with running history queue v2 with alert
+    runs-on: ubuntu-latest
+    needs: golang-integration-test-with-cassandra-running-history-queue-v2-alert-shards
+    if: always()
+    continue-on-error: true
+    steps:
+      - name: Check shard results
+        run: |
+          result="${{ needs.golang-integration-test-with-cassandra-running-history-queue-v2-alert-shards.result }}"
+          echo "shards result: $result"
+          [ "$result" = "success" ] || exit 1
+
+  golang-integration-test-with-cassandra-and-elasticsearch-v7:
+    name: Golang integration test with cassandra and elasticsearch v7
+    runs-on: ubuntu-latest
+    needs: golang-integration-test-with-cassandra-and-elasticsearch-v7-shards
+    if: always()
+    steps:
+      - name: Check shard results
+        run: |
+          result="${{ needs.golang-integration-test-with-cassandra-and-elasticsearch-v7-shards.result }}"
+          echo "shards result: $result"
+          [ "$result" = "success" ] || exit 1
+
+  golang-integration-test-with-cassandra-with-opensearch-v2:
+    name: Golang integration test with cassandra with opensearch v2
+    runs-on: ubuntu-latest
+    needs: golang-integration-test-with-cassandra-with-opensearch-v2-shards
+    if: always()
+    steps:
+      - name: Check shard results
+        run: |
+          result="${{ needs.golang-integration-test-with-cassandra-with-opensearch-v2-shards.result }}"
+          echo "shards result: $result"
+          [ "$result" = "success" ] || exit 1
+
+  golang-integration-test-with-mysql:
+    name: Golang integration test with mysql
+    runs-on: ubuntu-latest
+    needs: golang-integration-test-with-mysql-shards
+    if: always()
+    steps:
+      - name: Check shard results
+        run: |
+          result="${{ needs.golang-integration-test-with-mysql-shards.result }}"
+          echo "shards result: $result"
+          [ "$result" = "success" ] || exit 1
+
+  golang-integration-test-with-postgres:
+    name: Golang integration test with postgres
+    runs-on: ubuntu-latest
+    needs: golang-integration-test-with-postgres-shards
+    if: always()
+    steps:
+      - name: Check shard results
+        run: |
+          result="${{ needs.golang-integration-test-with-postgres-shards.result }}"
+          echo "shards result: $result"
+          [ "$result" = "success" ] || exit 1
+
+  golang-integration-test-with-sqlite:
+    name: Golang integration test with sqlite
+    runs-on: ubuntu-latest
+    needs: golang-integration-test-with-sqlite-shards
+    if: always()
+    steps:
+      - name: Check shard results
+        run: |
+          result="${{ needs.golang-integration-test-with-sqlite-shards.result }}"
+          echo "shards result: $result"
+          [ "$result" = "success" ] || exit 1
