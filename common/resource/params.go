@@ -86,6 +86,7 @@ type (
 		ArchivalMetadata           archiver.ArchivalMetadata
 		ArchiverProvider           provider.ArchiverProvider
 		Authorizer                 authorization.Authorizer // NOTE: this can be nil. If nil, AccessControlledHandlerImpl will initiate one with config.Authorization
+		Authenticator              authorization.Authorizer // NOTE: this can be nil. If nil, AccessControlledHandlerImpl will initiate one with config.Authorization
 		AuthorizationConfig        config.Authorization     // NOTE: empty(default) struct will get a authorization.NoopAuthorizer
 		IsolationGroupStore        configstore.Client       // This can be nil, the default config store will be created if so
 		IsolationGroupState        isolationgroup.State     // This can be nil, the default state store will be chosen if so

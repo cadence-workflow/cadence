@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2026 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,62 +23,36 @@ package authorization
 import (
 	"context"
 
-	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/tag"
 )
 
-type oauthAuthorizer struct {
-	authority   *oauthAuthority
-	domainCache cache.DomainCache
-	log         log.Logger
+type oauthAuthenticator struct {
+	authority *oauthAuthority
 }
 
-// NewOAuthAuthorizer creates an oauth Authorizer
-func NewOAuthAuthorizer(
-	oauthConfig config.OAuthAuthorizer,
-	log log.Logger,
-	domainCache cache.DomainCache,
-) (Authorizer, error) {
+// NewOAuthAuthenticator creates an Authorizer that validates caller credentials and
+// nothing else. It ignores the attributes: it reports whether callers are who they
+// claim to be, not what they are allowed to do. Use it for endpoints that name no
+// resource to authorize against, and that check permissions on each item they return.
+//
+// Prefer NewOAuthAuthorizerAndAuthenticator when the deployment needs both, so that the
+// two share one oauthAuthority.
+func NewOAuthAuthenticator(oauthConfig config.OAuthAuthorizer, log log.Logger) (Authorizer, error) {
 	authority, err := newOAuthAuthority(oauthConfig, log)
 	if err != nil {
 		return nil, err
 	}
 
-	return newOAuthAuthorizer(authority, log, domainCache), nil
+	return newOAuthAuthenticator(authority), nil
 }
 
-func newOAuthAuthorizer(
-	authority *oauthAuthority,
-	log log.Logger,
-	domainCache cache.DomainCache,
-) *oauthAuthorizer {
-	return &oauthAuthorizer{
-		authority:   authority,
-		domainCache: domainCache,
-		log:         log,
-	}
+func newOAuthAuthenticator(authority *oauthAuthority) *oauthAuthenticator {
+	return &oauthAuthenticator{authority: authority}
 }
 
-// Authorize validates caller credentials and checks domain permissions.
-func (a *oauthAuthorizer) Authorize(ctx context.Context, attributes *Attributes) (Result, error) {
-	claims, err := a.authority.getAuthClaims(ctx)
-	if err != nil {
-		return Result{Decision: DecisionDeny}, nil
-	}
-
-	if claims.Admin {
-		return Result{Decision: DecisionAllow}, nil
-	}
-
-	domain, err := a.domainCache.GetDomain(attributes.DomainName)
-	if err != nil {
-		return Result{Decision: DecisionDeny}, err
-	}
-
-	if err := validatePermission(claims, attributes, domain.GetInfo().Data); err != nil {
-		a.log.Debug("request is not authorized", tag.Error(err))
+func (a *oauthAuthenticator) Authorize(ctx context.Context, _ *Attributes) (Result, error) {
+	if _, err := a.authority.getAuthClaims(ctx); err != nil {
 		return Result{Decision: DecisionDeny}, nil
 	}
 

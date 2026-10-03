@@ -47,6 +47,23 @@ func (a *apiHandler) isAuthorized(
 	attr *authorization.Attributes,
 	scope metrics.Scope,
 ) (bool, error) {
+	return a.checkAccess(ctx, a.authorizer, attr, scope)
+}
+
+func (a *apiHandler) isAuthenticated(
+	ctx context.Context,
+	attr *authorization.Attributes,
+	scope metrics.Scope,
+) (bool, error) {
+	return a.checkAccess(ctx, a.authenticator, attr, scope)
+}
+
+func (a *apiHandler) checkAccess(
+	ctx context.Context,
+	authorizer authorization.Authorizer,
+	attr *authorization.Attributes,
+	scope metrics.Scope,
+) (bool, error) {
 	authStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceAuthorizationLatency)
 	defer func() {
@@ -54,16 +71,58 @@ func (a *apiHandler) isAuthorized(
 		scope.ExponentialHistogram(metrics.CadenceAuthorizationLatencyHistogram, time.Since(authStart))
 	}()
 
-	result, err := a.authorizer.Authorize(ctx, attr)
+	result, err := authorizer.Authorize(ctx, attr)
 	if err != nil {
 		scope.IncCounter(metrics.CadenceErrAuthorizeFailedCounter)
 		return false, err
 	}
-	isAuth := result.Decision == authorization.DecisionAllow
-	if !isAuth {
+	isAuthorized := result.Decision == authorization.DecisionAllow
+	if !isAuthorized {
 		scope.IncCounter(metrics.CadenceErrUnauthorizedCounter)
 	}
-	return isAuth, nil
+	return isAuthorized, nil
+}
+
+// authorizeFilter checks individual resources without recording request authorization metrics.
+func (a *apiHandler) authorizeFilter(ctx context.Context, attr *authorization.Attributes) (bool, error) {
+	result, err := a.authorizer.Authorize(ctx, attr)
+	if err != nil {
+		return false, err
+	}
+	return result.Decision == authorization.DecisionAllow, nil
+}
+
+func (a *apiHandler) listAuthorizedDomains(
+	ctx context.Context,
+	listRequest *types.ListDomainsRequest,
+) (*types.ListDomainsResponse, error) {
+	response, err := a.handler.ListDomains(ctx, listRequest)
+	if err != nil || response == nil {
+		return response, err
+	}
+
+	requestBody := authorization.NewFilteredRequestBody(listRequest)
+	authorizedDomains := make([]*types.DescribeDomainResponse, 0, len(response.GetDomains()))
+	for _, domain := range response.GetDomains() {
+		// A denied domain is filtered out rather than failing the whole request: the
+		// caller's credentials were already validated before the list was fetched.
+		isAuthorized, err := a.authorizeFilter(ctx, &authorization.Attributes{
+			APIName:     "ListDomains",
+			Permission:  authorization.PermissionRead,
+			RequestBody: requestBody,
+			DomainName:  domain.GetDomainInfo().GetName(),
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		if isAuthorized {
+			authorizedDomains = append(authorizedDomains, domain)
+		}
+	}
+
+	response.Domains = authorizedDomains
+	return response, nil
 }
 
 // getMetricsScopeWithDomain return metrics scope with domain tag
