@@ -85,6 +85,10 @@ var (
 	WorkflowActionExternalWorkflowSignalRequested = workflowAction("add-externalworkflow-signal-requested-event")
 	WorkflowActionExternalWorkflowSignalFailed    = workflowAction("add-externalworkflow-signal-failed-event")
 
+	// semaphore
+	WorkflowActionSemaphoreAcquireInitiated = workflowAction("add-semaphore-acquire-initiated-event")
+	WorkflowActionSemaphoreAcquired         = workflowAction("add-semaphore-acquired-event")
+
 	WorkflowActionUnknown = workflowAction("add-unknown-event")
 )
 
