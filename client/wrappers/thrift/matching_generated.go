@@ -29,6 +29,10 @@ func (g matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecis
 	return &types.AddDecisionTaskResponse{}, nil
 }
 
+func (g matchingClient) AddSemaphoreTask(ctx context.Context, ap1 *types.AddSemaphoreTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddSemaphoreTaskResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
 	err = g.c.CancelOutstandingPoll(ctx, thrift.FromMatchingCancelOutstandingPollRequest(cp1), p1...)
 	return thrift.ToError(err)

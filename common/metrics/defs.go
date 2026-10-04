@@ -487,6 +487,8 @@ const (
 	MatchingClientUpdateTaskListPartitionConfigScope
 	// MatchingClientRefreshTaskListPartitionConfigScope tracks RPC calls to matching service
 	MatchingClientRefreshTaskListPartitionConfigScope
+	// MatchingClientAddSemaphoreTaskScope tracks RPC calls to matching service
+	MatchingClientAddSemaphoreTaskScope
 
 	// FrontendClientDeleteDomainScope tracks RPC calls to frontend service
 	FrontendClientDeleteDomainScope
@@ -1754,6 +1756,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingClientGetTaskListsByDomainScope:           {operation: "MatchingClientGetTaskListsByDomain", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientUpdateTaskListPartitionConfigScope:  {operation: "MatchingClientUpdateTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientRefreshTaskListPartitionConfigScope: {operation: "MatchingClientRefreshTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
+		MatchingClientAddSemaphoreTaskScope:               {operation: "MatchingClientAddSemaphoreTask", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 
 		FrontendClientDeleteDomainScope:                          {operation: "FrontendClientDeleteDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientDeprecateDomainScope:                       {operation: "FrontendClientDeprecateDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},

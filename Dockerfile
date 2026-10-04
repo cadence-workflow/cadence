@@ -4,7 +4,7 @@ ARG TARGET=server
 ARG GOPROXY
 
 # Build Cadence binaries
-FROM golang:1.25.14-alpine3.23 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25.14-alpine3.23 AS builder
 
 ARG RELEASE_VERSION
 
@@ -31,11 +31,13 @@ ENV CADENCE_RELEASE_VERSION=$RELEASE_VERSION
 
 # don't do anything fancy, just build.  must be run separately, before building things.
 RUN make .just-build
-RUN CGO_ENABLED=0 make cadence-cassandra-tool cadence-sql-tool cadence cadence-server cadence-bench cadence-canary
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH make cadence-cassandra-tool cadence-sql-tool cadence cadence-server cadence-bench cadence-canary
 
 
 # Download dockerize
-FROM alpine:3.24 AS dockerize
+FROM --platform=$BUILDPLATFORM alpine:3.24 AS dockerize
 
 # appears to require `docker buildx` or an explicit `--platform` at build time
 ARG TARGETARCH

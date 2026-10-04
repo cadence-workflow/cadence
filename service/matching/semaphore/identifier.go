@@ -67,11 +67,8 @@ func (id Identifier) LogTags() []tag.Tag {
 	}
 }
 
-// RingKey is what the bucket is hashed on to find the host that owns it. One bucket is one
-// partition, so exactly one host serves it.
-//
-// Kept apart from String(), which is for logs: reformatting a log line must not move buckets
-// between hosts.
+// RingKey returns the key used to look up this bucket's Matching host on the membership ring.
+// Separate from String(), which is for logs, so changing the log format never moves a bucket.
 func (id Identifier) RingKey() string {
-	return fmt.Sprintf("%s_%s_%d", id.DomainID, id.SemaphoreName, id.Bucket)
+	return commonsemaphore.RingKey(id.DomainID, id.SemaphoreName, id.Bucket)
 }
