@@ -101,7 +101,7 @@ func getBackoffInterval(
 
 	nextDuration := float64(nextInterval) * float64(time.Second)
 	// add jitter to avoid global synchronization, scaling the interval by a random factor in (1-jitterCoefficient, 1]
-	if jitterCoefficient > 0 {
+	if jitterCoefficient > 0 && jitterCoefficient <= 1 {
 		nextDuration *= 1 - jitterCoefficient*rand.Float64()
 	}
 
