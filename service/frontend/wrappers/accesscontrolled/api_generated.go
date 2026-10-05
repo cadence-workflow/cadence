@@ -9,6 +9,7 @@ import (
 
 	"github.com/uber/cadence/common/authorization"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
@@ -18,14 +19,15 @@ import (
 
 // apiHandler frontend handler wrapper for authentication and authorization
 type apiHandler struct {
-	handler       _sourceApi.Handler
-	authorizer    authorization.Authorizer
-	authenticator authorization.Authorizer
+	handler                    _sourceApi.Handler
+	authorizer                 authorization.Authorizer
+	authenticator              authorization.Authorizer
+	enableListDomainsFiltering dynamicproperties.BoolPropertyFn
 	resource.Resource
 }
 
 // NewAPIHandler creates frontend handler with authentication support
-func NewAPIHandler(handler _sourceApi.Handler, resource resource.Resource, authorizer authorization.Authorizer, authenticator authorization.Authorizer, cfg config.Authorization) _sourceApi.Handler {
+func NewAPIHandler(handler _sourceApi.Handler, resource resource.Resource, authorizer authorization.Authorizer, authenticator authorization.Authorizer, cfg config.Authorization, enableListDomainsFiltering dynamicproperties.BoolPropertyFn) _sourceApi.Handler {
 	// Built together so that they share one token validator, which matters when the
 	// configured scheme fetches verification keys from a remote endpoint.
 	var err error
@@ -41,10 +43,11 @@ func NewAPIHandler(handler _sourceApi.Handler, resource resource.Resource, autho
 		resource.GetLogger().Fatal("Unable to initialize access control", tag.Error(err))
 	}
 	return &apiHandler{
-		handler:       handler,
-		authorizer:    authorizer,
-		authenticator: authenticator,
-		Resource:      resource,
+		handler:                    handler,
+		authorizer:                 authorizer,
+		authenticator:              authenticator,
+		enableListDomainsFiltering: enableListDomainsFiltering,
+		Resource:                   resource,
 	}
 }
 

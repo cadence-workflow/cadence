@@ -32,6 +32,7 @@ type Config struct {
 	NumHistoryShards                int
 	IsAdvancedVisConfigExist        bool
 	DomainConfig                    domain.Config
+	EnableListDomainsFiltering      dynamicproperties.BoolPropertyFn
 	PersistenceMaxQPS               dynamicproperties.IntPropertyFn
 	PersistenceGlobalMaxQPS         dynamicproperties.IntPropertyFn
 	VisibilityMaxPageSize           dynamicproperties.IntPropertyFnWithDomainFilter
@@ -139,6 +140,7 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		IsAdvancedVisConfigExist:                          isAdvancedVisConfigExist,
 		PersistenceMaxQPS:                                 dc.GetIntProperty(dynamicproperties.FrontendPersistenceMaxQPS),
 		PersistenceGlobalMaxQPS:                           dc.GetIntProperty(dynamicproperties.FrontendPersistenceGlobalMaxQPS),
+		EnableListDomainsFiltering:                        dc.GetBoolProperty(dynamicproperties.EnableListDomainsFiltering),
 		VisibilityMaxPageSize:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendVisibilityMaxPageSize),
 		EnableVisibilitySampling:                          dc.GetBoolProperty(dynamicproperties.EnableVisibilitySampling),
 		EnableReadFromClosedExecutionV2:                   dc.GetBoolProperty(dynamicproperties.EnableReadFromClosedExecutionV2),

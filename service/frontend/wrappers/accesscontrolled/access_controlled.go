@@ -96,6 +96,10 @@ func (a *apiHandler) listAuthorizedDomains(
 	ctx context.Context,
 	listRequest *types.ListDomainsRequest,
 ) (*types.ListDomainsResponse, error) {
+	if !a.enableListDomainsFiltering() {
+		return a.handler.ListDomains(ctx, listRequest)
+	}
+
 	response, err := a.handler.ListDomains(ctx, listRequest)
 	if err != nil || response == nil {
 		return response, err
@@ -104,8 +108,8 @@ func (a *apiHandler) listAuthorizedDomains(
 	requestBody := authorization.NewFilteredRequestBody(listRequest)
 	authorizedDomains := make([]*types.DescribeDomainResponse, 0, len(response.GetDomains()))
 	for _, domain := range response.GetDomains() {
-		// A denied domain is filtered out rather than failing the whole request: the
-		// caller's credentials were already validated before the list was fetched.
+		// A denied domain is filtered out rather than failing the whole request:
+		// the caller's credentials should be validated by the authenticator before the list is fetched.
 		isAuthorized, err := a.authorizeFilter(ctx, &authorization.Attributes{
 			APIName:     "ListDomains",
 			Permission:  authorization.PermissionRead,

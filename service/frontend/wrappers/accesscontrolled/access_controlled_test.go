@@ -38,6 +38,9 @@ import (
 
 	"github.com/uber/cadence/common/authorization"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
 	"github.com/uber/cadence/common/resource"
@@ -82,7 +85,7 @@ func TestAuthorizationMetricsLabelConsistency(t *testing.T) {
 	mockHandler.EXPECT().RegisterDomain(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	mockHandler.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.DescribeWorkflowExecutionResponse{}, nil).Times(1)
 
-	handler := NewAPIHandler(mockHandler, mockResource, mockAuthorizer, mockAuthorizer, config.Authorization{})
+	handler := NewAPIHandler(mockHandler, mockResource, mockAuthorizer, mockAuthorizer, config.Authorization{}, dynamicproperties.GetBoolPropertyFn(false))
 
 	ctx := context.Background()
 	_, err = handler.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{Domain: "my-domain"})
@@ -215,11 +218,23 @@ func TestListDomainsAuthorization(t *testing.T) {
 
 	testCases := []struct {
 		name              string
+		enableFiltering   bool
 		mockSetup         func(authenticator, authorizer *authorization.MockAuthorizer, handler *api.MockHandler, request *types.ListDomainsRequest)
 		wantDomains       []string
 		wantNextPageToken []byte
 		wantErr           error
 	}{
+		{
+			name: "returns all domains without authorization calls by default",
+			mockSetup: func(authenticator, _ *authorization.MockAuthorizer, handler *api.MockHandler, request *types.ListDomainsRequest) {
+				gomock.InOrder(
+					allowGate(authenticator),
+					handler.EXPECT().ListDomains(gomock.Any(), request).Return(listDomainsResponse(nextPageToken, "first-domain", "second-domain"), nil),
+				)
+			},
+			wantDomains:       []string{"first-domain", "second-domain"},
+			wantNextPageToken: nextPageToken,
+		},
 		{
 			name: "unauthenticated caller is rejected",
 			mockSetup: func(authenticator, _ *authorization.MockAuthorizer, _ *api.MockHandler, _ *types.ListDomainsRequest) {
@@ -235,7 +250,8 @@ func TestListDomainsAuthorization(t *testing.T) {
 			wantErr: someErr,
 		},
 		{
-			name: "filters unauthorized domains",
+			name:            "filters unauthorized domains when enabled",
+			enableFiltering: true,
 			mockSetup: func(authenticator, authorizer *authorization.MockAuthorizer, handler *api.MockHandler, request *types.ListDomainsRequest) {
 				gomock.InOrder(
 					allowGate(authenticator),
@@ -248,7 +264,8 @@ func TestListDomainsAuthorization(t *testing.T) {
 			wantNextPageToken: nextPageToken,
 		},
 		{
-			name: "preserves pagination when all domains are denied",
+			name:            "preserves pagination when all domains are denied",
+			enableFiltering: true,
 			mockSetup: func(authenticator, authorizer *authorization.MockAuthorizer, handler *api.MockHandler, request *types.ListDomainsRequest) {
 				gomock.InOrder(
 					allowGate(authenticator),
@@ -269,7 +286,8 @@ func TestListDomainsAuthorization(t *testing.T) {
 			wantErr: someErr,
 		},
 		{
-			name: "returns domain authorization error while filtering fetched domains",
+			name:            "returns domain authorization error while filtering fetched domains",
+			enableFiltering: true,
 			mockSetup: func(authenticator, authorizer *authorization.MockAuthorizer, handler *api.MockHandler, request *types.ListDomainsRequest) {
 				gomock.InOrder(
 					allowGate(authenticator),
@@ -292,7 +310,12 @@ func TestListDomainsAuthorization(t *testing.T) {
 			request := &types.ListDomainsRequest{PageSize: 10}
 			tc.mockSetup(mockAuthenticator, mockAuthorizer, mockHandler, request)
 
-			handler := NewAPIHandler(mockHandler, mockResource, mockAuthorizer, mockAuthenticator, config.Authorization{})
+			dcClient := dynamicconfig.NewInMemoryClient()
+			if tc.enableFiltering {
+				require.NoError(t, dcClient.UpdateValue(dynamicproperties.EnableListDomainsFiltering, true))
+			}
+			dc := dynamicconfig.NewCollection(dcClient, testlogger.New(t))
+			handler := NewAPIHandler(mockHandler, mockResource, mockAuthorizer, mockAuthenticator, config.Authorization{}, dc.GetBoolProperty(dynamicproperties.EnableListDomainsFiltering))
 			response, err := handler.ListDomains(context.Background(), request)
 
 			if tc.wantErr != nil {
