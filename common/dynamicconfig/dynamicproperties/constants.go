@@ -485,6 +485,12 @@ const (
 	// Default value: 1000 (see common.DefaultIDLengthErrorLimit)
 	// Allowed filters: DomainName
 	TimerIDMaxLength
+	// SemaphoreNameMaxLength is the length limit for semaphore name
+	// KeyName: limit.semaphoreNameLength
+	// Value type: Int
+	// Default value: 1000 (see common.DefaultIDLengthErrorLimit)
+	// Allowed filters: DomainName
+	SemaphoreNameMaxLength
 	// MaxIDLengthWarnLimit is the warn length limit for various IDs, including: Domain, TaskList, WorkflowID, ActivityID, TimerID, WorkflowType, ActivityType, SignalName, MarkerName, ErrorReason/FailureReason/CancelCause, Identity, RequestID
 	// KeyName: limit.maxIDWarnLength
 	// Value type: Int
@@ -2151,8 +2157,8 @@ const (
 	// Allowed filters: DomainName
 	EnableStickyQuery
 	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
-	// frontend, and serving semaphore buckets on matching. While it is off matching loads no bucket,
-	// so no partition is scanned and nothing is held in memory.
+	// frontend, the acquire decision on history, and serving semaphore buckets on matching. While it
+	// is off matching loads no bucket, so no partition is scanned and nothing is held in memory.
 	// KeyName: system.enableDistributedSemaphore
 	// Value type: Bool
 	// Default value: false
@@ -3193,6 +3199,12 @@ const (
 	// Default value: 30m (time.Minute*30)
 	// Allowed filters: DomainName
 	DecisionHeartbeatTimeout
+	// SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout
+	// KeyName: history.semaphoreAcquireDefaultWaitTimeout
+	// Value type: Duration
+	// Default value: 5m (time.Minute*5)
+	// Allowed filters: DomainName
+	SemaphoreAcquireDefaultWaitTimeout
 	// NormalDecisionScheduleToStartTimeout is scheduleToStart timeout duration for normal (non-sticky) decision task
 	// KeyName: history.normalDecisionScheduleToStartTimeout
 	// Value type: Duration
@@ -3707,6 +3719,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "limit.timerIDLength",
 		Filters:      []Filter{DomainName},
 		Description:  "TimerIDMaxLength is the length limit for timerID",
+		DefaultValue: 1000,
+	},
+	SemaphoreNameMaxLength: {
+		KeyName:      "limit.semaphoreNameLength",
+		Filters:      []Filter{DomainName},
+		Description:  "SemaphoreNameMaxLength is the length limit for semaphore name",
 		DefaultValue: 1000,
 	},
 	MaxIDLengthWarnLimit: {
@@ -5095,7 +5113,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableDistributedSemaphore: {
 		KeyName:      "system.enableDistributedSemaphore",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, and serving semaphore buckets on matching",
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and serving semaphore buckets on matching",
 		DefaultValue: false,
 	},
 	EnableFailoverManager: {
@@ -5971,6 +5989,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName},
 		Description:  "DecisionHeartbeatTimeout is for decision heartbeat",
 		DefaultValue: time.Minute * 30, // about 30m
+	},
+	SemaphoreAcquireDefaultWaitTimeout: {
+		KeyName:      "history.semaphoreAcquireDefaultWaitTimeout",
+		Filters:      []Filter{DomainName},
+		Description:  "SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout",
+		DefaultValue: time.Minute * 5,
 	},
 	NormalDecisionScheduleToStartTimeout: {
 		KeyName:      "history.normalDecisionScheduleToStartTimeout",

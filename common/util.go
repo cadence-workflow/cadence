@@ -111,6 +111,8 @@ const (
 	FailureReasonDecisionAttemptsExceedsLimit = "DECISION_ATTEMPTS_EXCEEDS_LIMIT"
 	// FailureReasonPendingActivityExceedsLimit is reason to fail overflow when pending activity exceeds limit
 	FailureReasonPendingActivityExceedsLimit = "PENDING_ACTIVITY_EXCEEDS_LIMIT"
+	// FailureReasonSemaphoreNotFound is reason to fail workflow when it acquires a semaphore that does not exist
+	FailureReasonSemaphoreNotFound = "SEMAPHORE_NOT_FOUND"
 )
 
 var (

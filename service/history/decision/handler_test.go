@@ -55,6 +55,7 @@ import (
 	"github.com/uber/cadence/service/history/events"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/query"
+	"github.com/uber/cadence/service/history/resource"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/workflow"
 )
@@ -114,6 +115,9 @@ func (s *DecisionHandlerSuite) TestNewHandler() {
 	shardContext.EXPECT().GetMetricsClient().Times(2)
 	shardContext.EXPECT().GetThrottledLogger().Times(1).Return(testlogger.New(s.T()))
 	shardContext.EXPECT().GetActiveClusterManager().Times(1).Return(activecluster.NewMockManager(s.controller))
+	mockResource := resource.NewMockResource(s.controller)
+	mockResource.EXPECT().GetSemaphoreMetadataManager().Times(1).Return(persistence.NewMockSemaphoreMetadataManager(s.controller))
+	shardContext.EXPECT().GetService().Times(1).Return(mockResource)
 	h := NewHandler(shardContext, execution.NewMockCache(s.controller), tokenSerializer)
 	s.NotNil(h)
 	s.Equal("handlerImpl", reflect.ValueOf(h).Elem().Type().Name())
