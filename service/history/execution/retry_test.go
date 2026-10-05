@@ -406,6 +406,15 @@ func TestGetBackoffIntervalWithJitter(t *testing.T) {
 			expectedMin:        backoff.NoBackoff,
 			expectedMax:        backoff.NoBackoff,
 		},
+		{
+			name:               "jitter greater than 1 is ignored",
+			currAttempt:        0,
+			initInterval:       10,
+			backoffCoefficient: 1,
+			jitterCoefficient:  5,
+			expectedMin:        10 * time.Second,
+			expectedMax:        10 * time.Second,
+		},
 	}
 
 	for _, tc := range tests {
