@@ -42,6 +42,13 @@ At Cloudera, Cadence serves as a key component of our control plane architecture
 
 The Cloudera logo is protected under U.S. trademark law and is used here with the permission of Cloudera, Inc. For more information, go to [cloudera.com](http://www.cloudera.com).
 
+![using.png](./logos/athenahealth-logo.jpg)
+
+### athenahealth
+
+At [athenahealth](https://www.athenahealth.com), Cadence is used in their revenue cycle offering, to orchestrate durable, high throughput and fault-tolerant workflows
+
+Since 1997, athenahealth has been curing complexity for ambulatory healthcare practices and the patients they serve, empowering them to deliver the best possible care and business outcomes through innovative clinical, financial, and patient engagement solutions. athenahealth connects practices, health systems, payers, partners and patients to create a thriving ecosystem that delivers accessible, high-quality, and sustainable healthcare for all. Learn more at [athenahealth.com](https://www.athenahealth.com).
 ## Evaluating / Early Adopters
 
 ## How to Add Your Organization
