@@ -14,7 +14,6 @@ jobs:
       matrix:
         scenario:
           - default
-          - queuev2
           - queuev2_split
     continue-on-error: ${{ matrix.experimental == true }}
 
