@@ -26,10 +26,12 @@ import "time"
 
 // ScheduleListEntry represents a single schedule in a list response.
 type ScheduleListEntry struct {
-	ScheduleID     string         `json:"scheduleId,omitempty"`
-	WorkflowType   *WorkflowType  `json:"workflowType,omitempty"`
-	State          *ScheduleState `json:"state,omitempty"`
-	CronExpression string         `json:"cronExpression,omitempty"`
+	ScheduleID       string            `json:"scheduleId,omitempty"`
+	WorkflowType     *WorkflowType     `json:"workflowType,omitempty"`
+	State            *ScheduleState    `json:"state,omitempty"`
+	CronExpression   string            `json:"cronExpression,omitempty"`
+	Memo             *Memo             `json:"memo,omitempty"`
+	SearchAttributes *SearchAttributes `json:"searchAttributes,omitempty"`
 }
 
 func (v *ScheduleListEntry) GetScheduleID() (o string) {

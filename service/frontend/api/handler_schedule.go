@@ -773,10 +773,41 @@ func buildScheduleListEntriesFromExecutions(wh *WorkflowHandler, domainName stri
 		if workflowTypeName != "" {
 			entry.WorkflowType = &types.WorkflowType{Name: workflowTypeName}
 		}
+		entry.Memo = exec.Memo
+		entry.SearchAttributes = scheduleUserSearchAttributes(exec.SearchAttributes)
 
 		entries = append(entries, entry)
 	}
 	return entries
+}
+
+// scheduleInternalSAKeys is the set of search attribute keys the scheduler
+// workflow writes for internal bookkeeping; stripped from user-visible SA lists.
+var scheduleInternalSAKeys = map[string]struct{}{
+	scheduler.SearchAttrScheduleID:           {},
+	scheduler.SearchAttrScheduleTime:         {},
+	scheduler.SearchAttrIsBackfill:           {},
+	scheduler.SearchAttrBackfillID:           {},
+	scheduler.SearchAttrScheduleState:        {},
+	scheduler.SearchAttrScheduleCron:         {},
+	scheduler.SearchAttrScheduleWorkflowType: {},
+}
+
+// scheduleUserSearchAttributes returns a copy of sa with scheduler-internal keys removed.
+func scheduleUserSearchAttributes(sa *types.SearchAttributes) *types.SearchAttributes {
+	if sa == nil {
+		return nil
+	}
+	filtered := make(map[string][]byte, len(sa.IndexedFields))
+	for k, v := range sa.IndexedFields {
+		if _, internal := scheduleInternalSAKeys[k]; !internal {
+			filtered[k] = v
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return &types.SearchAttributes{IndexedFields: filtered}
 }
 
 func (wh *WorkflowHandler) signalScheduleWorkflow(
