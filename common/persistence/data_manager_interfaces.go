@@ -760,8 +760,8 @@ type (
 		InitiatedID   int64
 		SemaphoreName string
 		OwnerID       string
-		// TokenID is the granted slot. A bucket only ever seeds positive ids, so a
-		// non-positive value means no token yet: the acquire is still waiting.
+		// TokenID is the granted slot. Token ids start at 1, so a non-positive
+		// value means no token yet: the acquire is still waiting.
 		TokenID int
 		// AcquireDeadline is when a waiting acquire gives up.
 		AcquireDeadline time.Time
@@ -1516,17 +1516,8 @@ type (
 		UpdatedTime   time.Time
 	}
 
-	// SeedSemaphoreTokensRequest seeds a bucket with free token rows for the
-	// given slot ids (idempotent; never clobbers an already-held slot).
-	SeedSemaphoreTokensRequest struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-		TokenIDs      []int
-	}
-
 	// GrantSemaphoreTokenRequest claims a slot for an owner via a conditional
-	// batch (grant only if the slot is currently free).
+	// batch (grant only if the slot is free or has never been granted).
 	GrantSemaphoreTokenRequest struct {
 		DomainID      string
 		SemaphoreName string
@@ -2115,13 +2106,8 @@ type (
 	SemaphoreTokenManager interface {
 		Closeable
 		GetName() string
-		// SeedSemaphoreTokens seeds a bucket with free token rows. Callers must
-		// supply the bucket's full, immutable id set: a fresh bucket is fully
-		// seeded, and re-seeding the same set is an idempotent no-op that never
-		// clobbers a held slot. Growing an existing bucket's id set is unsupported
-		// (to resize, create a new semaphore name).
-		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest) error
-		// GrantSemaphoreToken claims a slot for an owner if it is currently free. A grant
+		// GrantSemaphoreToken claims a slot for an owner if it is free. Token rows are not
+		// seeded: a slot with no row is free, and its first grant creates the row. A grant
 		// that does not apply is an ordinary result rather than an error, and Outcome says
 		// which of three things happened:
 		//
@@ -2135,7 +2121,8 @@ type (
 		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest) (*GrantSemaphoreTokenResponse, error)
 		// ReleaseSemaphoreToken frees a slot if it is still held by the owner.
 		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest) (*ReleaseSemaphoreTokenResponse, error)
-		// GetSemaphoreOwnershipByToken reads a slot's forward row (holder) by token id.
+		// GetSemaphoreOwnershipByToken reads a slot's forward row (holder) by token id. A
+		// slot that has never been granted has no row, and returns EntityNotExistsError.
 		GetSemaphoreOwnershipByToken(ctx context.Context, request *GetSemaphoreOwnershipByTokenRequest) (*GetSemaphoreOwnershipByTokenResponse, error)
 		// GetSemaphoreOwnershipByOwner reads a hold's reverse row (held token) by owner id.
 		GetSemaphoreOwnershipByOwner(ctx context.Context, request *GetSemaphoreOwnershipByOwnerRequest) (*GetSemaphoreOwnershipByOwnerResponse, error)

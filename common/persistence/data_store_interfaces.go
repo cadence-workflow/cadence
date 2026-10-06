@@ -119,7 +119,6 @@ type (
 	SemaphoreTokenStore interface {
 		Closeable
 		GetName() string
-		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest, updatedTime time.Time) error
 		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest, updatedTime time.Time) (*GrantSemaphoreTokenResponse, error)
 		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest, updatedTime time.Time) (bool, error)
 		GetSemaphoreOwnershipByToken(ctx context.Context, request *GetSemaphoreOwnershipByTokenRequest) (*SemaphoreOwnership, error)
