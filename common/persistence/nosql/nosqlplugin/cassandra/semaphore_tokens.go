@@ -53,6 +53,8 @@ const (
 //   - set the token row's holder to the owner, only if the token is FREE or has no row yet
 //     (IF holder IN (FREE, null))
 //   - insert the owner row, only if it does not exist (IF NOT EXISTS)
+//
+// The token id is not checked against the bucket's range; the caller must pass one the bucket owns.
 func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreOwnershipRow) (nosqlplugin.SemaphoreGrantResult, error) {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	batch.Query(templateGrantSemaphoreTokenUpdateQuery,

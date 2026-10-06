@@ -580,15 +580,18 @@ type (
 	* semaphore_tokens: partition key(domainID, semaphoreName, bucket), range key(type, tokenID, ownerID)
 	 */
 	SemaphoreTokenCRUD interface {
-		// GrantSemaphoreToken marks a token as held by an owner with one atomic batch of two guarded writes:
-		//   - set the token row's holder to the owner, only if the token is free or has no row yet
+		// GrantSemaphoreToken gives a token to an owner with one atomic write that:
+		//   - sets the token row's holder to the owner, only if the token is free or has no row yet
 		//     (a token's first grant creates its row)
-		//   - insert the owner row, only if it does not exist
+		//   - adds the owner row, only if the owner holds no token yet
 		//
-		// A refused grant is not an error. The returned Outcome says what happened:
-		//   - Applied: the owner now holds the token
-		//   - AlreadyHeld: the owner already holds a token, named by HeldToken
-		//   - SlotTaken: another owner holds this token
+		// A refused grant is not an error. The returned Outcome is one of:
+		//   - SemaphoreGrantApplied: the owner now holds the token
+		//   - SemaphoreGrantAlreadyHeld: the owner already holds a token, named by HeldToken
+		//   - SemaphoreGrantSlotTaken: another owner holds the token
+		//
+		// The caller must pass a token id the bucket owns. A missing row is created, not refused,
+		// so a token id outside the bucket's range is not caught here.
 		GrantSemaphoreToken(ctx context.Context, row *SemaphoreOwnershipRow) (SemaphoreGrantResult, error)
 
 		// ReleaseSemaphoreToken frees a slot via a guarded batch: it clears the

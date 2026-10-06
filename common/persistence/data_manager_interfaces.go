@@ -2106,18 +2106,18 @@ type (
 	SemaphoreTokenManager interface {
 		Closeable
 		GetName() string
-		// GrantSemaphoreToken claims a slot for an owner if it is free. Token rows are not
-		// seeded: a slot with no row is free, and its first grant creates the row. A grant
-		// that does not apply is an ordinary result rather than an error, and Outcome says
-		// which of three things happened:
+		// GrantSemaphoreToken gives a token to an owner with one atomic write that:
+		//   - sets the token row's holder to the owner, only if the token is free or has no row yet
+		//     (a token's first grant creates its row)
+		//   - adds the owner row, only if the owner holds no token yet
 		//
-		//   - SemaphoreGrantApplied: the slot is now this owner's, and the token is the
-		//     TokenID that was asked for.
-		//   - SemaphoreGrantSlotTaken: some other owner holds that slot. Another token id
-		//     may still be free, so trying one is worthwhile.
-		//   - SemaphoreGrantAlreadyHeld: this owner already holds a slot, named by
-		//     HeldToken. Trying another id cannot help, because every id fails against the
-		//     same owner row; use HeldToken instead.
+		// A refused grant is not an error. The returned Outcome is one of:
+		//   - SemaphoreGrantApplied: the owner now holds the token
+		//   - SemaphoreGrantAlreadyHeld: the owner already holds a token, named by HeldToken
+		//   - SemaphoreGrantSlotTaken: another owner holds the token
+		//
+		// The caller must pass a token id the bucket owns. A missing row is created, not refused,
+		// so a token id outside the bucket's range is not caught here.
 		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest) (*GrantSemaphoreTokenResponse, error)
 		// ReleaseSemaphoreToken frees a slot if it is still held by the owner.
 		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest) (*ReleaseSemaphoreTokenResponse, error)
