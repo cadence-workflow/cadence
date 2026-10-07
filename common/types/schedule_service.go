@@ -30,8 +30,8 @@ type ScheduleListEntry struct {
 	WorkflowType     *WorkflowType     `json:"workflowType,omitempty"`
 	State            *ScheduleState    `json:"state,omitempty"`
 	CronExpression   string            `json:"cronExpression,omitempty"`
-	Memo             *Memo             `json:"memo,omitempty"`
-	SearchAttributes *SearchAttributes `json:"searchAttributes,omitempty"`
+	Memo             *Memo             `json:"-"` // Filtering PII
+	SearchAttributes *SearchAttributes `json:"-"` // Filtering PII
 }
 
 func (v *ScheduleListEntry) GetScheduleID() (o string) {
@@ -60,6 +60,20 @@ func (v *ScheduleListEntry) GetCronExpression() (o string) {
 		return v.CronExpression
 	}
 	return
+}
+
+func (v *ScheduleListEntry) GetMemo() *Memo {
+	if v != nil {
+		return v.Memo
+	}
+	return nil
+}
+
+func (v *ScheduleListEntry) GetSearchAttributes() *SearchAttributes {
+	if v != nil {
+		return v.SearchAttributes
+	}
+	return nil
 }
 
 // CreateScheduleRequest is the request to create a new schedule.

@@ -774,7 +774,7 @@ func buildScheduleListEntriesFromExecutions(wh *WorkflowHandler, domainName stri
 			entry.WorkflowType = &types.WorkflowType{Name: workflowTypeName}
 		}
 		entry.Memo = exec.Memo
-		entry.SearchAttributes = scheduleUserSearchAttributes(exec.SearchAttributes)
+		entry.SearchAttributes = filterScheduleInternalSearchAttributes(exec.SearchAttributes)
 
 		entries = append(entries, entry)
 	}
@@ -793,8 +793,8 @@ var scheduleInternalSAKeys = map[string]struct{}{
 	scheduler.SearchAttrScheduleWorkflowType: {},
 }
 
-// scheduleUserSearchAttributes returns a copy of sa with scheduler-internal keys removed.
-func scheduleUserSearchAttributes(sa *types.SearchAttributes) *types.SearchAttributes {
+// filterScheduleInternalSearchAttributes returns a copy of sa with scheduler-internal keys removed.
+func filterScheduleInternalSearchAttributes(sa *types.SearchAttributes) *types.SearchAttributes {
 	if sa == nil {
 		return nil
 	}
