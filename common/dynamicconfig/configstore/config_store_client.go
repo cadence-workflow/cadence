@@ -59,6 +59,10 @@ const (
 	configStoreMinPollInterval = time.Second * 2
 )
 
+// ErrPersistenceNotConfigured is returned by NewConfigStoreClient when the persistence config
+// has no datastore that could back a config store. Any other error is a real initialization failure.
+var ErrPersistenceNotConfigured = errors.New("persistence is not configured for config store")
+
 var defaultConfigValues = &csc.ClientConfig{
 	PollInterval:        time.Second * 10,
 	UpdateRetryAttempts: 1,
@@ -93,12 +97,12 @@ func NewConfigStoreClient(
 	configType persistence.ConfigType,
 ) (Client, error) {
 	if persistenceCfg == nil {
-		return nil, errors.New("persistence cfg is nil")
+		return nil, fmt.Errorf("%w: persistence cfg is nil", ErrPersistenceNotConfigured)
 	}
 
 	ds, ok := persistenceCfg.DataStores[persistenceCfg.DefaultStore]
 	if !ok {
-		return nil, errors.New("default persistence config missing")
+		return nil, fmt.Errorf("%w: default persistence config missing", ErrPersistenceNotConfigured)
 	}
 
 	if err := validateClientConfig(clientCfg); err != nil {
@@ -139,7 +143,7 @@ func newConfigStoreClient(
 		}
 		store, err = sql.NewSQLConfigStore(db, logger, nil)
 	default:
-		return nil, errors.New("both NoSQL and SQL store are not provided")
+		return nil, fmt.Errorf("%w: both NoSQL and SQL store are not provided", ErrPersistenceNotConfigured)
 	}
 	if err != nil {
 		return nil, err

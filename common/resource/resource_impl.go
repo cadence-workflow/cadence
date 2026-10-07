@@ -728,14 +728,14 @@ func (h *Impl) GetIsolationGroupStore() configstore.Client {
 	return h.isolationGroupConfigStore
 }
 
-// GetOperationalConfigStore returns the operational dynamic config store (always non-nil; NopClient when unsupported).
+// GetOperationalConfigStore returns the operational dynamic config store (always non-nil; NopClient when persistence is not configured).
 func (h *Impl) GetOperationalConfigStore() configstore.Client {
 	return h.operationalConfigStore
 }
 
 // GetOperationalDynamicConfig returns a Collection wrapping the operational
-// dynamic config store. It is always non-nil: when the underlying store is
-// unavailable, the Collection is backed by a no-op client that returns
+// dynamic config store. It is always non-nil: when persistence is not
+// configured, the Collection is backed by a no-op client that returns
 // default values, so callers can read operational values unconditionally.
 func (h *Impl) GetOperationalDynamicConfig() *dynamicconfig.Collection {
 	return h.operationalDynamicConfig
