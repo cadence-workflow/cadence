@@ -27,6 +27,7 @@ import (
 	"net"
 	nethttp "net/http"
 	"sync"
+	"time"
 
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/transport/grpc"
@@ -34,6 +35,7 @@ import (
 	"go.uber.org/yarpc/transport/tchannel"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -43,6 +45,7 @@ import (
 const (
 	defaultGRPCSizeLimit = 4 * 1024 * 1024
 	factoryComponentName = "rpc-factory"
+	peerUpdateInterval   = 30 * time.Second
 )
 
 var (
@@ -64,6 +67,7 @@ type FactoryImpl struct {
 	ctx            context.Context
 	cancelFn       context.CancelFunc
 	peerLister     PeerLister
+	timeSource     clock.TimeSource
 }
 
 // NewFactory builds a new rpc.Factory
@@ -163,6 +167,7 @@ func NewFactory(logger log.Logger, p Params) Factory {
 		logger:         logger,
 		ctx:            ctx,
 		cancelFn:       cancel,
+		timeSource:     clock.NewRealTimeSource(),
 	}
 }
 
@@ -222,22 +227,31 @@ func (d *FactoryImpl) Stop() error {
 func (d *FactoryImpl) listenMembershipChanges(svc string, ch chan *membership.ChangedEvent) {
 	defer d.wg.Done()
 
+	updateTicker := d.timeSource.NewTicker(peerUpdateInterval)
+	defer updateTicker.Stop()
+
 	for {
 		select {
 		case <-ch:
 			d.logger.Debug("rpc factory received membership changed event", tag.Service(svc))
-			members, err := d.peerLister.Members(svc)
-			if err != nil {
-				d.logger.Error("rpc factory failed to get members from membership resolver", tag.Error(err), tag.Service(svc))
-				continue
-			}
-
-			d.outbounds.UpdatePeers(svc, members)
+			d.updatePeers(svc)
+		case <-updateTicker.Chan():
+			d.updatePeers(svc)
 		case <-d.ctx.Done():
 			d.logger.Info("rpc factory stopped so listenMembershipChanges returning", tag.Service(svc))
 			return
 		}
 	}
+}
+
+func (d *FactoryImpl) updatePeers(svc string) {
+	members, err := d.peerLister.Members(svc)
+	if err != nil {
+		d.logger.Error("rpc factory failed to get members from membership resolver", tag.Error(err), tag.Service(svc))
+		return
+	}
+
+	d.outbounds.UpdatePeers(svc, members)
 }
 
 func createDialer(transport *grpc.Transport, tlsConfig *tls.Config) *grpc.Dialer {

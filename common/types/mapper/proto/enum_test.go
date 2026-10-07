@@ -27,6 +27,7 @@ import (
 	adminv1 "github.com/uber/cadence-idl/go/proto/admin/v1"
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 
+	matchingv1 "github.com/uber/cadence/.gen/proto/matching/v1"
 	sharedv1 "github.com/uber/cadence/.gen/proto/shared/v1"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
@@ -2086,6 +2087,81 @@ func TestFromTaskType(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, FromTaskType(tc.input))
+		})
+	}
+}
+
+func TestSemaphoreAcquireOutcome(t *testing.T) {
+	for _, item := range []types.SemaphoreAcquireOutcome{
+		types.SemaphoreAcquireOutcomeInvalid,
+		types.SemaphoreAcquireOutcomeAcquired,
+		types.SemaphoreAcquireOutcomeNoSlot,
+	} {
+		assert.Equal(t, item, ToSemaphoreAcquireOutcome(FromSemaphoreAcquireOutcome(item)))
+	}
+}
+
+func TestToSemaphoreAcquireOutcome(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    matchingv1.SemaphoreAcquireOutcome
+		expected types.SemaphoreAcquireOutcome
+	}{
+		{
+			name:  "when input is invalid it should return the invalid zero value",
+			input: matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_INVALID,
+		},
+		{
+			name:  "when input is out of range it should return the invalid zero value",
+			input: UnknownValue,
+		},
+		{
+			name:     "when input is acquired it should return the correctly mapped value",
+			input:    matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_ACQUIRED,
+			expected: types.SemaphoreAcquireOutcomeAcquired,
+		},
+		{
+			name:     "when input is no-slot it should return the correctly mapped value",
+			input:    matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_NO_SLOT,
+			expected: types.SemaphoreAcquireOutcomeNoSlot,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToSemaphoreAcquireOutcome(tc.input))
+		})
+	}
+}
+
+func TestFromSemaphoreAcquireOutcome(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    types.SemaphoreAcquireOutcome
+		expected matchingv1.SemaphoreAcquireOutcome
+	}{
+		{
+			name:  "when input is the invalid zero value it should return INVALID",
+			input: types.SemaphoreAcquireOutcomeInvalid,
+		},
+		{
+			name:     "when input is acquired it should return the correctly mapped value",
+			input:    types.SemaphoreAcquireOutcomeAcquired,
+			expected: matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_ACQUIRED,
+		},
+		{
+			name:     "when input is no-slot it should return the correctly mapped value",
+			input:    types.SemaphoreAcquireOutcomeNoSlot,
+			expected: matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_NO_SLOT,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.SemaphoreAcquireOutcome(UnknownValue),
+			expected: matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_INVALID,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromSemaphoreAcquireOutcome(tc.input))
 		})
 	}
 }

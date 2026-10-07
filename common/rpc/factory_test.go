@@ -27,9 +27,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/service"
@@ -183,4 +185,59 @@ func TestStartStop(t *testing.T) {
 			goleak.VerifyNone(t)
 		})
 	}
+}
+
+func TestUpdatePeersWithoutMembershipChange(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	membersBySvc := map[string][]membership.HostInfo{
+		service.Matching: {membership.NewHostInfo("localhost:9191")},
+		service.History:  {membership.NewHostInfo("localhost:8585")},
+	}
+
+	var mu sync.Mutex
+	gotMembers := make(map[string][]membership.HostInfo)
+	outbounds := &Outbounds{
+		onUpdatePeers: func(svc string, members []membership.HostInfo) {
+			mu.Lock()
+			defer mu.Unlock()
+			gotMembers[svc] = members
+		},
+	}
+	ob := NewMockOutboundsBuilder(ctrl)
+	ob.EXPECT().Build(gomock.Any(), gomock.Any()).Return(outbounds, nil).Times(1)
+
+	f := NewFactory(testlogger.New(t), Params{
+		ServiceName:      "service",
+		TChannelAddress:  "localhost:0",
+		OutboundsBuilder: ob,
+	}).(*FactoryImpl)
+	timeSource := clock.NewMockedTimeSource()
+	f.timeSource = timeSource
+
+	// No membership change is ever notified, so peers are only updated by the periodic update.
+	peerLister := membership.NewMockResolver(ctrl)
+	for _, svc := range servicesToTalkP2P {
+		peerLister.EXPECT().Subscribe(svc, factoryComponentName, gomock.Any()).Return(nil).Times(1)
+		peerLister.EXPECT().Members(svc).Return(membersBySvc[svc], nil).Times(1)
+		peerLister.EXPECT().Unsubscribe(svc, factoryComponentName).Return(nil).Times(1)
+	}
+
+	err := f.Start(peerLister)
+	require.NoError(t, err)
+
+	timeSource.BlockUntil(len(servicesToTalkP2P))
+	timeSource.Advance(peerUpdateInterval)
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(gotMembers) == len(servicesToTalkP2P)
+	}, time.Second, 10*time.Millisecond)
+	mu.Lock()
+	assert.Equal(t, membersBySvc, gotMembers)
+	mu.Unlock()
+
+	err = f.Stop()
+	require.NoError(t, err)
+	goleak.VerifyNone(t)
 }

@@ -1643,6 +1643,13 @@ const (
 	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
 
+	// HistoryTaskDLQProcessorHostConcurrency is the maximum number of shards that may process the History Task DLQ concurrently on one history host.
+	// KeyName: history.historyTaskDLQProcessorHostConcurrency
+	// Value type: Int
+	// Default value: 10
+	// Allowed filters: N/A
+	HistoryTaskDLQProcessorHostConcurrency
+
 	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
 	// KeyName: history.taskListNiceValue
 	// Value type: Int
@@ -1848,14 +1855,6 @@ const (
 	// Default value: false
 	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingEnableAdaptiveScaler
-	// MatchingEnableDistributedSemaphore gates serving distributed semaphore buckets on matching
-	// hosts. While it is off no bucket is loaded, so no partition is scanned and nothing is held
-	// in memory.
-	// KeyName: matching.enableDistributedSemaphore
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	MatchingEnableDistributedSemaphore
 	// MatchingEnablePartitionEmptyCheck enables using TaskListStatus.empty to check if a partition is empty
 	// KeyName: matching.enablePartitionEmptyCheck
 	// Value type: Bool
@@ -2151,6 +2150,14 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableStickyQuery
+	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
+	// frontend, and serving semaphore buckets on matching. While it is off matching loads no bucket,
+	// so no partition is scanned and nothing is held in memory.
+	// KeyName: system.enableDistributedSemaphore
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableDistributedSemaphore
 	// EnableFailoverManager indicates if failover manager is enabled
 	// KeyName: system.enableFailoverManager
 	// Value type: Bool
@@ -2764,12 +2771,12 @@ const (
 	TimerProcessorCachedQueueReaderMode
 
 	// TransferProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used.
-	// "disabled" (default): no cached reader, plain immediateQueue is used.
+	// "disabled": no cached reader, plain immediateQueue is used.
 	// "shadow": cached reader is created, but all reads are forwarded to the base reader.
-	// "enabled": cached reader fully active.
+	// "enabled" (default): cached reader fully active.
 	// KeyName: history.transferProcessorCachedQueueReaderMode
 	// Value type: string enum: "disabled", "shadow", "enabled"
-	// Default value: "disabled"
+	// Default value: "enabled"
 	// Allowed filters: ShardID
 	TransferProcessorCachedQueueReaderMode
 
@@ -4634,6 +4641,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
 	},
+	HistoryTaskDLQProcessorHostConcurrency: {
+		KeyName:      "history.historyTaskDLQProcessorHostConcurrency",
+		Description:  "HistoryTaskDLQProcessorHostConcurrency is the maximum number of shards that may process the History Task DLQ concurrently on one history host. Evaluated once at history host startup; changing it requires a restart",
+		DefaultValue: 10,
+	},
 	HistoryTaskListNiceValue: {
 		KeyName:      "history.taskListNiceValue",
 		Description:  "HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list",
@@ -4832,12 +4844,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableAdaptiveScaler",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingEnableAdaptiveScaler is to enable adaptive task list scaling",
-		DefaultValue: false,
-	},
-	MatchingEnableDistributedSemaphore: {
-		KeyName:      "matching.enableDistributedSemaphore",
-		Filters:      []Filter{DomainName},
-		Description:  "MatchingEnableDistributedSemaphore gates serving distributed semaphore buckets on matching hosts",
 		DefaultValue: false,
 	},
 	MatchingEnablePartitionEmptyCheck: {
@@ -5085,6 +5091,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{DomainName},
 		Description:  "EnableStickyQuery indicates if sticky query should be enabled per domain",
 		DefaultValue: true,
+	},
+	EnableDistributedSemaphore: {
+		KeyName:      "system.enableDistributedSemaphore",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, and serving semaphore buckets on matching",
+		DefaultValue: false,
 	},
 	EnableFailoverManager: {
 		KeyName:      "system.enableFailoverManager",
@@ -5594,7 +5606,7 @@ var StringKeys = map[StringKey]DynamicString{
 	TransferProcessorCachedQueueReaderMode: {
 		KeyName:      "history.transferProcessorCachedQueueReaderMode",
 		Description:  "TransferProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used: disabled/shadow/enabled",
-		DefaultValue: "disabled",
+		DefaultValue: "enabled",
 		Filters:      []Filter{ShardID},
 	},
 }

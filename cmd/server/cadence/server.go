@@ -21,7 +21,6 @@
 package cadence
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"time"
@@ -220,11 +219,7 @@ func (s *server) startService() common.Daemon {
 		if err != nil {
 			s.logger.Fatal("error creating spectator", tag.Error(err))
 		}
-
-		// Start the spectator to begin watching namespace state
-		if err := spectator.Start(context.Background()); err != nil {
-			s.logger.Fatal("error starting spectator", tag.Error(err))
-		}
+		params.Spectator = spectator
 	} else {
 		s.logger.Warn("Shard distributor client not configured, spectator will not be started")
 	}

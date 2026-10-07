@@ -179,6 +179,10 @@ func (handler *clusterRedirectionHandler) CreateSchedule(ctx context.Context, cp
 	return cp2, err
 }
 
+func (handler *clusterRedirectionHandler) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest) (cp2 *types.CreateSemaphoreResponse, err error) {
+	return handler.frontendHandler.CreateSemaphore(ctx, cp1)
+}
+
 func (handler *clusterRedirectionHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {
 	return handler.frontendHandler.DeleteDomain(ctx, dp1)
 }

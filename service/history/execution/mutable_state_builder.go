@@ -897,7 +897,12 @@ func (e *mutableStateBuilder) shouldBufferEvent(
 		types.EventTypeMarkerRecorded,
 		types.EventTypeStartChildWorkflowExecutionInitiated,
 		types.EventTypeSignalExternalWorkflowExecutionInitiated,
-		types.EventTypeUpsertWorkflowSearchAttributes:
+		types.EventTypeUpsertWorkflowSearchAttributes,
+		types.EventTypeSemaphoreAcquireInitiated,
+		// SemaphoreReleased is an exception. It also comes from auto-release when the run
+		// closes, not only from a decision. Not buffering is still right there: events after
+		// the close event are dropped, and a buffered event would land after it.
+		types.EventTypeSemaphoreReleased:
 		// do not buffer event if event is directly generated from a corresponding decision
 
 		// sanity check there is no decision on the fly

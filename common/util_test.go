@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"math/rand"
 	"reflect"
 	"runtime"
@@ -45,6 +46,7 @@ import (
 
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/constants"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -94,6 +96,14 @@ func TestIsServiceTransientError(t *testing.T) {
 		},
 		"ShardOwnershipLostError": {
 			err:  &types.ShardOwnershipLostError{},
+			want: true,
+		},
+		"TaskListNotOwnedByHostError": {
+			err:  &cadence_errors.TaskListNotOwnedByHostError{},
+			want: true,
+		},
+		"SemaphoreNotOwnedByHostError": {
+			err:  &cadence_errors.SemaphoreNotOwnedByHostError{},
 			want: true,
 		},
 	} {
@@ -726,6 +736,18 @@ func TestValidateRetryPolicy_Success(t *testing.T) {
 			MaximumAttempts:             0,
 			ExpirationIntervalInSeconds: 1,
 		},
+		"JitterCoefficient is between 0 and 1": {
+			InitialIntervalInSeconds: 2,
+			BackoffCoefficient:       1,
+			MaximumAttempts:          1,
+			JitterCoefficient:        0.2,
+		},
+		"JitterCoefficient equals 1": {
+			InitialIntervalInSeconds: 2,
+			BackoffCoefficient:       1,
+			MaximumAttempts:          1,
+			JitterCoefficient:        1,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.NoError(t, ValidateRetryPolicy(policy))
@@ -791,6 +813,33 @@ func TestValidateRetryPolicy_Error(t *testing.T) {
 				ExpirationIntervalInSeconds: -1,
 			},
 			wantErr: &types.BadRequestError{Message: "ExpirationIntervalInSeconds cannot be less than 0 on retry policy."},
+		},
+		"JitterCoefficient less than 0": {
+			policy: &types.RetryPolicy{
+				InitialIntervalInSeconds: 2,
+				BackoffCoefficient:       1,
+				MaximumAttempts:          1,
+				JitterCoefficient:        -0.1,
+			},
+			wantErr: &types.BadRequestError{Message: "JitterCoefficient must be between 0 and 1 on retry policy."},
+		},
+		"JitterCoefficient greater than 1": {
+			policy: &types.RetryPolicy{
+				InitialIntervalInSeconds: 2,
+				BackoffCoefficient:       1,
+				MaximumAttempts:          1,
+				JitterCoefficient:        1.1,
+			},
+			wantErr: &types.BadRequestError{Message: "JitterCoefficient must be between 0 and 1 on retry policy."},
+		},
+		"JitterCoefficient is NaN": {
+			policy: &types.RetryPolicy{
+				InitialIntervalInSeconds: 2,
+				BackoffCoefficient:       1,
+				MaximumAttempts:          1,
+				JitterCoefficient:        math.NaN(),
+			},
+			wantErr: &types.BadRequestError{Message: "JitterCoefficient must be between 0 and 1 on retry policy."},
 		},
 		"MaximumAttempts and ExpirationIntervalInSeconds equal 0": {
 			policy: &types.RetryPolicy{
@@ -1609,6 +1658,11 @@ func TestSecondsToDuration(t *testing.T) {
 			require.Equal(t, want, got)
 		})
 	}
+}
+
+func TestNewPerSemaphoreScope(t *testing.T) {
+	assert.NotNil(t, NewPerSemaphoreScope("test-domain", "test-semaphore", metrics.NewNoopMetricsClient(), 0))
+	assert.NotNil(t, NewPerSemaphoreScope("", "", metrics.NewNoopMetricsClient(), 0))
 }
 
 func TestNewPerTaskListScope(t *testing.T) {

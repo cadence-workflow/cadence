@@ -336,6 +336,20 @@ func TestWorkflowExecutionInfo_MigrateTaskList(t *testing.T) {
 	}
 }
 
+func TestAcquireSemaphoreDecisionAttributesConversion(t *testing.T) {
+	testCases := []*types.AcquireSemaphoreDecisionAttributes{
+		nil,
+		{},
+		&testdata.AcquireSemaphoreDecisionAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromAcquireSemaphoreDecisionAttributes(original)
+		roundTripObj := ToAcquireSemaphoreDecisionAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
 func TestActivityLocalDispatchInfoConversion(t *testing.T) {
 	testCases := []*types.ActivityLocalDispatchInfo{
 		nil,
@@ -880,6 +894,8 @@ func TestDecisionConverson(t *testing.T) {
 			DecisionType:                           types.DecisionTypeScheduleActivityTask.Ptr(),
 			ScheduleActivityTaskDecisionAttributes: &testdata.ScheduleActivityTaskDecisionAttributes,
 		},
+		&testdata.Decision_AcquireSemaphore,
+		&testdata.Decision_ReleaseSemaphore,
 	}
 
 	for _, original := range testCases {
@@ -1024,6 +1040,8 @@ func TestDecisionTypeConversion(t *testing.T) {
 		types.DecisionTypeStartChildWorkflowExecution.Ptr(),
 		types.DecisionTypeSignalExternalWorkflowExecution.Ptr(),
 		types.DecisionTypeUpsertWorkflowSearchAttributes.Ptr(),
+		types.DecisionTypeAcquireSemaphore.Ptr(),
+		types.DecisionTypeReleaseSemaphore.Ptr(),
 	}
 
 	for _, original := range testCases {
@@ -1461,6 +1479,9 @@ func TestEventTypeConversion(t *testing.T) {
 		types.EventTypeSignalExternalWorkflowExecutionFailed.Ptr(),
 		types.EventTypeExternalWorkflowExecutionSignaled.Ptr(),
 		types.EventTypeUpsertWorkflowSearchAttributes.Ptr(),
+		types.EventTypeSemaphoreAcquireInitiated.Ptr(),
+		types.EventTypeSemaphoreAcquired.Ptr(),
+		types.EventTypeSemaphoreReleased.Ptr(),
 	}
 
 	for _, original := range testCases {
@@ -1612,6 +1633,9 @@ func TestHistoryEventConversion(t *testing.T) {
 			EventType:                               types.EventTypeWorkflowExecutionStarted.Ptr(),
 			WorkflowExecutionStartedEventAttributes: &testdata.WorkflowExecutionStartedEventAttributes,
 		},
+		&testdata.HistoryEvent_SemaphoreAcquireInitiated,
+		&testdata.HistoryEvent_SemaphoreAcquired,
+		&testdata.HistoryEvent_SemaphoreReleased,
 	}
 
 	for _, original := range testCases {
@@ -2342,6 +2366,20 @@ func TestRegisterDomainRequestFuzz(t *testing.T) {
 	})
 }
 
+func TestReleaseSemaphoreDecisionAttributesConversion(t *testing.T) {
+	testCases := []*types.ReleaseSemaphoreDecisionAttributes{
+		nil,
+		{},
+		&testdata.ReleaseSemaphoreDecisionAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromReleaseSemaphoreDecisionAttributes(original)
+		roundTripObj := ToReleaseSemaphoreDecisionAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
 func TestRemoteSyncMatchedErrorConversion(t *testing.T) {
 	testCases := []*types.RemoteSyncMatchedError{
 		nil,
@@ -2730,6 +2768,48 @@ func TestSearchAttributesConversion(t *testing.T) {
 	for _, original := range testCases {
 		thriftObj := FromSearchAttributes(original)
 		roundTripObj := ToSearchAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestSemaphoreAcquireInitiatedEventAttributesConversion(t *testing.T) {
+	testCases := []*types.SemaphoreAcquireInitiatedEventAttributes{
+		nil,
+		{},
+		&testdata.SemaphoreAcquireInitiatedEventAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromSemaphoreAcquireInitiatedEventAttributes(original)
+		roundTripObj := ToSemaphoreAcquireInitiatedEventAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestSemaphoreAcquiredEventAttributesConversion(t *testing.T) {
+	testCases := []*types.SemaphoreAcquiredEventAttributes{
+		nil,
+		{},
+		&testdata.SemaphoreAcquiredEventAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromSemaphoreAcquiredEventAttributes(original)
+		roundTripObj := ToSemaphoreAcquiredEventAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestSemaphoreReleasedEventAttributesConversion(t *testing.T) {
+	testCases := []*types.SemaphoreReleasedEventAttributes{
+		nil,
+		{},
+		&testdata.SemaphoreReleasedEventAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromSemaphoreReleasedEventAttributes(original)
+		roundTripObj := ToSemaphoreReleasedEventAttributes(thriftObj)
 		assert.Equal(t, original, roundTripObj)
 	}
 }
@@ -3770,4 +3850,24 @@ func TestFailoverDomainRequestConversion_PreservesSkipDestinationClusterCheck(t 
 
 func TestFailoverDomainRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest)
+}
+
+func TestAcquireSemaphoreDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAcquireSemaphoreDecisionAttributes, ToAcquireSemaphoreDecisionAttributes)
+}
+
+func TestReleaseSemaphoreDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReleaseSemaphoreDecisionAttributes, ToReleaseSemaphoreDecisionAttributes)
+}
+
+func TestSemaphoreAcquireInitiatedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreAcquireInitiatedEventAttributes, ToSemaphoreAcquireInitiatedEventAttributes)
+}
+
+func TestSemaphoreAcquiredEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreAcquiredEventAttributes, ToSemaphoreAcquiredEventAttributes)
+}
+
+func TestSemaphoreReleasedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreReleasedEventAttributes, ToSemaphoreReleasedEventAttributes)
 }
