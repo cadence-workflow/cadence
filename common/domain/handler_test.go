@@ -4096,7 +4096,7 @@ func TestHandler_FailoverDomain(t *testing.T) {
 				DomainName:              constants.TestDomainName,
 				DomainActiveClusterName: common.Ptr(clusterB),
 			},
-			err: errFailoverNotFromDestinationCluster(clusterA, clusterB),
+			err: errFailoverNotToDestinationCluster(clusterA, clusterB),
 		},
 		{
 			name: "Error case - cluster-attribute failover to another cluster must be sent to the destination cluster",
@@ -4151,7 +4151,7 @@ func TestHandler_FailoverDomain(t *testing.T) {
 					},
 				},
 			},
-			err: errFailoverNotFromDestinationCluster(clusterA, clusterB),
+			err: errFailoverNotToDestinationCluster(clusterA, clusterB),
 		},
 		{
 			name: "Error case - cluster-attribute failover to the receiving cluster passes the destination check and hits cooldown",

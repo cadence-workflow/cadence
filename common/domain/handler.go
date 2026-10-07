@@ -1799,12 +1799,12 @@ func (d *handlerImpl) validateDomainFailoverRequest(
 	}
 	currentCluster := d.clusterMetadata.GetCurrentClusterName()
 	if request.DomainActiveClusterName != nil && *request.DomainActiveClusterName != currentCluster {
-		return errFailoverNotFromDestinationCluster(currentCluster, *request.DomainActiveClusterName)
+		return errFailoverNotToDestinationCluster(currentCluster, *request.DomainActiveClusterName)
 	}
 	for _, scope := range request.ActiveClusters.GetAttributeScopes() {
 		for _, info := range scope.ClusterAttributes {
 			if info.ActiveClusterName != currentCluster {
-				return errFailoverNotFromDestinationCluster(currentCluster, info.ActiveClusterName)
+				return errFailoverNotToDestinationCluster(currentCluster, info.ActiveClusterName)
 			}
 		}
 	}

@@ -45,9 +45,9 @@ var (
 	errInvalidArchivalConfig  = &types.BadRequestError{Message: "Invalid to enable archival without specifying a uri."}
 )
 
-// errFailoverNotFromDestinationCluster is returned when a FailoverDomain request names a
-// destination other than the cluster that received it and did not set SkipDestinationClusterCheck.
-func errFailoverNotFromDestinationCluster(currentCluster, targetCluster string) error {
+// errFailoverNotToDestinationCluster is returned when a FailoverDomain request was not sent to the
+// cluster it names as destination and did not set SkipDestinationClusterCheck.
+func errFailoverNotToDestinationCluster(currentCluster, targetCluster string) error {
 	return &types.BadRequestError{Message: fmt.Sprintf(
 		"Failover requests must be sent to the destination cluster: this request targets cluster %q but was received by cluster %q. Re-run it against the destination cluster's frontend, or set skipDestinationClusterCheck to override.",
 		targetCluster, currentCluster)}
