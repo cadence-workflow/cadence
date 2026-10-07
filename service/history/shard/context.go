@@ -1415,9 +1415,9 @@ func (s *contextImpl) allocateTimerIDsLocked(
 			clusterName, err := s.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
 			shouldLog = err == nil && clusterName == s.GetClusterMetadata().GetCurrentClusterName()
 		}
-		queueTypeTag := tag.QueueTypeStandby
-		if domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName()) {
-			queueTypeTag = tag.QueueTypeActive
+		queueTypeLogTag := tag.QueueTypeStandby
+		if shouldLog && domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName()) {
+			queueTypeLogTag = tag.QueueTypeActive
 		}
 		if ts.Before(readCursorTS) {
 			// This can happen if shard move and new host have a time SKU, or there is db write delay.
@@ -1428,9 +1428,9 @@ func (s *contextImpl) allocateTimerIDsLocked(
 					tag.WorkflowID(workflowID),
 					tag.Timestamp(ts),
 					tag.CursorTimestamp(readCursorTS),
-					tag.Dynamic("lag", readCursorTS.Sub(ts)),
+					tag.LagDuration(readCursorTS.Sub(ts)),
 					tag.ClusterName(cluster),
-					queueTypeTag,
+					queueTypeLogTag,
 					tag.ValueShardAllocateTimerBeforeRead)
 			}
 			ts = readCursorTS.Add(persistence.DBTimestampMinPrecision)
@@ -1441,8 +1441,8 @@ func (s *contextImpl) allocateTimerIDsLocked(
 					tag.WorkflowDomainID(domainEntry.GetInfo().ID),
 					tag.WorkflowID(workflowID),
 					tag.Timestamp(ts),
-					tag.Dynamic("lag", now.Sub(ts)),
-					queueTypeTag,
+					tag.LagDuration(now.Sub(ts)),
+					queueTypeLogTag,
 					tag.ValueShardAllocateTimerBeforeRead)
 			}
 			ts = now.Add(persistence.DBTimestampMinPrecision)
