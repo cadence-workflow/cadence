@@ -39,7 +39,6 @@ func TestRatelimiter(t *testing.T) {
 	t.Parallel()
 
 	for _, name := range []string{"real", "mocked"} {
-		name := name
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ts := func() MockedTimeSource { return nil }
@@ -250,7 +249,6 @@ func assertRatelimiterBasicsWork(t *testing.T, makeTimesource func() MockedTimeS
 				tokenChange: -2, // would be -3 if it went negative
 			},
 		} {
-			name, tc := name, tc
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				ts := makeTimesource()
@@ -401,7 +399,6 @@ func assertRatelimiterBasicsWork(t *testing.T, makeTimesource func() MockedTimeS
 				tokenChange: 0.5, // only waited for half an event -> recovered half a token
 			},
 		} {
-			name, tc := name, tc
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				ts := makeTimesource()
