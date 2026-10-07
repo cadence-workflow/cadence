@@ -1415,10 +1415,6 @@ func (s *contextImpl) allocateTimerIDsLocked(
 			clusterName, err := s.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
 			shouldLog = err == nil && clusterName == s.GetClusterMetadata().GetCurrentClusterName()
 		}
-		queueTypeLogTag := tag.QueueTypeStandby
-		if shouldLog && domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName()) {
-			queueTypeLogTag = tag.QueueTypeActive
-		}
 		if ts.Before(readCursorTS) {
 			// This can happen if shard move and new host have a time SKU, or there is db write delay.
 			// We generate a new timer ID using timerMaxReadLevel.
@@ -1430,7 +1426,6 @@ func (s *contextImpl) allocateTimerIDsLocked(
 					tag.CursorTimestamp(readCursorTS),
 					tag.LagDuration(readCursorTS.Sub(ts)),
 					tag.ClusterName(cluster),
-					queueTypeLogTag,
 					tag.ValueShardAllocateTimerBeforeRead)
 			}
 			ts = readCursorTS.Add(persistence.DBTimestampMinPrecision)
@@ -1442,7 +1437,6 @@ func (s *contextImpl) allocateTimerIDsLocked(
 					tag.WorkflowID(workflowID),
 					tag.Timestamp(ts),
 					tag.LagDuration(now.Sub(ts)),
-					queueTypeLogTag,
 					tag.ValueShardAllocateTimerBeforeRead)
 			}
 			ts = now.Add(persistence.DBTimestampMinPrecision)
