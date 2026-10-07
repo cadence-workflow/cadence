@@ -26,7 +26,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"time"
 
 	guuid "github.com/google/uuid"
@@ -1801,10 +1803,12 @@ func (d *handlerImpl) validateDomainFailoverRequest(
 	if request.DomainActiveClusterName != nil && *request.DomainActiveClusterName != currentCluster {
 		return errFailoverNotToDestinationCluster(currentCluster, *request.DomainActiveClusterName)
 	}
-	for _, scope := range request.ActiveClusters.GetAttributeScopes() {
-		for _, info := range scope.ClusterAttributes {
-			if info.ActiveClusterName != currentCluster {
-				return errFailoverNotToDestinationCluster(currentCluster, info.ActiveClusterName)
+	scopes := request.ActiveClusters.GetAttributeScopes()
+	for _, scopeName := range slices.Sorted(maps.Keys(scopes)) {
+		attributes := scopes[scopeName].ClusterAttributes
+		for _, attributeName := range slices.Sorted(maps.Keys(attributes)) {
+			if target := attributes[attributeName].ActiveClusterName; target != currentCluster {
+				return errFailoverNotToDestinationCluster(currentCluster, target)
 			}
 		}
 	}
