@@ -24,6 +24,7 @@ package decision
 
 import (
 	"maps"
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -1076,6 +1077,76 @@ func TestValidateContinueAsNewWorkflowExecutionAttributes_ActiveClusterSelection
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedPolicy, attributes.ActiveClusterSelectionPolicy)
+		})
+	}
+}
+
+func TestValidateContinueAsNewWorkflowExecutionAttributes_RetryPolicyJitterCoefficient(t *testing.T) {
+	validPolicy := func(jitter float64) *types.RetryPolicy {
+		return &types.RetryPolicy{
+			InitialIntervalInSeconds: 1,
+			BackoffCoefficient:       2,
+			MaximumAttempts:          3,
+			JitterCoefficient:        jitter,
+		}
+	}
+
+	tests := map[string]struct {
+		retryPolicy *types.RetryPolicy
+		expectedErr error
+	}{
+		"no retry policy": {
+			retryPolicy: nil,
+		},
+		"no jitter": {
+			retryPolicy: validPolicy(0),
+		},
+		"jitter within range": {
+			retryPolicy: validPolicy(0.5),
+		},
+		"full jitter": {
+			retryPolicy: validPolicy(1),
+		},
+		"policy rejected by ValidateRetryPolicy but with a valid jitter is still accepted": {
+			retryPolicy: &types.RetryPolicy{JitterCoefficient: 0.5},
+		},
+		"jitter greater than 1": {
+			retryPolicy: validPolicy(5),
+			expectedErr: &types.BadRequestError{Message: "JitterCoefficient must be between 0 and 1 on retry policy."},
+		},
+		"negative jitter": {
+			retryPolicy: validPolicy(-0.1),
+			expectedErr: &types.BadRequestError{Message: "JitterCoefficient must be between 0 and 1 on retry policy."},
+		},
+		"NaN jitter": {
+			retryPolicy: validPolicy(math.NaN()),
+			expectedErr: &types.BadRequestError{Message: "JitterCoefficient must be between 0 and 1 on retry policy."},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			domainCache := cache.NewMockDomainCache(ctrl)
+			if tc.expectedErr == nil {
+				domainCache.EXPECT().GetDomainName("domain-id").Return("domain", nil)
+			}
+			v := newAttrValidator(domainCache, metrics.NewNoopMetricsClient(), config.NewForTest(), log.NewNoop())
+
+			executionInfo := &persistence.WorkflowExecutionInfo{
+				DomainID:                    "domain-id",
+				WorkflowTypeName:            "workflow-type",
+				TaskList:                    "task-list",
+				WorkflowTimeout:             60,
+				DecisionStartToCloseTimeout: 10,
+			}
+			attributes := &types.ContinueAsNewWorkflowExecutionDecisionAttributes{
+				RetryPolicy: tc.retryPolicy,
+			}
+
+			err := v.validateContinueAsNewWorkflowExecutionAttributes(attributes, executionInfo, metrics.HistoryRespondDecisionTaskCompletedScope, "domain")
+
+			assert.Equal(t, tc.expectedErr, err)
 		})
 	}
 }
