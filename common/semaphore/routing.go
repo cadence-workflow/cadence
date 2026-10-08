@@ -12,17 +12,6 @@ import (
 //  1. OwnerIDToBucket picks the bucket from the request's owner_id.
 //  2. RingKey names that bucket on the membership ring, which picks the Matching host.
 
-// NumBuckets returns how many buckets a semaphore is split into: ceil(size / bucketSize).
-func NumBuckets(size, bucketSize int) (int, error) {
-	if size < 1 {
-		return 0, fmt.Errorf("size must be positive, got %d", size)
-	}
-	if bucketSize < 1 {
-		return 0, fmt.Errorf("bucketSize must be positive, got %d", bucketSize)
-	}
-	return (size + bucketSize - 1) / bucketSize, nil
-}
-
 // OwnerIDToBucket returns the bucket that serves the given owner_id.
 //
 // The acquire and the later release for one owner_id each compute this separately, so they must

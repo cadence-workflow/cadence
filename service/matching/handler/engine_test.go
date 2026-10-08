@@ -1959,10 +1959,33 @@ const (
 	testSemaphoreName       = "sem-1"
 )
 
+// The test semaphore has testSemaphoreBuckets buckets of testSemaphoreBucketSize tokens, so
+// bucket b owns tokens b*testSemaphoreBucketSize+1 to (b+1)*testSemaphoreBucketSize.
+const (
+	testSemaphoreBucketSize = 2
+	testSemaphoreBuckets    = 3
+)
+
 var (
 	testSelfHost  = membership.NewHostInfo("self:1234")
 	testOtherHost = membership.NewHostInfo("other:1234")
 )
+
+// newSemaphoreMetadata returns the test semaphore's metadata, readable any number of times.
+func newSemaphoreMetadata(t *testing.T) persistence.SemaphoreMetadataManager {
+	t.Helper()
+	md := persistence.NewMockSemaphoreMetadataManager(gomock.NewController(t))
+	md.EXPECT().GetSemaphore(gomock.Any(), &persistence.GetSemaphoreRequest{
+		DomainID:      testSemaphoreDomainID,
+		SemaphoreName: testSemaphoreName,
+	}).AnyTimes().Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{
+		DomainID:      testSemaphoreDomainID,
+		SemaphoreName: testSemaphoreName,
+		Size:          testSemaphoreBuckets * testSemaphoreBucketSize,
+		BucketSize:    testSemaphoreBucketSize,
+	}}, nil)
+	return md
+}
 
 func mustNewSemaphoreIdentifier(t *testing.T, bucket int) semaphore.Identifier {
 	t.Helper()
@@ -1986,12 +2009,13 @@ func newSemaphoreEngine(t *testing.T, ringOwner membership.HostInfo) (*matchingE
 	tokens := persistence.NewMockSemaphoreTokenManager(ctrl)
 
 	engine := &matchingEngineImpl{
-		semaphoreRegistry:     semaphore.NewSemaphoreRegistry(),
-		semaphoreTokenManager: tokens,
-		domainCache:           domainCache,
-		membershipResolver:    resolver,
-		metricsClient:         metrics.NewNoopMetricsClient(),
-		logger:                log.NewNoop(),
+		semaphoreRegistry:        semaphore.NewSemaphoreRegistry(),
+		semaphoreTokenManager:    tokens,
+		semaphoreMetadataManager: newSemaphoreMetadata(t),
+		domainCache:              domainCache,
+		membershipResolver:       resolver,
+		metricsClient:            metrics.NewNoopMetricsClient(),
+		logger:                   log.NewNoop(),
 		// A clock that only moves when a test moves it, so no bucket is evicted mid-test.
 		timeSource: clock.NewMockedTimeSource(),
 		config: &config.Config{
@@ -2016,6 +2040,7 @@ func newSemaphoreManager(t *testing.T, id semaphore.Identifier, tokens persisten
 	mgr, err := semaphore.NewManager(semaphore.ManagerParams{
 		ID:         id,
 		Tokens:     tokens,
+		Metadata:   newSemaphoreMetadata(t),
 		Logger:     log.NewNoop(),
 		IdleTTL:    time.Minute,
 		OnStopFn:   func(semaphore.Manager) {},
@@ -2036,27 +2061,19 @@ func registerSemaphoreManagerForTest(t *testing.T, e *matchingEngineImpl, mgr se
 	require.Same(t, mgr, got, "the bucket was already held by another manager")
 }
 
-// expectOneScan stubs the startup load and requires it to happen exactly once, which is what
-// shows concurrent callers shared a manager rather than each building one.
-func expectOneScan(m *persistence.MockSemaphoreTokenManager, tokens int) {
-	rows := make([]*persistence.SemaphoreOwnership, 0, tokens)
-	for i := 1; i <= tokens; i++ {
-		rows = append(rows, &persistence.SemaphoreOwnership{
-			RowType:       persistence.SemaphoreRowTypeToken,
-			DomainID:      testSemaphoreDomainID,
-			SemaphoreName: testSemaphoreName,
-			TokenID:       i,
-		})
-	}
+// expectOneScan stubs the startup load of a bucket with no rows, so every slot is free, and
+// requires it to happen exactly once, which is what shows concurrent callers shared a manager
+// rather than each building one.
+func expectOneScan(m *persistence.MockSemaphoreTokenManager) {
 	m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).
-		Return(&persistence.ScanSemaphoreBucketResponse{Ownerships: rows}, nil)
+		Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
 }
 
 func TestGetOrCreateSemaphoreManager(t *testing.T) {
 	t.Run("second request reuses the manager already built", func(t *testing.T) {
 		// A bucket is built once, so the second request costs no scan.
 		e, m := newSemaphoreEngine(t, testSelfHost)
-		expectOneScan(m, 3)
+		expectOneScan(m)
 		id := mustNewSemaphoreIdentifier(t, 0)
 
 		first, err := e.getOrCreateSemaphoreManager(id)
@@ -2075,7 +2092,7 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		id := mustNewSemaphoreIdentifier(t, 0)
 		// Times(1): if the request does not start this manager, no scan happens and the
 		// expectation goes unmet.
-		expectOneScan(m, 2)
+		expectOneScan(m)
 
 		unstarted := newSemaphoreManager(t, id, m)
 		registerSemaphoreManagerForTest(t, e, unstarted)
@@ -2147,7 +2164,7 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "a manager that cannot start must not stay registered")
 
 		// The next request builds a fresh one, so a passing outage is recoverable.
-		expectOneScan(m, 2)
+		expectOneScan(m)
 		retry, err := e.getOrCreateSemaphoreManager(id)
 		require.NoError(t, err)
 		assert.NotNil(t, retry)
@@ -2215,7 +2232,7 @@ func TestUnloadSemaphoreManager(t *testing.T) {
 	// Unloading takes a manager out of the registry and stops it, so the next request builds a
 	// fresh one instead of finding the retired manager.
 	e, m := newSemaphoreEngine(t, testSelfHost)
-	expectOneScan(m, 2)
+	expectOneScan(m)
 	id := mustNewSemaphoreIdentifier(t, 0)
 
 	mgr, err := e.getOrCreateSemaphoreManager(id)
@@ -2227,7 +2244,7 @@ func TestUnloadSemaphoreManager(t *testing.T) {
 	_, err = mgr.Acquire(context.Background(), "owner-1")
 	assert.ErrorIs(t, err, semaphore.ErrNotReady, "an unloaded manager must stop serving")
 
-	expectOneScan(m, 2)
+	expectOneScan(m)
 	fresh, err := e.getOrCreateSemaphoreManager(id)
 	require.NoError(t, err)
 	assert.NotSame(t, mgr, fresh)
@@ -2285,7 +2302,7 @@ func semaphoreRequest(bucket int32, ownerID string) *types.AddSemaphoreTaskReque
 func TestAddSemaphoreTask(t *testing.T) {
 	t.Run("a free slot is granted and named in the response", func(t *testing.T) {
 		e, m := newSemaphoreEngine(t, testSelfHost)
-		expectOneScan(m, 3)
+		expectOneScan(m)
 		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
 			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
 
@@ -2299,8 +2316,17 @@ func TestAddSemaphoreTask(t *testing.T) {
 		// Nothing is wrong: the caller asked and the answer is no. Reporting it as an error would
 		// make an ordinary saturated semaphore look like a fault.
 		e, m := newSemaphoreEngine(t, testSelfHost)
+		// Bucket 0 owns tokens 1 and 2, and both are held.
+		var rows []*persistence.SemaphoreOwnership
+		for tokenID := 1; tokenID <= testSemaphoreBucketSize; tokenID++ {
+			owner := fmt.Sprintf("owner-%d", tokenID)
+			rows = append(rows,
+				&persistence.SemaphoreOwnership{RowType: persistence.SemaphoreRowTypeToken, TokenID: tokenID, Holder: owner},
+				&persistence.SemaphoreOwnership{RowType: persistence.SemaphoreRowTypeOwner, OwnerID: owner, HeldToken: tokenID},
+			)
+		}
 		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).
-			Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
+			Return(&persistence.ScanSemaphoreBucketResponse{Ownerships: rows}, nil)
 
 		resp, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
 		require.NoError(t, err)
@@ -2327,6 +2353,9 @@ func TestAddSemaphoreTask(t *testing.T) {
 				<-finishScan
 				return &persistence.ScanSemaphoreBucketResponse{}, nil
 			})
+		// Once the load finishes, the first request is granted a slot.
+		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(1).Return(
+			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
 
 		// The first request triggers the load and is held inside it.
 		firstDone := make(chan error, 1)
