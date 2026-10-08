@@ -1641,6 +1641,9 @@ func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecutionAsync(
 		sp1.ActiveClusterSelectionPolicy = nil
 	}
 	actClSelPolicyForNewWF = sp1.ActiveClusterSelectionPolicy
+	workflowExecution = &types.WorkflowExecution{
+		WorkflowID: sp1.GetWorkflowID(),
+	}
 
 	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC

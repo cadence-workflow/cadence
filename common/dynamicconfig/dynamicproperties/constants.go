@@ -2371,13 +2371,13 @@ const (
 	// EnableTransferQueueV2 is to enable transfer queue v2
 	// KeyName: history.enableTransferQueueV2
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: ShardID
 	EnableTransferQueueV2
 	// EnableTimerQueueV2 is to enable timer queue v2
 	// KeyName: history.enableTimerQueueV2
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: ShardID
 	EnableTimerQueueV2
 	// EnableTransferQueueV2PendingTaskCountAlert is to enable transfer queue v2 pending task count alert
@@ -5277,13 +5277,13 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.enableTransferQueueV2",
 		Description:  "EnableTransferQueueV2 is to enable transfer queue v2",
 		Filters:      []Filter{ShardID},
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableTimerQueueV2: {
 		KeyName:      "history.enableTimerQueueV2",
 		Description:  "EnableTimerQueueV2 is to enable timer queue v2",
 		Filters:      []Filter{ShardID},
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableTransferQueueV2PendingTaskCountAlert: {
 		KeyName:      "history.enableTransferQueueV2PendingTaskCountAlert",

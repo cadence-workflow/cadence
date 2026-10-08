@@ -5317,6 +5317,7 @@ func FromRetryPolicy(t *types.RetryPolicy) *shared.RetryPolicy {
 		MaximumAttempts:             &t.MaximumAttempts,
 		NonRetriableErrorReasons:    t.NonRetriableErrorReasons,
 		ExpirationIntervalInSeconds: &t.ExpirationIntervalInSeconds,
+		JitterCoefficient:           &t.JitterCoefficient,
 	}
 }
 
@@ -5332,6 +5333,7 @@ func ToRetryPolicy(t *shared.RetryPolicy) *types.RetryPolicy {
 		MaximumAttempts:             t.GetMaximumAttempts(),
 		NonRetriableErrorReasons:    t.NonRetriableErrorReasons,
 		ExpirationIntervalInSeconds: t.GetExpirationIntervalInSeconds(),
+		JitterCoefficient:           t.GetJitterCoefficient(),
 	}
 }
 

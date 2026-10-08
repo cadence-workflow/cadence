@@ -11,6 +11,9 @@ toolchain go1.25.14
 // relative file path.
 replace github.com/uber/cadence => ../../../../..
 
+// tchannel-go depends on older version of thrift, yarpc brings up newer version
+replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
+
 require (
 	cloud.google.com/go/cloudsqlconn v1.16.1
 	cloud.google.com/go/compute/metadata v0.9.0
@@ -86,7 +89,6 @@ require (
 	github.com/uber-go/mapdecode v1.0.0 // indirect
 	github.com/uber-go/tally v3.5.8+incompatible // indirect
 	github.com/uber/cadence-idl v0.0.0-20260930191656-06c46f0bd6d0 // indirect
-	github.com/uber/ringpop-go v0.10.0 // indirect
 	github.com/uber/tchannel-go v1.34.4 // indirect
 	github.com/valyala/fastjson v1.4.1 // indirect
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2 // indirect

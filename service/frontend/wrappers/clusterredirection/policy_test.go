@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -732,6 +733,81 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 			want: s.currentClusterName,
 		},
 		{
+			name:                   "new workflow async with policy",
+			apiName:                "StartWorkflowExecutionAsync",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usWestStickyPlcy,
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy.GetClusterAttribute()).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
+				}, nil)
+			},
+			want: s.alternativeClusterName,
+		},
+		{
+			name:                   "new workflow async with policy - lookup failed",
+			apiName:                "StartWorkflowExecutionAsync",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usEastStickyPlcy,
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usEastStickyPlcy.GetClusterAttribute()).Return(nil, errors.New("lookup failed"))
+			},
+			want: s.currentClusterName,
+		},
+		{
+			name:                   "SignalWithStartWorkflowExecutionAsync - workflow running, use current workflow policy",
+			apiName:                "SignalWithStartWorkflowExecutionAsync",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usEastStickyPlcy, // This should be ignored when workflow is running
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				// Returns the current workflow's policy and running=true
+				activeClusterManager.EXPECT().GetActiveClusterSelectionPolicyForCurrentWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1").Return(usWestStickyPlcy, true, nil)
+				// Should use the west policy (from current workflow), not the east policy (from new workflow param)
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy.GetClusterAttribute()).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
+				}, nil)
+			},
+			want: s.alternativeClusterName,
+		},
+		{
+			name:                   "SignalWithStartWorkflowExecutionAsync - workflow not running, use new workflow policy",
+			apiName:                "SignalWithStartWorkflowExecutionAsync",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usWestStickyPlcy,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				// Returns policy but running=false
+				activeClusterManager.EXPECT().GetActiveClusterSelectionPolicyForCurrentWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1").Return(usEastStickyPlcy, false, nil)
+				// Should use the west policy (from new workflow param), not the east policy (from current workflow)
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy.GetClusterAttribute()).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
+				}, nil)
+			},
+			want: s.alternativeClusterName,
+		},
+		{
+			name:                   "SignalWithStartWorkflowExecutionAsync - lookup failed, use current cluster",
+			apiName:                "SignalWithStartWorkflowExecutionAsync",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usWestStickyPlcy,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				// Lookup fails
+				activeClusterManager.EXPECT().GetActiveClusterSelectionPolicyForCurrentWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1").Return(nil, false, errors.New("lookup failed"))
+			},
+			want: s.currentClusterName,
+		},
+		{
 			name:        "existing workflow - success",
 			apiName:     "SignalWorkflowExecution",
 			domainEntry: domainEntry,
@@ -765,6 +841,237 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 				test.actClSelPolicyForNewWF,
 				apiName,
 			))
+		})
+	}
+}
+
+// TestActiveActiveNonForwardedAPISkipsResolver verifies that, on an active-active domain, the per-request
+// active-cluster lookup is skipped when the API is not allowlisted and so cannot be forwarded. The mock
+// manager has no expectations, so any lookup fails the test.
+func TestActiveActiveNonForwardedAPISkipsResolver(t *testing.T) {
+	logger := testlogger.New(t)
+	mockConfig := frontendcfg.NewConfig(
+		dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), logger),
+		0,
+		false,
+		"hostname",
+		logger,
+	)
+	// system.enableDomainNotActiveAutoForwarding defaults to true, so forwarding is enabled for this domain.
+
+	domainID := "aa-skip-resolver-domain-id"
+	domainEntry := cache.NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: domainID, Name: "aa-skip-resolver-domain"},
+		&persistence.DomainConfig{Retention: 1},
+		&persistence.DomainReplicationConfig{
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+			ActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-east": {ActiveClusterName: cluster.TestCurrentClusterName, FailoverVersion: 1},
+							"us-west": {ActiveClusterName: cluster.TestAlternativeClusterName, FailoverVersion: 2},
+						},
+					},
+				},
+			},
+		},
+		1234, // not used
+	)
+
+	usWestPolicy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "us-west"},
+	}
+
+	tests := []struct {
+		name              string
+		apiName           string
+		workflowExecution *types.WorkflowExecution
+		newWFPolicy       *types.ActiveClusterSelectionPolicy
+		mockFn            func(m *activecluster.MockManager)
+		wantTarget        string
+		wantForwarded     bool
+	}{
+		{
+			name:              "async signal-with-start not allowlisted: no lookup",
+			apiName:           "SignalWithStartWorkflowExecutionAsync",
+			workflowExecution: &types.WorkflowExecution{WorkflowID: "wf1"},
+			newWFPolicy:       usWestPolicy,
+			mockFn:            func(m *activecluster.MockManager) {},
+			wantTarget:        cluster.TestCurrentClusterName,
+			wantForwarded:     false,
+		},
+		{
+			name:          "async start not allowlisted: no lookup",
+			apiName:       "StartWorkflowExecutionAsync",
+			newWFPolicy:   usWestPolicy,
+			mockFn:        func(m *activecluster.MockManager) {},
+			wantTarget:    cluster.TestCurrentClusterName,
+			wantForwarded: false,
+		},
+		{
+			name:        "sync start allowlisted: lookup still happens",
+			apiName:     "StartWorkflowExecution",
+			newWFPolicy: usWestPolicy,
+			mockFn: func(m *activecluster.MockManager) {
+				m.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainID, usWestPolicy.GetClusterAttribute()).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: cluster.TestAlternativeClusterName,
+					FailoverVersion:   2,
+				}, nil)
+			},
+			wantTarget:    cluster.TestAlternativeClusterName,
+			wantForwarded: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			activeClusterManager := activecluster.NewMockManager(controller)
+			tt.mockFn(activeClusterManager)
+
+			policy := newSelectedOrAllAPIsForwardingPolicy(
+				cluster.TestCurrentClusterName,
+				mockConfig,
+				false,
+				selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2,
+				"",
+				logger,
+				activeClusterManager,
+				metrics.NewNoopMetricsClient(),
+			)
+
+			target, forwarded := policy.getTargetClusterAndIsDomainNotActiveAutoForwarding(
+				context.Background(), domainEntry, tt.workflowExecution, tt.newWFPolicy, tt.apiName, types.QueryConsistencyLevelEventual,
+			)
+			require.Equal(t, tt.wantTarget, target)
+			require.Equal(t, tt.wantForwarded, forwarded)
+		})
+	}
+}
+
+func TestAsyncAPIsForwardingByPolicyList(t *testing.T) {
+	logger := testlogger.New(t)
+	mockConfig := frontendcfg.NewConfig(
+		dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), logger),
+		0,
+		false,
+		"hostname",
+		logger,
+	)
+	// system.enableDomainNotActiveAutoForwarding defaults to true (see
+	// common/dynamicconfig/dynamicproperties/constants.go EnableDomainNotActiveAutoForwarding.DefaultValue),
+	// so no explicit override of mockConfig.EnableDomainNotActiveAutoForwarding is needed.
+
+	domainName := "async-forwarding-domain"
+	domainID := "async-forwarding-domain-id"
+	domainEntry := cache.NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: domainID, Name: domainName},
+		&persistence.DomainConfig{Retention: 1},
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		1234, // not used
+	)
+
+	asyncAPIs := []string{"StartWorkflowExecutionAsync", "SignalWithStartWorkflowExecutionAsync"}
+
+	tests := []struct {
+		name           string
+		allowlist      map[string]struct{}
+		wantTargetSame bool // true: target == current cluster; false: target == alternative (active) cluster
+	}{
+		{name: "v1", allowlist: selectedAPIsForwardingRedirectionPolicyAPIAllowlist, wantTargetSame: true},
+		{name: "v2", allowlist: selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2, wantTargetSame: true},
+		{name: "v3", allowlist: selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3, wantTargetSame: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			activeClusterManager := activecluster.NewMockManager(controller)
+			metricsClient := metrics.NewNoopMetricsClient()
+
+			policy := newSelectedOrAllAPIsForwardingPolicy(
+				cluster.TestCurrentClusterName,
+				mockConfig,
+				false,
+				tt.allowlist,
+				"",
+				logger,
+				activeClusterManager,
+				metricsClient,
+			)
+
+			for _, apiName := range asyncAPIs {
+				var target string
+				callFn := func(targetCluster string) error {
+					target = targetCluster
+					return nil
+				}
+				err := policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+				require.NoError(t, err)
+
+				wantTarget := cluster.TestAlternativeClusterName
+				if tt.wantTargetSame {
+					wantTarget = cluster.TestCurrentClusterName
+				}
+				require.Equal(t, wantTarget, target, "api=%s policy=%s", apiName, tt.name)
+			}
+		})
+	}
+}
+
+func TestRedirectionPolicyGenerator_V3(t *testing.T) {
+	logger := testlogger.New(t)
+	mockConfig := frontendcfg.NewConfig(
+		dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), logger),
+		0,
+		false,
+		"hostname",
+		logger,
+	)
+	metricsClient := metrics.NewNoopMetricsClient()
+	controller := gomock.NewController(t)
+	activeClusterManager := activecluster.NewMockManager(controller)
+
+	tests := []struct {
+		name              string
+		policyName        string
+		wantAllDomainAPIs bool
+	}{
+		{name: "selected-v3", policyName: DCRedirectionPolicySelectedAPIsForwardingV3, wantAllDomainAPIs: false},
+		{name: "all-domain-v3", policyName: DCRedirectionPolicyAllDomainAPIsForwardingV3, wantAllDomainAPIs: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			generated := RedirectionPolicyGenerator(
+				cluster.TestActiveClusterMetadata,
+				mockConfig,
+				config.ClusterRedirectionPolicy{Policy: tt.policyName},
+				logger,
+				activeClusterManager,
+				metricsClient,
+			)
+
+			p, ok := generated.(*selectedOrAllAPIsForwardingRedirectionPolicy)
+			require.True(t, ok, "expected *selectedOrAllAPIsForwardingRedirectionPolicy, got %T", generated)
+			require.Equal(t, tt.wantAllDomainAPIs, p.allDomainAPIs)
+
+			// Identify the V3 map by content: same length as V3, and both async keys present.
+			require.Len(t, p.selectedAPIs, len(selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3))
+			for _, k := range []string{"StartWorkflowExecutionAsync", "SignalWithStartWorkflowExecutionAsync"} {
+				_, ok := p.selectedAPIs[k]
+				require.True(t, ok, "expected V3 allowlist to contain %s", k)
+			}
 		})
 	}
 }
