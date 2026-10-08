@@ -72,6 +72,21 @@ func (mr *MockEngineMockRecorder) AddDecisionTask(hCtx, request any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDecisionTask", reflect.TypeOf((*MockEngine)(nil).AddDecisionTask), hCtx, request)
 }
 
+// AddSemaphoreTask mocks base method.
+func (m *MockEngine) AddSemaphoreTask(hCtx *handlerContext, request *types.AddSemaphoreTaskRequest) (*types.AddSemaphoreTaskResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddSemaphoreTask", hCtx, request)
+	ret0, _ := ret[0].(*types.AddSemaphoreTaskResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddSemaphoreTask indicates an expected call of AddSemaphoreTask.
+func (mr *MockEngineMockRecorder) AddSemaphoreTask(hCtx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreTask", reflect.TypeOf((*MockEngine)(nil).AddSemaphoreTask), hCtx, request)
+}
+
 // CancelOutstandingPoll mocks base method.
 func (m *MockEngine) CancelOutstandingPoll(hCtx *handlerContext, request *types.CancelOutstandingPollRequest) error {
 	m.ctrl.T.Helper()
@@ -296,6 +311,21 @@ func (m *MockHandler) AddDecisionTask(arg0 context.Context, arg1 *types.AddDecis
 func (mr *MockHandlerMockRecorder) AddDecisionTask(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDecisionTask", reflect.TypeOf((*MockHandler)(nil).AddDecisionTask), arg0, arg1)
+}
+
+// AddSemaphoreTask mocks base method.
+func (m *MockHandler) AddSemaphoreTask(arg0 context.Context, arg1 *types.AddSemaphoreTaskRequest) (*types.AddSemaphoreTaskResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddSemaphoreTask", arg0, arg1)
+	ret0, _ := ret[0].(*types.AddSemaphoreTaskResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddSemaphoreTask indicates an expected call of AddSemaphoreTask.
+func (mr *MockHandlerMockRecorder) AddSemaphoreTask(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreTask", reflect.TypeOf((*MockHandler)(nil).AddSemaphoreTask), arg0, arg1)
 }
 
 // CancelOutstandingPoll mocks base method.

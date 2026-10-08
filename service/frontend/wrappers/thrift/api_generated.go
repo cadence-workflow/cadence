@@ -26,6 +26,11 @@ func (g APIHandler) CreateSchedule(ctx context.Context, Request *shared.CreateSc
 	return mapper.FromCreateScheduleResponse(response), mapper.FromError(err)
 }
 
+func (g APIHandler) CreateSemaphore(ctx context.Context, Request *shared.CreateSemaphoreRequest) (cp1 *shared.CreateSemaphoreResponse, err error) {
+	response, err := g.h.CreateSemaphore(ctx, mapper.ToCreateSemaphoreRequest(Request))
+	return mapper.FromCreateSemaphoreResponse(response), mapper.FromError(err)
+}
+
 func (g APIHandler) DeleteDomain(ctx context.Context, DeleteRequest *shared.DeleteDomainRequest) (err error) {
 	err = g.h.DeleteDomain(ctx, mapper.ToDeleteDomainRequest(DeleteRequest))
 	return mapper.FromError(err)

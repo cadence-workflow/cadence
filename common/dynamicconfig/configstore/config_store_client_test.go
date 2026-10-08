@@ -987,7 +987,8 @@ func (s *configStoreClientSuite) TestValidateKeyDataBlobPair() {
 func (s *configStoreClientSuite) TestNewConfigStoreClient_NilPersistenceConfig() {
 	_, err := NewConfigStoreClient(&c.ClientConfig{}, nil, log.NewNoop(), metrics.NewNoopMetricsClient(), p.DynamicConfig)
 	s.Require().Error(err, "should fail when persistence config is nil")
-	s.Require().EqualError(err, "persistence cfg is nil")
+	s.Require().ErrorIs(err, ErrPersistenceNotConfigured)
+	s.Require().ErrorContains(err, "persistence cfg is nil")
 }
 
 func (s *configStoreClientSuite) TestNewConfigStoreClient_MissingDefaultPersistenceConfig() {
@@ -996,7 +997,8 @@ func (s *configStoreClientSuite) TestNewConfigStoreClient_MissingDefaultPersiste
 	}
 	_, err := NewConfigStoreClient(&c.ClientConfig{}, persistenceCfg, log.NewNoop(), metrics.NewNoopMetricsClient(), p.DynamicConfig)
 	s.Require().Error(err, "should fail when default persistence config is missing")
-	s.Require().EqualError(err, "default persistence config missing")
+	s.Require().ErrorIs(err, ErrPersistenceNotConfigured)
+	s.Require().ErrorContains(err, "default persistence config missing")
 }
 
 func (s *configStoreClientSuite) TestNewConfigStoreClient_InvalidClientConfig() {
@@ -1012,6 +1014,19 @@ func (s *configStoreClientSuite) TestNewConfigStoreClient_InvalidClientConfig() 
 	logger := log.NewNoop()
 	_, err := NewConfigStoreClient(clientCfg, persistenceCfg, logger, metrics.NewNoopMetricsClient(), p.DynamicConfig)
 	s.Require().Error(err, "should fail when client config is invalid")
+	s.Require().ErrorIs(err, ErrPersistenceNotConfigured, "datastore has neither NoSQL nor SQL configured")
+}
+
+func TestNewConfigStoreClient_InitFailureIsNotPersistenceNotConfigured(t *testing.T) {
+	persistenceCfg := &config.Persistence{
+		DataStores: map[string]config.DataStore{
+			"default": {SQL: &config.SQL{PluginName: "unknown-plugin"}},
+		},
+		DefaultStore: "default",
+	}
+	_, err := NewConfigStoreClient(&c.ClientConfig{}, persistenceCfg, log.NewNoop(), metrics.NewNoopMetricsClient(), p.DynamicConfig)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrPersistenceNotConfigured)
 }
 
 func jsonMarshalHelper(v interface{}) []byte {

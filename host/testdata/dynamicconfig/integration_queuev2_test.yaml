@@ -1,9 +1,0 @@
-history.enableTimerQueueV2:
-- value: true
-  constraints: {}
-history.enableTransferQueueV2:
-- value: true
-  constraints: {}
-frontend.warmupDuration:
-- value: "1s"
-  constraints: {}

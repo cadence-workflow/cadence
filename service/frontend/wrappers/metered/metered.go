@@ -414,3 +414,9 @@ func toListSchedulesRequestTags(req *types.ListSchedulesRequest) []tag.Tag {
 		tag.WorkflowDomainName(req.GetDomain()),
 	}
 }
+
+func toCreateSemaphoreRequestTags(req *types.CreateSemaphoreRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}

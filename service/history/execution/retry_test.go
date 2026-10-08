@@ -331,8 +331,105 @@ func TestGetBackoffInterval(t *testing.T) {
 				tc.initInterval,
 				tc.maxInterval,
 				tc.backoffCoefficient,
+				0,
 			)
 			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestGetBackoffIntervalWithJitter(t *testing.T) {
+	tests := []struct {
+		name               string
+		currAttempt        int32
+		initInterval       int32
+		maxInterval        int32
+		backoffCoefficient float64
+		jitterCoefficient  float64
+		expectedMin        time.Duration
+		expectedMax        time.Duration
+	}{
+		{
+			name:               "small jitter",
+			currAttempt:        2,
+			initInterval:       1,
+			backoffCoefficient: 2,
+			jitterCoefficient:  0.1,
+			expectedMin:        3600 * time.Millisecond,
+			expectedMax:        4 * time.Second,
+		},
+		{
+			name:               "half jitter",
+			currAttempt:        0,
+			initInterval:       10,
+			backoffCoefficient: 1,
+			jitterCoefficient:  0.5,
+			expectedMin:        5 * time.Second,
+			expectedMax:        10 * time.Second,
+		},
+		{
+			name:               "full jitter",
+			currAttempt:        0,
+			initInterval:       10,
+			backoffCoefficient: 1,
+			jitterCoefficient:  1,
+			expectedMin:        0,
+			expectedMax:        10 * time.Second,
+		},
+		{
+			name:               "jitter never exceeds max interval",
+			currAttempt:        10,
+			initInterval:       1,
+			maxInterval:        10,
+			backoffCoefficient: 2,
+			jitterCoefficient:  0.2,
+			expectedMin:        8 * time.Second,
+			expectedMax:        10 * time.Second,
+		},
+		{
+			name:               "jitter on overflow falls back to jittered max interval",
+			currAttempt:        64,
+			initInterval:       1,
+			maxInterval:        10,
+			backoffCoefficient: 2,
+			jitterCoefficient:  0.2,
+			expectedMin:        8 * time.Second,
+			expectedMax:        10 * time.Second,
+		},
+		{
+			name:               "jitter is not applied to no backoff",
+			currAttempt:        64,
+			initInterval:       1,
+			maxInterval:        0,
+			backoffCoefficient: 2,
+			jitterCoefficient:  0.5,
+			expectedMin:        backoff.NoBackoff,
+			expectedMax:        backoff.NoBackoff,
+		},
+		{
+			name:               "jitter greater than 1 is ignored",
+			currAttempt:        0,
+			initInterval:       10,
+			backoffCoefficient: 1,
+			jitterCoefficient:  5,
+			expectedMin:        10 * time.Second,
+			expectedMax:        10 * time.Second,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for i := 0; i < 1000; i++ {
+				result := getBackoffInterval(
+					tc.currAttempt,
+					tc.initInterval,
+					tc.maxInterval,
+					tc.backoffCoefficient,
+					tc.jitterCoefficient,
+				)
+				assert.GreaterOrEqual(t, result, tc.expectedMin)
+				assert.LessOrEqual(t, result, tc.expectedMax)
+			}
 		})
 	}
 }

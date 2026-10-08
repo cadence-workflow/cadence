@@ -30,6 +30,11 @@ func (g GRPCHandler) AddDecisionTask(ctx context.Context, request *matchingv1.Ad
 	return proto.FromMatchingAddDecisionTaskResponse(response), proto.FromError(err)
 }
 
+func (g GRPCHandler) AddSemaphoreTask(ctx context.Context, request *matchingv1.AddSemaphoreTaskRequest) (*matchingv1.AddSemaphoreTaskResponse, error) {
+	response, err := g.h.AddSemaphoreTask(ctx, proto.ToMatchingAddSemaphoreTaskRequest(request))
+	return proto.FromMatchingAddSemaphoreTaskResponse(response), proto.FromError(err)
+}
+
 func (g GRPCHandler) CancelOutstandingPoll(ctx context.Context, request *matchingv1.CancelOutstandingPollRequest) (*matchingv1.CancelOutstandingPollResponse, error) {
 	err := g.h.CancelOutstandingPoll(ctx, proto.ToMatchingCancelOutstandingPollRequest(request))
 	return &matchingv1.CancelOutstandingPollResponse{}, proto.FromError(err)

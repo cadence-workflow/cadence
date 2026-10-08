@@ -487,6 +487,8 @@ const (
 	MatchingClientUpdateTaskListPartitionConfigScope
 	// MatchingClientRefreshTaskListPartitionConfigScope tracks RPC calls to matching service
 	MatchingClientRefreshTaskListPartitionConfigScope
+	// MatchingClientAddSemaphoreTaskScope tracks RPC calls to matching service
+	MatchingClientAddSemaphoreTaskScope
 
 	// FrontendClientDeleteDomainScope tracks RPC calls to frontend service
 	FrontendClientDeleteDomainScope
@@ -1201,6 +1203,8 @@ const (
 	FrontendBackfillScheduleScope
 	// FrontendListSchedulesScope is the metric scope for frontend.ListSchedules
 	FrontendListSchedulesScope
+	// FrontendCreateSemaphoreScope is the metric scope for frontend.CreateSemaphore
+	FrontendCreateSemaphoreScope
 
 	NumFrontendScopes
 )
@@ -1528,6 +1532,8 @@ const (
 	MatchingUpdateTaskListPartitionConfigScope
 	// MatchingRefreshTaskListPartitionConfigScope tracks RefreshTaskListPartitionConfig API calls received by service
 	MatchingRefreshTaskListPartitionConfigScope
+	// MatchingAddSemaphoreTaskScope tracks AddSemaphoreTask API calls received by service
+	MatchingAddSemaphoreTaskScope
 
 	NumMatchingScopes
 )
@@ -1750,6 +1756,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingClientGetTaskListsByDomainScope:           {operation: "MatchingClientGetTaskListsByDomain", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientUpdateTaskListPartitionConfigScope:  {operation: "MatchingClientUpdateTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientRefreshTaskListPartitionConfigScope: {operation: "MatchingClientRefreshTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
+		MatchingClientAddSemaphoreTaskScope:               {operation: "MatchingClientAddSemaphoreTask", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 
 		FrontendClientDeleteDomainScope:                          {operation: "FrontendClientDeleteDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientDeprecateDomainScope:                       {operation: "FrontendClientDeprecateDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
@@ -2101,6 +2108,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendUnpauseScheduleScope:                       {operation: "UnpauseSchedule"},
 		FrontendBackfillScheduleScope:                      {operation: "BackfillSchedule"},
 		FrontendListSchedulesScope:                         {operation: "ListSchedules"},
+		FrontendCreateSemaphoreScope:                       {operation: "CreateSemaphore"},
 		FrontendGetSearchAttributesScope:                   {operation: "GetSearchAttributes"},
 		FrontendGetClusterInfoScope:                        {operation: "GetClusterInfo"},
 	},
@@ -2267,6 +2275,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingGetTaskListsByDomainScope:           {operation: "GetTaskListsByDomain"},
 		MatchingUpdateTaskListPartitionConfigScope:  {operation: "UpdateTaskListPartitionConfig"},
 		MatchingRefreshTaskListPartitionConfigScope: {operation: "RefreshTaskListPartitionConfig"},
+		MatchingAddSemaphoreTaskScope:               {operation: "AddSemaphoreTask"},
 	},
 	// Worker Scope Names
 	Worker: {
@@ -2537,6 +2546,10 @@ const (
 	CadenceErrStickyWorkerUnavailablePerTaskListCounter
 	CadenceErrReadOnlyPartitionPerTaskListCounter
 	CadenceErrTaskListNotOwnedByHostPerTaskListCounter
+
+	// common metrics that are emitted per semaphore
+	CadenceErrSemaphoreNotOwnedByHostCounter
+	CadenceErrSemaphoreContextTimeoutCounter
 
 	CadenceShardSuccessGauge
 	CadenceShardFailureGauge
@@ -3538,6 +3551,12 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		},
 		CadenceErrTaskListNotOwnedByHostPerTaskListCounter: {
 			metricName: "cadence_errors_task_list_not_owned_by_host_per_tl", metricRollupName: "cadence_errors_task_list_not_owned_by_host_rollup", metricType: Counter,
+		},
+		CadenceErrSemaphoreNotOwnedByHostCounter: {
+			metricName: "cadence_errors_semaphore_not_owned_by_host", metricType: Counter,
+		},
+		CadenceErrSemaphoreContextTimeoutCounter: {
+			metricName: "cadence_errors_semaphore_context_timeout", metricType: Counter,
 		},
 		CadenceShardSuccessGauge:             {metricName: "cadence_shard_success", metricType: Gauge},
 		CadenceShardFailureGauge:             {metricName: "cadence_shard_failure", metricType: Gauge},

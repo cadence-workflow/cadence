@@ -737,3 +737,67 @@ func ToLoadBalancerHints(t *matchingv1.LoadBalancerHints) *types.LoadBalancerHin
 		RatePerSecond: t.RatePerSecond,
 	}
 }
+
+func FromSemaphoreAcquireOutcome(t types.SemaphoreAcquireOutcome) matchingv1.SemaphoreAcquireOutcome {
+	switch t {
+	case types.SemaphoreAcquireOutcomeAcquired:
+		return matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_ACQUIRED
+	case types.SemaphoreAcquireOutcomeNoSlot:
+		return matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_NO_SLOT
+	}
+	return matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_INVALID
+}
+
+func ToSemaphoreAcquireOutcome(t matchingv1.SemaphoreAcquireOutcome) types.SemaphoreAcquireOutcome {
+	switch t {
+	case matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_ACQUIRED:
+		return types.SemaphoreAcquireOutcomeAcquired
+	case matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_NO_SLOT:
+		return types.SemaphoreAcquireOutcomeNoSlot
+	}
+	return types.SemaphoreAcquireOutcomeInvalid
+}
+
+func FromMatchingAddSemaphoreTaskRequest(t *types.AddSemaphoreTaskRequest) *matchingv1.AddSemaphoreTaskRequest {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.AddSemaphoreTaskRequest{
+		DomainId:      t.DomainUUID,
+		SemaphoreName: t.SemaphoreName,
+		Bucket:        t.Bucket,
+		OwnerId:       t.OwnerID,
+	}
+}
+
+func ToMatchingAddSemaphoreTaskRequest(t *matchingv1.AddSemaphoreTaskRequest) *types.AddSemaphoreTaskRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.AddSemaphoreTaskRequest{
+		DomainUUID:    t.DomainId,
+		SemaphoreName: t.SemaphoreName,
+		Bucket:        t.Bucket,
+		OwnerID:       t.OwnerId,
+	}
+}
+
+func FromMatchingAddSemaphoreTaskResponse(t *types.AddSemaphoreTaskResponse) *matchingv1.AddSemaphoreTaskResponse {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.AddSemaphoreTaskResponse{
+		Outcome: FromSemaphoreAcquireOutcome(t.Outcome),
+		TokenId: t.TokenID,
+	}
+}
+
+func ToMatchingAddSemaphoreTaskResponse(t *matchingv1.AddSemaphoreTaskResponse) *types.AddSemaphoreTaskResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.AddSemaphoreTaskResponse{
+		Outcome: ToSemaphoreAcquireOutcome(t.Outcome),
+		TokenID: t.TokenId,
+	}
+}
