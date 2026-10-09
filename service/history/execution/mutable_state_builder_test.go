@@ -246,6 +246,8 @@ func (s *mutableStateSuite) TestShouldBufferEvent() {
 		types.EventTypeStartChildWorkflowExecutionInitiated:            true,
 		types.EventTypeSignalExternalWorkflowExecutionInitiated:        true,
 		types.EventTypeUpsertWorkflowSearchAttributes:                  true,
+		types.EventTypeSemaphoreAcquireInitiated:                       true,
+		types.EventTypeSemaphoreReleased:                               true,
 	}
 
 	// other events will not be assign event ID immediately

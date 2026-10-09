@@ -65,6 +65,9 @@ func EventTypeValues() []EventType {
 		EventTypeSignalExternalWorkflowExecutionFailed,
 		EventTypeExternalWorkflowExecutionSignaled,
 		EventTypeUpsertWorkflowSearchAttributes,
+		EventTypeSemaphoreAcquireInitiated,
+		EventTypeSemaphoreAcquired,
+		EventTypeSemaphoreReleased,
 	}
 }
 
@@ -84,5 +87,7 @@ func DecisionTypeValues() []DecisionType {
 		DecisionTypeStartChildWorkflowExecution,
 		DecisionTypeSignalExternalWorkflowExecution,
 		DecisionTypeUpsertWorkflowSearchAttributes,
+		DecisionTypeAcquireSemaphore,
+		DecisionTypeReleaseSemaphore,
 	}
 }
