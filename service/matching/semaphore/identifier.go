@@ -9,7 +9,7 @@ import (
 )
 
 // Identifier names what one Manager serves: one bucket of one semaphore. A semaphore of `size`
-// slots is split into ceil(size/bucket_size) buckets, and a bucket is one partition of
+// tokens is split into ceil(size/bucket_size) buckets, and a bucket is one partition of
 // semaphore_tokens.
 //
 // Used directly as a map key, so every field must stay comparable. String() is for logs and

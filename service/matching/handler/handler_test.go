@@ -1000,9 +1000,9 @@ func TestHandlerAddSemaphoreTask(t *testing.T) {
 			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
 				limiter.EXPECT().Allow().Return(true).Times(1)
 				engine.EXPECT().AddSemaphoreTask(gomock.Any(), request).
-					Return(nil, fmt.Errorf("load semaphore bucket: %w", context.DeadlineExceeded)).Times(1)
+					Return(nil, fmt.Errorf("failed to load semaphore bucket: %w", context.DeadlineExceeded)).Times(1)
 			},
-			err:          &types.InternalServiceError{Message: "load semaphore bucket: context deadline exceeded"},
+			err:          &types.InternalServiceError{Message: "failed to load semaphore bucket: context deadline exceeded"},
 			wantFailures: 1,
 			wantErrorLog: true,
 		},
