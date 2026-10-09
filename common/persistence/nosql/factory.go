@@ -144,8 +144,9 @@ func (f *Factory) NewAdminDBs(dbType persistence.DBType) ([]persistence.AdminDB,
 // (matching HistoryStore), so this is intentionally a no-op.
 func (f *Factory) Close() {}
 
-// NewAsyncWorkflowQueueStore returns an unimplemented async workflow queue store.
-// It never opens a connection: NewBeanFromFactory calls this on every service start.
+// NewAsyncWorkflowQueueStore returns the nosql async workflow queue store.
+// NewBeanFromFactory calls this on every service start, so like the other nosql stores it
+// connects to the default shard here and to the remaining shards on first use.
 func (f *Factory) NewAsyncWorkflowQueueStore() (persistence.AsyncWorkflowQueueStore, error) {
-	return persistence.NewUnimplementedAsyncWorkflowQueueStore("nosql"), nil
+	return newNoSQLAsyncWorkflowQueueStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
