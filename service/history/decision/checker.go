@@ -22,6 +22,7 @@ package decision
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -708,6 +709,12 @@ func (v *attrValidator) validateContinueAsNewWorkflowExecutionAttributes(
 	// Check next run decision task delay
 	if attributes.GetBackoffStartIntervalInSeconds() < 0 {
 		return &types.BadRequestError{Message: "BackoffStartInterval is less than 0."}
+	}
+
+	// Only the jitter coefficient is checked: enforcing the rest of ValidateRetryPolicy here
+	// would start rejecting ContinueAsNew decisions that are accepted today
+	if jitter := attributes.RetryPolicy.GetJitterCoefficient(); math.IsNaN(jitter) || jitter < 0 || jitter > 1 {
+		return &types.BadRequestError{Message: "JitterCoefficient must be between 0 and 1 on retry policy."}
 	}
 
 	domainName, err := v.domainCache.GetDomainName(executionInfo.DomainID)
