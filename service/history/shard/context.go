@@ -1565,6 +1565,9 @@ func (s *contextImpl) EnqueueAsyncWorkflowMessage(
 	}
 	request.MessageID = messageID
 
+	if err := s.closedError(); err != nil {
+		return 0, err
+	}
 	if err := s.GetService().GetPersistenceBean().GetAsyncWorkflowQueueManager().EnqueueAsyncWorkflowMessage(ctx, request); err != nil {
 		return 0, err
 	}

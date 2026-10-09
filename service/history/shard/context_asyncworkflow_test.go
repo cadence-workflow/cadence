@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,6 +81,44 @@ func TestContext_EnqueueAsyncWorkflowMessage(t *testing.T) {
 			assert.Equal(t, id, req.MessageID, "request.MessageID is overwritten with the allocated id")
 		})
 	}
+}
+
+func TestContext_EnqueueAsyncWorkflowMessage_ClosedWhileWaitingForLock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+	t.Cleanup(func() { s.Finish(t) })
+
+	manager := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
+	s.Resource.PersistenceBean.EXPECT().GetAsyncWorkflowQueueManager().Return(manager).AnyTimes()
+	s.closeCallback = func(int, *historyShardsItem) {}
+
+	var (
+		id  int64
+		err error
+	)
+	started := make(chan struct{})
+	done := make(chan struct{})
+	s.Lock()
+	go func() {
+		defer close(done)
+		close(started)
+		id, err = s.EnqueueAsyncWorkflowMessage(context.Background(), newEnqueueRequest(s.GetShardID()))
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		s.Unlock()
+		t.Fatal("enqueue did not start")
+	}
+	// Give the goroutine a chance to pass the pre-lock closure check and block on Lock().
+	runtime.Gosched()
+	s.closeShard()
+	s.Unlock()
+	<-done
+
+	require.Error(t, err)
+	assert.Zero(t, id)
 }
 
 // TestContext_EnqueueAsyncWorkflowMessage_OrderedUnderLock proves the row is written while the shard
