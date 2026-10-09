@@ -254,6 +254,15 @@ var (
 	StoreOperationUpdateHistoryDLQAckLevel            = storeOperation("update-history-dlq-ack-level")
 	StoreOperationDeleteHistoryDLQTasks               = storeOperation("delete-history-dlq-tasks")
 
+	StoreOperationEnqueueAsyncWorkflowMessage             = storeOperation("enqueue-async-workflow-message")
+	StoreOperationReadAsyncWorkflowMessages               = storeOperation("read-async-workflow-messages")
+	StoreOperationGetAsyncWorkflowAckLevels               = storeOperation("get-async-workflow-ack-levels")
+	StoreOperationUpdateAsyncWorkflowAckLevel             = storeOperation("update-async-workflow-ack-level")
+	StoreOperationRangeDeleteAsyncWorkflowMessages        = storeOperation("range-delete-async-workflow-messages")
+	StoreOperationEnqueueAsyncWorkflowMessageToDLQ        = storeOperation("enqueue-async-workflow-message-to-dlq")
+	StoreOperationReadAsyncWorkflowMessagesFromDLQ        = storeOperation("read-async-workflow-messages-from-dlq")
+	StoreOperationRangeDeleteAsyncWorkflowMessagesFromDLQ = storeOperation("range-delete-async-workflow-messages-from-dlq")
+
 	StoreOperationCreateTasks           = storeOperation("create-tasks")
 	StoreOperationGetTasks              = storeOperation("get-tasks")
 	StoreOperationGetOrphanTasks        = storeOperation("get-orphan-tasks")

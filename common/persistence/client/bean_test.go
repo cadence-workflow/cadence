@@ -36,39 +36,41 @@ import (
 )
 
 type beanmocks struct {
-	mockCtrl                 *gomock.Controller
-	domainManager            *persistence.MockDomainManager
-	domainAuditManager       *persistence.MockDomainAuditManager
-	semaphoreMetadataManager *persistence.MockSemaphoreMetadataManager
-	semaphoreTokenManager    *persistence.MockSemaphoreTokenManager
-	semaphoreTaskManager     *persistence.MockSemaphoreTaskManager
-	taskManager              *persistence.MockTaskManager
-	visibilityManager        *persistence.MockVisibilityManager
-	replicationManager       *persistence.MockQueueManager
-	shardManager             *persistence.MockShardManager
-	historyManager           *persistence.MockHistoryManager
-	configManager            *persistence.MockConfigStoreManager
-	historyTaskDLQManager    *persistence.MockHistoryTaskDLQManager
-	executionManager         *persistence.MockExecutionManager
+	mockCtrl                  *gomock.Controller
+	domainManager             *persistence.MockDomainManager
+	domainAuditManager        *persistence.MockDomainAuditManager
+	semaphoreMetadataManager  *persistence.MockSemaphoreMetadataManager
+	semaphoreTokenManager     *persistence.MockSemaphoreTokenManager
+	semaphoreTaskManager      *persistence.MockSemaphoreTaskManager
+	taskManager               *persistence.MockTaskManager
+	visibilityManager         *persistence.MockVisibilityManager
+	replicationManager        *persistence.MockQueueManager
+	shardManager              *persistence.MockShardManager
+	historyManager            *persistence.MockHistoryManager
+	configManager             *persistence.MockConfigStoreManager
+	historyTaskDLQManager     *persistence.MockHistoryTaskDLQManager
+	asyncWorkflowQueueManager *persistence.MockAsyncWorkflowQueueManager
+	executionManager          *persistence.MockExecutionManager
 }
 
 func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) {
 	ctrl := gomock.NewController(t)
 	m = beanmocks{
-		mockCtrl:                 ctrl,
-		domainManager:            persistence.NewMockDomainManager(ctrl),
-		domainAuditManager:       persistence.NewMockDomainAuditManager(ctrl),
-		semaphoreMetadataManager: persistence.NewMockSemaphoreMetadataManager(ctrl),
-		semaphoreTokenManager:    persistence.NewMockSemaphoreTokenManager(ctrl),
-		semaphoreTaskManager:     persistence.NewMockSemaphoreTaskManager(ctrl),
-		taskManager:              persistence.NewMockTaskManager(ctrl),
-		visibilityManager:        persistence.NewMockVisibilityManager(ctrl),
-		replicationManager:       persistence.NewMockQueueManager(ctrl),
-		shardManager:             persistence.NewMockShardManager(ctrl),
-		historyManager:           persistence.NewMockHistoryManager(ctrl),
-		configManager:            persistence.NewMockConfigStoreManager(ctrl),
-		historyTaskDLQManager:    persistence.NewMockHistoryTaskDLQManager(ctrl),
-		executionManager:         persistence.NewMockExecutionManager(ctrl),
+		mockCtrl:                  ctrl,
+		domainManager:             persistence.NewMockDomainManager(ctrl),
+		domainAuditManager:        persistence.NewMockDomainAuditManager(ctrl),
+		semaphoreMetadataManager:  persistence.NewMockSemaphoreMetadataManager(ctrl),
+		semaphoreTokenManager:     persistence.NewMockSemaphoreTokenManager(ctrl),
+		semaphoreTaskManager:      persistence.NewMockSemaphoreTaskManager(ctrl),
+		taskManager:               persistence.NewMockTaskManager(ctrl),
+		visibilityManager:         persistence.NewMockVisibilityManager(ctrl),
+		replicationManager:        persistence.NewMockQueueManager(ctrl),
+		shardManager:              persistence.NewMockShardManager(ctrl),
+		historyManager:            persistence.NewMockHistoryManager(ctrl),
+		configManager:             persistence.NewMockConfigStoreManager(ctrl),
+		historyTaskDLQManager:     persistence.NewMockHistoryTaskDLQManager(ctrl),
+		asyncWorkflowQueueManager: persistence.NewMockAsyncWorkflowQueueManager(ctrl),
+		executionManager:          persistence.NewMockExecutionManager(ctrl),
 	}
 	f = NewMockFactory(ctrl)
 	defaultMocks = func() {
@@ -85,6 +87,7 @@ func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) 
 		f.EXPECT().NewHistoryManager().Return(m.historyManager, nil).MaxTimes(1)
 		f.EXPECT().NewConfigStoreManager().Return(m.configManager, nil).MaxTimes(1)
 		f.EXPECT().NewHistoryTaskDLQManager().Return(m.historyTaskDLQManager, nil).MaxTimes(1)
+		f.EXPECT().NewAsyncWorkflowQueueManager().Return(m.asyncWorkflowQueueManager, nil).MaxTimes(1)
 		f.EXPECT().NewExecutionManager().Return(m.executionManager, nil).MaxTimes(1)
 	}
 	return f, m, defaultMocks
@@ -171,6 +174,12 @@ func TestBeanCoverage(t *testing.T) {
 				},
 				err: "no history task DLQ manager",
 			},
+			"async workflow queue manager error": {
+				mockSetup: func(t *testing.T, f *MockFactory) {
+					f.EXPECT().NewAsyncWorkflowQueueManager().Return(nil, fmt.Errorf("no async workflow queue manager"))
+				},
+				err: "no async workflow queue manager",
+			},
 			"execution manager error": {
 				mockSetup: func(t *testing.T, f *MockFactory) {
 					f.EXPECT().NewExecutionManager().Return(nil, fmt.Errorf("no execution manager"))
@@ -216,6 +225,7 @@ func TestBeanCoverage(t *testing.T) {
 		g.Go(errgroupAssertEqual(t, m.historyManager, impl.GetHistoryManager))
 		g.Go(errgroupAssertEqual(t, m.configManager, impl.GetConfigStoreManager))
 		g.Go(errgroupAssertEqual(t, m.historyTaskDLQManager, impl.GetHistoryTaskDLQManager))
+		g.Go(errgroupAssertEqual(t, m.asyncWorkflowQueueManager, impl.GetAsyncWorkflowQueueManager))
 		require.NoError(t, g.Wait())
 		// execution managers are per shard, checked separately
 	})
@@ -242,6 +252,7 @@ func TestBeanCoverage(t *testing.T) {
 		g.Go(errgroupAssertSets(t, m2.historyManager, impl.SetHistoryManager, impl.GetHistoryManager))
 		g.Go(errgroupAssertSets(t, m2.configManager, impl.SetConfigStoreManager, impl.GetConfigStoreManager))
 		g.Go(errgroupAssertSets(t, m2.historyTaskDLQManager, impl.SetHistoryTaskDLQManager, impl.GetHistoryTaskDLQManager))
+		g.Go(errgroupAssertSets(t, m2.asyncWorkflowQueueManager, impl.SetAsyncWorkflowQueueManager, impl.GetAsyncWorkflowQueueManager))
 		require.NoError(t, g.Wait())
 		// execution managers are per shard, checked separately
 	})
@@ -308,6 +319,7 @@ func TestBeanCoverage(t *testing.T) {
 		m.configManager.EXPECT().Close().Return().Times(1)
 		ex1.EXPECT().Close().Return().Times(1)
 		m.historyTaskDLQManager.EXPECT().Close().Return().Times(1)
+		m.asyncWorkflowQueueManager.EXPECT().Close().Return().Times(1)
 		// which includes the execution-manager-factory itself
 		f.EXPECT().Close().Return().Times(1)
 
