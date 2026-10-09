@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Generate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,SemaphoreTaskManager,SemaphoreTokenManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,SemaphoreTaskManager,SemaphoreTokenManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager,AsyncWorkflowQueueManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -178,6 +178,17 @@ const (
 	SemaphoreRowTypeToken SemaphoreRowType = iota + 1
 	// SemaphoreRowTypeOwner the reverse row for a hold: OwnerID -> HeldToken
 	SemaphoreRowTypeOwner
+)
+
+// AsyncWorkflowRequestType is the `request_type` of an async workflow queue message.
+type AsyncWorkflowRequestType int
+
+// Async workflow request types
+const (
+	// AsyncWorkflowRequestTypeStartWorkflow is a StartWorkflowExecutionAsync request
+	AsyncWorkflowRequestTypeStartWorkflow AsyncWorkflowRequestType = 0
+	// AsyncWorkflowRequestTypeSignalWithStartWorkflow is a SignalWithStartWorkflowExecutionAsync request
+	AsyncWorkflowRequestTypeSignalWithStartWorkflow AsyncWorkflowRequestType = 1
 )
 
 // Workflow execution states
@@ -2164,6 +2175,22 @@ type (
 		DeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
 	}
 
+	// AsyncWorkflowQueueManager manages the per-history-shard FIFO queue of async workflow requests
+	// (StartWorkflowExecutionAsync / SignalWithStartWorkflowExecutionAsync). It has no shard-ownership
+	// fence: enqueue and ack-level updates are unconditional writes, and message ids are minted by the caller.
+	AsyncWorkflowQueueManager interface {
+		Closeable
+		GetName() string
+		EnqueueAsyncWorkflowMessage(ctx context.Context, request *EnqueueAsyncWorkflowMessageRequest) error
+		ReadAsyncWorkflowMessages(ctx context.Context, request *ReadAsyncWorkflowMessagesRequest) (*ReadAsyncWorkflowMessagesResponse, error)
+		GetAsyncWorkflowAckLevels(ctx context.Context, request *GetAsyncWorkflowAckLevelsRequest) (*GetAsyncWorkflowAckLevelsResponse, error)
+		UpdateAsyncWorkflowAckLevel(ctx context.Context, request *UpdateAsyncWorkflowAckLevelRequest) error
+		RangeDeleteAsyncWorkflowMessages(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesRequest) error
+		EnqueueAsyncWorkflowMessageToDLQ(ctx context.Context, request *EnqueueAsyncWorkflowMessageToDLQRequest) error
+		ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *ReadAsyncWorkflowMessagesFromDLQRequest) (*ReadAsyncWorkflowMessagesFromDLQResponse, error)
+		RangeDeleteAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesFromDLQRequest) error
+	}
+
 	// CreateHistoryDLQTaskRequest adds a task to the History Task Dead Letter Queue.
 	CreateHistoryDLQTaskRequest struct {
 		ShardID               int
@@ -2246,6 +2273,103 @@ type (
 		ClusterAttributeName  string
 		TaskCategory          HistoryTaskCategory
 		ExclusiveMaxTaskKey   HistoryTaskKey
+	}
+
+	// AsyncWorkflowMessage is one row of async_workflow_queue (type=0).
+	AsyncWorkflowMessage struct {
+		ShardID         int
+		SourceCluster   string
+		MessageID       int64
+		DomainName      string
+		WorkflowID      string
+		RequestID       string
+		RequestType     AsyncWorkflowRequestType
+		Payload         []byte
+		PayloadEncoding constants.EncodingType
+		CreatedTime     time.Time
+	}
+
+	// AsyncWorkflowDLQMessage is one row of async_workflow_queue_dlq; the key is the source message's.
+	AsyncWorkflowDLQMessage struct {
+		AsyncWorkflowMessage
+		Reason string
+	}
+
+	// EnqueueAsyncWorkflowMessageRequest appends a message to the (shard, source cluster) queue.
+	EnqueueAsyncWorkflowMessageRequest struct {
+		ShardID         int
+		SourceCluster   string
+		MessageID       int64 // minted by the caller (shard task id); strictly increasing per (shard, source_cluster)
+		DomainName      string
+		WorkflowID      string
+		RequestID       string
+		RequestType     AsyncWorkflowRequestType
+		Payload         []byte
+		PayloadEncoding constants.EncodingType
+	}
+
+	// ReadAsyncWorkflowMessagesRequest reads up to PageSize rows with MessageID > ExclusiveMinMessageID, ascending.
+	ReadAsyncWorkflowMessagesRequest struct {
+		ShardID               int
+		SourceCluster         string
+		ExclusiveMinMessageID int64
+		PageSize              int
+	}
+
+	// ReadAsyncWorkflowMessagesResponse is the result of ReadAsyncWorkflowMessages.
+	ReadAsyncWorkflowMessagesResponse struct {
+		Messages []*AsyncWorkflowMessage
+	}
+
+	// GetAsyncWorkflowAckLevelsRequest asks for every source cluster's ack level on a shard.
+	GetAsyncWorkflowAckLevelsRequest struct {
+		ShardID int
+	}
+
+	// GetAsyncWorkflowAckLevelsResponse is the result of GetAsyncWorkflowAckLevels.
+	// AckLevels: source cluster -> highest acked message id (inclusive). Absent key = nothing acked yet.
+	GetAsyncWorkflowAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	// UpdateAsyncWorkflowAckLevelRequest is an unconditional upsert of the (shard, source_cluster) control row.
+	UpdateAsyncWorkflowAckLevelRequest struct {
+		ShardID       int
+		SourceCluster string
+		AckLevel      int64
+	}
+
+	// RangeDeleteAsyncWorkflowMessagesRequest deletes rows with MessageID <= InclusiveMaxMessageID.
+	RangeDeleteAsyncWorkflowMessagesRequest struct {
+		ShardID               int
+		SourceCluster         string
+		InclusiveMaxMessageID int64
+	}
+
+	// EnqueueAsyncWorkflowMessageToDLQRequest moves a message that cannot be processed to the DLQ.
+	EnqueueAsyncWorkflowMessageToDLQRequest struct {
+		Message *AsyncWorkflowMessage // ShardID/SourceCluster/MessageID are the source message's key; a retry overwrites
+		Reason  string
+	}
+
+	// ReadAsyncWorkflowMessagesFromDLQRequest reads up to PageSize DLQ rows with MessageID > ExclusiveMinMessageID, ascending.
+	ReadAsyncWorkflowMessagesFromDLQRequest struct {
+		ShardID               int
+		SourceCluster         string
+		ExclusiveMinMessageID int64
+		PageSize              int
+	}
+
+	// ReadAsyncWorkflowMessagesFromDLQResponse is the result of ReadAsyncWorkflowMessagesFromDLQ.
+	ReadAsyncWorkflowMessagesFromDLQResponse struct {
+		Messages []*AsyncWorkflowDLQMessage
+	}
+
+	// RangeDeleteAsyncWorkflowMessagesFromDLQRequest deletes DLQ rows with MessageID <= InclusiveMaxMessageID.
+	RangeDeleteAsyncWorkflowMessagesFromDLQRequest struct {
+		ShardID               int
+		SourceCluster         string
+		InclusiveMaxMessageID int64
 	}
 
 	EnqueueMessageRequest struct {
