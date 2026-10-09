@@ -15,8 +15,8 @@ func (e *mutableStateBuilder) GetSemaphoreInfo(
 	initiatedEventID int64,
 ) (*persistence.SemaphoreInfo, bool) {
 
-	si, ok := e.pendingSemaphoreInfoIDs[initiatedEventID]
-	return si, ok
+	semaphoreInfo, ok := e.pendingSemaphoreInfoIDs[initiatedEventID]
+	return semaphoreInfo, ok
 }
 
 func (e *mutableStateBuilder) GetPendingSemaphoreInfos() map[int64]*persistence.SemaphoreInfo {
@@ -61,7 +61,7 @@ func (e *mutableStateBuilder) DeleteSemaphoreInfo(
 }
 
 // AddSemaphoreAcquireInitiatedEvent records an acquire and starts its hold with no token yet.
-// waitTimeoutSeconds is the timeout the acquire actually uses, already resolved by the caller.
+// waitTimeoutSeconds must be positive; the caller fills in the default.
 func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 	decisionCompletedEventID int64,
 	semaphoreName string,
@@ -74,11 +74,11 @@ func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 	}
 
 	event := e.hBuilder.AddSemaphoreAcquireInitiatedEvent(decisionCompletedEventID, semaphoreName, waitTimeoutSeconds)
-	si, err := e.ReplicateSemaphoreAcquireInitiatedEvent(event)
+	semaphoreInfo, err := e.ReplicateSemaphoreAcquireInitiatedEvent(event)
 	if err != nil {
 		return nil, nil, err
 	}
-	return event, si, nil
+	return event, semaphoreInfo, nil
 }
 
 // ReplicateSemaphoreAcquireInitiatedEvent starts the hold for an acquire event. Everything it
@@ -88,7 +88,7 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquireInitiatedEvent(
 ) (*persistence.SemaphoreInfo, error) {
 
 	attributes := event.SemaphoreAcquireInitiatedEventAttributes
-	si := &persistence.SemaphoreInfo{
+	semaphoreInfo := &persistence.SemaphoreInfo{
 		Version:       event.Version,
 		InitiatedID:   event.ID,
 		SemaphoreName: attributes.GetSemaphoreName(),
@@ -102,15 +102,13 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquireInitiatedEvent(
 			Add(time.Duration(attributes.GetWaitTimeoutSeconds()) * time.Second),
 	}
 
-	e.UpsertSemaphoreInfo(si)
-	return si, nil
+	e.UpsertSemaphoreInfo(semaphoreInfo)
+	return semaphoreInfo, nil
 }
 
 // AddSemaphoreAcquiredEvent records that the acquire started by initiatedEventID was granted
-// tokenID.
-//
-// It returns an error if there is no hold for initiatedEventID, or if the hold already has
-// tokenID. If the hold has a different token, the new token replaces it.
+// tokenID, replacing any different token the hold has. It refuses a missing hold or a repeat of
+// the hold's token.
 func (e *mutableStateBuilder) AddSemaphoreAcquiredEvent(
 	initiatedEventID int64,
 	tokenID int32,
@@ -121,8 +119,10 @@ func (e *mutableStateBuilder) AddSemaphoreAcquiredEvent(
 		return nil, err
 	}
 
-	si, ok := e.GetSemaphoreInfo(initiatedEventID)
-	if !ok || si.TokenID == int(tokenID) {
+	semaphoreInfo, ok := e.GetSemaphoreInfo(initiatedEventID)
+	// Callers handle a missing hold and a repeated grant first, so reaching this is a caller bug.
+	// Refuse it rather than write a grant with no hold, or a duplicate grant, to history.
+	if !ok || semaphoreInfo.TokenID == int(tokenID) {
 		e.logWarn(mutableStateInvalidHistoryActionMsg, opTag,
 			tag.WorkflowEventID(e.GetNextEventID()),
 			tag.ErrorTypeInvalidHistoryAction,
@@ -146,7 +146,7 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquiredEvent(
 	attributes := event.SemaphoreAcquiredEventAttributes
 	initiatedEventID := attributes.GetInitiatedEventID()
 
-	si, ok := e.GetSemaphoreInfo(initiatedEventID)
+	semaphoreInfo, ok := e.GetSemaphoreInfo(initiatedEventID)
 	if !ok {
 		e.logError(
 			"Unable to find semaphore hold",
@@ -156,9 +156,9 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquiredEvent(
 		)
 		return ErrMissingSemaphoreInfo
 	}
-	si.Version = event.Version
-	si.TokenID = int(attributes.GetTokenID())
-	e.UpsertSemaphoreInfo(si)
+	semaphoreInfo.Version = event.Version
+	semaphoreInfo.TokenID = int(attributes.GetTokenID())
+	e.UpsertSemaphoreInfo(semaphoreInfo)
 
 	return nil
 }
