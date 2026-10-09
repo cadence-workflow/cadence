@@ -176,7 +176,7 @@ func TestEnqueueAsyncWorkflowMessage(t *testing.T) {
 			wantBadRequest: true,
 		},
 		{
-			name:           "GenerateTaskID fails: error is returned unchanged, nothing written",
+			name:           "task id allocation fails: error is returned unchanged, nothing written",
 			request:        newRequest(),
 			exhaustTaskIDs: true,
 			wantErrIs:      errUpdateShard,

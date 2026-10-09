@@ -21,6 +21,7 @@
 package resource
 
 import (
+	"context"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -28,6 +29,7 @@ import (
 	smretryable "github.com/cadence-workflow/shard-manager/client/wrappers/retryable"
 	smcommon "github.com/cadence-workflow/shard-manager/common"
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/yarpc"
@@ -111,6 +113,7 @@ type Impl struct {
 
 	membershipResolver membership.Resolver
 	hashRings          map[string]membership.Ring
+	spectator          spectatorclient.Spectator
 
 	// internal services clients
 
@@ -364,6 +367,7 @@ func New(
 
 		// membership infos
 		membershipResolver: membershipResolver,
+		spectator:          params.Spectator,
 
 		// internal services clients
 
@@ -436,6 +440,11 @@ func (h *Impl) Start() {
 	if err := h.dispatcher.Start(); err != nil {
 		h.logger.WithTags(tag.Error(err)).Fatal("fail to start dispatcher")
 	}
+	if h.spectator != nil {
+		if err := h.spectator.Start(context.Background()); err != nil {
+			h.logger.WithTags(tag.Error(err)).Fatal("fail to start shard distributor spectator")
+		}
+	}
 	h.membershipResolver.Start()
 	h.domainCache.Start()
 	h.domainMetricsScopeCache.Start()
@@ -469,6 +478,9 @@ func (h *Impl) Stop() {
 	h.domainCache.Stop()
 	h.domainMetricsScopeCache.Stop()
 	h.membershipResolver.Stop()
+	if h.spectator != nil {
+		h.spectator.Stop()
+	}
 
 	if err := h.dispatcher.Stop(); err != nil {
 		h.logger.WithTags(tag.Error(err)).Error("failed to stop dispatcher")
@@ -640,6 +652,11 @@ func (h *Impl) GetDomainAuditManager() persistence.DomainAuditManager {
 	return h.persistenceBean.GetDomainAuditManager()
 }
 
+// GetSemaphoreMetadataManager return semaphore metadata manager
+func (h *Impl) GetSemaphoreMetadataManager() persistence.SemaphoreMetadataManager {
+	return h.persistenceBean.GetSemaphoreMetadataManager()
+}
+
 // GetTaskManager return task manager
 func (h *Impl) GetTaskManager() persistence.TaskManager {
 	return h.persistenceBean.GetTaskManager()
@@ -711,14 +728,14 @@ func (h *Impl) GetIsolationGroupStore() configstore.Client {
 	return h.isolationGroupConfigStore
 }
 
-// GetOperationalConfigStore returns the operational dynamic config store (always non-nil; NopClient when unsupported).
+// GetOperationalConfigStore returns the operational dynamic config store (always non-nil; NopClient when persistence is not configured).
 func (h *Impl) GetOperationalConfigStore() configstore.Client {
 	return h.operationalConfigStore
 }
 
 // GetOperationalDynamicConfig returns a Collection wrapping the operational
-// dynamic config store. It is always non-nil: when the underlying store is
-// unavailable, the Collection is backed by a no-op client that returns
+// dynamic config store. It is always non-nil: when persistence is not
+// configured, the Collection is backed by a no-op client that returns
 // default values, so callers can read operational values unconditionally.
 func (h *Impl) GetOperationalDynamicConfig() *dynamicconfig.Collection {
 	return h.operationalDynamicConfig

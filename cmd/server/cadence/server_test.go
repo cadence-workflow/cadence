@@ -1,26 +1,3 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
-//go:build !race
-// +build !race
-
 package cadence
 
 import (
@@ -47,6 +24,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
@@ -139,7 +117,15 @@ func (s *ServerSuite) TestServerStartup() {
 			&archiver.ArchivalDomainDefaults{},
 		)
 		archiverProvider := provider.NewNoOpArchiverProvider()
-		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, operationalConfigStore, operationalDC, tally.NoopScope, metrics.NewNoopMetricsClient(), rpcFactory, archivalMetadata, archiverProvider)
+		ctrl := gomock.NewController(s.T())
+		mockPeerProvider := membership.NewMockPeerProvider(ctrl)
+		mockPeerProvider.EXPECT().Start(gomock.Any()).Return(nil).AnyTimes()
+		mockPeerProvider.EXPECT().Stop(gomock.Any()).Return(nil).AnyTimes()
+		mockPeerProvider.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mockPeerProvider.EXPECT().WhoAmI().Return(membership.HostInfo{}, nil).AnyTimes()
+		mockPeerProvider.EXPECT().GetMembers(gomock.Any()).Return([]membership.HostInfo{}, nil).AnyTimes()
+		mockPeerProvider.EXPECT().SelfEvict().Return(nil).AnyTimes()
+		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, operationalConfigStore, operationalDC, tally.NoopScope, metrics.NewNoopMetricsClient(), rpcFactory, mockPeerProvider, archivalMetadata, archiverProvider)
 		daemons = append(daemons, server)
 		server.Start()
 	}

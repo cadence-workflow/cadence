@@ -21,16 +21,15 @@
 package cassandra
 
 const (
-	templateSeedSemaphoreTokenQuery = `INSERT INTO semaphore_tokens (` +
-		`domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
-
 	// Grant runs the next two statements as one atomic batch.
-	// (1) Claim the token row in place, only if it is currently free.
+	//
+	// (1) Claim the token row, only if holder is FREE (the bound ?) or null (no row yet).
+	// Token rows are not seeded: a slot's first grant creates its row, since Cassandra reads a missing
+	// row's holder as null and an UPDATE on a missing row creates it.
 	templateGrantSemaphoreTokenUpdateQuery = `UPDATE semaphore_tokens ` +
 		`SET holder = ?, updated_time = ? ` +
 		`WHERE domain_id = ? AND semaphore_name = ? AND bucket = ? AND type = ? AND token_id = ? AND owner_id = ? ` +
-		`IF holder = ?`
+		`IF holder IN (?, null)`
 
 	// (2) Insert the matching owner (reverse-index) row, only if absent.
 	// IF NOT EXISTS enforces one-token-per-hold: a same-owner_id double-grant cannot
@@ -41,6 +40,7 @@ const (
 		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
 
 	// Release runs the next two statements as one atomic batch.
+	//
 	// (1) Clear the token row in place, only if still held by this owner.
 	templateReleaseSemaphoreTokenUpdateQuery = `UPDATE semaphore_tokens ` +
 		`SET holder = ?, updated_time = ? ` +

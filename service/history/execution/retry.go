@@ -22,6 +22,7 @@ package execution
 
 import (
 	"math"
+	"math/rand"
 	"time"
 
 	"github.com/uber/cadence/common"
@@ -80,6 +81,7 @@ func getBackoffInterval(
 	initInterval int32,
 	maxInterval int32,
 	backoffCoefficient float64,
+	jitterCoefficient float64,
 ) time.Duration {
 
 	nextInterval := int64(float64(initInterval) * math.Pow(backoffCoefficient, float64(currAttempt)))
@@ -97,5 +99,11 @@ func getBackoffInterval(
 		nextInterval = int64(maxInterval)
 	}
 
-	return time.Duration(nextInterval) * time.Second
+	nextDuration := float64(nextInterval) * float64(time.Second)
+	// add jitter to avoid global synchronization, scaling the interval by a random factor in (1-jitterCoefficient, 1]
+	if jitterCoefficient > 0 && jitterCoefficient <= 1 {
+		nextDuration *= 1 - jitterCoefficient*rand.Float64()
+	}
+
+	return time.Duration(nextDuration)
 }

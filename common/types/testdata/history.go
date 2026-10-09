@@ -76,6 +76,9 @@ var (
 		&HistoryEvent_SignalExternalWorkflowExecutionFailed,
 		&HistoryEvent_ExternalWorkflowExecutionSignaled,
 		&HistoryEvent_UpsertWorkflowSearchAttributes,
+		&HistoryEvent_SemaphoreAcquireInitiated,
+		&HistoryEvent_SemaphoreAcquired,
+		&HistoryEvent_SemaphoreReleased,
 	}
 
 	HistoryEvent_WorkflowExecutionStarted = generateEvent(func(e *types.HistoryEvent) {
@@ -245,6 +248,18 @@ var (
 	HistoryEvent_UpsertWorkflowSearchAttributes = generateEvent(func(e *types.HistoryEvent) {
 		e.EventType = types.EventTypeUpsertWorkflowSearchAttributes.Ptr()
 		e.UpsertWorkflowSearchAttributesEventAttributes = &UpsertWorkflowSearchAttributesEventAttributes
+	})
+	HistoryEvent_SemaphoreAcquireInitiated = generateEvent(func(e *types.HistoryEvent) {
+		e.EventType = types.EventTypeSemaphoreAcquireInitiated.Ptr()
+		e.SemaphoreAcquireInitiatedEventAttributes = &SemaphoreAcquireInitiatedEventAttributes
+	})
+	HistoryEvent_SemaphoreAcquired = generateEvent(func(e *types.HistoryEvent) {
+		e.EventType = types.EventTypeSemaphoreAcquired.Ptr()
+		e.SemaphoreAcquiredEventAttributes = &SemaphoreAcquiredEventAttributes
+	})
+	HistoryEvent_SemaphoreReleased = generateEvent(func(e *types.HistoryEvent) {
+		e.EventType = types.EventTypeSemaphoreReleased.Ptr()
+		e.SemaphoreReleasedEventAttributes = &SemaphoreReleasedEventAttributes
 	})
 
 	WorkflowExecutionStartedEventAttributes = types.WorkflowExecutionStartedEventAttributes{
@@ -586,6 +601,20 @@ var (
 	UpsertWorkflowSearchAttributesEventAttributes = types.UpsertWorkflowSearchAttributesEventAttributes{
 		DecisionTaskCompletedEventID: EventID1,
 		SearchAttributes:             &SearchAttributes,
+	}
+	SemaphoreAcquireInitiatedEventAttributes = types.SemaphoreAcquireInitiatedEventAttributes{
+		SemaphoreName:                "semaphore-name",
+		WaitTimeoutSeconds:           common.Int32Ptr(Duration1),
+		DecisionTaskCompletedEventID: EventID1,
+	}
+	SemaphoreAcquiredEventAttributes = types.SemaphoreAcquiredEventAttributes{
+		TokenID:          17,
+		InitiatedEventID: EventID2,
+	}
+	SemaphoreReleasedEventAttributes = types.SemaphoreReleasedEventAttributes{
+		TokenID:                      17,
+		InitiatedEventID:             EventID2,
+		DecisionTaskCompletedEventID: EventID3,
 	}
 	GetFailoverInfoRequest = types.GetFailoverInfoRequest{
 		DomainID: uuid.NewUUID().String(),

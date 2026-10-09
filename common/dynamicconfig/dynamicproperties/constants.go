@@ -1855,14 +1855,6 @@ const (
 	// Default value: false
 	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingEnableAdaptiveScaler
-	// MatchingEnableDistributedSemaphore gates serving distributed semaphore buckets on matching
-	// hosts. While it is off no bucket is loaded, so no partition is scanned and nothing is held
-	// in memory.
-	// KeyName: matching.enableDistributedSemaphore
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	MatchingEnableDistributedSemaphore
 	// MatchingEnablePartitionEmptyCheck enables using TaskListStatus.empty to check if a partition is empty
 	// KeyName: matching.enablePartitionEmptyCheck
 	// Value type: Bool
@@ -2158,6 +2150,14 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableStickyQuery
+	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
+	// frontend, and serving semaphore buckets on matching. While it is off matching loads no bucket,
+	// so no partition is scanned and nothing is held in memory.
+	// KeyName: system.enableDistributedSemaphore
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableDistributedSemaphore
 	// EnableFailoverManager indicates if failover manager is enabled
 	// KeyName: system.enableFailoverManager
 	// Value type: Bool
@@ -2371,13 +2371,13 @@ const (
 	// EnableTransferQueueV2 is to enable transfer queue v2
 	// KeyName: history.enableTransferQueueV2
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: ShardID
 	EnableTransferQueueV2
 	// EnableTimerQueueV2 is to enable timer queue v2
 	// KeyName: history.enableTimerQueueV2
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: ShardID
 	EnableTimerQueueV2
 	// EnableTransferQueueV2PendingTaskCountAlert is to enable transfer queue v2 pending task count alert
@@ -4846,12 +4846,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "MatchingEnableAdaptiveScaler is to enable adaptive task list scaling",
 		DefaultValue: false,
 	},
-	MatchingEnableDistributedSemaphore: {
-		KeyName:      "matching.enableDistributedSemaphore",
-		Filters:      []Filter{DomainName},
-		Description:  "MatchingEnableDistributedSemaphore gates serving distributed semaphore buckets on matching hosts",
-		DefaultValue: false,
-	},
 	MatchingEnablePartitionEmptyCheck: {
 		KeyName:      "matching.enablePartitionEmptyCheck",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
@@ -5098,6 +5092,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableStickyQuery indicates if sticky query should be enabled per domain",
 		DefaultValue: true,
 	},
+	EnableDistributedSemaphore: {
+		KeyName:      "system.enableDistributedSemaphore",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, and serving semaphore buckets on matching",
+		DefaultValue: false,
+	},
 	EnableFailoverManager: {
 		KeyName:      "system.enableFailoverManager",
 		Description:  "EnableFailoverManager indicates if failover manager is enabled",
@@ -5277,13 +5277,13 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.enableTransferQueueV2",
 		Description:  "EnableTransferQueueV2 is to enable transfer queue v2",
 		Filters:      []Filter{ShardID},
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableTimerQueueV2: {
 		KeyName:      "history.enableTimerQueueV2",
 		Description:  "EnableTimerQueueV2 is to enable timer queue v2",
 		Filters:      []Filter{ShardID},
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableTransferQueueV2PendingTaskCountAlert: {
 		KeyName:      "history.enableTransferQueueV2PendingTaskCountAlert",

@@ -47,53 +47,6 @@ func setUpMocksForSemaphoreTokenStore(t *testing.T) (*nosqlSemaphoreTokenStore, 
 	return store, dbMock
 }
 
-func TestNoSQLSeedSemaphoreTokens(t *testing.T) {
-	ctx := context.Background()
-	now := time.Unix(1234567890, 0).UTC()
-
-	tests := map[string]struct {
-		setupMock func(*nosqlplugin.MockDB)
-		expectErr bool
-	}{
-		"success maps request to rows": {
-			setupMock: func(dbMock *nosqlplugin.MockDB) {
-				expectedRows := []*nosqlplugin.SemaphoreOwnershipRow{
-					{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 1, UpdatedTime: now},
-					{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0, TokenID: 2, UpdatedTime: now},
-				}
-				dbMock.EXPECT().InsertSemaphoreTokens(ctx, expectedRows).Return(nil).Times(1)
-			},
-		},
-		"error propagates": {
-			setupMock: func(dbMock *nosqlplugin.MockDB) {
-				dbMock.EXPECT().InsertSemaphoreTokens(ctx, gomock.Any()).Return(errors.New("db error")).Times(1)
-				expectNotACommonError(dbMock)
-			},
-			expectErr: true,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			store, dbMock := setUpMocksForSemaphoreTokenStore(t)
-			tc.setupMock(dbMock)
-
-			err := store.SeedSemaphoreTokens(ctx, &persistence.SeedSemaphoreTokensRequest{
-				DomainID:      "domain-1",
-				SemaphoreName: "sem-1",
-				Bucket:        0,
-				TokenIDs:      []int{1, 2},
-			}, now)
-
-			if tc.expectErr {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-		})
-	}
-}
-
 func TestNoSQLGrantSemaphoreToken(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(1234567890, 0).UTC()

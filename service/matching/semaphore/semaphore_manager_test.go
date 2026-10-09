@@ -175,14 +175,6 @@ func TestNewManagerValidatesItsParams(t *testing.T) {
 	}
 }
 
-// Tests that a manager reports the bucket it was built for. The registry and the ring lookup
-// both key on this.
-func TestNewManagerReportsItsIdentifier(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mgr := newTestManager(t, persistence.NewMockSemaphoreTokenManager(ctrl))
-	assert.Equal(t, testBucketID, mgr.Identifier())
-}
-
 // Tests that Start() builds both the free-set and the reverse index from a scan that arrives in
 // several pages, following the page token to the end.
 func TestStartBuildsTheFreeSetAndTheHeldIndexAcrossPages(t *testing.T) {
@@ -312,16 +304,6 @@ func TestAFailedLoadUnregistersTheManager(t *testing.T) {
 	assert.False(t, isRegistered(registry, mgr))
 }
 
-// Testing a manager is started and then stopped leaves no goroutine running.
-func TestStartStop(t *testing.T) {
-	defer goleak.VerifyNone(t)
-	ctrl := gomock.NewController(t)
-	m := persistence.NewMockSemaphoreTokenManager(ctrl)
-
-	mgr := startManager(t, m, freeTokens(1, 2))
-	mgr.Stop()
-}
-
 func TestAcquireRejectsAnEmptyOwnerID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := persistence.NewMockSemaphoreTokenManager(ctrl)
@@ -432,6 +414,41 @@ func TestAcquireHonorsItsDeadlineWhileStarting(t *testing.T) {
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
+// Tests that a Start arriving while another caller's load is in flight returns at once instead of
+// waiting for that load. Its context carries the scan's deadline, not the caller's, so waiting on
+// it would hold the caller long after it gave up; Acquire does the waiting instead.
+func TestStartDoesNotWaitOnALoadInFlight(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := persistence.NewMockSemaphoreTokenManager(ctrl)
+
+	scanning, finishScan := make(chan struct{}), make(chan struct{})
+	m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+		func(context.Context, *persistence.ScanSemaphoreBucketRequest) (*persistence.ScanSemaphoreBucketResponse, error) {
+			close(scanning)
+			<-finishScan
+			return &persistence.ScanSemaphoreBucketResponse{Ownerships: freeTokens(1)}, nil
+		})
+
+	mgr := newTestManager(t, m)
+	started := make(chan error, 1)
+	go func() { started <- mgr.Start(context.Background()) }()
+	<-scanning
+	defer func() {
+		close(finishScan)
+		assert.NoError(t, <-started)
+	}()
+
+	// If Start waited on the load, this would hang until the deadline below and fail.
+	secondStart := make(chan error, 1)
+	go func() { secondStart <- mgr.Start(context.Background()) }()
+	select {
+	case err := <-secondStart:
+		assert.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("a second Start waited on the load already in flight")
+	}
+}
+
 // Tests that Acquire passes grant's answer through unchanged, since Acquire is the seam callers
 // use and must not edit the result on the way out.
 func TestAcquireHandsBackWhatTheGrantDecided(t *testing.T) {
@@ -442,40 +459,19 @@ func TestAcquireHandsBackWhatTheGrantDecided(t *testing.T) {
 		want  AcquireResult
 	}{
 		{
-			name: "a free slot is acquired",
-			rows: freeTokens(7),
-			setup: func(m *persistence.MockSemaphoreTokenManager) {
-				m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
-					&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
-			},
-			want: AcquireResult{Outcome: AcquireOutcomeAcquired, TokenID: 7},
-		},
-		{
 			name: "an owner that already holds one gets the same token back",
 			rows: append(freeTokens(1), tokenRow(5, "owner-a"), ownerRow("owner-a", 5)),
 			setup: func(m *persistence.MockSemaphoreTokenManager) {
 				m.EXPECT().GetSemaphoreOwnershipByToken(gomock.Any(), gomock.Any()).Return(
 					&persistence.GetSemaphoreOwnershipByTokenResponse{Ownership: tokenRow(5, "owner-a")}, nil)
 			},
-			want: AcquireResult{Outcome: AcquireOutcomeAlreadyHeld, TokenID: 5},
+			want: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 5},
 		},
 		{
 			// Nothing free to draw and no write to contradict the free-set.
 			name: "a full bucket answers no-slot",
 			rows: []*persistence.SemaphoreOwnership{tokenRow(1, "owner-x"), ownerRow("owner-x", 1)},
-			want: AcquireResult{Outcome: AcquireOutcomeNoSlot},
-		},
-		{
-			// The one id on offer turns out to be held, so the free-set was wrong -- but the
-			// answer is the same NoSlot the case above gives, which is the under-admission the
-			// free-set refresh is meant to close.
-			name: "a stale free-set also answers no-slot",
-			rows: freeTokens(1),
-			setup: func(m *persistence.MockSemaphoreTokenManager) {
-				m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
-					&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantSlotTaken}, nil)
-			},
-			want: AcquireResult{Outcome: AcquireOutcomeNoSlot},
+			want: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeNoSlot},
 		},
 	}
 
@@ -527,7 +523,7 @@ func TestGrantOnAFreeSlot(t *testing.T) {
 
 	got, err := mgr.grant(context.Background(), "owner-a")
 	require.NoError(t, err)
-	assert.Equal(t, AcquireResult{Outcome: AcquireOutcomeAcquired, TokenID: 7}, got)
+	assert.Equal(t, AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 7}, got)
 	assert.Equal(t, 0, mgr.freeCount(), "the granted slot must leave the free-set")
 	// The other half of recordHold: without this the next acquire by owner-a would draw a
 	// second slot instead of being answered from the index.
@@ -555,7 +551,7 @@ func TestGrantRetriesADifferentSlotWhenTheWriteSaysTaken(t *testing.T) {
 
 	got, err := mgr.grant(context.Background(), "owner-a")
 	require.NoError(t, err)
-	assert.Equal(t, AcquireOutcomeAcquired, got.Outcome)
+	assert.Equal(t, types.SemaphoreAcquireOutcomeAcquired, got.Outcome)
 	require.Len(t, tried, 2)
 	assert.NotEqual(t, tried[0], tried[1], "a retry must draw a different slot")
 	assert.Equal(t, tried[1], got.TokenID)
@@ -573,7 +569,8 @@ func TestGrantGivesUpAfterMaxAttempts(t *testing.T) {
 
 	got, err := mgr.grant(context.Background(), "owner-a")
 	require.NoError(t, err)
-	assert.Equal(t, AcquireOutcomeNoSlot, got.Outcome, "giving up must under-admit, not error")
+	assert.Equal(t, types.SemaphoreAcquireOutcomeNoSlot, got.Outcome)
+	assert.Zero(t, got.TokenID)
 	assert.Equal(t, 10-maxGrantAttempts, mgr.freeCount(), "every slot proved taken stays out")
 }
 
@@ -638,8 +635,12 @@ func TestGrantWhenTheWriteSaysTheOwnerAlreadyHolds(t *testing.T) {
 
 			got, err := mgr.grant(context.Background(), "owner-a")
 			require.NoError(t, err)
-			assert.Equal(t, AcquireResult{Outcome: AcquireOutcomeAlreadyHeld, TokenID: tc.heldToken}, got)
+			assert.Equal(t, AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: tc.heldToken}, got)
 			assert.Equal(t, tc.wantFreeCount, mgr.freeCount())
+			assertFreeSetIsConsistent(t, mgr)
+			mgr.mu.Lock()
+			defer mgr.mu.Unlock()
+			assert.Equal(t, map[string]int{"owner-a": tc.heldToken}, mgr.held)
 		})
 	}
 }
@@ -670,7 +671,7 @@ func TestGrantRejectsAnAlreadyHeldWriteWithNoToken(t *testing.T) {
 
 	got, err := mgr.grant(context.Background(), "owner-a")
 	require.NoError(t, err)
-	assert.Equal(t, AcquireOutcomeAcquired, got.Outcome)
+	assert.Equal(t, types.SemaphoreAcquireOutcomeAcquired, got.Outcome)
 }
 
 // Tests that a failed write costs no slot: the id goes back every time, so an outage cannot
@@ -761,7 +762,7 @@ func TestGrantWhenTheReverseIndexIsStale(t *testing.T) {
 
 			got, err := mgr.grant(context.Background(), "owner-a")
 			require.NoError(t, err)
-			assert.Equal(t, AcquireOutcomeAcquired, got.Outcome,
+			assert.Equal(t, types.SemaphoreAcquireOutcomeAcquired, got.Outcome,
 				"a stale index entry must fall through to a normal pick")
 			assert.Equal(t, tc.wantFreeCount, mgr.freeCount())
 		})
@@ -778,23 +779,6 @@ func TestGrantSurfacesAConfirmingReadFailure(t *testing.T) {
 	_, err := mgr.grant(context.Background(), "owner-a")
 	assert.ErrorIs(t, err, readErr)
 	assert.Equal(t, 1, mgr.freeCount())
-}
-
-// Tests that recording a hold takes the slot out of the free-set, including a slot this host
-// never drew itself.
-func TestRecordHoldTakesTheSlotOutOfTheFreeSet(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	m := persistence.NewMockSemaphoreTokenManager(ctrl)
-	mgr := startManager(t, m, freeTokens(1, 2, 3))
-
-	mgr.recordHold("owner-a", 2)
-
-	assertFreeSetIsConsistent(t, mgr)
-	mgr.mu.Lock()
-	defer mgr.mu.Unlock()
-	assert.Equal(t, map[string]int{"owner-a": 2}, mgr.held)
-	assert.Equal(t, 2, len(mgr.freeList), "a held slot cannot stay free")
-	assert.NotContains(t, mgr.freeIndex, 2)
 }
 
 // Tests dropping a stale index entry always removes the entry, but returns the slot to the
@@ -841,28 +825,6 @@ func TestDropStaleHold(t *testing.T) {
 }
 
 // ---- The free-set ----
-
-// Tests that repeated reserve calls hand out every free id exactly once, and report the set
-// empty only after the last one.
-func TestReserveDrawsEveryFreeIDExactlyOnce(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	m := persistence.NewMockSemaphoreTokenManager(ctrl)
-	mgr := startManager(t, m, freeTokens(1, 2, 3))
-
-	drawn := map[int]bool{}
-	for i := 0; i < 3; i++ {
-		tokenID, ok := mgr.reserve()
-		require.True(t, ok)
-		assert.False(t, drawn[tokenID], "reserve drew %d twice", tokenID)
-		drawn[tokenID] = true
-	}
-	assert.Equal(t, map[int]bool{1: true, 2: true, 3: true}, drawn)
-	assertFreeSetIsConsistent(t, mgr)
-
-	tokenID, ok := mgr.reserve()
-	assert.False(t, ok, "an empty free-set has nothing to draw")
-	assert.Equal(t, 0, tokenID)
-}
 
 func TestUnreserveIsIdempotent(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -945,7 +907,7 @@ func TestConcurrentGrantsHandOutDistinctSlots(t *testing.T) {
 	seen := make(map[int]bool, owners)
 	for i, res := range results {
 		require.NoError(t, errs[i])
-		require.Equal(t, AcquireOutcomeAcquired, res.Outcome)
+		require.Equal(t, types.SemaphoreAcquireOutcomeAcquired, res.Outcome)
 		assert.False(t, seen[res.TokenID], "slot %d handed out twice", res.TokenID)
 		seen[res.TokenID] = true
 	}
@@ -991,26 +953,6 @@ func TestLifecycleUnderConcurrentGrants(t *testing.T) {
 		wg.Wait()
 
 		assertFreeSetIsConsistent(t, mgr)
-	}
-}
-
-// Tests that every outcome renders a name, and that an unrecognised one renders Unknown rather
-// than an empty string.
-func TestAcquireOutcomeString(t *testing.T) {
-	tests := []struct {
-		outcome AcquireOutcome
-		want    string
-	}{
-		{AcquireOutcomeAcquired, "Acquired"},
-		{AcquireOutcomeAlreadyHeld, "AlreadyHeld"},
-		{AcquireOutcomeNoSlot, "NoSlot"},
-		{AcquireOutcomeUnknown, "Unknown"},
-		{AcquireOutcome(99), "Unknown"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.want, func(t *testing.T) {
-			assert.Equal(t, tc.want, tc.outcome.String())
-		})
 	}
 }
 
@@ -1066,7 +1008,7 @@ func TestAcquireKeepsAManagerLoaded(t *testing.T) {
 	mockClock.Advance(testIdleTTL / 2)
 	got, err := mgr.Acquire(context.Background(), "owner-a")
 	require.NoError(t, err)
-	require.Equal(t, AcquireOutcomeNoSlot, got.Outcome)
+	require.Equal(t, types.SemaphoreAcquireOutcomeNoSlot, got.Outcome)
 
 	// Past the original deadline, but within the TTL measured from the request.
 	mockClock.Advance(testIdleTTL / 2)

@@ -34,6 +34,11 @@ import (
 	"github.com/uber/cadence/common/types/testdata"
 )
 
+func TestAcquireSemaphoreDecisionAttributes(t *testing.T) {
+	for _, item := range []*types.AcquireSemaphoreDecisionAttributes{nil, {}, &testdata.AcquireSemaphoreDecisionAttributes} {
+		assert.Equal(t, item, ToAcquireSemaphoreDecisionAttributes(FromAcquireSemaphoreDecisionAttributes(item)))
+	}
+}
 func TestActivityLocalDispatchInfo(t *testing.T) {
 	for _, item := range []*types.ActivityLocalDispatchInfo{nil, {}, &testdata.ActivityLocalDispatchInfo} {
 		assert.Equal(t, item, ToActivityLocalDispatchInfo(FromActivityLocalDispatchInfo(item)))
@@ -508,6 +513,11 @@ func TestRegisterDomainRequestFuzz(t *testing.T) {
 		})
 	})
 }
+func TestReleaseSemaphoreDecisionAttributes(t *testing.T) {
+	for _, item := range []*types.ReleaseSemaphoreDecisionAttributes{nil, {}, &testdata.ReleaseSemaphoreDecisionAttributes} {
+		assert.Equal(t, item, ToReleaseSemaphoreDecisionAttributes(FromReleaseSemaphoreDecisionAttributes(item)))
+	}
+}
 func TestRequestCancelActivityTaskDecisionAttributes(t *testing.T) {
 	for _, item := range []*types.RequestCancelActivityTaskDecisionAttributes{nil, {}, &testdata.RequestCancelActivityTaskDecisionAttributes} {
 		assert.Equal(t, item, ToRequestCancelActivityTaskDecisionAttributes(FromRequestCancelActivityTaskDecisionAttributes(item)))
@@ -636,6 +646,21 @@ func TestScheduleActivityTaskDecisionAttributes(t *testing.T) {
 func TestSearchAttributes(t *testing.T) {
 	for _, item := range []*types.SearchAttributes{nil, {}, &testdata.SearchAttributes} {
 		assert.Equal(t, item, ToSearchAttributes(FromSearchAttributes(item)))
+	}
+}
+func TestSemaphoreAcquireInitiatedEventAttributes(t *testing.T) {
+	for _, item := range []*types.SemaphoreAcquireInitiatedEventAttributes{nil, {}, &testdata.SemaphoreAcquireInitiatedEventAttributes} {
+		assert.Equal(t, item, ToSemaphoreAcquireInitiatedEventAttributes(FromSemaphoreAcquireInitiatedEventAttributes(item)))
+	}
+}
+func TestSemaphoreAcquiredEventAttributes(t *testing.T) {
+	for _, item := range []*types.SemaphoreAcquiredEventAttributes{nil, {}, &testdata.SemaphoreAcquiredEventAttributes} {
+		assert.Equal(t, item, ToSemaphoreAcquiredEventAttributes(FromSemaphoreAcquiredEventAttributes(item)))
+	}
+}
+func TestSemaphoreReleasedEventAttributes(t *testing.T) {
+	for _, item := range []*types.SemaphoreReleasedEventAttributes{nil, {}, &testdata.SemaphoreReleasedEventAttributes} {
+		assert.Equal(t, item, ToSemaphoreReleasedEventAttributes(FromSemaphoreReleasedEventAttributes(item)))
 	}
 }
 func TestSignalExternalWorkflowExecutionDecisionAttributes(t *testing.T) {
@@ -1221,6 +1246,9 @@ func TestHistoryEvent(t *testing.T) {
 		&testdata.HistoryEvent_SignalExternalWorkflowExecutionFailed,
 		&testdata.HistoryEvent_ExternalWorkflowExecutionSignaled,
 		&testdata.HistoryEvent_UpsertWorkflowSearchAttributes,
+		&testdata.HistoryEvent_SemaphoreAcquireInitiated,
+		&testdata.HistoryEvent_SemaphoreAcquired,
+		&testdata.HistoryEvent_SemaphoreReleased,
 	} {
 		assert.Equal(t, item, ToHistoryEvent(FromHistoryEvent(item)))
 	}
@@ -1242,6 +1270,8 @@ func TestDecision(t *testing.T) {
 		&testdata.Decision_StartChildWorkflowExecution,
 		&testdata.Decision_StartTimer,
 		&testdata.Decision_UpsertWorkflowSearchAttributes,
+		&testdata.Decision_AcquireSemaphore,
+		&testdata.Decision_ReleaseSemaphore,
 	} {
 		assert.Equal(t, item, ToDecision(FromDecision(item)))
 	}
@@ -3133,4 +3163,24 @@ func TestClusterAttributeScopeFuzz(t *testing.T) {
 
 func TestBadBinaryInfoMapFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromBadBinaryInfoMap, ToBadBinaryInfoMap)
+}
+
+func TestAcquireSemaphoreDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAcquireSemaphoreDecisionAttributes, ToAcquireSemaphoreDecisionAttributes)
+}
+
+func TestReleaseSemaphoreDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReleaseSemaphoreDecisionAttributes, ToReleaseSemaphoreDecisionAttributes)
+}
+
+func TestSemaphoreAcquireInitiatedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreAcquireInitiatedEventAttributes, ToSemaphoreAcquireInitiatedEventAttributes)
+}
+
+func TestSemaphoreAcquiredEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreAcquiredEventAttributes, ToSemaphoreAcquiredEventAttributes)
+}
+
+func TestSemaphoreReleasedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreReleasedEventAttributes, ToSemaphoreReleasedEventAttributes)
 }

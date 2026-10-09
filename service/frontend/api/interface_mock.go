@@ -87,6 +87,21 @@ func (mr *MockHandlerMockRecorder) CreateSchedule(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSchedule", reflect.TypeOf((*MockHandler)(nil).CreateSchedule), arg0, arg1)
 }
 
+// CreateSemaphore mocks base method.
+func (m *MockHandler) CreateSemaphore(arg0 context.Context, arg1 *types.CreateSemaphoreRequest) (*types.CreateSemaphoreResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateSemaphore", arg0, arg1)
+	ret0, _ := ret[0].(*types.CreateSemaphoreResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateSemaphore indicates an expected call of CreateSemaphore.
+func (mr *MockHandlerMockRecorder) CreateSemaphore(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSemaphore", reflect.TypeOf((*MockHandler)(nil).CreateSemaphore), arg0, arg1)
+}
+
 // DeleteDomain mocks base method.
 func (m *MockHandler) DeleteDomain(arg0 context.Context, arg1 *types.DeleteDomainRequest) error {
 	m.ctrl.T.Helper()

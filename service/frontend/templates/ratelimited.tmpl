@@ -58,6 +58,7 @@ import (
 {{$ratelimitTypeMap = set $ratelimitTypeMap "UnpauseSchedule" "ratelimitTypeUser"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "BackfillSchedule" "ratelimitTypeUser"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "ListSchedules" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "CreateSemaphore" "ratelimitTypeUser"}}
 
 {{$ratelimitTypeMap = set $ratelimitTypeMap "Health" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "DeleteDomain" "ratelimitTypeNoop"}}

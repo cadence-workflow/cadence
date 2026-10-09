@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"math/rand"
 	"runtime/debug"
 	"slices"
@@ -67,6 +68,8 @@ var (
 	ErrMissingActivityInfo = &types.InternalServiceError{Message: "unable to get activity info"}
 	// ErrMissingChildWorkflowInfo indicates missing child workflow info
 	ErrMissingChildWorkflowInfo = &types.InternalServiceError{Message: "unable to get child workflow info"}
+	// ErrMissingSemaphoreInfo indicates missing semaphore hold info
+	ErrMissingSemaphoreInfo = &types.InternalServiceError{Message: "unable to get semaphore info"}
 	// ErrMissingWorkflowStartEvent indicates missing workflow start event
 	ErrMissingWorkflowStartEvent = &types.InternalServiceError{Message: "unable to get workflow start event"}
 	// ErrMissingWorkflowCompletionEvent indicates missing workflow completion event
@@ -897,7 +900,12 @@ func (e *mutableStateBuilder) shouldBufferEvent(
 		types.EventTypeMarkerRecorded,
 		types.EventTypeStartChildWorkflowExecutionInitiated,
 		types.EventTypeSignalExternalWorkflowExecutionInitiated,
-		types.EventTypeUpsertWorkflowSearchAttributes:
+		types.EventTypeUpsertWorkflowSearchAttributes,
+		types.EventTypeSemaphoreAcquireInitiated,
+		// SemaphoreReleased is an exception. It also comes from auto-release when the run
+		// closes, not only from a decision. Not buffering is still right there: events after
+		// the close event are dropped, and a buffered event would land after it.
+		types.EventTypeSemaphoreReleased:
 		// do not buffer event if event is directly generated from a corresponding decision
 
 		// sanity check there is no decision on the fly
@@ -941,10 +949,13 @@ func (e *mutableStateBuilder) GetRetryBackoffDuration(
 		info.InitialInterval,
 		info.MaximumInterval,
 		info.BackoffCoefficient,
+		info.JitterCoefficient,
 	)
 	if backoffInterval == backoff.NoBackoff {
 		return backoff.NoBackoff
 	}
+	// Round up so a sub-second jittered interval doesn't become an immediate retry
+	backoffInterval = time.Duration(math.Ceil(backoffInterval.Seconds())) * time.Second
 	nextScheduledTime := e.timeSource.Now().Add(backoffInterval)
 	if shouldRetry(nextScheduledTime, info.Attempt, info.MaximumAttempts, info.ExpirationTime, errReason, info.NonRetriableErrors, types.FailureCategoryStandard) {
 		return backoffInterval

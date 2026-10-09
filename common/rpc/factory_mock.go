@@ -57,6 +57,20 @@ func (mr *MockFactoryMockRecorder) GetDispatcher() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDispatcher", reflect.TypeOf((*MockFactory)(nil).GetDispatcher))
 }
 
+// GetGRPCPort mocks base method.
+func (m *MockFactory) GetGRPCPort() uint16 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGRPCPort")
+	ret0, _ := ret[0].(uint16)
+	return ret0
+}
+
+// GetGRPCPort indicates an expected call of GetGRPCPort.
+func (mr *MockFactoryMockRecorder) GetGRPCPort() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGRPCPort", reflect.TypeOf((*MockFactory)(nil).GetGRPCPort))
+}
+
 // GetMaxMessageSize mocks base method.
 func (m *MockFactory) GetMaxMessageSize() int {
 	m.ctrl.T.Helper()
@@ -83,6 +97,20 @@ func (m *MockFactory) GetTChannel() tchannel.Channel {
 func (mr *MockFactoryMockRecorder) GetTChannel() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTChannel", reflect.TypeOf((*MockFactory)(nil).GetTChannel))
+}
+
+// GetTChannelPort mocks base method.
+func (m *MockFactory) GetTChannelPort() uint16 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTChannelPort")
+	ret0, _ := ret[0].(uint16)
+	return ret0
+}
+
+// GetTChannelPort indicates an expected call of GetTChannelPort.
+func (mr *MockFactoryMockRecorder) GetTChannelPort() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTChannelPort", reflect.TypeOf((*MockFactory)(nil).GetTChannelPort))
 }
 
 // Start mocks base method.

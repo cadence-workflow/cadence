@@ -127,6 +127,21 @@ func (mr *MockContextMockRecorder) DeleteFailoverLevel(category, failoverID any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFailoverLevel", reflect.TypeOf((*MockContext)(nil).DeleteFailoverLevel), category, failoverID)
 }
 
+// EnqueueAsyncWorkflowMessage mocks base method.
+func (m *MockContext) EnqueueAsyncWorkflowMessage(ctx context.Context, request *persistence.EnqueueAsyncWorkflowMessageRequest) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueueAsyncWorkflowMessage", ctx, request)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnqueueAsyncWorkflowMessage indicates an expected call of EnqueueAsyncWorkflowMessage.
+func (mr *MockContextMockRecorder) EnqueueAsyncWorkflowMessage(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueAsyncWorkflowMessage", reflect.TypeOf((*MockContext)(nil).EnqueueAsyncWorkflowMessage), ctx, request)
+}
+
 // GenerateTaskID mocks base method.
 func (m *MockContext) GenerateTaskID() (int64, error) {
 	m.ctrl.T.Helper()

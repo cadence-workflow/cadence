@@ -44,6 +44,9 @@ type (
 
 		nosqlplugin.ClientErrorChecker
 		IsCassandraConsistencyError(error) bool
+		// IsSchemaElementExistsError returns true if a DDL statement failed because the element it creates
+		// (table, type, index, column, or type field) already exists
+		IsSchemaElementExistsError(error) bool
 	}
 
 	// Session is the interface for interacting with the database.

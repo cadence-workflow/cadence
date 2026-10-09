@@ -235,6 +235,7 @@ const (
 	FlagDynamicConfigName              = "name"
 	FlagDynamicConfigFilter            = "filter"
 	FlagDynamicConfigValue             = "value"
+	FlagDynamicConfigValueFile         = "value-file"
 	FlagTransport                      = "transport"
 	FlagFormat                         = "format"
 	FlagJSON                           = "json"

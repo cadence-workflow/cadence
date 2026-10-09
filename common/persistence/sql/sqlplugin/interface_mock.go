@@ -1916,6 +1916,20 @@ func (mr *MockadminCRUDMockRecorder) HasSchemaVersionTables() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSchemaVersionTables", reflect.TypeOf((*MockadminCRUD)(nil).HasSchemaVersionTables))
 }
 
+// IsSchemaElementExistsError mocks base method.
+func (m *MockadminCRUD) IsSchemaElementExistsError(err error) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSchemaElementExistsError", err)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSchemaElementExistsError indicates an expected call of IsSchemaElementExistsError.
+func (mr *MockadminCRUDMockRecorder) IsSchemaElementExistsError(err any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSchemaElementExistsError", reflect.TypeOf((*MockadminCRUD)(nil).IsSchemaElementExistsError), err)
+}
+
 // ListTables mocks base method.
 func (m *MockadminCRUD) ListTables(database string) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -5692,6 +5706,20 @@ func (m *MockAdminDB) HasSchemaVersionTables() (bool, error) {
 func (mr *MockAdminDBMockRecorder) HasSchemaVersionTables() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSchemaVersionTables", reflect.TypeOf((*MockAdminDB)(nil).HasSchemaVersionTables))
+}
+
+// IsSchemaElementExistsError mocks base method.
+func (m *MockAdminDB) IsSchemaElementExistsError(err error) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSchemaElementExistsError", err)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSchemaElementExistsError indicates an expected call of IsSchemaElementExistsError.
+func (mr *MockAdminDBMockRecorder) IsSchemaElementExistsError(err any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSchemaElementExistsError", reflect.TypeOf((*MockAdminDB)(nil).IsSchemaElementExistsError), err)
 }
 
 // ListTables mocks base method.

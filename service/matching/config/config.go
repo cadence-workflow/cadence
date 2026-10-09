@@ -218,7 +218,7 @@ func NewConfig(dc *dynamicconfig.Collection, operationalDC *dynamicconfig.Collec
 		EnableTaskInfoLogByDomainID:                dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.MatchingEnableTaskInfoLogByDomainID),
 		ActivityTaskSyncMatchWaitTime:              dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingActivityTaskSyncMatchWaitTime),
 		EnableTasklistIsolation:                    dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
-		EnableDistributedSemaphore:                 dc.GetBoolPropertyFilteredByDomain(dynamicproperties.MatchingEnableDistributedSemaphore),
+		EnableDistributedSemaphore:                 dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDistributedSemaphore),
 		SemaphoreIdleTime:                          dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingSemaphoreIdleTime),
 		AppendTaskTimeout:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AppendTaskTimeout),
 		AsyncTaskDispatchTimeout:                   dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AsyncTaskDispatchTimeout),

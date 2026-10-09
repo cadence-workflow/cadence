@@ -23,6 +23,7 @@ package matching
 import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/service"
 )
 
@@ -33,6 +34,7 @@ import (
 
 type PeerResolver interface {
 	FromTaskList(taskListName string) (string, error)
+	FromSemaphoreBucket(domainID, semaphoreName string, bucket int) (string, error)
 	GetAllPeers() ([]string, error)
 	FromHostAddress(hostAddress string) (string, error)
 }
@@ -55,6 +57,18 @@ func NewPeerResolver(membership membership.Resolver, namedPort string) PeerResol
 // FromHostAddress is used for further resolving.
 func (pr peerResolver) FromTaskList(taskListName string) (string, error) {
 	host, err := pr.resolver.Lookup(service.Matching, taskListName)
+	if err != nil {
+		return "", common.ToServiceTransientError(err)
+	}
+
+	peer, err := host.GetNamedAddress(pr.namedPort)
+	return peer, common.ToServiceTransientError(err)
+}
+
+// FromSemaphoreBucket returns the address of the Matching host that owns the given semaphore
+// bucket.
+func (pr peerResolver) FromSemaphoreBucket(domainID, semaphoreName string, bucket int) (string, error) {
+	host, err := pr.resolver.Lookup(service.Matching, semaphore.RingKey(domainID, semaphoreName, bucket))
 	if err != nil {
 		return "", common.ToServiceTransientError(err)
 	}

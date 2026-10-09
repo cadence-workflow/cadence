@@ -57,6 +57,12 @@ func TestCloudSQLMySQLShardPersistenceSuite(t *testing.T) {
 	suite.Run(t, s)
 }
 
+func TestCloudSQLMySQLAdminPersistenceSuite(t *testing.T) {
+	s := new(pt.AdminPersistenceSuite)
+	s.TestBase = CloudMySQLTestBase(t)
+	suite.Run(t, s)
+}
+
 type ExecutionManagerSuite struct {
 	pt.ExecutionManagerSuite
 }

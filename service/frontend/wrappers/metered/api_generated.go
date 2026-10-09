@@ -91,6 +91,23 @@ func (h *apiHandler) CreateSchedule(ctx context.Context, cp1 *types.CreateSchedu
 	}
 	return cp2, err
 }
+func (h *apiHandler) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest) (cp2 *types.CreateSemaphoreResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("CreateSemaphore")}
+	tags = append(tags, toCreateSemaphoreRequestTags(cp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendCreateSemaphoreScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(cp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	swStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	logger := h.logger.WithTags(tags...)
+
+	cp2, err = h.handler.CreateSemaphore(ctx, cp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return cp2, err
+}
 func (h *apiHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("DeleteDomain")}

@@ -11,8 +11,8 @@ import (
 )
 
 // EnqueueAsyncWorkflowMessage writes one accepted async workflow request onto this shard's queue.
-// The message id comes from the shard's own task-id sequence, so ordering and uniqueness within the
-// shard follow from shard ownership rather than from a conditional write.
+// The shard context allocates the message id and writes the row under the shard lock, so message ids
+// become visible to the consumer in allocation order.
 func (e *historyEngineImpl) EnqueueAsyncWorkflowMessage(
 	ctx context.Context,
 	request *types.EnqueueAsyncWorkflowMessageRequest,
@@ -38,24 +38,17 @@ func (e *historyEngineImpl) EnqueueAsyncWorkflowMessage(
 		return nil, err
 	}
 
-	messageID, err := e.shard.GenerateTaskID()
-	if err != nil {
-		return nil, err
+	enqueueRequest := &persistence.EnqueueAsyncWorkflowMessageRequest{
+		ShardID:         shardID,
+		SourceCluster:   e.shard.GetClusterMetadata().GetCurrentClusterName(),
+		DomainName:      request.GetDomainName(),
+		WorkflowID:      request.GetWorkflowID(),
+		RequestID:       request.GetRequestID(),
+		RequestType:     requestType,
+		Payload:         payload.Data,
+		PayloadEncoding: payloadEncoding,
 	}
-	err = e.shard.GetService().GetPersistenceBean().GetAsyncWorkflowQueueManager().EnqueueAsyncWorkflowMessage(
-		ctx,
-		&persistence.EnqueueAsyncWorkflowMessageRequest{
-			ShardID:         shardID,
-			SourceCluster:   e.shard.GetClusterMetadata().GetCurrentClusterName(),
-			MessageID:       messageID,
-			DomainName:      request.GetDomainName(),
-			WorkflowID:      request.GetWorkflowID(),
-			RequestID:       request.GetRequestID(),
-			RequestType:     requestType,
-			Payload:         payload.Data,
-			PayloadEncoding: payloadEncoding,
-		},
-	)
+	messageID, err := e.shard.EnqueueAsyncWorkflowMessage(ctx, enqueueRequest)
 	if err != nil {
 		return nil, err
 	}

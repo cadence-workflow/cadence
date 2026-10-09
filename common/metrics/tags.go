@@ -44,6 +44,7 @@ const (
 	taskList                  = "tasklist"
 	taskListType              = "tasklistType"
 	taskListRootPartition     = "tasklist_root_partition"
+	semaphoreName             = "semaphore"
 	workflowType              = "workflowType"
 	activityType              = "activityType"
 	decisionType              = "decisionType"
@@ -196,6 +197,14 @@ func ActiveClusterTag(value string) Tag {
 // IsActiveActiveDomainTag returns a new is active active domain tag.
 func IsActiveActiveDomainTag(value bool) Tag {
 	return simpleMetric{key: isActiveActiveDomain, value: strconv.FormatBool(value)}
+}
+
+// SemaphoreNameTag returns a new semaphore tag.
+func SemaphoreNameTag(value string) Tag {
+	if len(value) == 0 {
+		value = unknownValue
+	}
+	return simpleMetric{key: semaphoreName, value: sanitizer.Value(value)}
 }
 
 // TaskListTag returns a new task list tag.

@@ -23,6 +23,11 @@ func (g matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecis
 	return proto.ToMatchingAddDecisionTaskResponse(response), proto.ToError(err)
 }
 
+func (g matchingClient) AddSemaphoreTask(ctx context.Context, ap1 *types.AddSemaphoreTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddSemaphoreTaskResponse, err error) {
+	response, err := g.c.AddSemaphoreTask(ctx, proto.FromMatchingAddSemaphoreTaskRequest(ap1), p1...)
+	return proto.ToMatchingAddSemaphoreTaskResponse(response), proto.ToError(err)
+}
+
 func (g matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
 	_, err = g.c.CancelOutstandingPoll(ctx, proto.FromMatchingCancelOutstandingPollRequest(cp1), p1...)
 	return proto.ToError(err)

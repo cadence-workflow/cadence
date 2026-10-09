@@ -58,6 +58,12 @@ func TestCassandraShardPersistence(t *testing.T) {
 	suite.Run(t, s)
 }
 
+func TestCassandraAdminPersistence(t *testing.T) {
+	s := new(pt.AdminPersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
+	suite.Run(t, s)
+}
+
 func TestCassandraShardMigrationPersistence(t *testing.T) {
 	s := new(pt.ShardPersistenceSuite)
 	s.TestBase = CassandraTestBase(t, func(dc *persistence.DynamicConfiguration) {

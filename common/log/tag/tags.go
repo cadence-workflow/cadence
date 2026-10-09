@@ -258,6 +258,11 @@ func Duration(duration time.Duration) Tag {
 	return newDurationTag("duration", duration)
 }
 
+// LagDuration returns tag for how far behind something is in time
+func LagDuration(lag time.Duration) Tag {
+	return newDurationTag("lag-duration", lag)
+}
+
 // domain related
 
 // WorkflowDomainID returns tag for WorkflowDomainID

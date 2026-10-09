@@ -131,6 +131,9 @@ type Config struct {
 	// CreateSchedule early when no scheduler worker will run for the domain.
 	EnableScheduler dynamicproperties.BoolPropertyFnWithDomainFilter
 
+	// EnableDistributedSemaphore gates CreateSemaphore per domain.
+	EnableDistributedSemaphore dynamicproperties.BoolPropertyFnWithDomainFilter
+
 	// HostName for machine running the service
 	HostName string
 }
@@ -211,6 +214,7 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		EnableTasklistIsolation:                           dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
 		EnableDomainAuditLogging:                          dc.GetBoolProperty(dynamicproperties.EnableDomainAuditLogging),
 		EnableScheduler:                                   dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler),
+		EnableDistributedSemaphore:                        dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDistributedSemaphore),
 		DomainConfig: domain.Config{
 			MaxBadBinaryCount:           dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxBadBinaries),
 			MinRetentionDays:            dc.GetIntProperty(dynamicproperties.MinRetentionDays),

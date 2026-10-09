@@ -568,6 +568,40 @@ func TestClient_withResponse(t *testing.T) {
 			want:      nil,
 			wantError: true,
 		},
+		{
+			name: "AddSemaphoreTask",
+			op: func(c Client) (any, error) {
+				return c.AddSemaphoreTask(context.Background(), testAddSemaphoreTaskRequest())
+			},
+			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
+				p.EXPECT().FromSemaphoreBucket(_testDomainUUID, "sem-1", 2).Return("peer0", nil)
+				c.EXPECT().AddSemaphoreTask(gomock.Any(), testAddSemaphoreTaskRequest(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(&types.AddSemaphoreTaskResponse{}, nil)
+			},
+			want: &types.AddSemaphoreTaskResponse{},
+		},
+		{
+			name: "AddSemaphoreTask - Error in resolving peer",
+			op: func(c Client) (any, error) {
+				return c.AddSemaphoreTask(context.Background(), testAddSemaphoreTaskRequest())
+			},
+			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
+				p.EXPECT().FromSemaphoreBucket(_testDomainUUID, "sem-1", 2).Return("", assert.AnError)
+			},
+			want:      nil,
+			wantError: true,
+		},
+		{
+			name: "AddSemaphoreTask - Error while adding semaphore task",
+			op: func(c Client) (any, error) {
+				return c.AddSemaphoreTask(context.Background(), testAddSemaphoreTaskRequest())
+			},
+			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
+				p.EXPECT().FromSemaphoreBucket(_testDomainUUID, "sem-1", 2).Return("peer0", nil)
+				c.EXPECT().AddSemaphoreTask(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(nil, assert.AnError)
+			},
+			want:      nil,
+			wantError: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -710,5 +744,14 @@ func testMatchingRefreshTaskListPartitionConfigRequest() *types.MatchingRefreshT
 				},
 			},
 		},
+	}
+}
+
+func testAddSemaphoreTaskRequest() *types.AddSemaphoreTaskRequest {
+	return &types.AddSemaphoreTaskRequest{
+		DomainUUID:    _testDomainUUID,
+		SemaphoreName: "sem-1",
+		Bucket:        2,
+		OwnerID:       "owner-1",
 	}
 }

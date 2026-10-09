@@ -124,6 +124,27 @@ When adding or modifying panels:
    - Services: `cadence_service=~"cadence[-_]<service>"`
    - Aggregations: Explicit `sum by (label1, label2)`
 
+## Importing to Cloud Monitoring
+
+To import Grafana dashboards to Google Cloud Monitoring:
+
+1. **Start the local Grafana instance:**
+   ```bash
+   docker compose -f docker/docker-compose.yml up -d
+   ```
+   Navigate to `http://localhost:3000` and find the dashboard you want to export.
+
+2. **Export the dashboard:**
+   - In the dashboard toolbar, click **Export** → **Export as code**
+   - Select **Model: Classic**
+   - Enable **"Export for sharing externally"**
+   - Save the exported JSON file
+
+3. **Import to Cloud Monitoring:**
+   - Upload the exported JSON file to Google Cloud Monitoring
+   - You may see some warnings during import, but there should be **no errors**
+   - Warnings are typically related to datasource mappings or plugin versions and are safe to ignore
+
 ## Future Work
 
 - Fix broken replication panels

@@ -54,6 +54,12 @@ func TestMySQLShardPersistenceSuite(t *testing.T) {
 	suite.Run(t, s)
 }
 
+func TestMySQLAdminPersistenceSuite(t *testing.T) {
+	s := new(pt.AdminPersistenceSuite)
+	s.TestBase = MySQLTestBase(t)
+	suite.Run(t, s)
+}
+
 type ExecutionManagerSuite struct {
 	pt.ExecutionManagerSuite
 }

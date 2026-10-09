@@ -101,6 +101,22 @@ func (h *apiHandler) CreateSchedule(ctx context.Context, cp1 *types.CreateSchedu
 	return h.wrapped.CreateSchedule(ctx, cp1)
 }
 
+func (h *apiHandler) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest) (cp2 *types.CreateSemaphoreResponse, err error) {
+	if cp1 == nil {
+		err = validate.ErrRequestNotSet
+		return
+	}
+	if cp1.GetDomain() == "" {
+		err = validate.ErrDomainNotSet
+		return
+	}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: cp1.GetDomain()}); limitErr != nil {
+		err = limitErr
+		return
+	}
+	return h.wrapped.CreateSemaphore(ctx, cp1)
+}
+
 func (h *apiHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {
 	return h.wrapped.DeleteDomain(ctx, dp1)
 }

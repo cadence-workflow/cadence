@@ -51,30 +51,6 @@ func (m *semaphoreTokenManagerImpl) Close() {
 	m.persistence.Close()
 }
 
-func (m *semaphoreTokenManagerImpl) SeedSemaphoreTokens(
-	ctx context.Context,
-	request *SeedSemaphoreTokensRequest,
-) error {
-	if err := validateSemaphoreBucket(request.DomainID, request.SemaphoreName, request.Bucket); err != nil {
-		return err
-	}
-	if len(request.TokenIDs) == 0 {
-		return fmt.Errorf("TokenIDs is required")
-	}
-	// This slice is the bucket's token set, so it carries the same bound CreateSemaphore
-	// applies. Checked again here because a caller can reach a seed without having gone
-	// through CreateSemaphore.
-	if len(request.TokenIDs) > MaxSemaphoreBucketSize {
-		return fmt.Errorf("a bucket holds at most %d tokens, got %d", MaxSemaphoreBucketSize, len(request.TokenIDs))
-	}
-	for _, id := range request.TokenIDs {
-		if id < 1 {
-			return fmt.Errorf("TokenID must be positive, got %d", id)
-		}
-	}
-	return m.persistence.SeedSemaphoreTokens(ctx, request, m.timeSrc.Now().UTC())
-}
-
 func (m *semaphoreTokenManagerImpl) GrantSemaphoreToken(
 	ctx context.Context,
 	request *GrantSemaphoreTokenRequest,

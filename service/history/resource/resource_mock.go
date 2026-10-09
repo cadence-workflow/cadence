@@ -662,6 +662,20 @@ func (mr *MockResourceMockRecorder) GetSDKClient() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSDKClient", reflect.TypeOf((*MockResource)(nil).GetSDKClient))
 }
 
+// GetSemaphoreMetadataManager mocks base method.
+func (m *MockResource) GetSemaphoreMetadataManager() persistence.SemaphoreMetadataManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreMetadataManager")
+	ret0, _ := ret[0].(persistence.SemaphoreMetadataManager)
+	return ret0
+}
+
+// GetSemaphoreMetadataManager indicates an expected call of GetSemaphoreMetadataManager.
+func (mr *MockResourceMockRecorder) GetSemaphoreMetadataManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreMetadataManager", reflect.TypeOf((*MockResource)(nil).GetSemaphoreMetadataManager))
+}
+
 // GetServiceName mocks base method.
 func (m *MockResource) GetServiceName() string {
 	m.ctrl.T.Helper()
