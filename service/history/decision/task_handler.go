@@ -541,8 +541,8 @@ func (handler *taskHandlerImpl) handleDecisionFailWorkflow(
 	return handler.handleWorkflowFailure(ctx, attr)
 }
 
-// handleWorkflowFailure ends the run for a failure. The run is canceled instead if a cancel was
-// requested, and continues as new if its retry policy or cron schedule applies.
+// handleWorkflowFailure cancels the run if a cancel was requested, else retries or cron-restarts
+// it, else fails it. No-op if the run already closed.
 func (handler *taskHandlerImpl) handleWorkflowFailure(
 	ctx context.Context,
 	attr *types.FailWorkflowExecutionDecisionAttributes,
