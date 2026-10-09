@@ -194,7 +194,10 @@ func (q *processingQueueImpl) AddTasks(tasks map[task.Key]task.Task, newReadLeve
 		if !taskBelongsToProcessQueue(q.state, key, task) {
 			errMsg := "Processing queue encountered a task doesn't belong to its scope"
 			q.logger.Error(errMsg, tag.Error(
-				fmt.Errorf("processing queue state: %+v, key: %+v, task: %+v", q.state, key, task),
+				// do not format the task itself with %+v: it may already be executing on another
+				// goroutine, and reflecting over its fields races with those concurrent writes
+				fmt.Errorf("processing queue state: %+v, key: %+v, domainID: %v, workflowID: %v, runID: %v, taskType: %v",
+					q.state, key, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID(), task.GetTaskType()),
 			))
 			continue
 		}
