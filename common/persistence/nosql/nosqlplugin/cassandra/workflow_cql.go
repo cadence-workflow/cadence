@@ -73,6 +73,7 @@ const (
 		`has_retry_policy: ?, ` +
 		`init_interval: ?, ` +
 		`backoff_coefficient: ?, ` +
+		`jitter_coefficient: ?, ` +
 		`max_interval: ?, ` +
 		`expiration_time: ?, ` +
 		`max_attempts: ?, ` +
@@ -169,6 +170,7 @@ const (
 		`has_retry_policy: ?, ` +
 		`init_interval: ?, ` +
 		`backoff_coefficient: ?, ` +
+		`jitter_coefficient: ?, ` +
 		`max_interval: ?, ` +
 		`expiration_time: ?, ` +
 		`max_attempts: ?, ` +

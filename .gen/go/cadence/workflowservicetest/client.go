@@ -143,6 +143,39 @@ func (mr *_MockClientRecorder) CreateSchedule(
 	return mr.mock.ctrl.RecordCall(mr.mock, "CreateSchedule", args...)
 }
 
+// CreateSemaphore responds to a CreateSemaphore call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().CreateSemaphore(gomock.Any(), ...).Return(...)
+//	... := client.CreateSemaphore(...)
+func (m *MockClient) CreateSemaphore(
+	ctx context.Context,
+	_Request *shared.CreateSemaphoreRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.CreateSemaphoreResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "CreateSemaphore", args...)
+	success, _ = ret[i].(*shared.CreateSemaphoreResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) CreateSemaphore(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "CreateSemaphore", args...)
+}
+
 // DeleteDomain responds to a DeleteDomain call based on the mock expectations. This
 // call will fail if the mock does not expect this call. Use EXPECT to expect
 // a call to this function.

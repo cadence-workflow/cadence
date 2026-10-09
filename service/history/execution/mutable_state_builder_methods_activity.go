@@ -317,6 +317,7 @@ func (e *mutableStateBuilder) ReplicateActivityTaskScheduledEvent(
 	if ai.HasRetryPolicy {
 		ai.InitialInterval = attributes.RetryPolicy.GetInitialIntervalInSeconds()
 		ai.BackoffCoefficient = attributes.RetryPolicy.GetBackoffCoefficient()
+		ai.JitterCoefficient = attributes.RetryPolicy.GetJitterCoefficient()
 		ai.MaximumInterval = attributes.RetryPolicy.GetMaximumIntervalInSeconds()
 		ai.MaximumAttempts = attributes.RetryPolicy.GetMaximumAttempts()
 		ai.NonRetriableErrors = attributes.RetryPolicy.NonRetriableErrorReasons
@@ -705,6 +706,7 @@ func (e *mutableStateBuilder) RetryActivity(
 		ai.InitialInterval,
 		ai.MaximumInterval,
 		ai.BackoffCoefficient,
+		ai.JitterCoefficient,
 	)
 	if failureOptions.GetNextRetryIntervalSeconds() > 0 {
 		backoffInterval = time.Duration(failureOptions.GetNextRetryIntervalSeconds()) * time.Second

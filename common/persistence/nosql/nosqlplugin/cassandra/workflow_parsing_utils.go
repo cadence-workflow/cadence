@@ -163,6 +163,8 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) (*persistence.Int
 			info.InitialInterval = common.SecondsToDuration(int64(v.(int)))
 		case "backoff_coefficient":
 			info.BackoffCoefficient = v.(float64)
+		case "jitter_coefficient":
+			info.JitterCoefficient = v.(float64)
 		case "max_interval":
 			info.MaximumInterval = common.SecondsToDuration(int64(v.(int)))
 		case "max_attempts":
@@ -313,6 +315,8 @@ func parseActivityInfo(
 			info.InitialInterval = common.SecondsToDuration(int64(v.(int)))
 		case "backoff_coefficient":
 			info.BackoffCoefficient = v.(float64)
+		case "jitter_coefficient":
+			info.JitterCoefficient = v.(float64)
 		case "max_interval":
 			info.MaximumInterval = common.SecondsToDuration(int64(v.(int)))
 		case "max_attempts":

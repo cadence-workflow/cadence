@@ -3220,6 +3220,7 @@ func FromRetryPolicy(t *types.RetryPolicy) *apiv1.RetryPolicy {
 		MaximumAttempts:          t.MaximumAttempts,
 		NonRetryableErrorReasons: t.NonRetriableErrorReasons,
 		ExpirationInterval:       secondsToDuration(common.Int32Ptr(t.ExpirationIntervalInSeconds)),
+		JitterCoefficient:        t.JitterCoefficient,
 	}
 }
 
@@ -3234,6 +3235,7 @@ func ToRetryPolicy(t *apiv1.RetryPolicy) *types.RetryPolicy {
 		MaximumAttempts:             t.MaximumAttempts,
 		NonRetriableErrorReasons:    t.NonRetryableErrorReasons,
 		ExpirationIntervalInSeconds: common.Int32Default(durationToSeconds(t.ExpirationInterval)),
+		JitterCoefficient:           t.JitterCoefficient,
 	}
 }
 
@@ -4886,6 +4888,108 @@ func ToUpsertWorkflowSearchAttributesDecisionAttributes(t *apiv1.UpsertWorkflowS
 	}
 }
 
+func FromAcquireSemaphoreDecisionAttributes(t *types.AcquireSemaphoreDecisionAttributes) *apiv1.AcquireSemaphoreDecisionAttributes {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.AcquireSemaphoreDecisionAttributes{
+		SemaphoreName: t.SemaphoreName,
+		WaitTimeout:   secondsToDuration(t.WaitTimeoutSeconds),
+	}
+}
+
+func ToAcquireSemaphoreDecisionAttributes(t *apiv1.AcquireSemaphoreDecisionAttributes) *types.AcquireSemaphoreDecisionAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.AcquireSemaphoreDecisionAttributes{
+		SemaphoreName:      t.SemaphoreName,
+		WaitTimeoutSeconds: durationToSeconds(t.WaitTimeout),
+	}
+}
+
+func FromReleaseSemaphoreDecisionAttributes(t *types.ReleaseSemaphoreDecisionAttributes) *apiv1.ReleaseSemaphoreDecisionAttributes {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ReleaseSemaphoreDecisionAttributes{
+		InitiatedEventId: t.InitiatedEventID,
+	}
+}
+
+func ToReleaseSemaphoreDecisionAttributes(t *apiv1.ReleaseSemaphoreDecisionAttributes) *types.ReleaseSemaphoreDecisionAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.ReleaseSemaphoreDecisionAttributes{
+		InitiatedEventID: t.InitiatedEventId,
+	}
+}
+
+func FromSemaphoreAcquireInitiatedEventAttributes(t *types.SemaphoreAcquireInitiatedEventAttributes) *apiv1.SemaphoreAcquireInitiatedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.SemaphoreAcquireInitiatedEventAttributes{
+		SemaphoreName:                t.SemaphoreName,
+		WaitTimeout:                  secondsToDuration(t.WaitTimeoutSeconds),
+		DecisionTaskCompletedEventId: t.DecisionTaskCompletedEventID,
+	}
+}
+
+func ToSemaphoreAcquireInitiatedEventAttributes(t *apiv1.SemaphoreAcquireInitiatedEventAttributes) *types.SemaphoreAcquireInitiatedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreAcquireInitiatedEventAttributes{
+		SemaphoreName:                t.SemaphoreName,
+		WaitTimeoutSeconds:           durationToSeconds(t.WaitTimeout),
+		DecisionTaskCompletedEventID: t.DecisionTaskCompletedEventId,
+	}
+}
+
+func FromSemaphoreAcquiredEventAttributes(t *types.SemaphoreAcquiredEventAttributes) *apiv1.SemaphoreAcquiredEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.SemaphoreAcquiredEventAttributes{
+		TokenId:          t.TokenID,
+		InitiatedEventId: t.InitiatedEventID,
+	}
+}
+
+func ToSemaphoreAcquiredEventAttributes(t *apiv1.SemaphoreAcquiredEventAttributes) *types.SemaphoreAcquiredEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreAcquiredEventAttributes{
+		TokenID:          t.TokenId,
+		InitiatedEventID: t.InitiatedEventId,
+	}
+}
+
+func FromSemaphoreReleasedEventAttributes(t *types.SemaphoreReleasedEventAttributes) *apiv1.SemaphoreReleasedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.SemaphoreReleasedEventAttributes{
+		TokenId:                      t.TokenID,
+		InitiatedEventId:             t.InitiatedEventID,
+		DecisionTaskCompletedEventId: t.DecisionTaskCompletedEventID,
+	}
+}
+
+func ToSemaphoreReleasedEventAttributes(t *apiv1.SemaphoreReleasedEventAttributes) *types.SemaphoreReleasedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreReleasedEventAttributes{
+		TokenID:                      t.TokenId,
+		InitiatedEventID:             t.InitiatedEventId,
+		DecisionTaskCompletedEventID: t.DecisionTaskCompletedEventId,
+	}
+}
+
 func FromUpsertWorkflowSearchAttributesEventAttributes(t *types.UpsertWorkflowSearchAttributesEventAttributes) *apiv1.UpsertWorkflowSearchAttributesEventAttributes {
 	if t == nil {
 		return nil
@@ -6409,6 +6513,18 @@ func FromHistoryEvent(e *types.HistoryEvent) *apiv1.HistoryEvent {
 		event.Attributes = &apiv1.HistoryEvent_UpsertWorkflowSearchAttributesEventAttributes{
 			UpsertWorkflowSearchAttributesEventAttributes: FromUpsertWorkflowSearchAttributesEventAttributes(e.UpsertWorkflowSearchAttributesEventAttributes),
 		}
+	case types.EventTypeSemaphoreAcquireInitiated:
+		event.Attributes = &apiv1.HistoryEvent_SemaphoreAcquireInitiatedEventAttributes{
+			SemaphoreAcquireInitiatedEventAttributes: FromSemaphoreAcquireInitiatedEventAttributes(e.SemaphoreAcquireInitiatedEventAttributes),
+		}
+	case types.EventTypeSemaphoreAcquired:
+		event.Attributes = &apiv1.HistoryEvent_SemaphoreAcquiredEventAttributes{
+			SemaphoreAcquiredEventAttributes: FromSemaphoreAcquiredEventAttributes(e.SemaphoreAcquiredEventAttributes),
+		}
+	case types.EventTypeSemaphoreReleased:
+		event.Attributes = &apiv1.HistoryEvent_SemaphoreReleasedEventAttributes{
+			SemaphoreReleasedEventAttributes: FromSemaphoreReleasedEventAttributes(e.SemaphoreReleasedEventAttributes),
+		}
 	}
 	return &event
 }
@@ -6550,6 +6666,15 @@ func ToHistoryEvent(e *apiv1.HistoryEvent) *types.HistoryEvent {
 	case *apiv1.HistoryEvent_UpsertWorkflowSearchAttributesEventAttributes:
 		event.EventType = types.EventTypeUpsertWorkflowSearchAttributes.Ptr()
 		event.UpsertWorkflowSearchAttributesEventAttributes = ToUpsertWorkflowSearchAttributesEventAttributes(attr.UpsertWorkflowSearchAttributesEventAttributes)
+	case *apiv1.HistoryEvent_SemaphoreAcquireInitiatedEventAttributes:
+		event.EventType = types.EventTypeSemaphoreAcquireInitiated.Ptr()
+		event.SemaphoreAcquireInitiatedEventAttributes = ToSemaphoreAcquireInitiatedEventAttributes(attr.SemaphoreAcquireInitiatedEventAttributes)
+	case *apiv1.HistoryEvent_SemaphoreAcquiredEventAttributes:
+		event.EventType = types.EventTypeSemaphoreAcquired.Ptr()
+		event.SemaphoreAcquiredEventAttributes = ToSemaphoreAcquiredEventAttributes(attr.SemaphoreAcquiredEventAttributes)
+	case *apiv1.HistoryEvent_SemaphoreReleasedEventAttributes:
+		event.EventType = types.EventTypeSemaphoreReleased.Ptr()
+		event.SemaphoreReleasedEventAttributes = ToSemaphoreReleasedEventAttributes(attr.SemaphoreReleasedEventAttributes)
 	}
 	return &event
 }
@@ -6612,6 +6737,14 @@ func FromDecision(d *types.Decision) *apiv1.Decision {
 		decision.Attributes = &apiv1.Decision_UpsertWorkflowSearchAttributesDecisionAttributes{
 			UpsertWorkflowSearchAttributesDecisionAttributes: FromUpsertWorkflowSearchAttributesDecisionAttributes(d.UpsertWorkflowSearchAttributesDecisionAttributes),
 		}
+	case types.DecisionTypeAcquireSemaphore:
+		decision.Attributes = &apiv1.Decision_AcquireSemaphoreDecisionAttributes{
+			AcquireSemaphoreDecisionAttributes: FromAcquireSemaphoreDecisionAttributes(d.AcquireSemaphoreDecisionAttributes),
+		}
+	case types.DecisionTypeReleaseSemaphore:
+		decision.Attributes = &apiv1.Decision_ReleaseSemaphoreDecisionAttributes{
+			ReleaseSemaphoreDecisionAttributes: FromReleaseSemaphoreDecisionAttributes(d.ReleaseSemaphoreDecisionAttributes),
+		}
 	}
 	return &decision
 }
@@ -6661,6 +6794,12 @@ func ToDecision(d *apiv1.Decision) *types.Decision {
 	case *apiv1.Decision_UpsertWorkflowSearchAttributesDecisionAttributes:
 		decision.DecisionType = types.DecisionTypeUpsertWorkflowSearchAttributes.Ptr()
 		decision.UpsertWorkflowSearchAttributesDecisionAttributes = ToUpsertWorkflowSearchAttributesDecisionAttributes(attr.UpsertWorkflowSearchAttributesDecisionAttributes)
+	case *apiv1.Decision_AcquireSemaphoreDecisionAttributes:
+		decision.DecisionType = types.DecisionTypeAcquireSemaphore.Ptr()
+		decision.AcquireSemaphoreDecisionAttributes = ToAcquireSemaphoreDecisionAttributes(attr.AcquireSemaphoreDecisionAttributes)
+	case *apiv1.Decision_ReleaseSemaphoreDecisionAttributes:
+		decision.DecisionType = types.DecisionTypeReleaseSemaphore.Ptr()
+		decision.ReleaseSemaphoreDecisionAttributes = ToReleaseSemaphoreDecisionAttributes(attr.ReleaseSemaphoreDecisionAttributes)
 	}
 	return &decision
 }

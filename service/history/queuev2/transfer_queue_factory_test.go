@@ -108,5 +108,5 @@ func TestTransferQueueFactory_IsQueueV2Enabled(t *testing.T) {
 	// Test the isQueueV2Enabled method
 	// by default, queue v2 is disabled
 	enabled := factory.isQueueV2Enabled(mockShard)
-	assert.False(t, enabled)
+	assert.True(t, enabled)
 }

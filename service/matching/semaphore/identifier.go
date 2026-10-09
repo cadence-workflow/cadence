@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common/log/tag"
+	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -27,6 +28,16 @@ func NewIdentifier(domainID, semaphoreName string, bucket int) (Identifier, erro
 		return Identifier{}, &types.BadRequestError{Message: err.Error()}
 	}
 	return id, nil
+}
+
+// ParseRequestOwner decodes an owner_id from an RPC request, returning a BadRequestError if
+// it is malformed.
+func ParseRequestOwner(ownerID string) (commonsemaphore.Owner, error) {
+	owner, err := commonsemaphore.ParseOwner(ownerID)
+	if err != nil {
+		return commonsemaphore.Owner{}, &types.BadRequestError{Message: fmt.Sprintf("invalid owner id: %v", err)}
+	}
+	return owner, nil
 }
 
 func (id Identifier) validate() error {
@@ -56,11 +67,8 @@ func (id Identifier) LogTags() []tag.Tag {
 	}
 }
 
-// RingKey is what the bucket is hashed on to find the host that owns it. One bucket is one
-// partition, so exactly one host serves it.
-//
-// Kept apart from String(), which is for logs: reformatting a log line must not move buckets
-// between hosts.
+// RingKey returns the key used to look up this bucket's Matching host on the membership ring.
+// Separate from String(), which is for logs, so changing the log format never moves a bucket.
 func (id Identifier) RingKey() string {
-	return fmt.Sprintf("%s_%s_%d", id.DomainID, id.SemaphoreName, id.Bucket)
+	return commonsemaphore.RingKey(id.DomainID, id.SemaphoreName, id.Bucket)
 }

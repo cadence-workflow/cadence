@@ -1775,20 +1775,6 @@ func (mr *MockSemaphoreTokenManagerMockRecorder) ScanSemaphoreBucket(ctx, reques
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanSemaphoreBucket", reflect.TypeOf((*MockSemaphoreTokenManager)(nil).ScanSemaphoreBucket), ctx, request)
 }
 
-// SeedSemaphoreTokens mocks base method.
-func (m *MockSemaphoreTokenManager) SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SeedSemaphoreTokens", ctx, request)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SeedSemaphoreTokens indicates an expected call of SeedSemaphoreTokens.
-func (mr *MockSemaphoreTokenManagerMockRecorder) SeedSemaphoreTokens(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeedSemaphoreTokens", reflect.TypeOf((*MockSemaphoreTokenManager)(nil).SeedSemaphoreTokens), ctx, request)
-}
-
 // MockHistoryTaskDLQManager is a mock of HistoryTaskDLQManager interface.
 type MockHistoryTaskDLQManager struct {
 	ctrl     *gomock.Controller

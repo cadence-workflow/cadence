@@ -77,6 +77,25 @@ func TestForwardingPolicyV2ContainsV1(t *testing.T) {
 	}
 }
 
+func TestForwardingPolicyV3ContainsV2(t *testing.T) {
+	require.NotEqual(t, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2)
+	for k := range selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2 {
+		_, ok := selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3[k]
+		require.True(t, ok, "v3 does not contain a key that is in v2: %v", k)
+	}
+
+	diff := map[string]struct{}{}
+	for k := range selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3 {
+		if _, ok := selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2[k]; !ok {
+			diff[k] = struct{}{}
+		}
+	}
+	require.Equal(t, map[string]struct{}{
+		"StartWorkflowExecutionAsync":           {},
+		"SignalWithStartWorkflowExecutionAsync": {},
+	}, diff, "v3 minus v2 must be exactly the two async start APIs")
+}
+
 func TestClusterRedirectionHandlerSuite(t *testing.T) {
 	s := new(clusterRedirectionHandlerSuite)
 	suite.Run(t, s)
@@ -972,6 +991,45 @@ func (s *clusterRedirectionHandlerSuite) TestSignalWithStartWorkflowExecutionWit
 	s.Equal(&types.StartWorkflowExecutionResponse{}, resp)
 }
 
+func (s *clusterRedirectionHandlerSuite) TestSignalWithStartWorkflowExecutionAsync() {
+	apiName := "SignalWithStartWorkflowExecutionAsync"
+
+	ctx := context.Background()
+	req := &types.SignalWithStartWorkflowExecutionAsyncRequest{
+		SignalWithStartWorkflowExecutionRequest: &types.SignalWithStartWorkflowExecutionRequest{
+			Domain: s.domainName,
+			ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+				ClusterAttribute: &types.ClusterAttribute{
+					Scope: "region",
+					Name:  "region-a",
+				},
+			},
+		},
+	}
+
+	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, &types.WorkflowExecution{}, nil, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, domainCacheEntry *cache.DomainCacheEntry, wfExec *types.WorkflowExecution, selPlcy *types.ActiveClusterSelectionPolicy, apiName string, consistencyLevel types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
+			// validate callFn logic
+			req2 := &types.SignalWithStartWorkflowExecutionAsyncRequest{
+				SignalWithStartWorkflowExecutionRequest: &types.SignalWithStartWorkflowExecutionRequest{
+					Domain: s.domainName,
+				},
+			}
+			s.mockFrontendHandler.EXPECT().SignalWithStartWorkflowExecutionAsync(ctx, req2).Return(&types.SignalWithStartWorkflowExecutionAsyncResponse{}, nil).Times(1)
+			err := callFn(s.currentClusterName)
+			s.Nil(err)
+			s.mockRemoteFrontendClient.EXPECT().SignalWithStartWorkflowExecutionAsync(ctx, req2, s.handler.callOptions).Return(&types.SignalWithStartWorkflowExecutionAsyncResponse{}, nil).Times(1)
+			err = callFn(s.alternativeClusterName)
+			s.Nil(err)
+			return nil
+		}).
+		Times(1)
+
+	resp, err := s.handler.SignalWithStartWorkflowExecutionAsync(ctx, req)
+	s.Nil(err)
+	s.Equal(&types.SignalWithStartWorkflowExecutionAsyncResponse{}, resp)
+}
+
 func (s *clusterRedirectionHandlerSuite) TestSignalWorkflowExecution() {
 	apiName := "SignalWorkflowExecution"
 
@@ -1067,6 +1125,45 @@ func (s *clusterRedirectionHandlerSuite) TestStartWorkflowExecutionWithActiveClu
 	resp, err := s.handler.StartWorkflowExecution(ctx, req)
 	s.Nil(err)
 	s.Equal(&types.StartWorkflowExecutionResponse{}, resp)
+}
+
+func (s *clusterRedirectionHandlerSuite) TestStartWorkflowExecutionAsync() {
+	apiName := "StartWorkflowExecutionAsync"
+
+	ctx := context.Background()
+	req := &types.StartWorkflowExecutionAsyncRequest{
+		StartWorkflowExecutionRequest: &types.StartWorkflowExecutionRequest{
+			Domain: s.domainName,
+			ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+				ClusterAttribute: &types.ClusterAttribute{
+					Scope: "region",
+					Name:  "region-b",
+				},
+			},
+		},
+	}
+
+	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, domainCacheEntry *cache.DomainCacheEntry, wfExec *types.WorkflowExecution, selPlcy *types.ActiveClusterSelectionPolicy, apiName string, consistencyLevel types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
+			// validate callFn logic
+			req2 := &types.StartWorkflowExecutionAsyncRequest{
+				StartWorkflowExecutionRequest: &types.StartWorkflowExecutionRequest{
+					Domain: s.domainName,
+				},
+			}
+			s.mockFrontendHandler.EXPECT().StartWorkflowExecutionAsync(ctx, req2).Return(&types.StartWorkflowExecutionAsyncResponse{}, nil).Times(1)
+			err := callFn(s.currentClusterName)
+			s.Nil(err)
+			s.mockRemoteFrontendClient.EXPECT().StartWorkflowExecutionAsync(ctx, req2, s.handler.callOptions).Return(&types.StartWorkflowExecutionAsyncResponse{}, nil).Times(1)
+			err = callFn(s.alternativeClusterName)
+			s.Nil(err)
+			return nil
+		}).
+		Times(1)
+
+	resp, err := s.handler.StartWorkflowExecutionAsync(ctx, req)
+	s.Nil(err)
+	s.Equal(&types.StartWorkflowExecutionAsyncResponse{}, resp)
 }
 
 func (s *clusterRedirectionHandlerSuite) TestTerminateWorkflowExecution() {

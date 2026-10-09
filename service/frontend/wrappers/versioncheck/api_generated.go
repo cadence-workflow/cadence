@@ -57,6 +57,14 @@ func (h *versionCheckHandler) CreateSchedule(ctx context.Context, cp1 *types.Cre
 	return h.frontendHandler.CreateSchedule(ctx, cp1)
 }
 
+func (h *versionCheckHandler) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest) (cp2 *types.CreateSemaphoreResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.CreateSemaphore(ctx, cp1)
+}
+
 func (h *versionCheckHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {
 	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
 	if err != nil {

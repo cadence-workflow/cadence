@@ -21,10 +21,12 @@
 package execution
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -1649,7 +1651,118 @@ func (s *stateBuilderSuite) TestApplyEvents_EventTypeExternalWorkflowExecutionSi
 
 func (s *stateBuilderSuite) TestApplyEventsNewEventsNotHandled() {
 	eventTypes := types.EventTypeValues()
-	s.Equal(42, len(eventTypes), "If you see this error, you are adding new event type. "+
+	s.Equal(45, len(eventTypes), "If you see this error, you are adding new event type. "+
 		"Before updating the number to make this test pass, please make sure you update stateBuilderImpl.ApplyEvents method "+
 		"to handle the new decision type. Otherwise cross dc will not work on the new event.")
+}
+
+// Tests that each semaphore event reaches its replicate method, so a standby cluster rebuilds
+// the same holds, and that a replicate error stops the apply.
+func TestApplyEventsSemaphoreEvents(t *testing.T) {
+	errReplicate := errors.New("replicate failed")
+
+	tests := []struct {
+		name     string
+		event    *types.HistoryEvent
+		expectFn func(ms *MockMutableState, event *types.HistoryEvent)
+		wantErr  error
+	}{
+		{
+			name: "an acquire initiated event goes to ReplicateSemaphoreAcquireInitiatedEvent",
+			event: &types.HistoryEvent{
+				EventType: types.EventTypeSemaphoreAcquireInitiated.Ptr(),
+				SemaphoreAcquireInitiatedEventAttributes: &types.SemaphoreAcquireInitiatedEventAttributes{
+					SemaphoreName: "my-semaphore",
+				},
+			},
+			expectFn: func(ms *MockMutableState, event *types.HistoryEvent) {
+				ms.EXPECT().ReplicateSemaphoreAcquireInitiatedEvent(event).Return(&persistence.SemaphoreInfo{}, nil)
+			},
+		},
+		{
+			name: "an error from ReplicateSemaphoreAcquireInitiatedEvent stops the apply",
+			event: &types.HistoryEvent{
+				EventType:                                types.EventTypeSemaphoreAcquireInitiated.Ptr(),
+				SemaphoreAcquireInitiatedEventAttributes: &types.SemaphoreAcquireInitiatedEventAttributes{},
+			},
+			expectFn: func(ms *MockMutableState, event *types.HistoryEvent) {
+				ms.EXPECT().ReplicateSemaphoreAcquireInitiatedEvent(event).Return(nil, errReplicate)
+			},
+			wantErr: errReplicate,
+		},
+		{
+			name: "an acquired event goes to ReplicateSemaphoreAcquiredEvent",
+			event: &types.HistoryEvent{
+				EventType:                        types.EventTypeSemaphoreAcquired.Ptr(),
+				SemaphoreAcquiredEventAttributes: &types.SemaphoreAcquiredEventAttributes{TokenID: 7, InitiatedEventID: 2},
+			},
+			expectFn: func(ms *MockMutableState, event *types.HistoryEvent) {
+				ms.EXPECT().ReplicateSemaphoreAcquiredEvent(event).Return(nil)
+			},
+		},
+		{
+			name: "an error from ReplicateSemaphoreAcquiredEvent stops the apply",
+			event: &types.HistoryEvent{
+				EventType:                        types.EventTypeSemaphoreAcquired.Ptr(),
+				SemaphoreAcquiredEventAttributes: &types.SemaphoreAcquiredEventAttributes{},
+			},
+			expectFn: func(ms *MockMutableState, event *types.HistoryEvent) {
+				ms.EXPECT().ReplicateSemaphoreAcquiredEvent(event).Return(errReplicate)
+			},
+			wantErr: errReplicate,
+		},
+		{
+			name: "a released event goes to ReplicateSemaphoreReleasedEvent",
+			event: &types.HistoryEvent{
+				EventType:                        types.EventTypeSemaphoreReleased.Ptr(),
+				SemaphoreReleasedEventAttributes: &types.SemaphoreReleasedEventAttributes{TokenID: 7, InitiatedEventID: 2},
+			},
+			expectFn: func(ms *MockMutableState, event *types.HistoryEvent) {
+				ms.EXPECT().ReplicateSemaphoreReleasedEvent(event).Return(nil)
+			},
+		},
+		{
+			name: "an error from ReplicateSemaphoreReleasedEvent stops the apply",
+			event: &types.HistoryEvent{
+				EventType:                        types.EventTypeSemaphoreReleased.Ptr(),
+				SemaphoreReleasedEventAttributes: &types.SemaphoreReleasedEventAttributes{},
+			},
+			expectFn: func(ms *MockMutableState, event *types.HistoryEvent) {
+				ms.EXPECT().ReplicateSemaphoreReleasedEvent(event).Return(errReplicate)
+			},
+			wantErr: errReplicate,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockShard := shard.NewTestContext(t, ctrl, &persistence.ShardInfo{RangeID: 1}, config.NewForTest())
+			defer mockShard.Finish(t)
+			ms := NewMockMutableState(ctrl)
+
+			tc.event.ID = 130
+			tc.event.Version = 1
+			tc.event.Timestamp = common.Int64Ptr(time.Now().UnixNano())
+
+			ms.EXPECT().GetVersionHistories().Return(persistence.NewVersionHistories(&persistence.VersionHistory{})).AnyTimes()
+			ms.EXPECT().UpdateCurrentVersion(tc.event.Version, true)
+			ms.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{}).AnyTimes()
+			ms.EXPECT().ClearStickyness()
+			tc.expectFn(ms, tc.event)
+			if tc.wantErr == nil {
+				ms.EXPECT().SetHistoryBuilder(gomock.Any())
+			}
+
+			stateBuilder := NewStateBuilder(mockShard, mockShard.GetLogger(), ms)
+			_, err := stateBuilder.ApplyEvents(
+				constants.TestDomainID,
+				"request-id",
+				types.WorkflowExecution{WorkflowID: "wid", RunID: constants.TestRunID},
+				[]*types.HistoryEvent{tc.event},
+				nil,
+			)
+			assert.Equal(t, tc.wantErr, err)
+		})
+	}
 }

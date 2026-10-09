@@ -63,7 +63,10 @@ type (
 
 		// GetSchemaVersion returns the current schema version
 		GetSchemaVersion(ctx context.Context) (Version, error)
-		UpdateSchema(ctx context.Context, update *SchemaUpdate) error
+		// UpdateSchema applies the DDL statements of update and records its version. The mode controls how statements
+		// whose schema element already exists are handled: SchemaUpdateModeStrict fails with a
+		// DuplicateSchemaElementError, while SchemaUpdateModeResume skips them and applies the rest of the update.
+		UpdateSchema(ctx context.Context, update *SchemaUpdate, mode SchemaUpdateMode) error
 		Close()
 	}
 	Schema interface {
@@ -85,7 +88,45 @@ type (
 	Version struct {
 		Major, Minor int
 	}
+
+	// SchemaUpdateMode controls how SchemaDB.UpdateSchema handles DDL statements whose schema element already exists
+	SchemaUpdateMode int
+
+	// DuplicateSchemaElementError is returned by SchemaDB.UpdateSchema in SchemaUpdateModeStrict when a DDL statement
+	// fails because the element it creates (table, column, index, type, etc.) already exists
+	DuplicateSchemaElementError struct {
+		Statement string
+		Err       error
+	}
 )
+
+const (
+	// SchemaUpdateModeStrict fails the update with a DuplicateSchemaElementError when a statement's schema element
+	// already exists
+	SchemaUpdateModeStrict SchemaUpdateMode = iota
+	// SchemaUpdateModeResume skips statements whose schema element already exists and applies the rest of the update.
+	// It supports resuming an update that was interrupted after applying some, but not all, of its statements.
+	SchemaUpdateModeResume
+)
+
+func (m SchemaUpdateMode) String() string {
+	switch m {
+	case SchemaUpdateModeStrict:
+		return "strict"
+	case SchemaUpdateModeResume:
+		return "resume"
+	default:
+		return fmt.Sprintf("unknown(%d)", int(m))
+	}
+}
+
+func (e *DuplicateSchemaElementError) Error() string {
+	return fmt.Sprintf("schema element already exists for DDL statement %q: %v", e.Statement, e.Err)
+}
+
+func (e *DuplicateSchemaElementError) Unwrap() error {
+	return e.Err
+}
 
 func ParseVersion(ver string) (Version, error) {
 	vals := strings.Split(ver, ".")

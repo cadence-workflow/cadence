@@ -27,46 +27,16 @@ const (
 	maxGrantAttempts = 3
 )
 
-// AcquireOutcome says how one acquire ended. Every value is a result, never an error.
-type AcquireOutcome int
-
-const (
-	// AcquireOutcomeUnknown is the zero value. It only ever appears alongside an error.
-	AcquireOutcomeUnknown AcquireOutcome = iota
-	// AcquireOutcomeAcquired means this call claimed a token slot, tokenID is the new token.
-	AcquireOutcomeAcquired
-	// AcquireOutcomeAlreadyHeld means the owner already had a token
-	// TokenID is the token it already holds. A retried acquire lands here.
-	AcquireOutcomeAlreadyHeld
-	// AcquireOutcomeNoSlot means no token: this host found no free slot to take.
-	AcquireOutcomeNoSlot
-)
-
-// String names the outcome for logs and error messages.
-func (o AcquireOutcome) String() string {
-	switch o {
-	case AcquireOutcomeAcquired:
-		return "Acquired"
-	case AcquireOutcomeAlreadyHeld:
-		return "AlreadyHeld"
-	case AcquireOutcomeNoSlot:
-		return "NoSlot"
-	default:
-		return "Unknown"
-	}
-}
-
-// AcquireResult is the answer to one acquire. TokenID is set unless Outcome is
-// AcquireOutcomeNoSlot.
+// AcquireResult is the answer to one acquire. TokenID names a slot only when Outcome is
+// types.SemaphoreAcquireOutcomeAcquired; the zero value, returned alongside every error, reads
+// as the invalid outcome.
 type AcquireResult struct {
-	Outcome AcquireOutcome
+	Outcome types.SemaphoreAcquireOutcome
 	TokenID int
 }
 
-// ErrNotReady means this manager was stopped and can no longer serve its bucket: its load
-// failed, it went idle, the bucket moved to another host, or the engine shut down. It is a
-// ServiceBusyError so callers retry, and so Matching's handleErr passes it through instead of
-// logging it as an unexpected failure.
+// ErrNotReady means this manager has stopped: its load failed, it went idle, the bucket moved
+// to another host, or the engine shut down. A ServiceBusyError, so callers retry.
 var ErrNotReady = &types.ServiceBusyError{Message: "semaphore manager is not ready"}
 
 // managerState gates Acquire. A Manager only moves forward: created to running, or either to
@@ -184,7 +154,9 @@ func (m *semaphoreManagerImpl) markStartupDone() {
 	m.startupOnce.Do(func() { close(m.startupDoneCh) })
 }
 
-// Start builds the free-set and the reverse index by scanning the partition.
+// Start builds the free-set and the reverse index by scanning the partition. Only the caller that
+// finds the manager unstarted runs the scan; the rest return at once and wait in Acquire, under
+// their own deadline rather than the scan's.
 func (m *semaphoreManagerImpl) Start(ctx context.Context) error {
 	m.mu.Lock()
 	found := m.state
@@ -196,10 +168,9 @@ func (m *semaphoreManagerImpl) Start(ctx context.Context) error {
 	switch found {
 	case managerStateCreated:
 		return m.load(ctx)
-	case managerStateStarting:
-		// A load is already in flight over the same partition, so wait for it.
-		return m.awaitStartup(ctx)
-	case managerStateRunning:
+	case managerStateStarting, managerStateRunning:
+		// A load already in flight is not waited on here: ctx carries the scan's deadline, not
+		// the caller's, and waiting under it would hold a caller long after it gave up.
 		return nil
 	default:
 		return ErrNotReady
@@ -306,7 +277,7 @@ func (m *semaphoreManagerImpl) Acquire(ctx context.Context, ownerID string) (Acq
 	if err != nil {
 		return AcquireResult{}, err
 	}
-	if res.Outcome == AcquireOutcomeNoSlot {
+	if res.Outcome == types.SemaphoreAcquireOutcomeNoSlot {
 		if err := m.enqueue(ctx, ownerID); err != nil {
 			return AcquireResult{}, err
 		}
@@ -325,9 +296,9 @@ func (m *semaphoreManagerImpl) enqueue(ctx context.Context, ownerID string) erro
 //   - Otherwise draw a random free id and settle it with a conditional write
 //   - A write refused as taken costs an attempt, and a different slot is drawn
 //
-// It answers with one of three outcomes:
-//   - Acquired: the write applied, and TokenID is the new token.
-//   - AlreadyHeld: the owner already had a token, and TokenID is that token.
+// It answers with one of two outcomes:
+//   - Acquired: TokenID is the owner's slot, whether this call claimed it or the owner already
+//     had it. Reporting both the same way is what makes a retried acquire safe.
 //   - NoSlot: no free id was left to try.
 func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (AcquireResult, error) {
 	// Check the reverse index first, to see whether this owner already holds a token.
@@ -341,7 +312,7 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 			return AcquireResult{}, err
 		}
 		if stillHeld {
-			return AcquireResult{Outcome: AcquireOutcomeAlreadyHeld, TokenID: tokenID}, nil
+			return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: tokenID}, nil
 		}
 	}
 
@@ -379,7 +350,7 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 		switch resp.Outcome {
 		case persistence.SemaphoreGrantApplied:
 			m.recordHold(ownerID, tokenID)
-			return AcquireResult{Outcome: AcquireOutcomeAcquired, TokenID: tokenID}, nil
+			return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: tokenID}, nil
 
 		case persistence.SemaphoreGrantSlotTaken:
 			// A stale free-set entry: someone else holds this slot.
@@ -397,7 +368,7 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 				return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("grant reported an already-held slot without a token for bucket %v", m.id)}
 			}
 			m.recordHold(ownerID, resp.HeldToken)
-			return AcquireResult{Outcome: AcquireOutcomeAlreadyHeld, TokenID: resp.HeldToken}, nil
+			return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: resp.HeldToken}, nil
 
 		default:
 			// Unreachable through the nosql store, which rejects unknown outcomes itself,
@@ -407,7 +378,12 @@ func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (Acqui
 			return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("unexpected grant outcome %v for bucket %v", resp.Outcome, m.id)}
 		}
 	}
-	return AcquireResult{Outcome: AcquireOutcomeNoSlot}, nil
+	if free := m.freeCount(); free > 0 {
+		m.logger.Info("Semaphore grant gave up with slots still in the free-set",
+			tag.Dynamic("attempts", maxGrantAttempts),
+			tag.Dynamic("free-slots", free))
+	}
+	return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeNoSlot}, nil
 }
 
 // confirmHold checks whether ownerID still holds tokenID by reading the token row.

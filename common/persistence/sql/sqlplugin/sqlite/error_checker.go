@@ -26,6 +26,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/ncruces/go-sqlite3"
 )
@@ -48,6 +49,17 @@ func (mdb *DB) IsDupEntryError(err error) bool {
 	}
 
 	return false
+}
+
+// IsSchemaElementExistsError returns true if a DDL statement failed because the table, column, or index already exists.
+// SQLite reports these as a generic SQLITE_ERROR, so the message has to be inspected.
+func (mdb *DB) IsSchemaElementExistsError(err error) bool {
+	var sqlErr *sqlite3.Error
+	if !errors.As(err, &sqlErr) || sqlErr.Code() != sqlite3.ERROR {
+		return false
+	}
+	msg := sqlErr.Error()
+	return strings.Contains(msg, "already exists") || strings.Contains(msg, "duplicate column name")
 }
 
 // IsNotFoundError verify if the error is a not found error

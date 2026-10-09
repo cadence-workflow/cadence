@@ -80,6 +80,26 @@ func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDeci
 	return
 }
 
+func (c *matchingClient) AddSemaphoreTask(ctx context.Context, ap1 *types.AddSemaphoreTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddSemaphoreTaskResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		ap2, err = c.client.AddSemaphoreTask(ctx, ap1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgMatchingInjectedFakeErr,
+			tag.MatchingClientOperationAddSemaphoreTask,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool

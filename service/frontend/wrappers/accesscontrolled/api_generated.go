@@ -93,6 +93,24 @@ func (a *apiHandler) CreateSchedule(ctx context.Context, cp1 *types.CreateSchedu
 	return a.handler.CreateSchedule(ctx, cp1)
 }
 
+func (a *apiHandler) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest) (cp2 *types.CreateSemaphoreResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendCreateSemaphoreScope, cp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "CreateSemaphore",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(cp1),
+		DomainName:  cp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.CreateSemaphore(ctx, cp1)
+}
+
 func (a *apiHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {
 	scope := a.GetMetricsClient().Scope(metrics.FrontendDeleteDomainScope).Tagged(metrics.NonDomainTag())
 	attr := &authorization.Attributes{

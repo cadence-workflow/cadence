@@ -50,6 +50,7 @@ import (
 {{$permissionMap = set $permissionMap "UnpauseSchedule" "PermissionWrite"}}
 {{$permissionMap = set $permissionMap "BackfillSchedule" "PermissionWrite"}}
 {{$permissionMap = set $permissionMap "ListSchedules" "PermissionRead"}}
+{{$permissionMap = set $permissionMap "CreateSemaphore" "PermissionWrite"}}
 
 {{$adminPermissionMap := dict }}
 {{$adminPermissionMap = set $adminPermissionMap "DescribeCluster" "PermissionRead"}}

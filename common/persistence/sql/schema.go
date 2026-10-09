@@ -58,7 +58,7 @@ func (s *sqlSchemaDB) GetSchemaVersion(_ context.Context) (persistence.Version, 
 	return persistence.ParseVersion(stringVersion)
 }
 
-func (s *sqlSchemaDB) UpdateSchema(ctx context.Context, update *persistence.SchemaUpdate) error {
+func (s *sqlSchemaDB) UpdateSchema(ctx context.Context, update *persistence.SchemaUpdate, mode persistence.SchemaUpdateMode) error {
 	currentVersion, err := s.GetSchemaVersion(ctx)
 	if err != nil {
 		return err
@@ -67,7 +67,7 @@ func (s *sqlSchemaDB) UpdateSchema(ctx context.Context, update *persistence.Sche
 		return fmt.Errorf("cannot upgrade backwards from %s to %s", currentVersion, update.Version)
 	}
 	s.logger.Info("updating schema")
-	err = s.applyUpdate(ctx, update)
+	err = s.applyUpdate(ctx, update, mode)
 	if err != nil {
 		return fmt.Errorf("failed to apply update: %w", err)
 	}
@@ -84,10 +84,19 @@ func (s *sqlSchemaDB) UpdateSchema(ctx context.Context, update *persistence.Sche
 	return nil
 }
 
-func (s *sqlSchemaDB) applyUpdate(ctx context.Context, update *persistence.SchemaUpdate) error {
+func (s *sqlSchemaDB) applyUpdate(ctx context.Context, update *persistence.SchemaUpdate, mode persistence.SchemaUpdateMode) error {
 	for _, stmt := range update.DDLStatements {
 		e := s.crud.ExecSchemaOperationQuery(ctx, stmt)
 		if e != nil {
+			if s.crud.IsSchemaElementExistsError(e) {
+				if mode != persistence.SchemaUpdateModeResume {
+					return &persistence.DuplicateSchemaElementError{Statement: stmt, Err: e}
+				}
+				// A previous attempt was interrupted after applying some statements but before recording the
+				// new version, so skip the statements that were already applied.
+				s.logger.Warn("Skipping already applied DDL statement", tag.Value(stmt), tag.Error(e))
+				continue
+			}
 			return fmt.Errorf("error executing DDL statement: %w", e)
 		}
 	}

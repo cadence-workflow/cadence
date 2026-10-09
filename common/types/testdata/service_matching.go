@@ -22,12 +22,14 @@ package testdata
 
 import (
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
 )
 
 const (
 	ForwardedFrom = "ForwardedFrom"
 	PollerID      = "PollerID"
+	SemaphoreName = "SemaphoreName"
 )
 
 var (
@@ -208,5 +210,21 @@ var (
 		TaskList:        &TaskList,
 		TaskListType:    &TaskListType,
 		PartitionConfig: &TaskListPartitionConfig,
+	}
+
+	// Built through the encoder rather than written out, so the fixture is canonical the same
+	// way a real owner id is: the release CAS compares these bytes exactly.
+	SemaphoreOwnerID = semaphore.Owner{WorkflowID: WorkflowID, RunID: RunID, HoldID: 7}.String()
+
+	MatchingAddSemaphoreTaskRequest = types.AddSemaphoreTaskRequest{
+		DomainUUID:    DomainID,
+		SemaphoreName: SemaphoreName,
+		Bucket:        2,
+		OwnerID:       SemaphoreOwnerID,
+	}
+
+	MatchingAddSemaphoreTaskResponse = types.AddSemaphoreTaskResponse{
+		Outcome: types.SemaphoreAcquireOutcomeAcquired,
+		TokenID: 17,
 	}
 )

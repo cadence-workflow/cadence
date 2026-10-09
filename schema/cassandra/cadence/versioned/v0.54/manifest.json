@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.54",
+  "MinCompatibleVersion": "0.54",
+  "Description": "Add jitter_coefficient to workflow_execution and activity_info types",
+  "SchemaUpdateCqlFiles": [
+    "retry_jitter.cql"
+  ]
+}

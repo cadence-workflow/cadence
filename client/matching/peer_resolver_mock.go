@@ -54,6 +54,21 @@ func (mr *MockPeerResolverMockRecorder) FromHostAddress(hostAddress any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FromHostAddress", reflect.TypeOf((*MockPeerResolver)(nil).FromHostAddress), hostAddress)
 }
 
+// FromSemaphoreBucket mocks base method.
+func (m *MockPeerResolver) FromSemaphoreBucket(domainID, semaphoreName string, bucket int) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FromSemaphoreBucket", domainID, semaphoreName, bucket)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FromSemaphoreBucket indicates an expected call of FromSemaphoreBucket.
+func (mr *MockPeerResolverMockRecorder) FromSemaphoreBucket(domainID, semaphoreName, bucket any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FromSemaphoreBucket", reflect.TypeOf((*MockPeerResolver)(nil).FromSemaphoreBucket), domainID, semaphoreName, bucket)
+}
+
 // FromTaskList mocks base method.
 func (m *MockPeerResolver) FromTaskList(taskListName string) (string, error) {
 	m.ctrl.T.Helper()

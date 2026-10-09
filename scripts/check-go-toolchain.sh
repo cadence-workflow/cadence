@@ -19,8 +19,8 @@ root="$(git rev-parse --show-toplevel)"
 
 # check dockerfiles
 while read file; do
-  # find "FROM golang:1.22.3-alpine3.18 ..." lines
-  line="$(grep -i 'from golang:' "$file")"
+  # find "FROM [--platform=...] golang:1.22.3-alpine3.18 ..." lines
+  line="$(grep -iE 'from (--platform=[^ ]+ )?golang:' "$file")"
   # remove "from golang:" prefix
   version="${line#*golang:}"
   # remove "-alpine..." suffix

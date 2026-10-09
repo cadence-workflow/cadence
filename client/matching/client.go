@@ -356,6 +356,23 @@ func (c *clientImpl) GetTaskListsByDomain(
 	}, nil
 }
 
+// AddSemaphoreTask routes the request to the matching host that owns the semaphore bucket.
+func (c *clientImpl) AddSemaphoreTask(
+	ctx context.Context,
+	request *types.AddSemaphoreTaskRequest,
+	opts ...yarpc.CallOption,
+) (*types.AddSemaphoreTaskResponse, error) {
+	peer, err := c.peerResolver.FromSemaphoreBucket(request.GetDomainUUID(), request.GetSemaphoreName(), int(request.GetBucket()))
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.client.AddSemaphoreTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func (c *clientImpl) UpdateTaskListPartitionConfig(
 	ctx context.Context,
 	request *types.MatchingUpdateTaskListPartitionConfigRequest,

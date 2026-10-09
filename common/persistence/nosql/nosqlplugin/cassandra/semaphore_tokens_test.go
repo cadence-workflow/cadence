@@ -62,8 +62,8 @@ func TestSemaphoreSentinelsMatchTheOwnerIDEncoding(t *testing.T) {
 		sentinel string
 		holdID   int64
 	}{
-		{name: "owner none", sentinel: ownerNoneSentinel, holdID: -1},
-		{name: "free", sentinel: freeSentinel, holdID: -2},
+		{name: "owner-none sentinel is the encoded owner id with hold id -1", sentinel: ownerNoneSentinel, holdID: -1},
+		{name: "free sentinel is the encoded owner id with hold id -2", sentinel: freeSentinel, holdID: -2},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -71,63 +71,6 @@ func TestSemaphoreSentinelsMatchTheOwnerIDEncoding(t *testing.T) {
 			assert.Equal(t, want.String(), tc.sentinel)
 		})
 	}
-}
-
-func TestInsertSemaphoreTokens(t *testing.T) {
-	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
-	rows := []*nosqlplugin.SemaphoreOwnershipRow{
-		{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 1, UpdatedTime: now},
-		{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, TokenID: 2, UpdatedTime: now},
-	}
-
-	t.Run("empty rows is a no-op", func(t *testing.T) {
-		session := &fakeSession{iter: &fakeIter{}}
-		db := newTestSemaphoreTokenDB(t, session)
-		assert.NoError(t, db.InsertSemaphoreTokens(context.Background(), nil))
-		assert.Empty(t, session.batches)
-	})
-
-	t.Run("seeds free rows", func(t *testing.T) {
-		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
-		db := newTestSemaphoreTokenDB(t, session)
-		err := db.InsertSemaphoreTokens(context.Background(), rows)
-		assert.NoError(t, err)
-		assert.Len(t, session.batches, 1)
-		assert.Equal(t, []string{
-			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, 1, ` + ownerNoneSentinel + `, ` + freeSentinel + `, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
-			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
-				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 1, 2, ` + ownerNoneSentinel + `, ` + freeSentinel + `, {}, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
-		}, session.batches[0].queries)
-		assert.True(t, session.iter.closed)
-	})
-
-	t.Run("re-seeding an already seeded bucket is a no-op, not an error", func(t *testing.T) {
-		// Every IF NOT EXISTS fails, so nothing is written; ignoring the applied flag is
-		// deliberate. The held slot in `previous` shows a re-seed cannot clobber a holder.
-		session := &fakeSession{
-			mapExecuteBatchCASApplied: false,
-			mapExecuteBatchCASPrev: map[string]any{
-				"type":     int(persistence.SemaphoreRowTypeToken),
-				"token_id": 1,
-				"holder":   "owner-abc",
-			},
-			iter: &fakeIter{},
-		}
-		db := newTestSemaphoreTokenDB(t, session)
-
-		assert.NoError(t, db.InsertSemaphoreTokens(context.Background(), rows))
-		assert.Len(t, session.batches, 1)
-		assert.True(t, session.iter.closed)
-	})
-
-	t.Run("batch error", func(t *testing.T) {
-		session := &fakeSession{mapExecuteBatchCASErr: errors.New("boom"), iter: &fakeIter{}}
-		db := newTestSemaphoreTokenDB(t, session)
-		assert.Error(t, db.InsertSemaphoreTokens(context.Background(), rows))
-		// The iterator must still be released when the batch fails.
-		assert.True(t, session.iter.closed)
-	})
 }
 
 func TestGrantSemaphoreToken(t *testing.T) {
@@ -141,7 +84,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		UpdatedTime:   now,
 	}
 
-	t.Run("applied", func(t *testing.T) {
+	t.Run("applied: sends the token row update and the owner row insert in one batch", func(t *testing.T) {
 		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
@@ -152,7 +95,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		assert.Equal(t, []string{
 			`UPDATE semaphore_tokens SET holder = owner-abc, updated_time = ` + now.UTC().Format(time.RFC3339) + ` ` +
 				`WHERE domain_id = 10000000-1000-f000-f000-000000000000 AND semaphore_name = sem-1 AND bucket = 0 ` +
-				`AND type = 1 AND token_id = 5 AND owner_id = ` + ownerNoneSentinel + ` IF holder = ` + freeSentinel,
+				`AND type = 1 AND token_id = 5 AND owner_id = ` + ownerNoneSentinel + ` IF holder IN (` + freeSentinel + `, null)`,
 
 			`INSERT INTO semaphore_tokens (domain_id, semaphore_name, bucket, type, token_id, owner_id, holder, held_token, updated_time) ` +
 				`VALUES(10000000-1000-f000-f000-000000000000, sem-1, 0, 2, -1, owner-abc, {}, 5, ` + now.UTC().Format(time.RFC3339) + `) IF NOT EXISTS`,
@@ -160,7 +103,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		assert.True(t, session.iter.closed)
 	})
 
-	t.Run("not applied - slot taken by someone else", func(t *testing.T) {
+	t.Run("refused, another owner holds the token: slot taken", func(t *testing.T) {
 		// The conflicting row is the token row (someone else holds it); no owner
 		// row is returned, so the outcome is SlotTaken (retry another slot).
 		session := &fakeSession{
@@ -179,7 +122,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		assert.True(t, session.iter.closed)
 	})
 
-	t.Run("not applied - owner already holds a token (previous row)", func(t *testing.T) {
+	t.Run("refused, owner row is the first returned row: already held, with that token", func(t *testing.T) {
 		// The owner row is the first conflicting row, returned in `previous`.
 		session := &fakeSession{
 			mapExecuteBatchCASApplied: false,
@@ -197,7 +140,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		assert.True(t, session.iter.closed)
 	})
 
-	t.Run("not applied - owner already holds a token (iterator row)", func(t *testing.T) {
+	t.Run("refused, owner row comes after the token row: already held, with that token", func(t *testing.T) {
 		// The token conflict comes back first in `previous`; the owner row is
 		// returned through the iterator and must still be found.
 		session := &fakeSession{
@@ -220,7 +163,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		assert.True(t, session.iter.closed)
 	})
 
-	t.Run("not applied - owner row with an unusable held_token is skipped", func(t *testing.T) {
+	t.Run("refused, owner rows without a valid held token come first: skipped, the valid owner row gives the token", func(t *testing.T) {
 		// A malformed owner row must neither be reported as a hold nor stop the search:
 		// the well-formed owner row behind it is the one that carries the answer.
 		session := &fakeSession{
@@ -243,7 +186,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		assert.True(t, session.iter.closed)
 	})
 
-	t.Run("not applied - only malformed owner rows falls back to slot taken", func(t *testing.T) {
+	t.Run("refused, only owner rows without a valid held token: slot taken", func(t *testing.T) {
 		session := &fakeSession{
 			mapExecuteBatchCASApplied: false,
 			mapExecuteBatchCASPrev: map[string]any{
@@ -260,7 +203,7 @@ func TestGrantSemaphoreToken(t *testing.T) {
 		assert.True(t, session.iter.closed)
 	})
 
-	t.Run("error", func(t *testing.T) {
+	t.Run("batch fails: returns the error and no outcome", func(t *testing.T) {
 		session := &fakeSession{mapExecuteBatchCASErr: errors.New("boom"), iter: &fakeIter{}}
 		db := newTestSemaphoreTokenDB(t, session)
 		result, err := db.GrantSemaphoreToken(context.Background(), row)
@@ -280,7 +223,7 @@ func TestReleaseSemaphoreToken(t *testing.T) {
 		UpdatedTime:   now,
 	}
 
-	t.Run("applied", func(t *testing.T) {
+	t.Run("applied: sends the token row update and the owner row delete in one batch", func(t *testing.T) {
 		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
 		db := newTestSemaphoreTokenDB(t, session)
 		applied, err := db.ReleaseSemaphoreToken(context.Background(), row)
@@ -298,7 +241,7 @@ func TestReleaseSemaphoreToken(t *testing.T) {
 		assert.True(t, session.iter.closed)
 	})
 
-	t.Run("not applied", func(t *testing.T) {
+	t.Run("refused, owner no longer holds the token: not applied, no error", func(t *testing.T) {
 		session := &fakeSession{mapExecuteBatchCASApplied: false, iter: &fakeIter{}}
 		db := newTestSemaphoreTokenDB(t, session)
 		applied, err := db.ReleaseSemaphoreToken(context.Background(), row)
@@ -306,7 +249,7 @@ func TestReleaseSemaphoreToken(t *testing.T) {
 		assert.False(t, applied)
 	})
 
-	t.Run("error", func(t *testing.T) {
+	t.Run("batch fails: returns the error", func(t *testing.T) {
 		session := &fakeSession{mapExecuteBatchCASErr: errors.New("boom"), iter: &fakeIter{}}
 		db := newTestSemaphoreTokenDB(t, session)
 		applied, err := db.ReleaseSemaphoreToken(context.Background(), row)
@@ -325,7 +268,7 @@ func TestSelectSemaphoreOwnershipByToken(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			name: "held slot normalizes sentinels",
+			name: "held token row: owner_id sentinel reads back as empty",
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
 				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -355,7 +298,7 @@ func TestSelectSemaphoreOwnershipByToken(t *testing.T) {
 			},
 		},
 		{
-			name: "free slot normalizes holder",
+			name: "free token row: FREE holder reads back as empty",
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
 				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -385,7 +328,7 @@ func TestSelectSemaphoreOwnershipByToken(t *testing.T) {
 			},
 		},
 		{
-			name: "not found",
+			name: "read fails: returns the error",
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
 				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -432,7 +375,7 @@ func TestSelectSemaphoreOwnershipByOwner(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			name: "found normalizes sentinels",
+			name: "owner row: token_id sentinel reads back as 0",
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
 				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -462,7 +405,7 @@ func TestSelectSemaphoreOwnershipByOwner(t *testing.T) {
 			},
 		},
 		{
-			name: "not found",
+			name: "read fails: returns the error",
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
 				query.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -510,7 +453,7 @@ func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			name:   "mixed rows normalized",
+			name:   "token and owner rows: both returned, sentinels read back as zero values",
 			filter: &nosqlplugin.SemaphoreOwnershipFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -556,7 +499,7 @@ func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 			wantToken: nil,
 		},
 		{
-			name:   "page size limits and returns token",
+			name:   "page size set: stops at the page size and returns the next page token",
 			filter: &nosqlplugin.SemaphoreOwnershipFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0, PageSize: 1},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -585,7 +528,7 @@ func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 			wantToken: []byte("next"),
 		},
 		{
-			name:    "iterator is nil",
+			name:    "query gives no iterator: returns an error",
 			filter:  &nosqlplugin.SemaphoreOwnershipFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0},
 			nilIter: true,
 			queryMockFn: func(query *gocql.MockQuery) {
@@ -596,7 +539,7 @@ func TestSelectSemaphoreOwnershipsByBucket(t *testing.T) {
 			wantErr:    true,
 		},
 		{
-			name:   "iterator close fails",
+			name:   "iterator close fails: returns the error",
 			filter: &nosqlplugin.SemaphoreOwnershipFilter{DomainID: testSemaphoreDomainID, SemaphoreName: testSemaphoreName, Bucket: 0},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)

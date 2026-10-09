@@ -78,6 +78,7 @@ CREATE TYPE workflow_execution (
   has_retry_policy                 boolean,-- If there is a retry policy
   init_interval                    int,    -- initial retry interval, in seconds
   backoff_coefficient              double,
+  jitter_coefficient               double,
   max_interval                     int,    -- max retry interval in seconds
   expiration_time                  timestamp, -- retry expiration time
   max_attempts                     int,    -- max number of attempts including initial non-retry attempt
@@ -198,6 +199,7 @@ CREATE TYPE activity_info (
   has_retry_policy          boolean,-- If there is a retry policy
   init_interval             int,    -- initial retry interval, in seconds
   backoff_coefficient       double,
+  jitter_coefficient        double,
   max_interval              int,    -- max retry interval in seconds
   expiration_time           timestamp, -- retry expiration time
   max_attempts              int,    -- max number of attempts including initial non-retry attempt

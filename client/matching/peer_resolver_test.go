@@ -28,6 +28,7 @@ import (
 
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/matching/semaphore"
 )
 
 func TestPeerResolver(t *testing.T) {
@@ -84,4 +85,58 @@ func TestPeerResolver(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"tasklistHost:1244", "tasklistHost2:1245"}, peers)
 
+}
+
+func TestPeerResolverFromSemaphoreBucket(t *testing.T) {
+	const (
+		domainID      = "domain-1"
+		semaphoreName = "sem-1"
+		bucket        = 3
+	)
+	// The client must look up the same ring key the owning Matching host checks itself against.
+	ringKey := semaphore.Identifier{DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket}.RingKey()
+
+	tests := []struct {
+		name       string
+		lookupHost membership.HostInfo
+		lookupErr  error
+		want       string
+		wantErr    bool
+	}{
+		{
+			name: "returns the owner's address on the requested port",
+			lookupHost: membership.NewDetailedHostInfo("semHost:1234", "semHost_1234", membership.PortMap{
+				membership.PortTchannel: 1234,
+				membership.PortGRPC:     1244,
+			}),
+			want: "semHost:1244",
+		},
+		{
+			name:      "ring lookup fails",
+			lookupErr: assert.AnError,
+			wantErr:   true,
+		},
+		{
+			name: "owner has no address on the requested port",
+			lookupHost: membership.NewDetailedHostInfo("semHost:1234", "semHost_1234", membership.PortMap{
+				membership.PortTchannel: 1234,
+			}),
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			serviceResolver := membership.NewMockResolver(gomock.NewController(t))
+			serviceResolver.EXPECT().Lookup(service.Matching, ringKey).Return(tt.lookupHost, tt.lookupErr)
+			r := NewPeerResolver(serviceResolver, membership.PortGRPC)
+
+			got, err := r.FromSemaphoreBucket(domainID, semaphoreName, bucket)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

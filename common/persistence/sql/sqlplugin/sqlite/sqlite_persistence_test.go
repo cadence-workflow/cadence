@@ -57,6 +57,12 @@ func TestSQLiteShardPersistenceSuite(t *testing.T) {
 	suite.Run(t, s)
 }
 
+func TestSQLiteAdminPersistenceSuite(t *testing.T) {
+	s := new(pt.AdminPersistenceSuite)
+	s.TestBase = SQLiteTestBase(t)
+	suite.Run(t, s)
+}
+
 type ExecutionManagerSuite struct {
 	pt.ExecutionManagerSuite
 }

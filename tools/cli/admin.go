@@ -1344,9 +1344,10 @@ func newAdminConfigStoreCommands() []*cli.Command {
 					Usage:    "Name of Dynamic Config parameter to get value of",
 					Required: true,
 				},
-				&cli.StringFlag{
+				&cli.GenericFlag{
 					Name:  FlagDynamicConfigFilter,
-					Usage: fmt.Sprintf(`Optional. ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
+					Usage: fmt.Sprintf(`Optional JSON object. ex: --%s '{"domainName":"global-samples-domain", "shardID":1}'`, FlagDynamicConfigFilter),
+					Value: NewDynamicConfigFilterFlag(),
 				},
 			},
 			Action: AdminGetDynamicConfig,
@@ -1361,10 +1362,14 @@ func newAdminConfigStoreCommands() []*cli.Command {
 					Usage:    "Name of Dynamic Config parameter to update value of",
 					Required: true,
 				},
-				&cli.StringSliceFlag{
-					Name:     FlagDynamicConfigValue,
-					Usage:    fmt.Sprintf(`Can be specified multiple times for multiple values. ex: --%s '{"Value":true,"Filters":[]}'`, FlagDynamicConfigValue),
-					Required: true,
+				&cli.GenericFlag{
+					Name:  FlagDynamicConfigValue,
+					Usage: fmt.Sprintf(`JSON object. Can be specified multiple times for multiple values. ex: --%s '{"Value":1000,"Filters":[]}' --%s '{"Value":100,"Filters":[{"Name":"domainName","Value":"my-domain"}]}'`, FlagDynamicConfigValue, FlagDynamicConfigValue),
+					Value: NewDynamicConfigValuesFlag(),
+				},
+				&cli.StringFlag{
+					Name:  FlagDynamicConfigValueFile,
+					Usage: fmt.Sprintf(`Path to JSON file containing array of config values. ex: --%s config.json`, FlagDynamicConfigValueFile),
 				},
 			},
 			Action: AdminUpdateDynamicConfig,
@@ -1379,9 +1384,10 @@ func newAdminConfigStoreCommands() []*cli.Command {
 					Usage:    "Name of Dynamic Config parameter to restore",
 					Required: true,
 				},
-				&cli.StringFlag{
+				&cli.GenericFlag{
 					Name:  FlagDynamicConfigFilter,
-					Usage: fmt.Sprintf(`Optional. ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
+					Usage: fmt.Sprintf(`Optional JSON object. ex: --%s '{"domainName":"global-samples-domain", "shardID":1}'`, FlagDynamicConfigFilter),
+					Value: NewDynamicConfigFilterFlag(),
 				},
 			},
 			Action: AdminRestoreDynamicConfig,
@@ -1390,8 +1396,13 @@ func newAdminConfigStoreCommands() []*cli.Command {
 			Name:    "list",
 			Aliases: []string{"l"},
 			Usage:   "List Dynamic Config Value",
-			Flags:   []cli.Flag{},
-			Action:  AdminListDynamicConfig,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  FlagDynamicConfigName,
+					Usage: "Optional name of Dynamic Config parameter to list (omit to list all)",
+				},
+			},
+			Action: AdminListDynamicConfig,
 		},
 		{
 			Name:    "listall",
@@ -1410,9 +1421,10 @@ func newAdminConfigStoreCommands() []*cli.Command {
 					Usage:    "Name of Dynamic Config parameter to get value of",
 					Required: true,
 				},
-				&cli.StringFlag{
+				&cli.GenericFlag{
 					Name:  FlagDynamicConfigFilter,
-					Usage: fmt.Sprintf(`Optional filter map keyed by the config's filter dimensions (e.g. domainName, shardID). ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
+					Usage: fmt.Sprintf(`Optional JSON object. ex: --%s '{"domainName":"global-samples-domain", "shardID":1}'`, FlagDynamicConfigFilter),
+					Value: NewDynamicConfigFilterFlag(),
 				},
 			},
 			Action: AdminGetOperationalDynamicConfig,
@@ -1427,10 +1439,14 @@ func newAdminConfigStoreCommands() []*cli.Command {
 					Usage:    "Name of Dynamic Config parameter to update value of",
 					Required: true,
 				},
-				&cli.StringSliceFlag{
-					Name:     FlagDynamicConfigValue,
-					Usage:    fmt.Sprintf(`Can be specified multiple times for multiple values. ex: --%s '{"Value":true,"Filters":[]}'`, FlagDynamicConfigValue),
-					Required: true,
+				&cli.GenericFlag{
+					Name:  FlagDynamicConfigValue,
+					Usage: fmt.Sprintf(`JSON object. Can be specified multiple times for multiple values. ex: --%s '{"Value":1000,"Filters":[]}' --%s '{"Value":100,"Filters":[{"Name":"domainName","Value":"my-domain"}]}'`, FlagDynamicConfigValue, FlagDynamicConfigValue),
+					Value: NewDynamicConfigValuesFlag(),
+				},
+				&cli.StringFlag{
+					Name:  FlagDynamicConfigValueFile,
+					Usage: fmt.Sprintf(`Path to JSON file containing array of config values. ex: --%s config.json`, FlagDynamicConfigValueFile),
 				},
 			},
 			Action: AdminUpdateOperationalDynamicConfig,
@@ -1445,9 +1461,10 @@ func newAdminConfigStoreCommands() []*cli.Command {
 					Usage:    "Name of Dynamic Config parameter to restore",
 					Required: true,
 				},
-				&cli.StringFlag{
+				&cli.GenericFlag{
 					Name:  FlagDynamicConfigFilter,
-					Usage: fmt.Sprintf(`Optional filter map keyed by the config's filter dimensions (e.g. domainName, shardID). ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
+					Usage: fmt.Sprintf(`Optional JSON object. ex: --%s '{"domainName":"global-samples-domain", "shardID":1}'`, FlagDynamicConfigFilter),
+					Value: NewDynamicConfigFilterFlag(),
 				},
 			},
 			Action: AdminRestoreOperationalDynamicConfig,
@@ -1456,8 +1473,13 @@ func newAdminConfigStoreCommands() []*cli.Command {
 			Name:    "operational-list",
 			Aliases: []string{"ol"},
 			Usage:   "List Operational Dynamic Config Value (cassandra-backed store)",
-			Flags:   []cli.Flag{},
-			Action:  AdminListOperationalDynamicConfig,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  FlagDynamicConfigName,
+					Usage: "Optional name of Operational Dynamic Config parameter to list (omit to list all)",
+				},
+			},
+			Action: AdminListOperationalDynamicConfig,
 		},
 	}
 }

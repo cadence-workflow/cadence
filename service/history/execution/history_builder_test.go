@@ -2237,3 +2237,79 @@ func (s *historyBuilderSuite) validateTimerCancelFailedEvent(event *types.Histor
 func (s *historyBuilderSuite) printHistory() string {
 	return thrift.FromHistory(s.builder.GetHistory()).String()
 }
+
+func TestHistoryBuilderSemaphoreEvents(t *testing.T) {
+	tests := []struct {
+		name         string
+		eventType    types.EventType
+		wantBuffered bool
+		add          func(b *HistoryBuilder) *types.HistoryEvent
+		want         func(e *types.HistoryEvent)
+	}{
+		{
+			name:      "when acquire initiated, gets a real event ID",
+			eventType: types.EventTypeSemaphoreAcquireInitiated,
+			add: func(b *HistoryBuilder) *types.HistoryEvent {
+				return b.AddSemaphoreAcquireInitiatedEvent(4, "semaphore-name", 30)
+			},
+			want: func(e *types.HistoryEvent) {
+				e.SemaphoreAcquireInitiatedEventAttributes = &types.SemaphoreAcquireInitiatedEventAttributes{
+					SemaphoreName:                "semaphore-name",
+					WaitTimeoutSeconds:           common.Int32Ptr(30),
+					DecisionTaskCompletedEventID: 4,
+				}
+			},
+		},
+		{
+			name:         "when acquired, gets the buffered placeholder ID",
+			eventType:    types.EventTypeSemaphoreAcquired,
+			wantBuffered: true,
+			add: func(b *HistoryBuilder) *types.HistoryEvent {
+				return b.AddSemaphoreAcquiredEvent(5, 17)
+			},
+			want: func(e *types.HistoryEvent) {
+				e.SemaphoreAcquiredEventAttributes = &types.SemaphoreAcquiredEventAttributes{
+					TokenID:          17,
+					InitiatedEventID: 5,
+				}
+			},
+		},
+		{
+			name:      "when released, gets a real event ID",
+			eventType: types.EventTypeSemaphoreReleased,
+			add: func(b *HistoryBuilder) *types.HistoryEvent {
+				return b.AddSemaphoreReleasedEvent(9, 5, 17)
+			},
+			want: func(e *types.HistoryEvent) {
+				e.SemaphoreReleasedEventAttributes = &types.SemaphoreReleasedEventAttributes{
+					TokenID:                      17,
+					InitiatedEventID:             5,
+					DecisionTaskCompletedEventID: 9,
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mb := testMutableStateBuilder(t)
+			b := NewHistoryBuilder(mb)
+			wantID := mb.GetNextEventID()
+			if tt.wantBuffered {
+				wantID = commonconstants.BufferedEventID
+			}
+
+			event := tt.add(b)
+
+			want := &types.HistoryEvent{
+				ID:        wantID,
+				Timestamp: common.Int64Ptr(currentTime.UnixNano()),
+				EventType: tt.eventType.Ptr(),
+				Version:   mb.GetCurrentVersion(),
+				TaskID:    commonconstants.EmptyEventTaskID,
+			}
+			tt.want(want)
+			require.Equal(t, want, event)
+			require.Equal(t, []*types.HistoryEvent{event}, b.history)
+		})
+	}
+}
