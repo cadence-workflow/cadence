@@ -113,6 +113,10 @@ type (
 		AppendHistoryV2Events(ctx context.Context, request *persistence.AppendHistoryNodesRequest, domainID string, execution types.WorkflowExecution) (*persistence.AppendHistoryNodesResponse, error)
 
 		ReplicateFailoverMarkers(ctx context.Context, markers []*persistence.FailoverMarkerTask) error
+		// EnqueueAsyncWorkflowMessage allocates the message id and writes the queue row under the shard
+		// lock, so message ids become visible to the consumer in allocation order (the same rule transfer
+		// and timer tasks follow). request.MessageID is overwritten with the allocated id, which is returned.
+		EnqueueAsyncWorkflowMessage(ctx context.Context, request *persistence.EnqueueAsyncWorkflowMessageRequest) (int64, error)
 		ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error
 		AddingPendingFailoverMarker(*types.FailoverMarkerAttributes) error
 		ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error)
@@ -1542,6 +1546,29 @@ func (s *contextImpl) ReplicateFailoverMarkers(
 		)
 	}
 	return err
+}
+
+func (s *contextImpl) EnqueueAsyncWorkflowMessage(
+	ctx context.Context,
+	request *persistence.EnqueueAsyncWorkflowMessageRequest,
+) (int64, error) {
+	if err := s.closedError(); err != nil {
+		return 0, err
+	}
+
+	s.Lock()
+	defer s.Unlock()
+
+	messageID, err := s.generateTaskIDLocked()
+	if err != nil {
+		return 0, err
+	}
+	request.MessageID = messageID
+
+	if err := s.GetService().GetPersistenceBean().GetAsyncWorkflowQueueManager().EnqueueAsyncWorkflowMessage(ctx, request); err != nil {
+		return 0, err
+	}
+	return messageID, nil
 }
 
 // reinjectExecutionKey groups reinjected tasks by the execution they belong to, so
