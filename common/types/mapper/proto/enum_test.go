@@ -676,6 +676,8 @@ func TestDecisionTaskFailedCause(t *testing.T) {
 		types.DecisionTaskFailedCauseBadBinary.Ptr(),
 		types.DecisionTaskFailedCauseScheduleActivityDuplicateID.Ptr(),
 		types.DecisionTaskFailedCauseBadSearchAttributes.Ptr(),
+		types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes.Ptr(),
+		types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes.Ptr(),
 	} {
 		assert.Equal(t, item, ToDecisionTaskFailedCause(FromDecisionTaskFailedCause(item)))
 	}

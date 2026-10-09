@@ -46,6 +46,7 @@ type Config struct {
 	ActivityTypeMaxLength            dynamicproperties.IntPropertyFnWithDomainFilter
 	MarkerNameMaxLength              dynamicproperties.IntPropertyFnWithDomainFilter
 	TimerIDMaxLength                 dynamicproperties.IntPropertyFnWithDomainFilter
+	SemaphoreNameMaxLength           dynamicproperties.IntPropertyFnWithDomainFilter
 	PersistenceMaxQPS                dynamicproperties.IntPropertyFn
 	PersistenceGlobalMaxQPS          dynamicproperties.IntPropertyFn
 	EnableVisibilitySampling         dynamicproperties.BoolPropertyFn
@@ -265,6 +266,10 @@ type Config struct {
 	// DecisionHeartbeatTimeout is to timeout behavior of: RespondDecisionTaskComplete with ForceCreateNewDecisionTask == true without any decisions
 	// So that decision will be scheduled to another worker(by clear stickyness)
 	DecisionHeartbeatTimeout dynamicproperties.DurationPropertyFnWithDomainFilter
+	// EnableDistributedSemaphore gates the acquire decision per domain.
+	EnableDistributedSemaphore dynamicproperties.BoolPropertyFnWithDomainFilter
+	// SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout.
+	SemaphoreAcquireDefaultWaitTimeout dynamicproperties.DurationPropertyFnWithDomainFilter
 	// MaxDecisionStartToCloseSeconds is the StartToCloseSeconds for decision
 	MaxDecisionStartToCloseSeconds           dynamicproperties.IntPropertyFnWithDomainFilter
 	DecisionRetryCriticalAttempts            dynamicproperties.IntPropertyFn
@@ -386,6 +391,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		ActivityTypeMaxLength:                dc.GetIntPropertyFilteredByDomain(dynamicproperties.ActivityTypeMaxLength),
 		MarkerNameMaxLength:                  dc.GetIntPropertyFilteredByDomain(dynamicproperties.MarkerNameMaxLength),
 		TimerIDMaxLength:                     dc.GetIntPropertyFilteredByDomain(dynamicproperties.TimerIDMaxLength),
+		SemaphoreNameMaxLength:               dc.GetIntPropertyFilteredByDomain(dynamicproperties.SemaphoreNameMaxLength),
 		PersistenceMaxQPS:                    dc.GetIntProperty(dynamicproperties.HistoryPersistenceMaxQPS),
 		PersistenceGlobalMaxQPS:              dc.GetIntProperty(dynamicproperties.HistoryPersistenceGlobalMaxQPS),
 		ShutdownDrainDuration:                dc.GetDurationProperty(dynamicproperties.HistoryShutdownDrainDuration),
@@ -569,6 +575,8 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		SearchAttributesHiddenValueKeys:          dc.GetMapProperty(dynamicproperties.SearchAttributesHiddenValueKeys),
 		StickyTTL:                                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.StickyTTL),
 		DecisionHeartbeatTimeout:                 dc.GetDurationPropertyFilteredByDomain(dynamicproperties.DecisionHeartbeatTimeout),
+		EnableDistributedSemaphore:               dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDistributedSemaphore),
+		SemaphoreAcquireDefaultWaitTimeout:       dc.GetDurationPropertyFilteredByDomain(dynamicproperties.SemaphoreAcquireDefaultWaitTimeout),
 		DecisionRetryCriticalAttempts:            dc.GetIntProperty(dynamicproperties.DecisionRetryCriticalAttempts),
 		DecisionRetryMaxAttempts:                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.DecisionRetryMaxAttempts),
 		EnforceDecisionTaskAttempts:              dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnforceDecisionTaskAttempts),

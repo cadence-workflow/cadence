@@ -81,14 +81,15 @@ type Config struct {
 	EnableDomainAuditLogging dynamicproperties.BoolPropertyFn
 
 	// id length limits
-	MaxIDLengthWarnLimit  dynamicproperties.IntPropertyFn
-	DomainNameMaxLength   dynamicproperties.IntPropertyFnWithDomainFilter
-	IdentityMaxLength     dynamicproperties.IntPropertyFnWithDomainFilter
-	WorkflowIDMaxLength   dynamicproperties.IntPropertyFnWithDomainFilter
-	SignalNameMaxLength   dynamicproperties.IntPropertyFnWithDomainFilter
-	WorkflowTypeMaxLength dynamicproperties.IntPropertyFnWithDomainFilter
-	RequestIDMaxLength    dynamicproperties.IntPropertyFnWithDomainFilter
-	TaskListNameMaxLength dynamicproperties.IntPropertyFnWithDomainFilter
+	MaxIDLengthWarnLimit   dynamicproperties.IntPropertyFn
+	DomainNameMaxLength    dynamicproperties.IntPropertyFnWithDomainFilter
+	IdentityMaxLength      dynamicproperties.IntPropertyFnWithDomainFilter
+	WorkflowIDMaxLength    dynamicproperties.IntPropertyFnWithDomainFilter
+	SignalNameMaxLength    dynamicproperties.IntPropertyFnWithDomainFilter
+	WorkflowTypeMaxLength  dynamicproperties.IntPropertyFnWithDomainFilter
+	RequestIDMaxLength     dynamicproperties.IntPropertyFnWithDomainFilter
+	TaskListNameMaxLength  dynamicproperties.IntPropertyFnWithDomainFilter
+	SemaphoreNameMaxLength dynamicproperties.IntPropertyFnWithDomainFilter
 
 	// security protection settings
 	EnableAdminProtection         dynamicproperties.BoolPropertyFn
@@ -185,6 +186,7 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		WorkflowTypeMaxLength:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowTypeMaxLength),
 		RequestIDMaxLength:                                dc.GetIntPropertyFilteredByDomain(dynamicproperties.RequestIDMaxLength),
 		TaskListNameMaxLength:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskListNameMaxLength),
+		SemaphoreNameMaxLength:                            dc.GetIntPropertyFilteredByDomain(dynamicproperties.SemaphoreNameMaxLength),
 		EnableAdminProtection:                             dc.GetBoolProperty(dynamicproperties.EnableAdminProtection),
 		AdminOperationToken:                               dc.GetStringProperty(dynamicproperties.AdminOperationToken),
 		DisableListVisibilityByFilter:                     dc.GetBoolPropertyFilteredByDomain(dynamicproperties.DisableListVisibilityByFilter),

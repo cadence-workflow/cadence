@@ -64,6 +64,7 @@ type (
 		timeSource           clock.TimeSource
 		domainCache          cache.DomainCache
 		executionCache       execution.Cache
+		semaphoreMetadataMgr persistence.SemaphoreMetadataManager
 		tokenSerializer      common.TaskTokenSerializer
 		metricsClient        metrics.Client
 		logger               log.Logger
@@ -88,6 +89,7 @@ func NewHandler(
 		timeSource:           shard.GetTimeSource(),
 		domainCache:          shard.GetDomainCache(),
 		executionCache:       executionCache,
+		semaphoreMetadataMgr: shard.GetService().GetSemaphoreMetadataManager(),
 		tokenSerializer:      tokenSerializer,
 		metricsClient:        shard.GetMetricsClient(),
 		logger:               shard.GetLogger().WithTags(tag.ComponentDecisionHandler),
@@ -455,6 +457,7 @@ Update_History_Loop:
 				handler.tokenSerializer,
 				handler.logger,
 				handler.domainCache,
+				handler.semaphoreMetadataMgr,
 				handler.metricsClient,
 				handler.config,
 			)

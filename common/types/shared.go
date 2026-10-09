@@ -1262,6 +1262,10 @@ func (e DecisionTaskFailedCause) String() string {
 		return "SCHEDULE_ACTIVITY_DUPLICATE_I_D"
 	case 22:
 		return "BAD_SEARCH_ATTRIBUTES"
+	case 23:
+		return "BAD_ACQUIRE_SEMAPHORE_ATTRIBUTES"
+	case 24:
+		return "BAD_RELEASE_SEMAPHORE_ATTRIBUTES"
 	}
 	return fmt.Sprintf("DecisionTaskFailedCause(%d)", w)
 }
@@ -1338,6 +1342,12 @@ func (e *DecisionTaskFailedCause) UnmarshalText(value []byte) error {
 	case "BAD_SEARCH_ATTRIBUTES":
 		*e = DecisionTaskFailedCauseBadSearchAttributes
 		return nil
+	case "BAD_ACQUIRE_SEMAPHORE_ATTRIBUTES":
+		*e = DecisionTaskFailedCauseBadAcquireSemaphoreAttributes
+		return nil
+	case "BAD_RELEASE_SEMAPHORE_ATTRIBUTES":
+		*e = DecisionTaskFailedCauseBadReleaseSemaphoreAttributes
+		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
@@ -1400,6 +1410,10 @@ const (
 	DecisionTaskFailedCauseScheduleActivityDuplicateID
 	// DecisionTaskFailedCauseBadSearchAttributes is an option for DecisionTaskFailedCause
 	DecisionTaskFailedCauseBadSearchAttributes
+	// DecisionTaskFailedCauseBadAcquireSemaphoreAttributes is an option for DecisionTaskFailedCause
+	DecisionTaskFailedCauseBadAcquireSemaphoreAttributes
+	// DecisionTaskFailedCauseBadReleaseSemaphoreAttributes is an option for DecisionTaskFailedCause
+	DecisionTaskFailedCauseBadReleaseSemaphoreAttributes
 )
 
 // DecisionTaskFailedEventAttributes is an internal type (TBD...)
