@@ -34,6 +34,8 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	commonconstants "github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -202,7 +204,15 @@ func (s *transactionManagerSuite) TestBackfillWorkflow_CurrentWorkflow_Active_Cl
 	mutableState := execution.NewMockMutableState(s.controller)
 	var releaseFn execution.ReleaseFunc = func(error) { releaseCalled = true }
 
-	workflowEvents := &persistence.WorkflowEvents{}
+	duplicatedSignal := &types.HistoryEvent{ID: 2, Version: 1, EventType: types.EventTypeWorkflowExecutionSignaled.Ptr()}
+	newSignal := &types.HistoryEvent{ID: 3, Version: 1, EventType: types.EventTypeWorkflowExecutionSignaled.Ptr()}
+	workflowEvents := &persistence.WorkflowEvents{
+		Events: []*types.HistoryEvent{
+			{ID: 1, Version: 1, EventType: types.EventTypeDecisionTaskCompleted.Ptr()},
+			duplicatedSignal,
+			newSignal,
+		},
+	}
 
 	workflow.EXPECT().GetContext().Return(context).AnyTimes()
 	workflow.EXPECT().GetMutableState().Return(mutableState).AnyTimes()
@@ -216,6 +226,8 @@ func (s *transactionManagerSuite) TestBackfillWorkflow_CurrentWorkflow_Active_Cl
 		WorkflowID: workflowID,
 		RunID:      runID,
 	}).AnyTimes()
+	mutableState.EXPECT().IsResourceDuplicated(definition.NewEventReappliedID(runID, duplicatedSignal.ID, duplicatedSignal.Version)).Return(true).Times(1)
+	mutableState.EXPECT().IsResourceDuplicated(definition.NewEventReappliedID(runID, newSignal.ID, newSignal.Version)).Return(false).Times(1)
 	mutableState.EXPECT().GetNextEventID().Return(nextEventID).AnyTimes()
 	mutableState.EXPECT().GetPreviousStartedEventID().Return(lastDecisionTaskStartedEventID).Times(1)
 	mutableState.EXPECT().GetVersionHistories().Return(histories).Times(1)
@@ -233,7 +245,7 @@ func (s *transactionManagerSuite) TestBackfillWorkflow_CurrentWorkflow_Active_Cl
 		gomock.Any(),
 		workflow,
 		EventsReapplicationResetWorkflowReason,
-		workflowEvents.Events,
+		[]*types.HistoryEvent{newSignal},
 		false,
 	).Return(nil).Times(1)
 
@@ -253,6 +265,133 @@ func (s *transactionManagerSuite) TestBackfillWorkflow_CurrentWorkflow_Active_Cl
 	err := s.transactionManager.backfillWorkflow(ctx, now, workflow, workflowEvents)
 	s.NoError(err)
 	s.True(releaseCalled)
+}
+
+func (s *transactionManagerSuite) TestBackfillWorkflow_CurrentWorkflow_Active_Closed_SkipReset() {
+	domainID := "some random domain ID"
+	workflowID := "some random workflow ID"
+	runID := "some random run ID"
+	domainName := "some random domainName"
+
+	signal := &types.HistoryEvent{ID: 2, Version: 1, EventType: types.EventTypeWorkflowExecutionSignaled.Ptr()}
+	batchEvents := []*types.HistoryEvent{
+		{ID: 1, Version: 1, EventType: types.EventTypeDecisionTaskCompleted.Ptr()},
+		signal,
+	}
+
+	tests := map[string]struct {
+		signalDuplicated bool
+		setupMock        func(mutableState *execution.MockMutableState)
+	}{
+		"no reapplicable events": {
+			signalDuplicated: true,
+			setupMock:        func(mutableState *execution.MockMutableState) {},
+		},
+		"no decision completed": {
+			signalDuplicated: false,
+			setupMock: func(mutableState *execution.MockMutableState) {
+				mutableState.EXPECT().GetPreviousStartedEventID().Return(commonconstants.EmptyEventID).Times(1)
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		s.Run(name, func() {
+			ctx := ctx.Background()
+			now := time.Now()
+			releaseCalled := false
+
+			workflow := execution.NewMockWorkflow(s.controller)
+			context := execution.NewMockContext(s.controller)
+			mutableState := execution.NewMockMutableState(s.controller)
+			var releaseFn execution.ReleaseFunc = func(error) { releaseCalled = true }
+
+			workflowEvents := &persistence.WorkflowEvents{Events: batchEvents}
+
+			workflow.EXPECT().GetContext().Return(context).AnyTimes()
+			workflow.EXPECT().GetMutableState().Return(mutableState).AnyTimes()
+			workflow.EXPECT().GetReleaseFn().Return(releaseFn).AnyTimes()
+
+			mutableState.EXPECT().IsCurrentWorkflowGuaranteed().Return(false).AnyTimes()
+			mutableState.EXPECT().IsWorkflowExecutionRunning().Return(false).AnyTimes()
+			mutableState.EXPECT().GetDomainEntry().Return(s.domainEntry).AnyTimes()
+			mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+				DomainID:   domainID,
+				WorkflowID: workflowID,
+				RunID:      runID,
+			}).AnyTimes()
+			mutableState.EXPECT().IsResourceDuplicated(definition.NewEventReappliedID(runID, signal.ID, signal.Version)).Return(tc.signalDuplicated).Times(1)
+			tc.setupMock(mutableState)
+
+			s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()
+			s.mockExecutionManager.On("GetCurrentExecution", mock.Anything, &persistence.GetCurrentExecutionRequest{
+				ShardID:    common.Ptr(10),
+				DomainID:   domainID,
+				WorkflowID: workflowID,
+				DomainName: domainName,
+			}).Return(&persistence.GetCurrentExecutionResponse{RunID: runID}, nil).Once()
+
+			context.EXPECT().PersistNonStartWorkflowBatchEvents(gomock.Any(), workflowEvents).Return(events.PersistedBlob{}, nil).Times(1)
+			// no reset happened, so the target workflow is still current and the current record must be updated
+			context.EXPECT().UpdateWorkflowExecutionWithNew(
+				gomock.Any(), now, persistence.UpdateWorkflowModeUpdateCurrent, nil, nil, execution.TransactionPolicyPassive, (*execution.TransactionPolicy)(nil), persistence.CreateWorkflowRequestModeReplicated,
+			).Return(nil).Times(1)
+
+			// no ResetWorkflow expectation: gomock fails the test if the reset is called
+			err := s.transactionManager.backfillWorkflow(ctx, now, workflow, workflowEvents)
+			s.NoError(err)
+			s.True(releaseCalled)
+		})
+	}
+}
+
+func TestGetReapplicableEvents(t *testing.T) {
+	runID := "some random run ID"
+	signal1 := &types.HistoryEvent{ID: 1, Version: 1, EventType: types.EventTypeWorkflowExecutionSignaled.Ptr()}
+	signal2 := &types.HistoryEvent{ID: 2, Version: 1, EventType: types.EventTypeWorkflowExecutionSignaled.Ptr()}
+	nonSignal := &types.HistoryEvent{ID: 3, Version: 1, EventType: types.EventTypeDecisionTaskCompleted.Ptr()}
+
+	tests := map[string]struct {
+		events     []*types.HistoryEvent
+		duplicated map[int64]bool
+		want       []*types.HistoryEvent
+	}{
+		"nil events": {
+			events: nil,
+			want:   nil,
+		},
+		"no signal events": {
+			events: []*types.HistoryEvent{nonSignal},
+			want:   nil,
+		},
+		"all signals duplicated": {
+			events:     []*types.HistoryEvent{signal1, nonSignal, signal2},
+			duplicated: map[int64]bool{signal1.ID: true, signal2.ID: true},
+			want:       nil,
+		},
+		"only signals not yet applied": {
+			events:     []*types.HistoryEvent{signal1, nonSignal, signal2},
+			duplicated: map[int64]bool{signal1.ID: true},
+			want:       []*types.HistoryEvent{signal2},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mutableState := execution.NewMockMutableState(ctrl)
+			for _, event := range tc.events {
+				if event.GetEventType() != types.EventTypeWorkflowExecutionSignaled {
+					continue
+				}
+				mutableState.EXPECT().
+					IsResourceDuplicated(definition.NewEventReappliedID(runID, event.ID, event.Version)).
+					Return(tc.duplicated[event.ID]).Times(1)
+			}
+
+			require.Equal(t, tc.want, getReapplicableEvents(mutableState, tc.events, runID))
+		})
+	}
 }
 
 func (s *transactionManagerSuite) TestBackfillWorkflow_CurrentWorkflow_Passive_Open() {

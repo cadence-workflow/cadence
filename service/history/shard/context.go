@@ -1424,6 +1424,7 @@ func (s *contextImpl) allocateTimerIDsLocked(
 					tag.WorkflowID(workflowID),
 					tag.Timestamp(ts),
 					tag.CursorTimestamp(readCursorTS),
+					tag.LagDuration(readCursorTS.Sub(ts)),
 					tag.ClusterName(cluster),
 					tag.ValueShardAllocateTimerBeforeRead)
 			}
@@ -1435,6 +1436,7 @@ func (s *contextImpl) allocateTimerIDsLocked(
 					tag.WorkflowDomainID(domainEntry.GetInfo().ID),
 					tag.WorkflowID(workflowID),
 					tag.Timestamp(ts),
+					tag.LagDuration(now.Sub(ts)),
 					tag.ValueShardAllocateTimerBeforeRead)
 			}
 			ts = now.Add(persistence.DBTimestampMinPrecision)

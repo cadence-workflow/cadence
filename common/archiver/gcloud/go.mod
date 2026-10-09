@@ -11,7 +11,7 @@ toolchain go1.25.14
 // relative file path.
 replace github.com/uber/cadence => ../../..
 
-// ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version
+// tchannel-go depends on older version of thrift, yarpc brings up newer version
 replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
 
 require (
@@ -28,7 +28,6 @@ require (
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally v3.5.8+incompatible
-	github.com/uber/ringpop-go v0.10.0 // indirect
 	github.com/uber/tchannel-go v1.34.4 // indirect
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
 	go.uber.org/atomic v1.11.0 // indirect

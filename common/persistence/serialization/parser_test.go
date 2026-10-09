@@ -164,6 +164,7 @@ func TestParserRoundTrip(t *testing.T) {
 			HasRetryPolicy:           true,
 			RetryInitialInterval:     time.Hour,
 			RetryBackoffCoefficient:  1.1,
+			RetryJitterCoefficient:   0.5,
 			RetryMaximumInterval:     time.Hour,
 			RetryMaximumAttempts:     1,
 			RetryExpirationTimestamp: now.Add(time.Hour),

@@ -381,10 +381,24 @@ func TestCollectSchemaUpdates(t *testing.T) {
 func TestApplyUpdates(t *testing.T) {
 	t.Parallel()
 
+	v1 := &persistence.SchemaUpdate{Version: persistence.Version{Major: 1, Minor: 0}}
+	v2 := &persistence.SchemaUpdate{Version: persistence.Version{Major: 2, Minor: 0}}
+	duplicateErr := &persistence.DuplicateSchemaElementError{Statement: "CREATE TABLE t", Err: errors.New("already exists")}
+
+	// record returns an UpdateSchema implementation that appends "<name>:<mode>" to actual and returns err
+	record := func(actual *[]string, name string, err error) func(context.Context, *persistence.SchemaUpdate, persistence.SchemaUpdateMode) error {
+		return func(_ context.Context, _ *persistence.SchemaUpdate, mode persistence.SchemaUpdateMode) error {
+			*actual = append(*actual, fmt.Sprintf("%s:%s", name, mode))
+			return err
+		}
+	}
+
 	tests := []struct {
 		name            string
+		resume          bool
 		updates         func(*gomock.Controller, *[]string) []schemaUpdateTask
-		wantErrContains string
+		wantErrContains []string
+		wantErrIs       error
 		expected        []string
 	}{
 		{
@@ -393,25 +407,11 @@ func TestApplyUpdates(t *testing.T) {
 				db1 := persistence.NewMockSchemaDB(ctrl)
 				db2 := persistence.NewMockSchemaDB(ctrl)
 				db3 := persistence.NewMockSchemaDB(ctrl)
-				v1 := &persistence.SchemaUpdate{Version: persistence.Version{Major: 1, Minor: 0}}
-				v2 := &persistence.SchemaUpdate{Version: persistence.Version{Major: 2, Minor: 0}}
-				db1.EXPECT().UpdateSchema(gomock.Any(), v2).DoAndReturn(func(context.Context, *persistence.SchemaUpdate) error {
-					*actual = append(*actual, "b/default/id-2@2.0")
-					return nil
-				})
-				db2.EXPECT().UpdateSchema(gomock.Any(), v2).DoAndReturn(func(context.Context, *persistence.SchemaUpdate) error {
-					*actual = append(*actual, "a/visibility/id-1@2.0")
-					return nil
-				})
+				db1.EXPECT().UpdateSchema(gomock.Any(), v2, gomock.Any()).DoAndReturn(record(actual, "b/default/id-2@2.0", nil))
+				db2.EXPECT().UpdateSchema(gomock.Any(), v2, gomock.Any()).DoAndReturn(record(actual, "a/visibility/id-1@2.0", nil))
 				gomock.InOrder(
-					db3.EXPECT().UpdateSchema(gomock.Any(), v1).DoAndReturn(func(context.Context, *persistence.SchemaUpdate) error {
-						*actual = append(*actual, "a/default/id-0@1.0")
-						return nil
-					}),
-					db3.EXPECT().UpdateSchema(gomock.Any(), v2).DoAndReturn(func(context.Context, *persistence.SchemaUpdate) error {
-						*actual = append(*actual, "a/default/id-0@2.0")
-						return nil
-					}),
+					db3.EXPECT().UpdateSchema(gomock.Any(), v1, gomock.Any()).DoAndReturn(record(actual, "a/default/id-0@1.0", nil)),
+					db3.EXPECT().UpdateSchema(gomock.Any(), v2, gomock.Any()).DoAndReturn(record(actual, "a/default/id-0@2.0", nil)),
 				)
 
 				return []schemaUpdateTask{
@@ -426,30 +426,84 @@ func TestApplyUpdates(t *testing.T) {
 				}
 			},
 			expected: []string{
-				"a/default/id-0@1.0",
-				"a/default/id-0@2.0",
-				"a/visibility/id-1@2.0",
-				"b/default/id-2@2.0",
+				"a/default/id-0@1.0:strict",
+				"a/default/id-0@2.0:strict",
+				"a/visibility/id-1@2.0:strict",
+				"b/default/id-2@2.0:strict",
+			},
+		},
+		{
+			name:   "resume applies only the first update of each DB in resume mode",
+			resume: true,
+			updates: func(ctrl *gomock.Controller, actual *[]string) []schemaUpdateTask {
+				db1 := persistence.NewMockSchemaDB(ctrl)
+				db2 := persistence.NewMockSchemaDB(ctrl)
+				gomock.InOrder(
+					db1.EXPECT().UpdateSchema(gomock.Any(), v1, gomock.Any()).DoAndReturn(record(actual, "a/default/id-0@1.0", nil)),
+					db1.EXPECT().UpdateSchema(gomock.Any(), v2, gomock.Any()).DoAndReturn(record(actual, "a/default/id-0@2.0", nil)),
+				)
+				gomock.InOrder(
+					db2.EXPECT().UpdateSchema(gomock.Any(), v1, gomock.Any()).DoAndReturn(record(actual, "a/visibility/id-1@1.0", nil)),
+					db2.EXPECT().UpdateSchema(gomock.Any(), v2, gomock.Any()).DoAndReturn(record(actual, "a/visibility/id-1@2.0", nil)),
+				)
+				return []schemaUpdateTask{
+					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeVisibility, "id-1"), schemaDB: db2, update: v2},
+					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeVisibility, "id-1"), schemaDB: db2, update: v1},
+					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeDefault, "id-0"), schemaDB: db1, update: v2},
+					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeDefault, "id-0"), schemaDB: db1, update: v1},
+				}
+			},
+			expected: []string{
+				"a/default/id-0@1.0:resume",
+				"a/default/id-0@2.0:strict",
+				"a/visibility/id-1@1.0:resume",
+				"a/visibility/id-1@2.0:strict",
 			},
 		},
 		{
 			name: "stops on first update error",
-			updates: func(ctrl *gomock.Controller, order *[]string) []schemaUpdateTask {
+			updates: func(ctrl *gomock.Controller, actual *[]string) []schemaUpdateTask {
 				db1 := persistence.NewMockSchemaDB(ctrl)
 				db2 := persistence.NewMockSchemaDB(ctrl)
-				v1 := &persistence.SchemaUpdate{Version: persistence.Version{Major: 1, Minor: 0}}
-				v2 := &persistence.SchemaUpdate{Version: persistence.Version{Major: 2, Minor: 0}}
-				db1.EXPECT().UpdateSchema(gomock.Any(), v1).DoAndReturn(func(context.Context, *persistence.SchemaUpdate) error {
-					*order = append(*order, "a/default/id-0@1.0")
-					return errors.New("update failed")
-				})
+				db1.EXPECT().UpdateSchema(gomock.Any(), v1, gomock.Any()).DoAndReturn(record(actual, "a/default/id-0@1.0", errors.New("update failed")))
 				return []schemaUpdateTask{
 					{adminDB: newMockAdminDB(ctrl, "b", persistence.DBTypeDefault, "id-2"), schemaDB: db2, update: v2},
 					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeDefault, "id-0"), schemaDB: db1, update: v1},
 				}
 			},
-			wantErrContains: "failed applying schema update v1.0",
-			expected:        []string{"a/default/id-0@1.0"},
+			wantErrContains: []string{"failed applying schema update v1.0"},
+			expected:        []string{"a/default/id-0@1.0:strict"},
+		},
+		{
+			name: "duplicate schema element error suggests resume",
+			updates: func(ctrl *gomock.Controller, actual *[]string) []schemaUpdateTask {
+				db1 := persistence.NewMockSchemaDB(ctrl)
+				db1.EXPECT().UpdateSchema(gomock.Any(), v1, gomock.Any()).DoAndReturn(record(actual, "a/default/id-0@1.0", duplicateErr))
+				return []schemaUpdateTask{
+					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeDefault, "id-0"), schemaDB: db1, update: v1},
+				}
+			},
+			wantErrContains: []string{"failed applying schema update v1.0", "retry with resume enabled"},
+			wantErrIs:       duplicateErr,
+			expected:        []string{"a/default/id-0@1.0:strict"},
+		},
+		{
+			name:   "resume still fails on duplicate schema elements after the first update",
+			resume: true,
+			updates: func(ctrl *gomock.Controller, actual *[]string) []schemaUpdateTask {
+				db1 := persistence.NewMockSchemaDB(ctrl)
+				gomock.InOrder(
+					db1.EXPECT().UpdateSchema(gomock.Any(), v1, gomock.Any()).DoAndReturn(record(actual, "a/default/id-0@1.0", nil)),
+					db1.EXPECT().UpdateSchema(gomock.Any(), v2, gomock.Any()).DoAndReturn(record(actual, "a/default/id-0@2.0", duplicateErr)),
+				)
+				return []schemaUpdateTask{
+					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeDefault, "id-0"), schemaDB: db1, update: v1},
+					{adminDB: newMockAdminDB(ctrl, "a", persistence.DBTypeDefault, "id-0"), schemaDB: db1, update: v2},
+				}
+			},
+			wantErrContains: []string{"failed applying schema update v2.0"},
+			wantErrIs:       duplicateErr,
+			expected:        []string{"a/default/id-0@1.0:resume", "a/default/id-0@2.0:strict"},
 		},
 	}
 
@@ -459,11 +513,16 @@ func TestApplyUpdates(t *testing.T) {
 			logger := testlogger.New(t)
 			var actual []string
 
-			err := applyUpdates(context.Background(), logger, tt.updates(ctrl, &actual))
-			if tt.wantErrContains != "" {
-				require.ErrorContains(t, err, tt.wantErrContains)
+			err := applyUpdates(context.Background(), logger, tt.updates(ctrl, &actual), tt.resume)
+			if len(tt.wantErrContains) > 0 {
+				for _, contains := range tt.wantErrContains {
+					require.ErrorContains(t, err, contains)
+				}
 			} else {
 				require.NoError(t, err)
+			}
+			if tt.wantErrIs != nil {
+				require.ErrorIs(t, err, tt.wantErrIs)
 			}
 
 			assert.Equal(t, tt.expected, actual)
@@ -472,40 +531,53 @@ func TestApplyUpdates(t *testing.T) {
 }
 
 func TestRunUpdateSchema(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	timeSource := clock.NewMockedTimeSourceAt(time.Unix(0, 0))
-	factory := persistenceclient.NewMockFactory(ctrl)
-	adminDB := newMockAdminDB(ctrl, "mysql", persistence.DBTypeDefault, "db-1")
-	setupDB := persistence.NewMockSetupDB(ctrl)
-	schemaDB := persistence.NewMockSchemaDB(ctrl)
-	schema := persistence.NewMockSchema(ctrl)
-	update := &persistence.SchemaUpdate{Version: persistence.Version{Major: 2, Minor: 0}}
+	tests := []struct {
+		name         string
+		resume       bool
+		expectedMode persistence.SchemaUpdateMode
+	}{
+		{name: "strict", resume: false, expectedMode: persistence.SchemaUpdateModeStrict},
+		{name: "resume", resume: true, expectedMode: persistence.SchemaUpdateModeResume},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			timeSource := clock.NewMockedTimeSourceAt(time.Unix(0, 0))
+			factory := persistenceclient.NewMockFactory(ctrl)
+			adminDB := newMockAdminDB(ctrl, "mysql", persistence.DBTypeDefault, "db-1")
+			setupDB := persistence.NewMockSetupDB(ctrl)
+			schemaDB := persistence.NewMockSchemaDB(ctrl)
+			schema := persistence.NewMockSchema(ctrl)
+			update := &persistence.SchemaUpdate{Version: persistence.Version{Major: 2, Minor: 0}}
 
-	opts := testOptions(t, timeSource)
-	opts.SetupOptions = map[string]string{"key": "value"}
+			opts := testOptions(t, timeSource)
+			opts.SetupOptions = map[string]string{"key": "value"}
+			opts.Resume = tt.resume
 
-	// Happy path e2e
+			// Happy path e2e
 
-	factory.EXPECT().NewAdminDBs().Return([]persistence.AdminDB{adminDB}, nil)
-	// Setup
-	adminDB.EXPECT().CreateSetupDB().Return(setupDB, nil)
-	setupDB.EXPECT().IsSetup(gomock.Any()).Return(false, nil)
-	setupDB.EXPECT().Setup(gomock.Any(), opts.SetupOptions).Return(nil)
-	// Schema planning
-	adminDB.EXPECT().SupportsSchema().Return(true)
-	adminDB.EXPECT().CreateSchemaDB().Return(schemaDB, nil)
-	schemaDB.EXPECT().HasSchemaVersioning(gomock.Any()).Return(true, nil)
-	schemaDB.EXPECT().GetSchemaVersion(gomock.Any()).Return(persistence.Version{Major: 1, Minor: 0}, nil)
-	schemaDB.EXPECT().LatestSchema().Return(schema)
-	schema.EXPECT().LatestVersion().Return(persistence.Version{Major: 2, Minor: 0})
-	schema.EXPECT().AllUpdates().Return([]*persistence.SchemaUpdate{update}, nil)
-	// Schema execution
-	schemaDB.EXPECT().UpdateSchema(gomock.Any(), update).Return(nil)
-	setupDB.EXPECT().Close()
-	schemaDB.EXPECT().Close()
+			factory.EXPECT().NewAdminDBs().Return([]persistence.AdminDB{adminDB}, nil)
+			// Setup
+			adminDB.EXPECT().CreateSetupDB().Return(setupDB, nil)
+			setupDB.EXPECT().IsSetup(gomock.Any()).Return(false, nil)
+			setupDB.EXPECT().Setup(gomock.Any(), opts.SetupOptions).Return(nil)
+			// Schema planning
+			adminDB.EXPECT().SupportsSchema().Return(true)
+			adminDB.EXPECT().CreateSchemaDB().Return(schemaDB, nil)
+			schemaDB.EXPECT().HasSchemaVersioning(gomock.Any()).Return(true, nil)
+			schemaDB.EXPECT().GetSchemaVersion(gomock.Any()).Return(persistence.Version{Major: 1, Minor: 0}, nil)
+			schemaDB.EXPECT().LatestSchema().Return(schema)
+			schema.EXPECT().LatestVersion().Return(persistence.Version{Major: 2, Minor: 0})
+			schema.EXPECT().AllUpdates().Return([]*persistence.SchemaUpdate{update}, nil)
+			// Schema execution
+			schemaDB.EXPECT().UpdateSchema(gomock.Any(), update, tt.expectedMode).Return(nil)
+			setupDB.EXPECT().Close()
+			schemaDB.EXPECT().Close()
 
-	err := runUpdateSchema(context.Background(), factory, opts)
-	require.NoError(t, err)
+			err := runUpdateSchema(context.Background(), factory, opts)
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestCreateDefaultDomain(t *testing.T) {

@@ -903,6 +903,9 @@ type (
 		DropDatabase(database string) error
 		// ExecSchemaOperationQuery allows passing in any query, but it must be schema operation (DDL)
 		ExecSchemaOperationQuery(ctx context.Context, stmt string, args ...interface{}) error
+		// IsSchemaElementExistsError returns true if the error indicates that a DDL statement failed because the
+		// element it creates (table, column, index, etc.) already exists
+		IsSchemaElementExistsError(err error) bool
 	}
 
 	// Tx defines the API for a SQL transaction

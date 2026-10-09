@@ -108,7 +108,7 @@ func runUpdateSchema(ctx context.Context, factory persistenceClient.Factory, opt
 		return err
 	}
 
-	return applyUpdates(ctx, opts.Logger, updates)
+	return applyUpdates(ctx, opts.Logger, updates, opts.Resume)
 }
 
 // connectToDBs tries to create a SetupDB for every AdminDB within the configured
@@ -278,7 +278,9 @@ func createDefaultDomain(ctx context.Context, factory persistenceClient.Factory,
 	return nil
 }
 
-func applyUpdates(ctx context.Context, logger log.Logger, updates []schemaUpdateTask) error {
+// applyUpdates applies updates in order. If resume is true, the first update applied to each AdminDB uses
+// SchemaUpdateModeResume, since only that update could have been partially applied by an interrupted attempt.
+func applyUpdates(ctx context.Context, logger log.Logger, updates []schemaUpdateTask, resume bool) error {
 	// Sort by (PluginName, DBType, Version) so DBs in the same plugin/type group are
 	// advanced together version-by-version.
 	slices.SortStableFunc(updates, func(a, b schemaUpdateTask) int {
@@ -294,20 +296,35 @@ func applyUpdates(ctx context.Context, logger log.Logger, updates []schemaUpdate
 		return cmp.Compare(a.adminDB.Identifier(), b.adminDB.Identifier())
 	})
 
+	updatedDBs := make(map[string]struct{})
 	for _, entry := range updates {
+		// If the user specified resume, we apply it only to the first update for each DB.
+		// We don't apply it more broadly than that to avoid supressing errors.
+		dbID := describeDB(entry.adminDB)
+		mode := persistence.SchemaUpdateModeStrict
+		if _, ok := updatedDBs[dbID]; !ok && resume {
+			mode = persistence.SchemaUpdateModeResume
+		}
+		updatedDBs[dbID] = struct{}{}
+
 		dbLogger := logger.WithTags(dbTags(entry.adminDB)...)
 		dbLogger.Info(
 			"Applying schema update...",
 			tag.SchemaUpdateVersion(entry.update.Version.String()),
+			tag.Mode(mode.String()),
 		)
-		if err := entry.schemaDB.UpdateSchema(ctx, entry.update); err != nil {
-			return fmt.Errorf("failed applying schema update v%s to %s: %w", entry.update.Version, describeDB(entry.adminDB), err)
+		if err := entry.schemaDB.UpdateSchema(ctx, entry.update, mode); err != nil {
+			var duplicateErr *persistence.DuplicateSchemaElementError
+			if errors.As(err, &duplicateErr) {
+				return fmt.Errorf("failed applying schema update v%s to %s (a previous update may have been interrupted; "+
+					"retry with resume enabled to skip already applied statements): %w", entry.update.Version, dbID, err)
+			}
+			return fmt.Errorf("failed applying schema update v%s to %s: %w", entry.update.Version, dbID, err)
 		}
 		dbLogger.Info(
 			"Applied schema update",
 			tag.SchemaUpdateVersion(entry.update.Version.String()),
 		)
-
 	}
 	return nil
 }

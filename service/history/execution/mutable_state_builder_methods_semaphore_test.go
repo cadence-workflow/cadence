@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -139,7 +140,7 @@ func Test__AddSemaphoreAcquireInitiatedEvent(t *testing.T) {
 	})
 	t.Run("records the event and starts the hold", func(t *testing.T) {
 		mb := testSemaphoreMutableStateBuilder(t)
-		event, si, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
+		event, semaphoreInfo, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
 		require.NoError(t, err)
 
 		assert.Equal(t, int64(5), event.ID, "the event takes NextEventID, since acquire events are never buffered")
@@ -150,9 +151,9 @@ func Test__AddSemaphoreAcquireInitiatedEvent(t *testing.T) {
 			DecisionTaskCompletedEventID: 4,
 		}, event.SemaphoreAcquireInitiatedEventAttributes)
 
-		assert.Equal(t, int64(5), si.InitiatedID)
-		assert.Equal(t, si, mb.pendingSemaphoreInfoIDs[5])
-		assert.Equal(t, si, mb.updateSemaphoreInfos[5])
+		assert.Equal(t, int64(5), semaphoreInfo.InitiatedID)
+		assert.Equal(t, semaphoreInfo, mb.pendingSemaphoreInfoIDs[5])
+		assert.Equal(t, semaphoreInfo, mb.updateSemaphoreInfos[5])
 	})
 }
 
@@ -170,7 +171,7 @@ func Test__ReplicateSemaphoreAcquireInitiatedEvent(t *testing.T) {
 		},
 	}
 
-	si, err := mb.ReplicateSemaphoreAcquireInitiatedEvent(event)
+	semaphoreInfo, err := mb.ReplicateSemaphoreAcquireInitiatedEvent(event)
 	require.NoError(t, err)
 
 	want := &persistence.SemaphoreInfo{
@@ -181,7 +182,7 @@ func Test__ReplicateSemaphoreAcquireInitiatedEvent(t *testing.T) {
 		// From the event timestamp, so replay gets the same deadline.
 		AcquireDeadline: timestamp.Add(30 * time.Second),
 	}
-	assert.Equal(t, want, si)
+	assert.Equal(t, want, semaphoreInfo)
 	assert.Equal(t, want, mb.pendingSemaphoreInfoIDs[7])
 	assert.Equal(t, want, mb.updateSemaphoreInfos[7])
 }
@@ -291,6 +292,39 @@ func Test__ReplicateSemaphoreAcquiredEvent(t *testing.T) {
 		mb := testSemaphoreMutableStateBuilder(t)
 		assert.Equal(t, ErrMissingSemaphoreInfo, mb.ReplicateSemaphoreAcquiredEvent(event))
 	})
+}
+
+// Tests that the holds rebuilt from history match the holds the Add methods recorded. A standby
+// cluster or a rebuild only has the events, so each hold must come from its events alone.
+func Test__SemaphoreEventsReplayToTheSameHolds(t *testing.T) {
+	original := testSemaphoreMutableStateBuilder(t)
+	acquireAEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(4, "sem-a", 30)
+	require.NoError(t, err)
+	acquireBEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(4, "sem-b", 60)
+	require.NoError(t, err)
+	_, err = original.AddSemaphoreAcquiredEvent(acquireAEvent.ID, 3)
+	require.NoError(t, err)
+	// acquireA is granted again with a new token, as after a failover.
+	_, err = original.AddSemaphoreAcquiredEvent(acquireAEvent.ID, 8)
+	require.NoError(t, err)
+	// acquireB is never granted, so it is still waiting.
+	// Grant events are buffered until the transaction closes, which flushes them and gives them IDs.
+	require.NoError(t, original.FlushBufferedEvents())
+
+	rebuilt := testSemaphoreMutableStateBuilder(t)
+	// Replay runs later than the original write, so a hold that reads the clock would differ.
+	rebuilt.timeSource.(clock.MockedTimeSource).Advance(time.Hour)
+	// ApplyEvents adds each event to the version history, so the builder needs an empty one.
+	rebuilt.versionHistories = persistence.NewVersionHistories(&persistence.VersionHistory{})
+	info := original.executionInfo
+	_, err = NewStateBuilder(rebuilt.shard, rebuilt.logger, rebuilt).ApplyEvents(
+		info.DomainID, "request-id", types.WorkflowExecution{WorkflowID: info.WorkflowID, RunID: info.RunID}, original.hBuilder.history, nil)
+	require.NoError(t, err)
+
+	assert.Len(t, original.pendingSemaphoreInfoIDs, 2)
+	assert.Equal(t, 8, original.pendingSemaphoreInfoIDs[acquireAEvent.ID].TokenID, "acquireA holds its latest token")
+	assert.Equal(t, 0, original.pendingSemaphoreInfoIDs[acquireBEvent.ID].TokenID, "acquireB has no token yet")
+	assert.Equal(t, original.pendingSemaphoreInfoIDs, rebuilt.pendingSemaphoreInfoIDs)
 }
 
 func Test__ReplicateSemaphoreReleasedEvent(t *testing.T) {

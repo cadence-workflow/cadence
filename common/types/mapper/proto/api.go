@@ -3228,6 +3228,7 @@ func FromRetryPolicy(t *types.RetryPolicy) *apiv1.RetryPolicy {
 		MaximumAttempts:          t.MaximumAttempts,
 		NonRetryableErrorReasons: t.NonRetriableErrorReasons,
 		ExpirationInterval:       secondsToDuration(common.Int32Ptr(t.ExpirationIntervalInSeconds)),
+		JitterCoefficient:        t.JitterCoefficient,
 	}
 }
 
@@ -3242,6 +3243,7 @@ func ToRetryPolicy(t *apiv1.RetryPolicy) *types.RetryPolicy {
 		MaximumAttempts:             t.MaximumAttempts,
 		NonRetriableErrorReasons:    t.NonRetryableErrorReasons,
 		ExpirationIntervalInSeconds: common.Int32Default(durationToSeconds(t.ExpirationInterval)),
+		JitterCoefficient:           t.JitterCoefficient,
 	}
 }
 

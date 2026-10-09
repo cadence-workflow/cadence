@@ -39,6 +39,10 @@ type Options struct {
 	// only to be used as part of auto-setup.
 	// Defaults to "", meaning no domain will be created.
 	DefaultDomain string
+	// Resume allows the first schema update applied to each DB to skip DDL statements whose schema element already
+	// exists. This supports resuming a schema update that was interrupted after applying some, but not all, of its
+	// statements. Defaults to false.
+	Resume bool
 }
 
 func OptionsFromConfig(cfg config.Config) Options {

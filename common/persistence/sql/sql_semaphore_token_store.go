@@ -52,14 +52,6 @@ func newSQLSemaphoreTokenStore(
 	}, nil
 }
 
-func (m *sqlSemaphoreTokenStore) SeedSemaphoreTokens(
-	ctx context.Context,
-	request *persistence.SeedSemaphoreTokensRequest,
-	updatedTime time.Time,
-) error {
-	return errSemaphoreNotSupportedOnSQL()
-}
-
 func (m *sqlSemaphoreTokenStore) GrantSemaphoreToken(
 	ctx context.Context,
 	request *persistence.GrantSemaphoreTokenRequest,

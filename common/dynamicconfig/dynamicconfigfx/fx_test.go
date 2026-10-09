@@ -34,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	openfeatureclientconfig "github.com/uber/cadence/common/dynamicconfig/openfeatureclient/config"
 	"github.com/uber/cadence/common/dynamicconfig/openfeatureprovider"
@@ -61,6 +62,57 @@ func TestModule(t *testing.T) {
 		fx.Invoke(func(c dynamicconfig.Client) {}),
 	)
 	app.RequireStart().RequireStop()
+}
+
+func TestNew_OperationalConfigStore(t *testing.T) {
+	tests := []struct {
+		name        string
+		persistence config.Persistence
+		wantErr     bool
+	}{
+		{
+			name:        "no default store falls back to no-op",
+			persistence: config.Persistence{},
+		},
+		{
+			name: "default store without SQL or NoSQL falls back to no-op",
+			persistence: config.Persistence{
+				DefaultStore: "default",
+				DataStores:   map[string]config.DataStore{"default": {}},
+			},
+		},
+		{
+			name: "store initialization failure is returned",
+			persistence: config.Persistence{
+				DefaultStore: "default",
+				DataStores: map[string]config.DataStore{
+					"default": {SQL: &config.SQL{PluginName: "unknown-plugin"}},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := New(Params{
+				Cfg: config.Config{
+					ClusterGroupMetadata: &config.ClusterGroupMetadata{},
+					Persistence:          tc.persistence,
+				},
+				Logger:        testlogger.New(t),
+				MetricsClient: metrics.NewNoopMetricsClient(),
+				RootDir:       "../../../",
+				Lifecycle:     fxtest.NewLifecycle(t),
+			})
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.IsType(t, configstore.NewNopClient(), res.OperationalConfigStore)
+			require.NotNil(t, res.OperationalDynamicConfig)
+		})
+	}
 }
 
 type fxRoot struct {
@@ -111,12 +163,14 @@ func TestNew_OpenFeatureClient_SingletonAcrossCalls(t *testing.T) {
 
 	// Simulate two per-service fx.Apps sharing the same process.
 	lc1 := fxtest.NewLifecycle(t)
-	New(newParams(lc1))
+	_, err := New(newParams(lc1))
+	require.NoError(t, err)
 	lc1.RequireStart()
 	defer lc1.RequireStop()
 
 	lc2 := fxtest.NewLifecycle(t)
-	res2 := New(newParams(lc2))
+	res2, err := New(newParams(lc2))
+	require.NoError(t, err)
 	lc2.RequireStart()
 	defer lc2.RequireStop()
 

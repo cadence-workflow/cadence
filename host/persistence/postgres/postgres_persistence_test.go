@@ -54,6 +54,12 @@ func TestPostgresSQLShardPersistenceSuite(t *testing.T) {
 	suite.Run(t, s)
 }
 
+func TestPostgresSQLAdminPersistenceSuite(t *testing.T) {
+	s := new(pt.AdminPersistenceSuite)
+	s.TestBase = PostgresTestBase(t)
+	suite.Run(t, s)
+}
+
 type ExecutionManagerSuite struct {
 	pt.ExecutionManagerSuite
 }

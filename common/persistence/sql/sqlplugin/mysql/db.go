@@ -23,6 +23,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/VividCortex/mysqlerr"
@@ -64,6 +65,19 @@ func (mdb *DB) IsDupEntryError(err error) bool {
 	// ErrDupEntry MySQL Error 1062 indicates a duplicate primary key i.e. the row already exists,
 	// so we don't do the insert and return a ConditionalUpdate error.
 	return ok && sqlErr.Number == mysqlerr.ER_DUP_ENTRY
+}
+
+// IsSchemaElementExistsError returns true if a DDL statement failed because the table, column, or index already exists
+func (mdb *DB) IsSchemaElementExistsError(err error) bool {
+	var sqlErr *mysql.MySQLError
+	if !errors.As(err, &sqlErr) {
+		return false
+	}
+	switch sqlErr.Number {
+	case mysqlerr.ER_TABLE_EXISTS_ERROR, mysqlerr.ER_DUP_FIELDNAME, mysqlerr.ER_DUP_KEYNAME:
+		return true
+	}
+	return false
 }
 
 func (mdb *DB) IsNotFoundError(err error) bool {

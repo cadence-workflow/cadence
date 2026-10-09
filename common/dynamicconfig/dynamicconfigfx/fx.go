@@ -24,6 +24,8 @@ package dynamicconfigfx
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"path/filepath"
 
 	"go.uber.org/fx"
@@ -65,7 +67,7 @@ type Result struct {
 }
 
 // New creates dynamicconfig.Client from the configuration
-func New(p Params) Result {
+func New(p Params) (Result, error) {
 	stopped := make(chan struct{})
 
 	if p.Cfg.DynamicConfig.Client == "" {
@@ -131,8 +133,10 @@ func New(p Params) Result {
 		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
 	)
 
-	// Create operational config store
-	operationalConfigStore := createOperationalConfigStore(&p.Cfg.Persistence, dc, p.Logger, p.MetricsClient)
+	operationalConfigStore, err := createOperationalConfigStore(&p.Cfg.Persistence, dc, p.Logger, p.MetricsClient)
+	if err != nil {
+		return Result{}, fmt.Errorf("creating operational dynamic config store: %w", err)
+	}
 	operationalDC := dynamicconfig.NewCollection(
 		operationalConfigStore,
 		p.Logger,
@@ -144,7 +148,7 @@ func New(p Params) Result {
 		Collection:               dc,
 		OperationalConfigStore:   operationalConfigStore,
 		OperationalDynamicConfig: operationalDC,
-	}
+	}, nil
 }
 
 // constructPathIfNeed would append the dir as the root dir
@@ -156,13 +160,15 @@ func constructPathIfNeed(dir string, file string) string {
 	return file
 }
 
-// createOperationalConfigStore returns the primary persistence-backed configstore.Client, or a no-op when persistence doesn't support one.
+// createOperationalConfigStore returns the primary persistence-backed configstore.Client, or a no-op when persistence
+// is not configured. Any other failure is returned: operational config carries rollout knobs that must not silently
+// fall back to defaults.
 func createOperationalConfigStore(
 	persistenceConfig *config.Persistence,
 	dc *dynamicconfig.Collection,
 	logger log.Logger,
 	metricsClient metrics.Client,
-) configstore.Client {
+) (configstore.Client, error) {
 	cscConfig := &csc.ClientConfig{
 		PollInterval:        dc.GetDurationProperty(dynamicproperties.OperationalConfigStorePollInterval)(),
 		UpdateRetryAttempts: dc.GetIntProperty(dynamicproperties.OperationalConfigStoreUpdateRetryAttempts)(),
@@ -176,9 +182,12 @@ func createOperationalConfigStore(
 		metricsClient,
 		persistence.OperationalDynamicConfig,
 	)
-	if err != nil {
+	if errors.Is(err, configstore.ErrPersistenceNotConfigured) {
 		logger.Warn("not instantiating operational dynamic config store, this feature will not be enabled", tag.Error(err))
-		return configstore.NewNopClient()
+		return configstore.NewNopClient(), nil
 	}
-	return client
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }

@@ -6760,6 +6760,7 @@ type RetryPolicy struct {
 	MaximumAttempts             int32    `json:"maximumAttempts,omitempty"`
 	NonRetriableErrorReasons    []string `json:"nonRetriableErrorReasons,omitempty"`
 	ExpirationIntervalInSeconds int32    `json:"expirationIntervalInSeconds,omitempty"`
+	JitterCoefficient           float64  `json:"jitterCoefficient,omitempty"`
 }
 
 // GetInitialIntervalInSeconds is an internal getter (TBD...)
@@ -6806,6 +6807,15 @@ func (v *RetryPolicy) GetNonRetriableErrorReasons() (o []string) {
 func (v *RetryPolicy) GetExpirationIntervalInSeconds() (o int32) {
 	if v != nil {
 		return v.ExpirationIntervalInSeconds
+	}
+	return
+}
+
+// GetJitterCoefficient returns the maximum fraction by which each retry interval
+// is randomly shortened, or 0 if v is nil.
+func (v *RetryPolicy) GetJitterCoefficient() (o float64) {
+	if v != nil {
+		return v.JitterCoefficient
 	}
 	return
 }
