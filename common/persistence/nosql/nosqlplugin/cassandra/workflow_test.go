@@ -24,6 +24,7 @@ package cassandra
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -510,6 +511,103 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 	}
 }
 
+func TestUpdateWorkflowExecutionWithTasks_SentinelBehavior(t *testing.T) {
+	tests := []struct {
+		name              string
+		sentinelEnabled   bool
+		activityDeletes   []int64
+		timerDeletes      []string
+		wantSentinelQuery string
+		wantDeleteQuery   string
+	}{
+		{
+			name:              "sentinel enabled - activity delete writes sentinel instead of deleting",
+			sentinelEnabled:   true,
+			activityDeletes:   []int64{10},
+			wantSentinelQuery: "SET activity_map",
+		},
+		{
+			name:            "sentinel disabled - activity delete uses regular delete",
+			sentinelEnabled: false,
+			activityDeletes: []int64{10},
+			wantDeleteQuery: "DELETE activity_map",
+		},
+		{
+			name:              "sentinel enabled - timer delete writes sentinel instead of deleting",
+			sentinelEnabled:   true,
+			timerDeletes:      []string{"timer-1"},
+			wantSentinelQuery: "SET timer_map",
+		},
+		{
+			name:            "sentinel disabled - timer delete uses regular delete",
+			sentinelEnabled: false,
+			timerDeletes:    []string{"timer-1"},
+			wantDeleteQuery: "DELETE timer_map",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			session := &fakeSession{
+				iter:                      &fakeIter{},
+				mapExecuteBatchCASApplied: true,
+			}
+			client := gocql.NewMockClient(ctrl)
+			cfg := &config.NoSQL{}
+			logger := testlogger.New(t)
+			db := NewCassandraDBFromSession(cfg, session, logger, nil, DbWithClient(client))
+
+			mutatedExecution := testdata.WFExecRequest(
+				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeUpdate),
+			)
+			mutatedExecution.ActivityInfoKeysToDelete = tc.activityDeletes
+			mutatedExecution.TimerInfoKeysToDelete = tc.timerDeletes
+			mutatedExecution.SentinelWriteEnabled = tc.sentinelEnabled
+
+			err := db.UpdateWorkflowExecutionWithTasks(
+				context.Background(),
+				nil,
+				&nosqlplugin.CurrentWorkflowWriteRequest{
+					WriteMode: nosqlplugin.CurrentWorkflowWriteModeNoop,
+				},
+				mutatedExecution,
+				nil,
+				nil,
+				nil,
+				nil,
+				&nosqlplugin.ShardCondition{ShardID: 1},
+			)
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(session.batches) == 0 {
+				t.Fatal("expected at least one batch")
+			}
+
+			allQueries := strings.Join(session.batches[0].queries, "\n")
+
+			if tc.wantSentinelQuery != "" {
+				if !strings.Contains(allQueries, tc.wantSentinelQuery) {
+					t.Errorf("expected batch to contain sentinel query with %q, got:\n%s", tc.wantSentinelQuery, allQueries)
+				}
+			}
+			if tc.wantDeleteQuery != "" {
+				if !strings.Contains(allQueries, tc.wantDeleteQuery) {
+					t.Errorf("expected batch to contain delete query with %q, got:\n%s", tc.wantDeleteQuery, allQueries)
+				}
+			}
+			if tc.wantSentinelQuery != "" && tc.wantDeleteQuery == "" {
+				if strings.Contains(allQueries, "DELETE activity_map") || strings.Contains(allQueries, "DELETE timer_map") {
+					t.Errorf("sentinel enabled but found DELETE map query in batch:\n%s", allQueries)
+				}
+			}
+		})
+	}
+}
+
 func TestSelectWorkflowExecution(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -605,7 +703,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 			},
 		},
 		{
-			name:       "sentinel activity and timer entries are filtered on read",
+			name:       "sentinel activity and timer entries are discarded on read",
 			shardID:    1,
 			domainID:   "test-domain-id",
 			workflowID: "test-workflow-id",

@@ -1676,6 +1676,24 @@ const (
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
 
+	// RewriteSampleRate controls how often a full rewrite of activity and timer
+	// collections is triggered on transactions with deletes. A value of N means
+	// a 1-in-N chance per transaction (e.g., 100 = rewrite roughly every 100th
+	// transaction). 0 disables the optimization. 1 means rewrite every time.
+	// Only applies to backends listed in RewriteOptimizationBackends.
+	//
+	// When enabled, deletes write sentinel entries instead of issuing database
+	// deletes, and full rewrites compact them. A rate too high means sentinels
+	// accumulate, growing the collection. Larger collections increase read
+	// latency because sentinels must be filtered on every load, especially
+	// costly during shard movement or cache eviction when the full collection
+	// is read from the database.
+	//
+	// KeyName: history.rewriteSampleRate
+	// Value type: Int
+	// Default value: 0
+	RewriteSampleRate
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -3534,6 +3552,17 @@ const (
 	// Default value: forward all headers.  (this is a problematic value, and it will be changing as we reduce to a list of known values)
 	HeaderForwardingRules
 
+	// RewriteOptimizationBackends is the list of persistence backends that support
+	// the rewrite optimization (sentinel writes + probabilistic full rewrite).
+	// Currently only Cassandra is known to need this optimization (to avoid tombstones).
+	// Note: this value is read once at process startup and cached. Changes require a
+	// restart to take effect. Use the sample rate config as a live kill switch instead.
+	// KeyName: history.rewriteOptimizationBackends
+	// Value type: []string
+	// Default value: ["cassandra"]
+	// Allowed filters: N/A
+	RewriteOptimizationBackends
+
 	LastListKey
 )
 
@@ -4662,6 +4691,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
+	},
+	RewriteSampleRate: {
+		KeyName:      "history.rewriteSampleRate",
+		Description:  "How often a full rewrite of activity and timer collections is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction). 0 disables. Only applies to backends in RewriteOptimizationBackends. A rate too high causes sentinel accumulation, growing collections and increasing read latency on shard movement or cache eviction.",
+		DefaultValue: 0,
 	},
 }
 
@@ -6246,6 +6280,11 @@ var ListKeys = map[ListKey]DynamicList{
 		KeyName:      "system.rateLimiterBypassCallerTypes",
 		Description:  "List of caller types that bypass rate limiters (both frontend and persistence)",
 		DefaultValue: []interface{}{},
+	},
+	RewriteOptimizationBackends: {
+		KeyName:      "history.rewriteOptimizationBackends",
+		Description:  "List of persistence backends that support the rewrite optimization (sentinel writes + probabilistic rewrite). Currently only Cassandra is known to need this (to avoid tombstones). Cached at startup; changes require restart. Use the sample rate config as a live kill switch.",
+		DefaultValue: []interface{}{"cassandra"},
 	},
 	DefaultIsolationGroupConfigStoreManagerGlobalMapping: {
 		KeyName: "system.defaultIsolationGroupConfigStoreManagerGlobalMapping",
