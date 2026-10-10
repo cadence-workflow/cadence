@@ -810,8 +810,14 @@ func TestVirtualQueue_LifeCycle_Pause(t *testing.T) {
 
 	queue.Start()
 
-	// wait for the pause controller to resume
+	// wait for the pause timer to be created
 	mockTimeSource.BlockUntil(1)
+	// The pause timer is created while loadAndSubmitTasks holds the queue lock. Wait for that call to
+	// release the lock before advancing the time, otherwise the pause can expire before the queue
+	// checks whether it is paused, and the queue loads tasks while the pending task count is too high.
+	queue.Lock()
+	queue.Unlock()
+	// advance the time so the pause controller resumes the queue
 	mockTimeSource.Advance(time.Second * 10)
 
 	queue.Stop()
