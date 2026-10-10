@@ -941,11 +941,10 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Complete() {
 					Answer:     answer,
 				},
 			}
+			// Setting the termination state unblocks QueryWorkflow, which removes the query from
+			// the registry concurrently, so the state cannot be read back here without racing.
 			err := qr.SetTerminationState(id, completedTerminationState)
 			s.NoError(err)
-			state, err := qr.GetTerminationState(id)
-			s.NoError(err)
-			s.Equal(query.TerminationTypeCompleted, state.TerminationType)
 		}
 	}
 
@@ -1019,11 +1018,10 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Complete_ActiveActi
 					Answer:     answer,
 				},
 			}
+			// Setting the termination state unblocks QueryWorkflow, which removes the query from
+			// the registry concurrently, so the state cannot be read back here without racing.
 			err := qr.SetTerminationState(id, completedTerminationState)
 			s.NoError(err)
-			state, err := qr.GetTerminationState(id)
-			s.NoError(err)
-			s.Equal(query.TerminationTypeCompleted, state.TerminationType)
 		}
 	}
 
@@ -1090,10 +1088,9 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Unblocked() {
 		qr := builder.GetQueryRegistry()
 		buffered := qr.GetBufferedIDs()
 		for _, id := range buffered {
+			// Setting the termination state unblocks QueryWorkflow, which removes the query from
+			// the registry concurrently, so the state cannot be read back here without racing.
 			s.NoError(qr.SetTerminationState(id, &query.TerminationState{TerminationType: query.TerminationTypeUnblocked}))
-			state, err := qr.GetTerminationState(id)
-			s.NoError(err)
-			s.Equal(query.TerminationTypeUnblocked, state.TerminationType)
 		}
 	}
 
