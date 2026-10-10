@@ -965,7 +965,12 @@ func (s *timerQueueProcessorBaseSuite) TestTimerProcessorPump_SplitQueue() {
 	timerQueueProcessBase.options.SplitQueueInterval = dynamicproperties.GetDurationPropertyFn(1 * time.Millisecond)
 	splittedCh := make(chan struct{}, 1)
 	timerQueueProcessBase.splitProcessingQueueCollectionFn = func(splitPolicy ProcessingQueueSplitPolicy, upsertPollTimeFn func(int, time.Time)) {
-		splittedCh <- struct{}{}
+		// The split timer fires every millisecond, so this is called repeatedly until the processor
+		// is stopped. Don't block on the send, or the processor pump can't exit on Stop.
+		select {
+		case splittedCh <- struct{}{}:
+		default:
+		}
 	}
 	timerQueueProcessBase.Start()
 	defer timerQueueProcessBase.Stop()
