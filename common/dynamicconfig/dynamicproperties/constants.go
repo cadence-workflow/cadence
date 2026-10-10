@@ -1797,6 +1797,12 @@ const (
 
 	// key for frontend
 
+	// EnableListDomainsFiltering enables per domain authorization checks when listing domains.
+	// KeyName: frontend.enableListDomainsFiltering
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableListDomainsFiltering
 	// EnableClientVersionCheck is enables client version check for frontend
 	// KeyName: frontend.enableClientVersionCheck
 	// Value type: Bool
@@ -4792,6 +4798,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableConnectionRetainingDirectChooser: {
 		KeyName:      "system.enableConnectionRetainingDirectChooser",
 		Description:  "EnableConnectionRetainingDirectChooser is the key for enabling connection retaining direct chooser",
+		DefaultValue: false,
+	},
+	EnableListDomainsFiltering: {
+		KeyName:      "frontend.enableListDomainsFiltering",
+		Description:  "Enables per domain authorization checks when listing domains. Authentication is checked independently. Disabled by default to avoid additional authorizer calls and filtered pages.",
 		DefaultValue: false,
 	},
 	EnableClientVersionCheck: {
