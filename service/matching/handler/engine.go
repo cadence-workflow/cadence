@@ -396,11 +396,11 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	return mgr, nil
 }
 
-// AddSemaphoreTask claims a token slot in one semaphore bucket for one owner.
-func (e *matchingEngineImpl) AddSemaphoreTask(
+// AcquireSemaphore claims a token slot in one semaphore bucket for one owner.
+func (e *matchingEngineImpl) AcquireSemaphore(
 	hCtx *handlerContext,
-	request *types.AddSemaphoreTaskRequest,
-) (*types.AddSemaphoreTaskResponse, error) {
+	request *types.AcquireSemaphoreRequest,
+) (*types.AcquireSemaphoreResponse, error) {
 	domainID := request.GetDomainUUID()
 	semaphoreName := request.GetSemaphoreName()
 	bucket := int(request.GetBucket())
@@ -413,7 +413,7 @@ func (e *matchingEngineImpl) AddSemaphoreTask(
 
 	e.emitInfoOrDebugLog(
 		domainID,
-		"Received AddSemaphoreTask",
+		"Received AcquireSemaphore",
 		tag.WorkflowID(owner.WorkflowID),
 		tag.WorkflowRunID(owner.RunID),
 		tag.WorkflowDomainID(domainID),
@@ -435,7 +435,7 @@ func (e *matchingEngineImpl) AddSemaphoreTask(
 		return nil, err
 	}
 
-	return &types.AddSemaphoreTaskResponse{
+	return &types.AcquireSemaphoreResponse{
 		Outcome: resp.Outcome,
 		TokenID: int32(resp.TokenID),
 	}, nil

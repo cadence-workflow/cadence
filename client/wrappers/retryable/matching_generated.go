@@ -31,6 +31,17 @@ func NewMatchingClient(client _sourceMatching.Client, policy backoff.RetryPolicy
 	}
 }
 
+func (c *matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest, p1 ...yarpc.CallOption) (ap2 *types.AcquireSemaphoreResponse, err error) {
+	var resp *types.AcquireSemaphoreResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.AcquireSemaphore(ctx, ap1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
 	var resp *types.AddActivityTaskResponse
 	op := func(ctx context.Context) error {
@@ -47,17 +58,6 @@ func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDeci
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.AddDecisionTask(ctx, ap1, p1...)
-		return err
-	}
-	err = c.throttleRetry.Do(ctx, op)
-	return resp, err
-}
-
-func (c *matchingClient) AddSemaphoreTask(ctx context.Context, ap1 *types.AddSemaphoreTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddSemaphoreTaskResponse, err error) {
-	var resp *types.AddSemaphoreTaskResponse
-	op := func(ctx context.Context) error {
-		var err error
-		resp, err = c.client.AddSemaphoreTask(ctx, ap1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)

@@ -734,8 +734,8 @@ const (
 	SemaphoreAcquireOutcomeNoSlot
 )
 
-// AddSemaphoreTaskRequest asks the matching host that owns a bucket for a token slot.
-type AddSemaphoreTaskRequest struct {
+// AcquireSemaphoreRequest asks the matching host that owns a bucket for a token slot.
+type AcquireSemaphoreRequest struct {
 	DomainUUID    string
 	SemaphoreName string
 	// Bucket is the partition to serve from. History picks it and routes on it; with DomainUUID
@@ -745,7 +745,7 @@ type AddSemaphoreTaskRequest struct {
 }
 
 // GetDomainUUID is an internal getter (TBD...)
-func (v *AddSemaphoreTaskRequest) GetDomainUUID() (o string) {
+func (v *AcquireSemaphoreRequest) GetDomainUUID() (o string) {
 	if v != nil {
 		return v.DomainUUID
 	}
@@ -753,7 +753,7 @@ func (v *AddSemaphoreTaskRequest) GetDomainUUID() (o string) {
 }
 
 // GetSemaphoreName is an internal getter (TBD...)
-func (v *AddSemaphoreTaskRequest) GetSemaphoreName() (o string) {
+func (v *AcquireSemaphoreRequest) GetSemaphoreName() (o string) {
 	if v != nil {
 		return v.SemaphoreName
 	}
@@ -761,7 +761,7 @@ func (v *AddSemaphoreTaskRequest) GetSemaphoreName() (o string) {
 }
 
 // GetBucket is an internal getter (TBD...)
-func (v *AddSemaphoreTaskRequest) GetBucket() (o int32) {
+func (v *AcquireSemaphoreRequest) GetBucket() (o int32) {
 	if v != nil {
 		return v.Bucket
 	}
@@ -769,15 +769,15 @@ func (v *AddSemaphoreTaskRequest) GetBucket() (o int32) {
 }
 
 // GetOwnerID is an internal getter (TBD...)
-func (v *AddSemaphoreTaskRequest) GetOwnerID() (o string) {
+func (v *AcquireSemaphoreRequest) GetOwnerID() (o string) {
 	if v != nil {
 		return v.OwnerID
 	}
 	return
 }
 
-// AddSemaphoreTaskResponse reports how the acquire ended.
-type AddSemaphoreTaskResponse struct {
+// AcquireSemaphoreResponse reports how the acquire ended.
+type AcquireSemaphoreResponse struct {
 	Outcome SemaphoreAcquireOutcome
 	// TokenID is the slot held, or 0 when none was granted: slot ids start at 1 and are bounded
 	// by the per-bucket token budget, so 0 is never a real slot.

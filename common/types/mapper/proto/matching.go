@@ -758,11 +758,11 @@ func ToSemaphoreAcquireOutcome(t matchingv1.SemaphoreAcquireOutcome) types.Semap
 	return types.SemaphoreAcquireOutcomeInvalid
 }
 
-func FromMatchingAddSemaphoreTaskRequest(t *types.AddSemaphoreTaskRequest) *matchingv1.AddSemaphoreTaskRequest {
+func FromMatchingAcquireSemaphoreRequest(t *types.AcquireSemaphoreRequest) *matchingv1.AcquireSemaphoreRequest {
 	if t == nil {
 		return nil
 	}
-	return &matchingv1.AddSemaphoreTaskRequest{
+	return &matchingv1.AcquireSemaphoreRequest{
 		DomainId:      t.DomainUUID,
 		SemaphoreName: t.SemaphoreName,
 		Bucket:        t.Bucket,
@@ -770,11 +770,11 @@ func FromMatchingAddSemaphoreTaskRequest(t *types.AddSemaphoreTaskRequest) *matc
 	}
 }
 
-func ToMatchingAddSemaphoreTaskRequest(t *matchingv1.AddSemaphoreTaskRequest) *types.AddSemaphoreTaskRequest {
+func ToMatchingAcquireSemaphoreRequest(t *matchingv1.AcquireSemaphoreRequest) *types.AcquireSemaphoreRequest {
 	if t == nil {
 		return nil
 	}
-	return &types.AddSemaphoreTaskRequest{
+	return &types.AcquireSemaphoreRequest{
 		DomainUUID:    t.DomainId,
 		SemaphoreName: t.SemaphoreName,
 		Bucket:        t.Bucket,
@@ -782,21 +782,21 @@ func ToMatchingAddSemaphoreTaskRequest(t *matchingv1.AddSemaphoreTaskRequest) *t
 	}
 }
 
-func FromMatchingAddSemaphoreTaskResponse(t *types.AddSemaphoreTaskResponse) *matchingv1.AddSemaphoreTaskResponse {
+func FromMatchingAcquireSemaphoreResponse(t *types.AcquireSemaphoreResponse) *matchingv1.AcquireSemaphoreResponse {
 	if t == nil {
 		return nil
 	}
-	return &matchingv1.AddSemaphoreTaskResponse{
+	return &matchingv1.AcquireSemaphoreResponse{
 		Outcome: FromSemaphoreAcquireOutcome(t.Outcome),
 		TokenId: t.TokenID,
 	}
 }
 
-func ToMatchingAddSemaphoreTaskResponse(t *matchingv1.AddSemaphoreTaskResponse) *types.AddSemaphoreTaskResponse {
+func ToMatchingAcquireSemaphoreResponse(t *matchingv1.AcquireSemaphoreResponse) *types.AcquireSemaphoreResponse {
 	if t == nil {
 		return nil
 	}
-	return &types.AddSemaphoreTaskResponse{
+	return &types.AcquireSemaphoreResponse{
 		Outcome: ToSemaphoreAcquireOutcome(t.Outcome),
 		TokenID: t.TokenId,
 	}

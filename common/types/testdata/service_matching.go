@@ -216,14 +216,14 @@ var (
 	// way a real owner id is: the release CAS compares these bytes exactly.
 	SemaphoreOwnerID = semaphore.Owner{WorkflowID: WorkflowID, RunID: RunID, HoldID: 7}.String()
 
-	MatchingAddSemaphoreTaskRequest = types.AddSemaphoreTaskRequest{
+	MatchingAcquireSemaphoreRequest = types.AcquireSemaphoreRequest{
 		DomainUUID:    DomainID,
 		SemaphoreName: SemaphoreName,
 		Bucket:        2,
 		OwnerID:       SemaphoreOwnerID,
 	}
 
-	MatchingAddSemaphoreTaskResponse = types.AddSemaphoreTaskResponse{
+	MatchingAcquireSemaphoreResponse = types.AcquireSemaphoreResponse{
 		Outcome: types.SemaphoreAcquireOutcomeAcquired,
 		TokenID: 17,
 	}
