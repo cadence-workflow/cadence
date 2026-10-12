@@ -23,6 +23,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/lib/pq"
@@ -50,12 +51,32 @@ var _ sqlplugin.Tx = (*db)(nil)
 // check http://www.postgresql.org/docs/9.3/static/errcodes-appendix.html
 const ErrDupEntry = "23505"
 
+// Errors returned when a DDL statement creates an element that already exists
+const (
+	ErrDuplicateTable  = "42P07"
+	ErrDuplicateColumn = "42701"
+	ErrDuplicateObject = "42710"
+)
+
 const ErrInsufficientResources = "53000"
 const ErrTooManyConnections = "53300"
 
 func (pdb *db) IsDupEntryError(err error) bool {
 	sqlErr, ok := err.(*pq.Error)
 	return ok && sqlErr.Code == ErrDupEntry
+}
+
+// IsSchemaElementExistsError returns true if a DDL statement failed because the table, column, or index already exists
+func (pdb *db) IsSchemaElementExistsError(err error) bool {
+	var sqlErr *pq.Error
+	if !errors.As(err, &sqlErr) {
+		return false
+	}
+	switch sqlErr.Code {
+	case ErrDuplicateTable, ErrDuplicateColumn, ErrDuplicateObject:
+		return true
+	}
+	return false
 }
 
 func (pdb *db) IsNotFoundError(err error) bool {

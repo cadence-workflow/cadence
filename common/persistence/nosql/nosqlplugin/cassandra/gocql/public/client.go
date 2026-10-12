@@ -102,3 +102,24 @@ func (c client) IsCassandraConsistencyError(err error) bool {
 	}
 	return false
 }
+
+// IsSchemaElementExistsError returns true if a DDL statement failed because the element it creates already exists.
+// CREATE TABLE returns an AlreadyExists error. Other existing elements (types, indexes, columns, and type fields)
+// return an InvalidRequest error that can only be identified by its message, which varies across Cassandra versions:
+//   - 4.x: "A user type with name 'x' already exists", "Index 'x' already exists",
+//     "Column with name 'x' already exists", "Cannot add field x to type y: a field with name x already exists"
+//   - 3.x: "Invalid column name x because it conflicts with an existing column",
+//     "Cannot add new field x to type y: a field of the same name already exists"
+func (c client) IsSchemaElementExistsError(err error) bool {
+	var alreadyExists *gogocql.RequestErrAlreadyExists
+	if errors.As(err, &alreadyExists) {
+		return true
+	}
+	var e gogocql.RequestError
+	if errors.As(err, &e) && e.Code() == gogocql.ErrCodeInvalid {
+		msg := e.Message()
+		return strings.Contains(msg, "already exists") ||
+			strings.Contains(msg, "conflicts with an existing column")
+	}
+	return false
+}

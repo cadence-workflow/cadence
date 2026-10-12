@@ -90,6 +90,8 @@ type (
 		AddRequestCancelActivityTaskFailedEvent(int64, string, string) (*types.HistoryEvent, error)
 		AddRequestCancelExternalWorkflowExecutionFailedEvent(int64, int64, string, string, string, types.CancelExternalWorkflowExecutionFailedCause) (*types.HistoryEvent, error)
 		AddRequestCancelExternalWorkflowExecutionInitiatedEvent(int64, string, *types.RequestCancelExternalWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.RequestCancelInfo, error)
+		AddSemaphoreAcquireInitiatedEvent(int64, string, int32) (*types.HistoryEvent, *persistence.SemaphoreInfo, error)
+		AddSemaphoreAcquiredEvent(int64, int32) (*types.HistoryEvent, error)
 		AddSignalExternalWorkflowExecutionFailedEvent(int64, int64, string, string, string, []uint8, types.SignalExternalWorkflowExecutionFailedCause) (*types.HistoryEvent, error)
 		AddSignalExternalWorkflowExecutionInitiatedEvent(int64, string, *types.SignalExternalWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.SignalInfo, error)
 		AddSignalRequested(requestID string)
@@ -195,6 +197,9 @@ type (
 		ReplicateExternalWorkflowExecutionSignaled(*types.HistoryEvent) error
 		ReplicateRequestCancelExternalWorkflowExecutionFailedEvent(*types.HistoryEvent) error
 		ReplicateRequestCancelExternalWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent, string) (*persistence.RequestCancelInfo, error)
+		ReplicateSemaphoreAcquireInitiatedEvent(*types.HistoryEvent) (*persistence.SemaphoreInfo, error)
+		ReplicateSemaphoreAcquiredEvent(*types.HistoryEvent) error
+		ReplicateSemaphoreReleasedEvent(*types.HistoryEvent) error
 		ReplicateSignalExternalWorkflowExecutionFailedEvent(*types.HistoryEvent) error
 		ReplicateSignalExternalWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent, string) (*persistence.SignalInfo, error)
 		ReplicateStartChildWorkflowExecutionFailedEvent(*types.HistoryEvent) error

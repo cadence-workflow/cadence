@@ -68,6 +68,8 @@ var (
 	ErrMissingActivityInfo = &types.InternalServiceError{Message: "unable to get activity info"}
 	// ErrMissingChildWorkflowInfo indicates missing child workflow info
 	ErrMissingChildWorkflowInfo = &types.InternalServiceError{Message: "unable to get child workflow info"}
+	// ErrMissingSemaphoreInfo indicates missing semaphore hold info
+	ErrMissingSemaphoreInfo = &types.InternalServiceError{Message: "unable to get semaphore info"}
 	// ErrMissingWorkflowStartEvent indicates missing workflow start event
 	ErrMissingWorkflowStartEvent = &types.InternalServiceError{Message: "unable to get workflow start event"}
 	// ErrMissingWorkflowCompletionEvent indicates missing workflow completion event

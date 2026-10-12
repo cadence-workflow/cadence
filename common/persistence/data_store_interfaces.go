@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,SemaphoreMetadataStore,SemaphoreTaskStore,SemaphoreTokenStore,HistoryDLQTaskStore
+//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,SemaphoreMetadataStore,SemaphoreTaskStore,SemaphoreTokenStore,HistoryDLQTaskStore,AsyncWorkflowQueueStore
 //go:generate mockgen -package $GOPACKAGE -destination visibility_store_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence VisibilityStore
 
 type (
@@ -151,6 +151,20 @@ type (
 		GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) (InternalGetHistoryDLQAckLevelsResponse, error)
 		UpdateHistoryDLQAckLevel(ctx context.Context, request InternalUpdateHistoryDLQAckLevelRequest) error
 		CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request InternalHistoryDLQAckLevel) error
+	}
+
+	// AsyncWorkflowQueueStore is the persistence backend of the per-shard async workflow queue.
+	AsyncWorkflowQueueStore interface {
+		Closeable
+		GetName() string
+		EnqueueAsyncWorkflowMessage(ctx context.Context, request *InternalEnqueueAsyncWorkflowMessageRequest) error
+		ReadAsyncWorkflowMessages(ctx context.Context, request *ReadAsyncWorkflowMessagesRequest) (*ReadAsyncWorkflowMessagesResponse, error)
+		GetAsyncWorkflowAckLevels(ctx context.Context, request *GetAsyncWorkflowAckLevelsRequest) (*GetAsyncWorkflowAckLevelsResponse, error)
+		UpdateAsyncWorkflowAckLevel(ctx context.Context, request *InternalUpdateAsyncWorkflowAckLevelRequest) error
+		RangeDeleteAsyncWorkflowMessages(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesRequest) error
+		EnqueueAsyncWorkflowMessageToDLQ(ctx context.Context, request *InternalEnqueueAsyncWorkflowMessageToDLQRequest) error
+		ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *ReadAsyncWorkflowMessagesFromDLQRequest) (*ReadAsyncWorkflowMessagesFromDLQResponse, error)
+		RangeDeleteAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesFromDLQRequest) error
 	}
 
 	// ExecutionStore is used to manage workflow executions for Persistence layer
@@ -1089,6 +1103,24 @@ type (
 		// TaskBlob is the serialized task (including its granular task type),
 		// produced by the task serializer for TaskCategory.
 		TaskBlob *DataBlob
+	}
+
+	// InternalEnqueueAsyncWorkflowMessageRequest is EnqueueAsyncWorkflowMessageRequest stamped with the write time.
+	InternalEnqueueAsyncWorkflowMessageRequest struct {
+		*EnqueueAsyncWorkflowMessageRequest
+		CurrentTimeStamp time.Time
+	}
+
+	// InternalUpdateAsyncWorkflowAckLevelRequest is UpdateAsyncWorkflowAckLevelRequest stamped with the write time.
+	InternalUpdateAsyncWorkflowAckLevelRequest struct {
+		*UpdateAsyncWorkflowAckLevelRequest
+		CurrentTimeStamp time.Time
+	}
+
+	// InternalEnqueueAsyncWorkflowMessageToDLQRequest is EnqueueAsyncWorkflowMessageToDLQRequest stamped with the write time.
+	InternalEnqueueAsyncWorkflowMessageToDLQRequest struct {
+		*EnqueueAsyncWorkflowMessageToDLQRequest
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalHistoryDLQTask is a single row from the history_task_dlq table.

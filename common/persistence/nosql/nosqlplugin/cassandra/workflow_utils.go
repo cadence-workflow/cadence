@@ -1172,6 +1172,7 @@ func resetActivityInfoMap(activityInfos map[int64]*persistence.InternalActivityI
 		aInfo["timer_task_status"] = a.TimerTaskStatus
 		aInfo["attempt"] = a.Attempt
 		aInfo["task_list"] = a.TaskList
+		aInfo["task_list_kind"] = int32(a.TaskListKind)
 		aInfo["started_identity"] = a.StartedIdentity
 		aInfo["has_retry_policy"] = a.HasRetryPolicy
 		aInfo["init_interval"] = int32(a.InitialInterval.Seconds())

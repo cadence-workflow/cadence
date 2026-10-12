@@ -13,6 +13,11 @@ import (
 	"github.com/uber/cadence/common/types/mapper/proto"
 )
 
+func (g matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest, p1 ...yarpc.CallOption) (ap2 *types.AcquireSemaphoreResponse, err error) {
+	response, err := g.c.AcquireSemaphore(ctx, proto.FromMatchingAcquireSemaphoreRequest(ap1), p1...)
+	return proto.ToMatchingAcquireSemaphoreResponse(response), proto.ToError(err)
+}
+
 func (g matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
 	response, err := g.c.AddActivityTask(ctx, proto.FromMatchingAddActivityTaskRequest(ap1), p1...)
 	return proto.ToMatchingAddActivityTaskResponse(response), proto.ToError(err)
@@ -21,11 +26,6 @@ func (g matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActiv
 func (g matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddDecisionTaskResponse, err error) {
 	response, err := g.c.AddDecisionTask(ctx, proto.FromMatchingAddDecisionTaskRequest(ap1), p1...)
 	return proto.ToMatchingAddDecisionTaskResponse(response), proto.ToError(err)
-}
-
-func (g matchingClient) AddSemaphoreTask(ctx context.Context, ap1 *types.AddSemaphoreTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddSemaphoreTaskResponse, err error) {
-	response, err := g.c.AddSemaphoreTask(ctx, proto.FromMatchingAddSemaphoreTaskRequest(ap1), p1...)
-	return proto.ToMatchingAddSemaphoreTaskResponse(response), proto.ToError(err)
 }
 
 func (g matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {

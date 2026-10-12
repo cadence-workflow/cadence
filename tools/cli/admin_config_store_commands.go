@@ -23,6 +23,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 
 	"github.com/olekukonko/tablewriter"
@@ -106,8 +107,11 @@ func AdminUpdateDynamicConfig(c *cli.Context) error {
 		return commoncli.Problem("Required flag not found", err)
 	}
 
-	// Get parsed values from the custom GenericFlag
-	parsedValues := c.Generic(FlagDynamicConfigValue).(*DynamicConfigValuesFlag).Get()
+	// Get parsed values from flags
+	parsedValues, err := getDynamicConfigValues(c)
+	if err != nil {
+		return commoncli.Problem("Failed to get config values", err)
+	}
 
 	ctx, cancel, err := newContext(c)
 	defer cancel()
@@ -264,8 +268,11 @@ func AdminUpdateOperationalDynamicConfig(c *cli.Context) error {
 		return commoncli.Problem("Required flag not found", err)
 	}
 
-	// Get parsed values from the custom GenericFlag
-	parsedValues := c.Generic(FlagDynamicConfigValue).(*DynamicConfigValuesFlag).Get()
+	// Get parsed values from flags
+	parsedValues, err := getDynamicConfigValues(c)
+	if err != nil {
+		return commoncli.Problem("Failed to get config values", err)
+	}
 
 	ctx, cancel, err := newContext(c)
 	defer cancel()
@@ -453,7 +460,10 @@ func convertFromInputValue(inputValue *cliValue) (*types.DynamicConfigValue, err
 	}
 
 	dcFilters := make([]*types.DynamicConfigFilter, 0, len(inputValue.Filters))
-	for _, inputFilter := range inputValue.Filters {
+	for i, inputFilter := range inputValue.Filters {
+		if inputFilter == nil {
+			return nil, fmt.Errorf("null filter at index %d", i)
+		}
 		dcFilter, err := convertFromInputFilter(inputFilter)
 		if err != nil {
 			return nil, err
@@ -507,4 +517,60 @@ func parseInputFilter(inputFilter string) ([]*types.DynamicConfigFilter, error) 
 	}
 
 	return parsedFilters, nil
+}
+
+// getDynamicConfigValues retrieves dynamic config values from either --value flag or --value-file flag
+func getDynamicConfigValues(c *cli.Context) ([]*types.DynamicConfigValue, error) {
+	// Get values from --value flag
+	valueFlag := c.Generic(FlagDynamicConfigValue).(*DynamicConfigValuesFlag)
+	flagValues := valueFlag.Get()
+	hasValueFlag := len(flagValues) > 0
+
+	// Get values from --value-file flag
+	valueFile := c.String(FlagDynamicConfigValueFile)
+	hasValueFile := valueFile != ""
+
+	// Ensure exactly one source is provided (mutually exclusive)
+	if hasValueFlag && hasValueFile {
+		return nil, fmt.Errorf("--%s and --%s are mutually exclusive, use only one", FlagDynamicConfigValue, FlagDynamicConfigValueFile)
+	}
+
+	if !hasValueFlag && !hasValueFile {
+		return nil, fmt.Errorf("must provide either --%s or --%s", FlagDynamicConfigValue, FlagDynamicConfigValueFile)
+	}
+
+	// Return values from --value flag
+	if hasValueFlag {
+		return flagValues, nil
+	}
+
+	// Return values from --value-file flag
+	fileData, err := os.ReadFile(valueFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file %q: %w", valueFile, err)
+	}
+
+	var fileValues []*cliValue
+	if err := json.Unmarshal(fileData, &fileValues); err != nil {
+		return nil, fmt.Errorf("invalid JSON array in file %q: %w", valueFile, err)
+	}
+
+	// Reject empty array - would delete all config values
+	if len(fileValues) == 0 {
+		return nil, fmt.Errorf("file %q contains no config values (empty array would delete all values for this config)", valueFile)
+	}
+
+	var allValues []*types.DynamicConfigValue
+	for i, cliVal := range fileValues {
+		if cliVal == nil {
+			return nil, fmt.Errorf("file %q contains null element at index %d", valueFile, i)
+		}
+		dcVal, err := convertFromInputValue(cliVal)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert value from file: %w", err)
+		}
+		allValues = append(allValues, dcVal)
+	}
+
+	return allValues, nil
 }

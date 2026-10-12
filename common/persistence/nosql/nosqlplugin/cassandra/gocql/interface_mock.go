@@ -97,6 +97,20 @@ func (mr *MockClientMockRecorder) IsNotFoundError(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsNotFoundError", reflect.TypeOf((*MockClient)(nil).IsNotFoundError), arg0)
 }
 
+// IsSchemaElementExistsError mocks base method.
+func (m *MockClient) IsSchemaElementExistsError(arg0 error) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSchemaElementExistsError", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSchemaElementExistsError indicates an expected call of IsSchemaElementExistsError.
+func (mr *MockClientMockRecorder) IsSchemaElementExistsError(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSchemaElementExistsError", reflect.TypeOf((*MockClient)(nil).IsSchemaElementExistsError), arg0)
+}
+
 // IsThrottlingError mocks base method.
 func (m *MockClient) IsThrottlingError(arg0 error) bool {
 	m.ctrl.T.Helper()

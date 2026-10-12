@@ -96,10 +96,10 @@ service MatchingAPI {
   // from admin CLI tool to sync the cache of task list partition config if something goes wrong.
   rpc RefreshTaskListPartitionConfig(RefreshTaskListPartitionConfigRequest) returns (RefreshTaskListPartitionConfigResponse);
 
-  // AddSemaphoreTask is called to claim a token slot in one semaphore bucket for one owner.
+  // AcquireSemaphore is called to claim a token slot in one semaphore bucket for one owner.
   // This API is used by history service to acquire a slot for a workflow run, sent to the matching
   // host that owns the bucket.
-  rpc AddSemaphoreTask(AddSemaphoreTaskRequest) returns (AddSemaphoreTaskResponse);
+  rpc AcquireSemaphore(AcquireSemaphoreRequest) returns (AcquireSemaphoreResponse);
 }
 
 message TaskListPartition {
@@ -314,7 +314,7 @@ enum SemaphoreAcquireOutcome {
   SEMAPHORE_ACQUIRE_OUTCOME_NO_SLOT = 2;
 }
 
-message AddSemaphoreTaskRequest {
+message AcquireSemaphoreRequest {
   string domain_id = 1;
   string semaphore_name = 2;
   // Which partition of the semaphore to serve from. History picks it and routes on it; with
@@ -323,7 +323,7 @@ message AddSemaphoreTaskRequest {
   string owner_id = 4;
 }
 
-message AddSemaphoreTaskResponse {
+message AcquireSemaphoreResponse {
   SemaphoreAcquireOutcome outcome = 1;
   // The slot held or 0 when none was granted: slot ids start at 1 and are bounded by the
   // per-bucket token budget, so 0 is never a real slot.

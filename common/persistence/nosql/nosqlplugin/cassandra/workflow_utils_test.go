@@ -2004,6 +2004,7 @@ func TestResetActivityInfos(t *testing.T) {
 					TaskList:               "tasklist1",
 					HasRetryPolicy:         true,
 					LastFailureReason:      "another retry reason",
+					TaskListKind:           types.TaskListKindSticky,
 				},
 			},
 			wantQueries: []string{
@@ -2017,7 +2018,7 @@ func TestResetActivityInfos(t *testing.T) {
 					`scheduled_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
 					`scheduled_event_batch_id:0 scheduled_time:2023-12-19 22:08:41 +0000 UTC start_to_close_timeout:180 ` +
 					`started_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
-					`started_id:2 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 timer_task_status:0 version:1` +
+					`started_id:2 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 task_list_kind:0 timer_task_status:0 version:1` +
 					`] ` +
 					`2:map[` +
 					`activity_id:activity2 attempt:1 backoff_coefficient:0 cancel_request_id:0 cancel_requested:false ` +
@@ -2028,7 +2029,7 @@ func TestResetActivityInfos(t *testing.T) {
 					`scheduled_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
 					`scheduled_event_batch_id:0 scheduled_time:2023-12-19 22:08:41 +0000 UTC start_to_close_timeout:180 ` +
 					`started_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
-					`started_id:3 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 timer_task_status:0 version:1` +
+					`started_id:3 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 task_list_kind:1 timer_task_status:0 version:1` +
 					`]` +
 					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
@@ -3068,6 +3069,49 @@ func trimColumnsPart(s *string) {
 	re := regexp.MustCompile(`, columns: \(.*\)`)
 	trimmed := re.ReplaceAllString(*s, "")
 	*s = trimmed
+}
+
+func TestResetActivityInfoMap_TaskListKind(t *testing.T) {
+	tests := []struct {
+		desc         string
+		taskListKind types.TaskListKind
+		wantValue    int32
+	}{
+		{
+			desc:         "normal task list kind",
+			taskListKind: types.TaskListKindNormal,
+			wantValue:    0,
+		},
+		{
+			desc:         "sticky task list kind",
+			taskListKind: types.TaskListKindSticky,
+			wantValue:    1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			infos := map[int64]*persistence.InternalActivityInfo{
+				1: {
+					ScheduleID: 1,
+					ScheduledEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("data"),
+					},
+					StartedEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("data"),
+					},
+					TaskList:     "tasklist1",
+					TaskListKind: tc.taskListKind,
+				},
+			}
+
+			result, err := resetActivityInfoMap(infos)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantValue, result[1]["task_list_kind"])
+		})
+	}
 }
 
 func TestFromDataBlobForCassandra(t *testing.T) {

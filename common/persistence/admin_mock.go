@@ -300,17 +300,17 @@ func (mr *MockSchemaDBMockRecorder) SetupVersioning(ctx any) *gomock.Call {
 }
 
 // UpdateSchema mocks base method.
-func (m *MockSchemaDB) UpdateSchema(ctx context.Context, update *SchemaUpdate) error {
+func (m *MockSchemaDB) UpdateSchema(ctx context.Context, update *SchemaUpdate, mode SchemaUpdateMode) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSchema", ctx, update)
+	ret := m.ctrl.Call(m, "UpdateSchema", ctx, update, mode)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateSchema indicates an expected call of UpdateSchema.
-func (mr *MockSchemaDBMockRecorder) UpdateSchema(ctx, update any) *gomock.Call {
+func (mr *MockSchemaDBMockRecorder) UpdateSchema(ctx, update, mode any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSchema", reflect.TypeOf((*MockSchemaDB)(nil).UpdateSchema), ctx, update)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSchema", reflect.TypeOf((*MockSchemaDB)(nil).UpdateSchema), ctx, update, mode)
 }
 
 // MockSchema is a mock of Schema interface.

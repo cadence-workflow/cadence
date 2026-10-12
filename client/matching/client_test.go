@@ -569,20 +569,20 @@ func TestClient_withResponse(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name: "AddSemaphoreTask",
+			name: "AcquireSemaphore",
 			op: func(c Client) (any, error) {
-				return c.AddSemaphoreTask(context.Background(), testAddSemaphoreTaskRequest())
+				return c.AcquireSemaphore(context.Background(), testAcquireSemaphoreRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
 				p.EXPECT().FromSemaphoreBucket(_testDomainUUID, "sem-1", 2).Return("peer0", nil)
-				c.EXPECT().AddSemaphoreTask(gomock.Any(), testAddSemaphoreTaskRequest(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(&types.AddSemaphoreTaskResponse{}, nil)
+				c.EXPECT().AcquireSemaphore(gomock.Any(), testAcquireSemaphoreRequest(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(&types.AcquireSemaphoreResponse{}, nil)
 			},
-			want: &types.AddSemaphoreTaskResponse{},
+			want: &types.AcquireSemaphoreResponse{},
 		},
 		{
-			name: "AddSemaphoreTask - Error in resolving peer",
+			name: "AcquireSemaphore - Error in resolving peer",
 			op: func(c Client) (any, error) {
-				return c.AddSemaphoreTask(context.Background(), testAddSemaphoreTaskRequest())
+				return c.AcquireSemaphore(context.Background(), testAcquireSemaphoreRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
 				p.EXPECT().FromSemaphoreBucket(_testDomainUUID, "sem-1", 2).Return("", assert.AnError)
@@ -591,13 +591,13 @@ func TestClient_withResponse(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name: "AddSemaphoreTask - Error while adding semaphore task",
+			name: "AcquireSemaphore - Error while adding semaphore task",
 			op: func(c Client) (any, error) {
-				return c.AddSemaphoreTask(context.Background(), testAddSemaphoreTaskRequest())
+				return c.AcquireSemaphore(context.Background(), testAcquireSemaphoreRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
 				p.EXPECT().FromSemaphoreBucket(_testDomainUUID, "sem-1", 2).Return("peer0", nil)
-				c.EXPECT().AddSemaphoreTask(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(nil, assert.AnError)
+				c.EXPECT().AcquireSemaphore(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(nil, assert.AnError)
 			},
 			want:      nil,
 			wantError: true,
@@ -747,8 +747,8 @@ func testMatchingRefreshTaskListPartitionConfigRequest() *types.MatchingRefreshT
 	}
 }
 
-func testAddSemaphoreTaskRequest() *types.AddSemaphoreTaskRequest {
-	return &types.AddSemaphoreTaskRequest{
+func testAcquireSemaphoreRequest() *types.AcquireSemaphoreRequest {
+	return &types.AcquireSemaphoreRequest{
 		DomainUUID:    _testDomainUUID,
 		SemaphoreName: "sem-1",
 		Bucket:        2,
