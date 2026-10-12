@@ -185,6 +185,8 @@ func (s *matchingEngineSuite) newMatchingEngine(
 	pct.EXPECT().Value().Return(0).AnyTimes()
 	e := NewEngine(
 		taskMgr,
+		persistence.NewMockSemaphoreTokenManager(s.controller),
+		persistence.NewMockSemaphoreMetadataManager(s.controller),
 		cluster.GetTestClusterMetadata(true),
 		s.mockHistoryClient,
 		s.mockMatchingClient,
