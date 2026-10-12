@@ -920,9 +920,8 @@ func (handler *taskHandlerImpl) handleDecisionStartChildWorkflow(
 		}
 	}
 
-	requestID := uuid.New()
 	_, _, err = handler.mutableState.AddStartChildWorkflowExecutionInitiatedEvent(
-		handler.decisionTaskCompletedID, requestID, attr,
+		handler.decisionTaskCompletedID, attr,
 	)
 	return err
 }

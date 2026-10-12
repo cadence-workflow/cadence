@@ -254,7 +254,7 @@ func TestHandleDecisionStartChildWorkflow(t *testing.T) {
 				TaskList:     &types.TaskList{Name: testdata.TaskListName},
 			},
 			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.StartChildWorkflowExecutionDecisionAttributes) {
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddStartChildWorkflowExecutionInitiatedEvent(testTaskCompletedID, gomock.Any(), attr).Times(1)
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddStartChildWorkflowExecutionInitiatedEvent(testTaskCompletedID, attr).Times(1)
 				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(constants.TestDomainName).Return(constants.TestLocalDomainEntry, nil)
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.StartChildWorkflowExecutionDecisionAttributes, err error) {
@@ -276,7 +276,7 @@ func TestHandleDecisionStartChildWorkflow(t *testing.T) {
 			},
 			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.StartChildWorkflowExecutionDecisionAttributes) {
 				taskHandler.config.EnableParentClosePolicy = func(domain string) bool { return false }
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddStartChildWorkflowExecutionInitiatedEvent(testTaskCompletedID, gomock.Any(), attr).Times(1)
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddStartChildWorkflowExecutionInitiatedEvent(testTaskCompletedID, attr).Times(1)
 				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(constants.TestDomainName).Return(constants.TestLocalDomainEntry, nil)
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.StartChildWorkflowExecutionDecisionAttributes, err error) {
@@ -299,7 +299,7 @@ func TestHandleDecisionStartChildWorkflow(t *testing.T) {
 			},
 			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.StartChildWorkflowExecutionDecisionAttributes) {
 				taskHandler.config.EnableParentClosePolicy = func(domain string) bool { return false }
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddStartChildWorkflowExecutionInitiatedEvent(testTaskCompletedID, gomock.Any(), attr).Times(1)
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddStartChildWorkflowExecutionInitiatedEvent(testTaskCompletedID, attr).Times(1)
 				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(constants.TestDomainName).Return(constants.TestLocalDomainEntry, nil)
 
 			},

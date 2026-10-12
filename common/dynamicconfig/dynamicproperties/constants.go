@@ -2318,6 +2318,16 @@ const (
 	// Allowed filters: DomainName
 	EnableStrongIdempotencySanityCheck
 
+	// EnableDeterministicChildWorkflowRequestID derives the request ID that starts a child workflow from its initiated event,
+	// so all clusters start the child with the same request ID. Enable it on a cluster only after all hosts of the cluster
+	// run a release that has it. Before a rollback to a release that does not have it, disable it on the cluster and wait
+	// until the children initiated while it was enabled have started, because their request IDs stay derived.
+	// KeyName: history.enableDeterministicChildWorkflowRequestID
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableDeterministicChildWorkflowRequestID
+
 	// MatchingEnableClientAutoConfig enables auto config for domain and tasklist on client (worker) side
 	// KeyName: matching.enableClientAutoConfig
 	// Value type: Bool
@@ -5224,6 +5234,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.enableStrongIdempotencySanityCheck",
 		Filters:      []Filter{DomainName},
 		Description:  "EnableStrongIdempotencySanityCheck enables sanity check for strong idempotency",
+		DefaultValue: false,
+	},
+	EnableDeterministicChildWorkflowRequestID: {
+		KeyName:      "history.enableDeterministicChildWorkflowRequestID",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableDeterministicChildWorkflowRequestID derives the request ID that starts a child workflow from its initiated event, so all clusters start the child with the same request ID",
 		DefaultValue: false,
 	},
 	MatchingEnableClientAutoConfig: {

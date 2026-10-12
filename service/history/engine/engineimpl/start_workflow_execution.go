@@ -244,6 +244,9 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	)
 	if t, ok := persistence.AsDuplicateRequestError(err); ok {
 		if t.RequestType == persistence.WorkflowRequestTypeStart || (isSignalWithStart && t.RequestType == persistence.WorkflowRequestTypeSignal) {
+			if err := e.verifyDuplicateChildStart(ctx, startRequest, domainEntry, t.RunID); err != nil {
+				return nil, workflowExecution, historyBlob, err
+			}
 			return &types.StartWorkflowExecutionResponse{
 				RunID: t.RunID,
 			}, workflowExecution, historyBlob, nil
@@ -254,9 +257,16 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	// handle already started error
 	if t, ok := err.(*persistence.WorkflowExecutionAlreadyStartedError); ok {
 		if t.StartRequestID == request.GetRequestID() {
-			return &types.StartWorkflowExecutionResponse{
-				RunID: t.RunID,
-			}, workflowExecution, historyBlob, nil
+			closedByOtherCluster, err := e.isChildClosedByOtherCluster(startRequest, t.RunID, t.State, t.LastWriteVersion)
+			if err != nil {
+				return nil, workflowExecution, historyBlob, err
+			}
+			// a child closed by another cluster is handled like a run started by another request
+			if !closedByOtherCluster {
+				return &types.StartWorkflowExecutionResponse{
+					RunID: t.RunID,
+				}, workflowExecution, historyBlob, nil
+			}
 		}
 
 		if isSignalWithStart {
@@ -334,6 +344,9 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		)
 		if t, ok := persistence.AsDuplicateRequestError(err); ok {
 			if t.RequestType == persistence.WorkflowRequestTypeStart || (isSignalWithStart && t.RequestType == persistence.WorkflowRequestTypeSignal) {
+				if err := e.verifyDuplicateChildStart(ctx, startRequest, domainEntry, t.RunID); err != nil {
+					return nil, workflowExecution, historyBlob, err
+				}
 				return &types.StartWorkflowExecutionResponse{
 					RunID: t.RunID,
 				}, workflowExecution, historyBlob, nil
@@ -972,6 +985,101 @@ func (e *historyEngineImpl) applyWorkflowIDReusePolicyHelper(
 		return &types.InternalServiceError{Message: "Failed to process start workflow reuse policy."}
 	}
 
+	return nil
+}
+
+// isChildClosedByOtherCluster returns true when a child start finds an existing run with its request ID, and another
+// cluster closed that run. The other cluster sent the completion of the child to its parent, so the run must not be
+// returned as started, otherwise the parent records the child as started and waits for a completion that never comes.
+// This happens after a failover when EnableDeterministicChildWorkflowRequestID is enabled, because then the request ID
+// of a child is the same on all clusters. It also happens when the parent fails back to the cluster that started the
+// child, because that cluster keeps the request ID it used.
+func (e *historyEngineImpl) isChildClosedByOtherCluster(
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	runID string,
+	state int,
+	lastWriteVersion int64,
+) (bool, error) {
+	if startRequest.ParentExecutionInfo == nil || state != persistence.WorkflowStateCompleted {
+		return false, nil
+	}
+	closingCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(lastWriteVersion)
+	if err != nil {
+		return false, err
+	}
+	if closingCluster == e.currentClusterName {
+		return false, nil
+	}
+	e.logger.Info("Child start found a run with the same request ID closed by another cluster",
+		tag.WorkflowDomainID(startRequest.DomainUUID),
+		tag.WorkflowID(startRequest.StartRequest.GetWorkflowID()),
+		tag.WorkflowRunID(runID),
+		tag.WorkflowRequestID(startRequest.StartRequest.GetRequestID()),
+		tag.ClusterName(closingCluster),
+		tag.FailoverVersion(lastWriteVersion))
+	return true, nil
+}
+
+// verifyDuplicateChildStart returns an error when a child start is a duplicate request and the run of the duplicate
+// request was closed by another cluster, see isChildClosedByOtherCluster. The run of the duplicate request is checked,
+// and not the current run, because the current run can be a run of the same workflow ID started by another request.
+// When the run of the duplicate request does not exist anymore, it is returned as started, as before this check.
+func (e *historyEngineImpl) verifyDuplicateChildStart(
+	ctx context.Context,
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+	duplicateRunID string,
+) error {
+	if startRequest.ParentExecutionInfo == nil {
+		return nil
+	}
+	domainID := domainEntry.GetInfo().ID
+	workflowID := startRequest.StartRequest.GetWorkflowID()
+	current, err := e.executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		DomainName: domainEntry.GetInfo().Name,
+		ShardID:    common.Ptr(e.shard.GetShardID()),
+	})
+	var notExistsErr *types.EntityNotExistsError
+	if errors.As(err, &notExistsErr) {
+		// no run to check, so the duplicate request is handled as before
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	state, lastWriteVersion := current.State, current.LastWriteVersion
+	if current.RunID != duplicateRunID {
+		// the run of the duplicate request is closed, because only the current run can be running
+		duplicateWFCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, duplicateRunID)
+		if errors.As(err, &notExistsErr) {
+			// no run to check, so the duplicate request is handled as before
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		defer func() { duplicateWFCtx.GetReleaseFn()(nil) }()
+
+		duplicateMutableState := duplicateWFCtx.GetMutableState()
+		state = duplicateMutableState.GetExecutionInfo().State
+		lastWriteVersion, err = duplicateMutableState.GetLastWriteVersion()
+		if err != nil {
+			return err
+		}
+	}
+
+	closedByOtherCluster, err := e.isChildClosedByOtherCluster(startRequest, duplicateRunID, state, lastWriteVersion)
+	if err != nil {
+		return err
+	}
+	if closedByOtherCluster {
+		// the request ID can not start a new run, so the start fails like a run started by another request
+		msg := "Workflow execution already finished in another cluster. WorkflowId: %v, RunId: %v."
+		return getWorkflowAlreadyStartedError(msg, startRequest.StartRequest.GetRequestID(), workflowID, duplicateRunID)
+	}
 	return nil
 }
 
