@@ -1028,8 +1028,10 @@ func (e *historyEngineImpl) isChildClosedByOtherCluster(
 // and not the current run, because the current run can be a run of the same workflow ID started by another request.
 // When the run of the duplicate request continued as new, the current run is checked if it is a run of the same chain,
 // because the last run of the chain sends the completion to the parent. If the current run is not a run of the chain,
-// the chain ended and it is not known which cluster closed it, so the start fails. When a run to check does not exist
-// anymore, the run of the duplicate request is returned as started, as before this check.
+// the chain ended after the run of the duplicate request closed and before the current run started. So the chain ended
+// at a version between their last write versions, and when they are equal, that version tells the cluster that closed
+// the chain. Otherwise that cluster is not known and the start fails. When a run to check does not exist anymore, the
+// run of the duplicate request is returned as started, as before this check.
 func (e *historyEngineImpl) verifyDuplicateChildStart(
 	ctx context.Context,
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
@@ -1085,9 +1087,20 @@ func (e *historyEngineImpl) verifyDuplicateChildStart(
 			if err != nil {
 				return err
 			}
-			// an empty first run ID is not known, so it is never a run of the same chain
-			if duplicate.firstRunID == "" || currentRun.firstRunID != duplicate.firstRunID {
-				e.logger.Info("Child start found a run with the same request ID whose chain ended",
+			switch {
+			case duplicate.firstRunID != "" && currentRun.firstRunID == duplicate.firstRunID:
+				// the current run of the chain is checked
+				checked = currentRun
+			case duplicate.lastWriteVersion == currentRun.lastWriteVersion:
+				// the chain ended at this version, with a close status other than continued as new
+				checked = childRunInfo{
+					runID:            duplicateRunID,
+					state:            persistence.WorkflowStateCompleted,
+					closeStatus:      persistence.WorkflowCloseStatusCompleted,
+					lastWriteVersion: duplicate.lastWriteVersion,
+				}
+			default:
+				e.logger.Info("Child start found a run with the same request ID whose chain ended in an unknown cluster",
 					tag.WorkflowDomainID(domainID),
 					tag.WorkflowID(workflowID),
 					tag.WorkflowRunID(duplicateRunID),
@@ -1095,8 +1108,6 @@ func (e *historyEngineImpl) verifyDuplicateChildStart(
 				msg := "Workflow execution already finished and another run of the workflow ID is current. WorkflowId: %v, RunId: %v."
 				return getWorkflowAlreadyStartedError(msg, requestID, workflowID, current.RunID)
 			}
-			// the current run of the chain is checked
-			checked = currentRun
 		}
 	}
 
