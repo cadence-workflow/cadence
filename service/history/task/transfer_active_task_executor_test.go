@@ -50,6 +50,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
+	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
@@ -2124,6 +2125,168 @@ func (s *transferActiveTaskExecutorSuite) testProcessResetWorkflowWithError(same
 		s.Equal(returnErr, err)
 	} else {
 		s.Nil(err)
+	}
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_Success() {
+	s.testProcessAcquireSemaphore(func(_ execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		s.expectAcquireSemaphoreRequest(semaphoreInfo, &types.AcquireSemaphoreResponse{
+			Outcome: types.SemaphoreAcquireOutcomeAcquired,
+			TokenID: 3,
+		}, nil)
+		s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+		s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.MatchedBy(func(request *persistence.UpdateWorkflowExecutionRequest) bool {
+			mutation := request.UpdateWorkflowMutation
+			if len(mutation.UpsertSemaphoreInfos) != 1 || mutation.UpsertSemaphoreInfos[0].TokenID != 3 {
+				return false
+			}
+			for _, task := range mutation.TasksByCategory[persistence.HistoryTaskCategoryTransfer] {
+				if _, ok := task.(*persistence.DecisionTask); ok {
+					return true
+				}
+			}
+			return false
+		})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
+	}, nil)
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_NoSlot() {
+	s.testProcessAcquireSemaphore(func(_ execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		s.expectAcquireSemaphoreRequest(semaphoreInfo, &types.AcquireSemaphoreResponse{Outcome: types.SemaphoreAcquireOutcomeNoSlot}, nil)
+	}, errSemaphoreNoSlot)
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_MatchingError() {
+	badRequest := &types.BadRequestError{Message: "Feature not supported on TChannel"}
+	s.testProcessAcquireSemaphore(func(_ execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		s.expectAcquireSemaphoreRequest(semaphoreInfo, nil, badRequest)
+	}, badRequest)
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_NoTokenInResponse() {
+	s.testProcessAcquireSemaphore(func(_ execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		s.expectAcquireSemaphoreRequest(semaphoreInfo, &types.AcquireSemaphoreResponse{Outcome: types.SemaphoreAcquireOutcomeAcquired}, nil)
+	}, &types.InternalServiceError{Message: "unexpected semaphore acquire response: outcome 1, token 0"})
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_SemaphoreNotFound() {
+	s.testProcessAcquireSemaphore(func(execution.MutableState, *persistence.SemaphoreInfo) {
+		s.mockShard.Resource.SemaphoreMetadataMgr.EXPECT().GetSemaphore(gomock.Any(), gomock.Any()).
+			Return(nil, &types.EntityNotExistsError{Message: "semaphore not found"})
+	}, &types.InternalServiceError{Message: `semaphore "my-semaphore" not found`})
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_Duplication() {
+	s.testProcessAcquireSemaphore(func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		_, err := mutableState.AddSemaphoreAcquiredEvent(semaphoreInfo.InitiatedID, 3)
+		s.NoError(err)
+		mutableState.FlushBufferedEvents()
+	}, nil)
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_HoldNotFound() {
+	s.testProcessAcquireSemaphore(func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		s.NoError(mutableState.DeleteSemaphoreInfo(semaphoreInfo.InitiatedID))
+	}, nil)
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_WorkflowNotRunning() {
+	s.testProcessAcquireSemaphore(func(mutableState execution.MutableState, _ *persistence.SemaphoreInfo) {
+		mutableState.GetExecutionInfo().State = persistence.WorkflowStateCompleted
+	}, nil)
+}
+
+const testSemaphoreName = "my-semaphore"
+
+func (s *transferActiveTaskExecutorSuite) testProcessAcquireSemaphore(
+	setupFn func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo),
+	expectedErr error,
+) {
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+	event, semaphoreInfo, err := mutableState.AddSemaphoreAcquireInitiatedEvent(decisionCompletionID, testSemaphoreName, 30)
+	s.NoError(err)
+
+	setupFn(mutableState, semaphoreInfo)
+
+	transferTask := s.newTransferTaskFromInfo(&persistence.AcquireSemaphoreTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version: s.version,
+			TaskID:  int64(59),
+		},
+		InitiatedID: event.ID,
+		TaskList:    mutableState.GetExecutionInfo().TaskList,
+	})
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, mutableState.GetNextEventID()-1, s.version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
+	s.Equal(expectedErr, err)
+}
+
+func (s *transferActiveTaskExecutorSuite) expectAcquireSemaphoreRequest(
+	semaphoreInfo *persistence.SemaphoreInfo,
+	resp *types.AcquireSemaphoreResponse,
+	err error,
+) {
+	s.mockShard.Resource.SemaphoreMetadataMgr.EXPECT().GetSemaphore(gomock.Any(), &persistence.GetSemaphoreRequest{
+		DomainID:      s.domainID,
+		SemaphoreName: testSemaphoreName,
+	}).Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{Size: 4, BucketSize: 2}}, nil)
+	bucket, bucketErr := commonsemaphore.OwnerIDToBucket(semaphoreInfo.OwnerID, 2)
+	s.NoError(bucketErr)
+	s.mockMatchingClient.EXPECT().AcquireSemaphore(gomock.Any(), &types.AcquireSemaphoreRequest{
+		DomainUUID:    s.domainID,
+		SemaphoreName: testSemaphoreName,
+		Bucket:        int32(bucket),
+		OwnerID:       semaphoreInfo.OwnerID,
+	}).Return(resp, err)
+}
+
+func TestRecordSemaphoreGranted(t *testing.T) {
+	testCases := []struct {
+		name      string
+		setupMock func(mutableState *execution.MockMutableState)
+	}{
+		{
+			name: "workflow not running",
+			setupMock: func(mutableState *execution.MockMutableState) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(false)
+			},
+		},
+		{
+			name: "hold not found",
+			setupMock: func(mutableState *execution.MockMutableState) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(nil, false)
+			},
+		},
+		{
+			name: "same token already recorded",
+			setupMock: func(mutableState *execution.MockMutableState) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 3}, true)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			wfContext := execution.NewMockContext(ctrl)
+			mutableState := execution.NewMockMutableState(ctrl)
+			wfContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(mutableState, nil)
+			tc.setupMock(mutableState)
+
+			err := recordSemaphoreGranted(context.Background(), log.NewNoop(), wfContext, 5, 3, testTime)
+			assert.ErrorAs(t, err, new(*types.EntityNotExistsError))
+		})
 	}
 }
 

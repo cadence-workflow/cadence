@@ -286,6 +286,12 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 		return err
 	}
 
+	if err == errSemaphoreNoSlot {
+		// the semaphore bucket is full, so retry later without logging it as a failure
+		// TODO: revisit once acquires can wait: a full bucket then queues, and only a stopping bucket returns this
+		return err
+	}
+
 	// If the shard were recently closed we just return an error, so we retry in a bit.
 	var errShardClosed *shard.ErrShardClosed
 	if errors.As(err, &errShardClosed) && time.Since(errShardClosed.ClosedAt) < shard.TimeBeforeShardClosedIsError {
@@ -362,7 +368,7 @@ func (t *taskImpl) RetryErr(err error) bool {
 	}
 
 	var errShardClosed *shard.ErrShardClosed
-	if errors.As(err, &errShardClosed) || err == errWorkflowBusy || isRedispatchErr(err) || err == ErrTaskPendingActive || common.IsContextTimeoutError(err) {
+	if errors.As(err, &errShardClosed) || err == errWorkflowBusy || err == errSemaphoreNoSlot || isRedispatchErr(err) || err == ErrTaskPendingActive || common.IsContextTimeoutError(err) {
 		return false
 	}
 

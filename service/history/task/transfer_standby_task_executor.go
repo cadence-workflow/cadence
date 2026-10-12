@@ -135,6 +135,8 @@ func (t *transferStandbyTaskExecutor) Execute(task Task) (ExecuteResponse, error
 		return executeResponse, nil
 	case *persistence.UpsertWorkflowSearchAttributesTask:
 		return executeResponse, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
+	case *persistence.AcquireSemaphoreTask:
+		return executeResponse, t.processAcquireSemaphore(ctx, transferTask)
 	default:
 		return executeResponse, errUnknownTransferTask
 	}
@@ -455,6 +457,51 @@ func (t *transferStandbyTaskExecutor) processStartChildExecution(
 		}
 
 		if childWorkflowInfo.StartedID != constants.EmptyEventID {
+			return nil, nil
+		}
+
+		return getHistoryResendInfo(mutableState)
+	}
+
+	return t.processTransfer(
+		ctx,
+		processTaskIfClosed,
+		transferTask,
+		transferTask.InitiatedID,
+		actionFn,
+		getStandbyPostActionFn(
+			t.logger,
+			transferTask,
+			t.getCurrentTime,
+			t.config.StandbyTaskMissingEventsResendDelay(),
+			t.config.StandbyTaskMissingEventsDiscardDelay(),
+			t.fetchHistoryFromRemote,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
+		),
+	)
+}
+
+// processAcquireSemaphore waits until replication shows the hold granted or gone. It gives up after
+// the standby discard delay, so after a failover the acquire runs only if HistoryTaskDLQMode is enabled.
+func (t *transferStandbyTaskExecutor) processAcquireSemaphore(
+	ctx context.Context,
+	transferTask *persistence.AcquireSemaphoreTask,
+) error {
+
+	processTaskIfClosed := false
+	actionFn := func(ctx context.Context, wfContext execution.Context, mutableState execution.MutableState) (interface{}, error) {
+
+		semaphoreInfo, ok := mutableState.GetSemaphoreInfo(transferTask.InitiatedID)
+		if !ok {
+			return nil, nil
+		}
+
+		ok, err := verifyTaskVersion(t.shard, t.logger, transferTask.DomainID, semaphoreInfo.Version, transferTask.Version, transferTask)
+		if err != nil || !ok {
+			return nil, err
+		}
+
+		if semaphoreInfo.HasToken() {
 			return nil, nil
 		}
 

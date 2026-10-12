@@ -2153,6 +2153,8 @@ const (
 	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
 	// frontend, and serving semaphore buckets on matching. While it is off matching loads no bucket,
 	// so no partition is scanned and nothing is held in memory.
+	// Requires gRPC between history and matching; over TChannel acquires never complete. Global domains
+	// also need HistoryTaskDLQMode enabled, or a hold still waiting at failover is never acquired.
 	// KeyName: system.enableDistributedSemaphore
 	// Value type: Bool
 	// Default value: false
@@ -5095,7 +5097,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableDistributedSemaphore: {
 		KeyName:      "system.enableDistributedSemaphore",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, and serving semaphore buckets on matching",
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, and serving semaphore buckets on matching. Requires gRPC between history and matching; global domains also need HistoryTaskDLQMode enabled",
 		DefaultValue: false,
 	},
 	EnableFailoverManager: {

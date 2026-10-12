@@ -202,6 +202,15 @@ func (s *taskSuite) TestHandleErr_ErrWorkflowRateLimited() {
 	s.Equal(errWorkflowRateLimited, taskBase.HandleErr(errWorkflowRateLimited))
 }
 
+func (s *taskSuite) TestHandleErr_ErrSemaphoreNoSlot() {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
+		return true, nil
+	})
+
+	taskBase.initialSubmitTime = time.Now()
+	s.Equal(errSemaphoreNoSlot, taskBase.HandleErr(errSemaphoreNoSlot))
+}
+
 func (s *taskSuite) TestHandleErr_ErrShardRecentlyClosed() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
@@ -365,6 +374,7 @@ func (s *taskSuite) TestRetryErr() {
 
 	s.Equal(false, taskBase.RetryErr(&shard.ErrShardClosed{}))
 	s.Equal(false, taskBase.RetryErr(errWorkflowBusy))
+	s.Equal(false, taskBase.RetryErr(errSemaphoreNoSlot))
 	s.Equal(false, taskBase.RetryErr(ErrTaskPendingActive))
 	s.Equal(false, taskBase.RetryErr(context.DeadlineExceeded))
 	s.Equal(false, taskBase.RetryErr(&redispatchError{Reason: "random-reason"}))
