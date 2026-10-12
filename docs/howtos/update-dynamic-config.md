@@ -63,9 +63,7 @@ cadence admin config list --name frontend.globalDomainrps
 ```
 
 **Example output (no values set):**
-```
-No dynamic config values stored to list.
-```
+> **Note**: If this config key has never been set, the server currently returns ALL stored config entries (for all keys), not an empty result. Filter to the specific key with: `jq 'map(select(.Name == "frontend.globalDomainrps"))[0].Values'`
 
 **Example output (values exist):**
 ```json
@@ -120,19 +118,9 @@ For configurations with domain-specific overrides, use a file. The recommended w
 
 **1. Extract current config to a file using jq:**
 ```bash
-# If config already exists, extract the Values array
-cadence admin config list --name frontend.globalDomainrps | jq ".[0].Values" > frontend-rps-config.json
-
-# If no config exists yet (list shows "No dynamic config values stored to list."),
-# create a new file with an initial value:
-cat > frontend-rps-config.json << 'EOF'
-[
-  {
-    "Value": 1000,
-    "Filters": []
-  }
-]
-EOF
+# Extract the Values array (filters to this key in case server returns all keys)
+cadence admin config list --name frontend.globalDomainrps | \
+  jq 'map(select(.Name == "frontend.globalDomainrps"))[0].Values' > frontend-rps-config.json
 ```
 
 **2. Edit the file to add/modify/remove overrides:**
@@ -299,7 +287,8 @@ cadence admin config update \
 **Correct approach:**
 ```bash
 # Get current config values
-cadence admin config list --name frontend.globalDomainrps | jq ".[0].Values" > current.json
+cadence admin config list --name frontend.globalDomainrps | \
+  jq 'map(select(.Name == "frontend.globalDomainrps"))[0].Values' > current.json
 
 # Edit current.json to add new override
 # Review changes: git diff current.json
@@ -362,24 +351,38 @@ Dynamic config is **not replicated** across clusters:
 Control request rates per domain to prevent noisy domains from affecting others:
 
 ```bash
+# Extract current config
+cadence admin config list --name frontend.globalDomainrps | \
+  jq 'map(select(.Name == "frontend.globalDomainrps"))[0].Values' > rps-config.json
+
+# Edit rps-config.json to add domain-specific limit
+# Add: {"Value": 100, "Filters": [{"Name": "domainName", "Value": "noisy-domain"}]}
+
+# Apply the updated config
 cadence admin config update \
   --name frontend.globalDomainrps \
-  --value '{"Value": 1000, "Filters": []}' \
-  --value '{"Value": 100, "Filters": [{"Name": "domainName", "Value": "noisy-domain"}]}'
+  --value-file rps-config.json
 ```
 
 ### Emergency Rate Limit Reduction
 
-Quickly reduce load during an incident:
+Quickly reduce load during an incident while preserving per-domain overrides:
 
 ```bash
-# Reduce global limit to 500 rps
+# Extract current config
+cadence admin config list --name frontend.globalDomainrps | \
+  jq 'map(select(.Name == "frontend.globalDomainrps"))[0].Values' > emergency-backup.json
+
+# Edit the global default (first entry with "Filters": [])
+# Change "Value": 1000 to "Value": 500
+# Keep all domain-specific entries unchanged
+
+# Apply the updated config
 cadence admin config update \
   --name frontend.globalDomainrps \
-  --value '{"Value": 500, "Filters": []}'
+  --value-file emergency-backup.json
 
-# Restore after incident
-cadence admin config restore --name frontend.globalDomainrps
+# After incident, restore from version control or backup
 ```
 
 ### Per-Domain Feature Flags
@@ -387,10 +390,20 @@ cadence admin config restore --name frontend.globalDomainrps
 Many configs support domain-based filtering. Example with a boolean config:
 
 ```bash
+# Extract current config
+cadence admin config list --name system.enableFeatureX | \
+  jq 'map(select(.Name == "system.enableFeatureX"))[0].Values' > feature-config.json
+
+# Edit feature-config.json to enable for canary domain:
+# [
+#   {"Value": false, "Filters": []},
+#   {"Value": true, "Filters": [{"Name": "domainName", "Value": "canary-domain"}]}
+# ]
+
+# Apply the config
 cadence admin config update \
   --name system.enableFeatureX \
-  --value '{"Value": false, "Filters": []}' \
-  --value '{"Value": true, "Filters": [{"Name": "domainName", "Value": "canary-domain"}]}'
+  --value-file feature-config.json
 ```
 
 ## Troubleshooting
@@ -399,7 +412,7 @@ cadence admin config update \
 
 The config key doesn't exist. List available keys:
 ```bash
-cadence admin listall
+cadence admin config listall
 ```
 
 ### Changes Not Taking Effect
