@@ -267,10 +267,12 @@ func FromScheduleListEntry(t *types.ScheduleListEntry) *shared.ScheduleListEntry
 		return nil
 	}
 	return &shared.ScheduleListEntry{
-		ScheduleId:     common.StringPtr(t.ScheduleID),
-		WorkflowType:   FromWorkflowType(t.WorkflowType),
-		State:          FromScheduleState(t.State),
-		CronExpression: common.StringPtr(t.CronExpression),
+		ScheduleId:       common.StringPtr(t.ScheduleID),
+		WorkflowType:     FromWorkflowType(t.WorkflowType),
+		State:            FromScheduleState(t.State),
+		CronExpression:   common.StringPtr(t.CronExpression),
+		Memo:             FromMemo(t.Memo),
+		SearchAttributes: FromSearchAttributes(t.SearchAttributes),
 	}
 }
 
@@ -279,10 +281,12 @@ func ToScheduleListEntry(t *shared.ScheduleListEntry) *types.ScheduleListEntry {
 		return nil
 	}
 	return &types.ScheduleListEntry{
-		ScheduleID:     t.GetScheduleId(),
-		WorkflowType:   ToWorkflowType(t.WorkflowType),
-		State:          ToScheduleState(t.State),
-		CronExpression: t.GetCronExpression(),
+		ScheduleID:       t.GetScheduleId(),
+		WorkflowType:     ToWorkflowType(t.WorkflowType),
+		State:            ToScheduleState(t.State),
+		CronExpression:   t.GetCronExpression(),
+		Memo:             ToMemo(t.Memo),
+		SearchAttributes: ToSearchAttributes(t.SearchAttributes),
 	}
 }
 

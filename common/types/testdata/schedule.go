@@ -83,10 +83,12 @@ var (
 	}
 
 	ScheduleListEntryThrift = types.ScheduleListEntry{
-		ScheduleID:     "my-schedule-id",
-		WorkflowType:   &WorkflowType,
-		State:          &ScheduleStateThrift,
-		CronExpression: "*/5 * * * *",
+		ScheduleID:       "my-schedule-id",
+		WorkflowType:     &WorkflowType,
+		State:            &ScheduleStateThrift,
+		CronExpression:   "*/5 * * * *",
+		Memo:             &Memo,
+		SearchAttributes: &SearchAttributes,
 	}
 
 	CreateScheduleRequestThrift = types.CreateScheduleRequest{
@@ -206,10 +208,12 @@ var (
 	}
 
 	ScheduleListEntry = types.ScheduleListEntry{
-		ScheduleID:     "my-schedule-id",
-		WorkflowType:   &WorkflowType,
-		State:          &ScheduleState,
-		CronExpression: "*/5 * * * *",
+		ScheduleID:       "my-schedule-id",
+		WorkflowType:     &WorkflowType,
+		State:            &ScheduleState,
+		CronExpression:   "*/5 * * * *",
+		Memo:             &Memo,
+		SearchAttributes: &SearchAttributes,
 	}
 
 	CreateScheduleRequest = types.CreateScheduleRequest{
