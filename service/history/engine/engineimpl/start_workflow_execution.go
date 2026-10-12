@@ -1026,9 +1026,10 @@ func (e *historyEngineImpl) isChildClosedByOtherCluster(
 // verifyDuplicateChildStart returns an error when a child start is a duplicate request and the run of the duplicate
 // request was closed by another cluster, see isChildClosedByOtherCluster. The run of the duplicate request is checked,
 // and not the current run, because the current run can be a run of the same workflow ID started by another request.
-// When the run of the duplicate request continued as new, the current run is checked, because the last run of the chain
-// sends the completion to the parent. When a run to check does not exist anymore, the run of the duplicate request is
-// returned as started, as before this check.
+// When the run of the duplicate request continued as new, the current run is checked if it is a run of the same chain,
+// because the last run of the chain sends the completion to the parent. If the current run is not a run of the chain,
+// the chain ended and it is not known which cluster closed it, so the start fails. When a run to check does not exist
+// anymore, the run of the duplicate request is returned as started, as before this check.
 func (e *historyEngineImpl) verifyDuplicateChildStart(
 	ctx context.Context,
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
@@ -1040,6 +1041,7 @@ func (e *historyEngineImpl) verifyDuplicateChildStart(
 	}
 	domainID := domainEntry.GetInfo().ID
 	workflowID := startRequest.StartRequest.GetWorkflowID()
+	requestID := startRequest.StartRequest.GetRequestID()
 	current, err := e.executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
 		DomainID:   domainID,
 		WorkflowID: workflowID,
@@ -1055,10 +1057,15 @@ func (e *historyEngineImpl) verifyDuplicateChildStart(
 		return err
 	}
 
-	checkedRunID, state, closeStatus, lastWriteVersion := current.RunID, current.State, current.CloseStatus, current.LastWriteVersion
+	checked := childRunInfo{
+		runID:            current.RunID,
+		state:            current.State,
+		closeStatus:      current.CloseStatus,
+		lastWriteVersion: current.LastWriteVersion,
+	}
 	if current.RunID != duplicateRunID {
 		// the run of the duplicate request is closed, because only the current run can be running
-		duplicateWFCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, duplicateRunID)
+		duplicate, err := e.loadChildRunInfo(ctx, domainID, workflowID, duplicateRunID)
 		if errors.As(err, &notExistsErr) {
 			// no run to check, so the duplicate request is handled as before
 			return nil
@@ -1066,31 +1073,81 @@ func (e *historyEngineImpl) verifyDuplicateChildStart(
 		if err != nil {
 			return err
 		}
-		defer func() { duplicateWFCtx.GetReleaseFn()(nil) }()
 
-		duplicateMutableState := duplicateWFCtx.GetMutableState()
-		// a chain that continued as new is checked with its current run, which is already set
-		if duplicateMutableState.GetExecutionInfo().CloseStatus != persistence.WorkflowCloseStatusContinuedAsNew {
-			checkedRunID = duplicateRunID
-			state = duplicateMutableState.GetExecutionInfo().State
-			closeStatus = duplicateMutableState.GetExecutionInfo().CloseStatus
-			lastWriteVersion, err = duplicateMutableState.GetLastWriteVersion()
+		if duplicate.closeStatus != persistence.WorkflowCloseStatusContinuedAsNew {
+			checked = duplicate
+		} else {
+			currentRun, err := e.loadChildRunInfo(ctx, domainID, workflowID, current.RunID)
+			if errors.As(err, &notExistsErr) {
+				// no run to check, so the duplicate request is handled as before
+				return nil
+			}
 			if err != nil {
 				return err
 			}
+			// an empty first run ID is not known, so it is never a run of the same chain
+			if duplicate.firstRunID == "" || currentRun.firstRunID != duplicate.firstRunID {
+				e.logger.Info("Child start found a run with the same request ID whose chain ended",
+					tag.WorkflowDomainID(domainID),
+					tag.WorkflowID(workflowID),
+					tag.WorkflowRunID(duplicateRunID),
+					tag.WorkflowRequestID(requestID))
+				msg := "Workflow execution already finished and another run of the workflow ID is current. WorkflowId: %v, RunId: %v."
+				return getWorkflowAlreadyStartedError(msg, requestID, workflowID, current.RunID)
+			}
+			// the current run of the chain is checked
+			checked = currentRun
 		}
 	}
 
-	closedByOtherCluster, err := e.isChildClosedByOtherCluster(startRequest, checkedRunID, state, closeStatus, lastWriteVersion)
+	closedByOtherCluster, err := e.isChildClosedByOtherCluster(startRequest, checked.runID, checked.state, checked.closeStatus, checked.lastWriteVersion)
 	if err != nil {
 		return err
 	}
 	if closedByOtherCluster {
 		// the request ID can not start a new run, so the start fails like a run started by another request
 		msg := "Workflow execution already finished in another cluster. WorkflowId: %v, RunId: %v."
-		return getWorkflowAlreadyStartedError(msg, startRequest.StartRequest.GetRequestID(), workflowID, checkedRunID)
+		return getWorkflowAlreadyStartedError(msg, requestID, workflowID, checked.runID)
 	}
 	return nil
+}
+
+// childRunInfo is the info of a run of a child workflow that verifyDuplicateChildStart checks.
+type childRunInfo struct {
+	runID            string
+	firstRunID       string
+	state            int
+	closeStatus      int
+	lastWriteVersion int64
+}
+
+// loadChildRunInfo loads a run of a child workflow and releases it immediately, so that verifyDuplicateChildStart
+// never holds the locks of two runs at the same time.
+func (e *historyEngineImpl) loadChildRunInfo(
+	ctx context.Context,
+	domainID string,
+	workflowID string,
+	runID string,
+) (_ childRunInfo, retError error) {
+	wfCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, runID)
+	if err != nil {
+		return childRunInfo{}, err
+	}
+	defer func() { wfCtx.GetReleaseFn()(retError) }()
+
+	mutableState := wfCtx.GetMutableState()
+	executionInfo := mutableState.GetExecutionInfo()
+	lastWriteVersion, err := mutableState.GetLastWriteVersion()
+	if err != nil {
+		return childRunInfo{}, err
+	}
+	return childRunInfo{
+		runID:            runID,
+		firstRunID:       executionInfo.FirstExecutionRunID,
+		state:            executionInfo.State,
+		closeStatus:      executionInfo.CloseStatus,
+		lastWriteVersion: lastWriteVersion,
+	}, nil
 }
 
 func getWorkflowAlreadyStartedError(errMsg string, createRequestID string, workflowID string, runID string) error {
