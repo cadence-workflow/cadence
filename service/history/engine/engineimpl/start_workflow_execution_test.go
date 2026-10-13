@@ -1114,10 +1114,6 @@ func newChildStartRequest(reusePolicy *types.WorkflowIDReusePolicy) *types.Histo
 
 func TestIsChildClosedByOtherCluster(t *testing.T) {
 	childStart := newChildStartRequest(nil)
-	workflowStart := &types.HistoryStartWorkflowExecutionRequest{
-		DomainUUID:   constants.TestDomainID,
-		StartRequest: childStart.StartRequest,
-	}
 	currentClusterVersion := cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement
 	otherClusterVersion := cluster.TestAlternativeClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement
 	unknownClusterVersion := cluster.TestFailoverVersionIncrement + 9
@@ -1161,12 +1157,6 @@ func TestIsChildClosedByOtherCluster(t *testing.T) {
 			name:             "child running",
 			request:          childStart,
 			state:            persistence.WorkflowStateRunning,
-			lastWriteVersion: otherClusterVersion,
-		},
-		{
-			name:             "workflow without parent",
-			request:          workflowStart,
-			state:            persistence.WorkflowStateCompleted,
 			lastWriteVersion: otherClusterVersion,
 		},
 		{
@@ -1229,12 +1219,8 @@ func mockLoadChildRunOfChain(eft *testdata.EngineForTest, runID, firstRunID stri
 	})).Return(resp, err).Once()
 }
 
-func TestVerifyDuplicateChildStart(t *testing.T) {
+func TestValidateDuplicateChildRunAdoption(t *testing.T) {
 	childStart := newChildStartRequest(nil)
-	workflowStart := &types.HistoryStartWorkflowExecutionRequest{
-		DomainUUID:   constants.TestDomainID,
-		StartRequest: childStart.StartRequest,
-	}
 	currentClusterVersion := cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement
 	otherClusterVersion := cluster.TestAlternativeClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement
 	unknownClusterVersion := cluster.TestFailoverVersionIncrement + 9
@@ -1371,6 +1357,7 @@ func TestVerifyDuplicateChildStart(t *testing.T) {
 				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
 				mockLoadChildRunOfChain(eft, childCurrentRunID, "", 0, 0, 0, &types.EntityNotExistsError{})
 			},
+			wantAlreadyStartedRunID: childCurrentRunID,
 		},
 		{
 			name:    "duplicate run continued as new, failed to load the current run",
@@ -1397,6 +1384,7 @@ func TestVerifyDuplicateChildStart(t *testing.T) {
 			mockLoad: func(eft *testdata.EngineForTest) {
 				mockLoadChildRun(eft, childDuplicateRunID, 0, 0, &types.EntityNotExistsError{})
 			},
+			wantAlreadyStartedRunID: childDuplicateRunID,
 		},
 		{
 			name:    "failed to load the duplicate run",
@@ -1408,19 +1396,16 @@ func TestVerifyDuplicateChildStart(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:       "current run not found",
-			request:    childStart,
-			currentErr: &types.EntityNotExistsError{},
+			name:                    "current run not found",
+			request:                 childStart,
+			currentErr:              &types.EntityNotExistsError{},
+			wantAlreadyStartedRunID: childDuplicateRunID,
 		},
 		{
 			name:       "failed to get the current run",
 			request:    childStart,
 			currentErr: errors.New("some error"),
 			wantErr:    true,
-		},
-		{
-			name:    "workflow without parent does not check the runs",
-			request: workflowStart,
 		},
 	}
 
@@ -1436,16 +1421,14 @@ func TestVerifyDuplicateChildStart(t *testing.T) {
 			// loading a run of the child looks up the active cluster of the child
 			eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, "child-workflow-id", gomock.Any()).
 				Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName}, nil).AnyTimes()
-			if tc.request.ParentExecutionInfo != nil {
-				eft.ShardCtx.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.MatchedBy(func(req *persistence.GetCurrentExecutionRequest) bool {
-					return req.DomainID == constants.TestDomainID && req.WorkflowID == "child-workflow-id"
-				})).Return(tc.current, tc.currentErr).Once()
-			}
+			eft.ShardCtx.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.MatchedBy(func(req *persistence.GetCurrentExecutionRequest) bool {
+				return req.DomainID == constants.TestDomainID && req.WorkflowID == "child-workflow-id"
+			})).Return(tc.current, tc.currentErr).Once()
 			if tc.mockLoad != nil {
 				tc.mockLoad(eft)
 			}
 
-			err := engine.verifyDuplicateChildStart(context.Background(), tc.request, constants.TestGlobalDomainEntry, childDuplicateRunID)
+			err := engine.validateDuplicateChildRunAdoption(context.Background(), tc.request, constants.TestGlobalDomainEntry, childDuplicateRunID)
 			switch {
 			case tc.wantAlreadyStartedRunID != "":
 				var alreadyStarted *types.WorkflowExecutionAlreadyStartedError
@@ -1458,9 +1441,6 @@ func TestVerifyDuplicateChildStart(t *testing.T) {
 				assert.NotErrorAs(t, err, new(*types.WorkflowExecutionAlreadyStartedError))
 			default:
 				assert.NoError(t, err)
-			}
-			if tc.request.ParentExecutionInfo == nil {
-				eft.ShardCtx.Resource.ExecutionMgr.AssertNotCalled(t, "GetCurrentExecution", mock.Anything, mock.Anything)
 			}
 			if tc.mockLoad == nil {
 				// the duplicate run is loaded only when it is not the current run
@@ -1513,6 +1493,7 @@ func TestStartWorkflowExecution_ChildStartDedup(t *testing.T) {
 		wantErr                   bool
 		wantNoGetCurrentExecution bool
 		domainEntry               *cache.DomainCacheEntry
+		withoutParent             bool
 	}{
 		{
 			name:        "same request ID, child closed by this cluster: returns the existing run",
@@ -1646,7 +1627,29 @@ func TestStartWorkflowExecution_ChildStartDedup(t *testing.T) {
 			wantRunID: childDuplicateRunID,
 		},
 		{
-			name:        "duplicate request, current run not found: returns the duplicate run",
+			name:          "workflow without parent, duplicate request: returns the duplicate run without checking it",
+			reusePolicy:   types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			withoutParent: true,
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, duplicateRequest).Once()
+			},
+			wantRunID:                 childDuplicateRunID,
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:          "workflow without parent, same request ID, closed by another cluster: returns the existing run",
+			reusePolicy:   types.WorkflowIDReusePolicyRejectDuplicate.Ptr(),
+			withoutParent: true,
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, alreadyStarted(otherClusterVersion)).Once()
+			},
+			wantRunID:                 childDuplicateRunID,
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:        "duplicate request, current run not found: already started",
 			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 			setupMocks: func(eft *testdata.EngineForTest) {
 				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
@@ -1654,7 +1657,7 @@ func TestStartWorkflowExecution_ChildStartDedup(t *testing.T) {
 				eft.ShardCtx.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).
 					Return(nil, &types.EntityNotExistsError{}).Once()
 			},
-			wantRunID: childDuplicateRunID,
+			wantAlreadyStartedRunID: childDuplicateRunID,
 		},
 		{
 			name:        "duplicate request, failed to get the current run: error",
@@ -1692,7 +1695,11 @@ func TestStartWorkflowExecution_ChildStartDedup(t *testing.T) {
 			eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.Anything).Return(nil).Maybe()
 			tc.setupMocks(eft)
 
-			resp, err := eft.Engine.StartWorkflowExecution(context.Background(), newChildStartRequest(tc.reusePolicy))
+			request := newChildStartRequest(tc.reusePolicy)
+			if tc.withoutParent {
+				request.ParentExecutionInfo = nil
+			}
+			resp, err := eft.Engine.StartWorkflowExecution(context.Background(), request)
 			switch {
 			case tc.wantAlreadyStartedRunID != "":
 				var alreadyStartedErr *types.WorkflowExecutionAlreadyStartedError

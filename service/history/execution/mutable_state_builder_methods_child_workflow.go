@@ -181,9 +181,7 @@ func (e *mutableStateBuilder) ReplicateStartChildWorkflowExecutionInitiatedEvent
 	return ci, e.taskGenerator.GenerateChildWorkflowTasks(event)
 }
 
-// childWorkflowCreateRequestID returns the request ID that starts the child of an initiated event. The request ID is
-// derived only when EnableDeterministicChildWorkflowRequestID is enabled, because a host without the check for a child
-// closed by another cluster must never receive a derived request ID, see isChildClosedByOtherCluster in the history engine.
+// childWorkflowCreateRequestID returns a derived request ID only when EnableDeterministicChildWorkflowRequestID is enabled.
 func (e *mutableStateBuilder) childWorkflowCreateRequestID(initiatedEventID, version int64) string {
 	if !e.config.EnableDeterministicChildWorkflowRequestID(e.GetDomainEntry().GetInfo().Name) {
 		return uuid.New()
@@ -191,10 +189,8 @@ func (e *mutableStateBuilder) childWorkflowCreateRequestID(initiatedEventID, ver
 	return newChildWorkflowCreateRequestID(e.executionInfo.RunID, initiatedEventID, version)
 }
 
-// newChildWorkflowCreateRequestID returns the request ID that starts the child of an initiated event.
-// The ID is the same on all clusters, because the initiated event is replicated, so a cluster that starts
-// the child again after a failover finds the child started by another cluster with the same request ID.
-// It is a UUID, because some persistence stores keep request IDs in UUID columns.
+// newChildWorkflowCreateRequestID returns the same request ID on all clusters, so after a failover the child
+// start finds the run started by another cluster. It is a UUID because Cassandra stores it in a UUID column.
 func newChildWorkflowCreateRequestID(runID string, initiatedEventID, version int64) string {
 	name := fmt.Sprintf("%s:%d:%d", runID, initiatedEventID, version)
 	return uuid.NewSHA1(childWorkflowCreateRequestIDNamespace, []byte(name)).String()

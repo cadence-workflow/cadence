@@ -132,6 +132,8 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	var prevMutableState execution.MutableState
 	var signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest
 	isSignalWithStart := sigWithStartArg != nil
+	// only a child start has a parent that waits for the completion of the run it adopts
+	isChildStart := startRequest.ParentExecutionInfo != nil
 	if isSignalWithStart {
 		prevMutableState = sigWithStartArg.prevMutableState
 		signalWithStartRequest = sigWithStartArg.signalWithStartRequest
@@ -244,8 +246,10 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	)
 	if t, ok := persistence.AsDuplicateRequestError(err); ok {
 		if t.RequestType == persistence.WorkflowRequestTypeStart || (isSignalWithStart && t.RequestType == persistence.WorkflowRequestTypeSignal) {
-			if err := e.verifyDuplicateChildStart(ctx, startRequest, domainEntry, t.RunID); err != nil {
-				return nil, workflowExecution, historyBlob, err
+			if isChildStart {
+				if err := e.validateDuplicateChildRunAdoption(ctx, startRequest, domainEntry, t.RunID); err != nil {
+					return nil, workflowExecution, historyBlob, err
+				}
 			}
 			return &types.StartWorkflowExecutionResponse{
 				RunID: t.RunID,
@@ -257,9 +261,13 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	// handle already started error
 	if t, ok := err.(*persistence.WorkflowExecutionAlreadyStartedError); ok {
 		if t.StartRequestID == request.GetRequestID() {
-			closedByOtherCluster, err := e.isChildClosedByOtherCluster(startRequest, t.RunID, t.State, t.CloseStatus, t.LastWriteVersion)
-			if err != nil {
-				return nil, workflowExecution, historyBlob, err
+			closedByOtherCluster := false
+			if isChildStart {
+				closed, err := e.isChildClosedByOtherCluster(startRequest, t.RunID, t.State, t.CloseStatus, t.LastWriteVersion)
+				if err != nil {
+					return nil, workflowExecution, historyBlob, err
+				}
+				closedByOtherCluster = closed
 			}
 			// a child closed by another cluster is handled like a run started by another request
 			if !closedByOtherCluster {
@@ -344,8 +352,10 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		)
 		if t, ok := persistence.AsDuplicateRequestError(err); ok {
 			if t.RequestType == persistence.WorkflowRequestTypeStart || (isSignalWithStart && t.RequestType == persistence.WorkflowRequestTypeSignal) {
-				if err := e.verifyDuplicateChildStart(ctx, startRequest, domainEntry, t.RunID); err != nil {
-					return nil, workflowExecution, historyBlob, err
+				if isChildStart {
+					if err := e.validateDuplicateChildRunAdoption(ctx, startRequest, domainEntry, t.RunID); err != nil {
+						return nil, workflowExecution, historyBlob, err
+					}
 				}
 				return &types.StartWorkflowExecutionResponse{
 					RunID: t.RunID,
@@ -988,13 +998,9 @@ func (e *historyEngineImpl) applyWorkflowIDReusePolicyHelper(
 	return nil
 }
 
-// isChildClosedByOtherCluster returns true when a child start finds an existing run with its request ID, and another
-// cluster closed that run. The other cluster sent the completion of the child to its parent, so the run must not be
-// returned as started, otherwise the parent records the child as started and waits for a completion that never comes.
-// This happens after a failover when EnableDeterministicChildWorkflowRequestID is enabled, because then the request ID
-// of a child is the same on all clusters. It also happens when the parent fails back to the cluster that started the
-// child, because that cluster keeps the request ID it used. A run that continued as new does not send its completion to
-// the parent, the last run of the chain does, so it is never closed in this sense.
+// isChildClosedByOtherCluster returns true when another cluster closed the child run. That cluster already sent the
+// completion to the parent, so the run must not be returned as started, or the parent waits forever. A run that
+// continued as new is not closed in this sense, because the last run of its chain sends the completion.
 func (e *historyEngineImpl) isChildClosedByOtherCluster(
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
 	runID string,
@@ -1002,8 +1008,7 @@ func (e *historyEngineImpl) isChildClosedByOtherCluster(
 	closeStatus int,
 	lastWriteVersion int64,
 ) (bool, error) {
-	if startRequest.ParentExecutionInfo == nil || state != persistence.WorkflowStateCompleted ||
-		closeStatus == persistence.WorkflowCloseStatusContinuedAsNew {
+	if state != persistence.WorkflowStateCompleted || closeStatus == persistence.WorkflowCloseStatusContinuedAsNew {
 		return false, nil
 	}
 	closingCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(lastWriteVersion)
@@ -1023,27 +1028,32 @@ func (e *historyEngineImpl) isChildClosedByOtherCluster(
 	return true, nil
 }
 
-// verifyDuplicateChildStart returns an error when a child start is a duplicate request and the run of the duplicate
-// request was closed by another cluster, see isChildClosedByOtherCluster. The run of the duplicate request is checked,
-// and not the current run, because the current run can be a run of the same workflow ID started by another request.
-// When the run of the duplicate request continued as new, the current run is checked if it is a run of the same chain,
-// because the last run of the chain sends the completion to the parent. If the current run is not a run of the chain,
-// the chain ended after the run of the duplicate request closed and before the current run started. So the chain ended
-// at a version between their last write versions, and when they are equal, that version tells the cluster that closed
-// the chain. Otherwise that cluster is not known and the start fails. When a run to check does not exist anymore, the
-// run of the duplicate request is returned as started, as before this check.
-func (e *historyEngineImpl) verifyDuplicateChildStart(
+// validateDuplicateChildRunAdoption returns an error when the run of a duplicate child start request can not be
+// adopted, because that run, or the last run of its chain, was closed by another cluster or by an unknown cluster.
+// Only the active cluster sends a child's completion to the parent, so after a failover the parent would never
+// receive it.
+func (e *historyEngineImpl) validateDuplicateChildRunAdoption(
 	ctx context.Context,
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
 	domainEntry *cache.DomainCacheEntry,
 	duplicateRunID string,
 ) error {
-	if startRequest.ParentExecutionInfo == nil {
-		return nil
-	}
 	domainID := domainEntry.GetInfo().ID
 	workflowID := startRequest.StartRequest.GetWorkflowID()
 	requestID := startRequest.StartRequest.GetRequestID()
+	// A run that no longer exists, for example because an operator deleted it or the domain retention is 0 days, can
+	// never send its completion to the parent, so it can not be adopted. The request row still blocks a new run with
+	// the same request ID, so the start fails like a run started by another request.
+	runNotFound := func(runID string) error {
+		e.logger.Info("Child start found a run with the same request ID that no longer exists",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(workflowID),
+			tag.WorkflowRunID(runID),
+			tag.WorkflowRequestID(requestID))
+		msg := "Workflow execution was started by this request but no longer exists, so it can not be adopted. WorkflowId: %v, RunId: %v."
+		return getWorkflowAlreadyStartedError(msg, requestID, workflowID, runID)
+	}
+
 	current, err := e.executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
 		DomainID:   domainID,
 		WorkflowID: workflowID,
@@ -1052,14 +1062,14 @@ func (e *historyEngineImpl) verifyDuplicateChildStart(
 	})
 	var notExistsErr *types.EntityNotExistsError
 	if errors.As(err, &notExistsErr) {
-		// no run to check, so the duplicate request is handled as before
-		return nil
+		return runNotFound(duplicateRunID)
 	}
 	if err != nil {
 		return err
 	}
 
-	checked := childRunInfo{
+	// the last run of the chain of the duplicate run sends the completion to the parent
+	lastRunOfChain := childRunInfo{
 		runID:            current.RunID,
 		state:            current.State,
 		closeStatus:      current.CloseStatus,
@@ -1069,31 +1079,29 @@ func (e *historyEngineImpl) verifyDuplicateChildStart(
 		// the run of the duplicate request is closed, because only the current run can be running
 		duplicate, err := e.loadChildRunInfo(ctx, domainID, workflowID, duplicateRunID)
 		if errors.As(err, &notExistsErr) {
-			// no run to check, so the duplicate request is handled as before
-			return nil
+			return runNotFound(duplicateRunID)
 		}
 		if err != nil {
 			return err
 		}
 
 		if duplicate.closeStatus != persistence.WorkflowCloseStatusContinuedAsNew {
-			checked = duplicate
+			lastRunOfChain = duplicate
 		} else {
 			currentRun, err := e.loadChildRunInfo(ctx, domainID, workflowID, current.RunID)
 			if errors.As(err, &notExistsErr) {
-				// no run to check, so the duplicate request is handled as before
-				return nil
+				return runNotFound(current.RunID)
 			}
 			if err != nil {
 				return err
 			}
 			switch {
 			case duplicate.firstRunID != "" && currentRun.firstRunID == duplicate.firstRunID:
-				// the current run of the chain is checked
-				checked = currentRun
+				// the current run is in the chain of the duplicate run
+				lastRunOfChain = currentRun
 			case duplicate.lastWriteVersion == currentRun.lastWriteVersion:
 				// the chain ended at this version, with a close status other than continued as new
-				checked = childRunInfo{
+				lastRunOfChain = childRunInfo{
 					runID:            duplicateRunID,
 					state:            persistence.WorkflowStateCompleted,
 					closeStatus:      persistence.WorkflowCloseStatusCompleted,
@@ -1111,19 +1119,19 @@ func (e *historyEngineImpl) verifyDuplicateChildStart(
 		}
 	}
 
-	closedByOtherCluster, err := e.isChildClosedByOtherCluster(startRequest, checked.runID, checked.state, checked.closeStatus, checked.lastWriteVersion)
+	closedByOtherCluster, err := e.isChildClosedByOtherCluster(startRequest, lastRunOfChain.runID, lastRunOfChain.state, lastRunOfChain.closeStatus, lastRunOfChain.lastWriteVersion)
 	if err != nil {
 		return err
 	}
 	if closedByOtherCluster {
 		// the request ID can not start a new run, so the start fails like a run started by another request
 		msg := "Workflow execution already finished in another cluster. WorkflowId: %v, RunId: %v."
-		return getWorkflowAlreadyStartedError(msg, requestID, workflowID, checked.runID)
+		return getWorkflowAlreadyStartedError(msg, requestID, workflowID, lastRunOfChain.runID)
 	}
 	return nil
 }
 
-// childRunInfo is the info of a run of a child workflow that verifyDuplicateChildStart checks.
+// childRunInfo is the info of a run of a child workflow that validateDuplicateChildRunAdoption checks.
 type childRunInfo struct {
 	runID            string
 	firstRunID       string
@@ -1132,8 +1140,8 @@ type childRunInfo struct {
 	lastWriteVersion int64
 }
 
-// loadChildRunInfo loads a run of a child workflow and releases it immediately, so that verifyDuplicateChildStart
-// never holds the locks of two runs at the same time.
+// loadChildRunInfo loads a run of a child workflow and releases it immediately, so that
+// validateDuplicateChildRunAdoption never holds the locks of two runs at the same time.
 func (e *historyEngineImpl) loadChildRunInfo(
 	ctx context.Context,
 	domainID string,
