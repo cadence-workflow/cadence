@@ -29,6 +29,8 @@
 //go:generate gowrap gen -g -p . -i TaskManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/task_generated.go
 //go:generate gowrap gen -g -p . -i ShardManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/shard_generated.go
 //go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/historytaskdlq_generated.go
+//go:generate gowrap gen -g -p . -i DomainAuditManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domainaudit_generated.go
+//go:generate gowrap gen -g -p . -i SemaphoreMetadataManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/semaphoremetadata_generated.go
 
 // Generate error injector wrappers.
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/configstore_generated.go
@@ -39,6 +41,8 @@
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/domain_generated.go
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/queue_generated.go
 //go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/historytaskdlq_generated.go
+//go:generate gowrap gen -g -p . -i DomainAuditManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/domainaudit_generated.go
+//go:generate gowrap gen -g -p . -i SemaphoreMetadataManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/semaphoremetadata_generated.go
 
 // Generate metered wrappers.
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/configstore_generated.go
@@ -48,6 +52,8 @@
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/historytaskdlq_generated.go
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/queue_generated.go
+//go:generate gowrap gen -g -p . -i DomainAuditManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/domainaudit_generated.go
+//go:generate gowrap gen -g -p . -i SemaphoreMetadataManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/semaphoremetadata_generated.go
 
 // execution metered wrapper is special
 //go:generate gowrap gen -g -p . -i ExecutionManager -t ./wrappers/templates/metered_execution.tmpl -o wrappers/metered/execution_generated.go
