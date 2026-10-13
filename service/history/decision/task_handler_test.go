@@ -900,6 +900,18 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 			},
 			wantErr: execution.ErrWorkflowFinished,
 		},
+		{
+			name: "run already holds or is waiting for the semaphore: the decision fails",
+			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
+			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
+				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(&persistence.GetSemaphoreResponse{}, nil)
+				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(30)).
+					Return(nil, nil, &types.BadRequestError{Message: "invalid history builder state for action"})
+			},
+			wantFailCause:      types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes.Ptr(),
+			wantFailMessage:    common.StringPtr(`Run already holds or is waiting for semaphore "my-semaphore".`),
+			wantStopProcessing: true,
+		},
 	}
 
 	for _, tc := range tests {

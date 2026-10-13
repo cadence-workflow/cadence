@@ -1102,7 +1102,17 @@ func (handler *taskHandlerImpl) handleDecisionAcquireSemaphore(
 		attr.GetSemaphoreName(),
 		handler.acquireWaitTimeoutSeconds(attr, domainName),
 	)
-	return err
+	switch err.(type) {
+	case nil:
+		return nil
+	case *types.BadRequestError:
+		return handler.handlerFailDecision(
+			types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes,
+			fmt.Sprintf("Run already holds or is waiting for semaphore %q.", attr.GetSemaphoreName()),
+		)
+	default:
+		return err
+	}
 }
 
 // failWorkflowSemaphoreNotFound fails the run because the semaphore does not exist.
