@@ -261,13 +261,13 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	// handle already started error
 	if t, ok := err.(*persistence.WorkflowExecutionAlreadyStartedError); ok {
 		if t.StartRequestID == request.GetRequestID() {
-			closedByOtherCluster := false
+			var closedByOtherCluster bool
 			if isChildStart {
-				closed, err := e.isChildClosedByOtherCluster(startRequest, t.RunID, t.State, t.CloseStatus, t.LastWriteVersion)
+				var err error
+				closedByOtherCluster, err = e.isChildClosedByOtherCluster(startRequest, t.RunID, t.State, t.CloseStatus, t.LastWriteVersion)
 				if err != nil {
 					return nil, workflowExecution, historyBlob, err
 				}
-				closedByOtherCluster = closed
 			}
 			// a child closed by another cluster is handled like a run started by another request
 			if !closedByOtherCluster {
