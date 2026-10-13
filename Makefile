@@ -11,6 +11,13 @@ MAKEFLAGS += --no-builtin-rules
 # as otherwise you will ignore all errors.
 SHELL = /bin/bash -e -u -o pipefail
 
+# helper for $(foreach...) mostly, to allow each shell command to be run separately
+# by placing them on their own lines.
+define NEWLINE
+
+
+endef
+
 default: help
 
 # ###########################################
@@ -558,6 +565,17 @@ go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `
 release: ## Re-generate generated code and run tests
 	$(MAKE) --no-print-directory go-generate
 	$(MAKE) --no-print-directory test
+
+# all tags to apply: the main version plus one per submodule (e.g. cmd/server/v1.2.3).
+# Go's module system requires per-submodule tags for proper semantic versioning of
+# repos with more than one module. See https://go.dev/ref/mod#vcs-version.
+TAG_RELEASE_TAGS = $(VERSION) $(foreach d,$(SUBMODULE_PATHS),$(d)/$(VERSION))
+
+tag-release: ## Print git tag/push commands for VERSION across the main module and all submodules
+	$(if $(VERSION),,$(error VERSION is not set, e.g. `make tag-release VERSION=v1.2.3`))
+	$Q echo "# Run the following commands to tag and push release $(VERSION):"
+	$Q echo "git tag $(TAG_RELEASE_TAGS)"
+	$Q echo "git push origin $(TAG_RELEASE_TAGS)"
 
 build: ## `go build` all packages and tests (a quick compile check only, skips all other steps)
 	$Q echo 'Building all packages and submodules...'
