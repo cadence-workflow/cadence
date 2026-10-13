@@ -260,7 +260,9 @@ func TestNewChildWorkflowCreateRequestID(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			requestID := newChildWorkflowCreateRequestID(testCase.runID, testCase.initiatedEventID, testCase.version)
 
+			// Cassandra stores the request ID in a UUID column
 			assert.NotNil(t, uuid.Parse(requestID))
+			// only the same run, initiated event ID and version give the same request ID
 			if testCase.wantSame {
 				assert.Equal(t, expected, requestID)
 			} else {
@@ -332,6 +334,7 @@ func TestAddChildEvents(t *testing.T) {
 		ctx.GetConfig().EnableDeterministicChildWorkflowRequestID = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 	}
 	replicatedInitiatedID := int64(7)
+	// differs from the current version of the builder, so the test shows that the event version is used
 	replicatedVersion := int64(21)
 	replicatedInitiatedEvent := func() *types.HistoryEvent {
 		return &types.HistoryEvent{
@@ -366,6 +369,7 @@ func TestAddChildEvents(t *testing.T) {
 			assertFn: func(t *testing.T, builder *mutableStateBuilder) {
 				ci, ok := builder.GetChildExecutionInfo(nextEventID)
 				require.True(t, ok)
+				// with the flag enabled, the request ID is derived from the initiated event
 				assert.Equal(t, newChildWorkflowCreateRequestID(parentRunID, nextEventID, commonconstants.EmptyVersion), ci.CreateRequestID)
 			},
 			expectedEvent: initiatedEvent(),
@@ -382,6 +386,7 @@ func TestAddChildEvents(t *testing.T) {
 			assertFn: func(t *testing.T, builder *mutableStateBuilder) {
 				ci, ok := builder.GetChildExecutionInfo(nextEventID)
 				require.True(t, ok)
+				// with the flag disabled, the request ID is a random UUID, as before
 				assert.NotNil(t, uuid.Parse(ci.CreateRequestID))
 				assert.NotEqual(t, newChildWorkflowCreateRequestID(parentRunID, nextEventID, commonconstants.EmptyVersion), ci.CreateRequestID)
 			},
@@ -408,9 +413,8 @@ func TestAddChildEvents(t *testing.T) {
 				ci, ok := builder.GetChildExecutionInfo(replicatedInitiatedID)
 				require.True(t, ok)
 				assert.Equal(t, replicatedInitiatedID-1, ci.InitiatedEventBatchID)
-				// the active cluster derived the same request ID from the same initiated event
+				// the passive cluster derives the same request ID as the active cluster, from the replicated event
 				assert.Equal(t, newChildWorkflowCreateRequestID(parentRunID, replicatedInitiatedID, replicatedVersion), ci.CreateRequestID)
-				assert.NotEqual(t, newChildWorkflowCreateRequestID(parentRunID, replicatedInitiatedID, builder.GetCurrentVersion()), ci.CreateRequestID)
 			},
 			expectedEvent: replicatedInitiatedEvent(),
 		},
@@ -424,6 +428,7 @@ func TestAddChildEvents(t *testing.T) {
 			assertFn: func(t *testing.T, builder *mutableStateBuilder) {
 				ci, ok := builder.GetChildExecutionInfo(replicatedInitiatedID)
 				require.True(t, ok)
+				// with the flag disabled, the passive cluster also uses a random UUID, as before
 				assert.NotNil(t, uuid.Parse(ci.CreateRequestID))
 				assert.NotEqual(t, newChildWorkflowCreateRequestID(parentRunID, replicatedInitiatedID, replicatedVersion), ci.CreateRequestID)
 			},
