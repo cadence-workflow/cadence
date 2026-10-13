@@ -495,5 +495,5 @@ Must be a JSON array of value objects:
 ## See Also
 
 - [CLI Reference](../../tools/cli/README.md) - Full CLI documentation
-- Available config keys: Run `cadence admin listall`
+- Available config keys: Run `cadence admin config listall`
 - [Dynamic Config Source Code](../../common/dynamicconfig/dynamicproperties/constants.go) - All config key definitions
