@@ -351,6 +351,10 @@ func TestStoreRoundTrip(t *testing.T) {
 				assert.ErrorIs(t, err, context.Canceled)
 				assert.ErrorIs(t, m.UpdateAsyncWorkflowAckLevel(cancelled, &persistence.UpdateAsyncWorkflowAckLevelRequest{ShardID: 0, SourceCluster: "c1", AckLevel: 1}), context.Canceled)
 				assert.ErrorIs(t, m.RangeDeleteAsyncWorkflowMessages(cancelled, &persistence.RangeDeleteAsyncWorkflowMessagesRequest{ShardID: 0, SourceCluster: "c1", InclusiveMaxMessageID: 1}), context.Canceled)
+				assert.ErrorIs(t, m.EnqueueAsyncWorkflowMessageToDLQ(cancelled, &persistence.EnqueueAsyncWorkflowMessageToDLQRequest{Message: &persistence.AsyncWorkflowMessage{ShardID: 0, SourceCluster: "c1", MessageID: 1, DomainName: "test-domain", WorkflowID: "wf-1", RequestID: "req-1", RequestType: persistence.AsyncWorkflowRequestTypeStartWorkflow, Payload: []byte{1}, PayloadEncoding: constants.EncodingTypeThriftRW}, Reason: "r"}), context.Canceled)
+				_, err = m.ReadAsyncWorkflowMessagesFromDLQ(cancelled, &persistence.ReadAsyncWorkflowMessagesFromDLQRequest{ShardID: 0, SourceCluster: "c1", PageSize: 1})
+				assert.ErrorIs(t, err, context.Canceled)
+				assert.ErrorIs(t, m.RangeDeleteAsyncWorkflowMessagesFromDLQ(cancelled, &persistence.RangeDeleteAsyncWorkflowMessagesFromDLQRequest{ShardID: 0, SourceCluster: "c1", InclusiveMaxMessageID: 1}), context.Canceled)
 			},
 		},
 		{
