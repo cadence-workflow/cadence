@@ -12,8 +12,8 @@ import (
 )
 
 // ForwardedFromHeaderName is the envelope header stamped with the name of the cluster that forwarded an
-// async workflow request. A request that already carries it is never forwarded a second time, bounding
-// forwarding to one hop.
+// async workflow request. A request carrying a stamp from another cluster is never forwarded a second
+// time, bounding forwarding to one hop.
 const ForwardedFromHeaderName = "cadence-async-forwarded-from"
 
 type processorWrapper struct {
@@ -67,9 +67,14 @@ func (p *processorWrapper) Process(ctx context.Context, req *Request) error {
 	return err
 }
 
-// forward delegates to the not-active processor, stamping the request so it is forwarded at most once.
+// forward delegates a stamped copy of the request to the not-active processor so the row is forwarded
+// at most once. The caller's Request is left untouched: Process makes one attempt, and a caller that
+// retries with the same Request must not find this cluster's own stamp from the failed attempt.
+// A stamp naming the current cluster can only be ours (the remote frontend captures the replayed
+// headers into its own queue row, and a bounced row is refused there), so only a foreign stamp
+// counts as a prior hop.
 func (p *processorWrapper) forward(ctx context.Context, req *Request, activeCluster string) error {
-	if from := string(req.Headers[ForwardedFromHeaderName]); from != "" {
+	if from := string(req.Headers[ForwardedFromHeaderName]); from != "" && from != p.currentCluster {
 		p.logger.Warn("async workflow request already forwarded once, not forwarding again",
 			tag.WorkflowDomainID(req.DomainID),
 			tag.WorkflowID(req.Message.WorkflowID),
@@ -83,10 +88,12 @@ func (p *processorWrapper) forward(ctx context.Context, req *Request, activeClus
 			ActiveCluster:  activeCluster,
 		}
 	}
-	req.ActiveCluster = activeCluster
-	if req.Headers == nil {
-		req.Headers = make(map[string][]byte)
+	fwd := *req
+	fwd.ActiveCluster = activeCluster
+	fwd.Headers = make(map[string][]byte, len(req.Headers)+1)
+	for k, v := range req.Headers {
+		fwd.Headers[k] = v
 	}
-	req.Headers[ForwardedFromHeaderName] = []byte(p.currentCluster)
-	return p.notActive.Process(ctx, req)
+	fwd.Headers[ForwardedFromHeaderName] = []byte(p.currentCluster)
+	return p.notActive.Process(ctx, &fwd)
 }
