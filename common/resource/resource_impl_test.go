@@ -146,6 +146,7 @@ func TestStartStop(t *testing.T) {
 	persistenceClientBean.EXPECT().GetDomainReplicationQueueManager().Return(domainReplMgr).AnyTimes()
 	persistenceClientBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
 	persistenceClientBean.EXPECT().GetHistoryTaskDLQManager().Return(persistence.NewMockHistoryTaskDLQManager(ctrl)).AnyTimes()
+	persistenceClientBean.EXPECT().GetAsyncWorkflowQueueManager().Return(persistence.NewMockAsyncWorkflowQueueManager(ctrl)).AnyTimes()
 	persistenceClientBean.EXPECT().Close().Times(1)
 
 	// archiver provider mocks

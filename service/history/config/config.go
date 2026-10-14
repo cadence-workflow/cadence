@@ -369,6 +369,15 @@ type Config struct {
 	HistoryTaskDLQProcessorEnabled                dynamicproperties.BoolPropertyFn
 	HistoryTaskDLQProcessorHostConcurrency        dynamicproperties.IntPropertyFn
 
+	// Async Workflow Queue Consumer Configuration
+	AsyncWorkflowQueueConsumerEnabled    dynamicproperties.BoolPropertyFnWithShardIDFilter
+	AsyncWorkflowQueuePollInterval       dynamicproperties.DurationPropertyFnWithShardIDFilter
+	AsyncWorkflowQueueCommitInterval     dynamicproperties.DurationPropertyFnWithShardIDFilter
+	AsyncWorkflowQueueGCInterval         dynamicproperties.DurationPropertyFnWithShardIDFilter
+	AsyncWorkflowQueuePageSize           dynamicproperties.IntPropertyFnWithShardIDFilter
+	AsyncWorkflowQueueWorkerCount        dynamicproperties.IntPropertyFn
+	AsyncWorkflowQueueSchedulerQueueSize dynamicproperties.IntPropertyFn
+
 	// HostName for machine running the service
 	HostName string
 }
@@ -655,6 +664,14 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		HistoryTaskDLQProcessorFailoverJitterMaxDelay: dc.GetDurationProperty(dynamicproperties.HistoryTaskDLQProcessorFailoverJitterMaxDelay),
 		HistoryTaskDLQProcessorEnabled:                dc.GetBoolProperty(dynamicproperties.HistoryTaskDLQProcessorEnabled),
 		HistoryTaskDLQProcessorHostConcurrency:        dc.GetIntProperty(dynamicproperties.HistoryTaskDLQProcessorHostConcurrency),
+
+		AsyncWorkflowQueueConsumerEnabled:    dc.GetBoolPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueueConsumerEnabled),
+		AsyncWorkflowQueuePollInterval:       dc.GetDurationPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueuePollInterval),
+		AsyncWorkflowQueueCommitInterval:     dc.GetDurationPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueueCommitInterval),
+		AsyncWorkflowQueueGCInterval:         dc.GetDurationPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueueGCInterval),
+		AsyncWorkflowQueuePageSize:           dc.GetIntPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueuePageSize),
+		AsyncWorkflowQueueWorkerCount:        dc.GetIntProperty(dynamicproperties.AsyncWorkflowQueueWorkerCount),
+		AsyncWorkflowQueueSchedulerQueueSize: dc.GetIntProperty(dynamicproperties.AsyncWorkflowQueueSchedulerQueueSize),
 
 		HostName: hostname,
 	}
