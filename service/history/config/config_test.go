@@ -301,6 +301,13 @@ func TestNewConfig(t *testing.T) {
 		"HistoryTaskDLQProcessorFailoverJitterMaxDelay":          {dynamicproperties.HistoryTaskDLQProcessorFailoverJitterMaxDelay, time.Second},
 		"HistoryTaskDLQProcessorHostConcurrency":                 {dynamicproperties.HistoryTaskDLQProcessorHostConcurrency, 11},
 		"HistoryTaskDLQProcessorEnabled":                         {dynamicproperties.HistoryTaskDLQProcessorEnabled, true},
+		"AsyncWorkflowQueueConsumerEnabled":                      {dynamicproperties.AsyncWorkflowQueueConsumerEnabled, true},
+		"AsyncWorkflowQueuePollInterval":                         {dynamicproperties.AsyncWorkflowQueuePollInterval, 2 * time.Second},
+		"AsyncWorkflowQueueCommitInterval":                       {dynamicproperties.AsyncWorkflowQueueCommitInterval, 3 * time.Second},
+		"AsyncWorkflowQueueGCInterval":                           {dynamicproperties.AsyncWorkflowQueueGCInterval, 4 * time.Second},
+		"AsyncWorkflowQueuePageSize":                             {dynamicproperties.AsyncWorkflowQueuePageSize, 102},
+		"AsyncWorkflowQueueWorkerCount":                          {dynamicproperties.AsyncWorkflowQueueWorkerCount, 103},
+		"AsyncWorkflowQueueSchedulerQueueSize":                   {dynamicproperties.AsyncWorkflowQueueSchedulerQueueSize, 104},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

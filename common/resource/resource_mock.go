@@ -151,6 +151,20 @@ func (mr *MockResourceMockRecorder) GetArchiverProvider() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetArchiverProvider", reflect.TypeOf((*MockResource)(nil).GetArchiverProvider))
 }
 
+// GetAsyncWorkflowQueueManager mocks base method.
+func (m *MockResource) GetAsyncWorkflowQueueManager() persistence.AsyncWorkflowQueueManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAsyncWorkflowQueueManager")
+	ret0, _ := ret[0].(persistence.AsyncWorkflowQueueManager)
+	return ret0
+}
+
+// GetAsyncWorkflowQueueManager indicates an expected call of GetAsyncWorkflowQueueManager.
+func (mr *MockResourceMockRecorder) GetAsyncWorkflowQueueManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAsyncWorkflowQueueManager", reflect.TypeOf((*MockResource)(nil).GetAsyncWorkflowQueueManager))
+}
+
 // GetAsyncWorkflowQueueProvider mocks base method.
 func (m *MockResource) GetAsyncWorkflowQueueProvider() queue.Provider {
 	m.ctrl.T.Helper()

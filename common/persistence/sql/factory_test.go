@@ -243,3 +243,14 @@ func TestFactoryNewDomainAuditStore(t *testing.T) {
 	assert.NoError(t, err)
 	factory.Close()
 }
+
+func TestFactoryNewAsyncWorkflowQueueStore(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	factory := NewFactory(config.SQL{}, "test", testlogger.New(t), serialization.NewMockParser(ctrl), persistence.NewDefaultDynamicConfiguration())
+	store, err := factory.NewAsyncWorkflowQueueStore()
+	assert.NoError(t, err)
+	assert.NotNil(t, store)
+	assert.Equal(t, "sql", store.GetName())
+	factory.Close()
+}
