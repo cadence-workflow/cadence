@@ -125,3 +125,8 @@ func GetStringPropertyFnFilteredByShardID(value string) func(shardID int) string
 func GetMapPropertyFn(value map[string]interface{}) func(opts ...FilterOption) map[string]interface{} {
 	return func(...FilterOption) map[string]interface{} { return value }
 }
+
+// GetListPropertyFn returns value as ListPropertyFn
+func GetListPropertyFn(value []interface{}) func(opts ...FilterOption) []interface{} {
+	return func(...FilterOption) []interface{} { return value }
+}
