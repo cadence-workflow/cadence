@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.55",
+  "MinCompatibleVersion": "0.55",
+  "Description": "Adding semaphore_name to transfer task",
+  "SchemaUpdateCqlFiles": [
+    "transfer_task.cql"
+  ]
+}

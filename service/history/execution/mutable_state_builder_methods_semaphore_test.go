@@ -41,6 +41,23 @@ func Test__GetSemaphoreInfo(t *testing.T) {
 	})
 }
 
+func Test__GetSemaphoreInfoByName(t *testing.T) {
+	t.Run("hold not found", func(t *testing.T) {
+		mb := testMutableStateBuilder(t)
+		mb.pendingSemaphoreInfoIDs[2] = testSemaphoreInfo(2)
+		_, ok := mb.GetSemaphoreInfoByName("other-semaphore")
+		assert.False(t, ok)
+	})
+	t.Run("hold found", func(t *testing.T) {
+		mb := testMutableStateBuilder(t)
+		info := testSemaphoreInfo(2)
+		mb.pendingSemaphoreInfoIDs[2] = info
+		result, ok := mb.GetSemaphoreInfoByName("my-semaphore")
+		assert.True(t, ok)
+		assert.Equal(t, info, result)
+	})
+}
+
 func Test__GetPendingSemaphoreInfos(t *testing.T) {
 	t.Run("no holds", func(t *testing.T) {
 		mb := testMutableStateBuilder(t)
@@ -154,6 +171,33 @@ func Test__AddSemaphoreAcquireInitiatedEvent(t *testing.T) {
 		assert.Equal(t, int64(5), semaphoreInfo.InitiatedID)
 		assert.Equal(t, semaphoreInfo, mb.pendingSemaphoreInfoIDs[5])
 		assert.Equal(t, semaphoreInfo, mb.updateSemaphoreInfos[5])
+	})
+	t.Run("a run waiting for the semaphore cannot acquire it again", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+		waiting := testSemaphoreInfo(2)
+		waiting.TokenID = 0
+		mb.pendingSemaphoreInfoIDs[2] = waiting
+		_, _, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
+		assert.IsType(t, &types.BadRequestError{}, err)
+		assert.Len(t, mb.pendingSemaphoreInfoIDs, 1)
+		assert.Equal(t, int64(5), mb.GetNextEventID(), "no event is written")
+	})
+	t.Run("a run holding the semaphore cannot acquire it again", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+		mb.pendingSemaphoreInfoIDs[2] = testSemaphoreInfo(2)
+		_, _, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
+		assert.IsType(t, &types.BadRequestError{}, err)
+		assert.Len(t, mb.pendingSemaphoreInfoIDs, 1)
+		assert.Equal(t, int64(5), mb.GetNextEventID(), "no event is written")
+	})
+	t.Run("a run holding a different semaphore can acquire this one", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+		other := testSemaphoreInfo(2)
+		other.SemaphoreName = "other-semaphore"
+		mb.pendingSemaphoreInfoIDs[2] = other
+		_, semaphoreInfo, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
+		require.NoError(t, err)
+		assert.Equal(t, semaphoreInfo, mb.pendingSemaphoreInfoIDs[5])
 	})
 }
 

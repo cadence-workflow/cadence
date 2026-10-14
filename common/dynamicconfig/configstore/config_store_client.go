@@ -201,16 +201,19 @@ func (csc *configStoreClient) GetIntValue(name dynamicproperties.IntKey, filters
 		return defaultValue, err
 	}
 
-	floatVal, ok := val.(float64)
-	if !ok {
+	switch v := val.(type) {
+	case int:
+		// the default value itself, returned when nothing has been loaded from the store
+		return v, nil
+	case float64:
+		// values decoded from the store's JSON blobs are always float64
+		if v != math.Trunc(v) {
+			return defaultValue, errors.New("value type is not int")
+		}
+		return int(v), nil
+	default:
 		return defaultValue, errors.New("value type is not int")
 	}
-
-	if floatVal != math.Trunc(floatVal) {
-		return defaultValue, errors.New("value type is not int")
-	}
-
-	return int(floatVal), nil
 }
 
 func (csc *configStoreClient) GetFloatValue(name dynamicproperties.FloatKey, filters map[dynamicproperties.Filter]interface{}) (float64, error) {

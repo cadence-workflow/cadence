@@ -121,6 +121,8 @@ func getOperationFromMethodName(op string) tag.Tag {
 		t = historyManagerTags(op)
 	case strings.HasPrefix(op, "HistoryTaskDLQManager"):
 		t = historyTaskDLQManagerTags(op)
+	case strings.HasPrefix(op, "AsyncWorkflowQueueManager"):
+		t = asyncWorkflowQueueManagerTags(op)
 	case strings.HasPrefix(op, "ShardManager"):
 		t = shardManagerTags(op)
 	case strings.HasPrefix(op, "ExecutionManager"):
@@ -204,6 +206,28 @@ func historyTaskDLQManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationUpdateHistoryDLQAckLevel
 	case "HistoryTaskDLQManager.DeleteHistoryDLQTasks":
 		return &tag.StoreOperationDeleteHistoryDLQTasks
+	}
+	return nil
+}
+
+func asyncWorkflowQueueManagerTags(op string) *tag.Tag {
+	switch op {
+	case "AsyncWorkflowQueueManager.EnqueueAsyncWorkflowMessage":
+		return &tag.StoreOperationEnqueueAsyncWorkflowMessage
+	case "AsyncWorkflowQueueManager.ReadAsyncWorkflowMessages":
+		return &tag.StoreOperationReadAsyncWorkflowMessages
+	case "AsyncWorkflowQueueManager.GetAsyncWorkflowAckLevels":
+		return &tag.StoreOperationGetAsyncWorkflowAckLevels
+	case "AsyncWorkflowQueueManager.UpdateAsyncWorkflowAckLevel":
+		return &tag.StoreOperationUpdateAsyncWorkflowAckLevel
+	case "AsyncWorkflowQueueManager.RangeDeleteAsyncWorkflowMessages":
+		return &tag.StoreOperationRangeDeleteAsyncWorkflowMessages
+	case "AsyncWorkflowQueueManager.EnqueueAsyncWorkflowMessageToDLQ":
+		return &tag.StoreOperationEnqueueAsyncWorkflowMessageToDLQ
+	case "AsyncWorkflowQueueManager.ReadAsyncWorkflowMessagesFromDLQ":
+		return &tag.StoreOperationReadAsyncWorkflowMessagesFromDLQ
+	case "AsyncWorkflowQueueManager.RangeDeleteAsyncWorkflowMessagesFromDLQ":
+		return &tag.StoreOperationRangeDeleteAsyncWorkflowMessagesFromDLQ
 	}
 	return nil
 }

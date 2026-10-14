@@ -121,6 +121,8 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 
 			matchingEngine := NewEngine(
 				taskManager,
+				persistence.NewMockSemaphoreTokenManager(ctrl),
+				persistence.NewMockSemaphoreMetadataManager(ctrl),
 				cluster.GetTestClusterMetadata(true),
 				mockHistoryClient,
 				mockMatchingClient,
@@ -398,9 +400,9 @@ func TestShutDownNonOwnedSemaphoreManagers(t *testing.T) {
 	}
 
 	start := func(id semaphore.Identifier) semaphore.Manager {
-		mgr := newSemaphoreManager(t, id, tokens)
+		mgr := newUnstartedSemaphoreManager(t, id, tokens)
 		require.NoError(t, mgr.Start(context.Background()))
-		registerSemaphoreManagerForTest(t, e, mgr)
+		registerSemaphoreManager(t, e, mgr)
 		return mgr
 	}
 	mineMgr := start(mine)
@@ -436,7 +438,7 @@ func TestShutDownNonOwnedSemaphoreManagersReportsAPanic(t *testing.T) {
 		membershipResolver: resolver,
 		logger:             log.NewNoop(),
 	}
-	registerSemaphoreManagerForTest(t, e, mgr)
+	registerSemaphoreManager(t, e, mgr)
 
 	var err error
 	require.NotPanics(t, func() { err = e.shutDownNonOwnedSemaphoreManagers() })
@@ -462,9 +464,9 @@ func TestShutDownNonOwnedSemaphoreManagersSurfacesALookupFailure(t *testing.T) {
 		membershipResolver: resolver,
 		logger:             log.NewNoop(),
 	}
-	mgr := newSemaphoreManager(t, mustNewSemaphoreIdentifier(t, 0), tokens)
+	mgr := newUnstartedSemaphoreManager(t, mustNewSemaphoreIdentifier(t, 0), tokens)
 	require.NoError(t, mgr.Start(context.Background()))
-	registerSemaphoreManagerForTest(t, e, mgr)
+	registerSemaphoreManager(t, e, mgr)
 
 	assert.ErrorIs(t, e.shutDownNonOwnedSemaphoreManagers(), lookupErr)
 	assert.Len(t, e.semaphoreRegistry.AllManagers(), 1, "a lookup failure must not unload anything")

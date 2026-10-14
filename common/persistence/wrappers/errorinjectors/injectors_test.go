@@ -46,6 +46,7 @@ var _staticMethods = map[string]bool{
 }
 
 var wrappers = []any{
+	&injectorAsyncWorkflowQueueManager{},
 	&injectorConfigStoreManager{},
 	&injectorDomainManager{},
 	&injectorHistoryManager{},
@@ -211,6 +212,19 @@ func builderForPassThrough(t *testing.T, injector any, errorRate float64, logger
 			mocked.EXPECT().DeleteHistoryBranch(gomock.Any(), gomock.Any()).Return(expectedErr)
 			mocked.EXPECT().GetHistoryTree(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTreeResponse{}, expectedErr)
 			mocked.EXPECT().GetAllHistoryTreeBranches(gomock.Any(), gomock.Any()).Return(&persistence.GetAllHistoryTreeBranchesResponse{}, expectedErr)
+		}
+	case *injectorAsyncWorkflowQueueManager:
+		mocked := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
+		object = NewAsyncWorkflowQueueManager(mocked, errorRate, logger, starttime)
+		if expectCalls {
+			mocked.EXPECT().EnqueueAsyncWorkflowMessage(gomock.Any(), gomock.Any()).Return(expectedErr)
+			mocked.EXPECT().ReadAsyncWorkflowMessages(gomock.Any(), gomock.Any()).Return(&persistence.ReadAsyncWorkflowMessagesResponse{}, expectedErr)
+			mocked.EXPECT().GetAsyncWorkflowAckLevels(gomock.Any(), gomock.Any()).Return(&persistence.GetAsyncWorkflowAckLevelsResponse{}, expectedErr)
+			mocked.EXPECT().UpdateAsyncWorkflowAckLevel(gomock.Any(), gomock.Any()).Return(expectedErr)
+			mocked.EXPECT().RangeDeleteAsyncWorkflowMessages(gomock.Any(), gomock.Any()).Return(expectedErr)
+			mocked.EXPECT().EnqueueAsyncWorkflowMessageToDLQ(gomock.Any(), gomock.Any()).Return(expectedErr)
+			mocked.EXPECT().ReadAsyncWorkflowMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.ReadAsyncWorkflowMessagesFromDLQResponse{}, expectedErr)
+			mocked.EXPECT().RangeDeleteAsyncWorkflowMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(expectedErr)
 		}
 	case *injectorHistoryTaskDLQManager:
 		mocked := persistence.NewMockHistoryTaskDLQManager(ctrl)

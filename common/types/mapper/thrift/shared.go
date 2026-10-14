@@ -1248,6 +1248,12 @@ func FromDecisionTaskFailedCause(t *types.DecisionTaskFailedCause) *shared.Decis
 	case types.DecisionTaskFailedCauseBadSearchAttributes:
 		v := shared.DecisionTaskFailedCauseBadSearchAttributes
 		return &v
+	case types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes:
+		v := shared.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes
+		return &v
+	case types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes:
+		v := shared.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes
+		return &v
 	}
 	panic("unexpected enum value")
 }
@@ -1326,6 +1332,12 @@ func ToDecisionTaskFailedCause(t *shared.DecisionTaskFailedCause) *types.Decisio
 		return &v
 	case shared.DecisionTaskFailedCauseBadSearchAttributes:
 		v := types.DecisionTaskFailedCauseBadSearchAttributes
+		return &v
+	case shared.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes:
+		v := types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes
+		return &v
+	case shared.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes:
+		v := types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes
 		return &v
 	}
 	panic("unexpected enum value")
