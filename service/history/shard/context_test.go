@@ -2364,6 +2364,67 @@ func TestShardedHistoryTaskDLQWriter_MarksPartitionBeforePersistenceWrite(t *tes
 	require.Len(t, index.Lookup("d1", "s", "n", true), 1)
 }
 
+func TestShardedHistoryTaskDLQWriter_SnapshotTakenDuringWriteCannotBeCleaned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mock := NewMockTaskDLQWriter(ctrl)
+	idx := NewDLQAckLevelIndex()
+	level := persistence.HistoryDLQAckLevel{
+		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
+		TaskCategory: persistence.HistoryTaskCategoryTransfer,
+	}
+	key := DLQAckLevelKeyOf(level)
+	idx.Merge([]persistence.HistoryDLQAckLevel{level})
+	w := &shardedHistoryTaskDLQWriter{writer: mock, index: idx}
+
+	task := persistence.NewMockTask(ctrl)
+	task.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
+	req := persistence.CreateHistoryDLQTaskRequest{
+		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n", Task: task,
+	}
+
+	// A sweep snapshots the entry while the write is in flight, reads an empty partition, and tries
+	// to clean after the write committed. The clean must be refused.
+	var midWrite IndexedDLQAckLevel
+	mock.EXPECT().CreateHistoryDLQTask(gomock.Any(), req).DoAndReturn(
+		func(context.Context, persistence.CreateHistoryDLQTaskRequest) error {
+			midWrite = idx.Lookup("d", "s", "n", true)[0]
+			return nil
+		})
+	require.NoError(t, w.CreateHistoryDLQTask(context.Background(), req))
+
+	idx.MarkClean(key, midWrite.Generation)
+	require.Len(t, idx.Lookup("d", "s", "n", true), 1, "entry must stay dirty: the snapshot predates the commit")
+
+	// A snapshot taken after the write returned is current and may clean.
+	after := idx.Lookup("d", "s", "n", true)[0]
+	idx.MarkClean(key, after.Generation)
+	require.Empty(t, idx.Lookup("d", "s", "n", true))
+}
+
+func TestShardedHistoryTaskDLQWriter_FailedWriteStillMovesGeneration(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mock := NewMockTaskDLQWriter(ctrl)
+	idx := NewDLQAckLevelIndex()
+	level := persistence.HistoryDLQAckLevel{
+		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
+		TaskCategory: persistence.HistoryTaskCategoryTransfer,
+	}
+	idx.Merge([]persistence.HistoryDLQAckLevel{level})
+	before := idx.Lookup("d", "s", "n", false)[0].Generation
+	w := &shardedHistoryTaskDLQWriter{writer: mock, index: idx}
+
+	task := persistence.NewMockTask(ctrl)
+	task.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
+	req := persistence.CreateHistoryDLQTaskRequest{
+		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n", Task: task,
+	}
+	mock.EXPECT().CreateHistoryDLQTask(gomock.Any(), req).Return(errors.New("timeout: may have landed"))
+	require.Error(t, w.CreateHistoryDLQTask(context.Background(), req))
+
+	// Two bumps: one before the write, one after it returned (even on error).
+	require.Equal(t, before+2, idx.Lookup("d", "s", "n", false)[0].Generation)
+}
+
 func TestShardedHistoryTaskDLQWriter_AckLevelCreateDedupsThroughIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

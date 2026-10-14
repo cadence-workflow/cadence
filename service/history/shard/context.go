@@ -2005,14 +2005,18 @@ type shardedHistoryTaskDLQWriter struct {
 var _ TaskDLQWriter = &shardedHistoryTaskDLQWriter{}
 
 func (w *shardedHistoryTaskDLQWriter) CreateHistoryDLQTask(ctx context.Context, request persistence.CreateHistoryDLQTaskRequest) error {
-	// Mark before the persistence write so a concurrent reader can never observe a committed write
-	// against a clean entry. The mark is kept even if the write fails (conservative).
-	w.index.MarkWrite(DLQAckLevelKey{
+	key := DLQAckLevelKey{
 		DomainID:              request.DomainID,
 		ClusterAttributeScope: request.ClusterAttributeScope,
 		ClusterAttributeName:  request.ClusterAttributeName,
 		TaskCategoryID:        request.Task.GetTaskCategory().ID(),
-	})
+	}
+	// Mark before the write so a reader that snapshots before it sees a dirty entry, and again after
+	// the write returns (success or failure, the row may have landed either way) so a reader that
+	// snapshotted while the write was in flight cannot MarkClean against a generation that predates
+	// the commit. Both marks are kept on failure (conservative).
+	w.index.MarkWrite(key)
+	defer w.index.MarkWrite(key)
 	return w.writer.CreateHistoryDLQTask(ctx, request)
 }
 
