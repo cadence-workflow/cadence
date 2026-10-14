@@ -654,6 +654,37 @@ func (v *attrValidator) validateUpsertWorkflowSearchAttributes(
 	return v.searchAttributesValidator.ValidateSearchAttributes(attributes.GetSearchAttributes(), domainName)
 }
 
+func (v *attrValidator) validateAcquireSemaphoreAttributes(
+	attributes *types.AcquireSemaphoreDecisionAttributes,
+	metricsScope metrics.ScopeIdx,
+	domain string,
+) error {
+
+	if attributes == nil {
+		return &types.BadRequestError{Message: "AcquireSemaphoreDecisionAttributes is not set on decision."}
+	}
+	if attributes.GetSemaphoreName() == "" {
+		return &types.BadRequestError{Message: "SemaphoreName is not set on decision."}
+	}
+	if !common.IsValidIDLength(
+		attributes.GetSemaphoreName(),
+		v.metricsClient.Scope(metricsScope),
+		v.config.MaxIDLengthWarnLimit(),
+		v.config.SemaphoreNameMaxLength(domain),
+		metrics.CadenceErrSemaphoreNameExceededWarnLimit,
+		domain,
+		v.logger,
+		tag.IDTypeSemaphoreName) {
+		return &types.BadRequestError{Message: "SemaphoreName exceeds length limit."}
+	}
+	if attributes.GetWaitTimeoutSeconds() < 0 {
+		return &types.BadRequestError{
+			Message: fmt.Sprintf("Invalid WaitTimeoutSeconds: %v", attributes.GetWaitTimeoutSeconds()),
+		}
+	}
+	return nil
+}
+
 func (v *attrValidator) validateContinueAsNewWorkflowExecutionAttributes(
 	attributes *types.ContinueAsNewWorkflowExecutionDecisionAttributes,
 	executionInfo *persistence.WorkflowExecutionInfo,

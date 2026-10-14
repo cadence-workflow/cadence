@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/validate"
@@ -35,6 +38,17 @@ func (wh *WorkflowHandler) CreateSemaphore(
 	semaphoreName := request.GetSemaphoreName()
 	if semaphoreName == "" {
 		return nil, &types.BadRequestError{Message: "SemaphoreName is not set on request."}
+	}
+	if !common.IsValidIDLength(
+		semaphoreName,
+		wh.GetMetricsClient().Scope(metrics.FrontendCreateSemaphoreScope),
+		wh.config.MaxIDLengthWarnLimit(),
+		wh.config.SemaphoreNameMaxLength(domainName),
+		metrics.CadenceErrSemaphoreNameExceededWarnLimit,
+		domainName,
+		wh.GetLogger(),
+		tag.IDTypeSemaphoreName) {
+		return nil, &types.BadRequestError{Message: "SemaphoreName exceeds length limit."}
 	}
 	capacity := request.GetCapacity()
 	if capacity <= 0 {

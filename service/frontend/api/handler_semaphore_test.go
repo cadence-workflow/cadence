@@ -45,8 +45,9 @@ func TestCreateSemaphore(t *testing.T) {
 		}}
 	}
 	tests := map[string]struct {
-		request  *types.CreateSemaphoreRequest
-		disabled bool
+		request       *types.CreateSemaphoreRequest
+		disabled      bool
+		nameMaxLength int
 		// create sets up the metadata store. A nil func expects no call.
 		create  func(*persistence.MockSemaphoreMetadataManager)
 		want    *types.CreateSemaphoreResponse
@@ -68,6 +69,11 @@ func TestCreateSemaphore(t *testing.T) {
 		"when the semaphore name is not set, the request is rejected": {
 			request: &types.CreateSemaphoreRequest{Domain: testDomain, Capacity: 10},
 			wantErr: &types.BadRequestError{},
+		},
+		"when the semaphore name is over the length limit, the request is rejected": {
+			request:       request(10, 0),
+			nameMaxLength: len(semaphoreName) - 1,
+			wantErr:       &types.BadRequestError{},
 		},
 		"when the capacity is 0, the request is rejected": {
 			request: request(0, 0),
@@ -136,6 +142,9 @@ func TestCreateSemaphore(t *testing.T) {
 				10, false, "hostname", mockResource.Logger,
 			)
 			config.EnableDistributedSemaphore = dynamicproperties.GetBoolPropertyFnFilteredByDomain(!tc.disabled)
+			if tc.nameMaxLength != 0 {
+				config.SemaphoreNameMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(tc.nameMaxLength)
+			}
 			handler := NewWorkflowHandler(mockResource, config, client.NewMockVersionChecker(ctrl), nil)
 
 			if tc.create != nil {

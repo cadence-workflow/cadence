@@ -485,6 +485,12 @@ const (
 	// Default value: 1000 (see common.DefaultIDLengthErrorLimit)
 	// Allowed filters: DomainName
 	TimerIDMaxLength
+	// SemaphoreNameMaxLength is the length limit for semaphore name
+	// KeyName: limit.semaphoreNameLength
+	// Value type: Int
+	// Default value: 1000 (see common.DefaultIDLengthErrorLimit)
+	// Allowed filters: DomainName
+	SemaphoreNameMaxLength
 	// MaxIDLengthWarnLimit is the warn length limit for various IDs, including: Domain, TaskList, WorkflowID, ActivityID, TimerID, WorkflowType, ActivityType, SignalName, MarkerName, ErrorReason/FailureReason/CancelCause, Identity, RequestID
 	// KeyName: limit.maxIDWarnLength
 	// Value type: Int
@@ -1676,6 +1682,24 @@ const (
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
 
+	// RewriteSampleRate controls how often a full rewrite of activity and timer
+	// collections is triggered on transactions with deletes. A value of N means
+	// a 1-in-N chance per transaction (e.g., 100 = rewrite roughly every 100th
+	// transaction). 0 disables the optimization. 1 means rewrite every time.
+	// Only applies to backends listed in RewriteOptimizationBackends.
+	//
+	// When enabled, deletes write sentinel entries instead of issuing database
+	// deletes, and full rewrites compact them. A rate too high means sentinels
+	// accumulate, growing the collection. Larger collections increase read
+	// latency because sentinels must be filtered on every load, especially
+	// costly during shard movement or cache eviction when the full collection
+	// is read from the database.
+	//
+	// KeyName: history.rewriteSampleRate
+	// Value type: Int
+	// Default value: 0
+	RewriteSampleRate
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -2151,8 +2175,8 @@ const (
 	// Allowed filters: DomainName
 	EnableStickyQuery
 	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
-	// frontend, and serving semaphore buckets on matching. While it is off matching loads no bucket,
-	// so no partition is scanned and nothing is held in memory.
+	// frontend, the acquire decision on history, and serving semaphore buckets on matching. While it
+	// is off matching loads no bucket, so no partition is scanned and nothing is held in memory.
 	// Global domains also need HistoryTaskDLQMode enabled, or a hold still waiting at failover is never acquired.
 	// KeyName: system.enableDistributedSemaphore
 	// Value type: Bool
@@ -3197,6 +3221,12 @@ const (
 	// Default value: 30m (time.Minute*30)
 	// Allowed filters: DomainName
 	DecisionHeartbeatTimeout
+	// SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout
+	// KeyName: history.semaphoreAcquireDefaultWaitTimeout
+	// Value type: Duration
+	// Default value: 5m (time.Minute*5)
+	// Allowed filters: DomainName
+	SemaphoreAcquireDefaultWaitTimeout
 	// NormalDecisionScheduleToStartTimeout is scheduleToStart timeout duration for normal (non-sticky) decision task
 	// KeyName: history.normalDecisionScheduleToStartTimeout
 	// Value type: Duration
@@ -3538,6 +3568,17 @@ const (
 	// Default value: forward all headers.  (this is a problematic value, and it will be changing as we reduce to a list of known values)
 	HeaderForwardingRules
 
+	// RewriteOptimizationBackends is the list of persistence backends that support
+	// the rewrite optimization (sentinel writes + probabilistic full rewrite).
+	// Currently only Cassandra is known to need this optimization (to avoid tombstones).
+	// Note: this value is read once at process startup and cached. Changes require a
+	// restart to take effect. Use the sample rate config as a live kill switch instead.
+	// KeyName: history.rewriteOptimizationBackends
+	// Value type: []string
+	// Default value: ["cassandra"]
+	// Allowed filters: N/A
+	RewriteOptimizationBackends
+
 	LastListKey
 )
 
@@ -3711,6 +3752,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "limit.timerIDLength",
 		Filters:      []Filter{DomainName},
 		Description:  "TimerIDMaxLength is the length limit for timerID",
+		DefaultValue: 1000,
+	},
+	SemaphoreNameMaxLength: {
+		KeyName:      "limit.semaphoreNameLength",
+		Filters:      []Filter{DomainName},
+		Description:  "SemaphoreNameMaxLength is the length limit for semaphore name",
 		DefaultValue: 1000,
 	},
 	MaxIDLengthWarnLimit: {
@@ -4667,6 +4714,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
 	},
+	RewriteSampleRate: {
+		KeyName:      "history.rewriteSampleRate",
+		Description:  "How often a full rewrite of activity and timer collections is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction). 0 disables. Only applies to backends in RewriteOptimizationBackends. A rate too high causes sentinel accumulation, growing collections and increasing read latency on shard movement or cache eviction.",
+		DefaultValue: 0,
+	},
 }
 
 var BoolKeys = map[BoolKey]DynamicBool{
@@ -5099,7 +5151,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableDistributedSemaphore: {
 		KeyName:      "system.enableDistributedSemaphore",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, and serving semaphore buckets on matching. Global domains also need HistoryTaskDLQMode enabled",
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and serving semaphore buckets on matching. Global domains also need HistoryTaskDLQMode enabled",
 		DefaultValue: false,
 	},
 	EnableFailoverManager: {
@@ -5976,6 +6028,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Description:  "DecisionHeartbeatTimeout is for decision heartbeat",
 		DefaultValue: time.Minute * 30, // about 30m
 	},
+	SemaphoreAcquireDefaultWaitTimeout: {
+		KeyName:      "history.semaphoreAcquireDefaultWaitTimeout",
+		Filters:      []Filter{DomainName},
+		Description:  "SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout",
+		DefaultValue: time.Minute * 5,
+	},
 	NormalDecisionScheduleToStartTimeout: {
 		KeyName:      "history.normalDecisionScheduleToStartTimeout",
 		Filters:      []Filter{DomainName},
@@ -6250,6 +6308,11 @@ var ListKeys = map[ListKey]DynamicList{
 		KeyName:      "system.rateLimiterBypassCallerTypes",
 		Description:  "List of caller types that bypass rate limiters (both frontend and persistence)",
 		DefaultValue: []interface{}{},
+	},
+	RewriteOptimizationBackends: {
+		KeyName:      "history.rewriteOptimizationBackends",
+		Description:  "List of persistence backends that support the rewrite optimization (sentinel writes + probabilistic rewrite). Currently only Cassandra is known to need this (to avoid tombstones). Cached at startup; changes require restart. Use the sample rate config as a live kill switch.",
+		DefaultValue: []interface{}{"cassandra"},
 	},
 	DefaultIsolationGroupConfigStoreManagerGlobalMapping: {
 		KeyName: "system.defaultIsolationGroupConfigStoreManagerGlobalMapping",

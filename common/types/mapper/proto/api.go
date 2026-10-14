@@ -850,6 +850,10 @@ func FromDecisionTaskFailedCause(t *types.DecisionTaskFailedCause) apiv1.Decisio
 		return apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_SCHEDULE_ACTIVITY_DUPLICATE_ID
 	case types.DecisionTaskFailedCauseBadSearchAttributes:
 		return apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_BAD_SEARCH_ATTRIBUTES
+	case types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes:
+		return apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_BAD_ACQUIRE_SEMAPHORE_ATTRIBUTES
+	case types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes:
+		return apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_BAD_RELEASE_SEMAPHORE_ATTRIBUTES
 	}
 	return apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_INVALID
 }
@@ -904,6 +908,10 @@ func ToDecisionTaskFailedCause(t apiv1.DecisionTaskFailedCause) *types.DecisionT
 		return types.DecisionTaskFailedCauseScheduleActivityDuplicateID.Ptr()
 	case apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_BAD_SEARCH_ATTRIBUTES:
 		return types.DecisionTaskFailedCauseBadSearchAttributes.Ptr()
+	case apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_BAD_ACQUIRE_SEMAPHORE_ATTRIBUTES:
+		return types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes.Ptr()
+	case apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_BAD_RELEASE_SEMAPHORE_ATTRIBUTES:
+		return types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes.Ptr()
 	}
 	return nil
 }
