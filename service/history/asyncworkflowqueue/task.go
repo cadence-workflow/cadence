@@ -53,17 +53,24 @@ func (t *asyncWorkflowTask) Execute() error {
 	}
 
 	// Decode is inside the retried closure because it resolves the domain ID, which can fail transiently.
+	// ThrottleRetry.Do prefers the previous attempt's error over the one that ended the retry, so the
+	// final attempt's error is tracked here: it is what Nack records as the DLQ reason.
+	var lastErr error
 	err := backoff.NewThrottleRetry(
 		backoff.WithRetryPolicy(t.p.RetryPolicy),
 		backoff.WithRetryableError(common.IsServiceTransientError),
 		backoff.WithClock(t.p.TimeSource),
 	).Do(t.ctx, func(ctx context.Context) error {
 		req, err := t.p.Decoder.Decode(t.p.Message)
-		if err != nil {
-			return err
+		if err == nil {
+			err = t.p.Processor.Process(ctx, req)
 		}
-		return t.p.Processor.Process(ctx, req)
+		lastErr = err
+		return err
 	})
+	if err != nil && lastErr != nil {
+		err = lastErr
+	}
 	if errors.Is(err, ErrCorruptMessage) {
 		t.p.Scope.IncCounter(metrics.AsyncWorkflowQueueDecodeFailuresCounter)
 	}
