@@ -73,7 +73,7 @@ func TestProcessorWrapper_Process(t *testing.T) {
 		setupActive func(a *MockProcessor)
 		setupNot    func(n *MockProcessor)
 		wantErr     error
-		wantCluster string // expected req.ActiveCluster after Process
+		wantCluster string // expected ActiveCluster on the request handed to the not-active processor
 	}{
 		{
 			name:        "start: active cluster is current, delegates to active only",
@@ -121,6 +121,25 @@ func TestProcessorWrapper_Process(t *testing.T) {
 				n.EXPECT().Process(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, r *Request) error {
 						require.Equal(t, []byte(current), r.Headers[ForwardedFromHeaderName])
+						require.Equal(t, other, r.ActiveCluster)
+						return nil
+					}).Times(1)
+			},
+			wantCluster: other,
+		},
+		{
+			name: "stamp naming the current cluster is our own earlier attempt, not a prior hop: forwarded",
+			req: func() *Request {
+				r := newStartReq()
+				r.Headers = map[string][]byte{ForwardedFromHeaderName: []byte(current), "k": []byte("v")}
+				return r
+			},
+			lookup:      lookupReturns(attr, other),
+			setupActive: nothing,
+			setupNot: func(n *MockProcessor) {
+				n.EXPECT().Process(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, r *Request) error {
+						require.Equal(t, map[string][]byte{ForwardedFromHeaderName: []byte(current), "k": []byte("v")}, r.Headers)
 						require.Equal(t, other, r.ActiveCluster)
 						return nil
 					}).Times(1)
@@ -224,6 +243,10 @@ func TestProcessorWrapper_Process(t *testing.T) {
 
 			p := NewProcessorWrapper(current, mgr, active, notActive, testlogger.New(t))
 			req := tc.req()
+			headersBefore := make(map[string][]byte, len(req.Headers))
+			for k, v := range req.Headers {
+				headersBefore[k] = v
+			}
 			err := p.Process(context.Background(), req)
 
 			if tc.wantErr != nil {
@@ -231,7 +254,54 @@ func TestProcessorWrapper_Process(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, tc.wantCluster, req.ActiveCluster)
+			// The caller's Request is never mutated: the stamp and ActiveCluster live on the forwarded copy.
+			require.Empty(t, req.ActiveCluster)
+			if len(headersBefore) == 0 {
+				require.Empty(t, req.Headers)
+			} else {
+				require.Equal(t, headersBefore, req.Headers)
+			}
 		})
 	}
+}
+
+// TestProcessorWrapper_RetryAfterFailedForward pins that a failed forward does not poison the Request:
+// a second Process call with the same decoded Request forwards again instead of being refused as a
+// second hop and dead-lettered.
+func TestProcessorWrapper_RetryAfterFailedForward(t *testing.T) {
+	const (
+		current  = "cluster-a"
+		other    = "cluster-b"
+		domainID = "domain-id-1"
+	)
+	attr := &types.ClusterAttribute{Scope: "region", Name: "us"}
+	req := &Request{
+		DomainID: domainID,
+		Start: &types.StartWorkflowExecutionRequest{
+			Domain:                       "d",
+			WorkflowID:                   "wf",
+			ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{ClusterAttribute: attr},
+		},
+	}
+	errForward := errors.New("remote frontend timed out")
+
+	ctrl := gomock.NewController(t)
+	mgr := activecluster.NewMockManager(ctrl)
+	active := NewMockProcessor(ctrl)
+	notActive := NewMockProcessor(ctrl)
+	mgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainID, attr).
+		Return(&types.ActiveClusterInfo{ActiveClusterName: other}, nil).Times(2)
+	gomock.InOrder(
+		notActive.EXPECT().Process(gomock.Any(), gomock.Any()).Return(errForward),
+		notActive.EXPECT().Process(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, r *Request) error {
+				require.Equal(t, other, r.ActiveCluster)
+				require.Equal(t, []byte(current), r.Headers[ForwardedFromHeaderName])
+				return nil
+			}),
+	)
+
+	p := NewProcessorWrapper(current, mgr, active, notActive, testlogger.New(t))
+	require.Equal(t, errForward, p.Process(context.Background(), req))
+	require.NoError(t, p.Process(context.Background(), req))
 }
