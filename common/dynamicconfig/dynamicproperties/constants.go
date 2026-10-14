@@ -1649,12 +1649,13 @@ const (
 	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
 
-	// HistoryTaskDLQProcessorHostConcurrency is the maximum number of shards that may process the History Task DLQ concurrently on one history host.
-	// KeyName: history.historyTaskDLQProcessorHostConcurrency
+	// HistoryTaskDLQProcessorHostMaxQPS is the maximum persistence calls per second the History Task DLQ processor
+	// may issue per history host, shared across all shards on that host.
+	// KeyName: history.historyTaskDLQProcessorHostMaxQPS
 	// Value type: Int
-	// Default value: 10
+	// Default value: 100
 	// Allowed filters: N/A
-	HistoryTaskDLQProcessorHostConcurrency
+	HistoryTaskDLQProcessorHostMaxQPS
 
 	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
 	// KeyName: history.taskListNiceValue
@@ -4750,10 +4751,10 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
 	},
-	HistoryTaskDLQProcessorHostConcurrency: {
-		KeyName:      "history.historyTaskDLQProcessorHostConcurrency",
-		Description:  "HistoryTaskDLQProcessorHostConcurrency is the maximum number of shards that may process the History Task DLQ concurrently on one history host. Evaluated once at history host startup; changing it requires a restart",
-		DefaultValue: 10,
+	HistoryTaskDLQProcessorHostMaxQPS: {
+		KeyName:      "history.historyTaskDLQProcessorHostMaxQPS",
+		Description:  "HistoryTaskDLQProcessorHostMaxQPS is the maximum persistence calls per second the History Task DLQ processor may issue per history host, shared across all shards on that host. Values below 1 are treated as 1. Re-read every few seconds; no restart needed",
+		DefaultValue: 100,
 	},
 	HistoryTaskListNiceValue: {
 		KeyName:      "history.taskListNiceValue",

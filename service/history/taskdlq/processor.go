@@ -24,7 +24,9 @@ package taskdlq
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -40,6 +42,8 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/quotas"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/shard"
 )
@@ -47,6 +51,10 @@ import (
 // sweepIntervalJitterCoefficient spreads periodic sweeps across shards; see
 // emitDLQSizeMetricsLoop in service/history/replication/dlq_handler.go for precedent.
 const sweepIntervalJitterCoefficient = 0.15
+
+// maxBusyRetries bounds the retries of a ServiceBusy persistence call. The retry policy counts retries
+// rather than calls, so 4 retries means 5 attempts in total before the error is returned.
+const maxBusyRetries = 4
 
 type (
 	// Processor reads tasks from the history task DLQ and executes them synchronously.
@@ -101,7 +109,8 @@ type (
 		failoverJitterMaxDelay dynamicproperties.DurationPropertyFn
 		domainMode             dynamicproperties.StringPropertyFnWithDomainFilter
 		enabled                dynamicproperties.BoolPropertyFn
-		hostLimiter            *HostLimiter
+		hostBudget             HostBudget
+		retrier                *backoff.ThrottleRetry
 		timeSource             clock.TimeSource
 		metricsClient          metrics.Client
 		logger                 log.Logger
@@ -139,10 +148,11 @@ type (
 		FailoverJitterMaxDelay dynamicproperties.DurationPropertyFn
 		DomainMode             dynamicproperties.StringPropertyFnWithDomainFilter
 		Enabled                dynamicproperties.BoolPropertyFn
-		HostLimiter            *HostLimiter
-		TimeSource             clock.TimeSource
-		MetricsClient          metrics.Client
-		Logger                 log.Logger
+		// HostBudget paces every persistence call. Optional: defaults to an unlimited budget when nil.
+		HostBudget    HostBudget
+		TimeSource    clock.TimeSource
+		MetricsClient metrics.Client
+		Logger        log.Logger
 	}
 )
 
@@ -160,6 +170,25 @@ func NewProcessor(params ProcessorParams) *ProcessorImpl {
 			return persistence.MaximumHistoryTaskKey
 		}
 	}
+	hostBudget := params.HostBudget
+	if hostBudget == nil {
+		hostBudget = quotas.NewDynamicRateLimiter(func() float64 { return math.MaxFloat64 })
+	}
+	retryPolicy := backoff.NewExponentialRetryPolicy(500 * time.Millisecond)
+	retryPolicy.SetMaximumInterval(5 * time.Second)
+	retryPolicy.SetMaximumAttempts(maxBusyRetries)
+	retryPolicy.SetExpirationInterval(backoff.NoInterval)
+	throttlePolicy := backoff.NewExponentialRetryPolicy(500 * time.Millisecond)
+	throttlePolicy.SetMaximumInterval(5 * time.Second)
+	throttlePolicy.SetMaximumAttempts(maxBusyRetries)
+	throttlePolicy.SetExpirationInterval(backoff.NoInterval)
+	retrier := backoff.NewThrottleRetry(
+		backoff.WithRetryPolicy(retryPolicy),
+		backoff.WithThrottlePolicy(throttlePolicy),
+		backoff.WithRetryableError(isServiceBusy),
+		backoff.WithThrottleError(isServiceBusy),
+		backoff.WithClock(params.TimeSource),
+	)
 	return &ProcessorImpl{
 		shardID:                params.ShardID,
 		mgr:                    params.Manager,
@@ -171,12 +200,14 @@ func NewProcessor(params ProcessorParams) *ProcessorImpl {
 		failoverJitterMaxDelay: params.FailoverJitterMaxDelay,
 		domainMode:             params.DomainMode,
 		enabled:                params.Enabled,
-		hostLimiter:            params.HostLimiter,
+		hostBudget:             hostBudget,
+		retrier:                retrier,
 		timeSource:             params.TimeSource,
 		metricsClient:          params.MetricsClient,
 		logger:                 params.Logger,
 		status:                 common.DaemonStatusInitialized,
-		cancel:                 func() {}, // no-op until Start() sets the real cancel
+		ctx:                    context.Background(), // replaced by Start(); lets ProcessShard/ProcessPartitions run without it
+		cancel:                 func() {},            // no-op until Start() sets the real cancel
 		pendingFailover:        make(map[string]Partition),
 		failoverSignal:         make(chan struct{}, 1),
 	}
@@ -207,7 +238,7 @@ func NewProcessorFromShard(
 	failoverJitterMaxDelay dynamicproperties.DurationPropertyFn,
 	domainMode dynamicproperties.StringPropertyFnWithDomainFilter,
 	enabled dynamicproperties.BoolPropertyFn,
-	hostLimiter *HostLimiter,
+	hostBudget HostBudget,
 ) *ProcessorImpl {
 	return NewProcessor(ProcessorParams{
 		ShardID:                shard.GetShardID(),
@@ -220,7 +251,7 @@ func NewProcessorFromShard(
 		FailoverJitterMaxDelay: failoverJitterMaxDelay,
 		DomainMode:             domainMode,
 		Enabled:                enabled,
-		HostLimiter:            hostLimiter,
+		HostBudget:             hostBudget,
 		TimeSource:             shard.GetTimeSource(),
 		MetricsClient:          shard.GetMetricsClient(),
 		Logger:                 shard.GetLogger(),
@@ -370,20 +401,61 @@ func (p *ProcessorImpl) processPendingFailovers() {
 func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
-	if err := p.hostLimiter.Acquire(ctx); err != nil {
-		return err
-	}
-	defer p.hostLimiter.Release()
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	ackLevels, err := p.mgr.GetHistoryDLQAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
-		ShardID: p.shardID,
-	})
+	ackLevels, err := p.getAckLevels(ctx)
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for shard %d: %w", p.shardID, err)
 	}
 	return p.processAckLevels(ctx, ackLevels)
+}
+
+// getAckLevels reads every DLQ ack level of the shard under the host budget.
+func (p *ProcessorImpl) getAckLevels(ctx context.Context) ([]persistence.HistoryDLQAckLevel, error) {
+	var ackLevels []persistence.HistoryDLQAckLevel
+	err := p.do(ctx, func(ctx context.Context) error {
+		var err error
+		ackLevels, err = p.mgr.GetHistoryDLQAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
+			ShardID: p.shardID,
+		})
+		return err
+	})
+	return ackLevels, err
+}
+
+// do runs op under the host budget and retries only ServiceBusyError with bounded exponential
+// backoff. The budget wait is inside the retried closure so retries also pay for their token.
+// Only ServiceBusy is retried: the rate-limited persistence wrappers return it before any write
+// happens, so retrying ReinjectHistoryTasks cannot double-create tasks.
+//
+// ThrottleRetry.Do prefers an earlier error over the final one (it assumes the last error is an
+// uninformative timeout). Here the earlier errors are always ServiceBusy, so the last error is the
+// informative one: return it.
+func (p *ProcessorImpl) do(ctx context.Context, op func(context.Context) error) error {
+	var last error
+	err := p.retrier.Do(ctx, func(ctx context.Context) error {
+		if err := p.hostBudget.Wait(ctx); err != nil {
+			last = err
+			return err
+		}
+		last = op(ctx)
+		if isServiceBusy(last) {
+			p.metricsClient.IncCounter(metrics.HistoryTaskDLQProcessorScope, metrics.HistoryTaskDLQBusyResponsesCounter)
+		}
+		return last
+	})
+	if err != nil && last != nil {
+		return last
+	}
+	return err
+}
+
+// isServiceBusy reports whether err is, or wraps, a ServiceBusyError. The persistence wrappers
+// return %w-wrapped errors, which defeats common.IsServiceBusyError's bare type switch.
+func isServiceBusy(err error) bool {
+	var busy *types.ServiceBusyError
+	return errors.As(err, &busy)
 }
 
 // domainName resolves a domain ID to its domain name, falling back to the ID if the lookup fails.
@@ -413,16 +485,10 @@ func (p *ProcessorImpl) ProcessPartitions(ctx context.Context, partitions []Part
 
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
-	if err := p.hostLimiter.Acquire(ctx); err != nil {
-		return err
-	}
-	defer p.hostLimiter.Release()
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	ackLevels, err := p.mgr.GetHistoryDLQAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
-		ShardID: p.shardID,
-	})
+	ackLevels, err := p.getAckLevels(ctx)
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for shard %d: %w", p.shardID, err)
 	}
@@ -538,7 +604,7 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 			firstErr = err
 			break
 		}
-		resp, err := p.mgr.GetHistoryDLQTasks(ctx, persistence.HistoryDLQGetTasksRequest{
+		req := persistence.HistoryDLQGetTasksRequest{
 			ShardID:               al.ShardID,
 			DomainID:              al.DomainID,
 			ClusterAttributeScope: al.ClusterAttributeScope,
@@ -548,6 +614,12 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 			ExclusiveMaxTaskKey:   maxKey,
 			PageSize:              p.pageSize,
 			NextPageToken:         pageToken,
+		}
+		var resp persistence.HistoryDLQGetTasksResponse
+		err := p.do(ctx, func(ctx context.Context) error {
+			var err error
+			resp, err = p.mgr.GetHistoryDLQTasks(ctx, req)
+			return err
 		})
 		if err != nil {
 			firstErr = err
@@ -557,7 +629,9 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 		if len(resp.Tasks) > 0 {
 			scope.RecordHistogramValue(metrics.HistoryTaskDLQPageSizeBytes, float64(resp.PageSizeBytes))
 			k := resp.Tasks[len(resp.Tasks)-1].GetTaskKey()
-			if err := p.reinjector.ReinjectHistoryTasks(ctx, resp.Tasks); err != nil {
+			if err := p.do(ctx, func(ctx context.Context) error {
+				return p.reinjector.ReinjectHistoryTasks(ctx, resp.Tasks)
+			}); err != nil {
 				scope.IncCounter(metrics.HistoryTaskDLQReinjectFailuresCounter)
 				firstErr = err
 				break
@@ -585,23 +659,27 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 // tasks. UpdateAckLevel runs first so that a crash between the two steps only leaves
 // orphaned rows (which DeleteTasks can clean up on the next run).
 func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al persistence.HistoryDLQAckLevel, newKey persistence.HistoryTaskKey) error {
-	if err := p.mgr.UpdateHistoryDLQAckLevel(ctx, persistence.HistoryDLQUpdateAckLevelRequest{
-		ShardID:                   al.ShardID,
-		DomainID:                  al.DomainID,
-		ClusterAttributeScope:     al.ClusterAttributeScope,
-		ClusterAttributeName:      al.ClusterAttributeName,
-		TaskCategory:              al.TaskCategory,
-		UpdatedInclusiveReadLevel: newKey,
+	if err := p.do(ctx, func(ctx context.Context) error {
+		return p.mgr.UpdateHistoryDLQAckLevel(ctx, persistence.HistoryDLQUpdateAckLevelRequest{
+			ShardID:                   al.ShardID,
+			DomainID:                  al.DomainID,
+			ClusterAttributeScope:     al.ClusterAttributeScope,
+			ClusterAttributeName:      al.ClusterAttributeName,
+			TaskCategory:              al.TaskCategory,
+			UpdatedInclusiveReadLevel: newKey,
+		})
 	}); err != nil {
 		return fmt.Errorf("update DLQ ack level: %w", err)
 	}
-	if err := p.mgr.DeleteHistoryDLQTasks(ctx, persistence.HistoryDLQDeleteTasksRequest{
-		ShardID:               al.ShardID,
-		DomainID:              al.DomainID,
-		ClusterAttributeScope: al.ClusterAttributeScope,
-		ClusterAttributeName:  al.ClusterAttributeName,
-		TaskCategory:          al.TaskCategory,
-		ExclusiveMaxTaskKey:   newKey.Next(),
+	if err := p.do(ctx, func(ctx context.Context) error {
+		return p.mgr.DeleteHistoryDLQTasks(ctx, persistence.HistoryDLQDeleteTasksRequest{
+			ShardID:               al.ShardID,
+			DomainID:              al.DomainID,
+			ClusterAttributeScope: al.ClusterAttributeScope,
+			ClusterAttributeName:  al.ClusterAttributeName,
+			TaskCategory:          al.TaskCategory,
+			ExclusiveMaxTaskKey:   newKey.Next(),
+		})
 	}); err != nil {
 		p.logger.Error("failed to delete acknowledged DLQ tasks",
 			tag.WorkflowDomainID(al.DomainID),
