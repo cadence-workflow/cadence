@@ -685,6 +685,21 @@ func (v *attrValidator) validateAcquireSemaphoreAttributes(
 	return nil
 }
 
+func (v *attrValidator) validateReleaseSemaphoreAttributes(
+	attributes *types.ReleaseSemaphoreDecisionAttributes,
+) error {
+
+	if attributes == nil {
+		return &types.BadRequestError{Message: "ReleaseSemaphoreDecisionAttributes is not set on decision."}
+	}
+	if attributes.GetInitiatedEventID() <= 0 {
+		return &types.BadRequestError{
+			Message: fmt.Sprintf("Invalid InitiatedEventID: %v", attributes.GetInitiatedEventID()),
+		}
+	}
+	return nil
+}
+
 func (v *attrValidator) validateContinueAsNewWorkflowExecutionAttributes(
 	attributes *types.ContinueAsNewWorkflowExecutionDecisionAttributes,
 	executionInfo *persistence.WorkflowExecutionInfo,

@@ -51,8 +51,7 @@ func (e *mutableStateBuilder) UpsertSemaphoreInfo(
 	e.updateSemaphoreInfos[info.InitiatedID] = info
 }
 
-// DeleteSemaphoreInfo removes the record of the hold started by initiatedEventID. It does not
-// touch the semaphore's definition or release the slot in Matching.
+// DeleteSemaphoreInfo removes the hold started by initiatedEventID.
 func (e *mutableStateBuilder) DeleteSemaphoreInfo(
 	initiatedEventID int64,
 ) error {
@@ -74,7 +73,8 @@ func (e *mutableStateBuilder) DeleteSemaphoreInfo(
 }
 
 // AddSemaphoreAcquireInitiatedEvent records an acquire and starts its hold with no token yet.
-// It refuses a semaphore the run already holds or is waiting for. waitTimeoutSeconds must be positive.
+// It refuses a semaphore the run already holds or is waiting for, or a run at its hold limit.
+// waitTimeoutSeconds must be positive.
 func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 	decisionCompletedEventID int64,
 	semaphoreName string,
@@ -92,6 +92,25 @@ func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 			tag.ErrorTypeInvalidHistoryAction,
 			tag.SemaphoreName(semaphoreName))
 		return nil, nil, e.createCallerError(opTag)
+	}
+
+	// Only the active side checks the limit. Replicate must accept whatever the active side recorded.
+	domainName := e.GetDomainEntry().GetInfo().Name
+	pendingSemaphoresCount := len(e.pendingSemaphoreInfoIDs)
+	if pendingSemaphoresCount >= e.config.PendingSemaphoresCountLimitError(domainName) {
+		e.logger.Error("Pending semaphore count exceeds error limit",
+			tag.WorkflowDomainName(domainName),
+			tag.WorkflowID(e.executionInfo.WorkflowID),
+			tag.WorkflowRunID(e.executionInfo.RunID),
+			tag.Number(int64(pendingSemaphoresCount)))
+		return nil, nil, ErrTooManyPendingSemaphores
+	} else if pendingSemaphoresCount >= e.config.PendingSemaphoresCountLimitWarn(domainName) && !e.pendingSemaphoreWarningSent {
+		e.logger.Warn("Pending semaphore count exceeds warn limit",
+			tag.WorkflowDomainName(domainName),
+			tag.WorkflowID(e.executionInfo.WorkflowID),
+			tag.WorkflowRunID(e.executionInfo.RunID),
+			tag.Number(int64(pendingSemaphoresCount)))
+		e.pendingSemaphoreWarningSent = true
 	}
 
 	event := e.hBuilder.AddSemaphoreAcquireInitiatedEvent(decisionCompletedEventID, semaphoreName, waitTimeoutSeconds)
@@ -182,6 +201,33 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquiredEvent(
 	e.UpsertSemaphoreInfo(semaphoreInfo)
 
 	return nil
+}
+
+// AddSemaphoreReleasedEvent releases the hold started by initiatedEventID. It refuses a missing hold.
+func (e *mutableStateBuilder) AddSemaphoreReleasedEvent(
+	decisionCompletedEventID int64,
+	initiatedEventID int64,
+) (*types.HistoryEvent, error) {
+
+	opTag := tag.WorkflowActionSemaphoreReleased
+	if err := e.checkMutability(opTag); err != nil {
+		return nil, err
+	}
+
+	semaphoreInfo, ok := e.GetSemaphoreInfo(initiatedEventID)
+	if !ok {
+		e.logWarn(mutableStateInvalidHistoryActionMsg, opTag,
+			tag.WorkflowEventID(e.GetNextEventID()),
+			tag.ErrorTypeInvalidHistoryAction,
+			tag.WorkflowInitiatedID(initiatedEventID))
+		return nil, e.createCallerError(opTag)
+	}
+
+	event := e.hBuilder.AddSemaphoreReleasedEvent(decisionCompletedEventID, initiatedEventID, int32(semaphoreInfo.TokenID))
+	if err := e.ReplicateSemaphoreReleasedEvent(event); err != nil {
+		return nil, err
+	}
+	return event, nil
 }
 
 // ReplicateSemaphoreReleasedEvent ends the hold the released token belonged to.

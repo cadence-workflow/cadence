@@ -84,6 +84,8 @@ var (
 	ErrMissingVersionHistories = &types.BadRequestError{Message: "versionHistories is empty, which is required for NDC feature. It's probably from deprecated 2dc workflows"}
 	// ErrTooManyPendingActivities is the error that currently there are too many pending activities in the workflow
 	ErrTooManyPendingActivities = &types.InternalServiceError{Message: "Too many pending activities"}
+	// ErrTooManyPendingSemaphores is the error that currently there are too many pending semaphore holds in the workflow
+	ErrTooManyPendingSemaphores = &types.InternalServiceError{Message: "Too many pending semaphore holds"}
 )
 
 type (
@@ -168,14 +170,15 @@ type (
 		decisionTaskManager mutableStateDecisionTaskManager
 		queryRegistry       query.Registry
 
-		shard                      shard.Context
-		clusterMetadata            cluster.Metadata
-		eventsCache                events.Cache
-		config                     *config.Config
-		timeSource                 clock.TimeSource
-		logger                     log.Logger
-		metricsClient              metrics.Client
-		pendingActivityWarningSent bool
+		shard                       shard.Context
+		clusterMetadata             cluster.Metadata
+		eventsCache                 events.Cache
+		config                      *config.Config
+		timeSource                  clock.TimeSource
+		logger                      log.Logger
+		metricsClient               metrics.Client
+		pendingActivityWarningSent  bool
+		pendingSemaphoreWarningSent bool
 
 		executionStats *persistence.ExecutionStats
 	}

@@ -419,6 +419,18 @@ const (
 	// Default value: 512
 	// Allowed filters: DomainName
 	PendingActivitiesCountLimitWarn
+	// PendingSemaphoresCountLimitError is the limit of how many semaphore holds a workflow can have at a point in time
+	// KeyName: limit.pendingSemaphoreCount.error
+	// Value type: Int
+	// Default value: 100
+	// Allowed filters: DomainName
+	PendingSemaphoresCountLimitError
+	// PendingSemaphoresCountLimitWarn is the limit of how many semaphore holds a workflow can have before a warning is logged
+	// KeyName: limit.pendingSemaphoreCount.warn
+	// Value type: Int
+	// Default value: 50
+	// Allowed filters: DomainName
+	PendingSemaphoresCountLimitWarn
 	// DomainNameMaxLength is the length limit for domain name
 	// KeyName: limit.domainNameLength
 	// Value type: Int
@@ -3683,6 +3695,18 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "PendingActivitiesCountLimitWarn is the limit of how many activities a workflow can have before a warning is logged",
 		DefaultValue: 512,
+	},
+	PendingSemaphoresCountLimitError: {
+		KeyName:      "limit.pendingSemaphoreCount.error",
+		Filters:      []Filter{DomainName},
+		Description:  "PendingSemaphoresCountLimitError is the limit of how many semaphore holds a workflow can have at a point in time",
+		DefaultValue: 100,
+	},
+	PendingSemaphoresCountLimitWarn: {
+		KeyName:      "limit.pendingSemaphoreCount.warn",
+		Filters:      []Filter{DomainName},
+		Description:  "PendingSemaphoresCountLimitWarn is the limit of how many semaphore holds a workflow can have before a warning is logged",
+		DefaultValue: 50,
 	},
 	DomainNameMaxLength: {
 		KeyName:      "limit.domainNameLength",
