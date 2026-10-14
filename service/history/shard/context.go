@@ -73,6 +73,7 @@ type (
 		PreviousShardOwnerWasDifferent() bool
 		GetReplicationBudgetManager() cache.Manager
 		GetHistoryTaskDLQWriter() TaskDLQWriter
+		GetHistoryTaskDLQAckLevelIndex() *DLQAckLevelIndex
 
 		GetEngine() engine.Engine
 		SetEngine(engine.Engine)
@@ -145,9 +146,10 @@ type (
 		scheduledTaskMaxReadLevelMap map[string]time.Time                                                     // cluster -> timerMaxReadLevel
 		failoverLevels               map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel // category -> uuid -> FailoverLevel
 
-		// historyTaskDLQWriter wraps the host-wide DLQ manager with a shard-scoped ack-level dedup
-		// cache. The cache dies with the shard.
-		historyTaskDLQWriter TaskDLQWriter
+		// historyTaskDLQWriter wraps the host-wide DLQ manager and keeps historyTaskDLQAckLevelIndex
+		// current. Both die with the shard.
+		historyTaskDLQWriter        TaskDLQWriter
+		historyTaskDLQAckLevelIndex *DLQAckLevelIndex
 
 		// exist only in memory
 		remoteClusterCurrentTime map[string]time.Time
@@ -1837,6 +1839,7 @@ func acquireShard(
 
 	executionMgr := shardItem.GetExecutionManager()
 
+	dlqAckLevelIndex := NewDLQAckLevelIndex()
 	context := &contextImpl{
 		Resource:                     shardItem.Resource,
 		shardItem:                    shardItem,
@@ -1848,9 +1851,10 @@ func acquireShard(
 		remoteClusterCurrentTime:     remoteClusterCurrentTime,
 		scheduledTaskMaxReadLevelMap: scheduledTaskMaxReadLevelMap, // use ack to init read level
 		failoverLevels:               make(map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel),
+		historyTaskDLQAckLevelIndex:  dlqAckLevelIndex,
 		historyTaskDLQWriter: &shardedHistoryTaskDLQWriter{
-			writer:              shardItem.GetHistoryTaskDLQManager(),
-			dlqAckLevelsCreated: make(map[dlqAckLevelKey]struct{}),
+			writer: shardItem.GetHistoryTaskDLQManager(),
+			index:  dlqAckLevelIndex,
 		},
 		logger:                         shardItem.logger,
 		throttledLogger:                shardItem.throttledLogger,
@@ -1985,48 +1989,56 @@ func (s *contextImpl) GetHistoryTaskDLQWriter() TaskDLQWriter {
 	return s.historyTaskDLQWriter
 }
 
-// dlqAckLevelKey identifies a single DLQ partition + task category within a shard.
-type dlqAckLevelKey struct {
-	domainID              string
-	clusterAttributeScope string
-	clusterAttributeName  string
-	taskCategoryID        int
+func (s *contextImpl) GetHistoryTaskDLQAckLevelIndex() *DLQAckLevelIndex {
+	return s.historyTaskDLQAckLevelIndex
 }
 
-// shardedHistoryTaskDLQWriter wraps the host-wide DLQ manager with a shard-scoped dedup cache so the
-// idempotent ack-level write is issued at most once per partition/task-category for the life of the
-// shard. It holds no shard reference: shardID is stamped onto each request by the caller.
+// shardedHistoryTaskDLQWriter wraps the host-wide DLQ manager and keeps the shard's DLQ ack-level
+// index current: the idempotent ack-level write is issued at most once per partition/task-category
+// for the life of the shard, and every task write marks its partition dirty. It holds no shard
+// reference: shardID is stamped onto each request by the caller.
 type shardedHistoryTaskDLQWriter struct {
 	writer TaskDLQWriter
-
-	mu                  sync.Mutex
-	dlqAckLevelsCreated map[dlqAckLevelKey]struct{}
+	index  *DLQAckLevelIndex
 }
 
 var _ TaskDLQWriter = &shardedHistoryTaskDLQWriter{}
 
 func (w *shardedHistoryTaskDLQWriter) CreateHistoryDLQTask(ctx context.Context, request persistence.CreateHistoryDLQTaskRequest) error {
+	// Mark before the persistence write so a concurrent reader can never observe a committed write
+	// against a clean entry. The mark is kept even if the write fails (conservative).
+	w.index.MarkWrite(DLQAckLevelKey{
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+		TaskCategoryID:        request.Task.GetTaskCategory().ID(),
+	})
 	return w.writer.CreateHistoryDLQTask(ctx, request)
 }
 
 func (w *shardedHistoryTaskDLQWriter) CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request persistence.CreateHistoryDLQAckLevelRequest) error {
-	key := dlqAckLevelKey{
-		domainID:              request.DomainID,
-		clusterAttributeScope: request.ClusterAttributeScope,
-		clusterAttributeName:  request.ClusterAttributeName,
-		taskCategoryID:        request.TaskCategory.ID(),
+	key := DLQAckLevelKey{
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+		TaskCategoryID:        request.TaskCategory.ID(),
 	}
-	w.mu.Lock()
-	_, cached := w.dlqAckLevelsCreated[key]
-	w.mu.Unlock()
-	if cached {
+	if w.index.Has(key) {
 		return nil
 	}
+	// No lock is held across the persistence call; IF NOT EXISTS is idempotent. If the row already
+	// existed at a higher position, the next seed/sweep Merge max-corrects the entry.
 	if err := w.writer.CreateHistoryDLQAckLevelIfNotExists(ctx, request); err != nil {
 		return err
 	}
-	w.mu.Lock()
-	w.dlqAckLevelsCreated[key] = struct{}{}
-	w.mu.Unlock()
+	w.index.Add(persistence.HistoryDLQAckLevel{
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+		TaskCategory:          request.TaskCategory,
+		AckLevelVisibilityTS:  persistence.MinimumHistoryTaskKey.GetScheduledTime(),
+		AckLevelTaskID:        persistence.MinimumHistoryTaskKey.GetTaskID(),
+	})
 	return nil
 }

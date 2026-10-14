@@ -78,8 +78,7 @@ func TestHostLimiter_BoundsConcurrentProcessingAcrossShards(t *testing.T) {
 	done2 := make(chan struct{})
 
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
-		ShardID:  1,
-		DomainID: "test-domain",
+		ShardID: 1,
 	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
 		close(entered1)
 		select {
@@ -89,8 +88,7 @@ func TestHostLimiter_BoundsConcurrentProcessingAcrossShards(t *testing.T) {
 		return nil, nil
 	})
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
-		ShardID:  2,
-		DomainID: "test-domain",
+		ShardID: 2,
 	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
 		secondStarted.Store(true)
 		close(done2)
@@ -149,6 +147,7 @@ type newProcessorParams struct {
 	ProcessingEnabled bool
 	TimeSource        clock.TimeSource
 	MaxReadLevel      MaxReadLevelFn
+	Index             AckLevelIndex
 }
 
 // newProcessor builds a ProcessorImpl with the given dependencies and sensible test defaults.
@@ -175,6 +174,7 @@ func newProcessor(
 		MetricsClient:          metrics.NewNoopMetricsClient(),
 		Logger:                 testlogger.New(t),
 		MaxReadLevel:           params.MaxReadLevel,
+		Index:                  params.Index,
 	})
 }
 
@@ -692,9 +692,7 @@ func TestProcessPartition_WhenGetAckLevelsFails_ReturnsError(t *testing.T) {
 	proc, mgr, _ := setupProcessor(t, ctrl)
 	storeErr := errors.New("partition error")
 	mgr.EXPECT().
-		GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
-			ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
-		}).
+		GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
 		Return(nil, storeErr)
 
 	err := proc.ProcessPartition(context.Background(), "d", "s", "n")
@@ -720,9 +718,7 @@ func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {
 	}
 
 	mgr.EXPECT().
-		GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
-			ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
-		}).
+		GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
 		Return([]persistence.HistoryDLQAckLevel{transferAL, timerAL}, nil)
 	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil)
 	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil)
@@ -811,6 +807,7 @@ func TestProcessShard_AndProcessPartition_AreSerializedByMutex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	idx := shard.NewDLQAckLevelIndex()
 	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
 	proc := newProcessor(t, newProcessorParams{
 		Manager:           mgr,
@@ -818,23 +815,35 @@ func TestProcessShard_AndProcessPartition_AreSerializedByMutex(t *testing.T) {
 		DomainMode:        constants.HistoryTaskDLQModeEnabled,
 		ProcessingEnabled: true,
 		TimeSource:        clock.NewMockedTimeSource(),
+		Index:             idx,
 	})
 
 	shardStarted := make(chan struct{})
 	shardBlocked := make(chan struct{})
 	partitionRan := make(chan struct{})
 
+	al := baseAckLevel(1)
+	al.DomainID, al.ClusterAttributeScope, al.ClusterAttributeName = "d", "s", "n"
+
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).DoAndReturn(func(ctx context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
 		close(shardStarted)
 		<-shardBlocked
-		return nil, nil
+		return []persistence.HistoryDLQAckLevel{al}, nil
 	})
-	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
-			close(partitionRan)
-			return nil, nil
+	// The first task read is the sweep's. It proves the partition clean, so to let the partition
+	// run a task read of its own, simulate a concurrent DLQ writer marking the partition while the
+	// sweep reads (which invalidates the sweep's MarkClean). The second task read is the partition's.
+	var taskReads atomic.Int32
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ persistence.HistoryDLQGetTasksRequest) (persistence.HistoryDLQGetTasksResponse, error) {
+			if taskReads.Add(1) == 1 {
+				idx.MarkWrite(shard.DLQAckLevelKeyOf(al))
+			} else {
+				close(partitionRan)
+			}
+			return persistence.HistoryDLQGetTasksResponse{}, nil
 		},
-	)
+	).Times(2)
 
 	shardDone := make(chan error, 1)
 	go func() { shardDone <- proc.ProcessShard(context.Background()) }()
@@ -1141,14 +1150,18 @@ func TestFailoverPartitions_DispatchesToProcessPartition(t *testing.T) {
 	defer ctrl.Finish()
 
 	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
-	processed := make(chan persistence.HistoryDLQGetAckLevelsRequest, 1)
-	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+	al := baseAckLevel(1)
+	// The failover path issues one shard-scoped read, never a partition-filtered one.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{al}, nil).Times(1)
+	processed := make(chan persistence.HistoryDLQGetTasksRequest, 1)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req persistence.HistoryDLQGetTasksRequest) (persistence.HistoryDLQGetTasksResponse, error) {
 			select {
 			case processed <- req:
 			default:
 			}
-			return nil, nil
+			return persistence.HistoryDLQGetTasksResponse{}, nil
 		}).AnyTimes()
 
 	proc := newProcessor(t, newProcessorParams{
@@ -1169,14 +1182,10 @@ func TestFailoverPartitions_DispatchesToProcessPartition(t *testing.T) {
 
 	select {
 	case req := <-processed:
-		// The partition keys must be passed through verbatim so the store issues a
-		// by-cluster-attribute query for exactly this partition.
-		assert.Equal(t, persistence.HistoryDLQGetAckLevelsRequest{
-			ShardID:               1,
-			DomainID:              "test-domain",
-			ClusterAttributeScope: "scope",
-			ClusterAttributeName:  "name",
-		}, req)
+		// The partition keys pass through verbatim to the task read for exactly this partition.
+		assert.Equal(t, "test-domain", req.DomainID)
+		assert.Equal(t, "scope", req.ClusterAttributeScope)
+		assert.Equal(t, "name", req.ClusterAttributeName)
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for FailoverPartitions to trigger ProcessPartition")
 	}
@@ -1239,25 +1248,34 @@ func TestFailoverPartitions_PreemptsInProgressSweep(t *testing.T) {
 
 	// Buffered so the restarted sweep after preemption can send again without a second reader.
 	sweepStarted := make(chan struct{}, 10)
-	partitionRan := make(chan persistence.HistoryDLQGetAckLevelsRequest, 1)
+	partitionRan := make(chan persistence.HistoryDLQGetTasksRequest, 1)
 
-	// Shard-level sweep query: blocks until its context is canceled by the preemption.
+	// Shard-level read: the first call is the periodic sweep, which blocks until its context is
+	// canceled by the preemption. The sweep never seeds the index, so the failover's seed read
+	// matches this expectation too and must return normally.
+	var firstRead atomic.Bool
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).DoAndReturn(
 		func(ctx context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
-			sweepStarted <- struct{}{}
-			<-ctx.Done()
-			return nil, ctx.Err()
+			if firstRead.CompareAndSwap(false, true) {
+				sweepStarted <- struct{}{}
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}
+			return []persistence.HistoryDLQAckLevel{{
+				ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
+				TaskCategory:         persistence.HistoryTaskCategoryTransfer,
+				AckLevelVisibilityTS: time.Unix(0, 0).UTC(),
+				AckLevelTaskID:       -1,
+			}}, nil
 		}).AnyTimes()
-	// Partition-level failover query: must run once the sweep has been preempted.
-	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
-		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
-	}).DoAndReturn(
-		func(_ context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+	// Partition-level task read: must run once the sweep has been preempted.
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req persistence.HistoryDLQGetTasksRequest) (persistence.HistoryDLQGetTasksResponse, error) {
 			select {
 			case partitionRan <- req:
 			default:
 			}
-			return nil, nil
+			return persistence.HistoryDLQGetTasksResponse{}, nil
 		}).AnyTimes()
 
 	proc := newProcessor(t, newProcessorParams{
@@ -1351,8 +1369,7 @@ func TestFailoverPartitions_JitterDelaysProcessing(t *testing.T) {
 
 	processed := make(chan struct{}, 1)
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
-		ShardID:  1,
-		DomainID: "test-domain",
+		ShardID: 1,
 	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
 		processed <- struct{}{}
 		return nil, nil
@@ -1404,8 +1421,7 @@ func TestFailoverPartitions_ZeroJitterProcessesImmediately(t *testing.T) {
 
 	processed := make(chan struct{}, 1)
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
-		ShardID:  1,
-		DomainID: "test-domain",
+		ShardID: 1,
 	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
 		processed <- struct{}{}
 		return nil, nil
@@ -1492,4 +1508,159 @@ func TestProcessShard_ChecksDomainModeByDomainName(t *testing.T) {
 
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 	assert.Equal(t, "domain-name-2", capturedDomain)
+}
+
+func TestFailoverPartitions_ColdIndex_SeedsWithOneShardReadThenNoPartitionReads(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, mgr, _ := setupProcessor(t, ctrl)
+	proc.ctx = context.Background()
+
+	levelFor := func(name string) persistence.HistoryDLQAckLevel {
+		al := baseAckLevel(1)
+		al.ClusterAttributeName = name
+		return al
+	}
+	// Exactly one whole-shard read: the request carries only the shard ID, never a partition.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{levelFor("a"), levelFor("b"), levelFor("c")}, nil).Times(1)
+	// Task reads only for pending partitions that exist in the index ("a", "b"); "c" is not pending
+	// and "missing" has no ack-level row.
+	for _, name := range []string{"a", "b"} {
+		al := levelFor(name)
+		mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), persistence.HistoryDLQGetTasksRequest{
+			ShardID:               1,
+			DomainID:              al.DomainID,
+			ClusterAttributeScope: al.ClusterAttributeScope,
+			ClusterAttributeName:  name,
+			TaskCategory:          al.TaskCategory,
+			InclusiveMinTaskKey:   persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next(),
+			ExclusiveMaxTaskKey:   persistence.MaximumHistoryTaskKey,
+			PageSize:              10,
+		}).Return(persistence.HistoryDLQGetTasksResponse{}, nil).Times(1)
+	}
+
+	proc.FailoverPartitions([]Partition{
+		{DomainID: "test-domain", ClusterAttributeScope: "scope", ClusterAttributeName: "a"},
+		{DomainID: "test-domain", ClusterAttributeScope: "scope", ClusterAttributeName: "b"},
+		{DomainID: "test-domain", ClusterAttributeScope: "scope", ClusterAttributeName: "missing"},
+	})
+	proc.processPendingFailovers()
+	require.True(t, proc.index.Seeded())
+}
+
+func TestFailoverPartitions_WarmIndex_IssuesNoAckLevelReads(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := shard.NewDLQAckLevelIndex()
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+		Index:             idx,
+	})
+	ctx := context.Background()
+	al := baseAckLevel(1)
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{al}, nil).Times(1)
+	// Seeded entries start dirty, so the first failover reads tasks. The empty read proves the
+	// partition clean, so the second failover issues no reads at all. After the writer marks a
+	// new task, the third failover reads tasks again.
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil).Times(2)
+
+	require.NoError(t, proc.ProcessPartition(ctx, al.DomainID, al.ClusterAttributeScope, al.ClusterAttributeName))
+	require.NoError(t, proc.ProcessPartition(ctx, al.DomainID, al.ClusterAttributeScope, al.ClusterAttributeName))
+
+	idx.MarkWrite(shard.DLQAckLevelKeyOf(al))
+	require.NoError(t, proc.ProcessPartition(ctx, al.DomainID, al.ClusterAttributeScope, al.ClusterAttributeName))
+}
+
+func TestFailoverPartitions_SeedReadFails_AbortsBatchWithoutPerPartitionReads(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, mgr, _ := setupProcessor(t, ctrl)
+	proc.ctx = context.Background()
+
+	// One failed seed read; no per-partition fallback reads, no task reads. The batch is abandoned
+	// and the periodic sweep is the safety net.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return(nil, errors.New("seed failed")).Times(1)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Times(0)
+
+	proc.FailoverPartitions([]Partition{
+		{DomainID: "test-domain", ClusterAttributeScope: "scope", ClusterAttributeName: "a"},
+		{DomainID: "test-domain", ClusterAttributeScope: "scope", ClusterAttributeName: "b"},
+		{DomainID: "test-domain", ClusterAttributeScope: "scope", ClusterAttributeName: "c"},
+	})
+	proc.processPendingFailovers()
+	require.False(t, proc.index.Seeded())
+}
+
+func TestProcessShard_MergesIndexAndProcessesAllEntries(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := shard.NewDLQAckLevelIndex()
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+		Index:             idx,
+	})
+	ctx := context.Background()
+
+	first := baseAckLevel(1)
+	second := baseAckLevel(1)
+	second.ClusterAttributeName = "other"
+
+	// Two sweeps, each with one whole-shard read.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{first, second}, nil).Times(2)
+	// The first sweep reads both (fresh entries are dirty) and proves them clean; the second sweep
+	// reads both again anyway: the sweep is the authority and does not trust the dirty bit.
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil).Times(4)
+
+	require.NoError(t, proc.ProcessShard(ctx))
+	require.Empty(t, idx.Lookup(first.DomainID, first.ClusterAttributeScope, first.ClusterAttributeName, true))
+	require.NoError(t, proc.ProcessShard(ctx))
+	require.Len(t, idx.All(), 2)
+}
+
+func TestAdvanceAckLevel_AdvancesIndex(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := shard.NewDLQAckLevelIndex()
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+		Index:             idx,
+	})
+	al := baseAckLevel(1)
+	idx.Merge([]persistence.HistoryDLQAckLevel{al})
+
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil)
+	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
+
+	newKey := persistence.NewImmediateTaskKey(42)
+	require.NoError(t, proc.advanceAckLevel(context.Background(), al, newKey))
+
+	got := idx.Lookup(al.DomainID, al.ClusterAttributeScope, al.ClusterAttributeName, false)
+	require.Len(t, got, 1)
+	assert.Equal(t, int64(42), got[0].Level.AckLevelTaskID)
+	assert.Equal(t, newKey.GetScheduledTime(), got[0].Level.AckLevelVisibilityTS)
 }

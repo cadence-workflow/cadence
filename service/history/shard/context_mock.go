@@ -311,6 +311,20 @@ func (mr *MockContextMockRecorder) GetHistoryManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryManager", reflect.TypeOf((*MockContext)(nil).GetHistoryManager))
 }
 
+// GetHistoryTaskDLQAckLevelIndex mocks base method.
+func (m *MockContext) GetHistoryTaskDLQAckLevelIndex() *DLQAckLevelIndex {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryTaskDLQAckLevelIndex")
+	ret0, _ := ret[0].(*DLQAckLevelIndex)
+	return ret0
+}
+
+// GetHistoryTaskDLQAckLevelIndex indicates an expected call of GetHistoryTaskDLQAckLevelIndex.
+func (mr *MockContextMockRecorder) GetHistoryTaskDLQAckLevelIndex() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTaskDLQAckLevelIndex", reflect.TypeOf((*MockContext)(nil).GetHistoryTaskDLQAckLevelIndex))
+}
+
 // GetHistoryTaskDLQWriter mocks base method.
 func (m *MockContext) GetHistoryTaskDLQWriter() TaskDLQWriter {
 	m.ctrl.T.Helper()
