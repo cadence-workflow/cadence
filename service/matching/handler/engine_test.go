@@ -2273,8 +2273,8 @@ func newSemaphoreHandlerContextForTest() *handlerContext {
 	}
 }
 
-func semaphoreRequest(bucket int32, ownerID string) *types.AddSemaphoreTaskRequest {
-	return &types.AddSemaphoreTaskRequest{
+func semaphoreRequest(bucket int32, ownerID string) *types.AcquireSemaphoreRequest {
+	return &types.AcquireSemaphoreRequest{
 		DomainUUID:    testSemaphoreDomainID,
 		SemaphoreName: testSemaphoreName,
 		Bucket:        bucket,
@@ -2282,14 +2282,14 @@ func semaphoreRequest(bucket int32, ownerID string) *types.AddSemaphoreTaskReque
 	}
 }
 
-func TestAddSemaphoreTask(t *testing.T) {
+func TestAcquireSemaphore(t *testing.T) {
 	t.Run("a free slot is granted and named in the response", func(t *testing.T) {
 		e, m := newSemaphoreEngine(t, testSelfHost)
 		expectOneScan(m, 3)
 		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
 			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
 
-		resp, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
+		resp, err := e.AcquireSemaphore(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
 		require.NoError(t, err)
 		assert.Equal(t, types.SemaphoreAcquireOutcomeAcquired, resp.Outcome)
 		assert.GreaterOrEqual(t, resp.TokenID, int32(1), "slot ids start at 1, so 0 would mean no slot")
@@ -2302,7 +2302,7 @@ func TestAddSemaphoreTask(t *testing.T) {
 		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).
 			Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
 
-		resp, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
+		resp, err := e.AcquireSemaphore(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
 		require.NoError(t, err)
 		assert.Equal(t, types.SemaphoreAcquireOutcomeNoSlot, resp.Outcome)
 		assert.Zero(t, resp.TokenID)
@@ -2314,7 +2314,7 @@ func TestAddSemaphoreTask(t *testing.T) {
 		e, m := newSemaphoreEngine(t, testSelfHost)
 		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
 
-		_, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, "not-an-owner-id"))
+		_, err := e.AcquireSemaphore(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, "not-an-owner-id"))
 		assert.IsType(t, &types.BadRequestError{}, err)
 	})
 
@@ -2331,7 +2331,7 @@ func TestAddSemaphoreTask(t *testing.T) {
 		// The first request triggers the load and is held inside it.
 		firstDone := make(chan error, 1)
 		go func() {
-			_, err := e.AddSemaphoreTask(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
+			_, err := e.AcquireSemaphore(newSemaphoreHandlerContextForTest(), semaphoreRequest(0, testSemaphoreOwnerID))
 			firstDone <- err
 		}()
 		<-scanning
@@ -2347,7 +2347,7 @@ func TestAddSemaphoreTask(t *testing.T) {
 
 		secondDone := make(chan error, 1)
 		go func() {
-			_, err := e.AddSemaphoreTask(hCtx, semaphoreRequest(0, testSemaphoreOwnerID))
+			_, err := e.AcquireSemaphore(hCtx, semaphoreRequest(0, testSemaphoreOwnerID))
 			secondDone <- err
 		}()
 		select {

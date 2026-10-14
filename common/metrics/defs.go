@@ -487,8 +487,8 @@ const (
 	MatchingClientUpdateTaskListPartitionConfigScope
 	// MatchingClientRefreshTaskListPartitionConfigScope tracks RPC calls to matching service
 	MatchingClientRefreshTaskListPartitionConfigScope
-	// MatchingClientAddSemaphoreTaskScope tracks RPC calls to matching service
-	MatchingClientAddSemaphoreTaskScope
+	// MatchingClientAcquireSemaphoreScope tracks RPC calls to matching service
+	MatchingClientAcquireSemaphoreScope
 
 	// FrontendClientDeleteDomainScope tracks RPC calls to frontend service
 	FrontendClientDeleteDomainScope
@@ -1548,8 +1548,8 @@ const (
 	MatchingUpdateTaskListPartitionConfigScope
 	// MatchingRefreshTaskListPartitionConfigScope tracks RefreshTaskListPartitionConfig API calls received by service
 	MatchingRefreshTaskListPartitionConfigScope
-	// MatchingAddSemaphoreTaskScope tracks AddSemaphoreTask API calls received by service
-	MatchingAddSemaphoreTaskScope
+	// MatchingAcquireSemaphoreScope tracks AcquireSemaphore API calls received by service
+	MatchingAcquireSemaphoreScope
 
 	NumMatchingScopes
 )
@@ -1772,7 +1772,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingClientGetTaskListsByDomainScope:           {operation: "MatchingClientGetTaskListsByDomain", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientUpdateTaskListPartitionConfigScope:  {operation: "MatchingClientUpdateTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientRefreshTaskListPartitionConfigScope: {operation: "MatchingClientRefreshTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
-		MatchingClientAddSemaphoreTaskScope:               {operation: "MatchingClientAddSemaphoreTask", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
+		MatchingClientAcquireSemaphoreScope:               {operation: "MatchingClientAcquireSemaphore", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 
 		FrontendClientDeleteDomainScope:                          {operation: "FrontendClientDeleteDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientDeprecateDomainScope:                       {operation: "FrontendClientDeprecateDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
@@ -2299,7 +2299,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingGetTaskListsByDomainScope:           {operation: "GetTaskListsByDomain"},
 		MatchingUpdateTaskListPartitionConfigScope:  {operation: "UpdateTaskListPartitionConfig"},
 		MatchingRefreshTaskListPartitionConfigScope: {operation: "RefreshTaskListPartitionConfig"},
-		MatchingAddSemaphoreTaskScope:               {operation: "AddSemaphoreTask"},
+		MatchingAcquireSemaphoreScope:               {operation: "AcquireSemaphore"},
 	},
 	// Worker Scope Names
 	Worker: {
@@ -2368,6 +2368,7 @@ const (
 	CadenceErrActivityTypeExceededWarnLimit
 	CadenceErrMarkerNameExceededWarnLimit
 	CadenceErrTimerIDExceededWarnLimit
+	CadenceErrSemaphoreNameExceededWarnLimit
 	PersistenceRequests
 	PersistenceFailures
 	PersistenceLatency
@@ -2768,6 +2769,7 @@ const (
 	DecisionTypeContinueAsNewCounter
 	DecisionTypeSignalExternalWorkflowCounter
 	DecisionTypeUpsertWorkflowSearchAttributesCounter
+	DecisionTypeAcquireSemaphoreCounter
 	EmptyCompletionDecisionsCounter
 	MultipleCompletionDecisionsCounter
 	FailedDecisionsCounter
@@ -3349,6 +3351,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CadenceErrActivityTypeExceededWarnLimit:                      {metricName: "cadence_errors_activity_type_exceeded_warn_limit", metricType: Counter},
 		CadenceErrMarkerNameExceededWarnLimit:                        {metricName: "cadence_errors_marker_name_exceeded_warn_limit", metricType: Counter},
 		CadenceErrTimerIDExceededWarnLimit:                           {metricName: "cadence_errors_timer_id_exceeded_warn_limit", metricType: Counter},
+		CadenceErrSemaphoreNameExceededWarnLimit:                     {metricName: "cadence_errors_semaphore_name_exceeded_warn_limit", metricType: Counter},
 		PersistenceRequests:                                          {metricName: "persistence_requests", metricType: Counter},
 		PersistenceFailures:                                          {metricName: "persistence_errors", metricType: Counter},
 		PersistenceLatency:                                           {metricName: "persistence_latency", metricType: Timer},
@@ -3768,6 +3771,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		DecisionTypeContinueAsNewCounter:                              {metricName: "continue_as_new_decision", metricType: Counter},
 		DecisionTypeSignalExternalWorkflowCounter:                     {metricName: "signal_external_workflow_decision", metricType: Counter},
 		DecisionTypeUpsertWorkflowSearchAttributesCounter:             {metricName: "upsert_workflow_search_attributes_decision", metricType: Counter},
+		DecisionTypeAcquireSemaphoreCounter:                           {metricName: "acquire_semaphore_decision", metricType: Counter},
 		DecisionTypeChildWorkflowCounter:                              {metricName: "child_workflow_decision", metricType: Counter},
 		EmptyCompletionDecisionsCounter:                               {metricName: "empty_completion_decisions", metricType: Counter},
 		MultipleCompletionDecisionsCounter:                            {metricName: "multiple_completion_decisions", metricType: Counter},

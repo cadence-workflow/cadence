@@ -1079,3 +1079,63 @@ func TestValidateContinueAsNewWorkflowExecutionAttributes_ActiveClusterSelection
 		})
 	}
 }
+
+func TestValidateAcquireSemaphoreAttributes(t *testing.T) {
+	tests := []struct {
+		name          string
+		nameMaxLength int
+		attributes    *types.AcquireSemaphoreDecisionAttributes
+		wantErr       error
+	}{
+		{
+			name:    "attributes not set",
+			wantErr: &types.BadRequestError{Message: "AcquireSemaphoreDecisionAttributes is not set on decision."},
+		},
+		{
+			name:       "semaphore name not set",
+			attributes: &types.AcquireSemaphoreDecisionAttributes{},
+			wantErr:    &types.BadRequestError{Message: "SemaphoreName is not set on decision."},
+		},
+		{
+			name:          "semaphore name over the length limit",
+			nameMaxLength: len("my-semaphore") - 1,
+			attributes:    &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
+			wantErr:       &types.BadRequestError{Message: "SemaphoreName exceeds length limit."},
+		},
+		{
+			name:          "semaphore name at the length limit",
+			nameMaxLength: len("my-semaphore"),
+			attributes:    &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
+		},
+		{
+			name:       "negative wait timeout",
+			attributes: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(-1)},
+			wantErr:    &types.BadRequestError{Message: "Invalid WaitTimeoutSeconds: -1"},
+		},
+		{
+			name:       "wait timeout not set",
+			attributes: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
+		},
+		{
+			name:       "zero wait timeout",
+			attributes: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(0)},
+		},
+		{
+			name:       "positive wait timeout",
+			attributes: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.NewForTest()
+			if tc.nameMaxLength != 0 {
+				cfg.SemaphoreNameMaxLength = func(string) int { return tc.nameMaxLength }
+			}
+			v := newAttrValidator(cache.NewMockDomainCache(gomock.NewController(t)), metrics.NewNoopMetricsClient(), cfg, log.NewNoop())
+
+			err := v.validateAcquireSemaphoreAttributes(tc.attributes, metrics.HistoryRespondDecisionTaskCompletedScope, "domain")
+			assert.Equal(t, tc.wantErr, err)
+		})
+	}
+}

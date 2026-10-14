@@ -1528,6 +1528,21 @@ func (mr *MockMutableStateMockRecorder) GetSemaphoreInfo(arg0 any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreInfo", reflect.TypeOf((*MockMutableState)(nil).GetSemaphoreInfo), arg0)
 }
 
+// GetSemaphoreInfoByName mocks base method.
+func (m *MockMutableState) GetSemaphoreInfoByName(arg0 string) (*persistence.SemaphoreInfo, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreInfoByName", arg0)
+	ret0, _ := ret[0].(*persistence.SemaphoreInfo)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// GetSemaphoreInfoByName indicates an expected call of GetSemaphoreInfoByName.
+func (mr *MockMutableStateMockRecorder) GetSemaphoreInfoByName(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreInfoByName", reflect.TypeOf((*MockMutableState)(nil).GetSemaphoreInfoByName), arg0)
+}
+
 // GetSignalInfo mocks base method.
 func (m *MockMutableState) GetSignalInfo(arg0 int64) (*persistence.SignalInfo, bool) {
 	m.ctrl.T.Helper()

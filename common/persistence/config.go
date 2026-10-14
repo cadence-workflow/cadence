@@ -42,6 +42,8 @@ type (
 		RateLimiterBypassCallerTypes             dynamicproperties.ListPropertyFn
 		TransactionSizeLimit                     dynamicproperties.IntPropertyFn
 		ErrorInjectionRate                       dynamicproperties.FloatPropertyFn
+		RewriteSampleRate                        dynamicproperties.IntPropertyFn
+		RewriteOptimizationBackends              dynamicproperties.ListPropertyFn
 	}
 )
 
@@ -62,6 +64,8 @@ func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration
 		RateLimiterBypassCallerTypes:             dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes),
 		TransactionSizeLimit:                     dc.GetIntProperty(dynamicproperties.TransactionSizeLimit),
 		ErrorInjectionRate:                       dc.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate),
+		RewriteSampleRate:                        dc.GetIntProperty(dynamicproperties.RewriteSampleRate),
+		RewriteOptimizationBackends:              dc.GetListProperty(dynamicproperties.RewriteOptimizationBackends),
 	}
 }
 

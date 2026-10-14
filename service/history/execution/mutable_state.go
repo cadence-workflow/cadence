@@ -152,6 +152,7 @@ type (
 		GetRetryBackoffDuration(errReason string) time.Duration
 		GetCronBackoffDuration(context.Context) (time.Duration, error)
 		GetSemaphoreInfo(int64) (*persistence.SemaphoreInfo, bool)
+		GetSemaphoreInfoByName(string) (*persistence.SemaphoreInfo, bool)
 		GetSignalInfo(int64) (*persistence.SignalInfo, bool)
 		GetStartVersion() (int64, error)
 		GetUserTimerInfoByEventID(int64) (*persistence.TimerInfo, bool)

@@ -19,6 +19,19 @@ func (e *mutableStateBuilder) GetSemaphoreInfo(
 	return semaphoreInfo, ok
 }
 
+// GetSemaphoreInfoByName gets the run's hold on semaphoreName, granted or still waiting.
+func (e *mutableStateBuilder) GetSemaphoreInfoByName(
+	semaphoreName string,
+) (*persistence.SemaphoreInfo, bool) {
+
+	for _, semaphoreInfo := range e.pendingSemaphoreInfoIDs {
+		if semaphoreInfo.SemaphoreName == semaphoreName {
+			return semaphoreInfo, true
+		}
+	}
+	return nil, false
+}
+
 func (e *mutableStateBuilder) GetPendingSemaphoreInfos() map[int64]*persistence.SemaphoreInfo {
 	return e.pendingSemaphoreInfoIDs
 }
@@ -61,7 +74,7 @@ func (e *mutableStateBuilder) DeleteSemaphoreInfo(
 }
 
 // AddSemaphoreAcquireInitiatedEvent records an acquire and starts its hold with no token yet.
-// waitTimeoutSeconds must be positive; the caller fills in the default.
+// It refuses a semaphore the run already holds or is waiting for. waitTimeoutSeconds must be positive.
 func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 	decisionCompletedEventID int64,
 	semaphoreName string,
@@ -71,6 +84,14 @@ func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 	opTag := tag.WorkflowActionSemaphoreAcquireInitiated
 	if err := e.checkMutability(opTag); err != nil {
 		return nil, nil, err
+	}
+
+	if _, ok := e.GetSemaphoreInfoByName(semaphoreName); ok {
+		e.logWarn(mutableStateInvalidHistoryActionMsg, opTag,
+			tag.WorkflowEventID(e.GetNextEventID()),
+			tag.ErrorTypeInvalidHistoryAction,
+			tag.SemaphoreName(semaphoreName))
+		return nil, nil, e.createCallerError(opTag)
 	}
 
 	event := e.hBuilder.AddSemaphoreAcquireInitiatedEvent(decisionCompletedEventID, semaphoreName, waitTimeoutSeconds)
