@@ -61,7 +61,7 @@ require (
 	golang.org/x/time v0.12.0
 	golang.org/x/tools v0.48.0
 	gonum.org/v1/gonum v0.17.0
-	google.golang.org/grpc v1.83.1
+	google.golang.org/grpc v1.83.2
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19
 	gopkg.in/yaml.v2 v2.4.0
 )
