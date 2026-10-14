@@ -109,7 +109,8 @@ type (
 		ExecutionMgr         *mocks.ExecutionManager
 		PersistenceBean      *persistenceClient.MockBean
 
-		HistoryTaskDLQMgr *persistence.MockHistoryTaskDLQManager
+		HistoryTaskDLQMgr     *persistence.MockHistoryTaskDLQManager
+		AsyncWorkflowQueueMgr *persistence.MockAsyncWorkflowQueueManager
 
 		IsolationGroups        *isolationgroup.MockState
 		IsolationGroupStore    configstore.Client
@@ -180,6 +181,8 @@ func NewTest(
 	// shard after inserting the task. Tests that care can override on the exposed HistoryTaskDLQMgr.
 	historyTaskDLQMgr.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryTaskDLQManager().Return(historyTaskDLQMgr).AnyTimes()
+	asyncWorkflowQueueMgr := persistence.NewMockAsyncWorkflowQueueManager(controller)
+	persistenceBean.EXPECT().GetAsyncWorkflowQueueManager().Return(asyncWorkflowQueueMgr).AnyTimes()
 
 	isolationGroupMock := isolationgroup.NewMockState(controller)
 	isolationGroupMock.EXPECT().Stop().AnyTimes()
@@ -226,17 +229,18 @@ func NewTest(
 
 		// persistence clients
 
-		MetadataMgr:          metadataMgr,
-		DomainAuditMgr:       domainAuditMgr,
-		SemaphoreMetadataMgr: semaphoreMetadataMgr,
-		TaskMgr:              taskMgr,
-		VisibilityMgr:        visibilityMgr,
-		ShardMgr:             shardMgr,
-		HistoryMgr:           historyMgr,
-		ExecutionMgr:         executionMgr,
-		PersistenceBean:      persistenceBean,
-		HistoryTaskDLQMgr:    historyTaskDLQMgr,
-		IsolationGroups:      isolationGroupMock,
+		MetadataMgr:           metadataMgr,
+		DomainAuditMgr:        domainAuditMgr,
+		SemaphoreMetadataMgr:  semaphoreMetadataMgr,
+		TaskMgr:               taskMgr,
+		VisibilityMgr:         visibilityMgr,
+		ShardMgr:              shardMgr,
+		HistoryMgr:            historyMgr,
+		ExecutionMgr:          executionMgr,
+		PersistenceBean:       persistenceBean,
+		HistoryTaskDLQMgr:     historyTaskDLQMgr,
+		AsyncWorkflowQueueMgr: asyncWorkflowQueueMgr,
+		IsolationGroups:       isolationGroupMock,
 
 		// logger
 
@@ -453,6 +457,11 @@ func (s *Test) GetHistoryManager() persistence.HistoryManager {
 // GetHistoryTaskDLQManager for testing
 func (s *Test) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
 	return s.PersistenceBean.GetHistoryTaskDLQManager()
+}
+
+// GetAsyncWorkflowQueueManager for testing
+func (s *Test) GetAsyncWorkflowQueueManager() persistence.AsyncWorkflowQueueManager {
+	return s.PersistenceBean.GetAsyncWorkflowQueueManager()
 }
 
 // GetExecutionManager for testing

@@ -1513,6 +1513,10 @@ const (
 	WorkflowCorruptionRepairScope
 	// HistoryTaskDLQProcessorScope is the scope used by the history task DLQ re-injection processor
 	HistoryTaskDLQProcessorScope
+	// AsyncWorkflowQueueConsumerScope is the scope used by the history shard async workflow queue consumer
+	AsyncWorkflowQueueConsumerScope
+	// AsyncWorkflowQueueGCScope is the scope used by the history shard async workflow queue garbage collector
+	AsyncWorkflowQueueGCScope
 	NumHistoryScopes
 )
 
@@ -2281,6 +2285,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryTaskSchedulerMigrationScope:                              {operation: "HistoryTaskSchedulerMigration"},
 		WorkflowCorruptionRepairScope:                                   {operation: "WorkflowCorruptionRepair"},
 		HistoryTaskDLQProcessorScope:                                    {operation: "HistoryTaskDLQProcessor"},
+		AsyncWorkflowQueueConsumerScope:                                 {operation: "AsyncWorkflowQueueConsumer"},
+		AsyncWorkflowQueueGCScope:                                       {operation: "AsyncWorkflowQueueGC"},
 	},
 	// Matching Scope Names
 	Matching: {
@@ -3075,6 +3081,36 @@ const (
 	HistoryTaskDLQReinjectFailuresCounter
 	// HistoryTaskDLQPageSizeBytes tracks the serialized byte size of each re-injected DLQ page
 	HistoryTaskDLQPageSizeBytes
+	// AsyncWorkflowQueueFetchedCounter counts messages read from the async workflow queue
+	AsyncWorkflowQueueFetchedCounter
+	// AsyncWorkflowQueueSubmittedCounter counts messages submitted to the history engine
+	AsyncWorkflowQueueSubmittedCounter
+	// AsyncWorkflowQueueSuccessCounter counts messages successfully processed
+	AsyncWorkflowQueueSuccessCounter
+	// AsyncWorkflowQueueAlreadyStartedCounter counts messages whose workflow was already started
+	AsyncWorkflowQueueAlreadyStartedCounter
+	// AsyncWorkflowQueueForwardedCounter counts messages forwarded to the active cluster
+	AsyncWorkflowQueueForwardedCounter
+	// AsyncWorkflowQueueDecodeFailuresCounter counts messages that failed to decode
+	AsyncWorkflowQueueDecodeFailuresCounter
+	// AsyncWorkflowQueueDLQCounter counts messages written to the async workflow queue DLQ
+	AsyncWorkflowQueueDLQCounter
+	// AsyncWorkflowQueueDLQFailuresCounter counts failures writing messages to the async workflow queue DLQ
+	AsyncWorkflowQueueDLQFailuresCounter
+	// AsyncWorkflowQueuePollFailuresCounter counts failures reading from the async workflow queue
+	AsyncWorkflowQueuePollFailuresCounter
+	// AsyncWorkflowQueueCommitFailuresCounter counts failures persisting the async workflow queue ack level
+	AsyncWorkflowQueueCommitFailuresCounter
+	// AsyncWorkflowQueueGCFailuresCounter counts failures deleting acknowledged async workflow queue messages
+	AsyncWorkflowQueueGCFailuresCounter
+	// AsyncWorkflowQueueBacklogGauge tracks the number of async workflow queue messages fetched but not yet acknowledged
+	AsyncWorkflowQueueBacklogGauge
+	// AsyncWorkflowQueueAckLevelGauge tracks the persisted async workflow queue ack level
+	AsyncWorkflowQueueAckLevelGauge
+	// AsyncWorkflowQueueGCDeletedUpToGauge tracks the message id up to which async workflow queue messages were deleted
+	AsyncWorkflowQueueGCDeletedUpToGauge
+	// AsyncWorkflowQueueProcessLatency tracks the latency of processing an async workflow queue message
+	AsyncWorkflowQueueProcessLatency
 
 	NumHistoryMetrics
 )
@@ -3728,8 +3764,23 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskScheduleSubmittedPerTaskList:          {metricName: "task_schedule_submitted_per_task_list", metricType: Counter},
 		TaskScheduleThrottledPerTaskList:          {metricName: "task_schedule_throttled_per_task_list", metricType: Counter},
 
-		HistoryTaskDLQReinjectFailuresCounter: {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
-		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
+		HistoryTaskDLQReinjectFailuresCounter:   {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
+		HistoryTaskDLQPageSizeBytes:             {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
+		AsyncWorkflowQueueFetchedCounter:        {metricName: "async_workflow_queue_fetched", metricType: Counter},
+		AsyncWorkflowQueueSubmittedCounter:      {metricName: "async_workflow_queue_submitted", metricType: Counter},
+		AsyncWorkflowQueueSuccessCounter:        {metricName: "async_workflow_queue_success", metricType: Counter},
+		AsyncWorkflowQueueAlreadyStartedCounter: {metricName: "async_workflow_queue_already_started", metricType: Counter},
+		AsyncWorkflowQueueForwardedCounter:      {metricName: "async_workflow_queue_forwarded", metricType: Counter},
+		AsyncWorkflowQueueDecodeFailuresCounter: {metricName: "async_workflow_queue_decode_failures", metricType: Counter},
+		AsyncWorkflowQueueDLQCounter:            {metricName: "async_workflow_queue_dlq", metricType: Counter},
+		AsyncWorkflowQueueDLQFailuresCounter:    {metricName: "async_workflow_queue_dlq_failures", metricType: Counter},
+		AsyncWorkflowQueuePollFailuresCounter:   {metricName: "async_workflow_queue_poll_failures", metricType: Counter},
+		AsyncWorkflowQueueCommitFailuresCounter: {metricName: "async_workflow_queue_commit_failures", metricType: Counter},
+		AsyncWorkflowQueueGCFailuresCounter:     {metricName: "async_workflow_queue_gc_failures", metricType: Counter},
+		AsyncWorkflowQueueBacklogGauge:          {metricName: "async_workflow_queue_backlog", metricType: Gauge},
+		AsyncWorkflowQueueAckLevelGauge:         {metricName: "async_workflow_queue_ack_level", metricType: Gauge},
+		AsyncWorkflowQueueGCDeletedUpToGauge:    {metricName: "async_workflow_queue_gc_deleted_up_to", metricType: Gauge},
+		AsyncWorkflowQueueProcessLatency:        {metricName: "async_workflow_queue_process_latency", metricType: Timer},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},

@@ -682,6 +682,11 @@ func (h *Impl) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
 	return h.persistenceBean.GetHistoryTaskDLQManager()
 }
 
+// GetAsyncWorkflowQueueManager returns the async workflow queue manager.
+func (h *Impl) GetAsyncWorkflowQueueManager() persistence.AsyncWorkflowQueueManager {
+	return h.persistenceBean.GetAsyncWorkflowQueueManager()
+}
+
 // GetExecutionManager return execution manager
 func (h *Impl) GetExecutionManager() persistence.ExecutionManager {
 

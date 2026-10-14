@@ -115,6 +115,7 @@ type Resource interface {
 	GetShardManager() persistence.ShardManager
 	GetHistoryManager() persistence.HistoryManager
 	GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager
+	GetAsyncWorkflowQueueManager() persistence.AsyncWorkflowQueueManager
 	GetExecutionManager() persistence.ExecutionManager
 	GetPersistenceBean() persistenceClient.Bean
 

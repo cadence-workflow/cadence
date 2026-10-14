@@ -161,6 +161,42 @@ func TestFactoryMethods(t *testing.T) {
 		assert.Contains(t, reflect.TypeOf(mgr).String(), "ratelimited.",
 			"history task DLQ manager must be wrapped with the ratelimited client")
 	})
+	t.Run("NewAsyncWorkflowQueueManager propagates store creation error", func(t *testing.T) {
+		fact := makeFactory(t)
+		ds := mockDatastore(t, fact, storeTypeExecution)
+		storeErr := errors.New("connection failed")
+		ds.EXPECT().NewAsyncWorkflowQueueStore().Return(nil, storeErr).MinTimes(1)
+		_, err := fact.NewAsyncWorkflowQueueManager()
+		assert.ErrorIs(t, err, storeErr)
+	})
+	t.Run("NewAsyncWorkflowQueueManager is rate limited", func(t *testing.T) {
+		// makeFactoryWithMetrics uses a non-zero qpsFn, so ds.ratelimit is set, and a
+		// non-zero ErrorInjectionRate. With metrics disabled, the outermost wrapper of a
+		// correctly wired manager (error injection -> rate limited -> metered) must be
+		// the ratelimited client.
+		fact := makeFactoryWithMetrics(t, false)
+		ds := mockDatastore(t, fact, storeTypeExecution)
+		ds.EXPECT().NewAsyncWorkflowQueueStore().Return(nil, nil).MinTimes(1)
+
+		mgr, err := fact.NewAsyncWorkflowQueueManager()
+		assert.NoError(t, err)
+		assert.NotNil(t, mgr)
+		assert.Contains(t, reflect.TypeOf(mgr).String(), "ratelimited.",
+			"async workflow queue manager must be wrapped with the ratelimited client")
+	})
+	t.Run("NewAsyncWorkflowQueueManager is metered", func(t *testing.T) {
+		// with metrics enabled the outermost wrapper must be the metered client
+		// (error injection -> rate limited -> metered).
+		fact := makeFactoryWithMetrics(t, true)
+		ds := mockDatastore(t, fact, storeTypeExecution)
+		ds.EXPECT().NewAsyncWorkflowQueueStore().Return(nil, nil).MinTimes(1)
+
+		mgr, err := fact.NewAsyncWorkflowQueueManager()
+		assert.NoError(t, err)
+		assert.NotNil(t, mgr)
+		assert.Contains(t, reflect.TypeOf(mgr).String(), "metered.",
+			"async workflow queue manager must be wrapped with the metered client")
+	})
 	t.Run("NewVisibilityManager_TripleVisibilityManager_Pinot", func(t *testing.T) {
 		fact := makeFactory(t)
 		ds := mockDatastore(t, fact, storeTypeVisibility)
