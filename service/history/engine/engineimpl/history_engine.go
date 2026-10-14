@@ -151,7 +151,7 @@ func NewEngineWithShardContext(
 	rawMatchingClient matching.Client,
 	failoverCoordinator failover.Coordinator,
 	queueFactories []queue.Factory,
-	dlqHostLimiter *taskdlq.HostLimiter,
+	dlqHostBudget taskdlq.HostBudget,
 ) engine.Engine {
 	currentClusterName := shard.GetService().GetClusterMetadata().GetCurrentClusterName()
 
@@ -309,7 +309,7 @@ func NewEngineWithShardContext(
 		config.HistoryTaskDLQProcessorFailoverJitterMaxDelay,
 		config.HistoryTaskDLQMode,
 		config.HistoryTaskDLQProcessorEnabled,
-		dlqHostLimiter,
+		dlqHostBudget,
 	)
 
 	shard.SetEngine(historyEngImpl)

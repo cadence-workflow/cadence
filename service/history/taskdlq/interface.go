@@ -45,3 +45,9 @@ type AckLevelIndex interface {
 	Advance(level persistence.HistoryDLQAckLevel)
 	MarkClean(key shard.DLQAckLevelKey, generation uint64)
 }
+
+// HostBudget paces every persistence call the DLQ processor makes; one instance is shared by all
+// shards on a history host. Satisfied by quotas.Limiter.
+type HostBudget interface {
+	Wait(ctx context.Context) error
+}

@@ -367,7 +367,7 @@ type Config struct {
 	HistoryTaskDLQProcessorInterval               dynamicproperties.DurationPropertyFnWithShardIDFilter
 	HistoryTaskDLQProcessorFailoverJitterMaxDelay dynamicproperties.DurationPropertyFn
 	HistoryTaskDLQProcessorEnabled                dynamicproperties.BoolPropertyFn
-	HistoryTaskDLQProcessorHostConcurrency        dynamicproperties.IntPropertyFn
+	HistoryTaskDLQProcessorHostMaxQPS             dynamicproperties.IntPropertyFn
 
 	// HostName for machine running the service
 	HostName string
@@ -654,7 +654,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		HistoryTaskDLQProcessorInterval:               dc.GetDurationPropertyFilteredByShardID(dynamicproperties.HistoryTaskDLQProcessorInterval),
 		HistoryTaskDLQProcessorFailoverJitterMaxDelay: dc.GetDurationProperty(dynamicproperties.HistoryTaskDLQProcessorFailoverJitterMaxDelay),
 		HistoryTaskDLQProcessorEnabled:                dc.GetBoolProperty(dynamicproperties.HistoryTaskDLQProcessorEnabled),
-		HistoryTaskDLQProcessorHostConcurrency:        dc.GetIntProperty(dynamicproperties.HistoryTaskDLQProcessorHostConcurrency),
+		HistoryTaskDLQProcessorHostMaxQPS:             dc.GetIntProperty(dynamicproperties.HistoryTaskDLQProcessorHostMaxQPS),
 
 		HostName: hostname,
 	}
