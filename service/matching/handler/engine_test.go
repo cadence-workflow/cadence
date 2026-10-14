@@ -2075,7 +2075,7 @@ func expectBucketLoadOnce(m *persistence.MockSemaphoreTokenManager, tokens int) 
 		})
 	}
 	m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).
-		Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
+		Return(&persistence.ScanSemaphoreBucketResponse{Ownerships: rows}, nil)
 }
 
 // newAcquireSemaphoreRequest returns a request for one bucket of the test semaphore.
@@ -2106,8 +2106,7 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		// A request that panics after registering leaves the manager unstarted, and only the next request can start it.
 		e, m := newEngineWithSemaphores(t, testSelfHost)
 		id := mustNewSemaphoreIdentifier(t, 0)
-		// Times(1): if the request does not start this manager, no scan happens and the
-		// expectation goes unmet.
+		// fails if the request does not start the manager
 		expectBucketLoadOnce(m, 2)
 
 		unstarted := newUnstartedSemaphoreManager(t, id, m)
