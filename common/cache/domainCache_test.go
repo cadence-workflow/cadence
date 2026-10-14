@@ -290,6 +290,57 @@ func (s *domainCacheSuite) TestGetDomain_NonLoaded_GetByID() {
 	s.Equal(entry, entryByID)
 }
 
+func TestUpdateIDToDomainCache_ReturnsPreviousEntry(t *testing.T) {
+	c := NewDomainCache(
+		&mocks.MetadataManager{},
+		cluster.GetTestClusterMetadata(true),
+		metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}),
+		testlogger.New(t),
+	)
+	cacheByID := newDomainCache()
+	id := uuid.New()
+
+	mk := func(active string, notificationVersion int64) *DomainCacheEntry {
+		return &DomainCacheEntry{
+			info:   &persistence.DomainInfo{ID: id, Name: "d", Data: map[string]string{}},
+			config: &persistence.DomainConfig{BadBinaries: types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}}},
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: active,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			notificationVersion: notificationVersion,
+			initialized:         true,
+		}
+	}
+
+	// First sight: there is nothing to diff against.
+	trigger, prev, next, err := c.updateIDToDomainCache(cacheByID, id, mk(cluster.TestCurrentClusterName, 1))
+	require.NoError(t, err)
+	assert.False(t, trigger)
+	assert.Nil(t, prev)
+	require.NotNil(t, next)
+	assert.Equal(t, cluster.TestCurrentClusterName, next.GetReplicationConfig().ActiveClusterName)
+
+	// A newer record: prev is the entry as it was, next is the entry as it is now.
+	trigger, prev, next, err = c.updateIDToDomainCache(cacheByID, id, mk(cluster.TestAlternativeClusterName, 2))
+	require.NoError(t, err)
+	assert.True(t, trigger)
+	require.NotNil(t, prev)
+	assert.Equal(t, cluster.TestCurrentClusterName, prev.GetReplicationConfig().ActiveClusterName)
+	assert.Equal(t, int64(1), prev.GetNotificationVersion())
+	assert.Equal(t, cluster.TestAlternativeClusterName, next.GetReplicationConfig().ActiveClusterName)
+	assert.Equal(t, int64(2), next.GetNotificationVersion())
+
+	// prev is a private copy: a later update does not mutate it.
+	_, _, _, err = c.updateIDToDomainCache(cacheByID, id, mk(cluster.TestCurrentClusterName, 3))
+	require.NoError(t, err)
+	assert.Equal(t, cluster.TestCurrentClusterName, prev.GetReplicationConfig().ActiveClusterName)
+	assert.Equal(t, int64(1), prev.GetNotificationVersion())
+}
+
 func Test_IsActiveIn(t *testing.T) {
 	tests := []struct {
 		msg              string
@@ -407,12 +458,12 @@ func (s *domainCacheSuite) TestRegisterCallback_CatchUp() {
 		"0",
 		func(_ DomainCache, prepareCallback PrepareCallbackFn, callback CallbackFn) {
 			prepareCallback()
-			callback(entriesNotification)
+			callback(nil, entriesNotification)
 		},
 		func() {
 			prepareCallbackInvoked = true
 		},
-		func(nextDomains []*DomainCacheEntry) {
+		func(_, _ []*DomainCacheEntry) {
 			callBackInvoked = true
 		},
 	)
@@ -514,14 +565,15 @@ func (s *domainCacheSuite) TestUpdateCache_TriggerCallBack() {
 	domainNotificationVersion++
 
 	prepareCallbackInvoked := false
-	var entriesNew []*DomainCacheEntry
+	var entriesPrev, entriesNew []*DomainCacheEntry
 	s.domainCache.RegisterDomainChangeCallback(
 		"0",
 		func(domainCache DomainCache, prepareCallback PrepareCallbackFn, callback CallbackFn) {},
 		func() {
 			prepareCallbackInvoked = true
 		},
-		func(nextDomains []*DomainCacheEntry) {
+		func(prevDomains, nextDomains []*DomainCacheEntry) {
+			entriesPrev = prevDomains
 			entriesNew = nextDomains
 		},
 	)
@@ -546,6 +598,12 @@ func (s *domainCacheSuite) TestUpdateCache_TriggerCallBack() {
 	// domain change events
 	s.True(prepareCallbackInvoked)
 	s.Equal([]*DomainCacheEntry{entry2New, entry1New}, entriesNew)
+	s.Len(entriesPrev, len(entriesNew))
+	for i := range entriesNew {
+		s.NotNil(entriesPrev[i])
+		s.Equal(entriesNew[i].GetInfo().ID, entriesPrev[i].GetInfo().ID)
+		s.Less(entriesPrev[i].GetNotificationVersion(), entriesNew[i].GetNotificationVersion())
+	}
 }
 
 func (s *domainCacheSuite) TestGetTriggerListAndUpdateCache_ConcurrentAccess() {
@@ -693,7 +751,7 @@ func (s *domainCacheSuite) TestUnregisterDomainChangeCallback() {
 		"1": func() {},
 	}
 	s.domainCache.callbacks = map[string]CallbackFn{
-		"1": func([]*DomainCacheEntry) {},
+		"1": func(_, _ []*DomainCacheEntry) {},
 	}
 
 	s.domainCache.UnregisterDomainChangeCallback("1")
@@ -793,9 +851,10 @@ func (s *domainCacheSuite) Test_updateIDToDomainCache_Error() {
 
 	newCache.EXPECT().PutIfNotExist("testDomainID", &DomainCacheEntry{}).Return(false, assert.AnError).Times(1)
 
-	triggerCallback, entry, err := s.domainCache.updateIDToDomainCache(newCache, "testDomainID", domainCacheEntry)
+	triggerCallback, prev, entry, err := s.domainCache.updateIDToDomainCache(newCache, "testDomainID", domainCacheEntry)
 
 	s.False(triggerCallback)
+	s.Nil(prev)
 	s.Nil(entry)
 	s.ErrorIs(err, assert.AnError)
 }

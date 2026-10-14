@@ -1704,7 +1704,7 @@ func (e *matchingEngineImpl) isExcludedFromShardDistributor(taskListName string)
 	return membership.TaskListExcludedFromShardDistributor(taskListName, uint64(e.percentageOnboarded.Value()), e.config.ExcludeShortLivedTaskListsFromShardManager())
 }
 
-func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {
+func (e *matchingEngineImpl) domainChangeCallback(_ []*cache.DomainCacheEntry, nextDomains []*cache.DomainCacheEntry) {
 	newFailoverNotificationVersion := e.failoverNotificationVersion
 
 	for _, domain := range nextDomains {

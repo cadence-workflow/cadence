@@ -1587,7 +1587,7 @@ func Test_domainChangeCallback(t *testing.T) {
 		),
 	}
 
-	engine.domainChangeCallback(domains)
+	engine.domainChangeCallback(nil, domains)
 
 	assert.Equal(t, int64(5), engine.failoverNotificationVersion, "5 is the highest failover notification version in the fixtures (global-domain-3)")
 }
@@ -1652,7 +1652,7 @@ func Test_registerDomainFailoverCallback(t *testing.T) {
 		prepareCalled := false
 		callbackCalled := false
 		prepare := func() { prepareCalled = true }
-		callback := func([]*cache.DomainCacheEntry) { callbackCalled = true }
+		callback := func(_, _ []*cache.DomainCacheEntry) { callbackCalled = true }
 
 		if registeredCatchUpFn != nil {
 			registeredCatchUpFn(mockDomainCache, prepare, callback)
@@ -1694,7 +1694,7 @@ func Test_registerDomainFailoverCallback(t *testing.T) {
 		prepareCalled := false
 		callbackCalled := false
 		prepare := func() { prepareCalled = true }
-		callback := func([]*cache.DomainCacheEntry) { callbackCalled = true }
+		callback := func(_, _ []*cache.DomainCacheEntry) { callbackCalled = true }
 
 		if registeredCatchUpFn != nil {
 			registeredCatchUpFn(mockDomainCache, prepare, callback)
