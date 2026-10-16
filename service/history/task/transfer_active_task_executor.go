@@ -1254,8 +1254,8 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 	}
 
 	semaphoreInfo, ok := mutableState.GetSemaphoreInfo(task.InitiatedID)
-	// No hold means a release removed it, an acquire timeout also closes the run.
-	// A token means the grant is already recorded.
+	// No hold means a release removed it. A token means the grant is already recorded.
+	// TODO: once the acquire timeout timer exists, it also removes a hold that waited too long.
 	if !ok || semaphoreInfo.HasToken() {
 		return nil
 	}
@@ -2148,6 +2148,8 @@ func (t *transferActiveTaskExecutor) acquireSemaphoreToken(
 
 	resp, err := t.matchingClient.AcquireSemaphore(ctx, request)
 	if err != nil {
+		// Errors are retried. ErrSemaphoreDisabled means the flag was turned off while this hold waits:
+		// the task retries until it is turned back on, or until the acquire timeout ends the hold.
 		return 0, err
 	}
 	switch {
@@ -2192,7 +2194,8 @@ func recordSemaphoreGranted(
 			if !ok {
 				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
 			}
-			// A redelivered task gets the same token back, since a grant is idempotent per owner.
+			// processAcquireSemaphore already skips a hold with a token. This guards against a reload
+			// inside updateWorkflowExecution writing the same grant twice.
 			if semaphoreInfo.TokenID == int(tokenID) {
 				return &types.EntityNotExistsError{Message: "Semaphore grant already recorded."}
 			}

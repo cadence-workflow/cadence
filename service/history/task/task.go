@@ -287,8 +287,9 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 	}
 
 	if err == errSemaphoreNoSlot {
-		// the semaphore bucket is full, so retry later without logging it as a failure
-		// TODO: revisit once acquires can wait: a full bucket then queues, and only a stopping bucket returns this
+		// the semaphore bucket is full, so retry later without counting it as a failure.
+		// Like errWorkflowBusy, it is still logged as critical after TaskCriticalRetryCount attempts.
+		// TODO: remove this case once a full bucket answers QUEUED. The acquire task then never returns errSemaphoreNoSlot.
 		return err
 	}
 
