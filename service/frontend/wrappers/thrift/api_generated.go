@@ -71,6 +71,11 @@ func (g APIHandler) DiagnoseWorkflowExecution(ctx context.Context, DiagnoseReque
 	return mapper.FromDiagnoseWorkflowExecutionResponse(response), mapper.FromError(err)
 }
 
+func (g APIHandler) ExportWorkflowExecution(ctx context.Context, Request *shared.ExportWorkflowExecutionRequest) (ep1 *shared.ExportWorkflowExecutionResponse, err error) {
+	response, err := g.h.ExportWorkflowExecution(ctx, mapper.ToExportWorkflowExecutionRequest(Request))
+	return mapper.FromExportWorkflowExecutionResponse(response), mapper.FromError(err)
+}
+
 func (g APIHandler) FailoverDomain(ctx context.Context, FailoverRequest *shared.FailoverDomainRequest) (fp1 *shared.FailoverDomainResponse, err error) {
 	response, err := g.h.FailoverDomain(ctx, mapper.ToFailoverDomainRequest(FailoverRequest))
 	return mapper.FromFailoverDomainResponse(response), mapper.FromError(err)

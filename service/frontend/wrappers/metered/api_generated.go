@@ -252,6 +252,23 @@ func (h *apiHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.D
 	}
 	return dp2, err
 }
+func (h *apiHandler) ExportWorkflowExecution(ctx context.Context, ep1 *types.ExportWorkflowExecutionRequest) (ep2 *types.ExportWorkflowExecutionResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("ExportWorkflowExecution")}
+	tags = append(tags, toExportWorkflowExecutionRequestTags(ep1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendExportWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(ep1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	swStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	logger := h.logger.WithTags(tags...)
+
+	ep2, err = h.handler.ExportWorkflowExecution(ctx, ep1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return ep2, err
+}
 func (h *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("FailoverDomain")}

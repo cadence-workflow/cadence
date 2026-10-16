@@ -209,6 +209,22 @@ func (h *apiHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.D
 	return h.wrapped.DiagnoseWorkflowExecution(ctx, dp1)
 }
 
+func (h *apiHandler) ExportWorkflowExecution(ctx context.Context, ep1 *types.ExportWorkflowExecutionRequest) (ep2 *types.ExportWorkflowExecutionResponse, err error) {
+	if ep1 == nil {
+		err = validate.ErrRequestNotSet
+		return
+	}
+	if ep1.GetDomain() == "" {
+		err = validate.ErrDomainNotSet
+		return
+	}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: ep1.GetDomain()}); limitErr != nil {
+		err = limitErr
+		return
+	}
+	return h.wrapped.ExportWorkflowExecution(ctx, ep1)
+}
+
 func (h *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
 	if fp1 == nil {
 		err = validate.ErrRequestNotSet

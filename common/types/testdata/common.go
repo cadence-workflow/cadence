@@ -208,6 +208,7 @@ var (
 	DataBlob = types.DataBlob{
 		EncodingType: &EncodingType,
 		Data:         []byte{7, 7, 7},
+		Checksum:     []byte{1, 2, 3, 4},
 	}
 	DataBlobArray = []*types.DataBlob{
 		&DataBlob,

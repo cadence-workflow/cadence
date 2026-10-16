@@ -90,6 +90,12 @@ type Interface interface {
 		opts ...yarpc.CallOption,
 	) (*shared.DiagnoseWorkflowExecutionResponse, error)
 
+	ExportWorkflowExecution(
+		ctx context.Context,
+		Request *shared.ExportWorkflowExecutionRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.ExportWorkflowExecutionResponse, error)
+
 	FailoverDomain(
 		ctx context.Context,
 		FailoverRequest *shared.FailoverDomainRequest,
@@ -715,6 +721,34 @@ func (c client) DiagnoseWorkflowExecution(
 	}
 
 	success, err = cadence.WorkflowService_DiagnoseWorkflowExecution_Helper.UnwrapResponse(&result)
+	return
+}
+
+func (c client) ExportWorkflowExecution(
+	ctx context.Context,
+	_Request *shared.ExportWorkflowExecutionRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.ExportWorkflowExecutionResponse, err error) {
+
+	var result cadence.WorkflowService_ExportWorkflowExecution_Result
+	args := cadence.WorkflowService_ExportWorkflowExecution_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_ExportWorkflowExecution_Helper.UnwrapResponse(&result)
 	return
 }
 

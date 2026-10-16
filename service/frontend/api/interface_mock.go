@@ -220,6 +220,21 @@ func (mr *MockHandlerMockRecorder) DiagnoseWorkflowExecution(arg0, arg1 any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiagnoseWorkflowExecution", reflect.TypeOf((*MockHandler)(nil).DiagnoseWorkflowExecution), arg0, arg1)
 }
 
+// ExportWorkflowExecution mocks base method.
+func (m *MockHandler) ExportWorkflowExecution(arg0 context.Context, arg1 *types.ExportWorkflowExecutionRequest) (*types.ExportWorkflowExecutionResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExportWorkflowExecution", arg0, arg1)
+	ret0, _ := ret[0].(*types.ExportWorkflowExecutionResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExportWorkflowExecution indicates an expected call of ExportWorkflowExecution.
+func (mr *MockHandlerMockRecorder) ExportWorkflowExecution(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportWorkflowExecution", reflect.TypeOf((*MockHandler)(nil).ExportWorkflowExecution), arg0, arg1)
+}
+
 // FailoverDomain mocks base method.
 func (m *MockHandler) FailoverDomain(arg0 context.Context, arg1 *types.FailoverDomainRequest) (*types.FailoverDomainResponse, error) {
 	m.ctrl.T.Helper()

@@ -260,6 +260,26 @@ func (c *frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *typ
 	return
 }
 
+func (c *frontendClient) ExportWorkflowExecution(ctx context.Context, ep1 *types.ExportWorkflowExecutionRequest, p1 ...yarpc.CallOption) (ep2 *types.ExportWorkflowExecutionResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		ep2, err = c.client.ExportWorkflowExecution(ctx, ep1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationExportWorkflowExecution,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *frontendClient) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest, p1 ...yarpc.CallOption) (fp2 *types.FailoverDomainResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool

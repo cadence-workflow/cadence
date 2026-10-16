@@ -420,3 +420,9 @@ func toCreateSemaphoreRequestTags(req *types.CreateSemaphoreRequest) []tag.Tag {
 		tag.WorkflowDomainName(req.GetDomain()),
 	}
 }
+
+func toExportWorkflowExecutionRequestTags(req *types.ExportWorkflowExecutionRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}

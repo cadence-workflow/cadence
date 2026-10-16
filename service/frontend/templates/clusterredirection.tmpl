@@ -17,6 +17,7 @@ import (
 {{$startWFAPIs := list "StartWorkflowExecution" "StartWorkflowExecutionAsync" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
 {{$signalWithStartAPIs := list "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
 {{$nonstartWFAPIs := list "DescribeWorkflowExecutionRequest" "GetWorkflowExecutionHistory" "QueryWorkflowRequest" "RequestCancelWorkflowExecution" "ResetWorkflowExecution" "RestartWorkflowExecution" "SignalWorkflowExecution" "TerminateWorkflowExecution" }}
+{{$executionAPIs := list "ExportWorkflowExecution"}}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
 {{$readAPIsWithStrongConsistency := list "QueryWorkflow" "DescribeWorkflowExecution" "GetWorkflowExecutionHistory"}}
 
@@ -125,6 +126,8 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 	{{- end}}
 	{{- else if has $method.Name $nonstartWFAPIs}}
 	workflowExecution = {{(index $method.Params 1).Name}}.GetWorkflowExecution()
+	{{- else if has $method.Name $executionAPIs}}
+	workflowExecution = {{(index $method.Params 1).Name}}.GetExecution()
 	{{- end}}
 
 
