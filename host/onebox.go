@@ -714,11 +714,12 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 	params.PinotClient = c.pinotClient
 	params.GetIsolationGroups = getFromDynamicConfig(params)
 	var err error
-	authorizer, err := authorization.NewAuthorizer(c.authorizationConfig, params.Logger, nil)
+	authorizer, authenticator, err := authorization.NewAuthorizerAndAuthenticator(c.authorizationConfig, params.Logger, nil)
 	if err != nil {
-		c.logger.Fatal("Unable to create authorizer", tag.Error(err))
+		c.logger.Fatal("Unable to create authorizer and authenticator", tag.Error(err))
 	}
 	params.Authorizer = authorizer
+	params.Authenticator = authenticator
 	params.PersistenceConfig, err = copyPersistenceConfig(c.persistenceConfig)
 	if err != nil {
 		c.logger.Fatal("Failed to copy persistence config for frontend", tag.Error(err))
