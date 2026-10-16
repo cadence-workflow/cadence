@@ -312,33 +312,39 @@ func (s *IntegrationBase) RegisterDomain(
 }
 
 // domainCacheRefresh forces the in-memory domain cache to refresh from persistence by advancing the mock clock.
-// Note: This helper polls until the domain's NotificationVersion strictly increases. It must only be called
-// when an underlying domain change (e.g. registration or UpdateDomain) has occurred; otherwise, it will time out.
 func (s *IntegrationBase) domainCacheRefresh(domainNames ...string) {
-	// get current notification versions
-	versions := make(map[string]int64)
+	// Read the target versions from persistence. Reading the cache first is not
+	// sufficient for newly registered domains because a cache miss loads the
+	// current version and leaves no later version increase to observe.
+	expectedVersions := make(map[string]int64)
 	for _, domain := range domainNames {
-		if entry, err := s.TestCluster.host.GetDomainCache().GetDomain(domain); err == nil {
-			versions[domain] = entry.GetNotificationVersion()
-		} else {
-			versions[domain] = -1
-		}
+		response, err := s.TestCluster.testBase.DomainManager.GetDomain(
+			context.Background(),
+			&persistence.GetDomainRequest{Name: domain},
+		)
+		s.Require().NoError(err, "get expected persistence version for domain %s", domain)
+		expectedVersions[domain] = response.NotificationVersion
 	}
 
 	s.TestClusterConfig.TimeSource.Advance(cache.DomainCacheRefreshInterval + time.Second)
 
-	// poll until versions are greater
+	// Poll until the cache has loaded each persisted version.
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	for _, domain := range domainNames {
-		expected := versions[domain]
+		expected := expectedVersions[domain]
 		for {
 			entry, err := s.TestCluster.host.GetDomainCache().GetDomain(domain)
-			if err == nil && entry.GetNotificationVersion() > expected {
+			if err == nil && entry.GetNotificationVersion() >= expected {
 				break
 			}
 			if ctx.Err() != nil {
-				s.Require().NoError(ctx.Err(), "timeout waiting for domain cache refresh")
+				s.Require().NoError(
+					ctx.Err(),
+					"timeout waiting for domain cache refresh: domain=%s expected_notification_version=%d",
+					domain,
+					expected,
+				)
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
