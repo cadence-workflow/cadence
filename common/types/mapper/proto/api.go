@@ -760,6 +760,7 @@ func FromDataBlob(t *types.DataBlob) *apiv1.DataBlob {
 	return &apiv1.DataBlob{
 		EncodingType: FromEncodingType(t.EncodingType),
 		Data:         t.Data,
+		Checksum:     t.Checksum,
 	}
 }
 
@@ -770,6 +771,7 @@ func ToDataBlob(t *apiv1.DataBlob) *types.DataBlob {
 	return &types.DataBlob{
 		EncodingType: ToEncodingType(t.EncodingType),
 		Data:         t.Data,
+		Checksum:     t.Checksum,
 	}
 }
 
@@ -7070,5 +7072,55 @@ func ToActiveClusterSelectionPolicy(p *apiv1.ActiveClusterSelectionPolicy) *type
 	}
 	return &types.ActiveClusterSelectionPolicy{
 		ClusterAttribute: ToClusterAttribute(p.ClusterAttribute),
+	}
+}
+
+func FromExportWorkflowExecutionRequest(t *types.ExportWorkflowExecutionRequest) *apiv1.ExportWorkflowExecutionRequest {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ExportWorkflowExecutionRequest{
+		Domain:            t.Domain,
+		WorkflowExecution: FromWorkflowExecution(t.Execution),
+		PageSize:          t.PageSize,
+		NextPageToken:     t.NextPageToken,
+		LastEventId:       fromInt64Value(t.LastEventID),
+	}
+}
+
+func ToExportWorkflowExecutionRequest(t *apiv1.ExportWorkflowExecutionRequest) *types.ExportWorkflowExecutionRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ExportWorkflowExecutionRequest{
+		Domain:        t.Domain,
+		Execution:     ToWorkflowExecution(t.WorkflowExecution),
+		PageSize:      t.PageSize,
+		NextPageToken: t.NextPageToken,
+		LastEventID:   toInt64Value(t.LastEventId),
+	}
+}
+
+func FromExportWorkflowExecutionResponse(t *types.ExportWorkflowExecutionResponse) *apiv1.ExportWorkflowExecutionResponse {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ExportWorkflowExecutionResponse{
+		Execution:      FromWorkflowExecution(t.Execution),
+		HistoryBatches: FromDataBlobArray(t.HistoryBatches),
+		NextPageToken:  t.NextPageToken,
+		Version:        t.Version,
+	}
+}
+
+func ToExportWorkflowExecutionResponse(t *apiv1.ExportWorkflowExecutionResponse) *types.ExportWorkflowExecutionResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ExportWorkflowExecutionResponse{
+		Execution:      ToWorkflowExecution(t.Execution),
+		HistoryBatches: ToDataBlobArray(t.HistoryBatches),
+		NextPageToken:  t.NextPageToken,
+		Version:        t.Version,
 	}
 }

@@ -97,5 +97,6 @@ type (
 		ListSchedules(context.Context, *types.ListSchedulesRequest) (*types.ListSchedulesResponse, error)
 
 		CreateSemaphore(context.Context, *types.CreateSemaphoreRequest) (*types.CreateSemaphoreResponse, error)
+		ExportWorkflowExecution(context.Context, *types.ExportWorkflowExecutionRequest) (*types.ExportWorkflowExecutionResponse, error)
 	}
 )

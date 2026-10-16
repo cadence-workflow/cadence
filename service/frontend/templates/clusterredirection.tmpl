@@ -16,7 +16,7 @@ import (
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$startWFAPIs := list "StartWorkflowExecution" "StartWorkflowExecutionAsync" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
 {{$signalWithStartAPIs := list "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
-{{$nonstartWFAPIs := list "DescribeWorkflowExecutionRequest" "GetWorkflowExecutionHistory" "QueryWorkflowRequest" "RequestCancelWorkflowExecution" "ResetWorkflowExecution" "RestartWorkflowExecution" "SignalWorkflowExecution" "TerminateWorkflowExecution" }}
+{{$nonstartWFAPIs := list "DescribeWorkflowExecutionRequest" "GetWorkflowExecutionHistory" "QueryWorkflowRequest" "RequestCancelWorkflowExecution" "ResetWorkflowExecution" "RestartWorkflowExecution" "SignalWorkflowExecution" "TerminateWorkflowExecution" "ExportWorkflowExecution" }}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
 {{$readAPIsWithStrongConsistency := list "QueryWorkflow" "DescribeWorkflowExecution" "GetWorkflowExecutionHistory"}}
 

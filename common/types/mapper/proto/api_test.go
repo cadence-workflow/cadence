@@ -3184,3 +3184,25 @@ func TestSemaphoreAcquiredEventAttributesFuzz(t *testing.T) {
 func TestSemaphoreReleasedEventAttributesFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromSemaphoreReleasedEventAttributes, ToSemaphoreReleasedEventAttributes)
 }
+
+func TestExportWorkflowExecutionRequest(t *testing.T) {
+	for _, item := range []*types.ExportWorkflowExecutionRequest{nil, {}, {LastEventID: common.Int64Ptr(0)}, &testdata.ExportWorkflowExecutionRequest} {
+		assert.Equal(t, item, ToExportWorkflowExecutionRequest(FromExportWorkflowExecutionRequest(item)))
+	}
+}
+
+func TestExportWorkflowExecutionResponse(t *testing.T) {
+	for _, item := range []*types.ExportWorkflowExecutionResponse{nil, {}, &testdata.ExportWorkflowExecutionResponse} {
+		assert.Equal(t, item, ToExportWorkflowExecutionResponse(FromExportWorkflowExecutionResponse(item)))
+	}
+}
+
+func TestExportWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromExportWorkflowExecutionRequest, ToExportWorkflowExecutionRequest)
+}
+
+func TestExportWorkflowExecutionResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromExportWorkflowExecutionResponse, ToExportWorkflowExecutionResponse,
+		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
+	)
+}
