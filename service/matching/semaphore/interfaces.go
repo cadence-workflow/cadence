@@ -5,7 +5,7 @@ import "context"
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go -self_package github.com/uber/cadence/service/matching/semaphore
 
 type (
-	// Manager hands out the slots of one semaphore token bucket. A manager has to be started
+	// Manager hands out the tokens of one semaphore bucket. A manager has to be started
 	// before it can serve, and stopped once it is done serving: Acquire waits on startup, or
 	// until its own context deadline.
 	Manager interface {
