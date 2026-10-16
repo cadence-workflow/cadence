@@ -18,7 +18,7 @@ require (
 	cloud.google.com/go/cloudsqlconn v1.16.1
 	cloud.google.com/go/compute/metadata v0.9.0
 	github.com/iancoleman/strcase v0.3.0
-	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee
+	github.com/jmoiron/sqlx v1.4.0
 	github.com/stretchr/testify v1.11.1
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	go.uber.org/multierr v1.11.0

@@ -31,8 +31,8 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.2.0 // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
-	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee // indirect
-	github.com/lib/pq v1.2.0 // indirect
+	github.com/jmoiron/sqlx v1.4.0 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/m3db/prometheus_client_golang v1.12.8 // indirect
 	github.com/olivere/elastic v6.2.37+incompatible // indirect
 	github.com/olivere/elastic/v7 v7.0.21 // indirect
