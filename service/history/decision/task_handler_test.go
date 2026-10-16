@@ -901,7 +901,7 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 			wantErr: execution.ErrWorkflowFinished,
 		},
 		{
-			name: "run already holds or is waiting for the semaphore: the decision fails",
+			name: "run already holds or is waiting for a semaphore: the decision fails",
 			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
 			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
 				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(&persistence.GetSemaphoreResponse{}, nil)
@@ -909,8 +909,18 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 					Return(nil, nil, &types.BadRequestError{Message: "invalid history builder state for action"})
 			},
 			wantFailCause:      types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes.Ptr(),
-			wantFailMessage:    common.StringPtr(`Run already holds or is waiting for semaphore "my-semaphore".`),
+			wantFailMessage:    common.StringPtr(`Run already holds or is waiting for a semaphore, so it cannot acquire semaphore "my-semaphore".`),
 			wantStopProcessing: true,
+		},
+		{
+			name: "recording the acquire fails with another internal error: the error is returned",
+			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
+			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
+				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(&persistence.GetSemaphoreResponse{}, nil)
+				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(30)).
+					Return(nil, nil, &types.InternalServiceError{Message: "write failed"})
+			},
+			wantErr: &types.InternalServiceError{Message: "write failed"},
 		},
 	}
 
@@ -935,6 +945,90 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 			err := taskHandler.handleDecision(context.Background(), &types.Decision{
 				DecisionType:                       types.DecisionTypeAcquireSemaphore.Ptr(),
 				AcquireSemaphoreDecisionAttributes: tc.attr,
+			})
+
+			assert.Equal(t, tc.wantErr, err)
+			assert.Equal(t, tc.wantFailCause, taskHandler.failDecisionCause)
+			assert.Equal(t, tc.wantFailMessage, taskHandler.failMessage)
+			assert.Equal(t, tc.wantStopProcessing, taskHandler.stopProcessing)
+		})
+	}
+}
+
+func TestHandleDecisionReleaseSemaphore(t *testing.T) {
+	domainInfo := constants.TestLocalDomainEntry.GetInfo()
+
+	tests := []struct {
+		name               string
+		disabled           bool
+		attr               *types.ReleaseSemaphoreDecisionAttributes
+		expectMockCalls    func(ms *execution.MockMutableState)
+		wantErr            error
+		wantFailCause      *types.DecisionTaskFailedCause
+		wantFailMessage    *string
+		wantStopProcessing bool
+	}{
+		{
+			name:     "semaphores disabled for the domain: the request is rejected before attributes are checked",
+			disabled: true,
+			attr:     &types.ReleaseSemaphoreDecisionAttributes{},
+			wantErr: &types.BadRequestError{Message: fmt.Sprintf(
+				"Semaphores are not enabled for domain %q. Set dynamic config system.enableDistributedSemaphore=true for this domain to enable them.",
+				domainInfo.Name,
+			)},
+		},
+		{
+			name:               "attributes not set: the decision fails",
+			wantFailCause:      types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes.Ptr(),
+			wantFailMessage:    common.StringPtr("ReleaseSemaphoreDecisionAttributes is not set on decision."),
+			wantStopProcessing: true,
+		},
+		{
+			name:               "initiated event id not set: the decision fails",
+			attr:               &types.ReleaseSemaphoreDecisionAttributes{},
+			wantFailCause:      types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes.Ptr(),
+			wantFailMessage:    common.StringPtr("Invalid InitiatedEventID: 0"),
+			wantStopProcessing: true,
+		},
+		{
+			name: "run has the hold: the release is recorded",
+			attr: &types.ReleaseSemaphoreDecisionAttributes{InitiatedEventID: 5},
+			expectMockCalls: func(ms *execution.MockMutableState) {
+				ms.EXPECT().AddSemaphoreReleasedEvent(testTaskCompletedID, int64(5)).Return(&types.HistoryEvent{}, nil)
+			},
+		},
+		{
+			name: "recording the release fails: the error is returned",
+			attr: &types.ReleaseSemaphoreDecisionAttributes{InitiatedEventID: 5},
+			expectMockCalls: func(ms *execution.MockMutableState) {
+				ms.EXPECT().AddSemaphoreReleasedEvent(testTaskCompletedID, int64(5)).Return(nil, execution.ErrWorkflowFinished)
+			},
+			wantErr: execution.ErrWorkflowFinished,
+		},
+		{
+			name: "run has no hold started by that event: the decision fails",
+			attr: &types.ReleaseSemaphoreDecisionAttributes{InitiatedEventID: 5},
+			expectMockCalls: func(ms *execution.MockMutableState) {
+				ms.EXPECT().AddSemaphoreReleasedEvent(testTaskCompletedID, int64(5)).
+					Return(nil, &types.BadRequestError{Message: "invalid history builder state for action"})
+			},
+			wantFailCause:      types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes.Ptr(),
+			wantFailMessage:    common.StringPtr("Run has no semaphore hold started by event 5."),
+			wantStopProcessing: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			taskHandler := newTaskHandlerForTest(t)
+			taskHandler.config.EnableDistributedSemaphore = func(string) bool { return !tc.disabled }
+			if tc.expectMockCalls != nil {
+				tc.expectMockCalls(taskHandler.mutableState.(*execution.MockMutableState))
+			}
+
+			err := taskHandler.handleDecision(context.Background(), &types.Decision{
+				DecisionType:                       types.DecisionTypeReleaseSemaphore.Ptr(),
+				ReleaseSemaphoreDecisionAttributes: tc.attr,
 			})
 
 			assert.Equal(t, tc.wantErr, err)

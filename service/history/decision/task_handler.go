@@ -212,6 +212,9 @@ func (handler *taskHandlerImpl) handleDecision(
 	case types.DecisionTypeAcquireSemaphore:
 		return handler.handleDecisionAcquireSemaphore(ctx, decision.AcquireSemaphoreDecisionAttributes)
 
+	case types.DecisionTypeReleaseSemaphore:
+		return handler.handleDecisionReleaseSemaphore(ctx, decision.ReleaseSemaphoreDecisionAttributes)
+
 	default:
 		return &types.BadRequestError{Message: fmt.Sprintf("Unknown decision type: %v", decision.GetDecisionType())}
 	}
@@ -1106,9 +1109,58 @@ func (handler *taskHandlerImpl) handleDecisionAcquireSemaphore(
 	case nil:
 		return nil
 	case *types.BadRequestError:
+		// A run holds or waits for at most one semaphore at a time, so a second acquire fails the
+		// decision. Clients are expected to refuse it first.
 		return handler.handlerFailDecision(
 			types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes,
-			fmt.Sprintf("Run already holds or is waiting for semaphore %q.", attr.GetSemaphoreName()),
+			fmt.Sprintf("Run already holds or is waiting for a semaphore, so it cannot acquire semaphore %q.", attr.GetSemaphoreName()),
+		)
+	default:
+		return err
+	}
+}
+
+func (handler *taskHandlerImpl) handleDecisionReleaseSemaphore(
+	ctx context.Context,
+	attr *types.ReleaseSemaphoreDecisionAttributes,
+) error {
+
+	handler.metricsClient.IncCounter(
+		metrics.HistoryRespondDecisionTaskCompletedScope,
+		metrics.DecisionTypeReleaseSemaphoreCounter,
+	)
+
+	// Semaphores are off for this domain: reject without recording anything.
+	domainName := handler.domainEntry.GetInfo().Name
+	if !handler.config.EnableDistributedSemaphore(domainName) {
+		return &types.BadRequestError{Message: fmt.Sprintf(
+			"Semaphores are not enabled for domain %q. Set dynamic config system.enableDistributedSemaphore=true for this domain to enable them.",
+			domainName,
+		)}
+	}
+
+	if err := handler.validateDecisionAttr(
+		func() error {
+			return handler.attrValidator.validateReleaseSemaphoreAttributes(attr)
+		},
+		types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes,
+	); err != nil || handler.stopProcessing {
+		return err
+	}
+
+	_, err := handler.mutableState.AddSemaphoreReleasedEvent(
+		handler.decisionTaskCompletedID,
+		attr.GetInitiatedEventID(),
+	)
+	switch err.(type) {
+	case nil:
+		return nil
+	case *types.BadRequestError:
+		// A duplicate release, or one with no matching hold, fails the decision.
+		// Clients are expected to skip duplicates first.
+		return handler.handlerFailDecision(
+			types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes,
+			fmt.Sprintf("Run has no semaphore hold started by event %d.", attr.GetInitiatedEventID()),
 		)
 	default:
 		return err

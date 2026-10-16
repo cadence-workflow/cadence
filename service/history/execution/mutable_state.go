@@ -92,6 +92,7 @@ type (
 		AddRequestCancelExternalWorkflowExecutionInitiatedEvent(int64, string, *types.RequestCancelExternalWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.RequestCancelInfo, error)
 		AddSemaphoreAcquireInitiatedEvent(int64, string, int32) (*types.HistoryEvent, *persistence.SemaphoreInfo, error)
 		AddSemaphoreAcquiredEvent(int64, int32) (*types.HistoryEvent, error)
+		AddSemaphoreReleasedEvent(int64, int64) (*types.HistoryEvent, error)
 		AddSignalExternalWorkflowExecutionFailedEvent(int64, int64, string, string, string, []uint8, types.SignalExternalWorkflowExecutionFailedCause) (*types.HistoryEvent, error)
 		AddSignalExternalWorkflowExecutionInitiatedEvent(int64, string, *types.SignalExternalWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.SignalInfo, error)
 		AddSignalRequested(requestID string)

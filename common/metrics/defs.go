@@ -2770,6 +2770,7 @@ const (
 	DecisionTypeSignalExternalWorkflowCounter
 	DecisionTypeUpsertWorkflowSearchAttributesCounter
 	DecisionTypeAcquireSemaphoreCounter
+	DecisionTypeReleaseSemaphoreCounter
 	EmptyCompletionDecisionsCounter
 	MultipleCompletionDecisionsCounter
 	FailedDecisionsCounter
@@ -3772,6 +3773,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		DecisionTypeSignalExternalWorkflowCounter:                     {metricName: "signal_external_workflow_decision", metricType: Counter},
 		DecisionTypeUpsertWorkflowSearchAttributesCounter:             {metricName: "upsert_workflow_search_attributes_decision", metricType: Counter},
 		DecisionTypeAcquireSemaphoreCounter:                           {metricName: "acquire_semaphore_decision", metricType: Counter},
+		DecisionTypeReleaseSemaphoreCounter:                           {metricName: "release_semaphore_decision", metricType: Counter},
 		DecisionTypeChildWorkflowCounter:                              {metricName: "child_workflow_decision", metricType: Counter},
 		EmptyCompletionDecisionsCounter:                               {metricName: "empty_completion_decisions", metricType: Counter},
 		MultipleCompletionDecisionsCounter:                            {metricName: "multiple_completion_decisions", metricType: Counter},

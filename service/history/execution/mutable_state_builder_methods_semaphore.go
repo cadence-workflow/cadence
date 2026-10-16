@@ -51,8 +51,7 @@ func (e *mutableStateBuilder) UpsertSemaphoreInfo(
 	e.updateSemaphoreInfos[info.InitiatedID] = info
 }
 
-// DeleteSemaphoreInfo removes the record of the hold started by initiatedEventID. It does not
-// touch the semaphore's definition or release the slot in Matching.
+// DeleteSemaphoreInfo removes the hold started by initiatedEventID.
 func (e *mutableStateBuilder) DeleteSemaphoreInfo(
 	initiatedEventID int64,
 ) error {
@@ -74,7 +73,7 @@ func (e *mutableStateBuilder) DeleteSemaphoreInfo(
 }
 
 // AddSemaphoreAcquireInitiatedEvent records an acquire and starts its hold with no token yet.
-// It refuses a semaphore the run already holds or is waiting for. waitTimeoutSeconds must be positive.
+// It refuses the acquire if the run already has a hold.
 func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 	decisionCompletedEventID int64,
 	semaphoreName string,
@@ -86,7 +85,8 @@ func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 		return nil, nil, err
 	}
 
-	if _, ok := e.GetSemaphoreInfoByName(semaphoreName); ok {
+	// Only the active side checks this. Replicate must accept whatever the active side recorded.
+	if len(e.pendingSemaphoreInfoIDs) > 0 {
 		e.logWarn(mutableStateInvalidHistoryActionMsg, opTag,
 			tag.WorkflowEventID(e.GetNextEventID()),
 			tag.ErrorTypeInvalidHistoryAction,
@@ -182,6 +182,33 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquiredEvent(
 	e.UpsertSemaphoreInfo(semaphoreInfo)
 
 	return nil
+}
+
+// AddSemaphoreReleasedEvent releases the hold started by initiatedEventID. It refuses a missing hold.
+func (e *mutableStateBuilder) AddSemaphoreReleasedEvent(
+	decisionCompletedEventID int64,
+	initiatedEventID int64,
+) (*types.HistoryEvent, error) {
+
+	opTag := tag.WorkflowActionSemaphoreReleased
+	if err := e.checkMutability(opTag); err != nil {
+		return nil, err
+	}
+
+	semaphoreInfo, ok := e.GetSemaphoreInfo(initiatedEventID)
+	if !ok {
+		e.logWarn(mutableStateInvalidHistoryActionMsg, opTag,
+			tag.WorkflowEventID(e.GetNextEventID()),
+			tag.ErrorTypeInvalidHistoryAction,
+			tag.WorkflowInitiatedID(initiatedEventID))
+		return nil, e.createCallerError(opTag)
+	}
+
+	event := e.hBuilder.AddSemaphoreReleasedEvent(decisionCompletedEventID, initiatedEventID, int32(semaphoreInfo.TokenID))
+	if err := e.ReplicateSemaphoreReleasedEvent(event); err != nil {
+		return nil, err
+	}
+	return event, nil
 }
 
 // ReplicateSemaphoreReleasedEvent ends the hold the released token belonged to.

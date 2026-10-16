@@ -190,15 +190,57 @@ func Test__AddSemaphoreAcquireInitiatedEvent(t *testing.T) {
 		assert.Len(t, mb.pendingSemaphoreInfoIDs, 1)
 		assert.Equal(t, int64(5), mb.GetNextEventID(), "no event is written")
 	})
-	t.Run("a run holding a different semaphore can acquire this one", func(t *testing.T) {
+	t.Run("a run holding a different semaphore cannot acquire this one", func(t *testing.T) {
 		mb := testSemaphoreMutableStateBuilder(t)
 		other := testSemaphoreInfo(2)
 		other.SemaphoreName = "other-semaphore"
 		mb.pendingSemaphoreInfoIDs[2] = other
+		_, _, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
+		assert.IsType(t, &types.BadRequestError{}, err)
+		assert.Len(t, mb.pendingSemaphoreInfoIDs, 1)
+		assert.Equal(t, int64(5), mb.GetNextEventID(), "no event is written")
+	})
+	t.Run("a run waiting for a different semaphore cannot acquire this one", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+		other := testSemaphoreInfo(2)
+		other.SemaphoreName = "other-semaphore"
+		other.TokenID = 0
+		mb.pendingSemaphoreInfoIDs[2] = other
+		_, _, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
+		assert.IsType(t, &types.BadRequestError{}, err)
+		assert.Len(t, mb.pendingSemaphoreInfoIDs, 1)
+		assert.Equal(t, int64(5), mb.GetNextEventID(), "no event is written")
+	})
+	t.Run("a run that released its hold in the same decision can acquire another semaphore", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+		other := testSemaphoreInfo(2)
+		other.SemaphoreName = "other-semaphore"
+		mb.pendingSemaphoreInfoIDs[2] = other
+		_, err := mb.AddSemaphoreReleasedEvent(4, 2)
+		require.NoError(t, err)
+
 		_, semaphoreInfo, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
 		require.NoError(t, err)
-		assert.Equal(t, semaphoreInfo, mb.pendingSemaphoreInfoIDs[5])
+		assert.Equal(t, map[int64]*persistence.SemaphoreInfo{semaphoreInfo.InitiatedID: semaphoreInfo}, mb.pendingSemaphoreInfoIDs)
 	})
+}
+
+func Test__ReplicateSemaphoreAcquireInitiatedEvent_AcceptsSecondHold(t *testing.T) {
+	mb := testSemaphoreMutableStateBuilder(t)
+	mb.pendingSemaphoreInfoIDs[2] = testSemaphoreInfo(2)
+
+	_, err := mb.ReplicateSemaphoreAcquireInitiatedEvent(&types.HistoryEvent{
+		ID:        5,
+		Timestamp: common.Int64Ptr(time.Unix(1700000000, 0).UnixNano()),
+		EventType: types.EventTypeSemaphoreAcquireInitiated.Ptr(),
+		SemaphoreAcquireInitiatedEventAttributes: &types.SemaphoreAcquireInitiatedEventAttributes{
+			SemaphoreName:      "other-semaphore",
+			WaitTimeoutSeconds: common.Int32Ptr(30),
+		},
+	})
+
+	require.NoError(t, err, "replication accepts whatever the active side recorded")
+	assert.Len(t, mb.pendingSemaphoreInfoIDs, 2)
 }
 
 func Test__ReplicateSemaphoreAcquireInitiatedEvent(t *testing.T) {
@@ -344,16 +386,18 @@ func Test__SemaphoreEventsReplayToTheSameHolds(t *testing.T) {
 	original := testSemaphoreMutableStateBuilder(t)
 	acquireAEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(4, "sem-a", 30)
 	require.NoError(t, err)
-	acquireBEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(4, "sem-b", 60)
-	require.NoError(t, err)
 	_, err = original.AddSemaphoreAcquiredEvent(acquireAEvent.ID, 3)
 	require.NoError(t, err)
 	// acquireA is granted again with a new token, as after a failover.
 	_, err = original.AddSemaphoreAcquiredEvent(acquireAEvent.ID, 8)
 	require.NoError(t, err)
-	// acquireB is never granted, so it is still waiting.
 	// Grant events are buffered until the transaction closes, which flushes them and gives them IDs.
 	require.NoError(t, original.FlushBufferedEvents())
+	// A later decision releases sem-a and acquires sem-b, which is never granted, so it is still waiting.
+	_, err = original.AddSemaphoreReleasedEvent(10, acquireAEvent.ID)
+	require.NoError(t, err)
+	acquireBEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(10, "sem-b", 60)
+	require.NoError(t, err)
 
 	rebuilt := testSemaphoreMutableStateBuilder(t)
 	// Replay runs later than the original write, so a hold that reads the clock would differ.
@@ -365,10 +409,71 @@ func Test__SemaphoreEventsReplayToTheSameHolds(t *testing.T) {
 		info.DomainID, "request-id", types.WorkflowExecution{WorkflowID: info.WorkflowID, RunID: info.RunID}, original.hBuilder.history, nil)
 	require.NoError(t, err)
 
-	assert.Len(t, original.pendingSemaphoreInfoIDs, 2)
-	assert.Equal(t, 8, original.pendingSemaphoreInfoIDs[acquireAEvent.ID].TokenID, "acquireA holds its latest token")
+	assert.Len(t, original.pendingSemaphoreInfoIDs, 1, "the released hold is gone")
 	assert.Equal(t, 0, original.pendingSemaphoreInfoIDs[acquireBEvent.ID].TokenID, "acquireB has no token yet")
 	assert.Equal(t, original.pendingSemaphoreInfoIDs, rebuilt.pendingSemaphoreInfoIDs)
+}
+
+// Tests which releases AddSemaphoreReleasedEvent records and which it refuses.
+func Test__AddSemaphoreReleasedEvent(t *testing.T) {
+	tests := []struct {
+		name              string
+		holdTokenID       *int // nil means no hold is recorded
+		workflowCompleted bool
+		wantErr           error
+	}{
+		{
+			name:        "a granted hold is released with its token",
+			holdTokenID: common.IntPtr(7),
+		},
+		{
+			name:        "a hold still waiting is released with no token",
+			holdTokenID: common.IntPtr(0),
+		},
+		{
+			name:    "a release with no matching hold is refused",
+			wantErr: &types.BadRequestError{Message: "invalid history builder state for action: add-semaphore-released-event"},
+		},
+		{
+			name:              "a completed run cannot release",
+			holdTokenID:       common.IntPtr(7),
+			workflowCompleted: true,
+			wantErr:           ErrWorkflowFinished,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mb := testSemaphoreMutableStateBuilder(t)
+			if tc.holdTokenID != nil {
+				hold := testSemaphoreInfo(2)
+				hold.TokenID = *tc.holdTokenID
+				mb.pendingSemaphoreInfoIDs[2] = hold
+			}
+			if tc.workflowCompleted {
+				mb.executionInfo.State = persistence.WorkflowStateCompleted
+			}
+
+			event, err := mb.AddSemaphoreReleasedEvent(4, 2)
+
+			if tc.wantErr != nil {
+				assert.Equal(t, tc.wantErr, err)
+				assert.Nil(t, event)
+				assert.Empty(t, mb.hBuilder.history, "a refused release writes no event")
+				assert.Empty(t, mb.deleteSemaphoreInfos, "a refused release deletes no hold")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, types.EventTypeSemaphoreReleased, event.GetEventType())
+			assert.Equal(t, &types.SemaphoreReleasedEventAttributes{
+				TokenID:                      int32(*tc.holdTokenID),
+				InitiatedEventID:             2,
+				DecisionTaskCompletedEventID: 4,
+			}, event.SemaphoreReleasedEventAttributes)
+			assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
+			assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
+		})
+	}
 }
 
 func Test__ReplicateSemaphoreReleasedEvent(t *testing.T) {
