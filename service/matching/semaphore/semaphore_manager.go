@@ -65,6 +65,9 @@ type semaphoreManagerImpl struct {
 	stopOnce sync.Once
 	// onStopFn unregisters this manager, so a stopped one is never handed out again.
 	onStopFn func(Manager)
+	// tokenRange is the token ids this bucket owns. Load sets it once before startup ends, so
+	// requests read it without mu.
+	tokenRange commonsemaphore.TokenRange
 
 	// mu guards every field below, and is never held across a persistence call.
 	mu sync.Mutex
@@ -188,7 +191,8 @@ func (m *semaphoreManagerImpl) awaitStartup(ctx context.Context) error {
 	return nil
 }
 
-// load builds the bucket's cache from the database and starts serving.
+// load reads the bucket's token range and builds its cache from the database, then starts
+// serving.
 func (m *semaphoreManagerImpl) load(ctx context.Context) error {
 	// Deferred, so startup ends however this returns and no caller is left waiting. Ending it
 	// any earlier would answer ErrNotReady for a bucket that is still loading.
@@ -196,12 +200,19 @@ func (m *semaphoreManagerImpl) load(ctx context.Context) error {
 
 	m.logger.Info("Semaphore manager starting", tag.LifeCycleStarting)
 
-	cache, err := m.buildCache(ctx)
+	tokenRange, err := m.readTokenRange(ctx)
 	if err != nil {
 		// Stop unregisters, so the next request builds a fresh manager and loads again.
 		m.Stop()
 		return fmt.Errorf("failed to load semaphore bucket %v: %w", m.id, err)
 	}
+	cache, err := m.buildCache(ctx, tokenRange)
+	if err != nil {
+		m.Stop()
+		return fmt.Errorf("failed to load semaphore bucket %v: %w", m.id, err)
+	}
+	// Counted before the cache is shared, so no bucket lock is needed.
+	freeTokens, heldTokens := cache.freeTokenCount(), cache.ownerCount()
 
 	m.mu.Lock()
 	if m.state == managerStateStopped {
@@ -210,6 +221,7 @@ func (m *semaphoreManagerImpl) load(ctx context.Context) error {
 		// result is already stale.
 		return fmt.Errorf("semaphore manager %v was stopped while it was loading: %w", m.id, ErrNotReady)
 	}
+	m.tokenRange = tokenRange
 	m.cache = cache
 	m.state = managerStateRunning
 	// Armed here, not earlier or later. Earlier, the idle clock would run during the scan, so a
@@ -220,24 +232,34 @@ func (m *semaphoreManagerImpl) load(ctx context.Context) error {
 
 	m.logger.Info("Semaphore manager started",
 		tag.LifeCycleStarted,
-		tag.Dynamic("free-tokens", cache.freeTokenCount()),
-		tag.Dynamic("held-tokens", cache.ownerCount()),
+		tag.Dynamic("free-tokens", freeTokens),
+		tag.Dynamic("held-tokens", heldTokens),
 	)
 	return nil
 }
 
-// buildCache reads the bucket's token range and rows from the database and returns a new cache
-// built from them. It does not touch the manager's state, so load sets the cache only if both
-// reads succeed.
-func (m *semaphoreManagerImpl) buildCache(ctx context.Context) (*bucketCache, error) {
+// readTokenRange reads the semaphore's metadata and returns the token ids this bucket owns.
+func (m *semaphoreManagerImpl) readTokenRange(ctx context.Context) (commonsemaphore.TokenRange, error) {
 	meta, err := m.db.getMetadata(ctx)
 	if err != nil {
-		return nil, err
+		return commonsemaphore.TokenRange{}, err
 	}
-	tokenRange, err := m.tokenRangeOf(meta)
+	tokenRange, err := commonsemaphore.BucketTokenRange(meta.Size, meta.BucketSize, m.id.Bucket)
+	if errors.Is(err, commonsemaphore.ErrBucketOutOfRange) {
+		return commonsemaphore.TokenRange{}, &types.BadRequestError{Message: fmt.Sprintf("semaphore bucket %v: %v", m.id, err)}
+	}
 	if err != nil {
-		return nil, err
+		// The stored size or bucket size is below 1, so the tokens cannot be split into buckets.
+		// CreateSemaphore never writes such values, so the metadata row is corrupt, not the
+		// request.
+		return commonsemaphore.TokenRange{}, &types.InternalServiceError{Message: fmt.Sprintf("semaphore metadata for domain %v, semaphore %v is invalid: %v", m.id.DomainID, m.id.SemaphoreName, err)}
 	}
+	return tokenRange, nil
+}
+
+// buildCache scans the bucket's rows in semaphore_tokens and builds a new cache for tokenRange
+// from them.
+func (m *semaphoreManagerImpl) buildCache(ctx context.Context, tokenRange commonsemaphore.TokenRange) (*bucketCache, error) {
 	rows, err := m.db.scanTokenRows(ctx)
 	if err != nil {
 		return nil, err
@@ -254,21 +276,6 @@ func (m *semaphoreManagerImpl) buildCache(ctx context.Context) (*bucketCache, er
 			tag.Dynamic("last-token", tokenRange.Last()))
 	}
 	return cache, nil
-}
-
-// tokenRangeOf returns the token ids this bucket owns, from the semaphore's size and bucket size.
-func (m *semaphoreManagerImpl) tokenRangeOf(meta *persistence.SemaphoreMetadata) (commonsemaphore.TokenRange, error) {
-	r, err := commonsemaphore.BucketTokenRange(meta.Size, meta.BucketSize, m.id.Bucket)
-	if err != nil {
-		if errors.Is(err, commonsemaphore.ErrBucketOutOfRange) {
-			return commonsemaphore.TokenRange{}, &types.BadRequestError{Message: fmt.Sprintf("semaphore bucket %v: %v", m.id, err)}
-		}
-		// The stored size or bucket size is below 1, so the tokens cannot be split into buckets.
-		// CreateSemaphore never writes such values, so the metadata row is corrupt, not the
-		// request.
-		return commonsemaphore.TokenRange{}, &types.InternalServiceError{Message: fmt.Sprintf("semaphore metadata for domain %v, semaphore %v is invalid: %v", m.id.DomainID, m.id.SemaphoreName, err)}
-	}
-	return r, nil
 }
 
 // Stop shuts the manager down: later acquires get ErrNotReady. A grant
@@ -344,58 +351,54 @@ func (m *semaphoreManagerImpl) enqueue(ctx context.Context, ownerID string) erro
 	return nil
 }
 
-// grant gets ownerID a token. If the cache records one for ownerID and its token row confirms it,
-// it returns that token; otherwise it grants a free one. The outcome is one of:
-//   - Acquired: TokenID is the owner's token, newly granted or already held. Both are answered the
-//     same way, so a retried acquire is safe.
-//   - NoSlot: no token was free, or every attempt was refused because another owner held it.
+// grant gets ownerID a token:
+//   - If ownerID already holds a token, it answers Acquired with that token, so a retried acquire
+//     gets the same answer.
+//   - Otherwise it grants a free token and answers Acquired with it, or NoSlot if none could be
+//     granted.
 func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (AcquireResult, error) {
 	cache := m.currentCache()
-	if tokenID, ok := cache.lookupHeldToken(ownerID); ok {
-		confirmed, err := m.confirmOwnerHoldsToken(ctx, cache, ownerID, tokenID)
-		if err != nil {
-			return AcquireResult{}, err
-		}
-		if confirmed {
-			return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: tokenID}, nil
-		}
+	heldTokenID, found, err := m.findHeldToken(ctx, cache, ownerID)
+	if err != nil {
+		return AcquireResult{}, err
+	}
+	if found {
+		return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: heldTokenID}, nil
 	}
 	return m.grantFreeToken(ctx, cache, ownerID)
 }
 
-// confirmOwnerHoldsToken reads tokenID's token row and reports whether ownerID still holds it. If
-// not, it updates the cache: the token is marked free if the row has no holder, and unavailable
-// otherwise.
-func (m *semaphoreManagerImpl) confirmOwnerHoldsToken(ctx context.Context, cache *bucketCache, ownerID string, tokenID int) (bool, error) {
-	row, found, err := m.db.getTokenRow(ctx, tokenID)
+// findHeldToken returns the token ownerID holds: it looks the token up in the cache and confirms
+// it in the database. found is false if the cache has no token for ownerID, or the database says
+// ownerID does not hold it.
+func (m *semaphoreManagerImpl) findHeldToken(ctx context.Context, cache *bucketCache, ownerID string) (tokenID int, found bool, err error) {
+	if err := cache.lock(ctx); err != nil {
+		return 0, false, err
+	}
+	defer cache.unlock()
+
+	tokenID, ok := cache.lookupHeldToken(ownerID)
+	if !ok {
+		return 0, false, nil
+	}
+	row, rowFound, err := m.db.getTokenRow(ctx, tokenID)
 	if err != nil {
-		return false, err
+		return 0, false, err
 	}
-	if !found {
-		// The cache cannot be confirmed: the token row is missing. This should not happen, since a
-		// grant writes it together with the owner row and nothing deletes it.
+	if !rowFound {
+		// This should not happen, since a grant writes the token row together with the owner row
+		// and nothing deletes it.
 		m.logger.Warn("Semaphore owner's token has no token row", tag.Dynamic("token-id", tokenID))
-		cache.markOwnerHeldTokenUnavailable(ownerID, tokenID)
-		return false, nil
 	}
-	switch row.Holder {
-	case ownerID:
-		// The cache is correct: ownerID still holds the token.
-		return true, nil
-	case "":
-		// The cache is stale: the token was released
-		cache.markOwnerHeldTokenFree(ownerID, tokenID)
-	default:
-		// The cache is stale: another owner holds the token now. It is marked unavailable, not
-		// free, until that owner's release frees it (releaseApplied).
-		cache.markOwnerHeldTokenUnavailable(ownerID, tokenID)
+	cache.updateFromTokenRow(ownerID, tokenID, row)
+	if !rowFound || row.Holder != ownerID {
+		return 0, false, nil
 	}
-	return false, nil
+	return tokenID, true, nil
 }
 
-// grantFreeToken grants ownerID a free token, up to maxGrantAttempts times:
-//   - Reserve a random free token and settle it with a conditional write
-//   - A write refused as taken costs an attempt, and a different token is reserved
+// grantFreeToken grants ownerID a free token, up to maxGrantAttempts times. A write refused because
+// another owner holds the token costs an attempt, and a different token is tried.
 func (m *semaphoreManagerImpl) grantFreeToken(ctx context.Context, cache *bucketCache, ownerID string) (AcquireResult, error) {
 	for range maxGrantAttempts {
 		// Stop if the caller gave up. Otherwise the write fails with a persistence.TimeoutError,
@@ -404,56 +407,68 @@ func (m *semaphoreManagerImpl) grantFreeToken(ctx context.Context, cache *bucket
 			return AcquireResult{}, err
 		}
 
-		tokenID, ok := cache.reserveFreeToken()
-		if !ok {
-			break
+		res, taken, err := m.grantRandomFreeToken(ctx, cache, ownerID)
+		if err != nil || !taken {
+			return res, err
 		}
-		// This should not happen, since the cache only holds tokens in the range. It is checked
-		// anyway because a grant on a token with no row creates the row, so a token outside the
-		// range would let one more owner in than the semaphore's size allows.
-		if !cache.tokenRange.Contains(tokenID) {
-			m.logger.Error("Semaphore grant reserved a token this bucket does not own",
-				tag.Dynamic("token-id", tokenID),
-				tag.Dynamic("first-token", cache.tokenRange.First),
-				tag.Dynamic("last-token", cache.tokenRange.Last()))
-			return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("token %d is outside the range of bucket %v", tokenID, m.id)}
-		}
-
-		resp, err := m.db.grantToken(ctx, tokenID, ownerID)
-		if err != nil {
-			// The write may or may not have landed. Free the token if it is still reserved; if the
-			// write did land, the next grant on it is refused and marks it unavailable.
-			cache.grantFailed(tokenID)
-			return AcquireResult{}, err
-		}
-
-		switch resp.Outcome {
-		case persistence.SemaphoreGrantApplied:
-			cache.grantApplied(ownerID, tokenID)
-			return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: tokenID}, nil
-
-		case persistence.SemaphoreGrantSlotTaken:
-			cache.grantTaken(tokenID)
-			continue
-
-		case persistence.SemaphoreGrantAlreadyHeld:
-			// The owner already holds a token. Free the reserved token if it is still reserved, and
-			// answer with the token the owner holds.
-			if err := cache.grantAlreadyHeld(ownerID, tokenID, resp.HeldToken); err != nil {
-				// The owner row names a token this bucket does not own, or no token at all, so it
-				// is corrupt. Answering Acquired would hand out a token outside the bucket. Every
-				// acquire for this owner fails this way until the owner row is fixed.
-				return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("grant reported AlreadyHeld with an invalid token for bucket %v: %v", m.id, err)}
-			}
-			return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: resp.HeldToken}, nil
-
-		default:
-			// Unreachable through the nosql store, which rejects unknown outcomes itself,
-			// but that is one store's guarantee, not the interface's, so check anyway. An
-			// outcome we cannot read says nothing about the token, so it goes back.
-			cache.grantFailed(tokenID)
-			return AcquireResult{}, &types.InternalServiceError{Message: fmt.Sprintf("unexpected grant outcome %v for bucket %v", resp.Outcome, m.id)}
-		}
+		// Another owner holds the token. Try a different one.
 	}
 	return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeNoSlot}, nil
+}
+
+// grantRandomFreeToken picks a random free token and writes its grant, holding the bucket lock for
+// the pick, the write and the record. It answers NoSlot if no token is free. taken is true if
+// another owner holds the token, so the caller can try another one.
+func (m *semaphoreManagerImpl) grantRandomFreeToken(ctx context.Context, cache *bucketCache, ownerID string) (res AcquireResult, taken bool, err error) {
+	if err := cache.lock(ctx); err != nil {
+		return AcquireResult{}, false, err
+	}
+	defer cache.unlock()
+
+	tokenID, ok := cache.pickFreeToken()
+	if !ok {
+		return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeNoSlot}, false, nil
+	}
+
+	// This should not happen, since the cache only holds tokens in the range. It is checked anyway
+	// because a grant on a token with no row creates the row, so a token outside the range would
+	// let one more owner in than the semaphore's size allows.
+	if !m.tokenRange.Contains(tokenID) {
+		m.logger.Error("Semaphore grant picked a token this bucket does not own",
+			tag.Dynamic("token-id", tokenID),
+			tag.Dynamic("first-token", m.tokenRange.First),
+			tag.Dynamic("last-token", m.tokenRange.Last()))
+		return AcquireResult{}, false, &types.InternalServiceError{Message: fmt.Sprintf("token %d is outside the range of bucket %v", tokenID, m.id)}
+	}
+
+	resp, err := m.db.grantToken(ctx, tokenID, ownerID)
+	if err != nil {
+		// Nothing is recorded, so tokenID stays free. If the write did land, the database refuses
+		// the next grant on it and the cache marks it unavailable.
+		return AcquireResult{}, false, err
+	}
+	recordErr := cache.recordGrantResult(ownerID, tokenID, resp)
+
+	switch resp.Outcome {
+	case persistence.SemaphoreGrantApplied:
+		return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: tokenID}, false, nil
+
+	case persistence.SemaphoreGrantSlotTaken:
+		return AcquireResult{}, true, nil
+
+	case persistence.SemaphoreGrantAlreadyHeld:
+		// The owner already holds a token, so answer with it.
+		if recordErr != nil {
+			// The owner row names a token this bucket does not own, or no token at all, so it is
+			// corrupt. Answering Acquired would hand out a token outside the bucket. Every acquire
+			// for this owner fails this way until the owner row is fixed.
+			return AcquireResult{}, false, &types.InternalServiceError{Message: fmt.Sprintf("grant reported AlreadyHeld with an invalid token for bucket %v: %v", m.id, recordErr)}
+		}
+		return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: resp.HeldToken}, false, nil
+
+	default:
+		// Unreachable through the nosql store, which rejects unknown outcomes itself, but that is
+		// one store's guarantee, not the interface's, so check anyway.
+		return AcquireResult{}, false, &types.InternalServiceError{Message: fmt.Sprintf("unexpected grant outcome %v for bucket %v", resp.Outcome, m.id)}
+	}
 }

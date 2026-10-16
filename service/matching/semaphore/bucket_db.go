@@ -54,6 +54,9 @@ func (db *bucketDB) scanTokenRows(ctx context.Context) ([]*persistence.Semaphore
 		if err != nil {
 			return nil, err
 		}
+		if resp == nil {
+			return nil, &types.InternalServiceError{Message: fmt.Sprintf("no scan response returned for bucket %v", db.id)}
+		}
 		rows = append(rows, resp.Ownerships...)
 
 		pageToken = resp.NextPageToken
@@ -64,15 +67,23 @@ func (db *bucketDB) scanTokenRows(ctx context.Context) ([]*persistence.Semaphore
 }
 
 // grantToken gives tokenID to ownerID with the conditional write to semaphore_tokens. A write
-// that does not apply comes back as an outcome, not an error.
+// that does not apply comes back as an outcome, not an error. When err is nil, the response is
+// never nil.
 func (db *bucketDB) grantToken(ctx context.Context, tokenID int, ownerID string) (*persistence.GrantSemaphoreTokenResponse, error) {
-	return db.tokens.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
+	resp, err := db.tokens.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
 		DomainID:      db.id.DomainID,
 		SemaphoreName: db.id.SemaphoreName,
 		Bucket:        db.id.Bucket,
 		TokenID:       tokenID,
 		OwnerID:       ownerID,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("no grant response returned for token %d of bucket %v", tokenID, db.id)}
+	}
+	return resp, nil
 }
 
 // getTokenRow reads tokenID's token row from semaphore_tokens. found is false when the token has

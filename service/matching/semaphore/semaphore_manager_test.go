@@ -163,11 +163,14 @@ func freeTokenCount(mgr *semaphoreManagerImpl) int {
 	return mgr.currentCache().freeTokenCount()
 }
 
-// assertNoReservedTokens checks that grant settled every token it reserved. A token left reserved
-// is never offered again until the bucket reloads.
-func assertNoReservedTokens(t *testing.T, mgr *semaphoreManagerImpl) {
+// assertBucketUnlocked checks that no grant still holds mgr's bucket lock. A lock left held makes
+// every later call on the bucket wait until its deadline.
+func assertBucketUnlocked(t *testing.T, mgr *semaphoreManagerImpl) {
 	t.Helper()
-	assert.Empty(t, tokensInState(mgr.currentCache(), tokenReserved), "every reserved token must be settled when grant returns")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, mgr.currentCache().lock(ctx), "the bucket lock is still held")
+	mgr.currentCache().unlock()
 }
 
 func TestNewManagerValidatesItsParams(t *testing.T) {
@@ -298,6 +301,13 @@ func TestManagerLifecycle_StartFails(t *testing.T) {
 					})
 			},
 			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, scanErr) },
+		},
+		{
+			name: "scan returns no response and no error",
+			scan: func(m *persistence.MockSemaphoreTokenManager) {
+				m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).Return(nil, nil)
+			},
+			assertErr: func(t *testing.T, err error) { assert.ErrorAs(t, err, new(*types.InternalServiceError)) },
 		},
 	}
 
@@ -675,7 +685,7 @@ func TestGrant_OneWrite(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 			assert.Equal(t, tc.wantFreeCount, freeTokenCount(mgr))
 			assert.Equal(t, wantOwners, copyTokenByOwner(mgr.currentCache()))
-			assertNoReservedTokens(t, mgr)
+			assertBucketUnlocked(t, mgr)
 			assertCacheConsistent(t, mgr.currentCache())
 		})
 	}
@@ -756,7 +766,7 @@ func TestGrant_RetriesAfterSlotTaken(t *testing.T) {
 			}
 			assert.Equal(t, tc.wantFree, freeTokenCount(mgr))
 			assert.Len(t, tokensInState(mgr.currentCache(), tokenUnavailable), tc.wantUnavailable)
-			assertNoReservedTokens(t, mgr)
+			assertBucketUnlocked(t, mgr)
 		})
 	}
 }
@@ -907,13 +917,11 @@ func TestGrant_RefusesATokenOutsideTheBucket(t *testing.T) {
 
 	// No cache method can make token 4 the only free token, so the cache is changed directly.
 	c := mgr.currentCache()
-	c.mu.Lock()
 	for i := range c.tokens {
 		c.tokens[i].state = tokenUnavailable
 	}
 	c.tokens = append(c.tokens, tokenEntry{state: tokenFree})
 	c.freeCount = 1
-	c.mu.Unlock()
 
 	got, err := mgr.grant(context.Background(), "owner-a")
 	require.IsType(t, &types.InternalServiceError{}, err)
@@ -953,5 +961,163 @@ func TestGrant_Concurrently(t *testing.T) {
 		seen[res.TokenID] = true
 	}
 	assert.Equal(t, 0, freeTokenCount(mgr))
-	assertNoReservedTokens(t, mgr)
+	assertBucketUnlocked(t, mgr)
+}
+
+// waitBriefly gives a goroutine time to reach a blocking call. Tests use it only to check that
+// something has not happened yet; a slow machine can make the check pass when it should fail, but
+// never fail when it should pass.
+func waitBriefly() { time.Sleep(20 * time.Millisecond) }
+
+// Tests that a grant holds the bucket lock across its database call, so a second grant on the bucket
+// waits until the first has recorded its answer.
+func TestGrant_WaitsForTheBucketLock(t *testing.T) {
+	t.Run("a second grant waits for the first grant's write", func(t *testing.T) {
+		m := persistence.NewMockSemaphoreTokenManager(gomock.NewController(t))
+		mgr := startManager(t, m, 2, nil)
+
+		// The first write closes entered, then waits until the test closes unblock.
+		entered := make(chan struct{})
+		unblock := make(chan struct{})
+		var mu sync.Mutex
+		var written []int
+		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(2).DoAndReturn(
+			func(ctx context.Context, req *persistence.GrantSemaphoreTokenRequest) (*persistence.GrantSemaphoreTokenResponse, error) {
+				mu.Lock()
+				written = append(written, req.TokenID)
+				first := len(written) == 1
+				mu.Unlock()
+				if first {
+					close(entered)
+					select {
+					case <-unblock:
+					case <-ctx.Done():
+					}
+				}
+				return &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil
+			})
+
+		// If the test fails before it closes unblock, the first write still returns at this deadline.
+		firstCtx, cancelFirst := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelFirst()
+		firstDone := make(chan AcquireResult, 1)
+		go func() {
+			res, err := mgr.grant(firstCtx, "owner-a")
+			assert.NoError(t, err)
+			firstDone <- res
+		}()
+		<-entered // the first write now holds the bucket lock
+		secondDone := make(chan AcquireResult, 1)
+		go func() {
+			res, err := mgr.grant(context.Background(), "owner-b")
+			assert.NoError(t, err)
+			secondDone <- res
+		}()
+		waitBriefly()
+		mu.Lock()
+		assert.Len(t, written, 1, "the second grant must not write while the first holds the bucket")
+		mu.Unlock()
+
+		close(unblock)
+		first, second := <-firstDone, <-secondDone
+		assert.NotEqual(t, first.TokenID, second.TokenID, "the second grant saw the first one's token as held")
+
+		cache := mgr.currentCache()
+		assert.Equal(t, map[string]int{"owner-a": first.TokenID, "owner-b": second.TokenID}, copyTokenByOwner(cache))
+		assertBucketUnlocked(t, mgr)
+		assertCacheConsistent(t, cache)
+	})
+
+	t.Run("a waiting grant gives up when its context ends", func(t *testing.T) {
+		m := persistence.NewMockSemaphoreTokenManager(gomock.NewController(t))
+		mgr := startManager(t, m, 2, nil)
+
+		// The first write closes entered, then waits until the test closes unblock.
+		entered := make(chan struct{})
+		unblock := make(chan struct{})
+		// Only the first grant writes: the mock fails the test if the second one writes too.
+		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+			func(ctx context.Context, _ *persistence.GrantSemaphoreTokenRequest) (*persistence.GrantSemaphoreTokenResponse, error) {
+				close(entered)
+				select {
+				case <-unblock:
+				case <-ctx.Done():
+				}
+				return &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil
+			})
+
+		// If the test fails before it closes unblock, the first write still returns at this deadline.
+		firstCtx, cancelFirst := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelFirst()
+		firstDone := make(chan error, 1)
+		go func() {
+			_, err := mgr.grant(firstCtx, "owner-a")
+			firstDone <- err
+		}()
+		<-entered // the first write now holds the bucket lock
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+		_, err := mgr.grant(ctx, "owner-b")
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+
+		close(unblock)
+		require.NoError(t, <-firstDone)
+		assertBucketUnlocked(t, mgr)
+		assertCacheConsistent(t, mgr.currentCache())
+	})
+
+	t.Run("two grants for one owner", func(t *testing.T) {
+		// The second grant waits for the first one's write, then finds owner-a's token in the
+		// cache, reads its row and answers the same token. Only one grant is written.
+		m := persistence.NewMockSemaphoreTokenManager(gomock.NewController(t))
+		mgr := startManager(t, m, 2, nil)
+
+		// The first write closes entered, then waits until the test closes unblock.
+		entered := make(chan struct{})
+		unblock := make(chan struct{})
+		var landed int
+		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+			func(ctx context.Context, req *persistence.GrantSemaphoreTokenRequest) (*persistence.GrantSemaphoreTokenResponse, error) {
+				landed = req.TokenID
+				close(entered)
+				select {
+				case <-unblock:
+				case <-ctx.Done():
+				}
+				return &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil
+			})
+		m.EXPECT().GetSemaphoreOwnershipByToken(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+			func(_ context.Context, req *persistence.GetSemaphoreOwnershipByTokenRequest) (*persistence.GetSemaphoreOwnershipByTokenResponse, error) {
+				return &persistence.GetSemaphoreOwnershipByTokenResponse{Ownership: tokenRow(req.TokenID, "owner-a")}, nil
+			})
+
+		// If the test fails before it closes unblock, the first write still returns at this deadline.
+		firstCtx, cancelFirst := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelFirst()
+		firstDone := make(chan AcquireResult, 1)
+		go func() {
+			res, err := mgr.grant(firstCtx, "owner-a")
+			assert.NoError(t, err)
+			firstDone <- res
+		}()
+		<-entered // the first write now holds the bucket lock
+		secondDone := make(chan AcquireResult, 1)
+		go func() {
+			res, err := mgr.grant(context.Background(), "owner-a")
+			assert.NoError(t, err)
+			secondDone <- res
+		}()
+		waitBriefly()
+		close(unblock)
+		first, second := <-firstDone, <-secondDone
+
+		assert.Equal(t, landed, first.TokenID)
+		assert.Equal(t, landed, second.TokenID)
+		cache := mgr.currentCache()
+		assert.Equal(t, map[string]int{"owner-a": landed}, copyTokenByOwner(cache))
+		assert.Equal(t, 1, freeTokenCount(mgr))
+		assertBucketUnlocked(t, mgr)
+		assertCacheConsistent(t, cache)
+	})
 }
