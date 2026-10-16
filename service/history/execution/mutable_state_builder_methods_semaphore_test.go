@@ -1,7 +1,6 @@
 package execution
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -191,80 +190,43 @@ func Test__AddSemaphoreAcquireInitiatedEvent(t *testing.T) {
 		assert.Len(t, mb.pendingSemaphoreInfoIDs, 1)
 		assert.Equal(t, int64(5), mb.GetNextEventID(), "no event is written")
 	})
-	t.Run("a run holding a different semaphore can acquire this one", func(t *testing.T) {
+	t.Run("a run holding a different semaphore cannot acquire this one", func(t *testing.T) {
 		mb := testSemaphoreMutableStateBuilder(t)
 		other := testSemaphoreInfo(2)
 		other.SemaphoreName = "other-semaphore"
 		mb.pendingSemaphoreInfoIDs[2] = other
+		_, _, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
+		assert.IsType(t, &types.BadRequestError{}, err)
+		assert.Len(t, mb.pendingSemaphoreInfoIDs, 1)
+		assert.Equal(t, int64(5), mb.GetNextEventID(), "no event is written")
+	})
+	t.Run("a run waiting for a different semaphore cannot acquire this one", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+		other := testSemaphoreInfo(2)
+		other.SemaphoreName = "other-semaphore"
+		other.TokenID = 0
+		mb.pendingSemaphoreInfoIDs[2] = other
+		_, _, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
+		assert.IsType(t, &types.BadRequestError{}, err)
+		assert.Len(t, mb.pendingSemaphoreInfoIDs, 1)
+		assert.Equal(t, int64(5), mb.GetNextEventID(), "no event is written")
+	})
+	t.Run("a run that released its hold in the same decision can acquire another semaphore", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+		other := testSemaphoreInfo(2)
+		other.SemaphoreName = "other-semaphore"
+		mb.pendingSemaphoreInfoIDs[2] = other
+		_, err := mb.AddSemaphoreReleasedEvent(4, 2)
+		require.NoError(t, err)
+
 		_, semaphoreInfo, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
 		require.NoError(t, err)
-		assert.Equal(t, semaphoreInfo, mb.pendingSemaphoreInfoIDs[5])
+		assert.Equal(t, map[int64]*persistence.SemaphoreInfo{semaphoreInfo.InitiatedID: semaphoreInfo}, mb.pendingSemaphoreInfoIDs)
 	})
 }
 
-func Test__AddSemaphoreAcquireInitiatedEvent_HoldLimit(t *testing.T) {
-	tests := []struct {
-		name            string
-		existingHolds   int
-		warningSent     bool
-		wantErr         error
-		wantWarningSent bool
-	}{
-		{
-			name:          "under the warn limit: the acquire is recorded",
-			existingHolds: 1,
-		},
-		{
-			name:            "at the warn limit: the acquire is recorded and the warning is marked sent",
-			existingHolds:   2,
-			wantWarningSent: true,
-		},
-		{
-			name:            "at the warn limit with the warning already sent: the acquire is recorded",
-			existingHolds:   2,
-			warningSent:     true,
-			wantWarningSent: true,
-		},
-		{
-			name:          "at the error limit: the acquire is refused",
-			existingHolds: 3,
-			wantErr:       ErrTooManyPendingSemaphores,
-		},
-		{
-			name:          "over the error limit: the acquire is refused",
-			existingHolds: 4,
-			wantErr:       ErrTooManyPendingSemaphores,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			mb := testSemaphoreMutableStateBuilder(t)
-			mb.config.PendingSemaphoresCountLimitWarn = func(string) int { return 2 }
-			mb.config.PendingSemaphoresCountLimitError = func(string) int { return 3 }
-			mb.pendingSemaphoreWarningSent = tc.warningSent
-			for i := 0; i < tc.existingHolds; i++ {
-				hold := testSemaphoreInfo(int64(i + 1))
-				hold.SemaphoreName = fmt.Sprintf("other-semaphore-%d", i)
-				mb.pendingSemaphoreInfoIDs[hold.InitiatedID] = hold
-			}
-
-			_, _, err := mb.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
-
-			assert.Equal(t, tc.wantErr, err)
-			assert.Equal(t, tc.wantWarningSent, mb.pendingSemaphoreWarningSent)
-			if tc.wantErr != nil {
-				assert.Len(t, mb.pendingSemaphoreInfoIDs, tc.existingHolds, "no hold is added")
-				assert.Equal(t, int64(5), mb.GetNextEventID(), "no event is written")
-			} else {
-				assert.Len(t, mb.pendingSemaphoreInfoIDs, tc.existingHolds+1)
-			}
-		})
-	}
-}
-
-func Test__ReplicateSemaphoreAcquireInitiatedEvent_IgnoresHoldLimit(t *testing.T) {
+func Test__ReplicateSemaphoreAcquireInitiatedEvent_AcceptsSecondHold(t *testing.T) {
 	mb := testSemaphoreMutableStateBuilder(t)
-	mb.config.PendingSemaphoresCountLimitError = func(string) int { return 1 }
 	mb.pendingSemaphoreInfoIDs[2] = testSemaphoreInfo(2)
 
 	_, err := mb.ReplicateSemaphoreAcquireInitiatedEvent(&types.HistoryEvent{
@@ -424,16 +386,18 @@ func Test__SemaphoreEventsReplayToTheSameHolds(t *testing.T) {
 	original := testSemaphoreMutableStateBuilder(t)
 	acquireAEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(4, "sem-a", 30)
 	require.NoError(t, err)
-	acquireBEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(4, "sem-b", 60)
-	require.NoError(t, err)
 	_, err = original.AddSemaphoreAcquiredEvent(acquireAEvent.ID, 3)
 	require.NoError(t, err)
 	// acquireA is granted again with a new token, as after a failover.
 	_, err = original.AddSemaphoreAcquiredEvent(acquireAEvent.ID, 8)
 	require.NoError(t, err)
-	// acquireB is never granted, so it is still waiting.
 	// Grant events are buffered until the transaction closes, which flushes them and gives them IDs.
 	require.NoError(t, original.FlushBufferedEvents())
+	// A later decision releases sem-a and acquires sem-b, which is never granted, so it is still waiting.
+	_, err = original.AddSemaphoreReleasedEvent(10, acquireAEvent.ID)
+	require.NoError(t, err)
+	acquireBEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(10, "sem-b", 60)
+	require.NoError(t, err)
 
 	rebuilt := testSemaphoreMutableStateBuilder(t)
 	// Replay runs later than the original write, so a hold that reads the clock would differ.
@@ -445,8 +409,7 @@ func Test__SemaphoreEventsReplayToTheSameHolds(t *testing.T) {
 		info.DomainID, "request-id", types.WorkflowExecution{WorkflowID: info.WorkflowID, RunID: info.RunID}, original.hBuilder.history, nil)
 	require.NoError(t, err)
 
-	assert.Len(t, original.pendingSemaphoreInfoIDs, 2)
-	assert.Equal(t, 8, original.pendingSemaphoreInfoIDs[acquireAEvent.ID].TokenID, "acquireA holds its latest token")
+	assert.Len(t, original.pendingSemaphoreInfoIDs, 1, "the released hold is gone")
 	assert.Equal(t, 0, original.pendingSemaphoreInfoIDs[acquireBEvent.ID].TokenID, "acquireB has no token yet")
 	assert.Equal(t, original.pendingSemaphoreInfoIDs, rebuilt.pendingSemaphoreInfoIDs)
 }
@@ -454,10 +417,10 @@ func Test__SemaphoreEventsReplayToTheSameHolds(t *testing.T) {
 // Tests which releases AddSemaphoreReleasedEvent records and which it refuses.
 func Test__AddSemaphoreReleasedEvent(t *testing.T) {
 	tests := []struct {
-		name        string
-		holdTokenID *int // nil means no hold is recorded
-		finished    bool
-		wantErr     error
+		name              string
+		holdTokenID       *int // nil means no hold is recorded
+		workflowCompleted bool
+		wantErr           error
 	}{
 		{
 			name:        "a granted hold is released with its token",
@@ -472,10 +435,10 @@ func Test__AddSemaphoreReleasedEvent(t *testing.T) {
 			wantErr: &types.BadRequestError{Message: "invalid history builder state for action: add-semaphore-released-event"},
 		},
 		{
-			name:        "a closed run cannot release",
-			holdTokenID: common.IntPtr(7),
-			finished:    true,
-			wantErr:     ErrWorkflowFinished,
+			name:              "a completed run cannot release",
+			holdTokenID:       common.IntPtr(7),
+			workflowCompleted: true,
+			wantErr:           ErrWorkflowFinished,
 		},
 	}
 
@@ -487,7 +450,7 @@ func Test__AddSemaphoreReleasedEvent(t *testing.T) {
 				hold.TokenID = *tc.holdTokenID
 				mb.pendingSemaphoreInfoIDs[2] = hold
 			}
-			if tc.finished {
+			if tc.workflowCompleted {
 				mb.executionInfo.State = persistence.WorkflowStateCompleted
 			}
 

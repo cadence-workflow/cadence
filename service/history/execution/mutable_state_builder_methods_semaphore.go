@@ -73,8 +73,7 @@ func (e *mutableStateBuilder) DeleteSemaphoreInfo(
 }
 
 // AddSemaphoreAcquireInitiatedEvent records an acquire and starts its hold with no token yet.
-// It refuses a semaphore the run already holds or is waiting for, or a run at its hold limit.
-// waitTimeoutSeconds must be positive.
+// It refuses the acquire if the run already has a hold.
 func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 	decisionCompletedEventID int64,
 	semaphoreName string,
@@ -86,31 +85,13 @@ func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 		return nil, nil, err
 	}
 
-	if _, ok := e.GetSemaphoreInfoByName(semaphoreName); ok {
+	// Only the active side checks this. Replicate must accept whatever the active side recorded.
+	if len(e.pendingSemaphoreInfoIDs) > 0 {
 		e.logWarn(mutableStateInvalidHistoryActionMsg, opTag,
 			tag.WorkflowEventID(e.GetNextEventID()),
 			tag.ErrorTypeInvalidHistoryAction,
 			tag.SemaphoreName(semaphoreName))
 		return nil, nil, e.createCallerError(opTag)
-	}
-
-	// Only the active side checks the limit. Replicate must accept whatever the active side recorded.
-	domainName := e.GetDomainEntry().GetInfo().Name
-	pendingSemaphoresCount := len(e.pendingSemaphoreInfoIDs)
-	if pendingSemaphoresCount >= e.config.PendingSemaphoresCountLimitError(domainName) {
-		e.logger.Error("Pending semaphore count exceeds error limit",
-			tag.WorkflowDomainName(domainName),
-			tag.WorkflowID(e.executionInfo.WorkflowID),
-			tag.WorkflowRunID(e.executionInfo.RunID),
-			tag.Number(int64(pendingSemaphoresCount)))
-		return nil, nil, ErrTooManyPendingSemaphores
-	} else if pendingSemaphoresCount >= e.config.PendingSemaphoresCountLimitWarn(domainName) && !e.pendingSemaphoreWarningSent {
-		e.logger.Warn("Pending semaphore count exceeds warn limit",
-			tag.WorkflowDomainName(domainName),
-			tag.WorkflowID(e.executionInfo.WorkflowID),
-			tag.WorkflowRunID(e.executionInfo.RunID),
-			tag.Number(int64(pendingSemaphoresCount)))
-		e.pendingSemaphoreWarningSent = true
 	}
 
 	event := e.hBuilder.AddSemaphoreAcquireInitiatedEvent(decisionCompletedEventID, semaphoreName, waitTimeoutSeconds)

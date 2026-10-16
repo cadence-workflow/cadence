@@ -113,8 +113,6 @@ const (
 	FailureReasonPendingActivityExceedsLimit = "PENDING_ACTIVITY_EXCEEDS_LIMIT"
 	// FailureReasonSemaphoreNotFound is reason to fail workflow when it acquires a semaphore that does not exist
 	FailureReasonSemaphoreNotFound = "SEMAPHORE_NOT_FOUND"
-	// FailureReasonPendingSemaphoreExceedsLimit is reason to fail workflow when its semaphore holds exceed the limit
-	FailureReasonPendingSemaphoreExceedsLimit = "PENDING_SEMAPHORE_EXCEEDS_LIMIT"
 )
 
 var (

@@ -780,10 +780,6 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 		Reason:  common.StringPtr(common.FailureReasonSemaphoreNotFound),
 		Details: []byte(fmt.Sprintf("semaphore %q does not exist in domain %q", "my-semaphore", domainInfo.Name)),
 	}
-	tooManyAttr := &types.FailWorkflowExecutionDecisionAttributes{
-		Reason:  common.StringPtr(common.FailureReasonPendingSemaphoreExceedsLimit),
-		Details: []byte(execution.ErrTooManyPendingSemaphores.Error()),
-	}
 
 	tests := []struct {
 		name               string
@@ -905,7 +901,7 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 			wantErr: execution.ErrWorkflowFinished,
 		},
 		{
-			name: "run already holds or is waiting for the semaphore: the decision fails",
+			name: "run already holds or is waiting for a semaphore: the decision fails",
 			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
 			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
 				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(&persistence.GetSemaphoreResponse{}, nil)
@@ -913,18 +909,7 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 					Return(nil, nil, &types.BadRequestError{Message: "invalid history builder state for action"})
 			},
 			wantFailCause:      types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes.Ptr(),
-			wantFailMessage:    common.StringPtr(`Run already holds or is waiting for semaphore "my-semaphore".`),
-			wantStopProcessing: true,
-		},
-		{
-			name: "run has too many semaphore holds: the workflow fails",
-			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
-			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
-				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(&persistence.GetSemaphoreResponse{}, nil)
-				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(30)).
-					Return(nil, nil, execution.ErrTooManyPendingSemaphores)
-				ms.EXPECT().AddFailWorkflowEvent(testTaskCompletedID, tooManyAttr).Return(&types.HistoryEvent{}, nil)
-			},
+			wantFailMessage:    common.StringPtr(`Run already holds or is waiting for a semaphore, so it cannot acquire semaphore "my-semaphore".`),
 			wantStopProcessing: true,
 		},
 		{

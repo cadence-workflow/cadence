@@ -1109,16 +1109,12 @@ func (handler *taskHandlerImpl) handleDecisionAcquireSemaphore(
 	case nil:
 		return nil
 	case *types.BadRequestError:
-		// A duplicate acquire fails the decision. Clients are expected to refuse it first.
+		// A run holds or waits for at most one semaphore at a time, so a second acquire fails the
+		// decision. Clients are expected to refuse it first.
 		return handler.handlerFailDecision(
 			types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes,
-			fmt.Sprintf("Run already holds or is waiting for semaphore %q.", attr.GetSemaphoreName()),
+			fmt.Sprintf("Run already holds or is waiting for a semaphore, so it cannot acquire semaphore %q.", attr.GetSemaphoreName()),
 		)
-	case *types.InternalServiceError:
-		if err.Error() == execution.ErrTooManyPendingSemaphores.Error() {
-			return handler.handleFailWorkflowError(common.FailureReasonPendingSemaphoreExceedsLimit, err.Error())
-		}
-		return err
 	default:
 		return err
 	}

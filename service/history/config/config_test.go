@@ -207,8 +207,6 @@ func TestNewConfig(t *testing.T) {
 		"PendingActivitiesCountLimitError":                       {dynamicproperties.PendingActivitiesCountLimitError, 76},
 		"PendingActivitiesCountLimitWarn":                        {dynamicproperties.PendingActivitiesCountLimitWarn, 77},
 		"PendingActivityValidationEnabled":                       {dynamicproperties.EnablePendingActivityValidation, true},
-		"PendingSemaphoresCountLimitError":                       {dynamicproperties.PendingSemaphoresCountLimitError, 104},
-		"PendingSemaphoresCountLimitWarn":                        {dynamicproperties.PendingSemaphoresCountLimitWarn, 105},
 		"EnableQueryAttributeValidation":                         {dynamicproperties.EnableQueryAttributeValidation, true},
 		"ValidSearchAttributes":                                  {dynamicproperties.ValidSearchAttributes, map[string]interface{}{"key": 1}},
 		"SearchAttributesNumberOfKeysLimit":                      {dynamicproperties.SearchAttributesNumberOfKeysLimit, 78},

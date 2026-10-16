@@ -250,8 +250,6 @@ type Config struct {
 	PendingActivitiesCountLimitError dynamicproperties.IntPropertyFnWithDomainFilter
 	PendingActivitiesCountLimitWarn  dynamicproperties.IntPropertyFnWithDomainFilter
 	PendingActivityValidationEnabled dynamicproperties.BoolPropertyFn
-	PendingSemaphoresCountLimitError dynamicproperties.IntPropertyFnWithDomainFilter
-	PendingSemaphoresCountLimitWarn  dynamicproperties.IntPropertyFnWithDomainFilter
 
 	// ValidSearchAttributes is legal indexed keys that can be used in list APIs
 	EnableQueryAttributeValidation    dynamicproperties.BoolPropertyFn
@@ -565,8 +563,6 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		PendingActivitiesCountLimitError: dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingActivitiesCountLimitError),
 		PendingActivitiesCountLimitWarn:  dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingActivitiesCountLimitWarn),
 		PendingActivityValidationEnabled: dc.GetBoolProperty(dynamicproperties.EnablePendingActivityValidation),
-		PendingSemaphoresCountLimitError: dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingSemaphoresCountLimitError),
-		PendingSemaphoresCountLimitWarn:  dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingSemaphoresCountLimitWarn),
 		ThrottledLogRPS:                  dc.GetIntProperty(dynamicproperties.HistoryThrottledLogRPS),
 		EnableStickyQuery:                dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableStickyQuery),
 
