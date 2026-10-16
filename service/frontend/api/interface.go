@@ -103,5 +103,7 @@ type (
 		ListBatchOperations(context.Context, *types.ListBatchOperationsRequest) (*types.ListBatchOperationsResponse, error)
 		StopBatchOperation(context.Context, *types.StopBatchOperationRequest) (*types.StopBatchOperationResponse, error)
 		UpdateBatchOperation(context.Context, *types.UpdateBatchOperationRequest) (*types.UpdateBatchOperationResponse, error)
+
+		ExportWorkflowExecution(context.Context, *types.ExportWorkflowExecutionRequest) (*types.ExportWorkflowExecutionResponse, error)
 	}
 )

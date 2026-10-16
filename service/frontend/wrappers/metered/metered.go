@@ -450,3 +450,9 @@ func toUpdateBatchOperationRequestTags(req *types.UpdateBatchOperationRequest) [
 		tag.WorkflowDomainName(req.GetDomain()),
 	}
 }
+
+func toExportWorkflowExecutionRequestTags(req *types.ExportWorkflowExecutionRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}

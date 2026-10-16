@@ -436,6 +436,39 @@ func (mr *_MockClientRecorder) DiagnoseWorkflowExecution(
 	return mr.mock.ctrl.RecordCall(mr.mock, "DiagnoseWorkflowExecution", args...)
 }
 
+// ExportWorkflowExecution responds to a ExportWorkflowExecution call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().ExportWorkflowExecution(gomock.Any(), ...).Return(...)
+//	... := client.ExportWorkflowExecution(...)
+func (m *MockClient) ExportWorkflowExecution(
+	ctx context.Context,
+	_Request *shared.ExportWorkflowExecutionRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.ExportWorkflowExecutionResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "ExportWorkflowExecution", args...)
+	success, _ = ret[i].(*shared.ExportWorkflowExecutionResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) ExportWorkflowExecution(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "ExportWorkflowExecution", args...)
+}
+
 // FailoverDomain responds to a FailoverDomain call based on the mock expectations. This
 // call will fail if the mock does not expect this call. Use EXPECT to expect
 // a call to this function.
