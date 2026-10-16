@@ -919,7 +919,7 @@ func (s *transferActiveTaskExecutorSuite) testProcessCloseExecutionNoParentHasFe
 	parentClosePolicy2 := types.ParentClosePolicyTerminate
 	parentClosePolicy3 := types.ParentClosePolicyRequestCancel
 
-	_, _, err = mutableState.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletionID, uuid.New(), &types.StartChildWorkflowExecutionDecisionAttributes{
+	_, _, err = mutableState.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletionID, &types.StartChildWorkflowExecutionDecisionAttributes{
 		Domain:     childrenDomainNames["child_abandon"],
 		WorkflowID: "child workflow1",
 		WorkflowType: &types.WorkflowType{
@@ -930,7 +930,7 @@ func (s *transferActiveTaskExecutorSuite) testProcessCloseExecutionNoParentHasFe
 		ParentClosePolicy: &parentClosePolicy1,
 	})
 	s.Nil(err)
-	_, _, err = mutableState.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletionID, uuid.New(), &types.StartChildWorkflowExecutionDecisionAttributes{
+	_, _, err = mutableState.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletionID, &types.StartChildWorkflowExecutionDecisionAttributes{
 		Domain:     childrenDomainNames["child_terminate"],
 		WorkflowID: "child workflow2",
 		WorkflowType: &types.WorkflowType{
@@ -941,7 +941,7 @@ func (s *transferActiveTaskExecutorSuite) testProcessCloseExecutionNoParentHasFe
 		ParentClosePolicy: &parentClosePolicy2,
 	})
 	s.Nil(err)
-	_, _, err = mutableState.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletionID, uuid.New(), &types.StartChildWorkflowExecutionDecisionAttributes{
+	_, _, err = mutableState.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletionID, &types.StartChildWorkflowExecutionDecisionAttributes{
 		Domain:     childrenDomainNames["child_cancel"],
 		WorkflowID: "child workflow3",
 		WorkflowType: &types.WorkflowType{
@@ -986,7 +986,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent_Has
 
 	numChildWorkflows := 500
 	for i := 0; i < numChildWorkflows; i++ {
-		_, _, err = mutableState.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletionID, uuid.New(), &types.StartChildWorkflowExecutionDecisionAttributes{
+		_, _, err = mutableState.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletionID, &types.StartChildWorkflowExecutionDecisionAttributes{
 			Domain:     s.domainName,
 			WorkflowID: "child workflow" + strconv.Itoa(i),
 			WorkflowType: &types.WorkflowType{
@@ -1057,7 +1057,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent_Has
 	s.NoError(err)
 
 	for i := 0; i < 10; i++ {
-		_, _, err = mutableState.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletionID, uuid.New(), &types.StartChildWorkflowExecutionDecisionAttributes{
+		_, _, err = mutableState.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletionID, &types.StartChildWorkflowExecutionDecisionAttributes{
 			WorkflowID: "child workflow" + strconv.Itoa(i),
 			WorkflowType: &types.WorkflowType{
 				Name: "child workflow type",
@@ -1748,7 +1748,6 @@ func (s *transferActiveTaskExecutorSuite) testProcessStartChildExecutionWithErro
 	event, ci := test.AddStartChildWorkflowExecutionInitiatedEvent(
 		mutableState,
 		decisionCompletionID,
-		uuid.New(),
 		constants.TestDomainName,
 		childExecution.WorkflowID,
 		"some random child workflow type",
