@@ -304,6 +304,7 @@ const (
 	TransferTaskTypeRecordWorkflowClosed
 	TransferTaskTypeRecordChildExecutionCompleted
 	TransferTaskTypeApplyParentClosePolicy // Deprecated: this is related to cross-cluster tasks
+	TransferTaskTypeAcquireSemaphore
 )
 
 // Types of replication tasks
@@ -2663,6 +2664,13 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 			TargetChildWorkflowOnly: t.TargetChildWorkflowOnly,
 			TaskList:                t.TaskList,
 		}, nil
+	case TransferTaskTypeAcquireSemaphore:
+		return &AcquireSemaphoreTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			InitiatedID:        t.ScheduleID,
+			TaskList:           t.TaskList,
+		}, nil
 	default:
 		return nil, fmt.Errorf("unknown task type: %d", t.TaskType)
 	}
@@ -3271,6 +3279,12 @@ func (e *WorkflowExecutionInfo) CopyPartitionConfig() map[string]string {
 		partitionConfig[k] = v
 	}
 	return partitionConfig
+}
+
+// HasToken reports whether the hold has been granted. Token ids start at 1, so a
+// non-positive TokenID means the acquire is still waiting.
+func (s *SemaphoreInfo) HasToken() bool {
+	return s.TokenID > 0
 }
 
 func (p *TaskListPartitionConfig) ToInternalType() *types.TaskListPartitionConfig {

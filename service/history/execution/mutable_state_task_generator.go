@@ -77,6 +77,9 @@ type (
 		GenerateSignalExternalTasks(
 			event *types.HistoryEvent,
 		) error
+		GenerateAcquireSemaphoreTasks(
+			initiatedEventID int64,
+		) error
 		GenerateWorkflowSearchAttrTasks() error
 		GenerateWorkflowResetTasks() error
 		// these 2 APIs should only be called when mutable state transaction is being closed
@@ -459,6 +462,36 @@ func (r *mutableStateTaskGeneratorImpl) GenerateActivityRetryTasks(
 		EventID:  ai.ScheduleID,
 		Attempt:  int64(ai.Attempt),
 		TaskList: ai.TaskList,
+	})
+	return nil
+}
+
+// GenerateAcquireSemaphoreTasks adds the transfer task that asks Matching for a token for the
+// acquire started by initiatedEventID.
+func (r *mutableStateTaskGeneratorImpl) GenerateAcquireSemaphoreTasks(
+	initiatedEventID int64,
+) error {
+
+	semaphoreInfo, ok := r.mutableState.GetSemaphoreInfo(initiatedEventID)
+	if !ok {
+		return &types.InternalServiceError{
+			Message: fmt.Sprintf("it could be a bug, cannot get pending semaphore hold: %v", initiatedEventID),
+		}
+	}
+
+	executionInfo := r.mutableState.GetExecutionInfo()
+	r.mutableState.AddTransferTasks(&persistence.AcquireSemaphoreTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   executionInfo.DomainID,
+			WorkflowID: executionInfo.WorkflowID,
+			RunID:      executionInfo.RunID,
+		},
+		TaskData: persistence.TaskData{
+			// TaskID and VisibilityTimestamp are set by shard context
+			Version: semaphoreInfo.Version,
+		},
+		InitiatedID: semaphoreInfo.InitiatedID,
+		TaskList:    executionInfo.TaskList,
 	})
 	return nil
 }
