@@ -209,3 +209,17 @@ func (fs fieldSet) isSet(field string) bool {
 func newFieldMask(fields []string) *gogo.FieldMask {
 	return &gogo.FieldMask{Paths: fields}
 }
+
+func fromInt64Ptr(v *int64) int64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func toInt64Ptr(v int64) *int64 {
+	if v == 0 {
+		return nil
+	}
+	return &v
+}

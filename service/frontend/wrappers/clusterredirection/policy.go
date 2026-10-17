@@ -142,6 +142,7 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlist = map[string]struct{}{
 	"RequestCancelWorkflowExecution":   {},
 	"TerminateWorkflowExecution":       {},
 	"ResetWorkflowExecution":           {},
+	"ExportWorkflowExecution":          {},
 	// schedule write APIs — reads (DescribeSchedule, ListSchedules) are served locally on standby
 	"CreateSchedule":   {},
 	"DeleteSchedule":   {},
@@ -161,6 +162,7 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2 = map[string]struct{}{
 	"RequestCancelWorkflowExecution":   {},
 	"TerminateWorkflowExecution":       {},
 	"ResetWorkflowExecution":           {},
+	"ExportWorkflowExecution":          {},
 	// additional endpoints
 	"RespondActivityTaskCanceled":      {},
 	"RespondActivityTaskCanceledByID":  {},
@@ -187,6 +189,7 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3 = map[string]struct{}{
 	"RequestCancelWorkflowExecution":   {},
 	"TerminateWorkflowExecution":       {},
 	"ResetWorkflowExecution":           {},
+	"ExportWorkflowExecution":          {},
 	"RespondActivityTaskCanceled":      {},
 	"RespondActivityTaskCanceledByID":  {},
 	"RespondActivityTaskCompleted":     {},

@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
@@ -94,6 +95,60 @@ func TestForwardingPolicyV3ContainsV2(t *testing.T) {
 		"StartWorkflowExecutionAsync":           {},
 		"SignalWithStartWorkflowExecutionAsync": {},
 	}, diff, "v3 minus v2 must be exactly the two async start APIs")
+}
+
+func TestExportWorkflowExecutionRedirect(t *testing.T) {
+	domainName := "some random domain name"
+	req := &types.ExportWorkflowExecutionRequest{
+		Domain:    domainName,
+		Execution: &types.WorkflowExecution{WorkflowID: "wf-1", RunID: "run-1"},
+	}
+	resp := &types.ExportWorkflowExecutionResponse{Version: 1}
+
+	tests := map[string]struct {
+		targetCluster string
+		setupMocks    func(ctx context.Context, frontendHandler *api.MockHandler, remoteClient *frontend.MockClient, callOptions []yarpc.CallOption)
+	}{
+		"current cluster serves the request": {
+			targetCluster: cluster.TestCurrentClusterName,
+			setupMocks: func(ctx context.Context, frontendHandler *api.MockHandler, _ *frontend.MockClient, _ []yarpc.CallOption) {
+				frontendHandler.EXPECT().ExportWorkflowExecution(ctx, req).Return(resp, nil)
+			},
+		},
+		"request is forwarded to the active cluster": {
+			targetCluster: cluster.TestAlternativeClusterName,
+			setupMocks: func(ctx context.Context, _ *api.MockHandler, remoteClient *frontend.MockClient, callOptions []yarpc.CallOption) {
+				remoteClient.EXPECT().ExportWorkflowExecution(ctx, req, callOptions).Return(resp, nil)
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockResource := resource.NewTest(t, ctrl, metrics.Frontend)
+			defer mockResource.Finish(t)
+			domainCacheEntry := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{Name: domainName}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
+			mockResource.DomainCache.EXPECT().GetDomain(domainName).Return(domainCacheEntry, nil)
+
+			cfg := frontendcfg.NewConfig(dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), mockResource.GetLogger()), 0, false, "hostname", mockResource.GetLogger())
+			frontendHandler := api.NewMockHandler(ctrl)
+			policy := NewMockClusterRedirectionPolicy(ctrl)
+			handler := NewAPIHandler(frontendHandler, mockResource, cfg, config.ClusterRedirectionPolicy{}).(*clusterRedirectionHandler)
+			handler.redirectionPolicy = policy
+
+			ctx := context.Background()
+			policy.EXPECT().Redirect(ctx, domainCacheEntry, req.Execution, nil, "ExportWorkflowExecution", types.QueryConsistencyLevelEventual, gomock.Any()).
+				DoAndReturn(func(_ context.Context, _ *cache.DomainCacheEntry, _ *types.WorkflowExecution, _ *types.ActiveClusterSelectionPolicy, _ string, _ types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
+					return callFn(tc.targetCluster)
+				})
+			tc.setupMocks(ctx, frontendHandler, mockResource.RemoteFrontendClient, handler.callOptions)
+
+			got, err := handler.ExportWorkflowExecution(ctx, req)
+			require.NoError(t, err)
+			require.Equal(t, resp, got)
+		})
+	}
 }
 
 func TestClusterRedirectionHandlerSuite(t *testing.T) {
