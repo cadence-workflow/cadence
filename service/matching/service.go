@@ -99,6 +99,8 @@ func (s *Service) Start() {
 
 	engine := handler.NewEngine(
 		s.GetTaskManager(),
+		s.GetSemaphoreTokenManager(),
+		s.GetSemaphoreMetadataManager(),
 		s.GetClusterMetadata(),
 		s.GetHistoryClient(),
 		s.GetMatchingRawClient(), // Use non retry client inside matching

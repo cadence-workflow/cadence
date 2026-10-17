@@ -16,7 +16,7 @@ require (
 	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da
 	github.com/emirpasic/gods v1.18.1
 	github.com/fatih/color v1.15.0
-	github.com/go-sql-driver/mysql v1.9.3
+	github.com/go-sql-driver/mysql v1.10.1
 	github.com/gocql/gocql v0.0.0-20211015133455-b225f9b53fa1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -26,9 +26,9 @@ require (
 	github.com/hashicorp/go-version v1.2.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jmespath/go-jmespath v0.4.0
-	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee
+	github.com/jmoiron/sqlx v1.4.0
 	github.com/jonboulle/clockwork v0.5.0
-	github.com/lib/pq v1.2.0
+	github.com/lib/pq v1.10.9
 	github.com/m3db/prometheus_client_golang v1.12.8
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/olivere/elastic v6.2.37+incompatible
@@ -61,7 +61,7 @@ require (
 	golang.org/x/time v0.12.0
 	golang.org/x/tools v0.48.0
 	gonum.org/v1/gonum v0.17.0
-	google.golang.org/grpc v1.83.1
+	google.golang.org/grpc v1.83.2
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -80,7 +80,7 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect

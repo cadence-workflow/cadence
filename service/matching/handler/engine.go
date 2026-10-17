@@ -94,6 +94,7 @@ type (
 		taskListRegistry               tasklist.TaskListRegistry
 		semaphoreRegistry              semaphore.SemaphoreRegistry
 		semaphoreTokenManager          persistence.SemaphoreTokenManager
+		semaphoreMetadataManager       persistence.SemaphoreMetadataManager
 		shutdownCompletion             *sync.WaitGroup
 		shutdown                       chan struct{}
 		taskManager                    persistence.TaskManager
@@ -148,6 +149,8 @@ var _ Engine = (*matchingEngineImpl)(nil) // Asserts that interface is indeed im
 // NewEngine creates an instance of matching engine
 func NewEngine(
 	taskManager persistence.TaskManager,
+	semaphoreTokenManager persistence.SemaphoreTokenManager,
+	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
 	clusterMetadata cluster.Metadata,
 	historyService history.Client,
 	matchingClient matching.Client,
@@ -171,6 +174,8 @@ func NewEngine(
 		shutdown:                       make(chan struct{}),
 		shutdownCompletion:             &sync.WaitGroup{},
 		taskManager:                    taskManager,
+		semaphoreTokenManager:          semaphoreTokenManager,
+		semaphoreMetadataManager:       semaphoreMetadataManager,
 		clusterMetadata:                clusterMetadata,
 		historyService:                 historyService,
 		tokenSerializer:                common.NewJSONTaskTokenSerializer(),

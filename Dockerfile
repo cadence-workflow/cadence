@@ -8,7 +8,8 @@ FROM --platform=$BUILDPLATFORM golang:1.25.14-alpine3.23 AS builder
 
 ARG RELEASE_VERSION
 
-RUN apk add --no-cache ca-certificates make git curl mercurial unzip bash
+RUN apk add --no-cache ca-certificates make git curl mercurial unzip bash && \
+    apk upgrade --no-cache zlib
 
 WORKDIR /cadence
 
@@ -42,7 +43,8 @@ FROM --platform=$BUILDPLATFORM alpine:3.24 AS dockerize
 # appears to require `docker buildx` or an explicit `--platform` at build time
 ARG TARGETARCH
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl && \
+    apk upgrade --no-cache zlib
 
 ENV DOCKERIZE_VERSION=v0.9.3
 RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-$TARGETARCH-$DOCKERIZE_VERSION.tar.gz \
@@ -55,7 +57,8 @@ RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSI
 # Alpine base image
 FROM alpine:3.24 AS alpine
 
-RUN apk add --update --no-cache ca-certificates tzdata bash curl
+RUN apk add --update --no-cache ca-certificates tzdata bash curl && \
+    apk upgrade --no-cache zlib
 
 # set up nsswitch.conf for Go's "netgo" implementation
 # https://github.com/gliderlabs/docker-alpine/issues/367#issuecomment-424546457

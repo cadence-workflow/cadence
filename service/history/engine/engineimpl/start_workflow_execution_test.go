@@ -25,6 +25,7 @@ package engineimpl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -35,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -1080,4 +1082,680 @@ func getDomainCacheEntry(domainFailoverVersion int64, cfg *types.ActiveClusters)
 		1,
 		1,
 	)
+}
+
+// run IDs of the child workflow, the execution cache only loads runs with valid UUIDs
+const (
+	childDuplicateRunID = "8f2a7c1e-3b4d-4e5f-9a6b-7c8d9e0f1a2b"
+	childCurrentRunID   = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e"
+)
+
+func newChildStartRequest(reusePolicy *types.WorkflowIDReusePolicy) *types.HistoryStartWorkflowExecutionRequest {
+	return &types.HistoryStartWorkflowExecutionRequest{
+		DomainUUID: constants.TestDomainID,
+		StartRequest: &types.StartWorkflowExecutionRequest{
+			Domain:                              constants.TestDomainName,
+			WorkflowID:                          "child-workflow-id",
+			WorkflowType:                        &types.WorkflowType{Name: "child-workflow-type"},
+			TaskList:                            &types.TaskList{Name: "default-task-list"},
+			ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
+			TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),
+			Identity:                            "parent-workflow",
+			RequestID:                           "child-request-id",
+			WorkflowIDReusePolicy:               reusePolicy,
+		},
+		ParentExecutionInfo: &types.ParentExecutionInfo{
+			DomainUUID:  constants.TestDomainID,
+			Domain:      constants.TestDomainName,
+			Execution:   &types.WorkflowExecution{WorkflowID: "parent-workflow-id", RunID: "parent-run-id"},
+			InitiatedID: 5,
+		},
+	}
+}
+
+// alreadyStartedError returns the error of a child start that can not adopt the run with the same request ID.
+func alreadyStartedError(msg string, runID string) error {
+	return &types.WorkflowExecutionAlreadyStartedError{
+		Message:        msg,
+		StartRequestID: "child-request-id",
+		RunID:          runID,
+	}
+}
+
+// mockLoadChildRun mocks the load of a closed run of the child workflow that is the first run of its chain.
+func mockLoadChildRun(eft *testdata.EngineForTest, runID string, closeStatus int, lastWriteVersion int64, err error) {
+	mockLoadChildRunOfChain(eft, runID, runID, persistence.WorkflowStateCompleted, closeStatus, lastWriteVersion, err)
+}
+
+// mockLoadChildRunOfChain mocks the load of a run of the child workflow in the chain of firstRunID.
+func mockLoadChildRunOfChain(eft *testdata.EngineForTest, runID, firstRunID string, state, closeStatus int, lastWriteVersion int64, err error) {
+	var resp *persistence.GetWorkflowExecutionResponse
+	if err == nil {
+		resp = &persistence.GetWorkflowExecutionResponse{
+			State: &persistence.WorkflowMutableState{
+				ExecutionInfo: &persistence.WorkflowExecutionInfo{
+					DomainID:            constants.TestDomainID,
+					WorkflowID:          "child-workflow-id",
+					RunID:               runID,
+					FirstExecutionRunID: firstRunID,
+					State:               state,
+					CloseStatus:         closeStatus,
+				},
+				ExecutionStats: &persistence.ExecutionStats{},
+				VersionHistories: persistence.NewVersionHistories(persistence.NewVersionHistory(
+					[]byte("branch-token"),
+					[]*persistence.VersionHistoryItem{persistence.NewVersionHistoryItem(2, lastWriteVersion)},
+				)),
+			},
+			MutableStateStats: &persistence.MutableStateStats{},
+		}
+	}
+	eft.ShardCtx.Resource.ExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.GetWorkflowExecutionRequest) bool {
+		return req.DomainID == constants.TestDomainID && req.Execution.WorkflowID == "child-workflow-id" && req.Execution.RunID == runID
+	})).Return(resp, err).Once()
+}
+
+// assertChildRunsLoaded checks that every mocked load of a run of the child workflow was called, so a case can not
+// pass by returning before it loads the runs that it checks.
+func assertChildRunsLoaded(t *testing.T, eft *testdata.EngineForTest) {
+	mockedLoads := 0
+	for _, call := range eft.ShardCtx.Resource.ExecutionMgr.ExpectedCalls {
+		if call.Method == "GetWorkflowExecution" {
+			mockedLoads++
+		}
+	}
+	eft.ShardCtx.Resource.ExecutionMgr.AssertNumberOfCalls(t, "GetWorkflowExecution", mockedLoads)
+}
+
+func TestValidateDuplicateChildRunAdoption(t *testing.T) {
+	childStart := newChildStartRequest(nil)
+	currentClusterVersion := cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement
+	otherClusterVersion := cluster.TestAlternativeClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement
+	noClusterVersion := cluster.TestFailoverVersionIncrement + 9
+	currentRun := func(runID string, state int, lastWriteVersion int64) *persistence.GetCurrentExecutionResponse {
+		return &persistence.GetCurrentExecutionResponse{
+			StartRequestID:   "current-request-id",
+			RunID:            runID,
+			State:            state,
+			LastWriteVersion: lastWriteVersion,
+		}
+	}
+	unknownVersionErr := fmt.Errorf("failed to resolve failover version to a cluster: could not resolve failover version: %d", noClusterVersion)
+	// the active-active replication config with the domain ID of the mocked runs
+	activeActiveDomainEntry := cache.NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: constants.TestDomainID, Name: constants.TestDomainName},
+		constants.TestActiveActiveDomainEntry.GetConfig(),
+		constants.TestActiveActiveDomainEntry.GetReplicationConfig(),
+		constants.TestVersion,
+	)
+
+	tests := []struct {
+		name        string
+		request     *types.HistoryStartWorkflowExecutionRequest
+		domainEntry *cache.DomainCacheEntry
+		current     *persistence.GetCurrentExecutionResponse
+		currentErr  error
+		mockLoad    func(*testdata.EngineForTest)
+		wantErr     error
+	}{
+		{
+			name:    "duplicate run running",
+			request: childStart,
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRunOfChain(eft, childDuplicateRunID, childDuplicateRunID, persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone, otherClusterVersion, nil)
+			},
+		},
+		{
+			name:    "duplicate run closed by another cluster",
+			request: childStart,
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusCompleted, otherClusterVersion, nil)
+			},
+			wantErr: alreadyStartedError(childRunClosedByOtherClusterMsg, childDuplicateRunID),
+		},
+		{
+			name:    "duplicate run closed by this cluster",
+			request: childStart,
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusCompleted, currentClusterVersion, nil)
+			},
+		},
+		{
+			name:        "local domain, duplicate run closed",
+			request:     childStart,
+			domainEntry: constants.TestLocalDomainEntry,
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusCompleted, commonconstants.EmptyVersion, nil)
+			},
+		},
+		{
+			name:    "duplicate run closed, closing cluster can not be determined",
+			request: childStart,
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusCompleted, noClusterVersion, nil)
+			},
+			wantErr: unknownVersionErr,
+		},
+		{
+			name:    "duplicate run corrupted with the version of another cluster",
+			request: childStart,
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRunOfChain(eft, childDuplicateRunID, childDuplicateRunID, persistence.WorkflowStateCorrupted, persistence.WorkflowCloseStatusNone, otherClusterVersion, nil)
+			},
+		},
+		{
+			// both clusters started the child with the same request ID, and conflict resolution made this run a zombie
+			name:    "duplicate run is a zombie",
+			request: childStart,
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRunOfChain(eft, childDuplicateRunID, childDuplicateRunID, persistence.WorkflowStateZombie, persistence.WorkflowCloseStatusNone, otherClusterVersion, nil)
+			},
+			wantErr: alreadyStartedError(childRunZombieMsg, childDuplicateRunID),
+		},
+		{
+			name:    "duplicate run not found",
+			request: childStart,
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, 0, 0, &types.EntityNotExistsError{})
+			},
+			wantErr: alreadyStartedError(childRunNotFoundMsg, childDuplicateRunID),
+		},
+		{
+			name:    "failed to load the duplicate run",
+			request: childStart,
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, 0, 0, errors.New("some error"))
+			},
+			wantErr: errors.New("some error"),
+		},
+		{
+			name:    "duplicate run continued as new on another cluster, current run of the chain running",
+			request: childStart,
+			current: currentRun(childCurrentRunID, persistence.WorkflowStateRunning, otherClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, childDuplicateRunID, persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone, otherClusterVersion, nil)
+			},
+		},
+		{
+			name:    "duplicate run continued as new, current run of the chain closed by another cluster",
+			request: childStart,
+			current: currentRun(childCurrentRunID, persistence.WorkflowStateCompleted, otherClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, childDuplicateRunID, persistence.WorkflowStateCompleted, persistence.WorkflowCloseStatusCompleted, otherClusterVersion, nil)
+			},
+			wantErr: alreadyStartedError(childRunClosedByOtherClusterMsg, childCurrentRunID),
+		},
+		{
+			name:    "duplicate run continued as new, current run of the chain closed by this cluster",
+			request: childStart,
+			current: currentRun(childCurrentRunID, persistence.WorkflowStateCompleted, currentClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, childDuplicateRunID, persistence.WorkflowStateCompleted, persistence.WorkflowCloseStatusCompleted, currentClusterVersion, nil)
+			},
+		},
+		{
+			name:    "duplicate run continued as new, current run of another request, chain ended after a failover",
+			request: childStart,
+			current: currentRun(childCurrentRunID, persistence.WorkflowStateRunning, currentClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, childCurrentRunID, persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone, currentClusterVersion, nil)
+			},
+			wantErr: alreadyStartedError(childChainEndUnknownMsg, childCurrentRunID),
+		},
+		{
+			name:    "duplicate run continued as new, current run of another request, chain ended on this cluster",
+			request: childStart,
+			current: currentRun(childCurrentRunID, persistence.WorkflowStateRunning, currentClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, currentClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, childCurrentRunID, persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone, currentClusterVersion, nil)
+			},
+		},
+		{
+			name:    "duplicate run continued as new, current run of another request, chain ended on another cluster",
+			request: childStart,
+			current: currentRun(childCurrentRunID, persistence.WorkflowStateRunning, otherClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, childCurrentRunID, persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone, otherClusterVersion, nil)
+			},
+			wantErr: alreadyStartedError(childRunClosedByOtherClusterMsg, childDuplicateRunID),
+		},
+		{
+			name:    "duplicate run continued as new without a first run ID, same version as the current run, closing cluster is this cluster",
+			request: childStart,
+			current: currentRun(childCurrentRunID, persistence.WorkflowStateRunning, currentClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRunOfChain(eft, childDuplicateRunID, "", persistence.WorkflowStateCompleted, persistence.WorkflowCloseStatusContinuedAsNew, currentClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, "", persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone, currentClusterVersion, nil)
+			},
+		},
+		{
+			name:    "duplicate run continued as new without a first run ID, different version from the current run, closing cluster can not be determined",
+			request: childStart,
+			current: currentRun(childCurrentRunID, persistence.WorkflowStateRunning, currentClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRunOfChain(eft, childDuplicateRunID, "", persistence.WorkflowStateCompleted, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, "", persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone, currentClusterVersion, nil)
+			},
+			wantErr: alreadyStartedError(childChainEndUnknownMsg, childCurrentRunID),
+		},
+		{
+			// each cluster attribute has its own versions, so the same version does not bound the runs between them
+			name:        "active-active domain, duplicate run continued as new without a first run ID, same version as the current run, closing cluster can not be determined",
+			request:     childStart,
+			domainEntry: activeActiveDomainEntry,
+			current:     currentRun(childCurrentRunID, persistence.WorkflowStateRunning, currentClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRunOfChain(eft, childDuplicateRunID, "", persistence.WorkflowStateCompleted, persistence.WorkflowCloseStatusContinuedAsNew, currentClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, "", persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone, currentClusterVersion, nil)
+			},
+			wantErr: alreadyStartedError(childChainEndUnknownMsg, childCurrentRunID),
+		},
+		{
+			name:        "active-active domain, duplicate run closed by another cluster",
+			request:     childStart,
+			domainEntry: activeActiveDomainEntry,
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusCompleted, otherClusterVersion, nil)
+			},
+			wantErr: alreadyStartedError(childRunClosedByOtherClusterMsg, childDuplicateRunID),
+		},
+		{
+			name:        "active-active domain, duplicate run continued as new, current run of the chain closed by this cluster",
+			request:     childStart,
+			domainEntry: activeActiveDomainEntry,
+			current:     currentRun(childCurrentRunID, persistence.WorkflowStateCompleted, currentClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, childDuplicateRunID, persistence.WorkflowStateCompleted, persistence.WorkflowCloseStatusCompleted, currentClusterVersion, nil)
+			},
+		},
+		{
+			name:    "duplicate run continued as new, current run not found",
+			request: childStart,
+			current: currentRun(childCurrentRunID, persistence.WorkflowStateRunning, currentClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, "", 0, 0, 0, &types.EntityNotExistsError{})
+			},
+			// the current run may belong to another request, so the end of the chain is unknown
+			wantErr: alreadyStartedError(childChainEndUnknownMsg, childCurrentRunID),
+		},
+		{
+			name:    "duplicate run continued as new, failed to load the current run",
+			request: childStart,
+			current: currentRun(childCurrentRunID, persistence.WorkflowStateRunning, currentClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, "", 0, 0, 0, errors.New("some error"))
+			},
+			wantErr: errors.New("some error"),
+		},
+		{
+			name:       "duplicate run continued as new, no current run",
+			request:    childStart,
+			currentErr: &types.EntityNotExistsError{},
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+			},
+			wantErr: alreadyStartedError(childChainEndUnknownMsg, childDuplicateRunID),
+		},
+		{
+			name:       "duplicate run continued as new, failed to get the current run",
+			request:    childStart,
+			currentErr: errors.New("some error"),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+			},
+			wantErr: errors.New("some error"),
+		},
+		{
+			name:    "duplicate run continued as new, current run of the chain corrupted with the version of another cluster",
+			request: childStart,
+			current: currentRun(childCurrentRunID, persistence.WorkflowStateCorrupted, otherClusterVersion),
+			mockLoad: func(eft *testdata.EngineForTest) {
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, childDuplicateRunID, persistence.WorkflowStateCorrupted, persistence.WorkflowCloseStatusNone, otherClusterVersion, nil)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
+			eft.Engine.Start()
+			defer eft.Engine.Stop()
+			engine := eft.Engine.(*historyEngineImpl)
+
+			domainEntry := constants.TestGlobalDomainEntry
+			if tc.domainEntry != nil {
+				domainEntry = tc.domainEntry
+			}
+			eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domainEntry, nil).AnyTimes()
+			eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).AnyTimes()
+			// loading a run of the child looks up the active cluster of the child
+			eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, "child-workflow-id", gomock.Any()).
+				Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName}, nil).AnyTimes()
+			// the current run is read only when the duplicate run continued as new
+			wantCurrentReads := 0
+			if tc.current != nil || tc.currentErr != nil {
+				wantCurrentReads = 1
+				eft.ShardCtx.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.MatchedBy(func(req *persistence.GetCurrentExecutionRequest) bool {
+					return req.DomainID == constants.TestDomainID && req.WorkflowID == "child-workflow-id"
+				})).Return(tc.current, tc.currentErr).Once()
+			}
+			tc.mockLoad(eft)
+
+			err := engine.validateDuplicateChildRunAdoption(context.Background(), tc.request, domainEntry, childDuplicateRunID)
+			assert.Equal(t, tc.wantErr, err)
+			eft.ShardCtx.Resource.ExecutionMgr.AssertNumberOfCalls(t, "GetCurrentExecution", wantCurrentReads)
+			assertChildRunsLoaded(t, eft)
+		})
+	}
+}
+
+func TestStartWorkflowExecution_ChildStartDedup(t *testing.T) {
+	// the domain failed over to this cluster after another cluster closed the child
+	activeVersion := cluster.TestCurrentClusterInitialFailoverVersion + 2*cluster.TestFailoverVersionIncrement
+	currentClusterVersion := cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement
+	otherClusterVersion := cluster.TestAlternativeClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement
+
+	createMode := func(mode persistence.CreateWorkflowMode) interface{} {
+		return mock.MatchedBy(func(req *persistence.CreateWorkflowExecutionRequest) bool {
+			return req.Mode == mode
+		})
+	}
+	alreadyStarted := func(lastWriteVersion int64) error {
+		return &persistence.WorkflowExecutionAlreadyStartedError{
+			StartRequestID:   "child-request-id",
+			RunID:            childDuplicateRunID,
+			State:            persistence.WorkflowStateCompleted,
+			CloseStatus:      persistence.WorkflowCloseStatusCompleted,
+			LastWriteVersion: lastWriteVersion,
+		}
+	}
+	duplicateRequest := &persistence.DuplicateRequestError{
+		RequestType: persistence.WorkflowRequestTypeStart,
+		RunID:       childDuplicateRunID,
+	}
+	currentRun := func(runID string, state int, lastWriteVersion int64) *persistence.GetCurrentExecutionResponse {
+		return &persistence.GetCurrentExecutionResponse{
+			StartRequestID:   "current-request-id",
+			RunID:            runID,
+			State:            state,
+			LastWriteVersion: lastWriteVersion,
+		}
+	}
+
+	tests := []struct {
+		name                      string
+		reusePolicy               *types.WorkflowIDReusePolicy
+		setupMocks                func(*testdata.EngineForTest)
+		wantRunID                 string
+		wantErr                   error
+		wantNoGetCurrentExecution bool
+		domainEntry               *cache.DomainCacheEntry
+		withoutParent             bool
+	}{
+		{
+			name:        "same request ID, child closed by this cluster: returns the existing run",
+			reusePolicy: types.WorkflowIDReusePolicyRejectDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, alreadyStarted(currentClusterVersion)).Once()
+			},
+			wantRunID:                 childDuplicateRunID,
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:        "same request ID, child running with the version of another cluster: returns the existing run",
+			reusePolicy: types.WorkflowIDReusePolicyRejectDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, &persistence.WorkflowExecutionAlreadyStartedError{
+						StartRequestID:   "child-request-id",
+						RunID:            childDuplicateRunID,
+						State:            persistence.WorkflowStateRunning,
+						LastWriteVersion: otherClusterVersion,
+					}).Once()
+			},
+			wantRunID:                 childDuplicateRunID,
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:        "same request ID, child closed by another cluster, reject duplicate: already started",
+			reusePolicy: types.WorkflowIDReusePolicyRejectDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, alreadyStarted(otherClusterVersion)).Once()
+			},
+			wantErr:                   alreadyStartedError(childRunClosedByOtherClusterMsg, childDuplicateRunID),
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			// the reuse policy is not applied, so the child does not run a second time
+			name:        "same request ID, child closed by another cluster, allow duplicate: already started",
+			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, alreadyStarted(otherClusterVersion)).Once()
+			},
+			wantErr:                   alreadyStartedError(childRunClosedByOtherClusterMsg, childDuplicateRunID),
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:        "same request ID, child corrupted with the version of another cluster: returns the existing run",
+			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, &persistence.WorkflowExecutionAlreadyStartedError{
+						StartRequestID:   "child-request-id",
+						RunID:            childDuplicateRunID,
+						State:            persistence.WorkflowStateCorrupted,
+						LastWriteVersion: otherClusterVersion,
+					}).Once()
+			},
+			wantRunID:                 childDuplicateRunID,
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:        "duplicate run closed by another cluster: already started",
+			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, duplicateRequest).Once()
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusCompleted, otherClusterVersion, nil)
+			},
+			wantErr:                   alreadyStartedError(childRunClosedByOtherClusterMsg, childDuplicateRunID),
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:        "duplicate run closed by this cluster: returns the duplicate run",
+			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, duplicateRequest).Once()
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusCompleted, currentClusterVersion, nil)
+			},
+			wantRunID:                 childDuplicateRunID,
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:        "run of another request closed, reuse create finds the duplicate run closed by another cluster: already started",
+			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, &persistence.WorkflowExecutionAlreadyStartedError{
+						StartRequestID:   "other-request-id",
+						RunID:            childCurrentRunID,
+						State:            persistence.WorkflowStateCompleted,
+						CloseStatus:      persistence.WorkflowCloseStatusCompleted,
+						LastWriteVersion: currentClusterVersion,
+					}).Once()
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeWorkflowIDReuse)).
+					Return(nil, duplicateRequest).Once()
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusCompleted, otherClusterVersion, nil)
+			},
+			wantErr:                   alreadyStartedError(childRunClosedByOtherClusterMsg, childDuplicateRunID),
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:        "duplicate run continued as new on another cluster, current run of the chain running: returns the duplicate run",
+			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, duplicateRequest).Once()
+				eft.ShardCtx.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).
+					Return(currentRun(childCurrentRunID, persistence.WorkflowStateRunning, otherClusterVersion), nil).Once()
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, childDuplicateRunID, persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone, otherClusterVersion, nil)
+			},
+			wantRunID: childDuplicateRunID,
+		},
+		{
+			name:        "duplicate run continued as new, current run of another request, chain ended after a failover: already started",
+			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, duplicateRequest).Once()
+				eft.ShardCtx.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).
+					Return(currentRun(childCurrentRunID, persistence.WorkflowStateRunning, currentClusterVersion), nil).Once()
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, childCurrentRunID, persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone, currentClusterVersion, nil)
+			},
+			wantErr: alreadyStartedError(childChainEndUnknownMsg, childCurrentRunID),
+		},
+		{
+			name:        "local domain, duplicate run continued as new, current run of another request: returns the duplicate run",
+			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			domainEntry: constants.TestLocalDomainEntry,
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, duplicateRequest).Once()
+				eft.ShardCtx.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).
+					Return(currentRun(childCurrentRunID, persistence.WorkflowStateRunning, commonconstants.EmptyVersion), nil).Once()
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, commonconstants.EmptyVersion, nil)
+				mockLoadChildRunOfChain(eft, childCurrentRunID, childCurrentRunID, persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone, commonconstants.EmptyVersion, nil)
+			},
+			wantRunID: childDuplicateRunID,
+		},
+		{
+			name:          "workflow without parent, duplicate request: returns the duplicate run without checking it",
+			reusePolicy:   types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			withoutParent: true,
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, duplicateRequest).Once()
+			},
+			wantRunID:                 childDuplicateRunID,
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:          "workflow without parent, same request ID, closed by another cluster: returns the existing run",
+			reusePolicy:   types.WorkflowIDReusePolicyRejectDuplicate.Ptr(),
+			withoutParent: true,
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, alreadyStarted(otherClusterVersion)).Once()
+			},
+			wantRunID:                 childDuplicateRunID,
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:          "workflow without parent, same request ID, corrupted: returns the existing run",
+			reusePolicy:   types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			withoutParent: true,
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, &persistence.WorkflowExecutionAlreadyStartedError{
+						StartRequestID:   "child-request-id",
+						RunID:            childDuplicateRunID,
+						State:            persistence.WorkflowStateCorrupted,
+						LastWriteVersion: currentClusterVersion,
+					}).Once()
+			},
+			wantRunID:                 childDuplicateRunID,
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:        "duplicate request, duplicate run not found: already started",
+			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, duplicateRequest).Once()
+				mockLoadChildRun(eft, childDuplicateRunID, 0, 0, &types.EntityNotExistsError{})
+			},
+			wantErr:                   alreadyStartedError(childRunNotFoundMsg, childDuplicateRunID),
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:        "duplicate request, failed to load the duplicate run: error",
+			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, duplicateRequest).Once()
+				mockLoadChildRun(eft, childDuplicateRunID, 0, 0, errors.New("some error"))
+			},
+			wantErr:                   errors.New("some error"),
+			wantNoGetCurrentExecution: true,
+		},
+		{
+			name:        "duplicate run continued as new, no current run: already started",
+			reusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, createMode(persistence.CreateWorkflowModeBrandNew)).
+					Return(nil, duplicateRequest).Once()
+				mockLoadChildRun(eft, childDuplicateRunID, persistence.WorkflowCloseStatusContinuedAsNew, otherClusterVersion, nil)
+				eft.ShardCtx.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).
+					Return(nil, &types.EntityNotExistsError{}).Once()
+			},
+			wantErr: alreadyStartedError(childChainEndUnknownMsg, childDuplicateRunID),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
+			eft.Engine.Start()
+			defer eft.Engine.Stop()
+
+			domainEntry := constants.TestGlobalDomainEntry
+			if tc.domainEntry != nil {
+				domainEntry = tc.domainEntry
+			}
+			eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domainEntry, nil).AnyTimes()
+			eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).AnyTimes()
+			// loading a run of the child looks up the active cluster of the child
+			eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, "child-workflow-id", gomock.Any()).
+				Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName}, nil).AnyTimes()
+			eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, nil).
+				Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName, FailoverVersion: activeVersion}, nil).AnyTimes()
+			eft.ShardCtx.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+			eft.ShardCtx.Resource.HistoryMgr.On("AppendHistoryNodes", mock.Anything, mock.AnythingOfType("*persistence.AppendHistoryNodesRequest")).
+				Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+			eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.Anything).Return(nil).Maybe()
+			tc.setupMocks(eft)
+
+			request := newChildStartRequest(tc.reusePolicy)
+			if tc.withoutParent {
+				request.ParentExecutionInfo = nil
+			}
+			resp, err := eft.Engine.StartWorkflowExecution(context.Background(), request)
+			assert.Equal(t, tc.wantErr, err)
+			if tc.wantErr == nil {
+				assert.Equal(t, tc.wantRunID, resp.GetRunID())
+			}
+			assertChildRunsLoaded(t, eft)
+			if tc.wantNoGetCurrentExecution {
+				eft.ShardCtx.Resource.ExecutionMgr.AssertNotCalled(t, "GetCurrentExecution", mock.Anything, mock.Anything)
+			} else {
+				eft.ShardCtx.Resource.ExecutionMgr.AssertCalled(t, "GetCurrentExecution", mock.Anything, mock.Anything)
+			}
+		})
+	}
 }
