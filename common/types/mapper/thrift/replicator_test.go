@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
 )
 
@@ -838,4 +839,169 @@ func TestReplicationMessagesMap(t *testing.T) {
 			assert.Equal(t, tc.input, roundTripObj)
 		})
 	}
+}
+
+// replicatorFuzzers constrains the values reachable from the replicator mappers
+// that their From* functions panic on or silently drop.
+func replicatorFuzzers() testutils.FuzzOption {
+	return testutils.WithCustomFuncs(
+		testutils.ArchivalStatusFuzzer,
+		testutils.DomainStatusFuzzer,
+		testutils.DomainOperationFuzzer,
+		testutils.DLQTypeFuzzer,
+		testutils.ReplicationTaskTypeFuzzer,
+		testutils.EncodingTypeFuzzer,
+		testutils.FailureCategoryFuzzer,
+		testutils.IsolationGroupConfigurationFuzzer,
+	)
+}
+
+func TestDLQTypeFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDLQType, ToDLQType,
+		testutils.WithCustomFuncs(testutils.DLQTypeFuzzer))
+}
+
+func TestDomainOperationFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDomainOperation, ToDomainOperation,
+		testutils.WithCustomFuncs(testutils.DomainOperationFuzzer))
+}
+
+func TestDomainTaskAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDomainTaskAttributes, ToDomainTaskAttributes,
+		replicatorFuzzers())
+}
+
+func TestFailoverMarkerAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverMarkerAttributes, ToFailoverMarkerAttributes,
+		replicatorFuzzers())
+}
+
+func TestFailoverMarkersFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverMarkers, ToFailoverMarkers,
+		replicatorFuzzers())
+}
+
+func TestAdminGetDLQReplicationMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminGetDLQReplicationMessagesRequest, ToAdminGetDLQReplicationMessagesRequest,
+		replicatorFuzzers())
+}
+
+func TestAdminGetDLQReplicationMessagesResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminGetDLQReplicationMessagesResponse, ToAdminGetDLQReplicationMessagesResponse,
+		replicatorFuzzers())
+}
+
+func TestAdminGetDomainReplicationMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminGetDomainReplicationMessagesRequest, ToAdminGetDomainReplicationMessagesRequest,
+		replicatorFuzzers())
+}
+
+func TestAdminGetDomainReplicationMessagesResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminGetDomainReplicationMessagesResponse, ToAdminGetDomainReplicationMessagesResponse,
+		replicatorFuzzers())
+}
+
+func TestAdminGetReplicationMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminGetReplicationMessagesRequest, ToAdminGetReplicationMessagesRequest,
+		replicatorFuzzers())
+}
+
+func TestAdminGetReplicationMessagesResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminGetReplicationMessagesResponse, ToAdminGetReplicationMessagesResponse,
+		replicatorFuzzers())
+}
+
+func TestHistoryTaskV2AttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryTaskV2Attributes, ToHistoryTaskV2Attributes,
+		replicatorFuzzers())
+}
+
+func TestAdminMergeDLQMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminMergeDLQMessagesRequest, ToAdminMergeDLQMessagesRequest,
+		replicatorFuzzers())
+}
+
+func TestAdminMergeDLQMessagesResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminMergeDLQMessagesResponse, ToAdminMergeDLQMessagesResponse,
+		replicatorFuzzers())
+}
+
+func TestAdminPurgeDLQMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminPurgeDLQMessagesRequest, ToAdminPurgeDLQMessagesRequest,
+		replicatorFuzzers())
+}
+
+func TestAdminReadDLQMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminReadDLQMessagesRequest, ToAdminReadDLQMessagesRequest,
+		replicatorFuzzers())
+}
+
+func TestAdminReadDLQMessagesResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminReadDLQMessagesResponse, ToAdminReadDLQMessagesResponse,
+		replicatorFuzzers())
+}
+
+func TestReplicationMessagesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationMessages, ToReplicationMessages,
+		replicatorFuzzers())
+}
+
+func TestReplicationTaskFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationTask, ToReplicationTask,
+		replicatorFuzzers())
+}
+
+func TestReplicationTaskInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationTaskInfo, ToReplicationTaskInfo,
+		replicatorFuzzers())
+}
+
+func TestReplicationTaskTypeFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationTaskType, ToReplicationTaskType,
+		testutils.WithCustomFuncs(testutils.ReplicationTaskTypeFuzzer))
+}
+
+func TestReplicationTokenFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationToken, ToReplicationToken,
+		replicatorFuzzers())
+}
+
+func TestSyncActivityTaskAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSyncActivityTaskAttributes, ToSyncActivityTaskAttributes,
+		replicatorFuzzers())
+}
+
+func TestSyncShardStatusFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSyncShardStatus, ToSyncShardStatus,
+		replicatorFuzzers())
+}
+
+func TestSyncShardStatusTaskAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSyncShardStatusTaskAttributes, ToSyncShardStatusTaskAttributes,
+		replicatorFuzzers())
+}
+
+func TestFailoverMarkerAttributesArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverMarkerAttributesArray, ToFailoverMarkerAttributesArray,
+		replicatorFuzzers())
+}
+
+func TestReplicationTaskInfoArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationTaskInfoArray, ToReplicationTaskInfoArray,
+		replicatorFuzzers())
+}
+
+func TestReplicationTaskArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationTaskArray, ToReplicationTaskArray,
+		replicatorFuzzers())
+}
+
+func TestReplicationTokenArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationTokenArray, ToReplicationTokenArray,
+		replicatorFuzzers())
+}
+
+func TestReplicationMessagesMapFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationMessagesMap, ToReplicationMessagesMap,
+		replicatorFuzzers())
 }
