@@ -25,6 +25,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/hashicorp/go-version"
@@ -125,8 +126,8 @@ func GetFeatureFlagsFromHeader(call *yarpc.Call) apiv1.FeatureFlags {
 	featureFlagsSerialized := call.Header(common.ClientFeatureFlagsHeaderName)
 
 	var featureFlags apiv1.FeatureFlags
-	err := jsonpb.UnmarshalString(featureFlagsSerialized, &featureFlags)
-	if err != nil {
+	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
+	if err := unmarshaler.Unmarshal(strings.NewReader(featureFlagsSerialized), &featureFlags); err != nil {
 		// fail open and return empty feature flags
 		return apiv1.FeatureFlags{}
 	}
