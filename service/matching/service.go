@@ -84,7 +84,7 @@ func NewService(
 		config:                         serviceConfig,
 		stopC:                          make(chan struct{}),
 		ShardDistributorMatchingConfig: params.ShardDistributorMatchingConfig,
-		shardCount:                     params.MatchingShardCount,
+		shardCount:                     params.NumMatchingShards,
 		drainObserver:                  params.DrainObserver,
 		percentageOnboarded:            params.PercentageOnboarded,
 	}, nil

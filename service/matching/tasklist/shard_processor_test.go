@@ -35,11 +35,10 @@ func newShardProcessorTestData(t *testing.T, taskListID *Identifier) shardProces
 	mockRegistry.EXPECT().ManagersByTaskListName(taskListID.GetName()).Return([]Manager{}).AnyTimes()
 
 	params := ShardProcessorParams{
-		ShardID:             taskListID.GetName(),
-		TaskListsRegistry:   mockRegistry,
-		ReportTTL:           1 * time.Millisecond,
-		TimeSource:          clock.NewRealTimeSource(),
-		ShardIsTaskListName: true,
+		ShardID:           taskListID.GetName(),
+		TaskListsRegistry: mockRegistry,
+		ReportTTL:         1 * time.Millisecond,
+		TimeSource:        clock.NewRealTimeSource(),
 	}
 
 	shardProcessor, err := NewShardProcessor(params)
@@ -68,28 +67,28 @@ func TestGetShardReport(t *testing.T) {
 
 func TestSetShardStatus(t *testing.T) {
 	tests := []struct {
-		name                string
-		shardIsTaskListName bool
-		status              smtypes.ShardStatus
-		wantStatus          smtypes.ShardStatus
+		name                 string
+		shardTaskListsByHash bool
+		status               smtypes.ShardStatus
+		wantStatus           smtypes.ShardStatus
 	}{
 		{
-			name:                "task list name shard becomes ready",
-			shardIsTaskListName: true,
-			status:              smtypes.ShardStatusREADY,
-			wantStatus:          smtypes.ShardStatusREADY,
+			name:                 "task list name shard becomes ready",
+			shardTaskListsByHash: false,
+			status:               smtypes.ShardStatusREADY,
+			wantStatus:           smtypes.ShardStatusREADY,
 		},
 		{
-			name:                "task list name shard becomes done",
-			shardIsTaskListName: true,
-			status:              smtypes.ShardStatusDONE,
-			wantStatus:          smtypes.ShardStatusDONE,
+			name:                 "task list name shard becomes done",
+			shardTaskListsByHash: false,
+			status:               smtypes.ShardStatusDONE,
+			wantStatus:           smtypes.ShardStatusDONE,
 		},
 		{
-			name:                "shard by hash is never done",
-			shardIsTaskListName: false,
-			status:              smtypes.ShardStatusDONE,
-			wantStatus:          smtypes.ShardStatusREADY,
+			name:                 "shard by hash is never done",
+			shardTaskListsByHash: true,
+			status:               smtypes.ShardStatusDONE,
+			wantStatus:           smtypes.ShardStatusREADY,
 		},
 	}
 	for _, tt := range tests {
@@ -100,11 +99,11 @@ func TestSetShardStatus(t *testing.T) {
 			mockRegistry.EXPECT().ManagersByTaskListName(gomock.Any()).Return([]Manager{}).AnyTimes()
 			mockRegistry.EXPECT().ManagersByShard(gomock.Any()).Return([]Manager{}).AnyTimes()
 			shardProcessor, err := NewShardProcessor(ShardProcessorParams{
-				ShardID:             "shard-id",
-				ShardIsTaskListName: tt.shardIsTaskListName,
-				TaskListsRegistry:   mockRegistry,
-				ReportTTL:           time.Minute,
-				TimeSource:          clock.NewMockedTimeSource(),
+				ShardID:              "shard-id",
+				ShardTaskListsByHash: tt.shardTaskListsByHash,
+				TaskListsRegistry:    mockRegistry,
+				ReportTTL:            time.Minute,
+				TimeSource:           clock.NewMockedTimeSource(),
 			})
 			require.NoError(t, err)
 
@@ -145,10 +144,11 @@ func TestShardProcessor_ShardByHashSkipsTaskListsOwnedByHashRing(t *testing.T) {
 	mockRegistry.EXPECT().ManagersByShard(shardID).Return([]Manager{firstTaskList, secondTaskList, hashRingTaskList}).Times(2)
 
 	shardProcessor, err := NewShardProcessor(ShardProcessorParams{
-		ShardID:           shardID,
-		TaskListsRegistry: mockRegistry,
-		ReportTTL:         reportTTL,
-		TimeSource:        timeSource,
+		ShardID:              shardID,
+		TaskListsRegistry:    mockRegistry,
+		ReportTTL:            reportTTL,
+		TimeSource:           timeSource,
+		ShardTaskListsByHash: true,
 		OwnedByHashRing: func(taskListName string) bool {
 			return taskListName == hashRingTaskListID.GetName()
 		},

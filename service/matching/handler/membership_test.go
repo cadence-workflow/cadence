@@ -138,7 +138,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				mockTimeSource,
 				mockShardDistributorExecutorClient,
 				defaultSDExecutorConfig(),
-				commonConfig.DefaultMatchingShardCount,
+				commonConfig.DefaultNumMatchingShards,
 				nil,
 				pct,
 			).(*matchingEngineImpl)
@@ -204,7 +204,7 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
@@ -240,7 +240,7 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
@@ -299,7 +299,7 @@ func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
@@ -349,7 +349,7 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion:  &shutdownWG,
 		membershipResolver:  mockResolver,
-		taskListRegistry:    tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount),
+		taskListRegistry:    tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:   semaphore.NewSemaphoreRegistry(),
 		metricsClient:       metrics.NewNoopMetricsClient(),
 		percentageOnboarded: pct,

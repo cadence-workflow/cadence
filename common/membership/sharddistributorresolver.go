@@ -90,9 +90,15 @@ func (s shardDistributorResolver) Stop() {
 }
 
 func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
-	percentageOnboarded := uint64(s.percentageOnboarded.Value())
+	// Read once, so the exclusion check and the shard ID below use the same value.
 	shardTaskListsByHash := s.shardTaskListsByHash()
-	excludeTaskList := TaskListExcludedFromShardDistributor(key, percentageOnboarded, s.excludeShortLivedTaskLists(), shardTaskListsByHash, s.shardCount)
+	excludeTaskList := TaskListExcludedFromShardDistributor(
+		key,
+		uint64(s.percentageOnboarded.Value()),
+		s.excludeShortLivedTaskLists(),
+		shardTaskListsByHash,
+		s.shardCount,
+	)
 	if excludeTaskList {
 		s.emitRoutingPathMetric(routingPathHashRing)
 		return s.ring.Lookup(key)

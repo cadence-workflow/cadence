@@ -201,7 +201,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		s.mockTimeSource,
 		s.mockShardExecutorClient,
 		defaultSDExecutorConfig(),
-		commonConfig.DefaultMatchingShardCount,
+		commonConfig.DefaultNumMatchingShards,
 		nil,
 		pct,
 	).(*matchingEngineImpl)

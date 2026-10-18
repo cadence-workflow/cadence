@@ -234,11 +234,11 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 		e.executor = executorclient.NewNoopExecutor[tasklist.ShardProcessor]()
 
 		taskListFactory := &tasklist.ShardProcessorFactory{
-			TaskListsRegistry: e.taskListRegistry,
-			ReportTTL:         _defaultSDReportTTL,
-			TimeSource:        e.timeSource,
-			ShardByHash:       e.config.ShardTaskListsByHashForShardManager,
-			OwnedByHashRing:   e.isExcludedFromShardDistributor,
+			TaskListsRegistry:    e.taskListRegistry,
+			ReportTTL:            _defaultSDReportTTL,
+			TimeSource:           e.timeSource,
+			ShardTaskListsByHash: e.config.ShardTaskListsByHashForShardManager,
+			OwnedByHashRing:      e.isExcludedFromShardDistributor,
 		}
 		e.taskListsFactory = taskListFactory
 		return
@@ -247,11 +247,11 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 	cfg, reportTTL := e.getValidatedShardDistributorConfig()
 
 	taskListFactory := &tasklist.ShardProcessorFactory{
-		TaskListsRegistry: e.taskListRegistry,
-		ReportTTL:         reportTTL,
-		TimeSource:        e.timeSource,
-		ShardByHash:       e.config.ShardTaskListsByHashForShardManager,
-		OwnedByHashRing:   e.isExcludedFromShardDistributor,
+		TaskListsRegistry:    e.taskListRegistry,
+		ReportTTL:            reportTTL,
+		TimeSource:           e.timeSource,
+		ShardTaskListsByHash: e.config.ShardTaskListsByHashForShardManager,
+		OwnedByHashRing:      e.isExcludedFromShardDistributor,
 	}
 	e.taskListsFactory = taskListFactory
 
@@ -1716,16 +1716,18 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 }
 
 func (e *matchingEngineImpl) isExcludedFromShardDistributor(taskListName string) bool {
-	percentageOnboarded := uint64(e.percentageOnboarded.Value())
-	excludeShortLivedTaskLists := e.config.ExcludeShortLivedTaskListsFromShardManager()
-	shardTaskListsByHash := e.config.ShardTaskListsByHashForShardManager()
-	return membership.TaskListExcludedFromShardDistributor(taskListName, percentageOnboarded, excludeShortLivedTaskLists, shardTaskListsByHash, e.shardCount)
+	return membership.TaskListExcludedFromShardDistributor(
+		taskListName,
+		uint64(e.percentageOnboarded.Value()),
+		e.config.ExcludeShortLivedTaskListsFromShardManager(),
+		e.config.ShardTaskListsByHashForShardManager(),
+		e.shardCount,
+	)
 }
 
 // taskListShardID returns the shard that holds a task list in the shard distributor.
 func (e *matchingEngineImpl) taskListShardID(taskListName string) string {
-	shardTaskListsByHash := e.config.ShardTaskListsByHashForShardManager()
-	return membership.TaskListShardID(taskListName, shardTaskListsByHash, e.shardCount)
+	return membership.TaskListShardID(taskListName, e.config.ShardTaskListsByHashForShardManager(), e.shardCount)
 }
 
 func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {

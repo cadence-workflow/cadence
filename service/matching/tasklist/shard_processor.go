@@ -18,9 +18,9 @@ type ShardProcessorParams struct {
 	TaskListsRegistry TaskListRegistry
 	ReportTTL         time.Duration
 	TimeSource        clock.TimeSource
-	// ShardIsTaskListName is true when ShardID is a task list name, and false when it is the shard
-	// that task list names hash to.
-	ShardIsTaskListName bool
+	// ShardTaskListsByHash is true when ShardID is the shard that task list names hash to, and false
+	// when it is a task list name.
+	ShardTaskListsByHash bool
 	// OwnedByHashRing reports whether a task list is excluded from the shard distributor, so the
 	// hash ring owns it. When task lists are sharded by hash, a shard leaves those task lists alone.
 	OwnedByHashRing func(taskListName string) bool
@@ -36,8 +36,8 @@ type shardProcessorImpl struct {
 	reportTTL         time.Duration
 	timeSource        clock.TimeSource
 
-	shardIsTaskListName bool
-	ownedByHashRing     func(taskListName string) bool
+	shardTaskListsByHash bool
+	ownedByHashRing      func(taskListName string) bool
 }
 
 func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
@@ -53,8 +53,8 @@ func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
 		reportTTL:         params.ReportTTL,
 		timeSource:        params.TimeSource,
 
-		shardIsTaskListName: params.ShardIsTaskListName,
-		ownedByHashRing:     params.OwnedByHashRing,
+		shardTaskListsByHash: params.ShardTaskListsByHash,
+		ownedByHashRing:      params.OwnedByHashRing,
 	}
 	shardprocessor.SetShardStatus(smtypes.ShardStatusREADY)
 	shardprocessor.shardReport = executorclient.ShardReport{
@@ -104,7 +104,7 @@ func (sp *shardProcessorImpl) GetShardReport() executorclient.ShardReport {
 func (sp *shardProcessorImpl) SetShardStatus(status smtypes.ShardStatus) {
 	// When task lists are sharded by hash, a shard is one of a fixed set, so it is never done, even
 	// when all its task lists are idle.
-	if !sp.shardIsTaskListName && status == smtypes.ShardStatusDONE {
+	if sp.shardTaskListsByHash && status == smtypes.ShardStatusDONE {
 		return
 	}
 	sp.Status.Store(int32(status))
@@ -126,7 +126,7 @@ func (sp *shardProcessorImpl) getShardLoad() float64 {
 
 // taskListsInShard returns the managers of the task lists this shard owns.
 func (sp *shardProcessorImpl) taskListsInShard() []Manager {
-	if sp.shardIsTaskListName {
+	if !sp.shardTaskListsByHash {
 		return sp.taskListsRegistry.ManagersByTaskListName(sp.shardID)
 	}
 

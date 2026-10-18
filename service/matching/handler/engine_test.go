@@ -212,7 +212,7 @@ func TestGetTaskListsByDomain(t *testing.T) {
 			}
 			tc.mockSetup(mockDomainCache, mockTaskListManagers, mockStickyManagers)
 
-			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount)
+			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 			engine := &matchingEngineImpl{
 				domainCache:      mockDomainCache,
 				taskListRegistry: taskListRegistry,
@@ -395,7 +395,7 @@ func TestCancelOutstandingPoll(t *testing.T) {
 			mockManager := newMockManagerWithTaskListID(mockCtrl, tasklistID)
 			executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockCtrl, mockManager, executor)
-			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount)
+			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 			pct := membership.NewMockPercentageOnboarded(mockCtrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
@@ -494,7 +494,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 	t.Run("sharding by hash checks the shard process of the shard the name hashes to", func(t *testing.T) {
 		engine, executor, _ := newEngine(t)
 		engine.config.ShardTaskListsByHashForShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
-		engine.shardCount = commonConfig.DefaultMatchingShardCount
+		engine.shardCount = commonConfig.DefaultNumMatchingShards
 		shardID := membership.TaskListNameToShard(taskListID.GetName(), engine.shardCount)
 		executor.EXPECT().GetShardProcess(gomock.Any(), shardID).Return(&tasklist.MockShardProcessor{}, nil)
 
@@ -765,7 +765,7 @@ func TestQueryWorkflow(t *testing.T) {
 			tasklistID := mustNewIdentifier(t, "test-domain-id", "test-tasklist", 0)
 			mockManager := newMockManagerWithTaskListID(mockCtrl, tasklistID)
 			executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
-			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount)
+			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 			pct := membership.NewMockPercentageOnboarded(mockCtrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
@@ -946,7 +946,7 @@ func TestIsShuttingDown(t *testing.T) {
 		shutdownCompletion: &wg,
 		shutdown:           make(chan struct{}),
 		executor:           mockExecutor,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 	}
 	e.Start()
@@ -977,7 +977,7 @@ func TestGetTasklistsNotOwned(t *testing.T) {
 	e := matchingEngineImpl{
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		config:             &config.Config{},
 		logger:             log.NewNoop(),
 	}
@@ -1013,7 +1013,7 @@ func TestShutDownTasklistsNotOwned(t *testing.T) {
 	e := matchingEngineImpl{
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		config:             &config.Config{},
 		metricsClient:      metrics.NewNoopMetricsClient(),
 		logger:             log.NewNoop(),
@@ -1236,7 +1236,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			mockManager := newMockManagerWithTaskListID(mockCtrl, tasklistID)
 			mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockManager, mockCtrl, mockExecutor)
-			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount)
+			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 			pct := membership.NewMockPercentageOnboarded(mockCtrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
@@ -1423,7 +1423,7 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			mockManager := newMockManagerWithTaskListID(mockCtrl, tasklistID)
 			mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockManager, mockCtrl, mockExecutor)
-			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount)
+			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 			pct := membership.NewMockPercentageOnboarded(mockCtrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
@@ -1504,7 +1504,7 @@ func Test_domainChangeCallback(t *testing.T) {
 		failoverNotificationVersion: 1,
 		config:                      defaultTestConfig(),
 		logger:                      log.NewNoop(),
-		taskListRegistry:            tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount),
+		taskListRegistry:            tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		executor:                    mockExecutor,
 		metricsClient:               metrics.NewNoopMetricsClient(),
 		percentageOnboarded:         pct,
@@ -1635,7 +1635,7 @@ func Test_registerDomainFailoverCallback(t *testing.T) {
 		failoverNotificationVersion: 0,
 		config:                      defaultTestConfig(),
 		logger:                      log.NewNoop(),
-		taskListRegistry:            tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount),
+		taskListRegistry:            tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		metricsClient:               metrics.NewNoopMetricsClient(),
 	}
 
@@ -1929,7 +1929,7 @@ func TestSetupExecutorWithEmptyConfig(t *testing.T) {
 	// When no shard-distributor namespaces are configured, setupExecutor must
 	// succeed and install a no-op executor so the matching service falls back
 	// to local hash-ring assignment.
-	registry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount)
+	registry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 	engine := &matchingEngineImpl{
 		taskListRegistry:               registry,
 		logger:                         log.NewNoop(),
@@ -2267,7 +2267,7 @@ func TestStopSemaphoreManagers(t *testing.T) {
 	e.domainCache.(*cache.MockDomainCache).EXPECT().UnregisterDomainChangeCallback(service.Matching)
 	e.shutdown = make(chan struct{})
 	e.shutdownCompletion = &sync.WaitGroup{}
-	e.taskListRegistry = tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultMatchingShardCount)
+	e.taskListRegistry = tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 	e.executor = executorclient.NewNoopExecutor[tasklist.ShardProcessor]()
 
 	managers := make([]semaphore.Manager, 0, 3)
