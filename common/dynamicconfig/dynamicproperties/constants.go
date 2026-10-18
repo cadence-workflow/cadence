@@ -2439,6 +2439,17 @@ const (
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
 
+	// MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard
+	// manager. When disabled, each task list name is its own shard.
+	// Only change it while matching.percentageOnboardedToShardManager is 0, because hosts that disagree on it
+	// route the same task list to different owners.
+	// Read from the primary database-backed operational dynamic config store.
+	// KeyName: matching.shardTaskListsByHashForShardManager
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingShardTaskListsByHashForShardManager
+
 	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
 	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
 	// Value type: Bool
@@ -5365,6 +5376,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
 		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
 		DefaultValue: true,
+	},
+	MatchingShardTaskListsByHashForShardManager: {
+		KeyName:      "matching.shardTaskListsByHashForShardManager",
+		Description:  "MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard manager",
+		DefaultValue: false,
 	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",

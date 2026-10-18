@@ -925,6 +925,7 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 				TTLReport:         1 * time.Minute,
 			}},
 		}
+		params.MatchingShardCount = config.DefaultMatchingShardCount
 
 		matchingService, err := matching.NewService(params)
 		if err != nil {

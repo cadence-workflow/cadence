@@ -222,6 +222,45 @@ func TestConfigErrorInAuthorizationConfig(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestMatchingShardCount(t *testing.T) {
+	tests := []struct {
+		name               string
+		matchingShardCount int
+		wantShardCount     int
+		wantErr            string
+	}{
+		{
+			name:               "unset uses the default",
+			matchingShardCount: 0,
+			wantShardCount:     DefaultMatchingShardCount,
+		},
+		{
+			name:               "set",
+			matchingShardCount: 1050,
+			wantShardCount:     1050,
+		},
+		{
+			name:               "negative",
+			matchingShardCount: -100,
+			wantErr:            "matchingShardCount must be positive, got -100",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := getValidShardedNoSQLConfig()
+			cfg.MatchingShardCount = tt.matchingShardCount
+
+			err := cfg.ValidateAndFillDefaults()
+			if tt.wantErr != "" {
+				assert.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantShardCount, cfg.MatchingShardCount)
+		})
+	}
+}
+
 func TestGetServiceConfig(t *testing.T) {
 	cfg := Config{}
 	_, err := cfg.GetServiceConfig(service.Frontend)

@@ -30,6 +30,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
@@ -49,6 +50,27 @@ func TestShardDistributorResolver_Lookup(t *testing.T) {
 		}, nil)
 
 	host, err := resolver.Lookup("test-key")
+	assert.NoError(t, err)
+	assert.Equal(t, "127.0.0.1:7933", host.addr)
+}
+
+func TestShardDistributorResolver_Lookup_ShardTaskListsByHash(t *testing.T) {
+	resolver, _, shardDistributorMock := newShardDistributorResolver(t)
+	resolver.shardTaskListsByHash = dynamicproperties.GetBoolPropertyFn(true)
+
+	taskListName := "test-key"
+	shardID := TaskListNameToShard(taskListName, resolver.shardCount)
+	shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), shardID).
+		Return(&spectatorclient.ShardOwner{
+			ExecutorID: "test-owner",
+			Metadata: map[string]string{
+				"hostIP":   "127.0.0.1",
+				"tchannel": "7933",
+				"grpc":     "7833",
+			},
+		}, nil)
+
+	host, err := resolver.Lookup(taskListName)
 	assert.NoError(t, err)
 	assert.Equal(t, "127.0.0.1:7933", host.addr)
 }
@@ -77,6 +99,8 @@ func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *test
 	resolver := NewShardDistributorResolver(
 		nil, // nil spectator
 		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		config.DefaultMatchingShardCount,
 		pct,
 		ring,
 		logger,
@@ -147,6 +171,8 @@ func TestShardDistributorResolver_Lookup_RecordsRoutingPath(t *testing.T) {
 			resolver := NewShardDistributorResolver(
 				spectator,
 				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(false),
+				config.DefaultMatchingShardCount,
 				percentageOnboarded,
 				ring,
 				log.NewNoop(),
@@ -254,6 +280,8 @@ func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T
 			resolver := NewShardDistributorResolver(
 				spectator,
 				dynamicproperties.GetBoolPropertyFn(tc.excludeShortLivedTaskLists),
+				dynamicproperties.GetBoolPropertyFn(false),
+				config.DefaultMatchingShardCount,
 				pct,
 				ring,
 				logger,
@@ -298,6 +326,8 @@ func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *Mock
 	resolver := NewShardDistributorResolver(
 		spectator,
 		excludeShortLivedTaskLists,
+		dynamicproperties.GetBoolPropertyFn(false),
+		config.DefaultMatchingShardCount,
 		percentageOnboarded,
 		ring,
 		logger,

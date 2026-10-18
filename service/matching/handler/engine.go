@@ -117,6 +117,7 @@ type (
 		zapLogger                      *zap.Logger
 		failoverNotificationVersion    int64
 		ShardDistributorMatchingConfig clientcommon.Config
+		shardCount                     int
 		drainObserver                  clientcommon.DrainSignalObserver
 		percentageOnboarded            membership.PercentageOnboarded
 	}
@@ -165,11 +166,12 @@ func NewEngine(
 	timeSource clock.TimeSource,
 	shardDistributorClient executorclient.Client,
 	ShardDistributorMatchingConfig clientcommon.Config,
+	shardCount int,
 	drainObserver clientcommon.DrainSignalObserver,
 	percentageOnboarded membership.PercentageOnboarded,
 ) Engine {
 	e := &matchingEngineImpl{
-		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient),
+		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient, shardCount),
 		semaphoreRegistry:              semaphore.NewSemaphoreRegistry(),
 		shutdown:                       make(chan struct{}),
 		shutdownCompletion:             &sync.WaitGroup{},
@@ -192,6 +194,7 @@ func NewEngine(
 		timeSource:                     timeSource,
 		zapLogger:                      zapLogger,
 		ShardDistributorMatchingConfig: ShardDistributorMatchingConfig,
+		shardCount:                     shardCount,
 		drainObserver:                  drainObserver,
 		percentageOnboarded:            percentageOnboarded,
 	}
@@ -234,6 +237,8 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 			TaskListsRegistry: e.taskListRegistry,
 			ReportTTL:         _defaultSDReportTTL,
 			TimeSource:        e.timeSource,
+			ShardByHash:       e.config.ShardTaskListsByHashForShardManager,
+			OwnedByHashRing:   e.isExcludedFromShardDistributor,
 		}
 		e.taskListsFactory = taskListFactory
 		return
@@ -245,6 +250,8 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 		TaskListsRegistry: e.taskListRegistry,
 		ReportTTL:         reportTTL,
 		TimeSource:        e.timeSource,
+		ShardByHash:       e.config.ShardTaskListsByHashForShardManager,
+		OwnedByHashRing:   e.isExcludedFromShardDistributor,
 	}
 	e.taskListsFactory = taskListFactory
 
@@ -329,7 +336,8 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		return result, nil
 	}
 	if !excludedFromShardDistributor {
-		sp, _ := e.executor.GetShardProcess(ctx, taskList.GetName())
+		shardID := e.taskListShardID(taskList.GetName())
+		sp, _ := e.executor.GetShardProcess(ctx, shardID)
 		if sp != nil && ok {
 			return result, nil
 		}
@@ -1629,9 +1637,11 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 	// Task lists excluded from the ShardDistributor bypass the executor entirely and rely on
 	// the local hash-ring for ownership, so skip the SD-based ownership check for them.
 	if !e.isExcludedFromShardDistributor(taskList.GetName()) {
-		// We have a shard-processor shared by all the task lists with the same name.
+		// We have a shard-processor shared by all the task lists with the same name, or, when task
+		// lists are sharded by hash, by all the task lists whose names hash to the same shard.
 		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
-		sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
+		shardID := e.taskListShardID(taskList.GetName())
+		sp, err := e.executor.GetShardProcess(ctx, shardID)
 		if err != nil {
 			if errors.Is(err, executorclient.ErrShardProcessNotFound) {
 				// The shard is not assigned to this host – treat it as an ownership loss,
@@ -1706,7 +1716,16 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 }
 
 func (e *matchingEngineImpl) isExcludedFromShardDistributor(taskListName string) bool {
-	return membership.TaskListExcludedFromShardDistributor(taskListName, uint64(e.percentageOnboarded.Value()), e.config.ExcludeShortLivedTaskListsFromShardManager())
+	percentageOnboarded := uint64(e.percentageOnboarded.Value())
+	excludeShortLivedTaskLists := e.config.ExcludeShortLivedTaskListsFromShardManager()
+	shardTaskListsByHash := e.config.ShardTaskListsByHashForShardManager()
+	return membership.TaskListExcludedFromShardDistributor(taskListName, percentageOnboarded, excludeShortLivedTaskLists, shardTaskListsByHash, e.shardCount)
+}
+
+// taskListShardID returns the shard that holds a task list in the shard distributor.
+func (e *matchingEngineImpl) taskListShardID(taskListName string) string {
+	shardTaskListsByHash := e.config.ShardTaskListsByHashForShardManager()
+	return membership.TaskListShardID(taskListName, shardTaskListsByHash, e.shardCount)
 }
 
 func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {

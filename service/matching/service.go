@@ -45,6 +45,7 @@ type Service struct {
 	stopC                          chan struct{}
 	config                         *config.Config
 	ShardDistributorMatchingConfig clientcommon.Config
+	shardCount                     int
 	drainObserver                  clientcommon.DrainSignalObserver
 	percentageOnboarded            membership.PercentageOnboarded
 }
@@ -83,6 +84,7 @@ func NewService(
 		config:                         serviceConfig,
 		stopC:                          make(chan struct{}),
 		ShardDistributorMatchingConfig: params.ShardDistributorMatchingConfig,
+		shardCount:                     params.MatchingShardCount,
 		drainObserver:                  params.DrainObserver,
 		percentageOnboarded:            params.PercentageOnboarded,
 	}, nil
@@ -115,6 +117,7 @@ func (s *Service) Start() {
 		s.GetTimeSource(),
 		s.GetShardDistributorExecutorClient(),
 		s.ShardDistributorMatchingConfig,
+		s.shardCount,
 		s.drainObserver,
 		s.percentageOnboarded,
 	)

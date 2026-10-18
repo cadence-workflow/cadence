@@ -107,6 +107,9 @@ type (
 
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
 		ShardDistributorMatchingConfig clientcommon.Config
+		// MatchingShardCount is the number of shards matching hashes task list names into, see
+		// config.Config.MatchingShardCount
+		MatchingShardCount int
 
 		// Spectator watches shard distributor namespace state for membership resolution.
 		// Optional; nil when shard distributor is not configured.

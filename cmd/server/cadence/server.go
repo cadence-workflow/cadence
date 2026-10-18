@@ -202,6 +202,7 @@ func (s *server) startService() common.Daemon {
 		params.HashRings,
 		spectator,
 		s.operationalDynamicConfig,
+		s.cfg.MatchingShardCount,
 		params.PercentageOnboarded,
 		params.Logger,
 		params.MetricsClient.Scope(metrics.ShardDistributorResolverScope),
@@ -276,6 +277,7 @@ func (s *server) startService() common.Daemon {
 	params.KafkaConfig = s.cfg.Kafka
 	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant(), antipatterns.NewInvariant()}
 	params.ShardDistributorMatchingConfig = s.cfg.ShardDistributorMatchingConfig
+	params.MatchingShardCount = s.cfg.MatchingShardCount
 
 	params.Logger.Info("Starting service " + s.name)
 
@@ -306,6 +308,7 @@ func (*server) wrapHashRingsWithShardDistributor(
 	hashRings map[string]membership.SingleProvider,
 	spectator spectatorclient.Spectator,
 	operationalDC *dynamicconfig.Collection,
+	matchingShardCount int,
 	percentageOnboarded membership.PercentageOnboarded,
 	logger log.Logger,
 	metricsScope metrics.Scope,
@@ -314,6 +317,8 @@ func (*server) wrapHashRingsWithShardDistributor(
 		hashRings[service.Matching] = membership.NewShardDistributorResolver(
 			spectator,
 			operationalDC.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
+			operationalDC.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
+			matchingShardCount,
 			percentageOnboarded,
 			hashRings[service.Matching],
 			logger,

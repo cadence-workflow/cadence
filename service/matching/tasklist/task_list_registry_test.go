@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	metricsmocks "github.com/uber/cadence/common/metrics/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -31,7 +32,8 @@ func TestTaskListRegistry_RegisterLookupAndUnregister(t *testing.T) {
 	metricsClient := metricsmocks.Client{}
 	metricsScope := metricsmocks.Scope{}
 	metricsClient.On("Scope", metrics.MatchingTaskListMgrScope).Return(&metricsScope)
-	registry := NewTaskListRegistry(&metricsClient)
+	shardCount := 1000
+	registry := NewTaskListRegistry(&metricsClient, shardCount)
 
 	id := mustNewIdentifierForTest(t, "domain-a", "task-list-a")
 
@@ -66,6 +68,7 @@ func TestTaskListRegistry_RegisterLookupAndUnregister(t *testing.T) {
 	impl := registry.(*taskListRegistryImpl)
 	assert.Empty(t, impl.taskListsByDomainID, "should be empty because there are no other task lists for this domain")
 	assert.Empty(t, impl.taskListsByTaskListName, "should be empty because there are no other task lists for this task list name")
+	assert.Empty(t, impl.taskListsByShard, "should be empty because there are no other task lists in this shard")
 
 	metricsClient.AssertExpectations(t)
 	metricsScope.AssertExpectations(t)
@@ -73,7 +76,8 @@ func TestTaskListRegistry_RegisterLookupAndUnregister(t *testing.T) {
 
 func TestTaskListRegistry_Filters(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	registry := NewTaskListRegistry(metrics.NewNoopMetricsClient())
+	shardCount := 1000
+	registry := NewTaskListRegistry(metrics.NewNoopMetricsClient(), shardCount)
 
 	domainA1 := mustNewIdentifierForTest(t, "domain-a", "shared-name")
 	domainA2 := mustNewIdentifierForTest(t, "domain-a", "other-name")
@@ -105,5 +109,14 @@ func TestTaskListRegistry_Filters(t *testing.T) {
 		)
 		assert.ElementsMatch(t, []Manager{mgrA2}, registry.ManagersByTaskListName("other-name"))
 		assert.Empty(t, registry.ManagersByTaskListName("missing-name"))
+	})
+
+	t.Run("managers by shard", func(t *testing.T) {
+		sharedNameShardID := membership.TaskListNameToShard("shared-name", shardCount)
+		otherNameShardID := membership.TaskListNameToShard("other-name", shardCount)
+		require.NotEqual(t, sharedNameShardID, otherNameShardID)
+
+		assert.ElementsMatch(t, []Manager{mgrA1, mgrB1}, registry.ManagersByShard(sharedNameShardID))
+		assert.ElementsMatch(t, []Manager{mgrA2}, registry.ManagersByShard(otherNameShardID))
 	})
 }
