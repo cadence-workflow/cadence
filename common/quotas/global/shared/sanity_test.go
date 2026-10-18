@@ -49,7 +49,6 @@ func TestSanityChecks(t *testing.T) {
 		"inclusive upper": {lower: 0, actual: 10, upper: 10, expected: ""},
 	}
 	for name, test := range tests {
-		name, test := name, test
 		t.Run(name, func(t *testing.T) {
 			msg := SanityCheckFloat(test.lower, test.actual, test.upper, "test")
 			if test.expected == "" {
