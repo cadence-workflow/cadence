@@ -34,7 +34,6 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
 )
@@ -1219,109 +1218,6 @@ func TestValidateFailoverDomainRequest(t *testing.T) {
 			}
 
 			err := v.ValidateFailoverDomainRequest(context.Background(), tc.req)
-			if tc.expectError {
-				assert.ErrorContains(t, err, tc.expectedError)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestValidateCreateSemaphoreRequest(t *testing.T) {
-	request := func(capacity, bucketCapacity int32) *types.CreateSemaphoreRequest {
-		return &types.CreateSemaphoreRequest{
-			Domain:         "domain",
-			SemaphoreName:  "semaphore",
-			Capacity:       capacity,
-			BucketCapacity: bucketCapacity,
-		}
-	}
-	testCases := []struct {
-		name          string
-		req           *types.CreateSemaphoreRequest
-		disabled      bool
-		nameMaxLength int
-		expectError   bool
-		expectedError string
-	}{
-		{
-			name:        "success",
-			req:         request(1000, 100),
-			expectError: false,
-		},
-		{
-			name:        "success with default bucket capacity",
-			req:         request(1000, 0),
-			expectError: false,
-		},
-		{
-			name:          "not set",
-			req:           nil,
-			expectError:   true,
-			expectedError: "Request is nil.",
-		},
-		{
-			name:          "domain not set",
-			req:           &types.CreateSemaphoreRequest{SemaphoreName: "semaphore", Capacity: 10},
-			expectError:   true,
-			expectedError: "Domain not set on request.",
-		},
-		{
-			name:          "feature disabled",
-			req:           request(10, 0),
-			disabled:      true,
-			expectError:   true,
-			expectedError: "Semaphores are not enabled for domain",
-		},
-		{
-			name:          "semaphore name not set",
-			req:           &types.CreateSemaphoreRequest{Domain: "domain", Capacity: 10},
-			expectError:   true,
-			expectedError: "SemaphoreName is not set on request.",
-		},
-		{
-			name:          "semaphore name too long",
-			req:           request(10, 0),
-			nameMaxLength: len("semaphore") - 1,
-			expectError:   true,
-			expectedError: "SemaphoreName exceeds length limit.",
-		},
-		{
-			name:          "capacity is 0",
-			req:           request(0, 0),
-			expectError:   true,
-			expectedError: "Capacity must be positive",
-		},
-		{
-			name:          "capacity is negative",
-			req:           request(-1, 0),
-			expectError:   true,
-			expectedError: "Capacity must be positive",
-		},
-		{
-			name:          "bucket capacity is negative",
-			req:           request(10, -1),
-			expectError:   true,
-			expectedError: "BucketCapacity must be between",
-		},
-		{
-			name:          "bucket capacity above the maximum",
-			req:           request(10, persistence.MaxSemaphoreBucketSize+1),
-			expectError:   true,
-			expectedError: "BucketCapacity must be between",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.EnableDistributedSemaphore, !tc.disabled))
-			if tc.nameMaxLength != 0 {
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.SemaphoreNameMaxLength, tc.nameMaxLength))
-			}
-
-			err := v.ValidateCreateSemaphoreRequest(context.Background(), tc.req)
 			if tc.expectError {
 				assert.ErrorContains(t, err, tc.expectedError)
 			} else {

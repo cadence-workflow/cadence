@@ -79,7 +79,7 @@ func newScheduleTestFixture(t *testing.T) *scheduleTestFixture {
 	config.EmitSignalNameMetricsTag = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 	config.EnableScheduler = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 
-	handler := NewWorkflowHandler(mockResource, config, versionChecker, nil, nil)
+	handler := NewWorkflowHandler(mockResource, config, versionChecker, nil)
 
 	return &scheduleTestFixture{
 		t:              t,

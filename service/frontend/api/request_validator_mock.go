@@ -56,20 +56,6 @@ func (mr *MockRequestValidatorMockRecorder) ValidateCountWorkflowExecutionsReque
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateCountWorkflowExecutionsRequest", reflect.TypeOf((*MockRequestValidator)(nil).ValidateCountWorkflowExecutionsRequest), arg0, arg1)
 }
 
-// ValidateCreateSemaphoreRequest mocks base method.
-func (m *MockRequestValidator) ValidateCreateSemaphoreRequest(arg0 context.Context, arg1 *types.CreateSemaphoreRequest) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ValidateCreateSemaphoreRequest", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ValidateCreateSemaphoreRequest indicates an expected call of ValidateCreateSemaphoreRequest.
-func (mr *MockRequestValidatorMockRecorder) ValidateCreateSemaphoreRequest(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateCreateSemaphoreRequest", reflect.TypeOf((*MockRequestValidator)(nil).ValidateCreateSemaphoreRequest), arg0, arg1)
-}
-
 // ValidateDeleteDomainRequest mocks base method.
 func (m *MockRequestValidator) ValidateDeleteDomainRequest(arg0 context.Context, arg1 *types.DeleteDomainRequest) error {
 	m.ctrl.T.Helper()

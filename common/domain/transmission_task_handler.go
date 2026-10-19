@@ -54,15 +54,6 @@ type (
 		replicationMessageSink messaging.Producer
 		logger                 log.Logger
 	}
-
-	// SemaphoreReplicator is the interface which can replicate a semaphore's metadata
-	SemaphoreReplicator interface {
-		HandleTransmissionTask(ctx context.Context, semaphore *persistence.SemaphoreMetadata) error
-	}
-
-	semaphoreReplicatorImpl struct {
-		replicationMessageSink messaging.Producer
-	}
 )
 
 // NewDomainReplicator create a new instance of domain replicator
@@ -157,24 +148,4 @@ func (domainReplicator *domainReplicatorImpl) convertDomainStatusToThrift(input 
 	default:
 		return nil, ErrInvalidDomainStatus
 	}
-}
-
-// NewSemaphoreReplicator create a new instance of semaphore replicator
-func NewSemaphoreReplicator(replicationMessageSink messaging.Producer) SemaphoreReplicator {
-	return &semaphoreReplicatorImpl{
-		replicationMessageSink: replicationMessageSink,
-	}
-}
-
-// HandleTransmissionTask puts the semaphore on the domain replication queue
-func (r *semaphoreReplicatorImpl) HandleTransmissionTask(ctx context.Context, semaphore *persistence.SemaphoreMetadata) error {
-	return r.replicationMessageSink.Publish(ctx, &types.ReplicationTask{
-		TaskType: types.ReplicationTaskTypeSemaphoreMetadata.Ptr(),
-		SemaphoreMetadataTaskAttributes: &types.SemaphoreMetadataTaskAttributes{
-			DomainID:       semaphore.DomainID,
-			SemaphoreName:  semaphore.SemaphoreName,
-			Capacity:       int32(semaphore.Size),
-			BucketCapacity: int32(semaphore.BucketSize),
-		},
-	})
 }

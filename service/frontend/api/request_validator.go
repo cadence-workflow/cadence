@@ -32,7 +32,6 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/config"
 	"github.com/uber/cadence/service/frontend/validate"
@@ -56,7 +55,6 @@ type (
 		ValidateDeleteDomainRequest(context.Context, *types.DeleteDomainRequest) error
 		ValidateDeprecateDomainRequest(context.Context, *types.DeprecateDomainRequest) error
 		ValidateFailoverDomainRequest(context.Context, *types.FailoverDomainRequest) error
-		ValidateCreateSemaphoreRequest(context.Context, *types.CreateSemaphoreRequest) error
 	}
 
 	requestValidatorImpl struct {
@@ -392,45 +390,4 @@ func (v *requestValidatorImpl) ValidateFailoverDomainRequest(ctx context.Context
 
 	// Security token is not required for failover request - reject the failover if the cluster is in lockdown
 	return checkFailOverPermission(v.config, failoverDomainRequest.GetDomainName())
-}
-
-func (v *requestValidatorImpl) ValidateCreateSemaphoreRequest(ctx context.Context, createRequest *types.CreateSemaphoreRequest) error {
-	if createRequest == nil {
-		return validate.ErrRequestNotSet
-	}
-	domain := createRequest.GetDomain()
-	if domain == "" {
-		return validate.ErrDomainNotSet
-	}
-	if !v.config.EnableDistributedSemaphore(domain) {
-		return &types.BadRequestError{Message: fmt.Sprintf(
-			"Semaphores are not enabled for domain %q. Set dynamic config system.enableDistributedSemaphore=true for this domain to enable them.",
-			domain,
-		)}
-	}
-	semaphoreName := createRequest.GetSemaphoreName()
-	if semaphoreName == "" {
-		return &types.BadRequestError{Message: "SemaphoreName is not set on request."}
-	}
-	if !common.IsValidIDLength(
-		semaphoreName,
-		v.metricsClient.Scope(metrics.FrontendCreateSemaphoreScope),
-		v.config.MaxIDLengthWarnLimit(),
-		v.config.SemaphoreNameMaxLength(domain),
-		metrics.CadenceErrSemaphoreNameExceededWarnLimit,
-		domain,
-		v.logger,
-		tag.IDTypeSemaphoreName) {
-		return &types.BadRequestError{Message: "SemaphoreName exceeds length limit."}
-	}
-	if createRequest.GetCapacity() <= 0 {
-		return &types.BadRequestError{Message: fmt.Sprintf("Capacity must be positive, got %d.", createRequest.GetCapacity())}
-	}
-	bucketCapacity := createRequest.GetBucketCapacity()
-	if bucketCapacity < 0 || bucketCapacity > persistence.MaxSemaphoreBucketSize {
-		return &types.BadRequestError{Message: fmt.Sprintf(
-			"BucketCapacity must be between 0 and %d, got %d.", persistence.MaxSemaphoreBucketSize, bucketCapacity,
-		)}
-	}
-	return nil
 }
