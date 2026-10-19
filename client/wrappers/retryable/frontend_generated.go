@@ -64,6 +64,17 @@ func (c *frontendClient) CreateSchedule(ctx context.Context, cp1 *types.CreateSc
 	return resp, err
 }
 
+func (c *frontendClient) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest, p1 ...yarpc.CallOption) (cp2 *types.CreateSemaphoreResponse, err error) {
+	var resp *types.CreateSemaphoreResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.CreateSemaphore(ctx, cp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest, p1 ...yarpc.CallOption) (err error) {
 	op := func(ctx context.Context) error {
 		return c.client.DeleteDomain(ctx, dp1, p1...)

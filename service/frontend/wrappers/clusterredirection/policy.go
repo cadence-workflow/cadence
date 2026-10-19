@@ -149,6 +149,8 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlist = map[string]struct{}{
 	"PauseSchedule":    {},
 	"UnpauseSchedule":  {},
 	"BackfillSchedule": {},
+	// semaphore write API, so it runs in the domain's active cluster
+	"CreateSemaphore": {},
 }
 
 // selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2 contains a list of non-worker APIs which can be redirected.
@@ -175,6 +177,8 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2 = map[string]struct{}{
 	"PauseSchedule":    {},
 	"UnpauseSchedule":  {},
 	"BackfillSchedule": {},
+	// semaphore write API, so it runs in the domain's active cluster
+	"CreateSemaphore": {},
 }
 
 // selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3 contains a list of non-worker APIs which can be redirected.
@@ -200,6 +204,8 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlistV3 = map[string]struct{}{
 	"PauseSchedule":    {},
 	"UnpauseSchedule":  {},
 	"BackfillSchedule": {},
+	// semaphore write API, so it runs in the domain's active cluster
+	"CreateSemaphore": {},
 	// additional endpoints: async requests are forwarded at accept time instead of enqueued locally
 	"StartWorkflowExecutionAsync":           {},
 	"SignalWithStartWorkflowExecutionAsync": {},
