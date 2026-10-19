@@ -573,6 +573,30 @@ func ToFailoverMarkerAttributes(t *adminv1.FailoverMarkerAttributes) *types.Fail
 	}
 }
 
+func FromSemaphoreMetadataTaskAttributes(t *types.SemaphoreMetadataTaskAttributes) *adminv1.SemaphoreMetadataTaskAttributes {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.SemaphoreMetadataTaskAttributes{
+		DomainId:       t.DomainID,
+		SemaphoreName:  t.SemaphoreName,
+		Capacity:       t.Capacity,
+		BucketCapacity: t.BucketCapacity,
+	}
+}
+
+func ToSemaphoreMetadataTaskAttributes(t *adminv1.SemaphoreMetadataTaskAttributes) *types.SemaphoreMetadataTaskAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreMetadataTaskAttributes{
+		DomainID:       t.DomainId,
+		SemaphoreName:  t.SemaphoreName,
+		Capacity:       t.Capacity,
+		BucketCapacity: t.BucketCapacity,
+	}
+}
+
 func FromFailoverMarkerToken(t *types.FailoverMarkerToken) *adminv1.FailoverMarkerToken {
 	if t == nil {
 		return nil
@@ -704,6 +728,8 @@ func FromReplicationTaskType(t *types.ReplicationTaskType) adminv1.ReplicationTa
 		return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_HISTORY_V2
 	case types.ReplicationTaskTypeFailoverMarker:
 		return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_FAILOVER_MARKER
+	case types.ReplicationTaskTypeSemaphoreMetadata:
+		return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_SEMAPHORE_METADATA
 	}
 	return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_INVALID
 }
@@ -726,6 +752,8 @@ func ToReplicationTaskType(t adminv1.ReplicationTaskType) *types.ReplicationTask
 		return types.ReplicationTaskTypeHistoryV2.Ptr()
 	case adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_FAILOVER_MARKER:
 		return types.ReplicationTaskTypeFailoverMarker.Ptr()
+	case adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_SEMAPHORE_METADATA:
+		return types.ReplicationTaskTypeSemaphoreMetadata.Ptr()
 	}
 	return nil
 }
@@ -959,6 +987,11 @@ func FromReplicationTask(t *types.ReplicationTask) *adminv1.ReplicationTask {
 			FailoverMarkerAttributes: FromFailoverMarkerAttributes(t.FailoverMarkerAttributes),
 		}
 	}
+	if t.SemaphoreMetadataTaskAttributes != nil {
+		task.Attributes = &adminv1.ReplicationTask_SemaphoreMetadataTaskAttributes{
+			SemaphoreMetadataTaskAttributes: FromSemaphoreMetadataTaskAttributes(t.SemaphoreMetadataTaskAttributes),
+		}
+	}
 
 	return &task
 }
@@ -984,6 +1017,8 @@ func ToReplicationTask(t *adminv1.ReplicationTask) *types.ReplicationTask {
 		task.HistoryTaskV2Attributes = ToHistoryTaskV2Attributes(attr.HistoryTaskV2Attributes)
 	case *adminv1.ReplicationTask_FailoverMarkerAttributes:
 		task.FailoverMarkerAttributes = ToFailoverMarkerAttributes(attr.FailoverMarkerAttributes)
+	case *adminv1.ReplicationTask_SemaphoreMetadataTaskAttributes:
+		task.SemaphoreMetadataTaskAttributes = ToSemaphoreMetadataTaskAttributes(attr.SemaphoreMetadataTaskAttributes)
 	}
 	return &task
 }

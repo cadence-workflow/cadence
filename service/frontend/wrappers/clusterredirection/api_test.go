@@ -129,7 +129,7 @@ func (s *clusterRedirectionHandlerSuite) SetupTest() {
 		s.mockResource.GetLogger(),
 	)
 	dh := domain.NewMockHandler(s.controller)
-	frontendHandler := api.NewWorkflowHandler(s.mockResource, s.config, client.NewVersionChecker(), dh)
+	frontendHandler := api.NewWorkflowHandler(s.mockResource, s.config, client.NewVersionChecker(), dh, nil)
 
 	s.mockFrontendHandler = api.NewMockHandler(s.controller)
 	s.handler = NewAPIHandler(frontendHandler, s.mockResource, s.config, config.ClusterRedirectionPolicy{}).(*clusterRedirectionHandler)

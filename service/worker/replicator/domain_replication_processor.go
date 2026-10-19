@@ -60,6 +60,7 @@ type (
 		logger                 log.Logger
 		remotePeer             admin.Client
 		taskExecutor           domain.ReplicationTaskExecutor
+		semaphoreTaskExecutor  domain.SemaphoreReplicationTaskExecutor
 		metricsClient          metrics.Client
 		throttleRetry          *backoff.ThrottleRetry
 		lastProcessedMessageID int64
@@ -79,6 +80,7 @@ func newDomainReplicationProcessor(
 	remotePeer admin.Client,
 	metricsClient metrics.Client,
 	taskExecutor domain.ReplicationTaskExecutor,
+	semaphoreTaskExecutor domain.SemaphoreReplicationTaskExecutor,
 	hostInfo membership.HostInfo,
 	resolver membership.Resolver,
 	domainReplicationQueue domain.ReplicationQueue,
@@ -103,6 +105,7 @@ func newDomainReplicationProcessor(
 		logger:                 logger,
 		remotePeer:             remotePeer,
 		taskExecutor:           taskExecutor,
+		semaphoreTaskExecutor:  semaphoreTaskExecutor,
 		metricsClient:          metricsClient,
 		throttleRetry:          throttleRetry,
 		lastProcessedMessageID: -1,
@@ -199,15 +202,18 @@ func (p *domainReplicationProcessor) fetchDomainReplicationTasks() {
 
 func (p *domainReplicationProcessor) putDomainReplicationTaskToDLQ(task *types.ReplicationTask) error {
 	domainAttribute := task.GetDomainTaskAttributes()
-	if domainAttribute == nil {
+	if domainAttribute == nil && task.GetSemaphoreMetadataTaskAttributes() == nil {
 		return &types.InternalServiceError{
-			Message: "Domain replication task does not set domain task attribute",
+			Message: "Domain replication task does not set domain or semaphore metadata task attribute",
 		}
 	}
-	p.metricsClient.Scope(
-		metrics.DomainReplicationTaskScope,
-		metrics.DomainTag(domainAttribute.GetInfo().GetName()),
-	).IncCounter(metrics.DomainReplicationEnqueueDLQCount)
+
+	scope := p.metricsClient.Scope(metrics.DomainReplicationTaskScope)
+	// A semaphore metadata task has no domain name to tag.
+	if domainAttribute != nil {
+		scope = scope.Tagged(metrics.DomainTag(domainAttribute.GetInfo().GetName()))
+	}
+	scope.IncCounter(metrics.DomainReplicationEnqueueDLQCount)
 	return p.domainReplicationQueue.PublishToDLQ(context.Background(), task)
 }
 
@@ -219,7 +225,12 @@ func (p *domainReplicationProcessor) handleDomainReplicationTask(
 	sw := scope.StartTimerWithExponentialHistogram(metrics.ReplicatorLatency, metrics.ReplicatorLatencyHistogram)
 	defer sw.Stop()
 
-	err := p.taskExecutor.Execute(task.DomainTaskAttributes)
+	var err error
+	if task.GetTaskType() == types.ReplicationTaskTypeSemaphoreMetadata {
+		err = p.semaphoreTaskExecutor.Execute(task.SemaphoreMetadataTaskAttributes)
+	} else {
+		err = p.taskExecutor.Execute(task.DomainTaskAttributes)
+	}
 	if err != nil {
 		p.metricsClient.IncCounter(metrics.DomainReplicationTaskScope, metrics.ReplicatorFailures)
 	}

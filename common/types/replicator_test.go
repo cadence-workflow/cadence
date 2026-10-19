@@ -801,6 +801,41 @@ func TestReplicationTask_GetFailoverMarkerAttributes(t *testing.T) {
 	assert.Nil(t, res)
 }
 
+func TestReplicationTask_GetSemaphoreMetadataTaskAttributes(t *testing.T) {
+	attributes := &SemaphoreMetadataTaskAttributes{DomainID: "domain-id"}
+	testStruct := ReplicationTask{
+		SemaphoreMetadataTaskAttributes: attributes,
+	}
+
+	res := testStruct.GetSemaphoreMetadataTaskAttributes()
+	assert.Equal(t, attributes, res)
+
+	var nilStruct *ReplicationTask
+	res = nilStruct.GetSemaphoreMetadataTaskAttributes()
+	assert.Nil(t, res)
+}
+
+func TestSemaphoreMetadataTaskAttributes_Getters(t *testing.T) {
+	attributes := &SemaphoreMetadataTaskAttributes{
+		DomainID:       "domain-id",
+		SemaphoreName:  "shipping-api",
+		Capacity:       10,
+		BucketCapacity: 5,
+	}
+	assert.Equal(t, "domain-id", attributes.GetDomainID())
+	assert.Equal(t, "shipping-api", attributes.GetSemaphoreName())
+	assert.Equal(t, int32(10), attributes.GetCapacity())
+	assert.Equal(t, int32(5), attributes.GetBucketCapacity())
+
+	var nilStruct *SemaphoreMetadataTaskAttributes
+	assert.Equal(t, "", nilStruct.GetDomainID())
+	assert.Equal(t, "", nilStruct.GetSemaphoreName())
+	assert.Equal(t, int32(0), nilStruct.GetCapacity())
+	assert.Equal(t, int32(0), nilStruct.GetBucketCapacity())
+	assert.Equal(t, uint64(0), nilStruct.ByteSize())
+	assert.Greater(t, attributes.ByteSize(), nilStruct.ByteSize())
+}
+
 func TestReplicationTask_GetCreationTime(t *testing.T) {
 	creationTime := int64(123456)
 	testStruct := ReplicationTask{
@@ -1002,6 +1037,9 @@ func TestReplicationTaskType_String(t *testing.T) {
 	taskType = ReplicationTaskTypeFailoverMarker
 	assert.Equal(t, "FailoverMarker", taskType.String())
 
+	taskType = ReplicationTaskTypeSemaphoreMetadata
+	assert.Equal(t, "SemaphoreMetadata", taskType.String())
+
 	// Test unknown task type
 	taskType = ReplicationTaskType(10)
 	assert.Equal(t, "ReplicationTaskType(10)", taskType.String())
@@ -1037,6 +1075,10 @@ func TestReplicationTaskType_UnmarshalText(t *testing.T) {
 	err = taskType.UnmarshalText([]byte("FAILOVERMARKER"))
 	assert.NoError(t, err)
 	assert.Equal(t, ReplicationTaskTypeFailoverMarker, taskType)
+
+	err = taskType.UnmarshalText([]byte("SEMAPHOREMETADATA"))
+	assert.NoError(t, err)
+	assert.Equal(t, ReplicationTaskTypeSemaphoreMetadata, taskType)
 
 	// Test unknown string value
 	err = taskType.UnmarshalText([]byte("UNKNOWN"))
@@ -1085,6 +1127,11 @@ func TestReplicationTaskType_MarshalText(t *testing.T) {
 	text, err = taskType.MarshalText()
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("FailoverMarker"), text)
+
+	taskType = ReplicationTaskTypeSemaphoreMetadata
+	text, err = taskType.MarshalText()
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("SemaphoreMetadata"), text)
 
 	// Test unknown task type
 	taskType = ReplicationTaskType(10)

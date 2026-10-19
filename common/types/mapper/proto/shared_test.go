@@ -171,6 +171,7 @@ func TestReplicationTask(t *testing.T) {
 		&testdata.ReplicationTask_History,
 		&testdata.ReplicationTask_SyncActivity,
 		&testdata.ReplicationTask_SyncShard,
+		&testdata.ReplicationTask_SemaphoreMetadata,
 	} {
 		assert.Equal(t, item, ToReplicationTask(FromReplicationTask(item)))
 	}

@@ -48,6 +48,7 @@ type (
 
 	dlqMessageHandlerImpl struct {
 		replicationHandler ReplicationTaskExecutor
+		semaphoreHandler   SemaphoreReplicationTaskExecutor
 		replicationQueue   ReplicationQueue
 		logger             log.Logger
 		metricsClient      metrics.Client
@@ -63,6 +64,7 @@ type (
 // NewDLQMessageHandler returns a DLQTaskHandler instance
 func NewDLQMessageHandler(
 	replicationHandler ReplicationTaskExecutor,
+	semaphoreHandler SemaphoreReplicationTaskExecutor,
 	replicationQueue ReplicationQueue,
 	logger log.Logger,
 	metricsClient metrics.Client,
@@ -70,6 +72,7 @@ func NewDLQMessageHandler(
 ) DLQMessageHandler {
 	return &dlqMessageHandlerImpl{
 		replicationHandler: replicationHandler,
+		semaphoreHandler:   semaphoreHandler,
 		replicationQueue:   replicationQueue,
 		logger:             logger,
 		metricsClient:      metricsClient,
@@ -186,6 +189,14 @@ func (d *dlqMessageHandlerImpl) Merge(
 
 	var ackedMessageID int64
 	for _, message := range messages {
+		if message.GetTaskType() == types.ReplicationTaskTypeSemaphoreMetadata {
+			if err := d.semaphoreHandler.Execute(message.GetSemaphoreMetadataTaskAttributes()); err != nil {
+				return nil, err
+			}
+			ackedMessageID = message.SourceTaskID
+			continue
+		}
+
 		domainTask := message.GetDomainTaskAttributes()
 		if domainTask == nil {
 			return nil, &types.InternalServiceError{Message: "Encounter non domain replication task in domain replication queue."}

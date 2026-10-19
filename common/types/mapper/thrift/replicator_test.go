@@ -530,6 +530,10 @@ func TestReplicationTask(t *testing.T) {
 			input: &testdata.ReplicationTask_Domain,
 		},
 		{
+			desc:  "semaphore metadata task",
+			input: &testdata.ReplicationTask_SemaphoreMetadata,
+		},
+		{
 			desc:  "empty input test",
 			input: &types.ReplicationTask{},
 		},

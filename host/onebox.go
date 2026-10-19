@@ -101,41 +101,42 @@ type (
 		matchingServices []common.Daemon
 		historyServices  []common.Daemon
 
-		adminClient                   adminClient.Client
-		frontendClient                frontendClient.Client
-		historyClient                 historyClient.Client
-		matchingClients               []matchingClient.Client
-		logger                        log.Logger
-		zapLogger                     *zap.Logger
-		clusterMetadata               cluster.Metadata
-		persistenceConfig             config.Persistence
-		messagingClient               messaging.Client
-		domainManager                 persistence.DomainManager
-		historyV2Mgr                  persistence.HistoryManager
-		executionMgr                  persistence.ExecutionManager
-		domainReplicationQueue        domain.ReplicationQueue
-		shutdownCh                    chan struct{}
-		shutdownWG                    sync.WaitGroup
-		clusterNo                     int // cluster number
-		replicator                    *replicator.Replicator
-		clientWorker                  archiver.ClientWorker
-		indexer                       *indexer.Indexer
-		schedulerWorkerManager        *scheduler.WorkerManager
-		archiverMetadata              carchiver.ArchivalMetadata
-		archiverProvider              provider.ArchiverProvider
-		historyConfig                 *HistoryConfig
-		matchingConfig                *MatchingConfig
-		esConfig                      *config.ElasticSearchConfig
-		esClient                      elasticsearch.GenericClient
-		workerConfig                  *WorkerConfig
-		mockAdminClient               map[string]adminClient.Client
-		domainReplicationTaskExecutor domain.ReplicationTaskExecutor
-		authorizationConfig           config.Authorization
-		pinotConfig                   *config.PinotVisibilityConfig
-		pinotClient                   pinot.GenericClient
-		asyncWFQueues                 map[string]config.AsyncWorkflowQueueProvider
-		timeSource                    clock.TimeSource
-		dynamicClient                 dynamicconfig.Client
+		adminClient                      adminClient.Client
+		frontendClient                   frontendClient.Client
+		historyClient                    historyClient.Client
+		matchingClients                  []matchingClient.Client
+		logger                           log.Logger
+		zapLogger                        *zap.Logger
+		clusterMetadata                  cluster.Metadata
+		persistenceConfig                config.Persistence
+		messagingClient                  messaging.Client
+		domainManager                    persistence.DomainManager
+		historyV2Mgr                     persistence.HistoryManager
+		executionMgr                     persistence.ExecutionManager
+		domainReplicationQueue           domain.ReplicationQueue
+		shutdownCh                       chan struct{}
+		shutdownWG                       sync.WaitGroup
+		clusterNo                        int // cluster number
+		replicator                       *replicator.Replicator
+		clientWorker                     archiver.ClientWorker
+		indexer                          *indexer.Indexer
+		schedulerWorkerManager           *scheduler.WorkerManager
+		archiverMetadata                 carchiver.ArchivalMetadata
+		archiverProvider                 provider.ArchiverProvider
+		historyConfig                    *HistoryConfig
+		matchingConfig                   *MatchingConfig
+		esConfig                         *config.ElasticSearchConfig
+		esClient                         elasticsearch.GenericClient
+		workerConfig                     *WorkerConfig
+		mockAdminClient                  map[string]adminClient.Client
+		domainReplicationTaskExecutor    domain.ReplicationTaskExecutor
+		semaphoreReplicationTaskExecutor domain.SemaphoreReplicationTaskExecutor
+		authorizationConfig              config.Authorization
+		pinotConfig                      *config.PinotVisibilityConfig
+		pinotClient                      pinot.GenericClient
+		asyncWFQueues                    map[string]config.AsyncWorkflowQueueProvider
+		timeSource                       clock.TimeSource
+		dynamicClient                    dynamicconfig.Client
 
 		// dynamicconfig overrides per service
 		frontendDynCfgOverrides map[dynamicproperties.Key]interface{}
@@ -307,32 +308,33 @@ type (
 
 	// CadenceParams contains everything needed to bootstrap Cadence
 	CadenceParams struct {
-		ClusterMetadata               cluster.Metadata
-		PersistenceConfig             config.Persistence
-		MessagingClient               messaging.Client
-		DomainManager                 persistence.DomainManager
-		HistoryV2Mgr                  persistence.HistoryManager
-		ExecutionMgr                  persistence.ExecutionManager
-		DomainReplicationQueue        domain.ReplicationQueue
-		Logger                        log.Logger
-		ZapLogger                     *zap.Logger
-		ClusterNo                     int
-		ArchiverMetadata              carchiver.ArchivalMetadata
-		ArchiverProvider              provider.ArchiverProvider
-		EnableReadHistoryFromArchival bool
-		HistoryConfig                 *HistoryConfig
-		MatchingConfig                *MatchingConfig
-		ESConfig                      *config.ElasticSearchConfig
-		ESClient                      elasticsearch.GenericClient
-		WorkerConfig                  *WorkerConfig
-		MockAdminClient               map[string]adminClient.Client
-		DomainReplicationTaskExecutor domain.ReplicationTaskExecutor
-		AuthorizationConfig           config.Authorization
-		PinotConfig                   *config.PinotVisibilityConfig
-		PinotClient                   pinot.GenericClient
-		AsyncWFQueues                 map[string]config.AsyncWorkflowQueueProvider
-		TimeSource                    clock.TimeSource
-		DynamicClient                 dynamicconfig.Client
+		ClusterMetadata                  cluster.Metadata
+		PersistenceConfig                config.Persistence
+		MessagingClient                  messaging.Client
+		DomainManager                    persistence.DomainManager
+		HistoryV2Mgr                     persistence.HistoryManager
+		ExecutionMgr                     persistence.ExecutionManager
+		DomainReplicationQueue           domain.ReplicationQueue
+		Logger                           log.Logger
+		ZapLogger                        *zap.Logger
+		ClusterNo                        int
+		ArchiverMetadata                 carchiver.ArchivalMetadata
+		ArchiverProvider                 provider.ArchiverProvider
+		EnableReadHistoryFromArchival    bool
+		HistoryConfig                    *HistoryConfig
+		MatchingConfig                   *MatchingConfig
+		ESConfig                         *config.ElasticSearchConfig
+		ESClient                         elasticsearch.GenericClient
+		WorkerConfig                     *WorkerConfig
+		MockAdminClient                  map[string]adminClient.Client
+		DomainReplicationTaskExecutor    domain.ReplicationTaskExecutor
+		SemaphoreReplicationTaskExecutor domain.SemaphoreReplicationTaskExecutor
+		AuthorizationConfig              config.Authorization
+		PinotConfig                      *config.PinotVisibilityConfig
+		PinotClient                      pinot.GenericClient
+		AsyncWFQueues                    map[string]config.AsyncWorkflowQueueProvider
+		TimeSource                       clock.TimeSource
+		DynamicClient                    dynamicconfig.Client
 
 		FrontendDynCfgOverrides map[dynamicproperties.Key]interface{}
 		HistoryDynCfgOverrides  map[dynamicproperties.Key]interface{}
@@ -344,36 +346,37 @@ type (
 // NewCadence returns an instance that hosts full cadence in one process
 func NewCadence(params *CadenceParams) Cadence {
 	return &cadenceImpl{
-		logger:                        params.Logger,
-		zapLogger:                     params.ZapLogger,
-		clusterMetadata:               params.ClusterMetadata,
-		persistenceConfig:             params.PersistenceConfig,
-		messagingClient:               params.MessagingClient,
-		domainManager:                 params.DomainManager,
-		historyV2Mgr:                  params.HistoryV2Mgr,
-		executionMgr:                  params.ExecutionMgr,
-		domainReplicationQueue:        params.DomainReplicationQueue,
-		shutdownCh:                    make(chan struct{}),
-		clusterNo:                     params.ClusterNo,
-		esConfig:                      params.ESConfig,
-		esClient:                      params.ESClient,
-		archiverMetadata:              params.ArchiverMetadata,
-		archiverProvider:              params.ArchiverProvider,
-		historyConfig:                 params.HistoryConfig,
-		matchingConfig:                params.MatchingConfig,
-		workerConfig:                  params.WorkerConfig,
-		mockAdminClient:               params.MockAdminClient,
-		domainReplicationTaskExecutor: params.DomainReplicationTaskExecutor,
-		authorizationConfig:           params.AuthorizationConfig,
-		pinotConfig:                   params.PinotConfig,
-		pinotClient:                   params.PinotClient,
-		asyncWFQueues:                 params.AsyncWFQueues,
-		timeSource:                    params.TimeSource,
-		dynamicClient:                 params.DynamicClient,
-		frontendDynCfgOverrides:       params.FrontendDynCfgOverrides,
-		historyDynCfgOverrides:        params.HistoryDynCfgOverrides,
-		matchingDynCfgOverrides:       params.MatchingDynCfgOverrides,
-		workerDynCfgOverrides:         params.WorkerDynCfgOverrides,
+		logger:                           params.Logger,
+		zapLogger:                        params.ZapLogger,
+		clusterMetadata:                  params.ClusterMetadata,
+		persistenceConfig:                params.PersistenceConfig,
+		messagingClient:                  params.MessagingClient,
+		domainManager:                    params.DomainManager,
+		historyV2Mgr:                     params.HistoryV2Mgr,
+		executionMgr:                     params.ExecutionMgr,
+		domainReplicationQueue:           params.DomainReplicationQueue,
+		shutdownCh:                       make(chan struct{}),
+		clusterNo:                        params.ClusterNo,
+		esConfig:                         params.ESConfig,
+		esClient:                         params.ESClient,
+		archiverMetadata:                 params.ArchiverMetadata,
+		archiverProvider:                 params.ArchiverProvider,
+		historyConfig:                    params.HistoryConfig,
+		matchingConfig:                   params.MatchingConfig,
+		workerConfig:                     params.WorkerConfig,
+		mockAdminClient:                  params.MockAdminClient,
+		domainReplicationTaskExecutor:    params.DomainReplicationTaskExecutor,
+		semaphoreReplicationTaskExecutor: params.SemaphoreReplicationTaskExecutor,
+		authorizationConfig:              params.AuthorizationConfig,
+		pinotConfig:                      params.PinotConfig,
+		pinotClient:                      params.PinotClient,
+		asyncWFQueues:                    params.AsyncWFQueues,
+		timeSource:                       params.TimeSource,
+		dynamicClient:                    params.DynamicClient,
+		frontendDynCfgOverrides:          params.FrontendDynCfgOverrides,
+		historyDynCfgOverrides:           params.HistoryDynCfgOverrides,
+		matchingDynCfgOverrides:          params.MatchingDynCfgOverrides,
+		workerDynCfgOverrides:            params.WorkerDynCfgOverrides,
 	}
 }
 
@@ -1079,6 +1082,7 @@ func (c *cadenceImpl) startWorkerReplicator(svc Service) {
 		svc.GetMembershipResolver(),
 		c.domainReplicationQueue,
 		c.domainReplicationTaskExecutor,
+		c.semaphoreReplicationTaskExecutor,
 		time.Millisecond,
 	)
 	if err := c.replicator.Start(); err != nil {

@@ -406,6 +406,10 @@ func (s *Service) startReplicator() {
 		s.Resource.GetLogger(),
 		s.config.EnableDomainAuditLogging,
 	)
+	semaphoreReplicationTaskExecutor := domain.NewSemaphoreReplicationTaskExecutor(
+		s.Resource.GetSemaphoreMetadataManager(),
+		s.Resource.GetLogger(),
+	)
 	msgReplicator := replicator.NewReplicator(
 		s.GetClusterMetadata(),
 		s.GetClientBean(),
@@ -415,6 +419,7 @@ func (s *Service) startReplicator() {
 		s.GetMembershipResolver(),
 		s.GetDomainReplicationQueue(),
 		domainReplicationTaskExecutor,
+		semaphoreReplicationTaskExecutor,
 		s.config.DomainReplicationMaxRetryDuration(),
 	)
 	if err := msgReplicator.Start(); err != nil {

@@ -249,6 +249,7 @@ func TestReplicationTaskType(t *testing.T) {
 		types.ReplicationTaskTypeHistoryMetadata.Ptr(),
 		types.ReplicationTaskTypeHistoryV2.Ptr(),
 		types.ReplicationTaskTypeFailoverMarker.Ptr(),
+		types.ReplicationTaskTypeSemaphoreMetadata.Ptr(),
 	} {
 		assert.Equal(t, item, ToReplicationTaskType(FromReplicationTaskType(item)))
 	}
