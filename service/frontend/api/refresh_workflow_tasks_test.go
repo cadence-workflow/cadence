@@ -48,6 +48,7 @@ import (
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
+	"github.com/uber/cadence/service/frontend/semaphore"
 )
 
 var testDomainCacheEntry = cache.NewLocalDomainCacheEntryForTest(
@@ -73,6 +74,7 @@ type mockDeps struct {
 	mockVersionChecker     *client.MockVersionChecker
 	mockTokenSerializer    *common.MockTaskTokenSerializer
 	mockDomainHandler      *domain.MockHandler
+	mockSemaphoreHandler   *semaphore.MockHandler
 	mockRequestValidator   *MockRequestValidator
 	dynamicClient          dynamicconfig.Client
 }
@@ -100,6 +102,7 @@ func setupMocksForWorkflowHandler(t *testing.T) (*WorkflowHandler, *mockDeps) {
 		mockVisibilityArchiver: &archiver.VisibilityArchiverMock{},
 		mockVersionChecker:     client.NewMockVersionChecker(ctrl),
 		mockDomainHandler:      domain.NewMockHandler(ctrl),
+		mockSemaphoreHandler:   semaphore.NewMockHandler(ctrl),
 		mockRequestValidator:   NewMockRequestValidator(ctrl),
 		dynamicClient:          dynamicClient,
 	}
@@ -115,7 +118,7 @@ func setupMocksForWorkflowHandler(t *testing.T) (*WorkflowHandler, *mockDeps) {
 		"hostname",
 		logger,
 	)
-	wh := NewWorkflowHandler(deps.mockResource, config, deps.mockVersionChecker, NewPollTracker(log.NewNoop()), deps.mockDomainHandler)
+	wh := NewWorkflowHandler(deps.mockResource, config, deps.mockVersionChecker, NewPollTracker(log.NewNoop()), deps.mockDomainHandler, deps.mockSemaphoreHandler)
 	wh.requestValidator = deps.mockRequestValidator
 	return wh, deps
 }

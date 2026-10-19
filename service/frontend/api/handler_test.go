@@ -169,7 +169,7 @@ func (s *workflowHandlerSuite) TearDownTest() {
 }
 
 func (s *workflowHandlerSuite) getWorkflowHandler(config *frontendcfg.Config) *WorkflowHandler {
-	return NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), s.domainHandler)
+	return NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), s.domainHandler, nil)
 }
 
 func (s *workflowHandlerSuite) TestDisableListVisibilityByFilter() {
@@ -1090,7 +1090,7 @@ func TestRespondActivityTaskFailed(t *testing.T) {
 				mockResource.GetLogger(),
 			)
 
-			wh := NewWorkflowHandler(mockResource, config, mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+			wh := NewWorkflowHandler(mockResource, config, mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 			wh.shuttingDown = tt.fields.shuttingDown
 			wh.producerManager = mockProducerManager
 
@@ -2602,7 +2602,7 @@ func (s *workflowHandlerSuite) newConfig(dynamicClient dc.Client) *frontendcfg.C
 func (s *workflowHandlerSuite) TestRespondActivityTaskFailedByID() {
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
-	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
 	validRequest := &types.RespondActivityTaskFailedByIDRequest{
@@ -2735,7 +2735,7 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskFailedByID() {
 func (s *workflowHandlerSuite) TestRespondActivityTaskCanceled() {
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
-	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
 	validInput := &types.RespondActivityTaskCanceledRequest{
@@ -2855,7 +2855,7 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceled() {
 func (s *workflowHandlerSuite) TestRespondActivityTaskCanceledByID() {
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
-	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
 	validInput := &types.RespondActivityTaskCanceledByIDRequest{
@@ -3010,7 +3010,7 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskCompleted() {
 	}
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
-	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
 	testInput := map[string]struct {
@@ -3153,7 +3153,7 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskFailed() {
 	}
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
-	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
 	testInput := map[string]struct {
@@ -3264,7 +3264,7 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskFailed() {
 func (s *workflowHandlerSuite) TestRespondQueryTaskCompleted() {
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
-	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
 	validInput := &types.RespondQueryTaskCompletedRequest{
@@ -3376,7 +3376,7 @@ func (s *workflowHandlerSuite) TestRespondQueryTaskCompleted() {
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Remaining() {
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
-	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
 	validRequest := &types.StartWorkflowExecutionRequest{
@@ -3455,7 +3455,7 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_Remaining() {
 func (s *workflowHandlerSuite) TestSignalWorkflowExecution() {
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
-	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
 	validRequest := &types.SignalWorkflowExecutionRequest{
@@ -3875,7 +3875,7 @@ func TestStartWorkflowExecutionAsync(t *testing.T) {
 				"hostname",
 				mockResource.GetLogger(),
 			)
-			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 			wh.producerManager = mockProducerManager
 
 			tc.setupMocks(mockProducerManager)
@@ -3996,7 +3996,7 @@ func TestSignalWithStartWorkflowExecutionAsync(t *testing.T) {
 				"hostname",
 				mockResource.GetLogger(),
 			)
-			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 			wh.producerManager = mockProducerManager
 
 			tc.setupMocks(mockProducerManager)
@@ -4109,7 +4109,7 @@ func TestRequestCancelWorkflowExecution(t *testing.T) {
 				"hostname",
 				mockResource.GetLogger(),
 			)
-			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 			wh.shuttingDown = tc.shuttingDown
 
 			tc.setupMocks(mockVersionChecker, mockResource)
@@ -4313,7 +4313,7 @@ func TestQueryWorkflow(t *testing.T) {
 			cfg.BlobSizeLimitError = func(domain string) int { return 10 }
 			cfg.BlobSizeLimitWarn = func(domain string) int { return 9 }
 
-			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 			wh.shuttingDown = tc.isShuttingDown
 
 			tc.setupMocks(mockVersionChecker, mockResource)
@@ -4437,7 +4437,7 @@ func TestDescribeWorkflowExecution(t *testing.T) {
 				mockResource.GetLogger(),
 			)
 
-			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 			wh.shuttingDown = tc.isShuttingDown
 
 			tc.setupMocks(mockVersionChecker, mockResource)
@@ -4458,7 +4458,7 @@ func TestDescribeWorkflowExecution(t *testing.T) {
 func (s *workflowHandlerSuite) TestSignalWithStartWorkflowExecution() {
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
-	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
 	validRequest := &types.SignalWithStartWorkflowExecutionRequest{
@@ -4557,7 +4557,7 @@ func (s *workflowHandlerSuite) TestSignalWithStartWorkflowExecution() {
 func (s *workflowHandlerSuite) TestResetWorkflowExecution() {
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
-	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
 	validRequest := &types.ResetWorkflowExecutionRequest{
@@ -4657,7 +4657,7 @@ func (s *workflowHandlerSuite) TestResetWorkflowExecution() {
 func (s *workflowHandlerSuite) TestTerminateWorkflowExecution() {
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
-	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
 	validRequest := &types.TerminateWorkflowExecutionRequest{
