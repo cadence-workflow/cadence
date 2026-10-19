@@ -488,3 +488,102 @@ func TestRecordHistogramDurationDomainTaggedDualEmit(t *testing.T) {
 	assert.True(t, domainFound, "per-domain histogram series should be emitted")
 	assert.True(t, allFound, "aggregate domain=all histogram series should be emitted")
 }
+
+// TestStartTimerRespectsMigrationConfigIndependently verifies that
+// StartTimer checks both the metric name and rollup name independently,
+// matching RecordTimer's behavior.
+func TestStartTimerRespectsMigrationConfigIndependently(t *testing.T) {
+	tests := []struct {
+		name               string
+		config             HistogramMigration
+		metricID           MetricIdx
+		expectedTimerCount int
+		expectedTimerNames []string
+	}{
+		{
+			name: "both allowed - creates both timers",
+			config: HistogramMigration{
+				Default: "timer",
+				Names: map[string]bool{
+					"cadence_latency_per_tl": true,
+					"cadence_latency_rollup": true,
+				},
+			},
+			metricID:           CadenceLatencyPerTaskList,
+			expectedTimerCount: 2,
+			expectedTimerNames: []string{"test.cadence_latency_per_tl", "test.cadence_latency_rollup"},
+		},
+		{
+			name: "per-scope suppressed, rollup allowed - creates only rollup",
+			config: HistogramMigration{
+				Default: "timer",
+				Names: map[string]bool{
+					"cadence_latency_per_tl": false,
+					"cadence_latency_rollup": true,
+				},
+			},
+			metricID:           CadenceLatencyPerTaskList,
+			expectedTimerCount: 1,
+			expectedTimerNames: []string{"test.cadence_latency_rollup"},
+		},
+		{
+			name: "per-scope allowed, rollup suppressed - creates only per-scope",
+			config: HistogramMigration{
+				Default: "timer",
+				Names: map[string]bool{
+					"cadence_latency_per_tl": true,
+					"cadence_latency_rollup": false,
+				},
+			},
+			metricID:           CadenceLatencyPerTaskList,
+			expectedTimerCount: 1,
+			expectedTimerNames: []string{"test.cadence_latency_per_tl"},
+		},
+		{
+			name: "both suppressed - creates no timers",
+			config: HistogramMigration{
+				Default: "timer",
+				Names: map[string]bool{
+					"cadence_latency_per_tl": false,
+					"cadence_latency_rollup": false,
+				},
+			},
+			metricID:           CadenceLatencyPerTaskList,
+			expectedTimerCount: 0,
+			expectedTimerNames: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testScope := tally.NewTestScope("test", nil)
+
+			c := NewClient(testScope, Frontend, MigrationConfig{
+				Histogram: tt.config,
+			})
+			scope := c.Scope(FrontendStartWorkflowExecutionScope)
+
+			// Start and stop the timer
+			sw := scope.StartTimer(tt.metricID)
+			time.Sleep(1 * time.Millisecond)
+			sw.Stop()
+
+			// Check that correct timers were created
+			snapshot := testScope.Snapshot()
+			actualTimers := snapshot.Timers()
+
+			assert.Equal(t, tt.expectedTimerCount, len(actualTimers), "timer count mismatch")
+
+			for _, expectedName := range tt.expectedTimerNames {
+				found := false
+				for _, timer := range actualTimers {
+					if timer.Name() == expectedName {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "expected timer %q not found", expectedName)
+			}
+		})
+	}
+}

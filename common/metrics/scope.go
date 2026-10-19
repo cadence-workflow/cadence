@@ -80,23 +80,31 @@ func (m *metricsScope) UpdateGauge(id MetricIdx, value float64) {
 
 func (m *metricsScope) StartTimer(id MetricIdx) Stopwatch {
 	def := m.defs[id]
-	timer := m.scope.Timer(def.metricName.String())
+	var timers []tally.Timer
+
+	// Check the metric's own name first
+	if m.migrationConfig.EmitTimer(def.metricName.String()) {
+		timers = append(timers, m.scope.Timer(def.metricName.String()))
+	}
+
+	// Then check for rollup or domain-tagged dual-emit
 	switch {
 	case !def.metricRollupName.Empty():
+		// Check the rollup name separately
 		if m.migrationConfig.EmitTimer(def.metricRollupName.String()) {
-			return NewStopwatch(timer, m.rootScope.Timer(def.metricRollupName.String()))
+			timers = append(timers, m.rootScope.Timer(def.metricRollupName.String()))
 		}
 	case m.isDomainTagged:
+		// Dual emit to domain=all aggregate if the metric name is allowed
 		if m.migrationConfig.EmitTimer(def.metricName.String()) {
-			timerAll := m.scope.Tagged(map[string]string{domain: allValue}).Timer(def.metricName.String())
-			return NewStopwatch(timer, timerAll)
-		}
-	default:
-		if m.migrationConfig.EmitTimer(def.metricName.String()) {
-			return NewStopwatch(timer)
+			timers = append(timers, m.scope.Tagged(map[string]string{domain: allValue}).Timer(def.metricName.String()))
 		}
 	}
-	return Stopwatch{} // noop
+
+	if len(timers) == 0 {
+		return Stopwatch{} // noop
+	}
+	return NewStopwatch(timers...)
 }
 
 // StartTimerWithExponentialHistogram dual-emits to the named timer and the
