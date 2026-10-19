@@ -133,6 +133,7 @@ func (b *clientFactory) ServerFrontendClient(c *cli.Context) (frontend.Client, e
 			apiv1.NewVisibilityAPIYARPCClient(clientConfig),
 			apiv1.NewScheduleAPIYARPCClient(clientConfig),
 			apiv1.NewBatchAPIYARPCClient(clientConfig),
+			apiv1.NewSemaphoreAPIYARPCClient(clientConfig),
 		), nil
 	}
 	return thrift.NewFrontendClient(serverFrontend.New(clientConfig)), nil
@@ -166,6 +167,7 @@ func (b *clientFactory) ServerFrontendClientForMigration(c *cli.Context) (fronte
 			apiv1.NewVisibilityAPIYARPCClient(clientConfig),
 			apiv1.NewScheduleAPIYARPCClient(clientConfig),
 			apiv1.NewBatchAPIYARPCClient(clientConfig),
+			apiv1.NewSemaphoreAPIYARPCClient(clientConfig),
 		), nil
 	}
 	return thrift.NewFrontendClient(serverFrontend.New(clientConfig)), nil

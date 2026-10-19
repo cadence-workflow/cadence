@@ -103,6 +103,26 @@ func (mr *MockClientMockRecorder) CreateSchedule(arg0, arg1 any, arg2 ...any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSchedule", reflect.TypeOf((*MockClient)(nil).CreateSchedule), varargs...)
 }
 
+// CreateSemaphore mocks base method.
+func (m *MockClient) CreateSemaphore(arg0 context.Context, arg1 *types.CreateSemaphoreRequest, arg2 ...yarpc.CallOption) (*types.CreateSemaphoreResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "CreateSemaphore", varargs...)
+	ret0, _ := ret[0].(*types.CreateSemaphoreResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateSemaphore indicates an expected call of CreateSemaphore.
+func (mr *MockClientMockRecorder) CreateSemaphore(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSemaphore", reflect.TypeOf((*MockClient)(nil).CreateSemaphore), varargs...)
+}
+
 // DeleteDomain mocks base method.
 func (m *MockClient) DeleteDomain(arg0 context.Context, arg1 *types.DeleteDomainRequest, arg2 ...yarpc.CallOption) error {
 	m.ctrl.T.Helper()

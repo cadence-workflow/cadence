@@ -26,6 +26,11 @@ func (g frontendClient) CreateSchedule(ctx context.Context, cp1 *types.CreateSch
 	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 
+func (g frontendClient) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest, p1 ...yarpc.CallOption) (cp2 *types.CreateSemaphoreResponse, err error) {
+	response, err := g.c.CreateSemaphore(ctx, thrift.FromCreateSemaphoreRequest(cp1), p1...)
+	return thrift.ToCreateSemaphoreResponse(response), thrift.ToError(err)
+}
+
 func (g frontendClient) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest, p1 ...yarpc.CallOption) (err error) {
 	err = g.c.DeleteDomain(ctx, thrift.FromDeleteDomainRequest(dp1), p1...)
 	return thrift.ToError(err)

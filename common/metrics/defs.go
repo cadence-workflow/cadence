@@ -610,6 +610,8 @@ const (
 	FrontendClientListBatchOperationsScope
 	// FrontendClientUpdateBatchOperationScope tracks RPC calls to frontend service
 	FrontendClientUpdateBatchOperationScope
+	// FrontendClientCreateSemaphoreScope tracks RPC calls to frontend service
+	FrontendClientCreateSemaphoreScope
 	// FrontendClientListWorkflowExecutionsScope tracks RPC calls to frontend service
 	FrontendClientListWorkflowExecutionsScope
 	// FrontendClientScanWorkflowExecutionsScope tracks RPC calls to frontend service
@@ -828,6 +830,8 @@ const (
 	DCRedirectionBackfillScheduleScope
 	// DCRedirectionListSchedulesScope tracks RPC calls for dc redirection
 	DCRedirectionListSchedulesScope
+	// DCRedirectionCreateSemaphoreScope tracks RPC calls for dc redirection
+	DCRedirectionCreateSemaphoreScope
 	// DCRedirectionForwardingPolicyScope tracks cluster redirection decisions
 	DCRedirectionForwardingPolicyScope
 
@@ -1903,6 +1907,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientDescribeBatchOperationScope:                {operation: "FrontendClientDescribeBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientListBatchOperationsScope:                   {operation: "FrontendClientListBatchOperations", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientUpdateBatchOperationScope:                  {operation: "FrontendClientUpdateBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientCreateSemaphoreScope:                       {operation: "FrontendClientCreateSemaphore", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 
 		AdminClientGetReplicationTasksScope:                   {operation: "AdminClientGetReplicationTasks", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientAddSearchAttributeScope:                    {operation: "AdminClientAddSearchAttribute", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
@@ -2002,6 +2007,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DCRedirectionUnpauseScheduleScope:                       {operation: "DCRedirectionUnpauseSchedule", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionBackfillScheduleScope:                      {operation: "DCRedirectionBackfillSchedule", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionListSchedulesScope:                         {operation: "DCRedirectionListSchedules", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionCreateSemaphoreScope:                       {operation: "DCRedirectionCreateSemaphore", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionForwardingPolicyScope:                      {operation: "DCRedirectionForwardingPolicy", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 
 		MessagingClientPublishScope:      {operation: "MessagingClientPublish"},
