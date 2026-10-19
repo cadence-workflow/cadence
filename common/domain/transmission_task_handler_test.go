@@ -22,13 +22,17 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/mocks"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -413,4 +417,48 @@ func (s *transmissionTaskSuite) TestHandleTransmissionTask_UpdateDomainTask_NotG
 		isGlobalDomain,
 	)
 	s.Nil(err)
+}
+
+func TestSemaphoreReplicator_HandleTransmissionTask(t *testing.T) {
+	semaphore := &p.SemaphoreMetadata{
+		DomainID:      "domain-id",
+		SemaphoreName: "shipping-api",
+		Size:          10,
+		BucketSize:    5,
+	}
+	wantTask := &types.ReplicationTask{
+		TaskType: types.ReplicationTaskTypeSemaphoreMetadata.Ptr(),
+		SemaphoreMetadataTaskAttributes: &types.SemaphoreMetadataTaskAttributes{
+			DomainID:       "domain-id",
+			SemaphoreName:  "shipping-api",
+			Capacity:       10,
+			BucketCapacity: 5,
+		},
+	}
+	publishErr := errors.New("publish failed")
+
+	tests := map[string]struct {
+		publishErr error
+		wantErr    error
+	}{
+		"task is published": {},
+		"publish error is returned": {
+			publishErr: publishErr,
+			wantErr:    publishErr,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			producer := messaging.NewMockProducer(ctrl)
+			producer.EXPECT().Publish(gomock.Any(), wantTask).Return(tc.publishErr)
+
+			err := NewSemaphoreReplicator(producer).HandleTransmissionTask(context.Background(), semaphore)
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
