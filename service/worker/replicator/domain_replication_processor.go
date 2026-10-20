@@ -201,19 +201,29 @@ func (p *domainReplicationProcessor) fetchDomainReplicationTasks() {
 }
 
 func (p *domainReplicationProcessor) putDomainReplicationTaskToDLQ(task *types.ReplicationTask) error {
-	domainAttribute := task.GetDomainTaskAttributes()
-	if domainAttribute == nil && task.GetSemaphoreMetadataTaskAttributes() == nil {
-		return &types.InternalServiceError{
-			Message: "Domain replication task does not set domain or semaphore metadata task attribute",
+	switch task.GetTaskType() {
+	case types.ReplicationTaskTypeSemaphoreMetadata:
+		if task.GetSemaphoreMetadataTaskAttributes() == nil {
+			return &types.InternalServiceError{
+				Message: "Semaphore replication task does not set semaphore metadata task attribute",
+			}
 		}
+		// A semaphore metadata task has no domain name to tag.
+		p.metricsClient.Scope(
+			metrics.DomainReplicationTaskScope,
+		).IncCounter(metrics.DomainReplicationEnqueueDLQCount)
+	default:
+		domainAttribute := task.GetDomainTaskAttributes()
+		if domainAttribute == nil {
+			return &types.InternalServiceError{
+				Message: "Domain replication task does not set domain task attribute",
+			}
+		}
+		p.metricsClient.Scope(
+			metrics.DomainReplicationTaskScope,
+			metrics.DomainTag(domainAttribute.GetInfo().GetName()),
+		).IncCounter(metrics.DomainReplicationEnqueueDLQCount)
 	}
-
-	scope := p.metricsClient.Scope(metrics.DomainReplicationTaskScope)
-	// A semaphore metadata task has no domain name to tag.
-	if domainAttribute != nil {
-		scope = scope.Tagged(metrics.DomainTag(domainAttribute.GetInfo().GetName()))
-	}
-	scope.IncCounter(metrics.DomainReplicationEnqueueDLQCount)
 	return p.domainReplicationQueue.PublishToDLQ(context.Background(), task)
 }
 
@@ -226,9 +236,10 @@ func (p *domainReplicationProcessor) handleDomainReplicationTask(
 	defer sw.Stop()
 
 	var err error
-	if task.GetTaskType() == types.ReplicationTaskTypeSemaphoreMetadata {
+	switch task.GetTaskType() {
+	case types.ReplicationTaskTypeSemaphoreMetadata:
 		err = p.semaphoreTaskExecutor.Execute(task.SemaphoreMetadataTaskAttributes)
-	} else {
+	default:
 		err = p.taskExecutor.Execute(task.DomainTaskAttributes)
 	}
 	if err != nil {

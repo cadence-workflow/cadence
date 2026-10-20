@@ -128,25 +128,34 @@ func (s *domainReplicationSuite) TestStartStop() {
 	goleak.VerifyNone(s.T())
 }
 
-func (s *domainReplicationSuite) TestPutDomainReplicationTaskToDLQ() {
+func (s *domainReplicationSuite) TestHandleDomainReplicationTask() {
 	domainID := uuid.New()
-	emptyTask := &types.ReplicationTask{
+	task := &types.ReplicationTask{
 		TaskType: types.ReplicationTaskTypeDomain.Ptr(),
+		DomainTaskAttributes: &types.DomainTaskAttributes{
+			ID: domainID,
+		},
 	}
-	err := s.replicationProcessor.putDomainReplicationTaskToDLQ(emptyTask)
-	s.Error(err)
 
-	semaphoreTask := &types.ReplicationTask{
-		TaskType:                        types.ReplicationTaskTypeSemaphoreMetadata.Ptr(),
-		SemaphoreMetadataTaskAttributes: &types.SemaphoreMetadataTaskAttributes{DomainID: domainID},
-	}
-	s.domainReplicationQueue.EXPECT().PublishToDLQ(gomock.Any(), semaphoreTask).Return(nil).Times(1)
-	err = s.replicationProcessor.putDomainReplicationTaskToDLQ(semaphoreTask)
+	s.taskExecutor.EXPECT().Execute(task.DomainTaskAttributes).Return(nil).Times(1)
+	err := s.replicationProcessor.handleDomainReplicationTask(task)
 	s.NoError(err)
 
+	s.taskExecutor.EXPECT().Execute(task.DomainTaskAttributes).Return(errors.New("test")).Times(1)
+	err = s.replicationProcessor.handleDomainReplicationTask(task)
+	s.Error(err)
+
+}
+
+func (s *domainReplicationSuite) TestPutDomainReplicationTaskToDLQ() {
+	domainID := uuid.New()
 	task := &types.ReplicationTask{
 		TaskType: types.ReplicationTaskTypeDomain.Ptr(),
 	}
+
+	err := s.replicationProcessor.putDomainReplicationTaskToDLQ(task)
+	s.Error(err)
+
 	task.DomainTaskAttributes = &types.DomainTaskAttributes{
 		ID: domainID,
 	}
@@ -273,19 +282,6 @@ func TestHandleDomainReplicationTaskByType(t *testing.T) {
 		mockSetup func(*domain.MockReplicationTaskExecutor, *domain.MockSemaphoreReplicationTaskExecutor)
 		wantErr   error
 	}{
-		"domain task": {
-			task: &types.ReplicationTask{TaskType: types.ReplicationTaskTypeDomain.Ptr(), DomainTaskAttributes: domainTask},
-			mockSetup: func(d *domain.MockReplicationTaskExecutor, _ *domain.MockSemaphoreReplicationTaskExecutor) {
-				d.EXPECT().Execute(domainTask).Return(nil)
-			},
-		},
-		"domain task fails": {
-			task: &types.ReplicationTask{TaskType: types.ReplicationTaskTypeDomain.Ptr(), DomainTaskAttributes: domainTask},
-			mockSetup: func(d *domain.MockReplicationTaskExecutor, _ *domain.MockSemaphoreReplicationTaskExecutor) {
-				d.EXPECT().Execute(domainTask).Return(executorErr)
-			},
-			wantErr: executorErr,
-		},
 		"semaphore metadata task": {
 			task: &types.ReplicationTask{TaskType: types.ReplicationTaskTypeSemaphoreMetadata.Ptr(), SemaphoreMetadataTaskAttributes: semaphoreTask},
 			mockSetup: func(_ *domain.MockReplicationTaskExecutor, sem *domain.MockSemaphoreReplicationTaskExecutor) {
@@ -328,6 +324,47 @@ func TestHandleDomainReplicationTaskByType(t *testing.T) {
 			err := p.handleDomainReplicationTask(tc.task)
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestPutSemaphoreReplicationTaskToDLQ(t *testing.T) {
+	tests := map[string]struct {
+		task      *types.ReplicationTask
+		mockSetup func(*domain.MockReplicationQueue, *types.ReplicationTask)
+		wantErr   bool
+	}{
+		"semaphore task is published to the DLQ": {
+			task: &types.ReplicationTask{
+				TaskType:                        types.ReplicationTaskTypeSemaphoreMetadata.Ptr(),
+				SemaphoreMetadataTaskAttributes: &types.SemaphoreMetadataTaskAttributes{DomainID: "domain-id", SemaphoreName: "shipping-api"},
+			},
+			mockSetup: func(q *domain.MockReplicationQueue, task *types.ReplicationTask) {
+				q.EXPECT().PublishToDLQ(gomock.Any(), task).Return(nil)
+			},
+		},
+		"semaphore task without attributes is rejected": {
+			task:      &types.ReplicationTask{TaskType: types.ReplicationTaskTypeSemaphoreMetadata.Ptr()},
+			mockSetup: func(*domain.MockReplicationQueue, *types.ReplicationTask) {},
+			wantErr:   true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			queue := domain.NewMockReplicationQueue(ctrl)
+			tc.mockSetup(queue, tc.task)
+			p := &domainReplicationProcessor{
+				domainReplicationQueue: queue,
+				metricsClient:          metrics.NewNoopMetricsClient(),
+			}
+
+			err := p.putDomainReplicationTaskToDLQ(tc.task)
+			if tc.wantErr {
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
