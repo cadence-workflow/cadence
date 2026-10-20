@@ -239,6 +239,24 @@ func (a *apiHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.D
 	return a.handler.DiagnoseWorkflowExecution(ctx, dp1)
 }
 
+func (a *apiHandler) ExportWorkflowExecution(ctx context.Context, ep1 *types.ExportWorkflowExecutionRequest) (ep2 *types.ExportWorkflowExecutionResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendExportWorkflowExecutionScope, ep1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "ExportWorkflowExecution",
+		Permission:  authorization.PermissionRead,
+		RequestBody: authorization.NewFilteredRequestBody(ep1),
+		DomainName:  ep1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.ExportWorkflowExecution(ctx, ep1)
+}
+
 func (a *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendFailoverDomainScope, fp1.GetDomain())
 	attr := &authorization.Attributes{

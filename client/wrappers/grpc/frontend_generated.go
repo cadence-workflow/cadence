@@ -69,6 +69,11 @@ func (g frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *type
 	return proto.ToDiagnoseWorkflowExecutionResponse(response), proto.ToError(err)
 }
 
+func (g frontendClient) ExportWorkflowExecution(ctx context.Context, ep1 *types.ExportWorkflowExecutionRequest, p1 ...yarpc.CallOption) (ep2 *types.ExportWorkflowExecutionResponse, err error) {
+	response, err := g.c.ExportWorkflowExecution(ctx, proto.FromExportWorkflowExecutionRequest(ep1), p1...)
+	return proto.ToExportWorkflowExecutionResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest, p1 ...yarpc.CallOption) (fp2 *types.FailoverDomainResponse, err error) {
 	response, err := g.c.FailoverDomain(ctx, proto.FromFailoverDomainRequest(fp1), p1...)
 	return proto.ToFailoverDomainResponse(response), proto.ToError(err)

@@ -428,6 +428,7 @@ var (
 	FrontendClientOperationUnpauseSchedule                       = clientOperation("frontend-unpause-schedule")
 	FrontendClientOperationBackfillSchedule                      = clientOperation("frontend-backfill-schedule")
 	FrontendClientOperationListSchedules                         = clientOperation("frontend-list-schedules")
+	FrontendClientOperationExportWorkflowExecution               = clientOperation("frontend-export-workflow-execution")
 
 	HistoryClientOperationStartWorkflowExecution            = clientOperation("history-start-wf-execution")
 	HistoryClientOperationDescribeHistoryHost               = clientOperation("history-describe-history-host")

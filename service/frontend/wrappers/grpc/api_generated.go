@@ -81,6 +81,11 @@ func (g APIHandler) DiagnoseWorkflowExecution(ctx context.Context, request *apiv
 	return proto.FromDiagnoseWorkflowExecutionResponse(response), proto.FromError(err)
 }
 
+func (g APIHandler) ExportWorkflowExecution(ctx context.Context, request *apiv1.ExportWorkflowExecutionRequest) (*apiv1.ExportWorkflowExecutionResponse, error) {
+	response, err := g.h.ExportWorkflowExecution(ctx, proto.ToExportWorkflowExecutionRequest(request))
+	return proto.FromExportWorkflowExecutionResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) FailoverDomain(ctx context.Context, request *apiv1.FailoverDomainRequest) (*apiv1.FailoverDomainResponse, error) {
 	response, err := g.h.FailoverDomain(ctx, proto.ToFailoverDomainRequest(request))
 	return proto.FromFailoverDomainResponse(response), proto.FromError(err)

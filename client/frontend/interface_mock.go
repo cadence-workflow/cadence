@@ -261,6 +261,26 @@ func (mr *MockClientMockRecorder) DiagnoseWorkflowExecution(arg0, arg1 any, arg2
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiagnoseWorkflowExecution", reflect.TypeOf((*MockClient)(nil).DiagnoseWorkflowExecution), varargs...)
 }
 
+// ExportWorkflowExecution mocks base method.
+func (m *MockClient) ExportWorkflowExecution(arg0 context.Context, arg1 *types.ExportWorkflowExecutionRequest, arg2 ...yarpc.CallOption) (*types.ExportWorkflowExecutionResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ExportWorkflowExecution", varargs...)
+	ret0, _ := ret[0].(*types.ExportWorkflowExecutionResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExportWorkflowExecution indicates an expected call of ExportWorkflowExecution.
+func (mr *MockClientMockRecorder) ExportWorkflowExecution(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportWorkflowExecution", reflect.TypeOf((*MockClient)(nil).ExportWorkflowExecution), varargs...)
+}
+
 // FailoverDomain mocks base method.
 func (m *MockClient) FailoverDomain(arg0 context.Context, arg1 *types.FailoverDomainRequest, arg2 ...yarpc.CallOption) (*types.FailoverDomainResponse, error) {
 	m.ctrl.T.Helper()

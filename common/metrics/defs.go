@@ -590,6 +590,8 @@ const (
 	FrontendClientBackfillScheduleScope
 	// FrontendClientListSchedulesScope tracks RPC calls to frontend service
 	FrontendClientListSchedulesScope
+	// FrontendClientExportWorkflowExecutionScope tracks RPC calls to frontend service
+	FrontendClientExportWorkflowExecutionScope
 	// FrontendClientListWorkflowExecutionsScope tracks RPC calls to frontend service
 	FrontendClientListWorkflowExecutionsScope
 	// FrontendClientScanWorkflowExecutionsScope tracks RPC calls to frontend service
@@ -710,6 +712,8 @@ const (
 	DCRedirectionDescribeWorkflowExecutionScope
 	// DCRedirectionDiagnoseWorkflowExecutionScope tracks RPC calls for dc redirection
 	DCRedirectionDiagnoseWorkflowExecutionScope
+	// DCRedirectionExportWorkflowExecutionScope tracks RPC calls for dc redirection
+	DCRedirectionExportWorkflowExecutionScope
 	// DCRedirectionGetWorkflowExecutionHistoryScope tracks RPC calls for dc redirection
 	DCRedirectionGetWorkflowExecutionHistoryScope
 	// DCRedirectionGetWorkflowExecutionRawHistoryScope tracks RPC calls for dc redirection
@@ -1221,6 +1225,8 @@ const (
 	FrontendListSchedulesScope
 	// FrontendCreateSemaphoreScope is the metric scope for frontend.CreateSemaphore
 	FrontendCreateSemaphoreScope
+	// FrontendExportWorkflowExecutionScope is the metric scope for frontend.ExportWorkflowExecution
+	FrontendExportWorkflowExecutionScope
 
 	NumFrontendScopes
 )
@@ -1835,6 +1841,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientUnpauseScheduleScope:                       {operation: "FrontendClientUnpauseSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientBackfillScheduleScope:                      {operation: "FrontendClientBackfillSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientListSchedulesScope:                         {operation: "FrontendClientListSchedules", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientExportWorkflowExecutionScope:               {operation: "FrontendClientExportWorkflowExecution", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 
 		AdminClientGetReplicationTasksScope:                   {operation: "AdminClientGetReplicationTasks", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientAddSearchAttributeScope:                    {operation: "AdminClientAddSearchAttribute", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
@@ -1885,6 +1892,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DCRedirectionDescribeTaskListScope:                      {operation: "DCRedirectionDescribeTaskList", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDescribeWorkflowExecutionScope:             {operation: "DCRedirectionDescribeWorkflowExecution", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDiagnoseWorkflowExecutionScope:             {operation: "DCRedirectionDiagnoseWorkflowExecution", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionExportWorkflowExecutionScope:               {operation: "DCRedirectionExportWorkflowExecution", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionGetWorkflowExecutionHistoryScope:           {operation: "DCRedirectionGetWorkflowExecutionHistory", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionGetWorkflowExecutionRawHistoryScope:        {operation: "DCRedirectionGetWorkflowExecutionRawHistoryScope", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionPollForWorklfowExecutionRawHistoryScope:    {operation: "DCRedirectionPollForWorklfowExecutionRawHistory", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
@@ -2133,6 +2141,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendBackfillScheduleScope:                      {operation: "BackfillSchedule"},
 		FrontendListSchedulesScope:                         {operation: "ListSchedules"},
 		FrontendCreateSemaphoreScope:                       {operation: "CreateSemaphore"},
+		FrontendExportWorkflowExecutionScope:               {operation: "ExportWorkflowExecution"},
 		FrontendGetSearchAttributesScope:                   {operation: "GetSearchAttributes"},
 		FrontendGetClusterInfoScope:                        {operation: "GetClusterInfo"},
 	},

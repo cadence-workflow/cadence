@@ -129,6 +129,14 @@ func (h *versionCheckHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1
 	return h.frontendHandler.DiagnoseWorkflowExecution(ctx, dp1)
 }
 
+func (h *versionCheckHandler) ExportWorkflowExecution(ctx context.Context, ep1 *types.ExportWorkflowExecutionRequest) (ep2 *types.ExportWorkflowExecutionResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.ExportWorkflowExecution(ctx, ep1)
+}
+
 func (h *versionCheckHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
 	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
 	if err != nil {
