@@ -2268,10 +2268,10 @@ func TestRecordSemaphoreGranted(t *testing.T) {
 			},
 		},
 		{
-			name: "same token already recorded",
+			name: "hold already has a token",
 			setupMock: func(mutableState *execution.MockMutableState) {
 				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
-				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 3}, true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 7}, true)
 			},
 		},
 	}

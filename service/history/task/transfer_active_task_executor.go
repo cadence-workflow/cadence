@@ -1254,14 +1254,18 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 	}
 
 	semaphoreInfo, ok := mutableState.GetSemaphoreInfo(task.InitiatedID)
-	// No hold means a release removed it. A token means the grant is already recorded.
-	// TODO: once the acquire timeout timer exists, it also removes a hold that waited too long.
-	if !ok || semaphoreInfo.HasToken() {
+	if !ok {
+		// The hold is gone: a release removed it, so there is nothing to acquire.
+		// TODO: once the acquire timeout timer exists, it also removes a hold that waited too long.
 		return nil
 	}
 	ok, err = verifyTaskVersion(t.shard, t.logger, task.DomainID, semaphoreInfo.Version, task.Version, task)
 	if err != nil || !ok {
 		return err
+	}
+	if semaphoreInfo.HasToken() {
+		// The grant is already recorded, for example by an earlier attempt of this task.
+		return nil
 	}
 
 	bucket, err := t.getOwnerBucket(ctx, task.DomainID, semaphoreInfo)
@@ -2191,13 +2195,8 @@ func recordSemaphoreGranted(
 			}
 
 			semaphoreInfo, ok := mutableState.GetSemaphoreInfo(initiatedEventID)
-			if !ok {
+			if !ok || semaphoreInfo.HasToken() {
 				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
-			}
-			// processAcquireSemaphore already skips a hold with a token. This guards against a reload
-			// inside updateWorkflowExecution writing the same grant twice.
-			if semaphoreInfo.TokenID == int(tokenID) {
-				return &types.EntityNotExistsError{Message: "Semaphore grant already recorded."}
 			}
 
 			_, err := mutableState.AddSemaphoreAcquiredEvent(initiatedEventID, tokenID)
