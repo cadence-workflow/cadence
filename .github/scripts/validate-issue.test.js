@@ -174,3 +174,28 @@ test("non-template headings and bold lines stay content while empty sections sta
     "Logs / Screenshots",
   ]);
 });
+
+test("inline code with triple backticks does not open a fence", () => {
+  const body = [
+    "### Description",
+    "```inline``` and ```` ```nested``` ````",
+    "### Steps to Reproduce / How to Trigger",
+    "1. Start the server.",
+    "### Expected Behavior",
+    "The workflow completes.",
+    "### Actual Behavior",
+    "The workflow hangs.",
+    "### Logs / Screenshots",
+    "~~~",
+    "### Environment",
+    "~~~",
+    "### Environment",
+    "Prod cluster.",
+  ].join("\n");
+
+  const sections = parseSections(body, bugRequired);
+  assert.match(sections.get(normalize("Description")), /```inline```/);
+  assert.match(sections.get(normalize("Logs / Screenshots")), /### Environment/);
+  assert.equal(sections.get(normalize("Environment")), "Prod cluster.");
+  assert.deepEqual(findMissingSections(body, bugRequired), []);
+});

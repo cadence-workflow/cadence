@@ -106,7 +106,12 @@ const parseSections = (body, requiredSections = []) => {
   for (const line of lines) {
     const trimmed = line.trim();
     const fenceMatch = trimmed.match(FENCE_PATTERN);
-    if (fenceMatch) {
+    // CommonMark: a backtick fence's info string cannot contain backticks, so
+    // a line like ```inline``` is inline code, not an opening fence.
+    const isFenceLine =
+      fenceMatch &&
+      (inCodeBlock || fenceMatch[1][0] !== "`" || !fenceMatch[2].includes("`"));
+    if (isFenceLine) {
       const fence = fenceMatch[1];
       const rest = fenceMatch[2];
       const fenceChar = fence[0];
