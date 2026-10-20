@@ -1269,6 +1269,11 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 	}
 
 	bucket, err := t.getOwnerBucket(ctx, task.DomainID, semaphoreInfo)
+	if errors.As(err, new(*types.EntityNotExistsError)) {
+		// The semaphore does not exist, so the acquire can never succeed.
+		return recordSemaphoreAcquireFailed(ctx, t.logger, wfContext, task.InitiatedID,
+			types.SemaphoreAcquireFailedCauseNotFound, t.shard.GetTimeSource().Now())
+	}
 	if err != nil {
 		return err
 	}
@@ -2110,7 +2115,8 @@ func getWorkflowExecutionStatus(mutableState execution.MutableState, closeEvent 
 	}
 }
 
-// getOwnerBucket returns the bucket that serves the hold's owner_id.
+// getOwnerBucket returns the bucket that serves the hold's owner_id. It returns
+// EntityNotExistsError when the semaphore does not exist.
 func (t *transferActiveTaskExecutor) getOwnerBucket(
 	ctx context.Context,
 	domainID string,
@@ -2121,11 +2127,6 @@ func (t *transferActiveTaskExecutor) getOwnerBucket(
 		DomainID:      domainID,
 		SemaphoreName: semaphoreInfo.SemaphoreName,
 	})
-	if errors.As(err, new(*types.EntityNotExistsError)) {
-		// Retry: EntityNotExistsError would drop the task and leave the hold waiting forever.
-		// TODO: fail the run with ErrSemaphoreNotFound instead.
-		return 0, &types.InternalServiceError{Message: fmt.Sprintf("semaphore %q not found", semaphoreInfo.SemaphoreName)}
-	}
 	if err != nil {
 		return 0, err
 	}
@@ -2200,6 +2201,35 @@ func recordSemaphoreGranted(
 			}
 
 			_, err := mutableState.AddSemaphoreAcquiredEvent(initiatedEventID, tokenID)
+			return err
+		},
+		now,
+	)
+}
+
+// recordSemaphoreAcquireFailed ends the hold without a token and schedules a decision so the
+// workflow sees the failure. It skips a closed run, a missing hold, or a hold that has a token.
+func recordSemaphoreAcquireFailed(
+	ctx context.Context,
+	logger log.Logger,
+	wfContext execution.Context,
+	initiatedEventID int64,
+	cause types.SemaphoreAcquireFailedCause,
+	now time.Time,
+) error {
+
+	return updateWorkflowExecution(ctx, logger, wfContext, true,
+		func(ctx context.Context, mutableState execution.MutableState) error {
+			if !mutableState.IsWorkflowExecutionRunning() {
+				return &types.EntityNotExistsError{Message: "Workflow execution already completed."}
+			}
+
+			semaphoreInfo, ok := mutableState.GetSemaphoreInfo(initiatedEventID)
+			if !ok || semaphoreInfo.HasToken() {
+				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
+			}
+
+			_, err := mutableState.AddSemaphoreAcquireFailedEvent(initiatedEventID, cause)
 			return err
 		},
 		now,

@@ -2275,6 +2275,20 @@ func TestHistoryBuilderSemaphoreEvents(t *testing.T) {
 			},
 		},
 		{
+			name:         "when acquire failed, gets the buffered placeholder ID",
+			eventType:    types.EventTypeSemaphoreAcquireFailed,
+			wantBuffered: true,
+			add: func(b *HistoryBuilder) *types.HistoryEvent {
+				return b.AddSemaphoreAcquireFailedEvent(5, types.SemaphoreAcquireFailedCauseNotFound)
+			},
+			want: func(e *types.HistoryEvent) {
+				e.SemaphoreAcquireFailedEventAttributes = &types.SemaphoreAcquireFailedEventAttributes{
+					Cause:            types.SemaphoreAcquireFailedCauseNotFound.Ptr(),
+					InitiatedEventID: 5,
+				}
+			},
+		},
+		{
 			name:      "when released, gets a real event ID",
 			eventType: types.EventTypeSemaphoreReleased,
 			add: func(b *HistoryBuilder) *types.HistoryEvent {
