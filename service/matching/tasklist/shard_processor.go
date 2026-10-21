@@ -18,8 +18,8 @@ type ShardProcessorParams struct {
 	TaskListsRegistry TaskListRegistry
 	ReportTTL         time.Duration
 	TimeSource        clock.TimeSource
-	// ShardTaskListsByHash is true when ShardID is the shard that task list names hash to, and false
-	// when it is a task list name.
+	// ShardTaskListsByHash is true when ShardID is a shard number that holds every task list whose
+	// name hashes to it. When false, ShardID is the name of a single task list.
 	ShardTaskListsByHash bool
 	// OwnedByHashRing reports whether a task list is excluded from the shard distributor, so the
 	// hash ring owns it. When task lists are sharded by hash, a shard leaves those task lists alone.
@@ -126,17 +126,24 @@ func (sp *shardProcessorImpl) getShardLoad() float64 {
 
 // taskListsInShard returns the managers of the task lists this shard owns.
 func (sp *shardProcessorImpl) taskListsInShard() []Manager {
-	if !sp.shardTaskListsByHash {
-		return sp.taskListsRegistry.ManagersByTaskListName(sp.shardID)
+	if sp.shardTaskListsByHash {
+		var owned []Manager
+		for _, tlMgr := range sp.taskListsRegistry.ManagersByShard(sp.shardID) {
+			if sp.ownsTaskList(tlMgr) {
+				owned = append(owned, tlMgr)
+			}
+		}
+		return owned
 	}
 
-	var owned []Manager
-	for _, tlMgr := range sp.taskListsRegistry.ManagersByShard(sp.shardID) {
-		if !sp.ownedByHashRing(tlMgr.TaskListID().GetName()) {
-			owned = append(owned, tlMgr)
-		}
-	}
-	return owned
+	return sp.taskListsRegistry.ManagersByTaskListName(sp.shardID)
+}
+
+// ownsTaskList reports whether this shard owns a task list whose name hashes to it. Short-lived
+// task lists and task lists in shards that are not onboarded yet stay on the hash ring.
+func (sp *shardProcessorImpl) ownsTaskList(tlMgr Manager) bool {
+	taskListName := tlMgr.TaskListID().GetName()
+	return !sp.ownedByHashRing(taskListName)
 }
 
 func validateSPParams(params ShardProcessorParams) error {

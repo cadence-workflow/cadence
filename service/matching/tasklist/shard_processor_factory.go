@@ -12,8 +12,7 @@ type ShardProcessorFactory struct {
 	TaskListsRegistry TaskListRegistry
 	ReportTTL         time.Duration
 	TimeSource        clock.TimeSource
-	// ShardTaskListsByHash decides whether a new shard is the shard that task list names hash to, or
-	// a task list name.
+	// ShardTaskListsByHash sets ShardProcessorParams.ShardTaskListsByHash for every new shard.
 	ShardTaskListsByHash dynamicproperties.BoolPropertyFn
 	// OwnedByHashRing reports whether a task list is excluded from the shard distributor.
 	OwnedByHashRing func(taskListName string) bool

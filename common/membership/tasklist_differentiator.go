@@ -23,11 +23,13 @@ func TaskListExcludedFromShardDistributor(
 	if excludeShortLivedTaskLists && uuidRegexp.MatchString(taskListName) {
 		return true
 	}
+
 	if shardTaskListsByHash {
 		// Onboarding is decided per shard, so every task list in a shard gets the same decision.
 		shardIndex := taskListNameToShardIndex(taskListName, shardCount)
 		return !shardBelowPercentage(shardIndex, shardCount, percentageOnboarded)
 	}
+
 	return !belowPercentage(taskListName, percentageOnboarded)
 }
 

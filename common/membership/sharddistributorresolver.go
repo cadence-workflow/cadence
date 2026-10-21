@@ -111,7 +111,9 @@ func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 	}
 
 	s.emitRoutingPathMetric(routingPathShardDistributor)
-	return s.lookUpInShardDistributor(TaskListShardID(key, shardTaskListsByHash, s.shardCount))
+
+	shardID := TaskListShardID(key, shardTaskListsByHash, s.shardCount)
+	return s.lookUpInShardDistributor(shardID)
 }
 
 // LookupN delegates to the underlying hash ring; the shard distributor does

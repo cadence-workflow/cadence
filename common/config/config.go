@@ -533,7 +533,7 @@ const (
 // DefaultNumMatchingShards is the NumMatchingShards of a config that leaves it unset. Changing it
 // moves almost every task list to a different shard in every cluster that relies on it, so it must
 // never change.
-const DefaultNumMatchingShards = 4096
+const DefaultNumMatchingShards = 16384
 
 func (n *NoSQL) ConvertToShardedNoSQLConfig() *ShardedNoSQL {
 	connections := make(map[string]DBShardConnection)
