@@ -615,6 +615,12 @@ OPT_OUT_TEST_FOLDERS=./simulation%
 TEST_TIMEOUT ?= 20m
 TEST_ARG ?= -race $(if $(verbose),-v) -timeout $(TEST_TIMEOUT)
 
+# The suites in INTEG_TEST_ROOT run serially in one process and dominate the integration
+# job. TEST_SHARD_COUNT splits them across jobs; the names come from `go test -list` under
+# the same build flags as the run, so tag-gated suites shard exactly as they execute.
+TEST_SHARD_COUNT ?= 1
+TEST_SHARD_INDEX ?= 0
+
 # TODO to be consistent, use nosql as PERSISTENCE_TYPE and cassandra PERSISTENCE_PLUGIN
 # file names like integ_cassandra__cover should become integ_nosql_cassandra_cover
 # for https://github.com/uber/cadence/issues/3514
@@ -701,9 +707,24 @@ cover_integration_profile:
 
 	$Q echo Running integration test with $(PERSISTENCE_TYPE) $(PERSISTENCE_PLUGIN)
 	$Q mkdir -p $(BUILD)/$(INTEG_TEST_DIR)
-	$Q time go test $(INTEG_TEST_DIRS) $(TEST_ARG) $(TEST_TAG) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1;
-	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
-	$Q time go test $(INTEG_TEST_ROOT) $(TEST_ARG) $(TEST_TAG) -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1;
+	$Q if [ "$(TEST_SHARD_INDEX)" -eq 0 ]; then \
+		time go test $(INTEG_TEST_DIRS) $(TEST_ARG) $(TEST_TAG) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1; \
+		cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE); \
+	else \
+		echo "shard $(TEST_SHARD_INDEX): $(INTEG_TEST_ROOT) subpackages run on shard 0"; \
+	fi
+	$Q if [ "$(TEST_SHARD_COUNT)" -le 1 ]; then \
+		time go test $(INTEG_TEST_ROOT) $(TEST_ARG) $(TEST_TAG) -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1; \
+	else \
+		go test -list 'Test.*' $(INTEG_TEST_ROOT) $(TEST_ARG) $(TEST_TAG) -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) > $(BUILD)/$(INTEG_TEST_DIR)/suites.txt || exit 1; \
+		SUITES=$$(grep '^Test' $(BUILD)/$(INTEG_TEST_DIR)/suites.txt | sort | awk 'NR % $(TEST_SHARD_COUNT) == $(TEST_SHARD_INDEX)' | paste -sd'|' -); \
+		if [ -z "$$SUITES" ]; then \
+			echo "shard $(TEST_SHARD_INDEX) of $(TEST_SHARD_COUNT) matched no suites in $(INTEG_TEST_ROOT)"; \
+			exit 1; \
+		fi; \
+		echo "shard $(TEST_SHARD_INDEX) of $(TEST_SHARD_COUNT) running: $$SUITES"; \
+		time go test $(INTEG_TEST_ROOT) $(TEST_ARG) $(TEST_TAG) -run "^($$SUITES)$$" -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1; \
+	fi
 	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
 
 cover_ndc_profile:
