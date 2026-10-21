@@ -1,8 +1,8 @@
 module github.com/uber/cadence/common/persistence/sql/sqlplugin/cloudsql-mysql
 
-go 1.25.0
+go 1.26.0
 
-toolchain go1.25.14
+toolchain go1.26.9
 
 // build against the current code in the "main" module, not a specific SHA.
 //
