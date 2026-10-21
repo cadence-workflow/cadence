@@ -81,16 +81,16 @@ func (m *MockSemaphoreReplicator) EXPECT() *MockSemaphoreReplicatorMockRecorder 
 	return m.recorder
 }
 
-// HandleTransmissionTask mocks base method.
-func (m *MockSemaphoreReplicator) HandleTransmissionTask(ctx context.Context, semaphore *persistence.SemaphoreMetadata) error {
+// ReplicateCreate mocks base method.
+func (m *MockSemaphoreReplicator) ReplicateCreate(ctx context.Context, semaphore *persistence.SemaphoreMetadata) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HandleTransmissionTask", ctx, semaphore)
+	ret := m.ctrl.Call(m, "ReplicateCreate", ctx, semaphore)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// HandleTransmissionTask indicates an expected call of HandleTransmissionTask.
-func (mr *MockSemaphoreReplicatorMockRecorder) HandleTransmissionTask(ctx, semaphore any) *gomock.Call {
+// ReplicateCreate indicates an expected call of ReplicateCreate.
+func (mr *MockSemaphoreReplicatorMockRecorder) ReplicateCreate(ctx, semaphore any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleTransmissionTask", reflect.TypeOf((*MockSemaphoreReplicator)(nil).HandleTransmissionTask), ctx, semaphore)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateCreate", reflect.TypeOf((*MockSemaphoreReplicator)(nil).ReplicateCreate), ctx, semaphore)
 }

@@ -8,6 +8,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -45,11 +46,17 @@ func TestCreateSemaphore(t *testing.T) {
 	alreadyExists := &persistence.ConditionFailedError{Msg: "already exists"}
 	info := &persistence.DomainInfo{ID: domainID, Name: domainName}
 	localDomain := cache.NewLocalDomainCacheEntryForTest(info, &persistence.DomainConfig{}, "active")
-	globalDomain := cache.NewGlobalDomainCacheEntryForTest(info, &persistence.DomainConfig{}, &persistence.DomainReplicationConfig{}, 1)
+	globalDomain := cache.NewGlobalDomainCacheEntryForTest(info, &persistence.DomainConfig{},
+		&persistence.DomainReplicationConfig{ActiveClusterName: cluster.TestCurrentClusterName}, 1)
+	// The primary cluster creates even when the domain is active in another cluster.
+	standbyDomain := cache.NewGlobalDomainCacheEntryForTest(info, &persistence.DomainConfig{},
+		&persistence.DomainReplicationConfig{ActiveClusterName: cluster.TestAlternativeClusterName}, 1)
 
 	testCases := []struct {
 		name    string
 		request *types.CreateSemaphoreRequest
+		// notPrimary runs the handler in a cluster that is not the primary.
+		notPrimary bool
 		// setupMocks sets up the domain cache, the metadata store and the replicator.
 		setupMocks func(*cache.MockDomainCache, *persistence.MockSemaphoreMetadataManager, *domain.MockSemaphoreReplicator)
 		want       *types.CreateSemaphoreResponse
@@ -89,7 +96,7 @@ func TestCreateSemaphore(t *testing.T) {
 				dc.EXPECT().GetDomain(domainName).Return(globalDomain, nil)
 				m.EXPECT().CreateSemaphore(gomock.Any(), gomock.Any()).
 					Return(&persistence.CreateSemaphoreResponse{Semaphore: stored(1000, 100)}, nil)
-				r.EXPECT().HandleTransmissionTask(gomock.Any(), stored(1000, 100)).Return(nil)
+				r.EXPECT().ReplicateCreate(gomock.Any(), stored(1000, 100)).Return(nil)
 			},
 			want: response(1000, 100),
 		},
@@ -100,7 +107,7 @@ func TestCreateSemaphore(t *testing.T) {
 				dc.EXPECT().GetDomain(domainName).Return(globalDomain, nil)
 				m.EXPECT().CreateSemaphore(gomock.Any(), gomock.Any()).
 					Return(&persistence.CreateSemaphoreResponse{Semaphore: stored(1000, 100)}, nil)
-				r.EXPECT().HandleTransmissionTask(gomock.Any(), gomock.Any()).Return(&types.InternalServiceError{})
+				r.EXPECT().ReplicateCreate(gomock.Any(), gomock.Any()).Return(&types.InternalServiceError{})
 			},
 			wantErr: &types.InternalServiceError{},
 		},
@@ -125,7 +132,7 @@ func TestCreateSemaphore(t *testing.T) {
 				m.EXPECT().CreateSemaphore(gomock.Any(), gomock.Any()).Return(nil, alreadyExists)
 				m.EXPECT().GetSemaphore(gomock.Any(), gomock.Any()).
 					Return(&persistence.GetSemaphoreResponse{Semaphore: stored(1000, 100)}, nil)
-				r.EXPECT().HandleTransmissionTask(gomock.Any(), stored(1000, 100)).Return(nil)
+				r.EXPECT().ReplicateCreate(gomock.Any(), stored(1000, 100)).Return(nil)
 			},
 			want: response(1000, 100),
 		},
@@ -171,6 +178,37 @@ func TestCreateSemaphore(t *testing.T) {
 			wantErr: &types.InternalServiceError{},
 		},
 		{
+			name:    "when the domain is global and active in another cluster, the primary cluster creates and replicates the semaphore metadata",
+			request: request(1000, 100),
+			setupMocks: func(dc *cache.MockDomainCache, m *persistence.MockSemaphoreMetadataManager, r *domain.MockSemaphoreReplicator) {
+				dc.EXPECT().GetDomain(domainName).Return(standbyDomain, nil)
+				m.EXPECT().CreateSemaphore(gomock.Any(), gomock.Any()).
+					Return(&persistence.CreateSemaphoreResponse{Semaphore: stored(1000, 100)}, nil)
+				r.EXPECT().ReplicateCreate(gomock.Any(), stored(1000, 100)).Return(nil)
+			},
+			want: response(1000, 100),
+		},
+		{
+			name:       "when the domain is global and this cluster is not the primary, a BadRequestError is returned and nothing is written",
+			request:    request(1000, 100),
+			notPrimary: true,
+			setupMocks: func(dc *cache.MockDomainCache, m *persistence.MockSemaphoreMetadataManager, r *domain.MockSemaphoreReplicator) {
+				dc.EXPECT().GetDomain(domainName).Return(globalDomain, nil)
+			},
+			wantErr: errNotPrimaryCluster,
+		},
+		{
+			name:       "when the domain is local and this cluster is not the primary, the semaphore metadata is created and not replicated",
+			request:    request(1000, 100),
+			notPrimary: true,
+			setupMocks: func(dc *cache.MockDomainCache, m *persistence.MockSemaphoreMetadataManager, r *domain.MockSemaphoreReplicator) {
+				dc.EXPECT().GetDomain(domainName).Return(localDomain, nil)
+				m.EXPECT().CreateSemaphore(gomock.Any(), gomock.Any()).
+					Return(&persistence.CreateSemaphoreResponse{Semaphore: stored(1000, 100)}, nil)
+			},
+			want: response(1000, 100),
+		},
+		{
 			name:    "when the domain does not exist, the domain lookup error is returned",
 			request: request(1000, 100),
 			setupMocks: func(dc *cache.MockDomainCache, m *persistence.MockSemaphoreMetadataManager, r *domain.MockSemaphoreReplicator) {
@@ -187,7 +225,11 @@ func TestCreateSemaphore(t *testing.T) {
 			semaphoreMetadataManager := persistence.NewMockSemaphoreMetadataManager(ctrl)
 			semaphoreReplicator := domain.NewMockSemaphoreReplicator(ctrl)
 			tc.setupMocks(domainCache, semaphoreMetadataManager, semaphoreReplicator)
-			handler := NewHandler(semaphoreMetadataManager, domainCache, semaphoreReplicator)
+			clusterMetadata := cluster.TestActiveClusterMetadata
+			if tc.notPrimary {
+				clusterMetadata = cluster.TestPassiveClusterMetadata
+			}
+			handler := NewHandler(semaphoreMetadataManager, domainCache, clusterMetadata, semaphoreReplicator)
 
 			got, err := handler.CreateSemaphore(context.Background(), tc.request)
 			if tc.wantErr != nil {

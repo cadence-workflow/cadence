@@ -808,8 +808,6 @@ const (
 	DCRedirectionBackfillScheduleScope
 	// DCRedirectionListSchedulesScope tracks RPC calls for dc redirection
 	DCRedirectionListSchedulesScope
-	// DCRedirectionCreateSemaphoreScope tracks RPC calls for dc redirection
-	DCRedirectionCreateSemaphoreScope
 	// DCRedirectionForwardingPolicyScope tracks cluster redirection decisions
 	DCRedirectionForwardingPolicyScope
 
@@ -1938,7 +1936,6 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DCRedirectionUnpauseScheduleScope:                       {operation: "DCRedirectionUnpauseSchedule", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionBackfillScheduleScope:                      {operation: "DCRedirectionBackfillSchedule", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionListSchedulesScope:                         {operation: "DCRedirectionListSchedules", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
-		DCRedirectionCreateSemaphoreScope:                       {operation: "DCRedirectionCreateSemaphore", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionForwardingPolicyScope:                      {operation: "DCRedirectionForwardingPolicy", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 
 		MessagingClientPublishScope:      {operation: "MessagingClientPublish"},

@@ -142,6 +142,7 @@ func (s *Service) Start() {
 	sh := semaphore.NewHandler(
 		s.GetSemaphoreMetadataManager(),
 		s.GetDomainCache(),
+		s.GetClusterMetadata(),
 		domain.NewSemaphoreReplicator(s.GetDomainReplicationQueue()),
 	)
 
