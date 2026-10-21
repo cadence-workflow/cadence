@@ -2175,8 +2175,8 @@ const (
 	// Allowed filters: DomainName
 	EnableStickyQuery
 	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
-	// frontend, the acquire decision on history, and serving semaphore buckets on matching. While it
-	// is off matching loads no bucket, so no partition is scanned and nothing is held in memory.
+	// frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so
+	// tokens granted before it was turned off are still freed.
 	// KeyName: system.enableDistributedSemaphore
 	// Value type: Bool
 	// Default value: false
@@ -5147,7 +5147,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableDistributedSemaphore: {
 		KeyName:      "system.enableDistributedSemaphore",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and serving semaphore buckets on matching",
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so tokens granted before it was turned off are still freed",
 		DefaultValue: false,
 	},
 	EnableFailoverManager: {

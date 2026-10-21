@@ -430,6 +430,15 @@ func (e *matchingEngineImpl) AcquireSemaphore(
 		return nil, err
 	}
 
+	// Checked on every acquire, so turning the flag off takes effect on loaded buckets too.
+	domainName, err := e.domainCache.GetDomainName(domainID)
+	if err != nil {
+		return nil, err
+	}
+	if !e.config.EnableDistributedSemaphore(domainName) {
+		return nil, ErrSemaphoreDisabled
+	}
+
 	semMgr, err := e.getOrCreateSemaphoreManager(identifier)
 	if err != nil {
 		return nil, err
@@ -495,14 +504,10 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 	// lookup and the ring check below.
 	mgr, ok := e.semaphoreRegistry.ManagerByIdentifier(id)
 	if !ok {
-		// The flag filters on domain name while a bucket is keyed by domain id, so resolve the
-		// name first. Both stay out of create, which holds the registry lock.
+		// SemaphoreIdleTime is keyed by domain name. Resolved outside create, which holds the registry lock.
 		domainName, err := e.domainCache.GetDomainName(id.DomainID)
 		if err != nil {
 			return nil, err
-		}
-		if !e.config.EnableDistributedSemaphore(domainName) {
-			return nil, ErrSemaphoreDisabled
 		}
 
 		if err := e.errIfSemaphoreOwnershipLost(id); err != nil {
