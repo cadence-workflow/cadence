@@ -100,6 +100,12 @@ func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1
 	return c.client.RefreshTaskListPartitionConfig(ctx, mp1, p1...)
 }
 
+func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.ReleaseSemaphore(ctx, rp1, p1...)
+}
+
 func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()

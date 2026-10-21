@@ -69,6 +69,20 @@ func (mr *MockManagerMockRecorder) Identifier() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Identifier", reflect.TypeOf((*MockManager)(nil).Identifier))
 }
 
+// Release mocks base method.
+func (m *MockManager) Release(ctx context.Context, ownerID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Release", ctx, ownerID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Release indicates an expected call of Release.
+func (mr *MockManagerMockRecorder) Release(ctx, ownerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Release", reflect.TypeOf((*MockManager)(nil).Release), ctx, ownerID)
+}
+
 // Start mocks base method.
 func (m *MockManager) Start(ctx context.Context) error {
 	m.ctrl.T.Helper()

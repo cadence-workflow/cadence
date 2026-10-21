@@ -1121,3 +1121,11 @@ func TestGrant_WaitsForTheBucketLock(t *testing.T) {
 		assertCacheConsistent(t, cache)
 	})
 }
+
+func TestRelease_NotBuiltYet(t *testing.T) {
+	m := persistence.NewMockSemaphoreTokenManager(gomock.NewController(t))
+	mgr := startManager(t, m, 1, nil)
+
+	err := mgr.Release(context.Background(), "owner-a")
+	assert.IsType(t, &types.InternalServiceError{}, err)
+}

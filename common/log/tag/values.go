@@ -493,6 +493,7 @@ var (
 	MatchingClientOperationUpdateTaskListPartitionConfig  = clientOperation("matching-update-task-list-partition-config")
 	MatchingClientOperationRefreshTaskListPartitionConfig = clientOperation("matching-refresh-task-list-partition-config")
 	MatchingClientOperationAcquireSemaphore               = clientOperation("matching-acquire-semaphore")
+	MatchingClientOperationReleaseSemaphore               = clientOperation("matching-release-semaphore")
 )
 
 // Pre-defined values for TagIDType

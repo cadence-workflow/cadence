@@ -472,3 +472,11 @@ func (m *semaphoreManagerImpl) grantRandomFreeToken(ctx context.Context, cache *
 		return AcquireResult{}, false, &types.InternalServiceError{Message: fmt.Sprintf("unexpected grant outcome %v for bucket %v", resp.Outcome, m.id)}
 	}
 }
+
+// Release frees the token ownerID holds in this bucket.
+//
+// TODO: Not built yet, so it always returns an error. Being built next, once we finish revisiting
+// per-token locks vs the bucket lock.
+func (m *semaphoreManagerImpl) Release(ctx context.Context, ownerID string) error {
+	return &types.InternalServiceError{Message: "semaphore release is not implemented"}
+}

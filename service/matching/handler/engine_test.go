@@ -2380,3 +2380,42 @@ func TestAcquireSemaphore(t *testing.T) {
 		}
 	})
 }
+
+// newReleaseSemaphoreRequest returns a release for one bucket of the test semaphore.
+func newReleaseSemaphoreRequest(bucket int32, ownerID string) *types.ReleaseSemaphoreRequest {
+	return &types.ReleaseSemaphoreRequest{
+		DomainUUID:    testSemaphoreDomainID,
+		SemaphoreName: testSemaphoreName,
+		Bucket:        bucket,
+		OwnerID:       ownerID,
+	}
+}
+
+func TestReleaseSemaphore(t *testing.T) {
+	t.Run("the request reaches the bucket's manager and its error is returned", func(t *testing.T) {
+		// The manager's Release is not built yet and always returns an error.
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		expectBucketLoadOnce(m, 2)
+		m.EXPECT().ReleaseSemaphoreToken(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, testSemaphoreOwnerID))
+		assert.IsType(t, &types.InternalServiceError{}, err)
+	})
+
+	t.Run("an owner id that cannot be decoded is refused before any store call", func(t *testing.T) {
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, "not-an-owner-id"))
+		assert.IsType(t, &types.BadRequestError{}, err)
+	})
+
+	t.Run("a domain with semaphores disabled is refused", func(t *testing.T) {
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		e.config.EnableDistributedSemaphore = func(string) bool { return false }
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, testSemaphoreOwnerID))
+		assert.ErrorIs(t, err, ErrSemaphoreDisabled)
+	})
+}

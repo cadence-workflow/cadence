@@ -148,6 +148,17 @@ func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1
 	return resp, err
 }
 
+func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	var resp *types.ReleaseSemaphoreResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.ReleaseSemaphore(ctx, rp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
 	op := func(ctx context.Context) error {
 		return c.client.RespondQueryTaskCompleted(ctx, mp1, p1...)

@@ -446,6 +446,47 @@ func (e *matchingEngineImpl) AcquireSemaphore(
 	}, nil
 }
 
+// ReleaseSemaphore frees the token slot one owner holds in one semaphore bucket. An owner that
+// holds nothing is released too, so a repeated release succeeds.
+func (e *matchingEngineImpl) ReleaseSemaphore(
+	hCtx *handlerContext,
+	request *types.ReleaseSemaphoreRequest,
+) (*types.ReleaseSemaphoreResponse, error) {
+	domainID := request.GetDomainUUID()
+	semaphoreName := request.GetSemaphoreName()
+	bucket := int(request.GetBucket())
+	ownerID := request.GetOwnerID()
+
+	owner, err := semaphore.ParseRequestOwner(ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	e.emitInfoOrDebugLog(
+		domainID,
+		"Received ReleaseSemaphore",
+		tag.WorkflowID(owner.WorkflowID),
+		tag.WorkflowRunID(owner.RunID),
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowScheduleID(owner.HoldID),
+	)
+
+	identifier, err := semaphore.NewIdentifier(domainID, semaphoreName, bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	semMgr, err := e.getOrCreateSemaphoreManager(identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := semMgr.Release(hCtx, ownerID); err != nil {
+		return nil, err
+	}
+	return &types.ReleaseSemaphoreResponse{}, nil
+}
+
 // getOrCreateSemaphoreManager returns this host's manager for one bucket, building it the first
 // time the bucket is asked for. The manager may still be loading when another request started it;
 // Acquire waits for that under the caller's own deadline.
