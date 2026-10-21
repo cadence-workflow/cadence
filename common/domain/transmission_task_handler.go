@@ -57,7 +57,7 @@ type (
 
 	// SemaphoreReplicator is the interface which can replicate a semaphore's metadata
 	SemaphoreReplicator interface {
-		HandleTransmissionTask(ctx context.Context, semaphore *persistence.SemaphoreMetadata) error
+		ReplicateCreate(ctx context.Context, semaphore *persistence.SemaphoreMetadata) error
 	}
 
 	semaphoreReplicatorImpl struct {
@@ -166,8 +166,8 @@ func NewSemaphoreReplicator(replicationMessageSink messaging.Producer) Semaphore
 	}
 }
 
-// HandleTransmissionTask puts the semaphore on the domain replication queue
-func (r *semaphoreReplicatorImpl) HandleTransmissionTask(ctx context.Context, semaphore *persistence.SemaphoreMetadata) error {
+// ReplicateCreate puts a created semaphore on the domain replication queue
+func (r *semaphoreReplicatorImpl) ReplicateCreate(ctx context.Context, semaphore *persistence.SemaphoreMetadata) error {
 	return r.replicationMessageSink.Publish(ctx, &types.ReplicationTask{
 		TaskType: types.ReplicationTaskTypeSemaphoreMetadata.Ptr(),
 		SemaphoreMetadataTaskAttributes: &types.SemaphoreMetadataTaskAttributes{

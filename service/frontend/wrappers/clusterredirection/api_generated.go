@@ -180,42 +180,7 @@ func (handler *clusterRedirectionHandler) CreateSchedule(ctx context.Context, cp
 }
 
 func (handler *clusterRedirectionHandler) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest) (cp2 *types.CreateSemaphoreResponse, err error) {
-	var (
-		apiName                   = "CreateSemaphore"
-		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
-	)
-
-	var domainEntry *cache.DomainCacheEntry
-	scope, startTime := handler.beforeCall(metrics.DCRedirectionCreateSemaphoreScope)
-	defer func() {
-		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
-	}()
-
-	domainEntry, err = handler.domainCache.GetDomain(cp1.Domain)
-	if err != nil {
-		return nil, err
-	}
-
-	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
-	var workflowExecution *types.WorkflowExecution
-
-	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
-		cluster = targetDC
-		switch {
-		case targetDC == handler.currentClusterName:
-			cp2, err = handler.frontendHandler.CreateSemaphore(ctx, cp1)
-		default:
-			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
-			if clientErr != nil {
-				return clientErr
-			}
-			cp2, err = remoteClient.CreateSemaphore(ctx, cp1, handler.callOptions...)
-		}
-		return err
-	})
-
-	return cp2, err
+	return handler.frontendHandler.CreateSemaphore(ctx, cp1)
 }
 
 func (handler *clusterRedirectionHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {

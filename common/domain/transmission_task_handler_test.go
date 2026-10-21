@@ -419,7 +419,7 @@ func (s *transmissionTaskSuite) TestHandleTransmissionTask_UpdateDomainTask_NotG
 	s.Nil(err)
 }
 
-func TestSemaphoreReplicator_HandleTransmissionTask(t *testing.T) {
+func TestSemaphoreReplicator_ReplicateCreate(t *testing.T) {
 	semaphore := &p.SemaphoreMetadata{
 		DomainID:      "domain-id",
 		SemaphoreName: "shipping-api",
@@ -453,7 +453,7 @@ func TestSemaphoreReplicator_HandleTransmissionTask(t *testing.T) {
 			producer := messaging.NewMockProducer(ctrl)
 			producer.EXPECT().Publish(gomock.Any(), wantTask).Return(tc.publishErr)
 
-			err := NewSemaphoreReplicator(producer).HandleTransmissionTask(context.Background(), semaphore)
+			err := NewSemaphoreReplicator(producer).ReplicateCreate(context.Background(), semaphore)
 			if tc.wantErr != nil {
 				assert.ErrorIs(t, err, tc.wantErr)
 			} else {

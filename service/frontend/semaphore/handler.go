@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -26,21 +27,26 @@ type (
 	handlerImpl struct {
 		semaphoreMetadataManager persistence.SemaphoreMetadataManager
 		domainCache              cache.DomainCache
+		clusterMetadata          cluster.Metadata
 		semaphoreReplicator      domain.SemaphoreReplicator
 	}
 )
 
 var _ Handler = (*handlerImpl)(nil)
 
+var errNotPrimaryCluster = &types.BadRequestError{Message: "Cluster is not primary cluster, cannot create a semaphore for a global domain."}
+
 // NewHandler create a new semaphore handler
 func NewHandler(
 	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
 	domainCache cache.DomainCache,
+	clusterMetadata cluster.Metadata,
 	semaphoreReplicator domain.SemaphoreReplicator,
 ) Handler {
 	return &handlerImpl{
 		semaphoreMetadataManager: semaphoreMetadataManager,
 		domainCache:              domainCache,
+		clusterMetadata:          clusterMetadata,
 		semaphoreReplicator:      semaphoreReplicator,
 	}
 }
@@ -57,6 +63,9 @@ func (h *handlerImpl) CreateSemaphore(
 
 	domainEntry, err := h.domainCache.GetDomain(domainName)
 	if err != nil {
+		return nil, err
+	}
+	if err := h.checkClusterCanCreate(domainEntry); err != nil {
 		return nil, err
 	}
 	domainID := domainEntry.GetInfo().ID
@@ -96,11 +105,19 @@ func (h *handlerImpl) CreateSemaphore(
 
 	// Only a global domain has other clusters to replicate to.
 	if domainEntry.IsGlobalDomain() {
-		if err := h.semaphoreReplicator.HandleTransmissionTask(ctx, semaphore); err != nil {
+		if err := h.semaphoreReplicator.ReplicateCreate(ctx, semaphore); err != nil {
 			return nil, err
 		}
 	}
 	return &types.CreateSemaphoreResponse{Semaphore: toSemaphore(semaphore)}, nil
+}
+
+// checkClusterCanCreate returns errNotPrimaryCluster if the domain is global and this cluster is not the primary.
+func (h *handlerImpl) checkClusterCanCreate(domainEntry *cache.DomainCacheEntry) error {
+	if domainEntry.IsGlobalDomain() && !h.clusterMetadata.IsPrimaryCluster() {
+		return errNotPrimaryCluster
+	}
+	return nil
 }
 
 // existingSemaphoreMatchesCreateRequest reports whether the stored semaphore has the requested capacities.
@@ -108,12 +125,8 @@ func existingSemaphoreMatchesCreateRequest(
 	existing *persistence.SemaphoreMetadata,
 	createRequest *types.CreateSemaphoreRequest,
 ) bool {
-	// Bucket capacity is optional. When it is 0, the persistence layer stores
-	// DefaultSemaphoreBucketSize instead, so compare with that.
-	wantBucketSize := int(createRequest.GetBucketCapacity())
-	if wantBucketSize == 0 {
-		wantBucketSize = persistence.DefaultSemaphoreBucketSize
-	}
+	// Bucket capacity is optional, so compare with the bucket size the persistence layer stores for it.
+	wantBucketSize := persistence.SemaphoreBucketSizeOrDefault(int(createRequest.GetBucketCapacity()))
 	return existing.Size == int(createRequest.GetCapacity()) && existing.BucketSize == wantBucketSize
 }
 
