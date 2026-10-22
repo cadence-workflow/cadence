@@ -1,8 +1,8 @@
 module github.com/uber/cadence/common/archiver/gcloud
 
-go 1.26.0
+go 1.26.2
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 // build against the current code in the "main" module, not a specific SHA.
 //
