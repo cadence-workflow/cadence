@@ -1,8 +1,8 @@
 module github.com/uber/cadence/internal/tools
 
-go 1.26.0
+go 1.26.2
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 require (
 	github.com/daixiang0/gci v0.12.0
