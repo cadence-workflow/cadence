@@ -227,7 +227,6 @@ func TestNumMatchingShards(t *testing.T) {
 		name              string
 		numMatchingShards int
 		wantShardCount    int
-		wantErr           string
 	}{
 		{
 			name:              "unset uses the default",
@@ -239,11 +238,6 @@ func TestNumMatchingShards(t *testing.T) {
 			numMatchingShards: 1050,
 			wantShardCount:    1050,
 		},
-		{
-			name:              "negative",
-			numMatchingShards: -100,
-			wantErr:           "numMatchingShards must be positive, got -100",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -251,14 +245,18 @@ func TestNumMatchingShards(t *testing.T) {
 			cfg.NumMatchingShards = tt.numMatchingShards
 
 			err := cfg.ValidateAndFillDefaults()
-			if tt.wantErr != "" {
-				assert.EqualError(t, err, tt.wantErr)
-				return
-			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantShardCount, cfg.NumMatchingShards)
 		})
 	}
+
+	t.Run("negative is rejected", func(t *testing.T) {
+		cfg := getValidShardedNoSQLConfig()
+		cfg.NumMatchingShards = -100
+
+		err := cfg.ValidateAndFillDefaults()
+		assert.EqualError(t, err, "numMatchingShards must be positive, got -100")
+	})
 }
 
 func TestGetServiceConfig(t *testing.T) {

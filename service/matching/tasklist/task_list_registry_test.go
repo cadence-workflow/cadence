@@ -58,6 +58,8 @@ func TestTaskListRegistry_RegisterLookupAndUnregister(t *testing.T) {
 	got, ok = registry.ManagerByTaskListIdentifier(*id)
 	require.True(t, ok)
 	assert.Equal(t, updatedMgr, got)
+	shardID := membership.TaskListNameToShard(id.GetName(), shardCount)
+	assert.ElementsMatch(t, []Manager{updatedMgr}, registry.ManagersByShard(shardID))
 
 	// Unregistering the current manager should remove the entry.
 	metricsScope.On("UpdateGauge", metrics.TaskListManagersGauge, float64(0)).Once()
