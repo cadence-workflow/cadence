@@ -771,12 +771,17 @@ func (s *transferActiveTaskExecutorSuite) testProcessCloseExecutionWithParent(
 		if failRecordChild {
 			recordChildErr = &types.DomainNotActiveError{}
 		}
+		// the parent is in the same domain, so the child also sends its start version
+		startVersion, err := mutableState.GetStartVersion()
+		s.NoError(err)
 		s.mockHistoryClient.EXPECT().RecordChildExecutionCompleted(gomock.Any(), &types.RecordChildExecutionCompletedRequest{
-			DomainUUID:         targetDomainID,
-			WorkflowExecution:  &parentExecution,
-			InitiatedID:        parentInitiatedID,
-			CompletedExecution: &workflowExecution,
-			CompletionEvent:    event,
+			DomainUUID:          targetDomainID,
+			WorkflowExecution:   &parentExecution,
+			InitiatedID:         parentInitiatedID,
+			CompletedExecution:  &workflowExecution,
+			CompletionEvent:     event,
+			FirstExecutionRunID: executionInfo.FirstExecutionRunID,
+			ChildStartVersion:   common.Int64Ptr(startVersion),
 		}).Return(recordChildErr).Times(1)
 	}
 

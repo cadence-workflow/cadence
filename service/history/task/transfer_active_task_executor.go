@@ -432,6 +432,16 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 	parentWorkflowID := executionInfo.ParentWorkflowID
 	parentRunID := executionInfo.ParentRunID
 	initiatedID := executionInfo.InitiatedID
+	firstExecutionRunID := executionInfo.FirstExecutionRunID
+	// versions of different domains can not be compared, so the parent gets the start version only in the same domain
+	var childStartVersion *int64
+	if parentDomainID == task.GetDomainID() {
+		startVersion, err := mutableState.GetStartVersion()
+		if err != nil {
+			return err
+		}
+		childStartVersion = common.Int64Ptr(startVersion)
+	}
 
 	workflowTypeName := executionInfo.WorkflowTypeName
 	workflowCloseTimestamp := wfCloseTime
@@ -516,7 +526,9 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 				WorkflowID: task.GetWorkflowID(),
 				RunID:      task.GetRunID(),
 			},
-			CompletionEvent: completionEvent,
+			CompletionEvent:     completionEvent,
+			FirstExecutionRunID: firstExecutionRunID,
+			ChildStartVersion:   childStartVersion,
 		})
 
 		// Check to see if the error is non-transient, in which case reset the error and continue with processing
