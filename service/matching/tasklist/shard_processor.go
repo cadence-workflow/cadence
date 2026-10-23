@@ -76,7 +76,7 @@ func (sp *shardProcessorImpl) Start(ctx context.Context) error {
 func (sp *shardProcessorImpl) Stop() {
 	// A shard can hold many task lists, and stopping one is IO heavy, so they stop in parallel.
 	var wg sync.WaitGroup
-	for _, tlMgr := range sp.taskListsInShard() {
+	for _, tlMgr := range sp.ownedManagers() {
 		wg.Add(1)
 		go func(tlMgr Manager) {
 			defer wg.Done()
@@ -117,15 +117,15 @@ func (sp *shardProcessorImpl) getShardLoad() float64 {
 	// so task lists of different task type (decisions/activities) or of different kind (normal, sticky, ephemeral)
 	// will be assigned all to the same matching instance (executor)
 	// we need to sum the rps for each of the tasklist to calculate the load.
-	for _, tlMgr := range sp.taskListsInShard() {
+	for _, tlMgr := range sp.ownedManagers() {
 		qps := tlMgr.QueriesPerSecond()
 		load = load + qps
 	}
 	return load
 }
 
-// taskListsInShard returns the managers of the task lists this shard owns.
-func (sp *shardProcessorImpl) taskListsInShard() []Manager {
+// ownedManagers returns the managers of the task lists this shard owns.
+func (sp *shardProcessorImpl) ownedManagers() []Manager {
 	if sp.shardTaskListsByHash {
 		var owned []Manager
 		for _, tlMgr := range sp.taskListsRegistry.ManagersByShard(sp.shardID) {
