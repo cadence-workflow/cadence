@@ -138,8 +138,7 @@ func TestTaskListExcludedFromShardDistributor(t *testing.T) {
 				tt.taskListName,
 				tt.percentageOnboarded,
 				tt.excludeShortLivedTaskLists,
-				tt.shardTaskListsByHash,
-				shardCount,
+				NewTaskListSharding(tt.shardTaskListsByHash, shardCount),
 			)
 			assert.Equal(t, tt.want, got)
 		})
@@ -193,7 +192,7 @@ func TestIsbelowPercentage(t *testing.T) {
 	}
 }
 
-func TestTaskListShardID(t *testing.T) {
+func TestTaskListShardingShardID(t *testing.T) {
 	shardCount := 1000
 
 	tests := []struct {
@@ -217,7 +216,8 @@ func TestTaskListShardID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := TaskListShardID(tt.taskListName, tt.shardTaskListsByHash, shardCount)
+			sharding := NewTaskListSharding(tt.shardTaskListsByHash, shardCount)
+			got := sharding.ShardID(tt.taskListName)
 			assert.Equal(t, tt.want, got)
 		})
 	}

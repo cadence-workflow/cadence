@@ -336,7 +336,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		return result, nil
 	}
 	if !excludedFromShardDistributor {
-		shardID := e.taskListShardID(taskList.GetName())
+		shardID := e.taskListSharding().ShardID(taskList.GetName())
 		sp, _ := e.executor.GetShardProcess(ctx, shardID)
 		if sp != nil && ok {
 			return result, nil
@@ -1640,7 +1640,7 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 		// We have a shard-processor shared by all the task lists with the same name, or, when task
 		// lists are sharded by hash, by all the task lists whose names hash to the same shard.
 		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
-		shardID := e.taskListShardID(taskList.GetName())
+		shardID := e.taskListSharding().ShardID(taskList.GetName())
 		sp, err := e.executor.GetShardProcess(ctx, shardID)
 		if err != nil {
 			if errors.Is(err, executorclient.ErrShardProcessNotFound) {
@@ -1720,14 +1720,12 @@ func (e *matchingEngineImpl) isExcludedFromShardDistributor(taskListName string)
 		taskListName,
 		uint64(e.percentageOnboarded.Value()),
 		e.config.ExcludeShortLivedTaskListsFromShardManager(),
-		e.config.ShardTaskListsByHashForShardManager(),
-		e.shardCount,
+		e.taskListSharding(),
 	)
 }
 
-// taskListShardID returns the shard that holds a task list in the shard distributor.
-func (e *matchingEngineImpl) taskListShardID(taskListName string) string {
-	return membership.TaskListShardID(taskListName, e.config.ShardTaskListsByHashForShardManager(), e.shardCount)
+func (e *matchingEngineImpl) taskListSharding() membership.TaskListSharding {
+	return membership.NewTaskListSharding(e.config.ShardTaskListsByHashForShardManager(), e.shardCount)
 }
 
 func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {

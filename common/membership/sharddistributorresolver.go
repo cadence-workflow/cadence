@@ -90,14 +90,12 @@ func (s shardDistributorResolver) Stop() {
 }
 
 func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
-	// Read once, so the exclusion check and the shard ID below use the same value.
-	shardTaskListsByHash := s.shardTaskListsByHash()
+	sharding := NewTaskListSharding(s.shardTaskListsByHash(), s.shardCount)
 	excludeTaskList := TaskListExcludedFromShardDistributor(
 		key,
 		uint64(s.percentageOnboarded.Value()),
 		s.excludeShortLivedTaskLists(),
-		shardTaskListsByHash,
-		s.shardCount,
+		sharding,
 	)
 	if excludeTaskList {
 		s.emitRoutingPathMetric(routingPathHashRing)
@@ -112,7 +110,7 @@ func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 
 	s.emitRoutingPathMetric(routingPathShardDistributor)
 
-	shardID := TaskListShardID(key, shardTaskListsByHash, s.shardCount)
+	shardID := sharding.ShardID(key)
 	return s.lookUpInShardDistributor(shardID)
 }
 
