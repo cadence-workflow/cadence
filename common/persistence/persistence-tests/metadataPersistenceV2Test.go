@@ -73,7 +73,9 @@ ListLoop:
 		m.NoError(err)
 		token = resp.NextPageToken
 		for _, domain := range resp.Domains {
-			m.NoError(m.DeleteDomain(context.Background(), domain.Info.ID, ""))
+			// delete by name: ListDomains reads the by-name records, and deleting by ID is a no-op
+			// when the by-ID record is missing, which would leave an orphaned by-name record behind
+			m.NoError(m.DeleteDomain(context.Background(), "", domain.Info.Name))
 		}
 		if len(token) == 0 {
 			break ListLoop
