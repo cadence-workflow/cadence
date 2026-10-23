@@ -530,9 +530,8 @@ const (
 	S3storeConfig   = "s3store"
 )
 
-// DefaultNumMatchingShards is the NumMatchingShards of a config that leaves it unset. Changing it
-// moves almost every task list to a different shard in every cluster that relies on it, so it must
-// never change.
+// DefaultNumMatchingShards is used when [Config.NumMatchingShards] is unset. To use a different count,
+// set the field. Changing the default changes the count in every cluster that leaves it unset.
 const DefaultNumMatchingShards = 16384
 
 func (n *NoSQL) ConvertToShardedNoSQLConfig() *ShardedNoSQL {
