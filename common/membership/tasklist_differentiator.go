@@ -11,7 +11,8 @@ const uuidRegex = `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[
 
 var uuidRegexp = regexp.MustCompile(uuidRegex)
 
-// TaskListSharding is how task list names map to shard distributor shards.
+// TaskListSharding is how task list names map to shard distributor shards, and which of those
+// shards are onboarded at a given percentage.
 type TaskListSharding interface {
 	// ShardID returns the shard that holds the task list.
 	ShardID(taskListName string) string
