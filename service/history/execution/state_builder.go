@@ -463,6 +463,13 @@ func (b *stateBuilderImpl) ApplyEvents(
 				return nil, err
 			}
 
+		case types.EventTypeSemaphoreAcquireFailed:
+			if err := b.mutableState.ReplicateSemaphoreAcquireFailedEvent(
+				event,
+			); err != nil {
+				return nil, err
+			}
+
 		case types.EventTypeWorkflowExecutionCompleted:
 			if err := b.mutableState.ReplicateWorkflowExecutionCompletedEvent(
 				firstEvent.ID,

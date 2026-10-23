@@ -1266,3 +1266,13 @@ func SemaphoreName(name string) Tag {
 func SemaphoreBucket(bucket int) Tag {
 	return newInt("semaphore-bucket", bucket)
 }
+
+// SemaphoreTokenID returns a tag for a token of a semaphore
+func SemaphoreTokenID(tokenID int) Tag {
+	return newInt("semaphore-token-id", tokenID)
+}
+
+// SemaphoreGrantedTokenID returns a tag for the token Matching granted, when it is logged next to another token
+func SemaphoreGrantedTokenID(tokenID int) Tag {
+	return newInt("semaphore-granted-token-id", tokenID)
+}
