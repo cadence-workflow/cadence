@@ -18,6 +18,12 @@ type ShardProcessorParams struct {
 	TaskListsRegistry TaskListRegistry
 	ReportTTL         time.Duration
 	TimeSource        clock.TimeSource
+	// ShardTaskListsByHash is true when ShardID is a shard number that holds every task list whose
+	// name hashes to it. When false, ShardID is the name of a single task list.
+	ShardTaskListsByHash bool
+	// OwnedByHashRing reports whether a task list is excluded from the shard distributor, so the
+	// hash ring owns it. When task lists are sharded by hash, a shard leaves those task lists alone.
+	OwnedByHashRing func(taskListName string) bool
 }
 
 type shardProcessorImpl struct {
@@ -29,6 +35,9 @@ type shardProcessorImpl struct {
 	reportTime        time.Time
 	reportTTL         time.Duration
 	timeSource        clock.TimeSource
+
+	shardTaskListsByHash bool
+	ownedByHashRing      func(taskListName string) bool
 }
 
 func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
@@ -43,6 +52,9 @@ func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
 		reportTime:        params.TimeSource.Now(),
 		reportTTL:         params.ReportTTL,
 		timeSource:        params.TimeSource,
+
+		shardTaskListsByHash: params.ShardTaskListsByHash,
+		ownedByHashRing:      params.OwnedByHashRing,
 	}
 	shardprocessor.SetShardStatus(smtypes.ShardStatusREADY)
 	shardprocessor.shardReport = executorclient.ShardReport{
@@ -62,10 +74,16 @@ func (sp *shardProcessorImpl) Start(ctx context.Context) error {
 
 // Stop is stopping the tasklist when a shard is not assigned to this executor anymore.
 func (sp *shardProcessorImpl) Stop() {
-	toShutDown := sp.taskListsRegistry.ManagersByTaskListName(sp.shardID)
-	for _, tlMgr := range toShutDown {
-		tlMgr.Stop()
+	// A shard can hold many task lists, and stopping one is IO heavy, so they stop in parallel.
+	var wg sync.WaitGroup
+	for _, tlMgr := range sp.ownedManagers() {
+		wg.Add(1)
+		go func(tlMgr Manager) {
+			defer wg.Done()
+			tlMgr.Stop()
+		}(tlMgr)
 	}
+	wg.Wait()
 }
 
 func (sp *shardProcessorImpl) GetShardReport() executorclient.ShardReport {
@@ -84,6 +102,11 @@ func (sp *shardProcessorImpl) GetShardReport() executorclient.ShardReport {
 }
 
 func (sp *shardProcessorImpl) SetShardStatus(status smtypes.ShardStatus) {
+	// When task lists are sharded by hash, a shard is one of a fixed set, so it is never done, even
+	// when all its task lists are idle.
+	if sp.shardTaskListsByHash && status == smtypes.ShardStatusDONE {
+		return
+	}
 	sp.Status.Store(int32(status))
 }
 
@@ -91,14 +114,36 @@ func (sp *shardProcessorImpl) getShardLoad() float64 {
 	var load float64
 
 	// We assign a shard only based on the task list name
-	// so task lists of different task type (decisions/activities), of different kind (normal, sticky, ephemeral) or partitions
+	// so task lists of different task type (decisions/activities) or of different kind (normal, sticky, ephemeral)
 	// will be assigned all to the same matching instance (executor)
 	// we need to sum the rps for each of the tasklist to calculate the load.
-	for _, tlMgr := range sp.taskListsRegistry.ManagersByTaskListName(sp.shardID) {
+	for _, tlMgr := range sp.ownedManagers() {
 		qps := tlMgr.QueriesPerSecond()
 		load = load + qps
 	}
 	return load
+}
+
+// ownedManagers returns the managers of the task lists this shard owns.
+func (sp *shardProcessorImpl) ownedManagers() []Manager {
+	if sp.shardTaskListsByHash {
+		var owned []Manager
+		for _, tlMgr := range sp.taskListsRegistry.ManagersByShard(sp.shardID) {
+			if sp.ownsTaskList(tlMgr) {
+				owned = append(owned, tlMgr)
+			}
+		}
+		return owned
+	}
+
+	return sp.taskListsRegistry.ManagersByTaskListName(sp.shardID)
+}
+
+// ownsTaskList reports whether this shard owns a task list whose name hashes to it. Short-lived
+// task lists and task lists in shards that are not onboarded yet stay on the hash ring.
+func (sp *shardProcessorImpl) ownsTaskList(tlMgr Manager) bool {
+	taskListName := tlMgr.TaskListID().GetName()
+	return !sp.ownedByHashRing(taskListName)
 }
 
 func validateSPParams(params ShardProcessorParams) error {

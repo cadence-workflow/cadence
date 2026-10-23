@@ -27,6 +27,7 @@ import (
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
 
 	"github.com/uber/cadence/common"
+	commonconfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
@@ -45,6 +46,7 @@ type Service struct {
 	stopC                          chan struct{}
 	config                         *config.Config
 	ShardDistributorMatchingConfig clientcommon.Config
+	shardCount                     int
 	drainObserver                  clientcommon.DrainSignalObserver
 	percentageOnboarded            membership.PercentageOnboarded
 }
@@ -53,6 +55,12 @@ type Service struct {
 func NewService(
 	params *resource.Params,
 ) (resource.Resource, error) {
+	// Callers that build Params themselves may leave the shard count unset, and task list names
+	// are hashed modulo it, so fall back to the default the static config uses.
+	shardCount := params.NumMatchingShards
+	if shardCount == 0 {
+		shardCount = commonconfig.DefaultNumMatchingShards
+	}
 
 	serviceConfig := config.NewConfig(
 		params.DynamicCollection,
@@ -83,6 +91,7 @@ func NewService(
 		config:                         serviceConfig,
 		stopC:                          make(chan struct{}),
 		ShardDistributorMatchingConfig: params.ShardDistributorMatchingConfig,
+		shardCount:                     shardCount,
 		drainObserver:                  params.DrainObserver,
 		percentageOnboarded:            params.PercentageOnboarded,
 	}, nil
@@ -115,6 +124,7 @@ func (s *Service) Start() {
 		s.GetTimeSource(),
 		s.GetShardDistributorExecutorClient(),
 		s.ShardDistributorMatchingConfig,
+		s.shardCount,
 		s.drainObserver,
 		s.percentageOnboarded,
 	)

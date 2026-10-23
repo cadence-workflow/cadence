@@ -44,6 +44,8 @@ const (
 
 type shardDistributorResolver struct {
 	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn
+	shardTaskListsByHash       dynamicproperties.BoolPropertyFn
+	shardCount                 int
 	percentageOnboarded        PercentageOnboarded
 	spectator                  spectatorclient.Spectator
 	ring                       SingleProvider
@@ -58,6 +60,8 @@ func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) 
 func NewShardDistributorResolver(
 	spectator spectatorclient.Spectator,
 	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn,
+	shardTaskListsByHash dynamicproperties.BoolPropertyFn,
+	shardCount int,
 	percentageOnboarded PercentageOnboarded,
 	ring SingleProvider,
 	logger log.Logger,
@@ -66,6 +70,8 @@ func NewShardDistributorResolver(
 	return &shardDistributorResolver{
 		spectator:                  spectator,
 		excludeShortLivedTaskLists: excludeShortLivedTaskLists,
+		shardTaskListsByHash:       shardTaskListsByHash,
+		shardCount:                 shardCount,
 		percentageOnboarded:        percentageOnboarded,
 		ring:                       ring,
 		logger:                     logger,
@@ -84,7 +90,13 @@ func (s shardDistributorResolver) Stop() {
 }
 
 func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
-	excludeTaskList := TaskListExcludedFromShardDistributor(key, uint64(s.percentageOnboarded.Value()), s.excludeShortLivedTaskLists())
+	sharding := NewTaskListSharding(s.shardTaskListsByHash(), s.shardCount)
+	excludeTaskList := TaskListExcludedFromShardDistributor(
+		key,
+		uint64(s.percentageOnboarded.Value()),
+		s.excludeShortLivedTaskLists(),
+		sharding,
+	)
 	if excludeTaskList {
 		s.emitRoutingPathMetric(routingPathHashRing)
 		return s.ring.Lookup(key)
@@ -97,7 +109,9 @@ func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 	}
 
 	s.emitRoutingPathMetric(routingPathShardDistributor)
-	return s.lookUpInShardDistributor(key)
+
+	shardID := sharding.ShardID(key)
+	return s.lookUpInShardDistributor(shardID)
 }
 
 // LookupN delegates to the underlying hash ring; the shard distributor does

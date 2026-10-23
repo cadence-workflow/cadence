@@ -42,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/isolationgroup"
@@ -137,6 +138,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				mockTimeSource,
 				mockShardDistributorExecutorClient,
 				defaultSDExecutorConfig(),
+				commonConfig.DefaultNumMatchingShards,
 				nil,
 				pct,
 			).(*matchingEngineImpl)
@@ -202,7 +204,7 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
@@ -238,7 +240,7 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
@@ -297,7 +299,7 @@ func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
@@ -347,12 +349,13 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion:  &shutdownWG,
 		membershipResolver:  mockResolver,
-		taskListRegistry:    tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:    tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:   semaphore.NewSemaphoreRegistry(),
 		metricsClient:       metrics.NewNoopMetricsClient(),
 		percentageOnboarded: pct,
 		config: &config.Config{
 			ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return true },
+			ShardTaskListsByHashForShardManager:        func(opts ...dynamicproperties.FilterOption) bool { return false },
 		},
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),

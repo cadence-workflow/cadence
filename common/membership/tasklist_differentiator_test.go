@@ -7,12 +7,15 @@ import (
 )
 
 func TestTaskListExcludedFromShardDistributor(t *testing.T) {
+	shardCount := 1000
+
 	tests := []struct {
 		name                       string
 		taskListName               string
 		want                       bool
 		percentageOnboarded        uint64
 		excludeShortLivedTaskLists bool
+		shardTaskListsByHash       bool
 	}{
 		{
 			name:                       "task list with UUID - exclude enabled",
@@ -105,10 +108,38 @@ func TestTaskListExcludedFromShardDistributor(t *testing.T) {
 			percentageOnboarded:        60,
 			excludeShortLivedTaskLists: true,
 		},
+		{
+			name:                 "sharded by hash - shard below percentage",
+			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
+			want:                 false,
+			percentageOnboarded:  64,
+			shardTaskListsByHash: true,
+		},
+		{
+			// The task list's own hash%100 is 39, so only the shard puts it above the percentage.
+			name:                 "sharded by hash - shard above percentage",
+			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
+			want:                 true,
+			percentageOnboarded:  63,
+			shardTaskListsByHash: true,
+		},
+		{
+			name:                       "sharded by hash - UUID - exclude enabled",
+			taskListName:               "tasklist-550e8400-e29b-41d4-a716-446655440000",
+			want:                       true,
+			percentageOnboarded:        100,
+			excludeShortLivedTaskLists: true,
+			shardTaskListsByHash:       true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := TaskListExcludedFromShardDistributor(tt.taskListName, tt.percentageOnboarded, tt.excludeShortLivedTaskLists)
+			got := TaskListExcludedFromShardDistributor(
+				tt.taskListName,
+				tt.percentageOnboarded,
+				tt.excludeShortLivedTaskLists,
+				NewTaskListSharding(tt.shardTaskListsByHash, shardCount),
+			)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -156,6 +187,37 @@ func TestIsbelowPercentage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := isbelowPercentage(tt.hash, tt.percentage)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestTaskListShardingShardID(t *testing.T) {
+	shardCount := 1000
+
+	tests := []struct {
+		name                 string
+		taskListName         string
+		shardTaskListsByHash bool
+		want                 string
+	}{
+		{
+			name:                 "shard by task list name",
+			taskListName:         "orders",
+			shardTaskListsByHash: false,
+			want:                 "orders",
+		},
+		{
+			name:                 "shard by hash",
+			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
+			shardTaskListsByHash: true,
+			want:                 "639",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sharding := NewTaskListSharding(tt.shardTaskListsByHash, shardCount)
+			got := sharding.ShardID(tt.taskListName)
 			assert.Equal(t, tt.want, got)
 		})
 	}
