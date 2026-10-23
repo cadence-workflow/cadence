@@ -893,6 +893,26 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 		mutableState.GetExecutionInfo().PartitionConfig,
 		mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy,
 	)
+	if alreadyStartedErr, ok := err.(*types.WorkflowExecutionAlreadyStartedError); ok {
+		// After a failover the parent's mutable state may not have caught up with the child's shard yet,
+		// and the CreateRequestID regenerated during replication no longer dedupes the start request.
+		// Adopt the existing run if it was started by this parent for this initiated event.
+		startedByParent, describeErr := t.isStartedByParentInitiatedEvent(ctx, task, targetDomainName, attributes.WorkflowID, alreadyStartedErr.RunID)
+		if describeErr != nil {
+			return describeErr
+		}
+		if startedByParent {
+			t.logger.Info("Adopting child workflow already started by this parent",
+				tag.WorkflowDomainID(task.DomainID),
+				tag.WorkflowID(task.WorkflowID),
+				tag.WorkflowRunID(task.RunID),
+				tag.TargetWorkflowDomainID(task.TargetDomainID),
+				tag.TargetWorkflowID(attributes.WorkflowID),
+				tag.TargetWorkflowRunID(alreadyStartedErr.RunID),
+			)
+			childRunID, err = alreadyStartedErr.RunID, nil
+		}
+	}
 	if err != nil {
 
 		// Check to see if the error is non-transient, in which case add StartChildWorkflowExecutionFailed
@@ -951,6 +971,48 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 			WorkflowID: task.TargetWorkflowID,
 			RunID:      childRunID,
 		})
+}
+
+// isStartedByParentInitiatedEvent checks whether the given run of the target workflow was started
+// as the child of the task's parent workflow for the task's initiated event.
+func (t *transferActiveTaskExecutor) isStartedByParentInitiatedEvent(
+	ctx context.Context,
+	task *persistence.StartChildExecutionTask,
+	targetDomainName string,
+	workflowID string,
+	runID string,
+) (bool, error) {
+	if runID == "" {
+		return false, nil
+	}
+
+	describeCtx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
+	defer cancel()
+	resp, err := t.historyClient.DescribeWorkflowExecution(describeCtx, &types.HistoryDescribeWorkflowExecutionRequest{
+		DomainUUID: task.TargetDomainID,
+		Request: &types.DescribeWorkflowExecutionRequest{
+			Domain: targetDomainName,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: workflowID,
+				RunID:      runID,
+			},
+		},
+	})
+	if err != nil {
+		if _, ok := err.(*types.EntityNotExistsError); ok {
+			return false, nil
+		}
+		return false, err
+	}
+
+	info := resp.GetWorkflowExecutionInfo()
+	if info == nil || info.ParentExecution == nil || info.ParentDomainID == nil || info.ParentInitiatedID == nil {
+		return false, nil
+	}
+	return *info.ParentDomainID == task.DomainID &&
+		info.ParentExecution.GetWorkflowID() == task.WorkflowID &&
+		info.ParentExecution.GetRunID() == task.RunID &&
+		*info.ParentInitiatedID == task.InitiatedID, nil
 }
 
 func (t *transferActiveTaskExecutor) processRecordWorkflowStarted(
