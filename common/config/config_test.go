@@ -255,7 +255,7 @@ func TestNumMatchingShards(t *testing.T) {
 		cfg.NumMatchingShards = -100
 
 		err := cfg.ValidateAndFillDefaults()
-		assert.EqualError(t, err, "numMatchingShards must be positive, got -100")
+		assert.EqualError(t, err, "numMatchingShards must not be negative, got -100")
 	})
 }
 

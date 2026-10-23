@@ -559,8 +559,8 @@ func (c *Config) validate() error {
 	if err := c.ClusterGroupMetadata.Validate(); err != nil {
 		return err
 	}
-	if c.NumMatchingShards <= 0 {
-		return fmt.Errorf("numMatchingShards must be positive, got %d", c.NumMatchingShards)
+	if c.NumMatchingShards < 0 {
+		return fmt.Errorf("numMatchingShards must not be negative, got %d", c.NumMatchingShards)
 	}
 
 	return c.Authorization.Validate()
