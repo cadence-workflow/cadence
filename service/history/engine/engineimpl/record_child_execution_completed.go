@@ -114,8 +114,9 @@ func (e *historyEngineImpl) RecordChildExecutionCompleted(
 			if ci.StartedWorkflowID != completedExecution.GetWorkflowID() {
 				return &types.EntityNotExistsError{Message: "Pending child execution workflowID mismatch."}
 			}
+			firstRunID := completionRequest.FirstExecutionRunID
 			// a completion without the first run ID can not be checked
-			if firstRunID := completionRequest.FirstExecutionRunID; firstRunID != "" && firstRunID != ci.StartedRunID {
+			if firstRunID != "" && firstRunID != ci.StartedRunID {
 				// the completion is from another run with the same workflow ID, for example a run that a new run replaced
 				e.metricsClient.IncCounter(metrics.HistoryRecordChildExecutionCompletedScope, metrics.ChildWorkflowCompletionOtherRunCounter)
 				e.logger.Info("Drop the completion of a child run that the parent did not start",
