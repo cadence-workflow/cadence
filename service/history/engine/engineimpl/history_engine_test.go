@@ -6349,7 +6349,7 @@ func TestRecordChildExecutionCompleted(t *testing.T) {
 			},
 		},
 		{
-			name: "stale mutable state - child start version not lower than the last write version",
+			name: "stale mutable state - initiated event can still be added, as the child start version is equal to or higher than the last write version",
 			request: &types.RecordChildExecutionCompletedRequest{
 				DomainUUID:  "58f7998e-9c00-4827-bbd3-6a891b3ca0ca",
 				InitiatedID: 10,
@@ -6439,7 +6439,7 @@ func TestRecordChildExecutionCompleted(t *testing.T) {
 			},
 		},
 		{
-			name:         "active-active - stale mutable state - child with another cluster attribute",
+			name:         "active-active - stale mutable state - child with another cluster attribute, so the versions can not be compared",
 			activeActive: true,
 			request: &types.RecordChildExecutionCompletedRequest{
 				DomainUUID:  "58f7998e-9c00-4827-bbd3-6a891b3ca0ca",
