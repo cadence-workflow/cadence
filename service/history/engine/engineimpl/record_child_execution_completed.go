@@ -24,6 +24,7 @@ package engineimpl
 import (
 	"context"
 
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -64,6 +65,22 @@ func (e *historyEngineImpl) RecordChildExecutionCompleted(
 			ci, isRunning := mutableState.GetChildExecutionInfo(initiatedID)
 			if !isRunning {
 				if initiatedID >= mutableState.GetNextEventID() {
+					fromOtherBranch, err := e.isChildCompletionFromOtherBranch(ctx, domainEntry, mutableState, completionRequest)
+					if err != nil {
+						return err
+					}
+					if fromOtherBranch {
+						e.metricsClient.IncCounter(metrics.HistoryRecordChildExecutionCompletedScope, metrics.ChildWorkflowCompletionOtherBranchCounter)
+						e.logger.Info("Drop the completion of a child that was started by an initiated event that can not be on the current branch",
+							tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+							tag.WorkflowID(workflowExecution.GetWorkflowID()),
+							tag.WorkflowRunID(workflowExecution.GetRunID()),
+							tag.WorkflowInitiatedID(initiatedID),
+							tag.WorkflowNextEventID(mutableState.GetNextEventID()),
+							tag.Dynamic("child-start-version", *completionRequest.ChildStartVersion),
+						)
+						return &types.EntityNotExistsError{Message: "Pending child execution can not be on the current branch."}
+					}
 					e.metricsClient.IncCounter(metrics.HistoryRecordChildExecutionCompletedScope, metrics.StaleMutableStateCounter)
 					e.logger.Error("Encounter stale mutable state in RecordChildExecutionCompleted",
 						tag.WorkflowDomainName(domainEntry.GetInfo().Name),
@@ -97,6 +114,20 @@ func (e *historyEngineImpl) RecordChildExecutionCompleted(
 			if ci.StartedWorkflowID != completedExecution.GetWorkflowID() {
 				return &types.EntityNotExistsError{Message: "Pending child execution workflowID mismatch."}
 			}
+			// a completion without the first run ID can not be checked
+			if firstRunID := completionRequest.FirstExecutionRunID; firstRunID != "" && firstRunID != ci.StartedRunID {
+				// the completion is from another run with the same workflow ID, for example a run that a new run replaced
+				e.metricsClient.IncCounter(metrics.HistoryRecordChildExecutionCompletedScope, metrics.ChildWorkflowCompletionOtherRunCounter)
+				e.logger.Info("Drop the completion of a child run that the parent did not start",
+					tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+					tag.WorkflowID(workflowExecution.GetWorkflowID()),
+					tag.WorkflowRunID(workflowExecution.GetRunID()),
+					tag.WorkflowInitiatedID(initiatedID),
+					tag.Dynamic("child-first-run-id", firstRunID),
+					tag.Dynamic("child-started-run-id", ci.StartedRunID),
+				)
+				return &types.EntityNotExistsError{Message: "Pending child execution run mismatch."}
+			}
 
 			switch *completionEvent.EventType {
 			case types.EventTypeWorkflowExecutionCompleted:
@@ -117,4 +148,43 @@ func (e *historyEngineImpl) RecordChildExecutionCompleted(
 			}
 			return err
 		})
+}
+
+// isChildCompletionFromOtherBranch returns true when the completed child was started by an initiated event that can not
+// be added to the current branch of the parent.
+func (e *historyEngineImpl) isChildCompletionFromOtherBranch(
+	ctx context.Context,
+	domainEntry *cache.DomainCacheEntry,
+	mutableState execution.MutableState,
+	completionRequest *types.RecordChildExecutionCompletedRequest,
+) (bool, error) {
+	childStartVersion := completionRequest.ChildStartVersion
+	if childStartVersion == nil {
+		// a completion without the start version of the child can not be checked
+		return false, nil
+	}
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		// the versions of the child can be compared only when they come from the same cluster attribute as the versions
+		// of the parent
+		childPolicy, err := e.shard.GetActiveClusterManager().GetActiveClusterSelectionPolicyForWorkflow(
+			ctx,
+			domainEntry.GetInfo().ID,
+			completionRequest.CompletedExecution.GetWorkflowID(),
+			completionRequest.CompletedExecution.GetRunID(),
+		)
+		if err != nil {
+			return false, err
+		}
+		if !childPolicy.Equals(mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy) {
+			return false, nil
+		}
+	}
+	lastWriteVersion, err := mutableState.GetLastWriteVersion()
+	if err != nil {
+		return false, err
+	}
+	// the current branch already has a version higher than the start version of the child, and the initiated event of
+	// the child can not have a higher version than the child start, so the initiated event can not be added to the
+	// current branch
+	return lastWriteVersion > *childStartVersion, nil
 }
