@@ -512,6 +512,7 @@ func TestFromChildWorkflowExecutionFailedCause(t *testing.T) {
 		})
 	}
 }
+
 func TestSemaphoreAcquireFailedCause(t *testing.T) {
 	for _, item := range []*types.SemaphoreAcquireFailedCause{
 		nil,
