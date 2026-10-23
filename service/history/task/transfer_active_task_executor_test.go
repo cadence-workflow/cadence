@@ -2270,79 +2270,109 @@ func (s *transferActiveTaskExecutorSuite) expectAcquireSemaphoreRequest(
 	}).Return(resp, err)
 }
 
-func TestRecordSemaphoreGranted(t *testing.T) {
+func TestRecordSemaphoreAcquire(t *testing.T) {
+	recordGranted := func(wfContext execution.Context) error {
+		return recordSemaphoreGranted(context.Background(), log.NewNoop(), wfContext, 5, 3, testTime)
+	}
+	recordFailed := func(wfContext execution.Context) error {
+		return recordSemaphoreAcquireFailed(context.Background(), log.NewNoop(), wfContext, 5, types.SemaphoreAcquireFailedCauseNotFound, testTime)
+	}
+	expectSaved := func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+		mutableState.EXPECT().HasPendingDecision().Return(false)
+		mutableState.EXPECT().AddDecisionTaskScheduledEvent(false).Return(&execution.DecisionInfo{}, nil)
+		mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{})
+		wfContext.EXPECT().UpdateWorkflowExecutionAsActive(gomock.Any(), testTime).Return(nil)
+	}
+	errCompleted := &types.WorkflowExecutionAlreadyCompletedError{Message: "Workflow execution already completed."}
+	errHoldNotFound := &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
+
 	testCases := []struct {
 		name      string
-		setupMock func(mutableState *execution.MockMutableState)
+		record    func(wfContext execution.Context) error
+		setupMock func(mutableState *execution.MockMutableState, wfContext *execution.MockContext)
+		wantErr   error
 	}{
 		{
-			name: "workflow not running",
-			setupMock: func(mutableState *execution.MockMutableState) {
-				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(false)
+			name:   "granted: the token is recorded and a decision is scheduled",
+			record: recordGranted,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5}, true)
+				mutableState.EXPECT().AddSemaphoreAcquiredEvent(int64(5), int32(3)).Return(&types.HistoryEvent{}, nil)
+				expectSaved(mutableState, wfContext)
 			},
 		},
 		{
-			name: "hold not found",
-			setupMock: func(mutableState *execution.MockMutableState) {
+			name:   "granted: workflow not running",
+			record: recordGranted,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(false)
+			},
+			wantErr: errCompleted,
+		},
+		{
+			name:   "granted: hold not found",
+			record: recordGranted,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
 				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
 				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(nil, false)
 			},
+			wantErr: errHoldNotFound,
 		},
 		{
-			name: "hold already has the granted token",
-			setupMock: func(mutableState *execution.MockMutableState) {
+			name:   "granted: hold already has the granted token",
+			record: recordGranted,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
 				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
 				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 3}, true)
 			},
+			wantErr: errHoldNotFound,
 		},
 		{
-			name: "hold already has a different token",
-			setupMock: func(mutableState *execution.MockMutableState) {
+			name:   "granted: hold already has a different token",
+			record: recordGranted,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
 				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
 				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 7}, true)
 				mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{})
 			},
+			wantErr: errHoldNotFound,
 		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			wfContext := execution.NewMockContext(ctrl)
-			mutableState := execution.NewMockMutableState(ctrl)
-			wfContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(mutableState, nil)
-			tc.setupMock(mutableState)
-
-			err := recordSemaphoreGranted(context.Background(), log.NewNoop(), wfContext, 5, 3, testTime)
-			assert.ErrorAs(t, err, new(*types.EntityNotExistsError))
-		})
-	}
-}
-
-func TestRecordSemaphoreAcquireFailed(t *testing.T) {
-	testCases := []struct {
-		name      string
-		setupMock func(mutableState *execution.MockMutableState)
-	}{
 		{
-			name: "workflow not running",
-			setupMock: func(mutableState *execution.MockMutableState) {
-				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(false)
+			name:   "acquire failed: the failure is recorded and a decision is scheduled",
+			record: recordFailed,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5}, true)
+				mutableState.EXPECT().AddSemaphoreAcquireFailedEvent(int64(5), types.SemaphoreAcquireFailedCauseNotFound).Return(&types.HistoryEvent{}, nil)
+				expectSaved(mutableState, wfContext)
 			},
 		},
 		{
-			name: "hold not found",
-			setupMock: func(mutableState *execution.MockMutableState) {
+			name:   "acquire failed: workflow not running",
+			record: recordFailed,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(false)
+			},
+			wantErr: errCompleted,
+		},
+		{
+			name:   "acquire failed: hold not found",
+			record: recordFailed,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
 				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
 				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(nil, false)
 			},
+			wantErr: errHoldNotFound,
 		},
 		{
-			name: "hold already has a token",
-			setupMock: func(mutableState *execution.MockMutableState) {
+			name:   "acquire failed: hold already has a token",
+			record: recordFailed,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
 				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
 				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 7}, true)
 			},
+			wantErr: errHoldNotFound,
 		},
 	}
 
@@ -2352,10 +2382,10 @@ func TestRecordSemaphoreAcquireFailed(t *testing.T) {
 			wfContext := execution.NewMockContext(ctrl)
 			mutableState := execution.NewMockMutableState(ctrl)
 			wfContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(mutableState, nil)
-			tc.setupMock(mutableState)
+			tc.setupMock(mutableState, wfContext)
 
-			err := recordSemaphoreAcquireFailed(context.Background(), log.NewNoop(), wfContext, 5, types.SemaphoreAcquireFailedCauseNotFound, testTime)
-			assert.ErrorAs(t, err, new(*types.EntityNotExistsError))
+			err := tc.record(wfContext)
+			assert.Equal(t, tc.wantErr, err)
 		})
 	}
 }

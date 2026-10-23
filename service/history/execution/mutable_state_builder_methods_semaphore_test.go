@@ -431,25 +431,25 @@ func Test__AddSemaphoreAcquireFailedEvent(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		holdTokenID *int // nil means no hold is recorded
+		holdTokenID *int // nil: no hold for event 2; 0: the hold has no token yet; >0: the hold has that token
 		finished    bool
 		wantErr     error
 	}{
 		{
-			name:        "a hold still waiting fails and is removed",
+			name:        "the hold has no token yet: the failure is recorded and the hold is removed",
 			holdTokenID: common.IntPtr(0),
 		},
 		{
-			name:        "a hold that already has a token is refused",
+			name:        "the hold already has a token: refused",
 			holdTokenID: common.IntPtr(7),
 			wantErr:     errRefused,
 		},
 		{
-			name:    "a failure with no matching hold is refused",
+			name:    "no hold for the initiated event: refused",
 			wantErr: errRefused,
 		},
 		{
-			name:        "a closed run cannot record a failure",
+			name:        "the run is closed: refused",
 			holdTokenID: common.IntPtr(0),
 			finished:    true,
 			wantErr:     ErrWorkflowFinished,

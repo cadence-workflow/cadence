@@ -2191,7 +2191,7 @@ func recordSemaphoreGranted(
 	return updateWorkflowExecution(ctx, logger, wfContext, true,
 		func(ctx context.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
-				return &types.EntityNotExistsError{Message: "Workflow execution already completed."}
+				return &types.WorkflowExecutionAlreadyCompletedError{Message: "Workflow execution already completed."}
 			}
 
 			semaphoreInfo, ok := mutableState.GetSemaphoreInfo(initiatedEventID)
@@ -2200,7 +2200,7 @@ func recordSemaphoreGranted(
 			}
 			if semaphoreInfo.HasToken() {
 				if semaphoreInfo.TokenID != int(tokenID) {
-					// Matching gives an owner one token, so a different token is a bug.
+					// Matching gives one token per owner, so a different token is a bug.
 					executionInfo := mutableState.GetExecutionInfo()
 					logger.Warn("Semaphore hold already has a different token than the one granted",
 						tag.WorkflowDomainID(executionInfo.DomainID),
@@ -2236,7 +2236,7 @@ func recordSemaphoreAcquireFailed(
 	return updateWorkflowExecution(ctx, logger, wfContext, true,
 		func(ctx context.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
-				return &types.EntityNotExistsError{Message: "Workflow execution already completed."}
+				return &types.WorkflowExecutionAlreadyCompletedError{Message: "Workflow execution already completed."}
 			}
 
 			semaphoreInfo, ok := mutableState.GetSemaphoreInfo(initiatedEventID)

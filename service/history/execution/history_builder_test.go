@@ -2261,7 +2261,7 @@ func TestHistoryBuilderSemaphoreEvents(t *testing.T) {
 			},
 		},
 		{
-			name:         "when acquired, gets the buffered placeholder ID",
+			name:         "when acquired, is buffered, so its ID is BufferedEventID until flushed",
 			eventType:    types.EventTypeSemaphoreAcquired,
 			wantBuffered: true,
 			add: func(b *HistoryBuilder) *types.HistoryEvent {
@@ -2275,7 +2275,7 @@ func TestHistoryBuilderSemaphoreEvents(t *testing.T) {
 			},
 		},
 		{
-			name:         "when acquire failed, gets the buffered placeholder ID",
+			name:         "when acquire failed, is buffered, so its ID is BufferedEventID until flushed",
 			eventType:    types.EventTypeSemaphoreAcquireFailed,
 			wantBuffered: true,
 			add: func(b *HistoryBuilder) *types.HistoryEvent {
