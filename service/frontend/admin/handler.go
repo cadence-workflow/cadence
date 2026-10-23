@@ -125,6 +125,10 @@ func NewHandler(
 		resource.GetLogger(),
 		dynamicproperties.GetBoolPropertyFn(false), // audit operations are not needed for DLQ operations
 	)
+	semaphoreReplicationTaskExecutor := domain.NewSemaphoreReplicationTaskExecutor(
+		resource.GetSemaphoreMetadataManager(),
+		resource.GetLogger(),
+	)
 
 	return &adminHandlerImpl{
 		Resource:              resource,
@@ -133,6 +137,7 @@ func NewHandler(
 		config:                config,
 		domainDLQHandler: domain.NewDLQMessageHandler(
 			domainReplicationTaskExecutor,
+			semaphoreReplicationTaskExecutor,
 			resource.GetDomainReplicationQueue(),
 			resource.GetLogger(),
 			resource.GetMetricsClient(),

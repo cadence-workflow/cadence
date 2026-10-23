@@ -474,6 +474,7 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 			return semaphore.NewManager(semaphore.ManagerParams{
 				ID:         id,
 				Tokens:     e.semaphoreTokenManager,
+				Metadata:   e.semaphoreMetadataManager,
 				Logger:     e.logger,
 				IdleTTL:    e.config.SemaphoreIdleTime(domainName),
 				OnStopFn:   e.unregisterSemaphoreManager,

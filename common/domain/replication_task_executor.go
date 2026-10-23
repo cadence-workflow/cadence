@@ -55,6 +55,18 @@ var (
 	ErrInvalidDomainStatus = &types.BadRequestError{Message: "invalid domain status attribute"}
 	// ErrNameUUIDCollision is the error to indicate domain name / UUID collision
 	ErrNameUUIDCollision = &types.BadRequestError{Message: "domain replication encounter name / UUID collision"}
+	// ErrEmptySemaphoreReplicationTask is the error to indicate empty semaphore metadata replication task
+	ErrEmptySemaphoreReplicationTask = &types.BadRequestError{Message: "empty semaphore metadata replication task"}
+	// ErrInvalidSemaphoreDomainID is the error to indicate empty domain ID attribute
+	ErrInvalidSemaphoreDomainID = &types.BadRequestError{Message: "invalid semaphore domain ID attribute"}
+	// ErrInvalidSemaphoreName is the error to indicate empty semaphore name attribute
+	ErrInvalidSemaphoreName = &types.BadRequestError{Message: "invalid semaphore name attribute"}
+	// ErrInvalidSemaphoreCapacity is the error to indicate a non-positive capacity attribute
+	ErrInvalidSemaphoreCapacity = &types.BadRequestError{Message: "invalid semaphore capacity attribute"}
+	// ErrInvalidSemaphoreBucketCapacity is the error to indicate a bucket capacity attribute out of range
+	ErrInvalidSemaphoreBucketCapacity = &types.BadRequestError{Message: "invalid semaphore bucket capacity attribute"}
+	// ErrSemaphoreSettingsMismatch is the error to indicate the semaphore exists with different settings
+	ErrSemaphoreSettingsMismatch = &types.BadRequestError{Message: "semaphore exists with different settings"}
 )
 
 const (
@@ -75,6 +87,16 @@ type (
 		logger                   log.Logger
 		domainAuditManager       persistence.DomainAuditManager
 		enableDomainAuditLogging dynamicproperties.BoolPropertyFn
+	}
+
+	// SemaphoreReplicationTaskExecutor applies a semaphore metadata task from the domain replication queue.
+	SemaphoreReplicationTaskExecutor interface {
+		Execute(task *types.SemaphoreMetadataTaskAttributes) error
+	}
+
+	semaphoreReplicationTaskExecutorImpl struct {
+		semaphoreMetadataManager persistence.SemaphoreMetadataManager
+		logger                   log.Logger
 	}
 )
 
@@ -451,4 +473,83 @@ func (h *domainReplicationTaskExecutorImpl) createDomainAuditLog(
 			tag.WorkflowDomainName(task.Info.GetName()),
 			tag.WorkflowDomainID(task.GetID()))
 	}
+}
+
+// NewSemaphoreReplicationTaskExecutor creates a SemaphoreReplicationTaskExecutor
+func NewSemaphoreReplicationTaskExecutor(
+	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
+	logger log.Logger,
+) SemaphoreReplicationTaskExecutor {
+	return &semaphoreReplicationTaskExecutorImpl{
+		semaphoreMetadataManager: semaphoreMetadataManager,
+		logger:                   logger,
+	}
+}
+
+// Execute creates the semaphore in this cluster. A semaphore that already exists with the same
+// settings is a redelivery or a repeated create, so it succeeds. Different settings are refused and
+// never overwritten, because every region must route an owner to the same bucket.
+func (e *semaphoreReplicationTaskExecutorImpl) Execute(task *types.SemaphoreMetadataTaskAttributes) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDomainReplicationTaskContextTimeout)
+	defer cancel()
+
+	if err := e.validateSemaphoreMetadataTask(task); err != nil {
+		return err
+	}
+
+	_, err := e.semaphoreMetadataManager.CreateSemaphore(ctx, &persistence.CreateSemaphoreRequest{
+		DomainID:      task.GetDomainID(),
+		SemaphoreName: task.GetSemaphoreName(),
+		Size:          int(task.GetCapacity()),
+		BucketSize:    int(task.GetBucketCapacity()),
+	})
+	if err != nil {
+		// ConditionFailedError means the semaphore already exists. Any other error is a real failure,
+		// so return it and let the worker retry the task.
+		if !errors.As(err, new(*persistence.ConditionFailedError)) {
+			return err
+		}
+
+		// Compare the existing semaphore's settings with the task.
+		resp, getErr := e.semaphoreMetadataManager.GetSemaphore(ctx, &persistence.GetSemaphoreRequest{
+			DomainID:      task.GetDomainID(),
+			SemaphoreName: task.GetSemaphoreName(),
+		})
+		if getErr != nil {
+			return getErr
+		}
+		existing := resp.Semaphore
+		if existing.Size == int(task.GetCapacity()) && existing.BucketSize == int(task.GetBucketCapacity()) {
+			return nil
+		}
+
+		e.logger.Error("Semaphore settings differ between clusters, not replicating",
+			tag.WorkflowDomainID(task.GetDomainID()),
+			tag.SemaphoreName(task.GetSemaphoreName()),
+			tag.Dynamic("local-capacity", existing.Size),
+			tag.Dynamic("local-bucket-capacity", existing.BucketSize),
+			tag.Dynamic("replicated-capacity", task.GetCapacity()),
+			tag.Dynamic("replicated-bucket-capacity", task.GetBucketCapacity()),
+		)
+		return ErrSemaphoreSettingsMismatch
+	}
+	return nil
+}
+
+// validateSemaphoreMetadataTask returns a BadRequestError for an invalid task, so it goes to the DLQ.
+func (e *semaphoreReplicationTaskExecutorImpl) validateSemaphoreMetadataTask(task *types.SemaphoreMetadataTaskAttributes) error {
+	if task == nil {
+		return ErrEmptySemaphoreReplicationTask
+	}
+
+	if task.DomainID == "" {
+		return ErrInvalidSemaphoreDomainID
+	} else if task.SemaphoreName == "" {
+		return ErrInvalidSemaphoreName
+	} else if task.Capacity <= 0 {
+		return ErrInvalidSemaphoreCapacity
+	} else if task.BucketCapacity <= 0 || task.BucketCapacity > persistence.MaxSemaphoreBucketSize {
+		return ErrInvalidSemaphoreBucketCapacity
+	}
+	return nil
 }

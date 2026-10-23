@@ -50,6 +50,7 @@ type domainReplicationSuite struct {
 	sourceCluster          string
 	currentCluster         string
 	taskExecutor           *domain.MockReplicationTaskExecutor
+	semaphoreTaskExecutor  *domain.MockSemaphoreReplicationTaskExecutor
 	remoteClient           *admin.MockClient
 	domainReplicationQueue *domain.MockReplicationQueue
 	replicationProcessor   *domainReplicationProcessor
@@ -69,6 +70,7 @@ func (s *domainReplicationSuite) SetupTest() {
 	s.sourceCluster = "active"
 	s.currentCluster = "standby"
 	s.taskExecutor = domain.NewMockReplicationTaskExecutor(s.controller)
+	s.semaphoreTaskExecutor = domain.NewMockSemaphoreReplicationTaskExecutor(s.controller)
 	s.domainReplicationQueue = domain.NewMockReplicationQueue(s.controller)
 	s.remoteClient = resource.RemoteAdminClient
 	serviceResolver := resource.MembershipResolver
@@ -81,6 +83,7 @@ func (s *domainReplicationSuite) SetupTest() {
 		s.remoteClient,
 		resource.GetMetricsClient(),
 		s.taskExecutor,
+		s.semaphoreTaskExecutor,
 		resource.GetHostInfo(),
 		serviceResolver,
 		s.domainReplicationQueue,
@@ -268,4 +271,103 @@ func (s *domainReplicationSuite) TestFetchDomainReplicationTasks_FailedOnDLQ() {
 	s.replicationProcessor.fetchDomainReplicationTasks()
 	s.Equal(lastMessageID, s.replicationProcessor.lastProcessedMessageID)
 	s.Equal(lastMessageID, s.replicationProcessor.lastRetrievedMessageID)
+}
+
+func TestHandleDomainReplicationTaskByType(t *testing.T) {
+	domainTask := &types.DomainTaskAttributes{ID: "domain-id"}
+	semaphoreTask := &types.SemaphoreMetadataTaskAttributes{DomainID: "domain-id", SemaphoreName: "shipping-api"}
+	executorErr := errors.New("executor failed")
+	tests := map[string]struct {
+		task      *types.ReplicationTask
+		mockSetup func(*domain.MockReplicationTaskExecutor, *domain.MockSemaphoreReplicationTaskExecutor)
+		wantErr   error
+	}{
+		"semaphore metadata task": {
+			task: &types.ReplicationTask{TaskType: types.ReplicationTaskTypeSemaphoreMetadata.Ptr(), SemaphoreMetadataTaskAttributes: semaphoreTask},
+			mockSetup: func(_ *domain.MockReplicationTaskExecutor, sem *domain.MockSemaphoreReplicationTaskExecutor) {
+				sem.EXPECT().Execute(semaphoreTask).Return(nil)
+			},
+		},
+		"semaphore metadata task fails": {
+			task: &types.ReplicationTask{TaskType: types.ReplicationTaskTypeSemaphoreMetadata.Ptr(), SemaphoreMetadataTaskAttributes: semaphoreTask},
+			mockSetup: func(_ *domain.MockReplicationTaskExecutor, sem *domain.MockSemaphoreReplicationTaskExecutor) {
+				sem.EXPECT().Execute(semaphoreTask).Return(executorErr)
+			},
+			wantErr: executorErr,
+		},
+		"task without a type goes to the domain executor": {
+			task: &types.ReplicationTask{DomainTaskAttributes: domainTask},
+			mockSetup: func(d *domain.MockReplicationTaskExecutor, _ *domain.MockSemaphoreReplicationTaskExecutor) {
+				d.EXPECT().Execute(domainTask).Return(nil)
+			},
+		},
+		"task of another type goes to the domain executor": {
+			task: &types.ReplicationTask{TaskType: types.ReplicationTaskTypeHistoryV2.Ptr()},
+			mockSetup: func(d *domain.MockReplicationTaskExecutor, _ *domain.MockSemaphoreReplicationTaskExecutor) {
+				d.EXPECT().Execute(gomock.Nil()).Return(executorErr)
+			},
+			wantErr: executorErr,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			domainExecutor := domain.NewMockReplicationTaskExecutor(ctrl)
+			semaphoreExecutor := domain.NewMockSemaphoreReplicationTaskExecutor(ctrl)
+			tc.mockSetup(domainExecutor, semaphoreExecutor)
+			p := &domainReplicationProcessor{
+				taskExecutor:          domainExecutor,
+				semaphoreTaskExecutor: semaphoreExecutor,
+				metricsClient:         metrics.NewNoopMetricsClient(),
+			}
+
+			err := p.handleDomainReplicationTask(tc.task)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestPutSemaphoreReplicationTaskToDLQ(t *testing.T) {
+	tests := map[string]struct {
+		task      *types.ReplicationTask
+		mockSetup func(*domain.MockReplicationQueue, *types.ReplicationTask)
+		wantErr   bool
+	}{
+		"semaphore task is published to the DLQ": {
+			task: &types.ReplicationTask{
+				TaskType:                        types.ReplicationTaskTypeSemaphoreMetadata.Ptr(),
+				SemaphoreMetadataTaskAttributes: &types.SemaphoreMetadataTaskAttributes{DomainID: "domain-id", SemaphoreName: "shipping-api"},
+			},
+			mockSetup: func(q *domain.MockReplicationQueue, task *types.ReplicationTask) {
+				q.EXPECT().PublishToDLQ(gomock.Any(), task).Return(nil)
+			},
+		},
+		"semaphore task without attributes is rejected": {
+			task:      &types.ReplicationTask{TaskType: types.ReplicationTaskTypeSemaphoreMetadata.Ptr()},
+			mockSetup: func(*domain.MockReplicationQueue, *types.ReplicationTask) {},
+			wantErr:   true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			queue := domain.NewMockReplicationQueue(ctrl)
+			tc.mockSetup(queue, tc.task)
+			p := &domainReplicationProcessor{
+				domainReplicationQueue: queue,
+				metricsClient:          metrics.NewNoopMetricsClient(),
+			}
+
+			err := p.putDomainReplicationTaskToDLQ(tc.task)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

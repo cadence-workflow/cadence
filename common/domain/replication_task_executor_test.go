@@ -757,3 +757,130 @@ func TestHandleDomainUpdateReplicationTask(t *testing.T) {
 		})
 	}
 }
+
+func TestSemaphoreReplicationTaskExecutor_Execute(t *testing.T) {
+	validTask := &types.SemaphoreMetadataTaskAttributes{
+		DomainID:       "domain-id",
+		SemaphoreName:  "shipping-api",
+		Capacity:       10,
+		BucketCapacity: 5,
+	}
+	createRequest := &persistence.CreateSemaphoreRequest{
+		DomainID:      "domain-id",
+		SemaphoreName: "shipping-api",
+		Size:          10,
+		BucketSize:    5,
+	}
+	getRequest := &persistence.GetSemaphoreRequest{
+		DomainID:      "domain-id",
+		SemaphoreName: "shipping-api",
+	}
+	existing := func(size, bucketSize int) *persistence.GetSemaphoreResponse {
+		return &persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{
+			DomainID:      "domain-id",
+			SemaphoreName: "shipping-api",
+			Size:          size,
+			BucketSize:    bucketSize,
+		}}
+	}
+	withTask := func(change func(*types.SemaphoreMetadataTaskAttributes)) *types.SemaphoreMetadataTaskAttributes {
+		task := *validTask
+		change(&task)
+		return &task
+	}
+	storeErr := errors.New("store unavailable")
+
+	tests := map[string]struct {
+		task      *types.SemaphoreMetadataTaskAttributes
+		mockSetup func(m *persistence.MockSemaphoreMetadataManager)
+		wantErr   error
+	}{
+		"new semaphore metadata is created": {
+			task: validTask,
+			mockSetup: func(m *persistence.MockSemaphoreMetadataManager) {
+				m.EXPECT().CreateSemaphore(gomock.Any(), createRequest).Return(&persistence.CreateSemaphoreResponse{}, nil)
+			},
+		},
+		"existing semaphore metadata with the same settings succeeds": {
+			task: validTask,
+			mockSetup: func(m *persistence.MockSemaphoreMetadataManager) {
+				m.EXPECT().CreateSemaphore(gomock.Any(), createRequest).Return(nil, &persistence.ConditionFailedError{Msg: "exists"})
+				m.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(existing(10, 5), nil)
+			},
+		},
+		"existing semaphore metadata with a different capacity is refused": {
+			task: validTask,
+			mockSetup: func(m *persistence.MockSemaphoreMetadataManager) {
+				m.EXPECT().CreateSemaphore(gomock.Any(), createRequest).Return(nil, &persistence.ConditionFailedError{Msg: "exists"})
+				m.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(existing(20, 5), nil)
+			},
+			wantErr: ErrSemaphoreSettingsMismatch,
+		},
+		"existing semaphore metadata with a different bucket capacity is refused": {
+			task: validTask,
+			mockSetup: func(m *persistence.MockSemaphoreMetadataManager) {
+				m.EXPECT().CreateSemaphore(gomock.Any(), createRequest).Return(nil, &persistence.ConditionFailedError{Msg: "exists"})
+				m.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(existing(10, 2), nil)
+			},
+			wantErr: ErrSemaphoreSettingsMismatch,
+		},
+		"create store error is returned for retry": {
+			task: validTask,
+			mockSetup: func(m *persistence.MockSemaphoreMetadataManager) {
+				m.EXPECT().CreateSemaphore(gomock.Any(), createRequest).Return(nil, storeErr)
+			},
+			wantErr: storeErr,
+		},
+		"get store error is returned for retry": {
+			task: validTask,
+			mockSetup: func(m *persistence.MockSemaphoreMetadataManager) {
+				m.EXPECT().CreateSemaphore(gomock.Any(), createRequest).Return(nil, &persistence.ConditionFailedError{Msg: "exists"})
+				m.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(nil, storeErr)
+			},
+			wantErr: storeErr,
+		},
+		"nil task": {
+			task:    nil,
+			wantErr: ErrEmptySemaphoreReplicationTask,
+		},
+		"empty domain ID": {
+			task:    withTask(func(task *types.SemaphoreMetadataTaskAttributes) { task.DomainID = "" }),
+			wantErr: ErrInvalidSemaphoreDomainID,
+		},
+		"empty semaphore name": {
+			task:    withTask(func(task *types.SemaphoreMetadataTaskAttributes) { task.SemaphoreName = "" }),
+			wantErr: ErrInvalidSemaphoreName,
+		},
+		"zero capacity": {
+			task:    withTask(func(task *types.SemaphoreMetadataTaskAttributes) { task.Capacity = 0 }),
+			wantErr: ErrInvalidSemaphoreCapacity,
+		},
+		"zero bucket capacity": {
+			task:    withTask(func(task *types.SemaphoreMetadataTaskAttributes) { task.BucketCapacity = 0 }),
+			wantErr: ErrInvalidSemaphoreBucketCapacity,
+		},
+		"bucket capacity above the maximum": {
+			task: withTask(func(task *types.SemaphoreMetadataTaskAttributes) {
+				task.BucketCapacity = persistence.MaxSemaphoreBucketSize + 1
+			}),
+			wantErr: ErrInvalidSemaphoreBucketCapacity,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			manager := persistence.NewMockSemaphoreMetadataManager(ctrl)
+			if tc.mockSetup != nil {
+				tc.mockSetup(manager)
+			}
+			executor := NewSemaphoreReplicationTaskExecutor(manager, testlogger.New(t))
+
+			err := executor.Execute(tc.task)
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

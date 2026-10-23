@@ -579,6 +579,21 @@ func (mr *MockMutableStateMockRecorder) AddSemaphoreAcquiredEvent(arg0, arg1 any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreAcquiredEvent", reflect.TypeOf((*MockMutableState)(nil).AddSemaphoreAcquiredEvent), arg0, arg1)
 }
 
+// AddSemaphoreReleasedEvent mocks base method.
+func (m *MockMutableState) AddSemaphoreReleasedEvent(arg0, arg1 int64) (*types.HistoryEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddSemaphoreReleasedEvent", arg0, arg1)
+	ret0, _ := ret[0].(*types.HistoryEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddSemaphoreReleasedEvent indicates an expected call of AddSemaphoreReleasedEvent.
+func (mr *MockMutableStateMockRecorder) AddSemaphoreReleasedEvent(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreReleasedEvent", reflect.TypeOf((*MockMutableState)(nil).AddSemaphoreReleasedEvent), arg0, arg1)
+}
+
 // AddSignalExternalWorkflowExecutionFailedEvent mocks base method.
 func (m *MockMutableState) AddSignalExternalWorkflowExecutionFailedEvent(arg0, arg1 int64, arg2, arg3, arg4 string, arg5 []uint8, arg6 types.SignalExternalWorkflowExecutionFailedCause) (*types.HistoryEvent, error) {
 	m.ctrl.T.Helper()
@@ -638,9 +653,9 @@ func (mr *MockMutableStateMockRecorder) AddStartChildWorkflowExecutionFailedEven
 }
 
 // AddStartChildWorkflowExecutionInitiatedEvent mocks base method.
-func (m *MockMutableState) AddStartChildWorkflowExecutionInitiatedEvent(arg0 int64, arg1 string, arg2 *types.StartChildWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.ChildExecutionInfo, error) {
+func (m *MockMutableState) AddStartChildWorkflowExecutionInitiatedEvent(arg0 int64, arg1 *types.StartChildWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.ChildExecutionInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddStartChildWorkflowExecutionInitiatedEvent", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "AddStartChildWorkflowExecutionInitiatedEvent", arg0, arg1)
 	ret0, _ := ret[0].(*types.HistoryEvent)
 	ret1, _ := ret[1].(*persistence.ChildExecutionInfo)
 	ret2, _ := ret[2].(error)
@@ -648,9 +663,9 @@ func (m *MockMutableState) AddStartChildWorkflowExecutionInitiatedEvent(arg0 int
 }
 
 // AddStartChildWorkflowExecutionInitiatedEvent indicates an expected call of AddStartChildWorkflowExecutionInitiatedEvent.
-func (mr *MockMutableStateMockRecorder) AddStartChildWorkflowExecutionInitiatedEvent(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockMutableStateMockRecorder) AddStartChildWorkflowExecutionInitiatedEvent(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddStartChildWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).AddStartChildWorkflowExecutionInitiatedEvent), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddStartChildWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).AddStartChildWorkflowExecutionInitiatedEvent), arg0, arg1)
 }
 
 // AddTimeoutWorkflowEvent mocks base method.
@@ -2326,18 +2341,18 @@ func (mr *MockMutableStateMockRecorder) ReplicateStartChildWorkflowExecutionFail
 }
 
 // ReplicateStartChildWorkflowExecutionInitiatedEvent mocks base method.
-func (m *MockMutableState) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0 int64, arg1 *types.HistoryEvent, arg2 string) (*persistence.ChildExecutionInfo, error) {
+func (m *MockMutableState) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0 int64, arg1 *types.HistoryEvent) (*persistence.ChildExecutionInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReplicateStartChildWorkflowExecutionInitiatedEvent", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ReplicateStartChildWorkflowExecutionInitiatedEvent", arg0, arg1)
 	ret0, _ := ret[0].(*persistence.ChildExecutionInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReplicateStartChildWorkflowExecutionInitiatedEvent indicates an expected call of ReplicateStartChildWorkflowExecutionInitiatedEvent.
-func (mr *MockMutableStateMockRecorder) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockMutableStateMockRecorder) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateStartChildWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateStartChildWorkflowExecutionInitiatedEvent), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateStartChildWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateStartChildWorkflowExecutionInitiatedEvent), arg0, arg1)
 }
 
 // ReplicateTimerCanceledEvent mocks base method.

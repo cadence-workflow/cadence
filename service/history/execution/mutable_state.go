@@ -93,11 +93,12 @@ type (
 		AddSemaphoreAcquireInitiatedEvent(int64, string, int32) (*types.HistoryEvent, *persistence.SemaphoreInfo, error)
 		AddSemaphoreAcquiredEvent(int64, int32) (*types.HistoryEvent, error)
 		AddSemaphoreAcquireFailedEvent(int64, types.SemaphoreAcquireFailedCause) (*types.HistoryEvent, error)
+		AddSemaphoreReleasedEvent(int64, int64) (*types.HistoryEvent, error)
 		AddSignalExternalWorkflowExecutionFailedEvent(int64, int64, string, string, string, []uint8, types.SignalExternalWorkflowExecutionFailedCause) (*types.HistoryEvent, error)
 		AddSignalExternalWorkflowExecutionInitiatedEvent(int64, string, *types.SignalExternalWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.SignalInfo, error)
 		AddSignalRequested(requestID string)
 		AddStartChildWorkflowExecutionFailedEvent(int64, types.ChildWorkflowExecutionFailedCause, *types.StartChildWorkflowExecutionInitiatedEventAttributes) (*types.HistoryEvent, error)
-		AddStartChildWorkflowExecutionInitiatedEvent(int64, string, *types.StartChildWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.ChildExecutionInfo, error)
+		AddStartChildWorkflowExecutionInitiatedEvent(int64, *types.StartChildWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.ChildExecutionInfo, error)
 		AddTimeoutWorkflowEvent(int64) (*types.HistoryEvent, error)
 		AddTimerCanceledEvent(int64, *types.CancelTimerDecisionAttributes, string) (*types.HistoryEvent, error)
 		AddTimerFiredEvent(string) (*types.HistoryEvent, error)
@@ -206,7 +207,7 @@ type (
 		ReplicateSignalExternalWorkflowExecutionFailedEvent(*types.HistoryEvent) error
 		ReplicateSignalExternalWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent, string) (*persistence.SignalInfo, error)
 		ReplicateStartChildWorkflowExecutionFailedEvent(*types.HistoryEvent) error
-		ReplicateStartChildWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent, string) (*persistence.ChildExecutionInfo, error)
+		ReplicateStartChildWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent) (*persistence.ChildExecutionInfo, error)
 		ReplicateTimerCanceledEvent(*types.HistoryEvent) error
 		ReplicateTimerFiredEvent(*types.HistoryEvent) error
 		ReplicateTimerStartedEvent(*types.HistoryEvent) (*persistence.TimerInfo, error)

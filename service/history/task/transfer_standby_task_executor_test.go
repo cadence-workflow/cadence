@@ -1036,7 +1036,6 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessStartChildExecution_Pendin
 	event, _ := test.AddStartChildWorkflowExecutionInitiatedEvent(
 		mutableState,
 		decisionCompletionID,
-		uuid.New(),
 		constants.TestDomainName,
 		childWorkflowID,
 		"some random child workflow type",
@@ -1103,7 +1102,6 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessStartChildExecution_Pendin
 	event, _ := test.AddStartChildWorkflowExecutionInitiatedEvent(
 		mutableState,
 		decisionCompletionID,
-		uuid.New(),
 		constants.TestActiveActiveDomainName,
 		childWorkflowID,
 		"some random child workflow type",
@@ -1168,7 +1166,6 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessStartChildExecution_Succes
 	event, childInfo := test.AddStartChildWorkflowExecutionInitiatedEvent(
 		mutableState,
 		decisionCompletionID,
-		uuid.New(),
 		constants.TestDomainName,
 		childWorkflowID,
 		childWorkflowType,

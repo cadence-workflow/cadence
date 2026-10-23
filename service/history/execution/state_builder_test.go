@@ -1232,9 +1232,8 @@ func (s *stateBuilderSuite) TestApplyEvents_EventTypeStartChildWorkflowExecution
 		DomainNameDEPRECATED:  constants.TestDomainName,
 	}
 
-	// the create request ID is generated inside, cannot assert equal
 	s.mockMutableState.EXPECT().ReplicateStartChildWorkflowExecutionInitiatedEvent(
-		event.ID, event, gomock.Any(),
+		event.ID, event,
 	).Return(ci, nil).Times(1)
 	s.mockUpdateVersion(event)
 	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{}).AnyTimes()

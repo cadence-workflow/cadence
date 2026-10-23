@@ -1139,3 +1139,39 @@ func TestValidateAcquireSemaphoreAttributes(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateReleaseSemaphoreAttributes(t *testing.T) {
+	tests := []struct {
+		name       string
+		attributes *types.ReleaseSemaphoreDecisionAttributes
+		wantErr    error
+	}{
+		{
+			name:    "attributes not set",
+			wantErr: &types.BadRequestError{Message: "ReleaseSemaphoreDecisionAttributes is not set on decision."},
+		},
+		{
+			name:       "initiated event id not set",
+			attributes: &types.ReleaseSemaphoreDecisionAttributes{},
+			wantErr:    &types.BadRequestError{Message: "Invalid InitiatedEventID: 0"},
+		},
+		{
+			name:       "negative initiated event id",
+			attributes: &types.ReleaseSemaphoreDecisionAttributes{InitiatedEventID: -1},
+			wantErr:    &types.BadRequestError{Message: "Invalid InitiatedEventID: -1"},
+		},
+		{
+			name:       "positive initiated event id",
+			attributes: &types.ReleaseSemaphoreDecisionAttributes{InitiatedEventID: 5},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			v := newAttrValidator(cache.NewMockDomainCache(gomock.NewController(t)), metrics.NewNoopMetricsClient(), config.NewForTest(), log.NewNoop())
+
+			err := v.validateReleaseSemaphoreAttributes(tc.attributes)
+			assert.Equal(t, tc.wantErr, err)
+		})
+	}
+}

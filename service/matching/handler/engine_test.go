@@ -1959,12 +1959,35 @@ const (
 	testSemaphoreName       = "sem-1"
 )
 
+// The test semaphore has testSemaphoreBuckets buckets of testSemaphoreBucketSize tokens, so
+// bucket b owns tokens b*testSemaphoreBucketSize+1 to (b+1)*testSemaphoreBucketSize.
+const (
+	testSemaphoreBucketSize = 2
+	testSemaphoreBuckets    = 3
+)
+
 var (
 	testSelfHost  = membership.NewHostInfo("self:1234")
 	testOtherHost = membership.NewHostInfo("other:1234")
 	// built through the encoder rather than written out, so it is canonical the same way a real owner id is
 	testSemaphoreOwnerID = commonsemaphore.Owner{WorkflowID: "wf-1", RunID: "run-1", HoldID: 7}.String()
 )
+
+// newSemaphoreMetadata returns the test semaphore's metadata, readable any number of times.
+func newSemaphoreMetadata(t *testing.T) persistence.SemaphoreMetadataManager {
+	t.Helper()
+	md := persistence.NewMockSemaphoreMetadataManager(gomock.NewController(t))
+	md.EXPECT().GetSemaphore(gomock.Any(), &persistence.GetSemaphoreRequest{
+		DomainID:      testSemaphoreDomainID,
+		SemaphoreName: testSemaphoreName,
+	}).AnyTimes().Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{
+		DomainID:      testSemaphoreDomainID,
+		SemaphoreName: testSemaphoreName,
+		Size:          testSemaphoreBuckets * testSemaphoreBucketSize,
+		BucketSize:    testSemaphoreBucketSize,
+	}}, nil)
+	return md
+}
 
 // mustNewSemaphoreIdentifier returns the id of one bucket of the test semaphore.
 func mustNewSemaphoreIdentifier(t *testing.T, bucket int) semaphore.Identifier {
@@ -1989,12 +2012,13 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 	tokens := persistence.NewMockSemaphoreTokenManager(ctrl)
 
 	engine := &matchingEngineImpl{
-		semaphoreRegistry:     semaphore.NewSemaphoreRegistry(),
-		semaphoreTokenManager: tokens,
-		domainCache:           domainCache,
-		membershipResolver:    resolver,
-		metricsClient:         metrics.NewNoopMetricsClient(),
-		logger:                log.NewNoop(),
+		semaphoreRegistry:        semaphore.NewSemaphoreRegistry(),
+		semaphoreTokenManager:    tokens,
+		semaphoreMetadataManager: newSemaphoreMetadata(t),
+		domainCache:              domainCache,
+		membershipResolver:       resolver,
+		metricsClient:            metrics.NewNoopMetricsClient(),
+		logger:                   log.NewNoop(),
 		// A clock that only moves when a test moves it, so no bucket is evicted mid-test.
 		timeSource: clock.NewMockedTimeSource(),
 		config: &config.Config{
@@ -2018,6 +2042,7 @@ func newUnstartedSemaphoreManager(t *testing.T, id semaphore.Identifier, tokens 
 	mgr, err := semaphore.NewManager(semaphore.ManagerParams{
 		ID:         id,
 		Tokens:     tokens,
+		Metadata:   newSemaphoreMetadata(t),
 		Logger:     log.NewNoop(),
 		IdleTTL:    time.Minute,
 		OnStopFn:   func(semaphore.Manager) {},
@@ -2285,8 +2310,17 @@ func TestAcquireSemaphore(t *testing.T) {
 		// Nothing is wrong: the caller asked and the answer is no. Reporting it as an error would
 		// make an ordinary saturated semaphore look like a fault.
 		e, m := newEngineWithSemaphores(t, testSelfHost)
+		// Bucket 0 owns tokens 1 and 2, and both are held.
+		var rows []*persistence.SemaphoreOwnership
+		for tokenID := 1; tokenID <= testSemaphoreBucketSize; tokenID++ {
+			owner := fmt.Sprintf("owner-%d", tokenID)
+			rows = append(rows,
+				&persistence.SemaphoreOwnership{RowType: persistence.SemaphoreRowTypeToken, TokenID: tokenID, Holder: owner},
+				&persistence.SemaphoreOwnership{RowType: persistence.SemaphoreRowTypeOwner, OwnerID: owner, HeldToken: tokenID},
+			)
+		}
 		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).
-			Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
+			Return(&persistence.ScanSemaphoreBucketResponse{Ownerships: rows}, nil)
 
 		resp, err := e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
 		require.NoError(t, err)
@@ -2313,6 +2347,9 @@ func TestAcquireSemaphore(t *testing.T) {
 				<-finishScan
 				return &persistence.ScanSemaphoreBucketResponse{}, nil
 			})
+		// Once the load finishes, the first request is granted a slot.
+		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(1).Return(
+			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
 
 		// The first request triggers the load and is held inside it.
 		firstDone := make(chan error, 1)

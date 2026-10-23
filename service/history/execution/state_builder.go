@@ -315,9 +315,6 @@ func (b *stateBuilderImpl) ApplyEvents(
 			if _, err := b.mutableState.ReplicateStartChildWorkflowExecutionInitiatedEvent(
 				firstEvent.ID,
 				event,
-				// create a new request ID which is used by transfer queue processor
-				// if domain is failed over at this point
-				uuid.New(),
 			); err != nil {
 				return nil, err
 			}

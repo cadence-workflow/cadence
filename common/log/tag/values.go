@@ -89,6 +89,7 @@ var (
 	WorkflowActionSemaphoreAcquireInitiated = workflowAction("add-semaphore-acquire-initiated-event")
 	WorkflowActionSemaphoreAcquired         = workflowAction("add-semaphore-acquired-event")
 	WorkflowActionSemaphoreAcquireFailed    = workflowAction("add-semaphore-acquire-failed-event")
+	WorkflowActionSemaphoreReleased         = workflowAction("add-semaphore-released-event")
 
 	WorkflowActionUnknown = workflowAction("add-unknown-event")
 )

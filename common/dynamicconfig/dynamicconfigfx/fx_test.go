@@ -23,6 +23,9 @@
 package dynamicconfigfx
 
 import (
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -62,6 +65,102 @@ func TestModule(t *testing.T) {
 		fx.Invoke(func(c dynamicconfig.Client) {}),
 	)
 	app.RequireStart().RequireStop()
+}
+
+func TestNew_Client(t *testing.T) {
+	dir := t.TempDir()
+	validFile := filepath.Join(dir, "valid.yaml")
+	require.NoError(t, os.WriteFile(validFile, []byte("testGetBoolPropertyKey:\n- value: true\n"), 0644))
+	brokenFile := filepath.Join(dir, "broken.yaml")
+	require.NoError(t, os.WriteFile(brokenFile, []byte("testGetBoolPropertyKey:\n- value: true\n  constraints: {\n"), 0644))
+
+	tests := []struct {
+		name       string
+		cfg        config.Config
+		wantNop    bool
+		wantErrMsg string
+	}{
+		{
+			name:    "not configured falls back to NOP",
+			wantNop: true,
+		},
+		{
+			name:    "explicit NOP",
+			cfg:     config.Config{DynamicConfig: config.DynamicConfig{Client: dynamicconfig.NopClient}},
+			wantNop: true,
+		},
+		{
+			name: "file based",
+			cfg: config.Config{DynamicConfig: config.DynamicConfig{
+				Client:    dynamicconfig.FileBasedClient,
+				FileBased: dynamicconfig.FileBasedClientConfig{Filepath: validFile},
+			}},
+		},
+		{
+			name: "legacy file based",
+			cfg:  config.Config{DynamicConfigClient: dynamicconfig.FileBasedClientConfig{Filepath: validFile}},
+		},
+		{
+			name: "file based with broken yaml fails",
+			cfg: config.Config{DynamicConfig: config.DynamicConfig{
+				Client:    dynamicconfig.FileBasedClient,
+				FileBased: dynamicconfig.FileBasedClientConfig{Filepath: brokenFile},
+			}},
+			wantErrMsg: "failed to decode dynamic config file " + brokenFile,
+		},
+		{
+			name: "file based with missing file fails",
+			cfg: config.Config{DynamicConfig: config.DynamicConfig{
+				Client:    dynamicconfig.FileBasedClient,
+				FileBased: dynamicconfig.FileBasedClientConfig{Filepath: filepath.Join(dir, "missing.yaml")},
+			}},
+			wantErrMsg: "missing.yaml",
+		},
+		{
+			name:       "file based without filepath fails",
+			cfg:        config.Config{DynamicConfig: config.DynamicConfig{Client: dynamicconfig.FileBasedClient}},
+			wantErrMsg: "filepath is not set",
+		},
+		{
+			name:       "legacy file based with broken yaml fails",
+			cfg:        config.Config{DynamicConfigClient: dynamicconfig.FileBasedClientConfig{Filepath: brokenFile}},
+			wantErrMsg: "legacy file based dynamic config client",
+		},
+		{
+			name:       "config store without persistence fails",
+			cfg:        config.Config{DynamicConfig: config.DynamicConfig{Client: dynamicconfig.ConfigStoreClient}},
+			wantErrMsg: `initialising "configstore" dynamic config client`,
+		},
+		{
+			name:       "unknown client fails",
+			cfg:        config.Config{DynamicConfig: config.DynamicConfig{Client: "filebsaed"}},
+			wantErrMsg: `unknown dynamic config client "filebsaed"`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.cfg.ClusterGroupMetadata = &config.ClusterGroupMetadata{}
+			lc := fxtest.NewLifecycle(t)
+			res, err := New(Params{
+				Cfg:           tc.cfg,
+				Logger:        testlogger.New(t),
+				MetricsClient: metrics.NewNoopMetricsClient(),
+				RootDir:       dir,
+				Lifecycle:     lc,
+			})
+			if tc.wantErrMsg != "" {
+				require.ErrorContains(t, err, tc.wantErrMsg)
+				return
+			}
+			require.NoError(t, err)
+			lc.RequireStart().RequireStop()
+			if tc.wantNop {
+				require.IsType(t, dynamicconfig.NewNopClient(), res.Client)
+			} else {
+				require.NotEqual(t, reflect.TypeOf(dynamicconfig.NewNopClient()), reflect.TypeOf(res.Client))
+			}
+		})
+	}
 }
 
 func TestNew_OperationalConfigStore(t *testing.T) {
