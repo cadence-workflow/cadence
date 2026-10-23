@@ -100,6 +100,11 @@ service MatchingAPI {
   // This API is used by history service to acquire a slot for a workflow run, sent to the matching
   // host that owns the bucket.
   rpc AcquireSemaphore(AcquireSemaphoreRequest) returns (AcquireSemaphoreResponse);
+
+  // ReleaseSemaphore is called to free the token slot one owner holds in one semaphore bucket.
+  // This API is used by history service to release a workflow run's slot, sent to the matching
+  // host that owns the bucket. An owner that holds nothing is not an error.
+  rpc ReleaseSemaphore(ReleaseSemaphoreRequest) returns (ReleaseSemaphoreResponse);
 }
 
 message TaskListPartition {
@@ -328,4 +333,15 @@ message AcquireSemaphoreResponse {
   // The slot held or 0 when none was granted: slot ids start at 1 and are bounded by the
   // per-bucket token budget, so 0 is never a real slot.
   int32 token_id = 2;
+}
+
+message ReleaseSemaphoreRequest {
+  string domain_id = 1;
+  string semaphore_name = 2;
+  // Which partition of the semaphore holds the owner's slot, the same bucket its acquire used.
+  int32 bucket = 3;
+  string owner_id = 4;
+}
+
+message ReleaseSemaphoreResponse {
 }

@@ -38,7 +38,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/history"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
@@ -2117,22 +2116,6 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		assert.Same(t, unstarted, got, "the registered manager is the one that gets started")
 	})
 
-	t.Run("domain has semaphores disabled", func(t *testing.T) {
-		// Costs nothing: no scan, no manager, no registry entry. The flag is checked before
-		// anything is built for exactly that reason.
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		e.config.EnableDistributedSemaphore = func(string) bool { return false }
-		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
-
-		mgr, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
-		require.ErrorIs(t, err, ErrSemaphoreDisabled)
-		assert.Nil(t, mgr)
-		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "nothing may be registered for a disabled domain")
-
-		assert.IsType(t, &types.BadRequestError{}, err)
-		assert.False(t, common.IsServiceTransientError(err), "the flag will not change on a retry")
-	})
-
 	t.Run("bucket is owned by another host", func(t *testing.T) {
 		// The error names that host, so the caller can go there instead of retrying here.
 		e, m := newEngineWithSemaphores(t, testOtherHost)
@@ -2338,6 +2321,30 @@ func TestAcquireSemaphore(t *testing.T) {
 		assert.IsType(t, &types.BadRequestError{}, err)
 	})
 
+	t.Run("a domain with semaphores disabled is refused before any manager is built", func(t *testing.T) {
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		e.config.EnableDistributedSemaphore = func(string) bool { return false }
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err := e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
+		require.ErrorIs(t, err, ErrSemaphoreDisabled)
+		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "nothing may be registered for a disabled domain")
+	})
+
+	t.Run("turning the flag off refuses acquires on a bucket that is already loaded", func(t *testing.T) {
+		// The flag used to be checked only when a bucket loaded.
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		expectBucketLoadOnce(m, 2)
+		_, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
+		require.NoError(t, err)
+		e.config.EnableDistributedSemaphore = func(string) bool { return false }
+		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err = e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
+		assert.ErrorIs(t, err, ErrSemaphoreDisabled)
+		assert.Len(t, e.semaphoreRegistry.AllManagers(), 1, "the bucket stays loaded; only acquires are refused")
+	})
+
 	t.Run("a request arriving while the bucket loads gives up at its own deadline", func(t *testing.T) {
 		e, m := newEngineWithSemaphores(t, testSelfHost)
 		scanning, finishScan := make(chan struct{}), make(chan struct{})
@@ -2378,5 +2385,47 @@ func TestAcquireSemaphore(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("the second request waited on the load instead of its own deadline")
 		}
+	})
+}
+
+// newReleaseSemaphoreRequest returns a release for one bucket of the test semaphore.
+func newReleaseSemaphoreRequest(bucket int32, ownerID string) *types.ReleaseSemaphoreRequest {
+	return &types.ReleaseSemaphoreRequest{
+		DomainUUID:    testSemaphoreDomainID,
+		SemaphoreName: testSemaphoreName,
+		Bucket:        bucket,
+		OwnerID:       ownerID,
+	}
+}
+
+func TestReleaseSemaphore(t *testing.T) {
+	t.Run("the request reaches the bucket's manager and its error is returned", func(t *testing.T) {
+		// The manager's Release is not built yet and always returns an error.
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		expectBucketLoadOnce(m, 2)
+		m.EXPECT().ReleaseSemaphoreToken(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, testSemaphoreOwnerID))
+		assert.IsType(t, &types.InternalServiceError{}, err)
+	})
+
+	t.Run("an owner id that cannot be decoded is refused before any store call", func(t *testing.T) {
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, "not-an-owner-id"))
+		assert.IsType(t, &types.BadRequestError{}, err)
+	})
+
+	t.Run("a release still reaches the manager when the domain has semaphores disabled", func(t *testing.T) {
+		// Tokens granted before the flag was turned off must still be released.
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		e.config.EnableDistributedSemaphore = func(string) bool { return false }
+		expectBucketLoadOnce(m, 2)
+
+		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, testSemaphoreOwnerID))
+		assert.NotErrorIs(t, err, ErrSemaphoreDisabled)
+		// The manager's Release is not built yet and always returns an error.
+		assert.IsType(t, &types.InternalServiceError{}, err)
 	})
 }

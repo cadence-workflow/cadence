@@ -68,6 +68,11 @@ func (g matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 
 	return proto.ToMatchingRefreshTaskListPartitionConfigResponse(response), proto.ToError(err)
 }
 
+func (g matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	response, err := g.c.ReleaseSemaphore(ctx, proto.FromMatchingReleaseSemaphoreRequest(rp1), p1...)
+	return proto.ToMatchingReleaseSemaphoreResponse(response), proto.ToError(err)
+}
+
 func (g matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
 	_, err = g.c.RespondQueryTaskCompleted(ctx, proto.FromMatchingRespondQueryTaskCompletedRequest(mp1), p1...)
 	return proto.ToError(err)

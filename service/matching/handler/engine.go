@@ -430,6 +430,15 @@ func (e *matchingEngineImpl) AcquireSemaphore(
 		return nil, err
 	}
 
+	// Checked on every acquire, so turning the flag off takes effect on loaded buckets too.
+	domainName, err := e.domainCache.GetDomainName(domainID)
+	if err != nil {
+		return nil, err
+	}
+	if !e.config.EnableDistributedSemaphore(domainName) {
+		return nil, ErrSemaphoreDisabled
+	}
+
 	semMgr, err := e.getOrCreateSemaphoreManager(identifier)
 	if err != nil {
 		return nil, err
@@ -446,6 +455,47 @@ func (e *matchingEngineImpl) AcquireSemaphore(
 	}, nil
 }
 
+// ReleaseSemaphore frees the token slot one owner holds in one semaphore bucket. An owner that
+// holds nothing is released too, so a repeated release succeeds.
+func (e *matchingEngineImpl) ReleaseSemaphore(
+	hCtx *handlerContext,
+	request *types.ReleaseSemaphoreRequest,
+) (*types.ReleaseSemaphoreResponse, error) {
+	domainID := request.GetDomainUUID()
+	semaphoreName := request.GetSemaphoreName()
+	bucket := int(request.GetBucket())
+	ownerID := request.GetOwnerID()
+
+	owner, err := semaphore.ParseRequestOwner(ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	e.emitInfoOrDebugLog(
+		domainID,
+		"Received ReleaseSemaphore",
+		tag.WorkflowID(owner.WorkflowID),
+		tag.WorkflowRunID(owner.RunID),
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowScheduleID(owner.HoldID),
+	)
+
+	identifier, err := semaphore.NewIdentifier(domainID, semaphoreName, bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	semMgr, err := e.getOrCreateSemaphoreManager(identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := semMgr.Release(hCtx, ownerID); err != nil {
+		return nil, err
+	}
+	return &types.ReleaseSemaphoreResponse{}, nil
+}
+
 // getOrCreateSemaphoreManager returns this host's manager for one bucket, building it the first
 // time the bucket is asked for. The manager may still be loading when another request started it;
 // Acquire waits for that under the caller's own deadline.
@@ -454,14 +504,10 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 	// lookup and the ring check below.
 	mgr, ok := e.semaphoreRegistry.ManagerByIdentifier(id)
 	if !ok {
-		// The flag filters on domain name while a bucket is keyed by domain id, so resolve the
-		// name first. Both stay out of create, which holds the registry lock.
+		// SemaphoreIdleTime is keyed by domain name. Resolved outside create, which holds the registry lock.
 		domainName, err := e.domainCache.GetDomainName(id.DomainID)
 		if err != nil {
 			return nil, err
-		}
-		if !e.config.EnableDistributedSemaphore(domainName) {
-			return nil, ErrSemaphoreDisabled
 		}
 
 		if err := e.errIfSemaphoreOwnershipLost(id); err != nil {
