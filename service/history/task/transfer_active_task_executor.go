@@ -1255,8 +1255,8 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 
 	semaphoreInfo, ok := mutableState.GetSemaphoreInfo(task.InitiatedID)
 	if !ok {
-		// The hold is gone: a release removed it, so there is nothing to acquire.
-		// TODO: once the acquire timeout timer exists, it also removes a hold that waited too long.
+		// The hold is gone: a release removed it, or an earlier attempt of this task recorded
+		// SemaphoreAcquireFailed, so there is nothing to acquire.
 		return nil
 	}
 	ok, err = verifyTaskVersion(t.shard, t.logger, task.DomainID, semaphoreInfo.Version, task.Version, task)
@@ -2115,8 +2115,7 @@ func getWorkflowExecutionStatus(mutableState execution.MutableState, closeEvent 
 	}
 }
 
-// getOwnerBucket returns the bucket that serves the hold's owner_id. It returns
-// EntityNotExistsError when the semaphore does not exist.
+// getOwnerBucket returns the bucket that serves the hold's owner_id.
 func (t *transferActiveTaskExecutor) getOwnerBucket(
 	ctx context.Context,
 	domainID string,
@@ -2196,7 +2195,23 @@ func recordSemaphoreGranted(
 			}
 
 			semaphoreInfo, ok := mutableState.GetSemaphoreInfo(initiatedEventID)
-			if !ok || semaphoreInfo.HasToken() {
+			if !ok {
+				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
+			}
+			if semaphoreInfo.HasToken() {
+				if semaphoreInfo.TokenID != int(tokenID) {
+					// Matching gives an owner one token, so a different token is a bug.
+					executionInfo := mutableState.GetExecutionInfo()
+					logger.Warn("Semaphore hold already has a different token than the one granted",
+						tag.WorkflowDomainID(executionInfo.DomainID),
+						tag.WorkflowID(executionInfo.WorkflowID),
+						tag.WorkflowRunID(executionInfo.RunID),
+						tag.WorkflowInitiatedID(initiatedEventID),
+						tag.SemaphoreName(semaphoreInfo.SemaphoreName),
+						tag.SemaphoreTokenID(semaphoreInfo.TokenID),
+						tag.SemaphoreGrantedTokenID(int(tokenID)),
+					)
+				}
 				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
 			}
 

@@ -1072,8 +1072,6 @@ func (handler *taskHandlerImpl) handleDecisionAcquireSemaphore(
 		return err
 	}
 
-	// Whether the semaphore exists is checked by the acquire task, which records
-	// SemaphoreAcquireFailed when it does not.
 	_, _, err := handler.mutableState.AddSemaphoreAcquireInitiatedEvent(
 		handler.decisionTaskCompletedID,
 		attr.GetSemaphoreName(),

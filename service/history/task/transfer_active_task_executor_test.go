@@ -2172,7 +2172,16 @@ func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_SemaphoreN
 	s.testProcessAcquireSemaphore(func(_ execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
 		s.mockShard.Resource.SemaphoreMetadataMgr.EXPECT().GetSemaphore(gomock.Any(), gomock.Any()).
 			Return(nil, &types.EntityNotExistsError{Message: "semaphore not found"})
-		s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+		s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.MatchedBy(func(request *persistence.AppendHistoryNodesRequest) bool {
+			for _, event := range request.Events {
+				if event.GetEventType() == types.EventTypeSemaphoreAcquireFailed {
+					attributes := event.SemaphoreAcquireFailedEventAttributes
+					return attributes.GetCause() == types.SemaphoreAcquireFailedCauseNotFound &&
+						attributes.GetInitiatedEventID() == semaphoreInfo.InitiatedID
+				}
+			}
+			return false
+		})).Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
 		s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.MatchedBy(func(request *persistence.UpdateWorkflowExecutionRequest) bool {
 			mutation := request.UpdateWorkflowMutation
 			if len(mutation.DeleteSemaphoreInfos) != 1 || mutation.DeleteSemaphoreInfos[0] != semaphoreInfo.InitiatedID {
@@ -2283,7 +2292,7 @@ func TestRecordSemaphoreGranted(t *testing.T) {
 			name: "hold already has a token",
 			setupMock: func(mutableState *execution.MockMutableState) {
 				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
-				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 7}, true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 3}, true)
 			},
 		},
 	}
