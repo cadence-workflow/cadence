@@ -271,6 +271,12 @@ func Test__ReplicateSemaphoreAcquireInitiatedEvent(t *testing.T) {
 	assert.Equal(t, want, semaphoreInfo)
 	assert.Equal(t, want, mb.pendingSemaphoreInfoIDs[7])
 	assert.Equal(t, want, mb.updateSemaphoreInfos[7])
+	// Replay creates the task too, so a standby cluster has one to check.
+	assert.Equal(t, []persistence.Task{&persistence.AcquireSemaphoreTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
+		TaskData:           persistence.TaskData{Version: 3},
+		InitiatedID:        7,
+	}}, mb.GetTransferTasks())
 }
 
 // Tests which grants AddSemaphoreAcquiredEvent records and which it refuses.

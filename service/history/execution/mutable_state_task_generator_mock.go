@@ -42,6 +42,20 @@ func (m *MockMutableStateTaskGenerator) EXPECT() *MockMutableStateTaskGeneratorM
 	return m.recorder
 }
 
+// GenerateAcquireSemaphoreTasks mocks base method.
+func (m *MockMutableStateTaskGenerator) GenerateAcquireSemaphoreTasks(initiatedEventID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenerateAcquireSemaphoreTasks", initiatedEventID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GenerateAcquireSemaphoreTasks indicates an expected call of GenerateAcquireSemaphoreTasks.
+func (mr *MockMutableStateTaskGeneratorMockRecorder) GenerateAcquireSemaphoreTasks(initiatedEventID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateAcquireSemaphoreTasks", reflect.TypeOf((*MockMutableStateTaskGenerator)(nil).GenerateAcquireSemaphoreTasks), initiatedEventID)
+}
+
 // GenerateActivityRetryTasks mocks base method.
 func (m *MockMutableStateTaskGenerator) GenerateActivityRetryTasks(activityScheduleID int64) error {
 	m.ctrl.T.Helper()

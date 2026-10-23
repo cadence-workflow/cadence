@@ -21,7 +21,6 @@
 package log
 
 import (
-	"fmt"
 	"math/rand"
 
 	"go.uber.org/cadence/workflow"
@@ -61,7 +60,7 @@ func (r *replayLogger) Debugf(msg string, args ...any) {
 		return
 	}
 
-	r.logger.Debugf(fmt.Sprintf(msg, args...))
+	r.logger.Debugf(msg, args...)
 }
 
 func (r *replayLogger) Debug(msg string, tags ...tag.Tag) {

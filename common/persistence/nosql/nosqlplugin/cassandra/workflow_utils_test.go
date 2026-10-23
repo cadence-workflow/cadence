@@ -200,6 +200,11 @@ func (i *fakeIter) PageState() []byte {
 	return i.pageState
 }
 
+// Warnings is fake implementation of gocql.Iter.Warnings
+func (i *fakeIter) Warnings() []string {
+	return nil
+}
+
 // Close is fake implementation of gocql.Iter.Close
 func (i *fakeIter) Close() error {
 	i.closed = true

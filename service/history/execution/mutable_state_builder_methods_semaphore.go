@@ -102,8 +102,7 @@ func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 	return event, semaphoreInfo, nil
 }
 
-// ReplicateSemaphoreAcquireInitiatedEvent starts the hold for an acquire event. Everything it
-// stores comes from the event and the run, so replay rebuilds the same hold.
+// ReplicateSemaphoreAcquireInitiatedEvent starts the hold and adds the transfer task that acquires its token.
 func (e *mutableStateBuilder) ReplicateSemaphoreAcquireInitiatedEvent(
 	event *types.HistoryEvent,
 ) (*persistence.SemaphoreInfo, error) {
@@ -124,7 +123,7 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquireInitiatedEvent(
 	}
 
 	e.UpsertSemaphoreInfo(semaphoreInfo)
-	return semaphoreInfo, nil
+	return semaphoreInfo, e.taskGenerator.GenerateAcquireSemaphoreTasks(semaphoreInfo.InitiatedID)
 }
 
 // AddSemaphoreAcquiredEvent records that the acquire started by initiatedEventID was granted

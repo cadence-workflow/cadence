@@ -27,13 +27,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	commonconstants "github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -215,11 +218,64 @@ func TestDeletePendingChildExecution(t *testing.T) {
 	}
 }
 
+func TestNewChildWorkflowCreateRequestID(t *testing.T) {
+	runID := "1d00698f-08e1-4d36-a3e2-3bf109f5d2d6"
+	// all clusters must derive the same request ID, so it must not change between releases
+	expected := "ee365b47-d0b9-5a4e-922c-d975ef2857fd"
+
+	cases := []struct {
+		name             string
+		runID            string
+		initiatedEventID int64
+		version          int64
+		wantSame         bool
+	}{
+		{
+			name:             "same initiated event",
+			runID:            runID,
+			initiatedEventID: 5,
+			version:          10,
+			wantSame:         true,
+		},
+		{
+			name:             "different run",
+			runID:            "2d00698f-08e1-4d36-a3e2-3bf109f5d2d6",
+			initiatedEventID: 5,
+			version:          10,
+		},
+		{
+			name:             "different initiated event ID",
+			runID:            runID,
+			initiatedEventID: 6,
+			version:          10,
+		},
+		{
+			name:             "same initiated event ID on another branch",
+			runID:            runID,
+			initiatedEventID: 5,
+			version:          11,
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			requestID := newChildWorkflowCreateRequestID(testCase.runID, testCase.initiatedEventID, testCase.version)
+
+			// Cassandra stores the request ID in a UUID column
+			assert.NotNil(t, uuid.Parse(requestID))
+			// only the same run, initiated event ID and version give the same request ID
+			if testCase.wantSame {
+				assert.Equal(t, expected, requestID)
+			} else {
+				assert.NotEqual(t, expected, requestID)
+			}
+		})
+	}
+}
+
 func TestAddChildEvents(t *testing.T) {
 	parentWfID := "parent"
 	parentRunID := "1d00698f-08e1-4d36-a3e2-3bf109f5d2d6"
 	decisionID := int64(0)
-	requestID := "request"
 	decisionAttributes := &types.StartChildWorkflowExecutionDecisionAttributes{
 		Domain:                              constants.TestDomainName,
 		WorkflowID:                          constants.TestWorkflowID,
@@ -264,6 +320,33 @@ func TestAddChildEvents(t *testing.T) {
 		RunID:      constants.TestRunID,
 	}
 	childType := &types.WorkflowType{Name: "type"}
+	initiatedEvent := func() *types.HistoryEvent {
+		return &types.HistoryEvent{
+			ID:        nextEventID,
+			Timestamp: &currentTimestamp,
+			EventType: types.EventTypeStartChildWorkflowExecutionInitiated.Ptr(),
+			Version:   commonconstants.EmptyVersion,
+			TaskID:    commonconstants.EmptyEventTaskID,
+			StartChildWorkflowExecutionInitiatedEventAttributes: initiatedAttributes,
+		}
+	}
+	setDeterministicRequestID := func(enabled bool) func(ctx *shard.TestContext) {
+		return func(ctx *shard.TestContext) {
+			ctx.GetConfig().EnableDeterministicChildWorkflowRequestID = dynamicproperties.GetBoolPropertyFnFilteredByDomain(enabled)
+		}
+	}
+	replicatedInitiatedID := int64(7)
+	// differs from the current version of the builder, so the test shows that the event version is used
+	replicatedVersion := int64(21)
+	replicatedInitiatedEvent := func() *types.HistoryEvent {
+		return &types.HistoryEvent{
+			ID:        replicatedInitiatedID,
+			Timestamp: &currentTimestamp,
+			EventType: types.EventTypeStartChildWorkflowExecutionInitiated.Ptr(),
+			Version:   replicatedVersion,
+			StartChildWorkflowExecutionInitiatedEventAttributes: initiatedAttributes,
+		}
+	}
 
 	cases := []struct {
 		name           string
@@ -276,31 +359,84 @@ func TestAddChildEvents(t *testing.T) {
 		expectedErr    error
 	}{
 		{
-			name: "StartChildWorkflowExecutionInitiated",
+			name: "StartChildWorkflowExecutionInitiated: deterministic request ID enabled",
 			mockAllowances: func(ctx *shard.TestContext) {
+				setDeterministicRequestID(true)(ctx)
 				ctx.MockEventsCache.EXPECT().PutEvent(constants.TestDomainID, parentWfID, parentRunID, nextEventID, gomock.Any())
 			},
 			eventFn: func(builder *mutableStateBuilder) (*types.HistoryEvent, error) {
-				event, _, e := builder.AddStartChildWorkflowExecutionInitiatedEvent(decisionID, requestID, decisionAttributes)
+				event, _, e := builder.AddStartChildWorkflowExecutionInitiatedEvent(decisionID, decisionAttributes)
 				return event, e
 			},
-			expectedEvent: &types.HistoryEvent{
-				ID:        nextEventID,
-				Timestamp: &currentTimestamp,
-				EventType: types.EventTypeStartChildWorkflowExecutionInitiated.Ptr(),
-				Version:   commonconstants.EmptyVersion,
-				TaskID:    commonconstants.EmptyEventTaskID,
-				StartChildWorkflowExecutionInitiatedEventAttributes: initiatedAttributes,
+			assertFn: func(t *testing.T, builder *mutableStateBuilder) {
+				ci, ok := builder.GetChildExecutionInfo(nextEventID)
+				require.True(t, ok)
+				// with the flag enabled, the request ID is derived from the initiated event
+				assert.Equal(t, newChildWorkflowCreateRequestID(parentRunID, nextEventID, commonconstants.EmptyVersion), ci.CreateRequestID)
 			},
+			expectedEvent: initiatedEvent(),
+		},
+		{
+			name: "StartChildWorkflowExecutionInitiated: deterministic request ID disabled",
+			mockAllowances: func(ctx *shard.TestContext) {
+				setDeterministicRequestID(false)(ctx)
+				ctx.MockEventsCache.EXPECT().PutEvent(constants.TestDomainID, parentWfID, parentRunID, nextEventID, gomock.Any())
+			},
+			eventFn: func(builder *mutableStateBuilder) (*types.HistoryEvent, error) {
+				event, _, e := builder.AddStartChildWorkflowExecutionInitiatedEvent(decisionID, decisionAttributes)
+				return event, e
+			},
+			assertFn: func(t *testing.T, builder *mutableStateBuilder) {
+				ci, ok := builder.GetChildExecutionInfo(nextEventID)
+				require.True(t, ok)
+				// with the flag disabled, the request ID is a random UUID, as before
+				assert.NotNil(t, uuid.Parse(ci.CreateRequestID))
+				assert.NotEqual(t, newChildWorkflowCreateRequestID(parentRunID, nextEventID, commonconstants.EmptyVersion), ci.CreateRequestID)
+			},
+			expectedEvent: initiatedEvent(),
 		},
 		{
 			name:    "StartChildWorkflowExecutionInitiated: not mutable",
 			wfState: persistence.WorkflowStateCompleted,
 			eventFn: func(builder *mutableStateBuilder) (*types.HistoryEvent, error) {
-				event, _, e := builder.AddStartChildWorkflowExecutionInitiatedEvent(decisionID, requestID, decisionAttributes)
+				event, _, e := builder.AddStartChildWorkflowExecutionInitiatedEvent(decisionID, decisionAttributes)
 				return event, e
 			},
 			expectedErr: ErrWorkflowFinished,
+		},
+		{
+			name:           "ReplicateStartChildWorkflowExecutionInitiated: deterministic request ID enabled",
+			mockAllowances: setDeterministicRequestID(true),
+			eventFn: func(builder *mutableStateBuilder) (*types.HistoryEvent, error) {
+				event := replicatedInitiatedEvent()
+				_, e := builder.ReplicateStartChildWorkflowExecutionInitiatedEvent(replicatedInitiatedID-1, event)
+				return event, e
+			},
+			assertFn: func(t *testing.T, builder *mutableStateBuilder) {
+				ci, ok := builder.GetChildExecutionInfo(replicatedInitiatedID)
+				require.True(t, ok)
+				assert.Equal(t, replicatedInitiatedID-1, ci.InitiatedEventBatchID)
+				// the passive cluster derives the same request ID as the active cluster, from the replicated event
+				assert.Equal(t, newChildWorkflowCreateRequestID(parentRunID, replicatedInitiatedID, replicatedVersion), ci.CreateRequestID)
+			},
+			expectedEvent: replicatedInitiatedEvent(),
+		},
+		{
+			name:           "ReplicateStartChildWorkflowExecutionInitiated: deterministic request ID disabled",
+			mockAllowances: setDeterministicRequestID(false),
+			eventFn: func(builder *mutableStateBuilder) (*types.HistoryEvent, error) {
+				event := replicatedInitiatedEvent()
+				_, e := builder.ReplicateStartChildWorkflowExecutionInitiatedEvent(replicatedInitiatedID-1, event)
+				return event, e
+			},
+			assertFn: func(t *testing.T, builder *mutableStateBuilder) {
+				ci, ok := builder.GetChildExecutionInfo(replicatedInitiatedID)
+				require.True(t, ok)
+				// with the flag disabled, the passive cluster also uses a random UUID, as before
+				assert.NotNil(t, uuid.Parse(ci.CreateRequestID))
+				assert.NotEqual(t, newChildWorkflowCreateRequestID(parentRunID, replicatedInitiatedID, replicatedVersion), ci.CreateRequestID)
+			},
+			expectedEvent: replicatedInitiatedEvent(),
 		},
 		{
 			name: "ChildWorkflowExecutionStarted",
@@ -693,6 +829,9 @@ func TestAddChildEvents(t *testing.T) {
 
 			assert.Equal(t, testCase.expectedEvent, event)
 			assert.Equal(t, testCase.expectedErr, err)
+			if testCase.assertFn != nil {
+				testCase.assertFn(t, m)
+			}
 		})
 	}
 }

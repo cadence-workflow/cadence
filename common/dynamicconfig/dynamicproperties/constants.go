@@ -2177,6 +2177,7 @@ const (
 	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
 	// frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so
 	// tokens granted before it was turned off are still freed.
+	// Global domains also need HistoryTaskDLQMode enabled, or a hold still waiting at failover is never acquired.
 	// KeyName: system.enableDistributedSemaphore
 	// Value type: Bool
 	// Default value: false
@@ -2341,6 +2342,17 @@ const (
 	// Default value: false
 	// Allowed filters: DomainName
 	EnableStrongIdempotencySanityCheck
+
+	// EnableDeterministicChildWorkflowRequestID derives the request ID that starts a child workflow from its initiated event,
+	// so all clusters start the child with the same request ID. Enable it on a cluster only after all hosts of the cluster
+	// run a release with https://github.com/cadence-workflow/cadence/pull/8644, which checks which cluster closed a child run
+	// before adopting it. Roll back only to a release with that change. To roll back to a release without it, disable the
+	// flag on the cluster, wait until the children initiated while it was enabled have started, then roll back.
+	// KeyName: history.enableDeterministicChildWorkflowRequestID
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableDeterministicChildWorkflowRequestID
 
 	// MatchingEnableClientAutoConfig enables auto config for domain and tasklist on client (worker) side
 	// KeyName: matching.enableClientAutoConfig
@@ -2777,6 +2789,9 @@ const (
 	//
 	// * "enabled" - tasks are written to the DLQ and processed by the HistoryTaskDLQProcessor.
 	// * "shadow" - tasks are written to the DLQ but never processed.
+	//
+	// Global domains that use distributed semaphores need "enabled": a standby acquire task that gives up
+	// while its hold is still waiting runs again after failover only if it was kept in the DLQ.
 	//
 	// KeyName: history.HistoryTaskDLQMode
 	// Value type: string ["disabled","shadow","enabled"]
@@ -5147,7 +5162,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableDistributedSemaphore: {
 		KeyName:      "system.enableDistributedSemaphore",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so tokens granted before it was turned off are still freed",
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so tokens granted before it was turned off are still freed. Global domains also need HistoryTaskDLQMode enabled",
 		DefaultValue: false,
 	},
 	EnableFailoverManager: {
@@ -5276,6 +5291,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.enableStrongIdempotencySanityCheck",
 		Filters:      []Filter{DomainName},
 		Description:  "EnableStrongIdempotencySanityCheck enables sanity check for strong idempotency",
+		DefaultValue: false,
+	},
+	EnableDeterministicChildWorkflowRequestID: {
+		KeyName:      "history.enableDeterministicChildWorkflowRequestID",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableDeterministicChildWorkflowRequestID derives the request ID that starts a child workflow from its initiated event, so all clusters start the child with the same request ID",
 		DefaultValue: false,
 	},
 	MatchingEnableClientAutoConfig: {
@@ -5645,7 +5666,7 @@ var StringKeys = map[StringKey]DynamicString{
 	},
 	HistoryTaskDLQMode: {
 		KeyName:      "history.historyTaskDLQMode",
-		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
+		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries. Global domains using distributed semaphores need it enabled.",
 		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 		Filters:      []Filter{DomainName},
 	},

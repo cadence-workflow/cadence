@@ -66,64 +66,13 @@ type Result struct {
 	OperationalDynamicConfig *dynamicconfig.Collection `name:"operational-dynamic-config"`
 }
 
-// New creates dynamicconfig.Client from the configuration
+// New creates dynamicconfig.Client from the configuration.
+// NOP client is used only when dynamic config is not configured at all or explicitly set to "nop".
+// Any failure to initialise an explicitly configured client is returned.
 func New(p Params) (Result, error) {
-	stopped := make(chan struct{})
-
-	if p.Cfg.DynamicConfig.Client == "" {
-		p.Cfg.DynamicConfigClient.Filepath = constructPathIfNeed(p.RootDir, p.Cfg.DynamicConfigClient.Filepath)
-	} else {
-		p.Cfg.DynamicConfig.FileBased.Filepath = constructPathIfNeed(p.RootDir, p.Cfg.DynamicConfig.FileBased.Filepath)
-	}
-
-	p.Lifecycle.Append(fx.StopHook(func() {
-		close(stopped)
-	}))
-
-	var res dynamicconfig.Client
-
-	var err error
-	if p.Cfg.DynamicConfig.Client == "" {
-		p.Logger.Warn("falling back to legacy file based dynamicClientConfig")
-		res, err = dynamicconfig.NewFileBasedClient(&p.Cfg.DynamicConfigClient, p.Logger, stopped)
-	} else {
-		switch p.Cfg.DynamicConfig.Client {
-		case dynamicconfig.ConfigStoreClient:
-			p.Logger.Info("initialising ConfigStore dynamic config client")
-			res, err = configstore.NewConfigStoreClient(
-				&p.Cfg.DynamicConfig.ConfigStore,
-				&p.Cfg.Persistence,
-				p.Logger,
-				p.MetricsClient,
-				persistence.DynamicConfig,
-			)
-		case dynamicconfig.FileBasedClient:
-			p.Logger.Info("initialising File Based dynamic config client")
-			res, err = dynamicconfig.NewFileBasedClient(&p.Cfg.DynamicConfig.FileBased, p.Logger, stopped)
-		case dynamicconfig.OpenFeatureClient:
-			p.Logger.Info("initialising OpenFeature dynamic config client")
-			res = openfeatureclient.NewOpenFeatureClient(p.Logger)
-
-			providerName := p.Cfg.DynamicConfig.OpenFeature.ProviderName
-			providerConfig := p.Cfg.DynamicConfig.OpenFeature.Provider
-			p.Lifecycle.Append(fx.Hook{
-				OnStart: func(ctx context.Context) error {
-					return openfeatureclient.RegisterProvider(ctx, providerName, providerConfig)
-				},
-				OnStop: func(ctx context.Context) error {
-					openfeatureclient.DeregisterProvider()
-					return nil
-				},
-			})
-		}
-	}
-
-	if res == nil {
-		p.Logger.Info("initialising NOP dynamic config client")
-		res = dynamicconfig.NewNopClient()
-	} else if err != nil {
-		p.Logger.Error("creating dynamic config client failed, using no-op config client instead", tag.Error(err))
-		res = dynamicconfig.NewNopClient()
+	res, err := newClient(p)
+	if err != nil {
+		return Result{}, err
 	}
 
 	clusterGroupMetadata := p.Cfg.ClusterGroupMetadata
@@ -149,6 +98,86 @@ func New(p Params) (Result, error) {
 		OperationalConfigStore:   operationalConfigStore,
 		OperationalDynamicConfig: operationalDC,
 	}, nil
+}
+
+func newClient(p Params) (dynamicconfig.Client, error) {
+	cfg := p.Cfg.DynamicConfig
+
+	switch cfg.Client {
+	case "":
+		if p.Cfg.DynamicConfigClient.Filepath == "" {
+			p.Logger.Warn("dynamic config is not configured, initialising NOP dynamic config client: all properties use default values")
+			return dynamicconfig.NewNopClient(), nil
+		}
+		p.Logger.Warn("falling back to legacy file based dynamicConfigClient")
+		client, err := newFileBasedClient(p, p.Cfg.DynamicConfigClient)
+		if err != nil {
+			return nil, fmt.Errorf("initialising legacy file based dynamic config client (dynamicConfigClient): %w", err)
+		}
+		return client, nil
+	case dynamicconfig.NopClient:
+		p.Logger.Warn("initialising NOP dynamic config client: all properties use default values")
+		return dynamicconfig.NewNopClient(), nil
+	case dynamicconfig.FileBasedClient:
+		p.Logger.Info("initialising File Based dynamic config client")
+		client, err := newFileBasedClient(p, cfg.FileBased)
+		if err != nil {
+			return nil, fmt.Errorf("initialising %q dynamic config client (dynamicconfig.filebased): %w", cfg.Client, err)
+		}
+		return client, nil
+	case dynamicconfig.ConfigStoreClient:
+		p.Logger.Info("initialising ConfigStore dynamic config client")
+		client, err := configstore.NewConfigStoreClient(
+			&cfg.ConfigStore,
+			&p.Cfg.Persistence,
+			p.Logger,
+			p.MetricsClient,
+			persistence.DynamicConfig,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("initialising %q dynamic config client (dynamicconfig.configstore): %w", cfg.Client, err)
+		}
+		return client, nil
+	case dynamicconfig.OpenFeatureClient:
+		p.Logger.Info("initialising OpenFeature dynamic config client")
+		providerName := cfg.OpenFeature.ProviderName
+		providerConfig := cfg.OpenFeature.Provider
+		p.Lifecycle.Append(fx.Hook{
+			OnStart: func(ctx context.Context) error {
+				return openfeatureclient.RegisterProvider(ctx, providerName, providerConfig)
+			},
+			OnStop: func(ctx context.Context) error {
+				openfeatureclient.DeregisterProvider()
+				return nil
+			},
+		})
+		return openfeatureclient.NewOpenFeatureClient(p.Logger), nil
+	default:
+		return nil, fmt.Errorf("unknown dynamic config client %q (dynamicconfig.client), supported: %q, %q, %q, %q",
+			cfg.Client,
+			dynamicconfig.FileBasedClient,
+			dynamicconfig.ConfigStoreClient,
+			dynamicconfig.OpenFeatureClient,
+			dynamicconfig.NopClient,
+		)
+	}
+}
+
+func newFileBasedClient(p Params, cfg dynamicconfig.FileBasedClientConfig) (dynamicconfig.Client, error) {
+	if cfg.Filepath == "" {
+		return nil, errors.New("filepath is not set")
+	}
+	cfg.Filepath = constructPathIfNeed(p.RootDir, cfg.Filepath)
+
+	stopPeriodicUpdate := make(chan struct{})
+	client, err := dynamicconfig.NewFileBasedClient(&cfg, p.Logger, stopPeriodicUpdate)
+	if err != nil {
+		return nil, err
+	}
+	p.Lifecycle.Append(fx.StopHook(func() {
+		close(stopPeriodicUpdate)
+	}))
+	return client, nil
 }
 
 // constructPathIfNeed would append the dir as the root dir

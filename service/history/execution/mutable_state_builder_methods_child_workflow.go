@@ -26,11 +26,17 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pborman/uuid"
+
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
+
+// childWorkflowCreateRequestIDNamespace is the namespace of the request IDs that start child workflows.
+// It must never change, because every cluster must derive the same request ID for the same child.
+var childWorkflowCreateRequestIDNamespace = uuid.Parse("c856ffa8-57a2-4f71-b82f-4a768903ea6f")
 
 // GetChildExecutionInfo gives details about a child execution that is currently in progress.
 func (e *mutableStateBuilder) GetChildExecutionInfo(
@@ -114,7 +120,6 @@ func (e *mutableStateBuilder) DeletePendingChildExecution(
 
 func (e *mutableStateBuilder) AddStartChildWorkflowExecutionInitiatedEvent(
 	decisionCompletedEventID int64,
-	createRequestID string,
 	attributes *types.StartChildWorkflowExecutionDecisionAttributes,
 ) (*types.HistoryEvent, *persistence.ChildExecutionInfo, error) {
 
@@ -132,7 +137,7 @@ func (e *mutableStateBuilder) AddStartChildWorkflowExecutionInitiatedEvent(
 	e.eventsCache.PutEvent(e.executionInfo.DomainID, e.executionInfo.WorkflowID, e.executionInfo.RunID,
 		event.ID, event)
 
-	ci, err := e.ReplicateStartChildWorkflowExecutionInitiatedEvent(decisionCompletedEventID, event, createRequestID)
+	ci, err := e.ReplicateStartChildWorkflowExecutionInitiatedEvent(decisionCompletedEventID, event)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -142,7 +147,6 @@ func (e *mutableStateBuilder) AddStartChildWorkflowExecutionInitiatedEvent(
 func (e *mutableStateBuilder) ReplicateStartChildWorkflowExecutionInitiatedEvent(
 	firstEventID int64,
 	event *types.HistoryEvent,
-	createRequestID string,
 ) (*persistence.ChildExecutionInfo, error) {
 
 	initiatedEventID := event.ID
@@ -163,7 +167,7 @@ func (e *mutableStateBuilder) ReplicateStartChildWorkflowExecutionInitiatedEvent
 		InitiatedEventBatchID: firstEventID,
 		StartedID:             constants.EmptyEventID,
 		StartedWorkflowID:     attributes.GetWorkflowID(),
-		CreateRequestID:       createRequestID,
+		CreateRequestID:       e.childWorkflowCreateRequestID(initiatedEventID, event.Version),
 		DomainID:              domainID,
 		// DomainName field is being deprecated
 		// DomainName:            attributes.GetDomain(),
@@ -175,6 +179,21 @@ func (e *mutableStateBuilder) ReplicateStartChildWorkflowExecutionInitiatedEvent
 	e.updateChildExecutionInfos[ci.InitiatedID] = ci
 
 	return ci, e.taskGenerator.GenerateChildWorkflowTasks(event)
+}
+
+// childWorkflowCreateRequestID returns a derived request ID only when EnableDeterministicChildWorkflowRequestID is enabled.
+func (e *mutableStateBuilder) childWorkflowCreateRequestID(initiatedEventID, version int64) string {
+	if !e.config.EnableDeterministicChildWorkflowRequestID(e.GetDomainEntry().GetInfo().Name) {
+		return uuid.New()
+	}
+	return newChildWorkflowCreateRequestID(e.executionInfo.RunID, initiatedEventID, version)
+}
+
+// newChildWorkflowCreateRequestID returns the same request ID on all clusters, so after a failover the child
+// start finds the run started by another cluster. It is a UUID because Cassandra stores it in a UUID column.
+func newChildWorkflowCreateRequestID(runID string, initiatedEventID, version int64) string {
+	name := fmt.Sprintf("%s:%d:%d", runID, initiatedEventID, version)
+	return uuid.NewSHA1(childWorkflowCreateRequestIDNamespace, []byte(name)).String()
 }
 
 func (e *mutableStateBuilder) AddChildWorkflowExecutionStartedEvent(

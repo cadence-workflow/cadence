@@ -337,7 +337,6 @@ func AddSignaledEvent(
 func AddStartChildWorkflowExecutionInitiatedEvent(
 	builder execution.MutableState,
 	decisionCompletedID int64,
-	createRequestID string,
 	domain string,
 	workflowID string,
 	workflowType string,
@@ -349,7 +348,7 @@ func AddStartChildWorkflowExecutionInitiatedEvent(
 ) (*types.HistoryEvent,
 	*persistence.ChildExecutionInfo) {
 
-	event, cei, _ := builder.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletedID, createRequestID,
+	event, cei, _ := builder.AddStartChildWorkflowExecutionInitiatedEvent(decisionCompletedID,
 		&types.StartChildWorkflowExecutionDecisionAttributes{
 			Domain:                              domain,
 			WorkflowID:                          workflowID,

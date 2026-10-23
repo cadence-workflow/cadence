@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/execution"
@@ -66,16 +67,18 @@ var (
 	errUnknownTransferTask = errors.New("unknown transfer task")
 	errWorkflowBusy        = errors.New("unable to get workflow execution lock within specified timeout")
 	errWorkflowRateLimited = errors.New("workflow is being rate limited for making too many requests")
+	errSemaphoreNoSlot     = errors.New("semaphore bucket has no free token")
 )
 
 type (
 	transferActiveTaskExecutor struct {
 		*transferTaskExecutorBase
 
-		historyClient           history.Client
-		parentClosePolicyClient parentclosepolicy.Client
-		workflowResetter        reset.WorkflowResetter
-		wfIDCache               workflowcache.WFCache
+		historyClient            history.Client
+		parentClosePolicyClient  parentclosepolicy.Client
+		workflowResetter         reset.WorkflowResetter
+		wfIDCache                workflowcache.WFCache
+		semaphoreMetadataManager persistence.SemaphoreMetadataManager
 	}
 
 	generatorF = func(taskGenerator execution.MutableStateTaskGenerator) error
@@ -108,8 +111,9 @@ func NewTransferActiveTaskExecutor(
 			shard.GetService().GetSDKClient(),
 			config.NumParentClosePolicySystemWorkflows(),
 		),
-		workflowResetter: workflowResetter,
-		wfIDCache:        wfIDCache,
+		workflowResetter:         workflowResetter,
+		wfIDCache:                wfIDCache,
+		semaphoreMetadataManager: shard.GetService().GetSemaphoreMetadataManager(),
 	}
 }
 
@@ -158,6 +162,8 @@ func (t *transferActiveTaskExecutor) Execute(task Task) (ExecuteResponse, error)
 		return executeResponse, t.processResetWorkflow(ctx, transferTask)
 	case *persistence.UpsertWorkflowSearchAttributesTask:
 		return executeResponse, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
+	case *persistence.AcquireSemaphoreTask:
+		return executeResponse, t.processAcquireSemaphore(ctx, transferTask)
 	default:
 		return executeResponse, errUnknownTransferTask
 	}
@@ -1221,6 +1227,66 @@ func (t *transferActiveTaskExecutor) processResetWorkflow(
 	)
 }
 
+func (t *transferActiveTaskExecutor) processAcquireSemaphore(
+	ctx context.Context,
+	task *persistence.AcquireSemaphoreTask,
+) (retError error) {
+
+	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
+		task.DomainID,
+		getWorkflowExecution(task),
+		taskGetExecutionContextTimeout,
+	)
+	if err != nil {
+		if err == context.DeadlineExceeded {
+			return errWorkflowBusy
+		}
+		return err
+	}
+	defer func() { release(retError) }()
+
+	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TransferQueueProcessorScope), t.logger, task.InitiatedID)
+	if err != nil {
+		return err
+	}
+	if mutableState == nil || !mutableState.IsWorkflowExecutionRunning() {
+		return nil
+	}
+
+	semaphoreInfo, ok := mutableState.GetSemaphoreInfo(task.InitiatedID)
+	if !ok {
+		// The hold is gone: a release removed it, so there is nothing to acquire.
+		// TODO: once the acquire timeout timer exists, it also removes a hold that waited too long.
+		return nil
+	}
+	ok, err = verifyTaskVersion(t.shard, t.logger, task.DomainID, semaphoreInfo.Version, task.Version, task)
+	if err != nil || !ok {
+		return err
+	}
+	if semaphoreInfo.HasToken() {
+		// The grant is already recorded, for example by an earlier attempt of this task.
+		return nil
+	}
+
+	bucket, err := t.getOwnerBucket(ctx, task.DomainID, semaphoreInfo)
+	if err != nil {
+		return err
+	}
+
+	// Keep the workflow lock through the call so nothing changes the hold before the grant is recorded.
+	tokenID, err := t.acquireSemaphoreToken(ctx, &types.AcquireSemaphoreRequest{
+		DomainUUID:    task.DomainID,
+		SemaphoreName: semaphoreInfo.SemaphoreName,
+		Bucket:        int32(bucket),
+		OwnerID:       semaphoreInfo.OwnerID,
+	})
+	if err != nil {
+		return err
+	}
+
+	return recordSemaphoreGranted(ctx, t.logger, wfContext, task.InitiatedID, tokenID, t.shard.GetTimeSource().Now())
+}
+
 func recordChildExecutionStarted(
 	ctx context.Context,
 	logger log.Logger,
@@ -2042,4 +2108,100 @@ func getWorkflowExecutionStatus(mutableState execution.MutableState, closeEvent 
 	default:
 		return types.WorkflowExecutionStatusCompleted
 	}
+}
+
+// getOwnerBucket returns the bucket that serves the hold's owner_id.
+func (t *transferActiveTaskExecutor) getOwnerBucket(
+	ctx context.Context,
+	domainID string,
+	semaphoreInfo *persistence.SemaphoreInfo,
+) (int, error) {
+
+	resp, err := t.semaphoreMetadataManager.GetSemaphore(ctx, &persistence.GetSemaphoreRequest{
+		DomainID:      domainID,
+		SemaphoreName: semaphoreInfo.SemaphoreName,
+	})
+	if errors.As(err, new(*types.EntityNotExistsError)) {
+		// Retry: EntityNotExistsError would drop the task and leave the hold waiting forever.
+		// TODO: fail the run with ErrSemaphoreNotFound instead.
+		return 0, &types.InternalServiceError{Message: fmt.Sprintf("semaphore %q not found", semaphoreInfo.SemaphoreName)}
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	numBuckets, err := commonsemaphore.NumBuckets(resp.Semaphore.Size, resp.Semaphore.BucketSize)
+	if err != nil {
+		return 0, &types.InternalServiceError{Message: err.Error()}
+	}
+	bucket, err := commonsemaphore.OwnerIDToBucket(semaphoreInfo.OwnerID, numBuckets)
+	if err != nil {
+		return 0, &types.InternalServiceError{Message: err.Error()}
+	}
+	return bucket, nil
+}
+
+// acquireSemaphoreToken asks the bucket's Matching host for a token and returns it.
+func (t *transferActiveTaskExecutor) acquireSemaphoreToken(
+	ctx context.Context,
+	request *types.AcquireSemaphoreRequest,
+) (int32, error) {
+
+	ctx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
+	defer cancel()
+
+	resp, err := t.matchingClient.AcquireSemaphore(ctx, request)
+	if err != nil {
+		// Errors are retried. ErrSemaphoreDisabled means the flag was turned off while this hold waits:
+		// the task retries until it is turned back on, or until the acquire timeout ends the hold.
+		return 0, err
+	}
+	switch {
+	case resp.Outcome == types.SemaphoreAcquireOutcomeAcquired && resp.TokenID > 0:
+		return resp.TokenID, nil
+	case resp.Outcome == types.SemaphoreAcquireOutcomeNoSlot:
+		// No slot and nothing queued, so retry. Today a full bucket answers this.
+		// Once acquires can wait, a full bucket queues instead.
+		// TODO: when the queued outcome is added, complete the task on it: the grant then comes
+		// through RecordSemaphoreAcquired.
+		t.logger.Debug("Semaphore bucket has no free token, retrying the acquire",
+			tag.WorkflowDomainID(request.DomainUUID),
+			tag.SemaphoreName(request.SemaphoreName),
+			tag.SemaphoreBucket(int(request.Bucket)),
+		)
+		return 0, errSemaphoreNoSlot
+	default:
+		return 0, &types.InternalServiceError{
+			Message: fmt.Sprintf("unexpected semaphore acquire response: outcome %v, token %v", resp.Outcome, resp.TokenID),
+		}
+	}
+}
+
+// recordSemaphoreGranted records the token on the hold and schedules a decision so the workflow sees it.
+// It skips a closed run, a missing hold, or a token already recorded.
+func recordSemaphoreGranted(
+	ctx context.Context,
+	logger log.Logger,
+	wfContext execution.Context,
+	initiatedEventID int64,
+	tokenID int32,
+	now time.Time,
+) error {
+
+	return updateWorkflowExecution(ctx, logger, wfContext, true,
+		func(ctx context.Context, mutableState execution.MutableState) error {
+			if !mutableState.IsWorkflowExecutionRunning() {
+				return &types.EntityNotExistsError{Message: "Workflow execution already completed."}
+			}
+
+			semaphoreInfo, ok := mutableState.GetSemaphoreInfo(initiatedEventID)
+			if !ok || semaphoreInfo.HasToken() {
+				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
+			}
+
+			_, err := mutableState.AddSemaphoreAcquiredEvent(initiatedEventID, tokenID)
+			return err
+		},
+		now,
+	)
 }

@@ -127,6 +127,11 @@ func GetTransferTaskMetricsScope(
 			return metrics.TransferActiveTaskApplyParentClosePolicyScope
 		}
 		return metrics.TransferStandbyTaskApplyParentClosePolicyScope
+	case persistence.TransferTaskTypeAcquireSemaphore:
+		if isActive {
+			return metrics.TransferActiveTaskAcquireSemaphoreScope
+		}
+		return metrics.TransferStandbyTaskAcquireSemaphoreScope
 	default:
 		if isActive {
 			return metrics.TransferActiveQueueProcessorScope
