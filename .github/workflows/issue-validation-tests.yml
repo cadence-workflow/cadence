@@ -1,0 +1,24 @@
+name: Issue Validation Tests
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/workflows/issue-validation*.yml'
+
+jobs:
+  issue-validation-tests:
+    name: Issue validation script tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run issue validation tests
+        run: node --test .github/scripts/validate-issue.test.js
