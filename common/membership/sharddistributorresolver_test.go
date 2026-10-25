@@ -27,6 +27,7 @@ import (
 
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
@@ -37,42 +38,42 @@ import (
 )
 
 func TestShardDistributorResolver_Lookup(t *testing.T) {
-	resolver, _, shardDistributorMock := newShardDistributorResolver(t)
+	tests := []struct {
+		name                 string
+		shardTaskListsByHash bool
+		wantShardID          string
+	}{
+		{
+			name:                 "shard per task list uses the task list name",
+			shardTaskListsByHash: false,
+			wantShardID:          "test-key",
+		},
+		{
+			name:                 "shard by hash uses the hashed shard",
+			shardTaskListsByHash: true,
+			wantShardID:          "7126", // farm.Fingerprint64([]byte("test-key"))%16384
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolver, _, shardDistributorMock := newShardDistributorResolver(t)
+			resolver.shardTaskListsByHash = dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash)
 
-	shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), "test-key").
-		Return(&spectatorclient.ShardOwner{
-			ExecutorID: "test-owner",
-			Metadata: map[string]string{
-				"hostIP":   "127.0.0.1",
-				"tchannel": "7933",
-				"grpc":     "7833",
-			},
-		}, nil)
+			shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), tt.wantShardID).
+				Return(&spectatorclient.ShardOwner{
+					ExecutorID: "test-owner",
+					Metadata: map[string]string{
+						"hostIP":   "127.0.0.1",
+						"tchannel": "7933",
+						"grpc":     "7833",
+					},
+				}, nil)
 
-	host, err := resolver.Lookup("test-key")
-	assert.NoError(t, err)
-	assert.Equal(t, "127.0.0.1:7933", host.addr)
-}
-
-func TestShardDistributorResolver_Lookup_ShardTaskListsByHash(t *testing.T) {
-	resolver, _, shardDistributorMock := newShardDistributorResolver(t)
-	resolver.shardTaskListsByHash = dynamicproperties.GetBoolPropertyFn(true)
-
-	taskListName := "test-key"
-	shardID := TaskListNameToShard(taskListName, resolver.shardCount)
-	shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), shardID).
-		Return(&spectatorclient.ShardOwner{
-			ExecutorID: "test-owner",
-			Metadata: map[string]string{
-				"hostIP":   "127.0.0.1",
-				"tchannel": "7933",
-				"grpc":     "7833",
-			},
-		}, nil)
-
-	host, err := resolver.Lookup(taskListName)
-	assert.NoError(t, err)
-	assert.Equal(t, "127.0.0.1:7933", host.addr)
+			host, err := resolver.Lookup("test-key")
+			require.NoError(t, err)
+			assert.Equal(t, "127.0.0.1:7933", host.addr)
+		})
+	}
 }
 
 func TestShardDistributorResolver_Lookup_ExcludedFallsBackToHashRing(t *testing.T) {

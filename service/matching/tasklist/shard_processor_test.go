@@ -116,6 +116,7 @@ func TestSetShardStatus(t *testing.T) {
 }
 
 func TestShardProcessor_ShardByHashSkipsTaskListsOwnedByHashRing(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	ctrl := gomock.NewController(t)
 	shardID := "58"
 	reportTTL := time.Minute

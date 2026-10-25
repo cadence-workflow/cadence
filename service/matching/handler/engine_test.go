@@ -491,15 +491,34 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("sharding by hash checks the shard process of the shard the name hashes to", func(t *testing.T) {
-		engine, executor, _ := newEngine(t)
-		engine.config.ShardTaskListsByHashForShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
-		engine.shardCount = commonConfig.DefaultNumMatchingShards
-		shardID := membership.TaskListNameToShard(taskListID.GetName(), engine.shardCount)
-		executor.EXPECT().GetShardProcess(gomock.Any(), shardID).Return(&tasklist.MockShardProcessor{}, nil)
+	t.Run("checks the shard process of the task list's shard", func(t *testing.T) {
+		tests := []struct {
+			name                 string
+			shardTaskListsByHash bool
+			wantShardID          string
+		}{
+			{
+				name:                 "shard per task list",
+				shardTaskListsByHash: false,
+				wantShardID:          "test-tasklist",
+			},
+			{
+				name:                 "shard by hash",
+				shardTaskListsByHash: true,
+				wantShardID:          "14128", // farm.Fingerprint64([]byte("test-tasklist"))%16384
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				engine, executor, _ := newEngine(t)
+				engine.config.ShardTaskListsByHashForShardManager = func(opts ...dynamicproperties.FilterOption) bool { return tt.shardTaskListsByHash }
+				engine.shardCount = commonConfig.DefaultNumMatchingShards
+				executor.EXPECT().GetShardProcess(gomock.Any(), tt.wantShardID).Return(&tasklist.MockShardProcessor{}, nil)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
-		require.NoError(t, err)
+				err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+				require.NoError(t, err)
+			})
+		}
 	})
 
 	t.Run("matching engine is shutting down", func(t *testing.T) {
