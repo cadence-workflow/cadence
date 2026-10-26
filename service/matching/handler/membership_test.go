@@ -123,6 +123,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				taskManager,
 				persistence.NewMockSemaphoreTokenManager(ctrl),
 				persistence.NewMockSemaphoreMetadataManager(ctrl),
+				persistence.NewMockSemaphoreTaskManager(ctrl),
 				cluster.GetTestClusterMetadata(true),
 				mockHistoryClient,
 				mockMatchingClient,

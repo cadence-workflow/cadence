@@ -101,6 +101,7 @@ func (s *Service) Start() {
 		s.GetTaskManager(),
 		s.GetSemaphoreTokenManager(),
 		s.GetSemaphoreMetadataManager(),
+		s.GetSemaphoreTaskManager(),
 		s.GetClusterMetadata(),
 		s.GetHistoryClient(),
 		s.GetMatchingRawClient(), // Use non retry client inside matching

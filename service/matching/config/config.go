@@ -102,8 +102,10 @@ type (
 		// EnableDistributedSemaphore gates serving semaphore buckets on this host.
 		EnableDistributedSemaphore dynamicproperties.BoolPropertyFnWithDomainFilter
 		// SemaphoreIdleTime is the max time a semaphore bucket being idle before it is unloaded
-		SemaphoreIdleTime  dynamicproperties.DurationPropertyFnWithDomainFilter
-		AllIsolationGroups func() []string
+		SemaphoreIdleTime dynamicproperties.DurationPropertyFnWithDomainFilter
+		// SemaphoreUpdateAckInterval is how often a semaphore bucket saves its waiter queue's ack level
+		SemaphoreUpdateAckInterval dynamicproperties.DurationPropertyFnWithDomainFilter
+		AllIsolationGroups         func() []string
 		// hostname info
 		HostName string
 		// RPCConfig contains RPC configuration including ports and bindOnLocalHost
@@ -123,6 +125,14 @@ type (
 		ForwarderMaxOutstandingTasks func() int
 		ForwarderMaxRatePerSecond    func() int
 		ForwarderMaxChildrenPerNode  func() int
+	}
+
+	// SemaphoreConfig is the dynamic config for one semaphore bucket, with its domain filled in.
+	SemaphoreConfig struct {
+		// IdleTime is how long a bucket may go without a request before it unloads itself.
+		IdleTime func() time.Duration
+		// UpdateAckInterval is how often a bucket saves its waiter queue's ack level.
+		UpdateAckInterval func() time.Duration
 	}
 
 	TaskListConfig struct {
@@ -220,6 +230,7 @@ func NewConfig(dc *dynamicconfig.Collection, operationalDC *dynamicconfig.Collec
 		EnableTasklistIsolation:                    dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
 		EnableDistributedSemaphore:                 dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDistributedSemaphore),
 		SemaphoreIdleTime:                          dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingSemaphoreIdleTime),
+		SemaphoreUpdateAckInterval:                 dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingSemaphoreUpdateAckInterval),
 		AppendTaskTimeout:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AppendTaskTimeout),
 		AsyncTaskDispatchTimeout:                   dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AsyncTaskDispatchTimeout),
 		LocalPollWaitTime:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.LocalPollWaitTime),

@@ -95,6 +95,7 @@ type (
 		semaphoreRegistry              semaphore.SemaphoreRegistry
 		semaphoreTokenManager          persistence.SemaphoreTokenManager
 		semaphoreMetadataManager       persistence.SemaphoreMetadataManager
+		semaphoreTaskManager           persistence.SemaphoreTaskManager
 		shutdownCompletion             *sync.WaitGroup
 		shutdown                       chan struct{}
 		taskManager                    persistence.TaskManager
@@ -151,6 +152,7 @@ func NewEngine(
 	taskManager persistence.TaskManager,
 	semaphoreTokenManager persistence.SemaphoreTokenManager,
 	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
+	semaphoreTaskManager persistence.SemaphoreTaskManager,
 	clusterMetadata cluster.Metadata,
 	historyService history.Client,
 	matchingClient matching.Client,
@@ -176,6 +178,7 @@ func NewEngine(
 		taskManager:                    taskManager,
 		semaphoreTokenManager:          semaphoreTokenManager,
 		semaphoreMetadataManager:       semaphoreMetadataManager,
+		semaphoreTaskManager:           semaphoreTaskManager,
 		clusterMetadata:                clusterMetadata,
 		historyService:                 historyService,
 		tokenSerializer:                common.NewJSONTaskTokenSerializer(),
@@ -475,8 +478,10 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 				ID:         id,
 				Tokens:     e.semaphoreTokenManager,
 				Metadata:   e.semaphoreMetadataManager,
+				Tasks:      e.semaphoreTaskManager,
 				Logger:     e.logger,
-				IdleTTL:    e.config.SemaphoreIdleTime(domainName),
+				Cfg:        e.config,
+				DomainName: domainName,
 				OnStopFn:   e.unregisterSemaphoreManager,
 				TimeSource: e.timeSource,
 			})
