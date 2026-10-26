@@ -139,8 +139,7 @@ func (sp *shardProcessorImpl) ownedManagers() []Manager {
 	return sp.taskListsRegistry.ManagersByTaskListName(sp.shardID)
 }
 
-// ownsTaskList reports whether this shard owns a task list whose name hashes to it. Short-lived
-// task lists and task lists in shards that are not onboarded yet stay on the hash ring.
+// ownsTaskList is false for task lists the hash ring owns, such as short-lived ones.
 func (sp *shardProcessorImpl) ownsTaskList(tlMgr Manager) bool {
 	taskListName := tlMgr.TaskListID().GetName()
 	return !sp.ownedByHashRing(taskListName)
