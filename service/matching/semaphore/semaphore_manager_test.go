@@ -215,7 +215,6 @@ func TestNewManagerValidatesItsParams(t *testing.T) {
 		{name: "no logger", params: without(func(p *ManagerParams) { p.Logger = nil })},
 		{name: "no config", params: without(func(p *ManagerParams) { p.Cfg = nil })},
 		{name: "no domain name", params: without(func(p *ManagerParams) { p.DomainName = "" })},
-		{name: "no idle time", params: without(func(p *ManagerParams) { p.Cfg = testConfig(0) })},
 		{name: "no stop callback", params: without(func(p *ManagerParams) { p.OnStopFn = nil })},
 		{name: "no time source", params: without(func(p *ManagerParams) { p.TimeSource = nil })},
 	}
@@ -1222,6 +1221,38 @@ func TestGrant_WaitsForTheBucketLock(t *testing.T) {
 		assertBucketUnlocked(t, mgr)
 		assertCacheConsistent(t, cache)
 	})
+}
+
+func TestNewSemaphoreConfigIdleTime(t *testing.T) {
+	defaultIdleTime := dynamicproperties.MatchingSemaphoreIdleTime.DefaultDuration()
+	tests := []struct {
+		name       string
+		configured time.Duration
+		want       time.Duration
+	}{
+		{name: "positive idle time is used as is", configured: time.Minute, want: time.Minute},
+		{name: "2ns is used as is", configured: 2, want: 2},
+		{name: "1ns falls back to the default", configured: 1, want: defaultIdleTime},
+		{name: "zero idle time falls back to the default", configured: 0, want: defaultIdleTime},
+		{name: "negative idle time falls back to the default", configured: -time.Second, want: defaultIdleTime},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := testConfig(tc.configured)
+			assert.Equal(t, tc.want, newSemaphoreConfig(cfg, "test-domain").IdleTime())
+		})
+	}
+}
+
+// A bad idle time must not fail the request or panic the idle clock when the manager starts.
+func TestManagerLifecycle_NonPositiveIdleTimeStarts(t *testing.T) {
+	m := persistence.NewMockSemaphoreTokenManager(gomock.NewController(t))
+	expectScan(t, m, [][]*persistence.SemaphoreOwnership{nil})
+	p := testManagerParams(t, m, 1)
+	p.Cfg = testConfig(0)
+	mgr := newManagerFromParams(t, p)
+	require.NoError(t, mgr.Start(context.Background()))
+	assert.Equal(t, managerStateRunning, getManagerState(mgr))
 }
 
 func TestNewSemaphoreConfigUpdateAckInterval(t *testing.T) {

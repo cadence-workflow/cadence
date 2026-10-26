@@ -87,7 +87,7 @@ func (tr *taskReader) start() {
 // stop stops the reader and waits for its goroutine to exit. Safe to call more than once, and
 // before start.
 //
-// TODO: Save the ack level once more and delete the rows below it.
+// TODO: Once waiters are acked, save the ack level once more and delete the rows below it.
 func (tr *taskReader) stop() {
 	tr.cancelFunc()
 	tr.wg.Wait()

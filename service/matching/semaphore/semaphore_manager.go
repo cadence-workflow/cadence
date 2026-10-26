@@ -126,11 +126,6 @@ func validateParams(p ManagerParams) error {
 	if p.DomainName == "" {
 		return fmt.Errorf("ManagerParams.DomainName is required")
 	}
-	// Rejected rather than passed through: liveness builds a ticker from this and a
-	// non-positive interval panics, which would take the host down on a bad config value.
-	if p.Cfg.SemaphoreIdleTime(p.DomainName) <= 0 {
-		return fmt.Errorf("semaphore idle time must be positive")
-	}
 	if p.OnStopFn == nil {
 		return fmt.Errorf("ManagerParams.OnStopFn is required")
 	}
@@ -176,7 +171,11 @@ func NewManager(p ManagerParams) (Manager, error) {
 func newSemaphoreConfig(cfg *config.Config, domainName string) *config.SemaphoreConfig {
 	return &config.SemaphoreConfig{
 		IdleTime: func() time.Duration {
-			return cfg.SemaphoreIdleTime(domainName)
+			// liveness ticks at half this; a zero tick panics.
+			if idleTime := cfg.SemaphoreIdleTime(domainName); idleTime > 1 {
+				return idleTime
+			}
+			return dynamicproperties.MatchingSemaphoreIdleTime.DefaultDuration()
 		},
 		UpdateAckInterval: func() time.Duration {
 			// A zero or negative interval would save the ack level in a tight loop.
