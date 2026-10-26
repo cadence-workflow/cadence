@@ -590,39 +590,58 @@ func (d *nosqlExecutionStore) prepareCurrentWorkflowRequestForCreateWorkflowTxn(
 
 func (d *nosqlExecutionStore) processUpdateWorkflowResult(err error, rangeID int64, shardID int) error {
 	if err != nil {
-		conditionFailureErr, isConditionFailedError := err.(*nosqlplugin.WorkflowOperationConditionFailure)
-		if isConditionFailedError {
-			switch {
-			case conditionFailureErr.UnknownConditionFailureDetails != nil:
-				return &persistence.ConditionFailedError{
-					Msg: *conditionFailureErr.UnknownConditionFailureDetails,
-				}
-			case conditionFailureErr.ShardRangeIDNotMatch != nil:
-				return &persistence.ShardOwnershipLostError{
-					ShardID: shardID,
-					Msg: fmt.Sprintf("Failed to update workflow execution.  Request RangeID: %v, Actual RangeID: %v",
-						rangeID, *conditionFailureErr.ShardRangeIDNotMatch),
-				}
-			case conditionFailureErr.CurrentWorkflowConditionFailInfo != nil:
-				return &persistence.CurrentWorkflowConditionFailedError{
-					Msg: *conditionFailureErr.CurrentWorkflowConditionFailInfo,
-				}
-			case conditionFailureErr.DuplicateRequest != nil:
-				return &persistence.DuplicateRequestError{
-					RequestType: conditionFailureErr.DuplicateRequest.RequestType,
-					RunID:       conditionFailureErr.DuplicateRequest.RunID,
-				}
-			default:
-				// If ever runs into this branch, there is bug in the code either in here, or in the implementation of nosql plugin
-				err := fmt.Errorf("unexpected conditionFailureReason error")
-				d.GetLogger().Error("A code bug exists in persistence layer, please investigate ASAP", tag.Error(err))
-				return err
-			}
+		if conditionFailureErr, ok := err.(*nosqlplugin.WorkflowOperationConditionFailure); ok {
+			return d.convertWorkflowConditionFailure("update", shardID, rangeID, conditionFailureErr)
 		}
 		return convertCommonErrors(d.GetDefaultShard().db, "UpdateWorkflowExecution", err)
 	}
 
 	return nil
+}
+
+// convertWorkflowConditionFailure maps a nosqlplugin condition failure of a workflow write to a persistence error.
+// Only ShardRangeIDNotMatch means the shard ownership is lost; every other failure must leave the shard untouched.
+func (d *nosqlExecutionStore) convertWorkflowConditionFailure(
+	operation string,
+	shardID int,
+	requestRangeID int64,
+	failure *nosqlplugin.WorkflowOperationConditionFailure,
+) error {
+	switch {
+	case failure.UnknownConditionFailureDetails != nil:
+		return &persistence.ConditionFailedError{
+			Msg: *failure.UnknownConditionFailureDetails,
+		}
+	case failure.ShardRangeIDNotMatch != nil:
+		return &persistence.ShardOwnershipLostError{
+			ShardID: shardID,
+			Msg: fmt.Sprintf("Failed to %s workflow execution. Request RangeID: %v, Actual RangeID: %v",
+				operation, requestRangeID, *failure.ShardRangeIDNotMatch),
+		}
+	case failure.CurrentWorkflowConditionFailInfo != nil:
+		return &persistence.CurrentWorkflowConditionFailedError{
+			Msg: *failure.CurrentWorkflowConditionFailInfo,
+		}
+	case failure.WorkflowExecutionAlreadyExists != nil:
+		return &persistence.WorkflowExecutionAlreadyStartedError{
+			Msg:              failure.WorkflowExecutionAlreadyExists.OtherInfo,
+			StartRequestID:   failure.WorkflowExecutionAlreadyExists.CreateRequestID,
+			RunID:            failure.WorkflowExecutionAlreadyExists.RunID,
+			State:            failure.WorkflowExecutionAlreadyExists.State,
+			CloseStatus:      failure.WorkflowExecutionAlreadyExists.CloseStatus,
+			LastWriteVersion: failure.WorkflowExecutionAlreadyExists.LastWriteVersion,
+		}
+	case failure.DuplicateRequest != nil:
+		return &persistence.DuplicateRequestError{
+			RequestType: failure.DuplicateRequest.RequestType,
+			RunID:       failure.DuplicateRequest.RunID,
+		}
+	default:
+		// If ever runs into this branch, there is bug in the code either in here, or in the implementation of nosql plugin
+		err := fmt.Errorf("unsupported conditionFailureReason error")
+		d.GetLogger().Error("A code bug exists in persistence layer, please investigate ASAP", tag.Error(err))
+		return err
+	}
 }
 
 func (d *nosqlExecutionStore) assertNotCurrentExecution(
