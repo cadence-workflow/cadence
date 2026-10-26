@@ -224,19 +224,19 @@ func TestConfigErrorInAuthorizationConfig(t *testing.T) {
 
 func TestNumMatchingShards(t *testing.T) {
 	tests := []struct {
-		name              string
-		numMatchingShards int
-		wantShardCount    int
+		name                  string
+		numMatchingShards     int
+		wantNumMatchingShards int
 	}{
 		{
-			name:              "unset uses the default",
-			numMatchingShards: 0,
-			wantShardCount:    DefaultNumMatchingShards,
+			name:                  "unset uses the default",
+			numMatchingShards:     0,
+			wantNumMatchingShards: DefaultNumMatchingShards,
 		},
 		{
-			name:              "set",
-			numMatchingShards: 1050,
-			wantShardCount:    1050,
+			name:                  "set keeps its value",
+			numMatchingShards:     1050,
+			wantNumMatchingShards: 1050,
 		},
 	}
 	for _, tt := range tests {
@@ -246,7 +246,7 @@ func TestNumMatchingShards(t *testing.T) {
 
 			err := cfg.ValidateAndFillDefaults()
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantShardCount, cfg.NumMatchingShards)
+			assert.Equal(t, tt.wantNumMatchingShards, cfg.NumMatchingShards)
 		})
 	}
 
