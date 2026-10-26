@@ -28,6 +28,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	commonconfig "github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
@@ -60,6 +61,7 @@ func NewService(
 	shardCount := params.NumMatchingShards
 	if shardCount == 0 {
 		shardCount = commonconfig.DefaultNumMatchingShards
+		params.Logger.Warn("NumMatchingShards is unset, using the default", tag.Value(shardCount))
 	}
 
 	serviceConfig := config.NewConfig(
