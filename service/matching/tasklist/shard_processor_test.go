@@ -66,53 +66,14 @@ func TestGetShardReport(t *testing.T) {
 }
 
 func TestSetShardStatus(t *testing.T) {
-	tests := []struct {
-		name                 string
-		shardTaskListsByHash bool
-		status               smtypes.ShardStatus
-		wantStatus           smtypes.ShardStatus
-	}{
-		{
-			name:                 "task list name shard becomes ready",
-			shardTaskListsByHash: false,
-			status:               smtypes.ShardStatusREADY,
-			wantStatus:           smtypes.ShardStatusREADY,
-		},
-		{
-			name:                 "task list name shard becomes done",
-			shardTaskListsByHash: false,
-			status:               smtypes.ShardStatusDONE,
-			wantStatus:           smtypes.ShardStatusDONE,
-		},
-		{
-			name:                 "shard by hash is never done",
-			shardTaskListsByHash: true,
-			status:               smtypes.ShardStatusDONE,
-			wantStatus:           smtypes.ShardStatusREADY,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			defer goleak.VerifyNone(t)
-			ctrl := gomock.NewController(t)
-			mockRegistry := NewMockTaskListRegistry(ctrl)
-			mockRegistry.EXPECT().ManagersByTaskListName(gomock.Any()).Return([]Manager{}).AnyTimes()
-			mockRegistry.EXPECT().ManagersByShard(gomock.Any()).Return([]Manager{}).AnyTimes()
-			shardProcessor, err := NewShardProcessor(ShardProcessorParams{
-				ShardID:              "shard-id",
-				ShardTaskListsByHash: tt.shardTaskListsByHash,
-				TaskListsRegistry:    mockRegistry,
-				ReportTTL:            time.Minute,
-				TimeSource:           clock.NewMockedTimeSource(),
-			})
-			require.NoError(t, err)
+	defer goleak.VerifyNone(t)
+	td := newShardProcessorTestData(t, testIdentifier)
 
-			shardProcessor.SetShardStatus(tt.status)
-
-			shardReport := shardProcessor.GetShardReport()
-			require.Equal(t, tt.wantStatus, shardReport.Status)
-		})
-	}
+	td.shardProcessor.SetShardStatus(smtypes.ShardStatusREADY)
+	shardReport := td.shardProcessor.GetShardReport()
+	require.NotNil(t, shardReport)
+	require.Equal(t, float64(0), shardReport.ShardLoad)
+	require.Equal(t, smtypes.ShardStatusREADY, shardReport.Status)
 }
 
 func TestShardProcessor_ShardByHashSkipsTaskListsOwnedByHashRing(t *testing.T) {

@@ -102,11 +102,6 @@ func (sp *shardProcessorImpl) GetShardReport() executorclient.ShardReport {
 }
 
 func (sp *shardProcessorImpl) SetShardStatus(status smtypes.ShardStatus) {
-	// When task lists are sharded by hash, a shard is one of a fixed set, so it is never done, even
-	// when all its task lists are idle.
-	if sp.shardTaskListsByHash && status == smtypes.ShardStatusDONE {
-		return
-	}
 	sp.Status.Store(int32(status))
 }
 
