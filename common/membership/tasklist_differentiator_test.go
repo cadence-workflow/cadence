@@ -9,14 +9,14 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
-func TestTaskListExcludedFromShardDistributor(t *testing.T) {
+func TestTaskListDifferentiator_TaskListExcludedFromShardDistributor(t *testing.T) {
 	shardCount := 1000
 
 	tests := []struct {
 		name                       string
 		taskListName               string
 		want                       bool
-		percentageOnboarded        uint64
+		percentageOnboarded        int
 		excludeShortLivedTaskLists bool
 		shardTaskListsByHash       bool
 	}{
@@ -137,13 +137,14 @@ func TestTaskListExcludedFromShardDistributor(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := taskListExcludedFromShardDistributor(
-				tt.taskListName,
-				tt.percentageOnboarded,
-				tt.excludeShortLivedTaskLists,
-				tt.shardTaskListsByHash,
+			differentiator := NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(tt.excludeShortLivedTaskLists),
+				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				StaticPercentageOnboarded(tt.percentageOnboarded),
 				shardCount,
 			)
+
+			got := differentiator.TaskListExcludedFromShardDistributor(tt.taskListName)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -196,7 +197,7 @@ func TestIsbelowPercentage(t *testing.T) {
 	}
 }
 
-func TestTaskListShardID(t *testing.T) {
+func TestTaskListDifferentiator_ShardID(t *testing.T) {
 	shardCount := 1000
 
 	tests := []struct {
@@ -220,7 +221,14 @@ func TestTaskListShardID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := taskListShardID(tt.taskListName, tt.shardTaskListsByHash, shardCount)
+			differentiator := NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				StaticPercentageOnboarded(100),
+				shardCount,
+			)
+
+			got := differentiator.ShardID(tt.taskListName)
 			assert.Equal(t, tt.want, got)
 		})
 	}
