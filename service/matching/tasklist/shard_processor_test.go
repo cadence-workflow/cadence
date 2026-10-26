@@ -10,6 +10,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -34,11 +36,20 @@ func newShardProcessorTestData(t *testing.T, taskListID *Identifier) shardProces
 	mockRegistry := NewMockTaskListRegistry(ctrl)
 	mockRegistry.EXPECT().ManagersByTaskListName(taskListID.GetName()).Return([]Manager{}).AnyTimes()
 
+	shardCount := 100
+	taskListDifferentiator := membership.NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		membership.StaticPercentageOnboarded(100),
+		shardCount,
+	)
+
 	params := ShardProcessorParams{
-		ShardID:           taskListID.GetName(),
-		TaskListsRegistry: mockRegistry,
-		ReportTTL:         1 * time.Millisecond,
-		TimeSource:        clock.NewRealTimeSource(),
+		ShardID:                taskListID.GetName(),
+		TaskListsRegistry:      mockRegistry,
+		ReportTTL:              1 * time.Millisecond,
+		TimeSource:             clock.NewRealTimeSource(),
+		TaskListDifferentiator: taskListDifferentiator,
 	}
 
 	shardProcessor, err := NewShardProcessor(params)
@@ -97,23 +108,29 @@ func TestShardProcessor_ShardByHashSkipsTaskListsOwnedByHashRing(t *testing.T) {
 	secondTaskList.EXPECT().QueriesPerSecond().Return(secondTaskListQPS)
 	secondTaskList.EXPECT().Stop()
 
-	// The shard must not stop a task list the hash ring owns, or count its load.
-	hashRingTaskListID := mustNewIdentifier("domain-id", "hash-ring-task-list", persistence.TaskListTypeDecision)
+	// The shard must not stop a task list the hash ring owns, or count its load. Short-lived task
+	// lists have a UUID in their name, and the differentiator leaves them on the hash ring.
+	hashRingTaskListID := mustNewIdentifier("domain-id", "f47ac10b-58cc-4372-a567-0e02b2c3d479", persistence.TaskListTypeDecision)
 	hashRingTaskList := NewMockManager(ctrl)
 	hashRingTaskList.EXPECT().TaskListID().Return(hashRingTaskListID).AnyTimes()
 
 	mockRegistry := NewMockTaskListRegistry(ctrl)
 	mockRegistry.EXPECT().ManagersByShard(shardID).Return([]Manager{firstTaskList, secondTaskList, hashRingTaskList}).Times(2)
 
+	shardCount := 100
+	taskListDifferentiator := membership.NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(true),
+		dynamicproperties.GetBoolPropertyFn(true),
+		membership.StaticPercentageOnboarded(100),
+		shardCount,
+	)
+
 	shardProcessor, err := NewShardProcessor(ShardProcessorParams{
-		ShardID:              shardID,
-		TaskListsRegistry:    mockRegistry,
-		ReportTTL:            reportTTL,
-		TimeSource:           timeSource,
-		ShardTaskListsByHash: true,
-		OwnedByHashRing: func(taskListName string) bool {
-			return taskListName == hashRingTaskListID.GetName()
-		},
+		ShardID:                shardID,
+		TaskListsRegistry:      mockRegistry,
+		ReportTTL:              reportTTL,
+		TimeSource:             timeSource,
+		TaskListDifferentiator: taskListDifferentiator,
 	})
 	require.NoError(t, err)
 

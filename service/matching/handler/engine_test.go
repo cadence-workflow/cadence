@@ -399,14 +399,11 @@ func TestCancelOutstandingPoll(t *testing.T) {
 			pct := membership.NewMockPercentageOnboarded(mockCtrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
-				taskListRegistry:    taskListRegistry,
-				executor:            executor,
-				metricsClient:       metrics.NewNoopMetricsClient(),
-				percentageOnboarded: pct,
-				config: &config.Config{
-					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
-					ShardTaskListsByHashForShardManager:        func(opts ...dynamicproperties.FilterOption) bool { return false },
-				},
+				taskListRegistry:       taskListRegistry,
+				executor:               executor,
+				metricsClient:          metrics.NewNoopMetricsClient(),
+				percentageOnboarded:    pct,
+				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
 			hCtx := &handlerContext{Context: context.Background()}
@@ -433,16 +430,13 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		pct.EXPECT().Value().Return(100).AnyTimes()
 
 		engine := &matchingEngineImpl{
-			executor:            executor,
-			membershipResolver:  resolver,
-			metricsClient:       metrics.NewNoopMetricsClient(),
-			percentageOnboarded: pct,
-			config: &config.Config{
-				ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
-				ShardTaskListsByHashForShardManager:        func(opts ...dynamicproperties.FilterOption) bool { return false },
-			},
-			shutdown: make(chan struct{}),
-			logger:   log.NewNoop(),
+			executor:               executor,
+			membershipResolver:     resolver,
+			metricsClient:          metrics.NewNoopMetricsClient(),
+			percentageOnboarded:    pct,
+			taskListDifferentiator: newTestTaskListDifferentiator(false, false),
+			shutdown:               make(chan struct{}),
+			logger:                 log.NewNoop(),
 		}
 		return engine, executor, resolver
 	}
@@ -511,8 +505,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				engine, executor, _ := newEngine(t)
-				engine.config.ShardTaskListsByHashForShardManager = func(opts ...dynamicproperties.FilterOption) bool { return tt.shardTaskListsByHash }
-				engine.shardCount = commonConfig.DefaultNumMatchingShards
+				engine.taskListDifferentiator = newTestTaskListDifferentiator(false, tt.shardTaskListsByHash)
 				executor.EXPECT().GetShardProcess(gomock.Any(), tt.wantShardID).Return(&tasklist.MockShardProcessor{}, nil)
 
 				err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
@@ -531,7 +524,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 
 	t.Run("excluded from sd, ringpop and owner has changed", func(t *testing.T) {
 		engine, _, resolver := newEngine(t)
-		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+		engine.taskListDifferentiator = newTestTaskListDifferentiator(true, false)
 		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("owner", "owner", nil), nil)
 
@@ -541,7 +534,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 
 	t.Run("excluded from sd, ringpop and owner is the same", func(t *testing.T) {
 		engine, _, resolver := newEngine(t)
-		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+		engine.taskListDifferentiator = newTestTaskListDifferentiator(true, false)
 		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("self", "self", nil), nil)
 
@@ -551,69 +544,13 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 
 	t.Run("non-excluded tasklist with uuid-like name and flag disabled still uses executor", func(t *testing.T) {
 		engine, executor, _ := newEngine(t)
-		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return false }
+		engine.taskListDifferentiator = newTestTaskListDifferentiator(false, false)
 		uuidID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(&tasklist.MockShardProcessor{}, nil)
 
 		err := engine.errIfShardOwnershipLost(context.Background(), uuidID)
 		require.NoError(t, err)
 	})
-}
-
-func TestIsExcludedFromShardDistributor(t *testing.T) {
-	tests := []struct {
-		name         string
-		taskListName string
-		flagEnabled  bool
-		want         bool
-	}{
-		{
-			name:         "flag disabled, uuid name",
-			taskListName: "tasklist-550e8400-e29b-41d4-a716-446655440000",
-			flagEnabled:  false,
-			want:         false,
-		},
-		{
-			name:         "flag enabled, no uuid in name",
-			taskListName: "my-regular-tasklist",
-			flagEnabled:  true,
-			want:         false,
-		},
-		{
-			name:         "flag enabled, uuid in name",
-			taskListName: "tasklist-550e8400-e29b-41d4-a716-446655440000",
-			flagEnabled:  true,
-			want:         true,
-		},
-		{
-			name:         "flag enabled, uuid-only name",
-			taskListName: "550e8400-e29b-41d4-a716-446655440000",
-			flagEnabled:  true,
-			want:         true,
-		},
-		{
-			name:         "flag disabled, no uuid in name",
-			taskListName: "my-regular-tasklist",
-			flagEnabled:  false,
-			want:         false,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			pct := membership.NewMockPercentageOnboarded(gomock.NewController(t))
-			pct.EXPECT().Value().Return(100).AnyTimes()
-			engine := &matchingEngineImpl{
-				metricsClient:       metrics.NewNoopMetricsClient(),
-				percentageOnboarded: pct,
-				config: &config.Config{
-					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return tc.flagEnabled },
-					ShardTaskListsByHashForShardManager:        func(opts ...dynamicproperties.FilterOption) bool { return false },
-				},
-			}
-			got := engine.isExcludedFromShardDistributor(tc.taskListName)
-			assert.Equal(t, tc.want, got)
-		})
-	}
 }
 
 func TestRespondQueryTaskCompleted(t *testing.T) {
@@ -788,16 +725,13 @@ func TestQueryWorkflow(t *testing.T) {
 			pct := membership.NewMockPercentageOnboarded(mockCtrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
-				taskListRegistry:     taskListRegistry,
-				timeSource:           clock.NewRealTimeSource(),
-				lockableQueryTaskMap: lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
-				executor:             executor,
-				metricsClient:        metrics.NewNoopMetricsClient(),
-				percentageOnboarded:  pct,
-				config: &config.Config{
-					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
-					ShardTaskListsByHashForShardManager:        func(opts ...dynamicproperties.FilterOption) bool { return false },
-				},
+				taskListRegistry:       taskListRegistry,
+				timeSource:             clock.NewRealTimeSource(),
+				lockableQueryTaskMap:   lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
+				executor:               executor,
+				metricsClient:          metrics.NewNoopMetricsClient(),
+				percentageOnboarded:    pct,
+				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
 			tc.mockSetup(mockManager, &engine.lockableQueryTaskMap, mockCtrl, executor)
@@ -1265,11 +1199,10 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				metricsClient:       metrics.NewNoopMetricsClient(),
 				percentageOnboarded: pct,
 				config: &config.Config{
-					EnableAdaptiveScaler:                       dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
-					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
-					ShardTaskListsByHashForShardManager:        func(opts ...dynamicproperties.FilterOption) bool { return false },
+					EnableAdaptiveScaler: dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
 				},
-				executor: mockExecutor,
+				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
+				executor:               mockExecutor,
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
 			_, err := engine.UpdateTaskListPartitionConfig(tc.hCtx, tc.req)
@@ -1446,15 +1379,12 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			pct := membership.NewMockPercentageOnboarded(mockCtrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
-				taskListRegistry:    taskListRegistry,
-				timeSource:          clock.NewRealTimeSource(),
-				executor:            mockExecutor,
-				metricsClient:       metrics.NewNoopMetricsClient(),
-				percentageOnboarded: pct,
-				config: &config.Config{
-					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
-					ShardTaskListsByHashForShardManager:        func(opts ...dynamicproperties.FilterOption) bool { return false },
-				},
+				taskListRegistry:       taskListRegistry,
+				timeSource:             clock.NewRealTimeSource(),
+				executor:               mockExecutor,
+				metricsClient:          metrics.NewNoopMetricsClient(),
+				percentageOnboarded:    pct,
+				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
 			taskListRegistry.Register(*tasklistID2, mockManager)
@@ -1527,6 +1457,7 @@ func Test_domainChangeCallback(t *testing.T) {
 		executor:                    mockExecutor,
 		metricsClient:               metrics.NewNoopMetricsClient(),
 		percentageOnboarded:         pct,
+		taskListDifferentiator:      newTestTaskListDifferentiator(false, false),
 	}
 	engine.taskListRegistry.Register(*tlGlobalDecision1, mockGlobalDecision1)
 	engine.taskListRegistry.Register(*tlGlobalActivity1, mockGlobalActivity1)
@@ -2379,4 +2310,13 @@ func TestAcquireSemaphore(t *testing.T) {
 			t.Fatal("the second request waited on the load instead of its own deadline")
 		}
 	})
+}
+
+func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByHash bool) *membership.TaskListDifferentiator {
+	return membership.NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(excludeShortLivedTaskLists),
+		dynamicproperties.GetBoolPropertyFn(shardTaskListsByHash),
+		membership.StaticPercentageOnboarded(100),
+		commonConfig.DefaultNumMatchingShards,
+	)
 }

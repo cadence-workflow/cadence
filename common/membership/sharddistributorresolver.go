@@ -31,7 +31,6 @@ import (
 
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -43,14 +42,11 @@ const (
 )
 
 type shardDistributorResolver struct {
-	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn
-	shardTaskListsByHash       dynamicproperties.BoolPropertyFn
-	shardCount                 int
-	percentageOnboarded        PercentageOnboarded
-	spectator                  spectatorclient.Spectator
-	ring                       SingleProvider
-	logger                     log.Logger
-	metricsScope               metrics.Scope
+	taskListDifferentiator *TaskListDifferentiator
+	spectator              spectatorclient.Spectator
+	ring                   SingleProvider
+	logger                 log.Logger
+	metricsScope           metrics.Scope
 }
 
 func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) {
@@ -59,23 +55,17 @@ func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) 
 
 func NewShardDistributorResolver(
 	spectator spectatorclient.Spectator,
-	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn,
-	shardTaskListsByHash dynamicproperties.BoolPropertyFn,
-	shardCount int,
-	percentageOnboarded PercentageOnboarded,
+	taskListDifferentiator *TaskListDifferentiator,
 	ring SingleProvider,
 	logger log.Logger,
 	metricsScope metrics.Scope,
 ) SingleProvider {
 	return &shardDistributorResolver{
-		spectator:                  spectator,
-		excludeShortLivedTaskLists: excludeShortLivedTaskLists,
-		shardTaskListsByHash:       shardTaskListsByHash,
-		shardCount:                 shardCount,
-		percentageOnboarded:        percentageOnboarded,
-		ring:                       ring,
-		logger:                     logger,
-		metricsScope:               metricsScope,
+		spectator:              spectator,
+		taskListDifferentiator: taskListDifferentiator,
+		ring:                   ring,
+		logger:                 logger,
+		metricsScope:           metricsScope,
 	}
 }
 
@@ -90,14 +80,7 @@ func (s shardDistributorResolver) Stop() {
 }
 
 func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
-	sharding := NewTaskListSharding(s.shardTaskListsByHash(), s.shardCount)
-	excludeTaskList := TaskListExcludedFromShardDistributor(
-		key,
-		uint64(s.percentageOnboarded.Value()),
-		s.excludeShortLivedTaskLists(),
-		sharding,
-	)
-	if excludeTaskList {
+	if s.taskListDifferentiator.TaskListExcludedFromShardDistributor(key) {
 		s.emitRoutingPathMetric(routingPathHashRing)
 		return s.ring.Lookup(key)
 	}
@@ -110,7 +93,7 @@ func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 
 	s.emitRoutingPathMetric(routingPathShardDistributor)
 
-	shardID := sharding.ShardID(key)
+	shardID := s.taskListDifferentiator.ShardID(key)
 	return s.lookUpInShardDistributor(shardID)
 }
 

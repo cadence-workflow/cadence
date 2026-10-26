@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 func TestTaskListExcludedFromShardDistributor(t *testing.T) {
@@ -134,11 +137,12 @@ func TestTaskListExcludedFromShardDistributor(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := TaskListExcludedFromShardDistributor(
+			got := taskListExcludedFromShardDistributor(
 				tt.taskListName,
 				tt.percentageOnboarded,
 				tt.excludeShortLivedTaskLists,
-				NewTaskListSharding(tt.shardTaskListsByHash, shardCount),
+				tt.shardTaskListsByHash,
+				shardCount,
 			)
 			assert.Equal(t, tt.want, got)
 		})
@@ -192,7 +196,7 @@ func TestIsbelowPercentage(t *testing.T) {
 	}
 }
 
-func TestTaskListShardingShardID(t *testing.T) {
+func TestTaskListShardID(t *testing.T) {
 	shardCount := 1000
 
 	tests := []struct {
@@ -216,9 +220,37 @@ func TestTaskListShardingShardID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sharding := NewTaskListSharding(tt.shardTaskListsByHash, shardCount)
-			got := sharding.ShardID(tt.taskListName)
+			got := taskListShardID(tt.taskListName, tt.shardTaskListsByHash, shardCount)
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
+	shardCount := 1000
+	taskListName := "orders" // farm.Fingerprint64([]byte("orders"))%1000 = 639
+	hashedShardID := "639"
+
+	shardTaskListsByHash := false
+	percentageOnboarded := 0
+	pct := NewMockPercentageOnboarded(gomock.NewController(t))
+	pct.EXPECT().Value().DoAndReturn(func() int { return percentageOnboarded }).AnyTimes()
+
+	differentiator := NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		func(...dynamicproperties.FilterOption) bool { return shardTaskListsByHash },
+		pct,
+		shardCount,
+	)
+
+	assert.False(t, differentiator.ShardsByHash())
+	assert.Equal(t, taskListName, differentiator.ShardID(taskListName))
+	assert.True(t, differentiator.TaskListExcludedFromShardDistributor(taskListName))
+
+	shardTaskListsByHash = true
+	percentageOnboarded = 100
+
+	assert.True(t, differentiator.ShardsByHash())
+	assert.Equal(t, hashedShardID, differentiator.ShardID(taskListName))
+	assert.False(t, differentiator.TaskListExcludedFromShardDistributor(taskListName))
 }

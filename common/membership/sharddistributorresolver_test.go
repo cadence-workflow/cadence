@@ -57,7 +57,12 @@ func TestShardDistributorResolver_Lookup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resolver, _, shardDistributorMock := newShardDistributorResolver(t)
-			resolver.shardTaskListsByHash = dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash)
+			resolver.taskListDifferentiator = NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				StaticPercentageOnboarded(100),
+				config.DefaultNumMatchingShards,
+			)
 
 			shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), tt.wantShardID).
 				Return(&spectatorclient.ShardOwner{
@@ -79,9 +84,12 @@ func TestShardDistributorResolver_Lookup(t *testing.T) {
 func TestShardDistributorResolver_Lookup_ExcludedFallsBackToHashRing(t *testing.T) {
 	resolver, ring, _ := newShardDistributorResolver(t)
 	// Set percentage to 0 so all task lists are excluded
-	pct := NewMockPercentageOnboarded(gomock.NewController(t))
-	pct.EXPECT().Value().Return(0).AnyTimes()
-	resolver.percentageOnboarded = pct
+	resolver.taskListDifferentiator = NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		StaticPercentageOnboarded(0),
+		config.DefaultNumMatchingShards,
+	)
 
 	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "test-addr"}, nil)
 
@@ -97,12 +105,15 @@ func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *test
 	pct := NewMockPercentageOnboarded(ctrl)
 	pct.EXPECT().Value().Return(100).AnyTimes()
 
+	taskListDifferentiator := NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		pct,
+		config.DefaultNumMatchingShards,
+	)
 	resolver := NewShardDistributorResolver(
 		nil, // nil spectator
-		dynamicproperties.GetBoolPropertyFn(false),
-		dynamicproperties.GetBoolPropertyFn(false),
-		config.DefaultNumMatchingShards,
-		pct,
+		taskListDifferentiator,
 		ring,
 		logger,
 		metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),
@@ -169,12 +180,15 @@ func TestShardDistributorResolver_Lookup_RecordsRoutingPath(t *testing.T) {
 
 			testScope := tally.NewTestScope("", nil)
 			metricsClient := metrics.NewClient(testScope, metrics.Matching, metrics.MigrationConfig{})
+			taskListDifferentiator := NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(false),
+				percentageOnboarded,
+				config.DefaultNumMatchingShards,
+			)
 			resolver := NewShardDistributorResolver(
 				spectator,
-				dynamicproperties.GetBoolPropertyFn(false),
-				dynamicproperties.GetBoolPropertyFn(false),
-				config.DefaultNumMatchingShards,
-				percentageOnboarded,
+				taskListDifferentiator,
 				ring,
 				log.NewNoop(),
 				metricsClient.Scope(metrics.ShardDistributorResolverScope),
@@ -278,12 +292,15 @@ func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T
 			pct := NewMockPercentageOnboarded(ctrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 
-			resolver := NewShardDistributorResolver(
-				spectator,
+			taskListDifferentiator := NewTaskListDifferentiator(
 				dynamicproperties.GetBoolPropertyFn(tc.excludeShortLivedTaskLists),
 				dynamicproperties.GetBoolPropertyFn(false),
-				config.DefaultNumMatchingShards,
 				pct,
+				config.DefaultNumMatchingShards,
+			)
+			resolver := NewShardDistributorResolver(
+				spectator,
+				taskListDifferentiator,
 				ring,
 				logger,
 				metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),
@@ -324,12 +341,15 @@ func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *Mock
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
 
-	resolver := NewShardDistributorResolver(
-		spectator,
+	taskListDifferentiator := NewTaskListDifferentiator(
 		excludeShortLivedTaskLists,
 		dynamicproperties.GetBoolPropertyFn(false),
-		config.DefaultNumMatchingShards,
 		percentageOnboarded,
+		config.DefaultNumMatchingShards,
+	)
+	resolver := NewShardDistributorResolver(
+		spectator,
+		taskListDifferentiator,
 		ring,
 		logger,
 		metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),

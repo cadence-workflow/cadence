@@ -314,12 +314,15 @@ func (*server) wrapHashRingsWithShardDistributor(
 	metricsScope metrics.Scope,
 ) map[string]membership.SingleProvider {
 	if _, ok := hashRings[service.Matching]; ok {
-		hashRings[service.Matching] = membership.NewShardDistributorResolver(
-			spectator,
+		taskListDifferentiator := membership.NewTaskListDifferentiator(
 			operationalDC.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
 			operationalDC.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
-			numMatchingShards,
 			percentageOnboarded,
+			numMatchingShards,
+		)
+		hashRings[service.Matching] = membership.NewShardDistributorResolver(
+			spectator,
+			taskListDifferentiator,
 			hashRings[service.Matching],
 			logger,
 			metricsScope,

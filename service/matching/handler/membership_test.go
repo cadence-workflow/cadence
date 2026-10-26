@@ -347,20 +347,17 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	engine := matchingEngineImpl{
-		shutdownCompletion:  &shutdownWG,
-		membershipResolver:  mockResolver,
-		taskListRegistry:    tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
-		semaphoreRegistry:   semaphore.NewSemaphoreRegistry(),
-		metricsClient:       metrics.NewNoopMetricsClient(),
-		percentageOnboarded: pct,
-		config: &config.Config{
-			ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return true },
-			ShardTaskListsByHashForShardManager:        func(opts ...dynamicproperties.FilterOption) bool { return false },
-		},
-		shutdown:    make(chan struct{}),
-		logger:      log.NewNoop(),
-		domainCache: mockDomainCache,
-		executor:    mockExecutor,
+		shutdownCompletion:     &shutdownWG,
+		membershipResolver:     mockResolver,
+		taskListRegistry:       tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
+		semaphoreRegistry:      semaphore.NewSemaphoreRegistry(),
+		metricsClient:          metrics.NewNoopMetricsClient(),
+		percentageOnboarded:    pct,
+		taskListDifferentiator: newTestTaskListDifferentiator(true, false),
+		shutdown:               make(chan struct{}),
+		logger:                 log.NewNoop(),
+		domainCache:            mockDomainCache,
+		executor:               mockExecutor,
 	}
 
 	// set this engine to be shutting down to trigger the tasklistGetTasklistByID guard

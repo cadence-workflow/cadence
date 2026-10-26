@@ -11,6 +11,7 @@ import (
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/membership"
 )
 
 type ShardProcessorParams struct {
@@ -18,12 +19,9 @@ type ShardProcessorParams struct {
 	TaskListsRegistry TaskListRegistry
 	ReportTTL         time.Duration
 	TimeSource        clock.TimeSource
-	// ShardTaskListsByHash is true when ShardID is a shard number that holds every task list whose
-	// name hashes to it. When false, ShardID is the name of a single task list.
-	ShardTaskListsByHash bool
-	// OwnedByHashRing reports whether a task list is excluded from the shard distributor, so the
-	// hash ring owns it. When task lists are sharded by hash, a shard leaves those task lists alone.
-	OwnedByHashRing func(taskListName string) bool
+	// TaskListDifferentiator decides whether ShardID is a hashed shard or the name of a single task
+	// list, and which task lists the hash ring owns instead of the shard distributor.
+	TaskListDifferentiator *membership.TaskListDifferentiator
 }
 
 type shardProcessorImpl struct {
@@ -36,8 +34,7 @@ type shardProcessorImpl struct {
 	reportTTL         time.Duration
 	timeSource        clock.TimeSource
 
-	shardTaskListsByHash bool
-	ownedByHashRing      func(taskListName string) bool
+	taskListDifferentiator *membership.TaskListDifferentiator
 }
 
 func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
@@ -45,6 +42,7 @@ func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	shardprocessor := &shardProcessorImpl{
 		shardID:           params.ShardID,
 		taskListsRegistry: params.TaskListsRegistry,
@@ -53,8 +51,7 @@ func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
 		reportTTL:         params.ReportTTL,
 		timeSource:        params.TimeSource,
 
-		shardTaskListsByHash: params.ShardTaskListsByHash,
-		ownedByHashRing:      params.OwnedByHashRing,
+		taskListDifferentiator: params.TaskListDifferentiator,
 	}
 	shardprocessor.SetShardStatus(smtypes.ShardStatusREADY)
 	shardprocessor.shardReport = executorclient.ShardReport{
@@ -119,9 +116,10 @@ func (sp *shardProcessorImpl) getShardLoad() float64 {
 	return load
 }
 
-// ownedManagers returns the managers of the task lists this shard owns.
+// ownedManagers returns the managers of the task lists this shard owns. With hashed shards, shardID
+// is a shard number. Otherwise it is the name of a single task list.
 func (sp *shardProcessorImpl) ownedManagers() []Manager {
-	if sp.shardTaskListsByHash {
+	if sp.taskListDifferentiator.ShardsByHash() {
 		var owned []Manager
 		for _, tlMgr := range sp.taskListsRegistry.ManagersByShard(sp.shardID) {
 			if sp.ownsTaskList(tlMgr) {
@@ -137,7 +135,7 @@ func (sp *shardProcessorImpl) ownedManagers() []Manager {
 // ownsTaskList is false for task lists the hash ring owns, such as short-lived ones.
 func (sp *shardProcessorImpl) ownsTaskList(tlMgr Manager) bool {
 	taskListName := tlMgr.TaskListID().GetName()
-	return !sp.ownedByHashRing(taskListName)
+	return !sp.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskListName)
 }
 
 func validateSPParams(params ShardProcessorParams) error {
@@ -146,6 +144,9 @@ func validateSPParams(params ShardProcessorParams) error {
 	}
 	if params.TaskListsRegistry == nil {
 		return errors.New("TaskListsRegistry must be specified")
+	}
+	if params.TaskListDifferentiator == nil {
+		return errors.New("TaskListDifferentiator must be specified")
 	}
 	if params.TimeSource == nil {
 		return errors.New("TimeSource must be specified")
