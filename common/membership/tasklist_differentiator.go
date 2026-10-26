@@ -63,7 +63,8 @@ func (shardPerTaskList) ShardID(taskListName string) string {
 }
 
 func (shardPerTaskList) onboarded(taskListName string, percentageOnboarded uint64) bool {
-	return belowPercentage(taskListName, percentageOnboarded)
+	hash := farm.Fingerprint64([]byte(taskListName))
+	return isbelowPercentage(hash, percentageOnboarded)
 }
 
 func (s fixedShards) ShardID(taskListName string) string {
@@ -81,11 +82,6 @@ func (s fixedShards) onboarded(taskListName string, percentageOnboarded uint64) 
 func (s fixedShards) shardIndex(taskListName string) uint64 {
 	hash := farm.Fingerprint64([]byte(taskListName))
 	return hash % uint64(s.count)
-}
-
-func belowPercentage(taskListName string, percentageOnboarded uint64) bool {
-	hash := farm.Fingerprint64([]byte(taskListName))
-	return isbelowPercentage(hash, percentageOnboarded)
 }
 
 func isbelowPercentage(hash uint64, percentageOnboarded uint64) bool {
