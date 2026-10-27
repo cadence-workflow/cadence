@@ -2794,6 +2794,7 @@ const (
 	AutoResetPointCorruptionCounter
 	ConcurrencyUpdateFailureCounter
 	ChildWorkflowCompletionOtherBranchCounter
+	ChildWorkflowOrphanReplacedCounter
 	CadenceErrEventAlreadyStartedCounter
 	CadenceErrShardOwnershipLostCounter
 	HeartbeatTimeoutCounter
@@ -3799,6 +3800,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		AutoResetPointCorruptionCounter:                               {metricName: "auto_reset_point_corruption", metricType: Counter},
 		ConcurrencyUpdateFailureCounter:                               {metricName: "concurrency_update_failure", metricType: Counter},
 		ChildWorkflowCompletionOtherBranchCounter:                     {metricName: "child_workflow_completion_other_branch", metricType: Counter},
+		ChildWorkflowOrphanReplacedCounter:                            {metricName: "child_workflow_orphan_replaced", metricType: Counter},
 		CadenceErrShardOwnershipLostCounter:                           {metricName: "cadence_errors_shard_ownership_lost", metricType: Counter},
 		CadenceErrEventAlreadyStartedCounter:                          {metricName: "cadence_errors_event_already_started", metricType: Counter},
 		HeartbeatTimeoutCounter:                                       {metricName: "heartbeat_timeout", metricType: Counter},

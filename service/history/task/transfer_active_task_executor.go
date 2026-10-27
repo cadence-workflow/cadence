@@ -892,6 +892,16 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 		return err
 	}
 
+	// the child start uses the current branch of the parent to find out if an existing child run is an orphan
+	var parentVersionHistoryItems []*types.VersionHistoryItem
+	if versionHistories := mutableState.GetVersionHistories(); versionHistories != nil {
+		currentVersionHistory, err := versionHistories.GetCurrentVersionHistory()
+		if err != nil {
+			return err
+		}
+		parentVersionHistoryItems = currentVersionHistory.ToInternalType().Items
+	}
+
 	attributes := initiatedEvent.StartChildWorkflowExecutionInitiatedEventAttributes
 	childRunID, err := startWorkflowWithRetry(
 		ctx,
@@ -904,6 +914,7 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 		attributes,
 		mutableState.GetExecutionInfo().PartitionConfig,
 		mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy,
+		parentVersionHistoryItems,
 	)
 	if err != nil {
 
@@ -1758,6 +1769,7 @@ func startWorkflowWithRetry(
 	attributes *types.StartChildWorkflowExecutionInitiatedEventAttributes,
 	partitionConfig map[string]string,
 	activeClusterSelectionPolicy *types.ActiveClusterSelectionPolicy,
+	parentVersionHistoryItems []*types.VersionHistoryItem,
 ) (string, error) {
 
 	// Get parent domain name
@@ -1806,6 +1818,7 @@ func startWorkflowWithRetry(
 		},
 		InitiatedID: task.InitiatedID,
 	}
+	historyStartReq.ParentVersionHistoryItems = parentVersionHistoryItems
 
 	startWorkflowCtx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
 	defer cancel()

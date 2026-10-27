@@ -1348,16 +1348,17 @@ func FromHistoryStartWorkflowExecutionRequest(t *types.HistoryStartWorkflowExecu
 		return nil
 	}
 	return &historyv1.StartWorkflowExecutionRequest{
-		Request:                  FromStartWorkflowExecutionRequest(t.StartRequest),
-		DomainId:                 t.DomainUUID,
-		ParentExecutionInfo:      FromParentExecutionInfo(t.ParentExecutionInfo),
-		Attempt:                  t.Attempt,
-		ExpirationTime:           unixNanoToTime(t.ExpirationTimestamp),
-		ContinueAsNewInitiator:   FromContinueAsNewInitiator(t.ContinueAsNewInitiator),
-		ContinuedFailure:         FromFailure(t.ContinuedFailureReason, t.ContinuedFailureDetails),
-		LastCompletionResult:     FromPayload(t.LastCompletionResult),
-		FirstDecisionTaskBackoff: secondsToDuration(t.FirstDecisionTaskBackoffSeconds),
-		PartitionConfig:          t.PartitionConfig,
+		Request:                   FromStartWorkflowExecutionRequest(t.StartRequest),
+		DomainId:                  t.DomainUUID,
+		ParentExecutionInfo:       FromParentExecutionInfo(t.ParentExecutionInfo),
+		Attempt:                   t.Attempt,
+		ExpirationTime:            unixNanoToTime(t.ExpirationTimestamp),
+		ContinueAsNewInitiator:    FromContinueAsNewInitiator(t.ContinueAsNewInitiator),
+		ContinuedFailure:          FromFailure(t.ContinuedFailureReason, t.ContinuedFailureDetails),
+		LastCompletionResult:      FromPayload(t.LastCompletionResult),
+		FirstDecisionTaskBackoff:  secondsToDuration(t.FirstDecisionTaskBackoffSeconds),
+		PartitionConfig:           t.PartitionConfig,
+		ParentVersionHistoryItems: FromVersionHistoryItemArray(t.ParentVersionHistoryItems),
 	}
 }
 
@@ -1377,6 +1378,7 @@ func ToHistoryStartWorkflowExecutionRequest(t *historyv1.StartWorkflowExecutionR
 		LastCompletionResult:            ToPayload(t.LastCompletionResult),
 		FirstDecisionTaskBackoffSeconds: durationToSeconds(t.FirstDecisionTaskBackoff),
 		PartitionConfig:                 t.PartitionConfig,
+		ParentVersionHistoryItems:       ToVersionHistoryItemArray(t.ParentVersionHistoryItems),
 	}
 }
 

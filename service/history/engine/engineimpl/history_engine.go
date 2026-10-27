@@ -70,6 +70,8 @@ const (
 	TerminateIfRunningReason = "TerminateIfRunning Policy"
 	// TerminateIfRunningDetailsTemplate details template for terminateIfRunning
 	TerminateIfRunningDetailsTemplate = "New runID: %s"
+	// OrphanChildReplacedReason reason for the termination of an orphan child run that a new run of the child replaces
+	OrphanChildReplacedReason = "Orphan child workflow replaced by its parent"
 )
 
 var (

@@ -1139,6 +1139,7 @@ func FromHistoryStartWorkflowExecutionRequest(t *types.HistoryStartWorkflowExecu
 		LastCompletionResult:            t.LastCompletionResult,
 		FirstDecisionTaskBackoffSeconds: t.FirstDecisionTaskBackoffSeconds,
 		PartitionConfig:                 t.PartitionConfig,
+		ParentVersionHistoryItems:       FromVersionHistoryItemArray(t.ParentVersionHistoryItems),
 	}
 }
 
@@ -1159,6 +1160,7 @@ func ToHistoryStartWorkflowExecutionRequest(t *history.StartWorkflowExecutionReq
 		LastCompletionResult:            t.LastCompletionResult,
 		FirstDecisionTaskBackoffSeconds: t.FirstDecisionTaskBackoffSeconds,
 		PartitionConfig:                 t.PartitionConfig,
+		ParentVersionHistoryItems:       ToVersionHistoryItemArray(t.ParentVersionHistoryItems),
 	}
 }
 

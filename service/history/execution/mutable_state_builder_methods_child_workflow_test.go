@@ -258,7 +258,7 @@ func TestNewChildWorkflowCreateRequestID(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			requestID := newChildWorkflowCreateRequestID(testCase.runID, testCase.initiatedEventID, testCase.version)
+			requestID := NewChildWorkflowCreateRequestID(testCase.runID, testCase.initiatedEventID, testCase.version)
 
 			// Cassandra stores the request ID in a UUID column
 			assert.NotNil(t, uuid.Parse(requestID))
@@ -372,7 +372,7 @@ func TestAddChildEvents(t *testing.T) {
 				ci, ok := builder.GetChildExecutionInfo(nextEventID)
 				require.True(t, ok)
 				// with the flag enabled, the request ID is derived from the initiated event
-				assert.Equal(t, newChildWorkflowCreateRequestID(parentRunID, nextEventID, commonconstants.EmptyVersion), ci.CreateRequestID)
+				assert.Equal(t, NewChildWorkflowCreateRequestID(parentRunID, nextEventID, commonconstants.EmptyVersion), ci.CreateRequestID)
 			},
 			expectedEvent: initiatedEvent(),
 		},
@@ -391,7 +391,7 @@ func TestAddChildEvents(t *testing.T) {
 				require.True(t, ok)
 				// with the flag disabled, the request ID is a random UUID, as before
 				assert.NotNil(t, uuid.Parse(ci.CreateRequestID))
-				assert.NotEqual(t, newChildWorkflowCreateRequestID(parentRunID, nextEventID, commonconstants.EmptyVersion), ci.CreateRequestID)
+				assert.NotEqual(t, NewChildWorkflowCreateRequestID(parentRunID, nextEventID, commonconstants.EmptyVersion), ci.CreateRequestID)
 			},
 			expectedEvent: initiatedEvent(),
 		},
@@ -417,7 +417,7 @@ func TestAddChildEvents(t *testing.T) {
 				require.True(t, ok)
 				assert.Equal(t, replicatedInitiatedID-1, ci.InitiatedEventBatchID)
 				// the passive cluster derives the same request ID as the active cluster, from the replicated event
-				assert.Equal(t, newChildWorkflowCreateRequestID(parentRunID, replicatedInitiatedID, replicatedVersion), ci.CreateRequestID)
+				assert.Equal(t, NewChildWorkflowCreateRequestID(parentRunID, replicatedInitiatedID, replicatedVersion), ci.CreateRequestID)
 			},
 			expectedEvent: replicatedInitiatedEvent(),
 		},
@@ -434,7 +434,7 @@ func TestAddChildEvents(t *testing.T) {
 				require.True(t, ok)
 				// with the flag disabled, the passive cluster also uses a random UUID, as before
 				assert.NotNil(t, uuid.Parse(ci.CreateRequestID))
-				assert.NotEqual(t, newChildWorkflowCreateRequestID(parentRunID, replicatedInitiatedID, replicatedVersion), ci.CreateRequestID)
+				assert.NotEqual(t, NewChildWorkflowCreateRequestID(parentRunID, replicatedInitiatedID, replicatedVersion), ci.CreateRequestID)
 			},
 			expectedEvent: replicatedInitiatedEvent(),
 		},

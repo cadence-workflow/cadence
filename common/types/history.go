@@ -1016,6 +1016,9 @@ type HistoryStartWorkflowExecutionRequest struct {
 	LastCompletionResult            []byte                         `json:"lastCompletionResult,omitempty"`
 	FirstDecisionTaskBackoffSeconds *int32                         `json:"firstDecisionTaskBackoffSeconds,omitempty"`
 	PartitionConfig                 map[string]string
+	// ParentVersionHistoryItems are the version history items of the current branch of the parent, set only for a
+	// child start, to find out if an existing child run was started by an initiated event that is not on that branch
+	ParentVersionHistoryItems []*VersionHistoryItem `json:"parentVersionHistoryItems,omitempty"`
 }
 
 // GetDomainUUID is an internal getter (TBD...)

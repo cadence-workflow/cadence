@@ -186,12 +186,12 @@ func (e *mutableStateBuilder) childWorkflowCreateRequestID(initiatedEventID, ver
 	if !e.config.EnableDeterministicChildWorkflowRequestID(e.GetDomainEntry().GetInfo().Name) {
 		return uuid.New()
 	}
-	return newChildWorkflowCreateRequestID(e.executionInfo.RunID, initiatedEventID, version)
+	return NewChildWorkflowCreateRequestID(e.executionInfo.RunID, initiatedEventID, version)
 }
 
-// newChildWorkflowCreateRequestID returns the same request ID on all clusters, so after a failover the child
+// NewChildWorkflowCreateRequestID returns the same request ID on all clusters, so after a failover the child
 // start finds the run started by another cluster. It is a UUID because Cassandra stores it in a UUID column.
-func newChildWorkflowCreateRequestID(runID string, initiatedEventID, version int64) string {
+func NewChildWorkflowCreateRequestID(runID string, initiatedEventID, version int64) string {
 	name := fmt.Sprintf("%s:%d:%d", runID, initiatedEventID, version)
 	return uuid.NewSHA1(childWorkflowCreateRequestIDNamespace, []byte(name)).String()
 }

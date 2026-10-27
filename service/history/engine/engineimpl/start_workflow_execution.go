@@ -313,29 +313,55 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		}
 
 		prevRunID = t.RunID
-		if shouldTerminateAndStart(startRequest, t.State) {
+		terminateRunning := shouldTerminateAndStart(startRequest, t.State)
+		// a child start replaces a running run that is an orphan of the parent
+		checkOrphan := !terminateRunning && isChildStart && persistence.IsWorkflowRunning(t.State) &&
+			e.config.EnableChildWorkflowOrphanReplacement(domain)
+		if terminateRunning || checkOrphan {
 			runningWFCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, prevRunID)
 			if err != nil {
 				return nil, workflowExecution, historyBlob, err
 			}
 			defer func() { runningWFCtx.GetReleaseFn()(retError) }()
 
-			resp, err := e.terminateAndStartWorkflow(
-				ctx,
-				runningWFCtx,
-				*workflowExecution,
-				domainEntry,
-				domainID,
-				startRequest,
-				nil,
-			)
-			switch err.(type) {
-			// By the time we try to terminate the workflow, it was already terminated
-			// So continue as if we didn't need to terminate it in the first place
-			case *types.WorkflowExecutionAlreadyCompletedError:
-				e.shard.GetLogger().Warn("Workflow completed while trying to terminate, will continue starting workflow", tag.Error(err))
-			default:
-				return resp, workflowExecution, historyBlob, err
+			terminateReason := TerminateIfRunningReason
+			if checkOrphan {
+				// the run is checked under its lock, so it can not change before it is terminated
+				runInfo := runningWFCtx.GetMutableState().GetExecutionInfo()
+				terminateRunning = isOrphanChildRun(startRequest, runInfo)
+				terminateReason = OrphanChildReplacedReason
+				if terminateRunning {
+					e.logger.Info("Child start replaces an orphan run that was started by an initiated event that is not on the current branch of the parent",
+						tag.WorkflowDomainID(domainID),
+						tag.WorkflowID(workflowID),
+						tag.WorkflowRunID(prevRunID),
+						tag.Dynamic("parent-run-id", runInfo.ParentRunID),
+						tag.WorkflowInitiatedID(runInfo.InitiatedID),
+						tag.Dynamic("new-run-id", workflowExecution.RunID),
+					)
+					e.metricsClient.Scope(metrics.HistoryStartWorkflowExecutionScope, metrics.DomainTag(domain)).
+						IncCounter(metrics.ChildWorkflowOrphanReplacedCounter)
+				}
+			}
+			if terminateRunning {
+				resp, err := e.terminateAndStartWorkflow(
+					ctx,
+					runningWFCtx,
+					*workflowExecution,
+					domainEntry,
+					domainID,
+					startRequest,
+					nil,
+					terminateReason,
+				)
+				switch err.(type) {
+				// By the time we try to terminate the workflow, it was already terminated
+				// So continue as if we didn't need to terminate it in the first place
+				case *types.WorkflowExecutionAlreadyCompletedError:
+					e.shard.GetLogger().Warn("Workflow completed while trying to terminate, will continue starting workflow", tag.Error(err))
+				default:
+					return resp, workflowExecution, historyBlob, err
+				}
 			}
 		}
 		if err = e.applyWorkflowIDReusePolicyHelper(
@@ -568,6 +594,7 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 					domainID,
 					nil,
 					signalWithStartRequest,
+					TerminateIfRunningReason,
 				)
 				// By the time we try to terminate the workflow, it was already terminated
 				// So continue as if we didn't need to terminate it in the first place
@@ -803,6 +830,7 @@ func (e *historyEngineImpl) terminateAndStartWorkflow(
 	domainID string,
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
 	signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest,
+	terminateReason string,
 ) (*types.StartWorkflowExecutionResponse, error) {
 	runningMutableState := runningWFCtx.GetMutableState()
 	var err error
@@ -834,7 +862,7 @@ UpdateWorkflowLoop:
 		if err := execution.TerminateWorkflow(
 			runningMutableState,
 			runningMutableState.GetNextEventID(),
-			TerminateIfRunningReason,
+			terminateReason,
 			getTerminateIfRunningDetails(workflowExecution.GetRunID()),
 			execution.IdentityHistoryService,
 		); err != nil {
@@ -1184,6 +1212,40 @@ func (e *historyEngineImpl) loadChildRunInfo(
 		closeStatus:      executionInfo.CloseStatus,
 		lastWriteVersion: lastWriteVersion,
 	}, nil
+}
+
+// isOrphanChildRun returns true when the run is an orphan of the parent that sends the start request. An orphan is a
+// child that the parent started from an initiated event that is no longer on the current branch of the parent, for
+// example after a failover, so the parent does not wait for it.
+func isOrphanChildRun(startRequest *types.HistoryStartWorkflowExecutionRequest, run *persistence.WorkflowExecutionInfo) bool {
+	parent := startRequest.ParentExecutionInfo
+	if run.ParentDomainID != parent.DomainUUID ||
+		run.ParentWorkflowID != parent.Execution.GetWorkflowID() ||
+		run.ParentRunID != parent.Execution.GetRunID() {
+		// the run is not a child of this parent run
+		return false
+	}
+	if run.FirstExecutionRunID != run.RunID {
+		// the initiated event that started a chain of runs is unknown
+		return false
+	}
+	if version, ok := uuid.Parse(run.CreateRequestID).Version(); !ok || version != 5 {
+		// a run started without a deterministic request ID can not be checked, so it is not treated as an orphan
+		return false
+	}
+	if len(startRequest.ParentVersionHistoryItems) == 0 {
+		// a parent that does not send its current branch does not let the run be checked
+		return false
+	}
+	for _, item := range startRequest.ParentVersionHistoryItems {
+		if run.InitiatedID <= item.EventID {
+			// when the request ID matches, the run was started by another initiated event with the same workflow ID on
+			// the current branch, so it is a valid child, not an orphan
+			return execution.NewChildWorkflowCreateRequestID(run.ParentRunID, run.InitiatedID, item.Version) != run.CreateRequestID
+		}
+	}
+	// the initiated event is after the end of the current branch
+	return true
 }
 
 func getWorkflowAlreadyStartedError(errMsg string, createRequestID string, workflowID string, runID string) error {

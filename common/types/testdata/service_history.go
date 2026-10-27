@@ -268,6 +268,7 @@ var (
 		LastCompletionResult:            Payload1,
 		FirstDecisionTaskBackoffSeconds: &Duration1,
 		PartitionConfig:                 PartitionConfig,
+		ParentVersionHistoryItems:       VersionHistoryItemArray,
 	}
 	HistoryStartWorkflowExecutionResponse = types.StartWorkflowExecutionResponse{
 		RunID: RunID,

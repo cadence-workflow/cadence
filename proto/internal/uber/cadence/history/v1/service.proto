@@ -252,6 +252,9 @@ message StartWorkflowExecutionRequest {
   api.v1.Payload last_completion_result = 8;
   google.protobuf.Duration first_decision_task_backoff = 9;
   map<string, string> partition_config = 10;
+  // version history items of the current branch of the parent, set only for a child start, to find out if an existing
+  // child run was started by an initiated event that is not on that branch
+  repeated admin.v1.VersionHistoryItem parent_version_history_items = 11;
 }
 
 message StartWorkflowExecutionResponse {

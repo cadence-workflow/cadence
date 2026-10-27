@@ -1516,6 +1516,8 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Success
 			taskInfo := transferTask.GetInfo().(*persistence.StartChildExecutionTask)
 			event, err = mutableState.GetChildExecutionInitiatedEvent(context.Background(), taskInfo.InitiatedID)
 			s.NoError(err)
+			currentVersionHistory, err := mutableState.GetVersionHistories().GetCurrentVersionHistory()
+			s.NoError(err)
 			historyReq, err := createTestChildWorkflowExecutionRequest(
 				s.domainName,
 				constants.TestDomainName,
@@ -1525,6 +1527,8 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Success
 				s.mockShard.GetTimeSource().Now(),
 				mutableState.GetExecutionInfo().PartitionConfig,
 				mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy,
+				// the parent sends its current branch, so the child start can find an orphan run
+				currentVersionHistory.ToInternalType().Items,
 			)
 			require.NoError(s.T(), err)
 			s.mockHistoryClient.EXPECT().StartWorkflowExecution(gomock.Any(), historyReq).Return(&types.StartWorkflowExecutionResponse{RunID: childExecution.RunID}, nil).Times(1)
@@ -1558,6 +1562,8 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Failure
 			taskInfo := transferTask.GetInfo().(*persistence.StartChildExecutionTask)
 			event, err = mutableState.GetChildExecutionInitiatedEvent(context.Background(), taskInfo.InitiatedID)
 			s.NoError(err)
+			currentVersionHistory, err := mutableState.GetVersionHistories().GetCurrentVersionHistory()
+			s.NoError(err)
 			historyReq, err := createTestChildWorkflowExecutionRequest(
 				s.domainName,
 				constants.TestDomainName,
@@ -1567,6 +1573,8 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Failure
 				s.mockShard.GetTimeSource().Now(),
 				mutableState.GetExecutionInfo().PartitionConfig,
 				mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy,
+				// the parent sends its current branch, so the child start can find an orphan run
+				currentVersionHistory.ToInternalType().Items,
 			)
 			require.NoError(s.T(), err)
 			s.mockHistoryClient.EXPECT().StartWorkflowExecution(gomock.Any(), historyReq).Return(nil, &types.WorkflowExecutionAlreadyStartedError{}).Times(1)
@@ -2687,6 +2695,7 @@ func createTestChildWorkflowExecutionRequest(
 	now time.Time,
 	partitionConfig map[string]string,
 	activeClusterSelectionPolicy *types.ActiveClusterSelectionPolicy,
+	parentVersionHistoryItems []*types.VersionHistoryItem,
 ) (*types.HistoryStartWorkflowExecutionRequest, error) {
 
 	workflowExecution := types.WorkflowExecution{
@@ -2722,6 +2731,7 @@ func createTestChildWorkflowExecutionRequest(
 	}
 
 	historyStartReq.ParentExecutionInfo = parentInfo
+	historyStartReq.ParentVersionHistoryItems = parentVersionHistoryItems
 	return historyStartReq, nil
 }
 
