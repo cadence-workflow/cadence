@@ -458,6 +458,21 @@ func (adh *adminHandlerImpl) deleteWorkflowFromExecutions(
 		logger.Error("Unexpected: Cannot fetch domain name", tag.Error(err))
 		return false
 	}
+
+	// The policy row is written in the same transaction as the concrete execution row, so it has to go too,
+	// otherwise a later create of the same run hits the leftover row. Delete it first, like the retention
+	// timer does, so a failure here leaves the execution record intact and the deletion can simply be retried.
+	err = exeStore.DeleteActiveClusterSelectionPolicy(ctx, &persistence.DeleteActiveClusterSelectionPolicyRequest{
+		ShardID:    common.Ptr(shardIDInt),
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
+	if err != nil {
+		logger.Error("Delete active cluster selection policy row failed", tag.Error(err))
+		return false
+	}
+
 	req := &persistence.DeleteWorkflowExecutionRequest{
 		ShardID:    common.Ptr(shardIDInt),
 		DomainID:   domainID,
