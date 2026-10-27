@@ -59,8 +59,8 @@ func NewService(
 	if params.TaskListDifferentiator == nil {
 		return nil, errors.New("creating matching service: resource.Params.TaskListDifferentiator must be set")
 	}
-	// The task list registry hashes every task list name into a shard, so a non-positive count
-	// would panic make that panic. We fail here instead.
+	// The task list registry hashes every task list name into a shard, and a non-positive count
+	// would make that panic. We fail here instead.
 	if shardCount := params.TaskListDifferentiator.ShardCount(); shardCount <= 0 {
 		return nil, fmt.Errorf("creating matching service: numMatchingShards must be positive, got %d", shardCount)
 	}
