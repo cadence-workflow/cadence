@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -139,19 +138,10 @@ func (s *IntegrationBase) setupSuite() {
 	s.ForeignDomainName = s.RandomizeStr("integration-foreign-test-domain")
 	s.ActiveActiveDomainName = s.RandomizeStr("integration-active-active-test-domain")
 
-	var wg sync.WaitGroup
-	errCh := make(chan error, 5)
-
+	// Domain registrations share a persistence notification version. Keep them
+	// sequential so concurrent writes cannot race the metadata update.
 	registerDomain := func(domain string, registerFn func() error) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := registerFn(); err != nil {
-				errCh <- fmt.Errorf("register %s: %w", domain, err)
-			} else {
-				errCh <- nil
-			}
-		}()
+		s.Require().NoError(registerFn(), "register domain %s", domain)
 	}
 
 	registerDomain(s.DomainName, func() error {
@@ -182,12 +172,6 @@ func (s *IntegrationBase) setupSuite() {
 			},
 		})
 	})
-
-	wg.Wait()
-	close(errCh)
-	for err := range errCh {
-		s.Require().NoError(err)
-	}
 
 	domains := []string{s.DomainName, s.TestRawHistoryDomainName, s.ForeignDomainName, s.ArchivalDomainName, s.ActiveActiveDomainName}
 	s.Require().NoError(s.waitForDomains(domains))
