@@ -73,6 +73,11 @@ func (d *TaskListDifferentiator) ShardsByHash() bool {
 	return d.shardTaskListsByHash()
 }
 
+// ShardCount returns how many shards task list names hash into.
+func (d *TaskListDifferentiator) ShardCount() int {
+	return d.shardCount
+}
+
 // TaskListNameToShard returns which of shardCount shards a task list name hashes to, formatted the
 // way the shard manager formats the shard IDs of a fixed namespace.
 func TaskListNameToShard(taskListName string, shardCount int) string {

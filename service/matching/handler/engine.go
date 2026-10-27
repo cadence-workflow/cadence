@@ -166,12 +166,12 @@ func NewEngine(
 	timeSource clock.TimeSource,
 	shardDistributorClient executorclient.Client,
 	ShardDistributorMatchingConfig clientcommon.Config,
-	shardCount int,
+	taskListDifferentiator *membership.TaskListDifferentiator,
 	drainObserver clientcommon.DrainSignalObserver,
 	percentageOnboarded membership.PercentageOnboarded,
 ) Engine {
 	e := &matchingEngineImpl{
-		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient, shardCount),
+		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient, taskListDifferentiator.ShardCount()),
 		semaphoreRegistry:              semaphore.NewSemaphoreRegistry(),
 		shutdown:                       make(chan struct{}),
 		shutdownCompletion:             &sync.WaitGroup{},
@@ -196,12 +196,7 @@ func NewEngine(
 		ShardDistributorMatchingConfig: ShardDistributorMatchingConfig,
 		drainObserver:                  drainObserver,
 		percentageOnboarded:            percentageOnboarded,
-		taskListDifferentiator: membership.NewTaskListDifferentiator(
-			config.ExcludeShortLivedTaskListsFromShardManager,
-			config.ShardTaskListsByHashForShardManager,
-			percentageOnboarded,
-			shardCount,
-		),
+		taskListDifferentiator:         taskListDifferentiator,
 	}
 
 	e.setupExecutor(shardDistributorClient)

@@ -156,6 +156,12 @@ func (s *server) startService() common.Daemon {
 		params.MetricsClient,
 		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 	)
+	params.TaskListDifferentiator = membership.NewTaskListDifferentiator(
+		s.operationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
+		s.operationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
+		params.PercentageOnboarded,
+		s.cfg.NumMatchingShards,
+	)
 
 	params.RPCFactory = s.rpcFactory
 
@@ -201,9 +207,7 @@ func (s *server) startService() common.Daemon {
 	wrappedRings := s.wrapHashRingsWithShardDistributor(
 		params.HashRings,
 		spectator,
-		s.operationalDynamicConfig,
-		s.cfg.NumMatchingShards,
-		params.PercentageOnboarded,
+		params.TaskListDifferentiator,
 		params.Logger,
 		params.MetricsClient.Scope(metrics.ShardDistributorResolverScope),
 	)
@@ -277,7 +281,6 @@ func (s *server) startService() common.Daemon {
 	params.KafkaConfig = s.cfg.Kafka
 	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant(), antipatterns.NewInvariant()}
 	params.ShardDistributorMatchingConfig = s.cfg.ShardDistributorMatchingConfig
-	params.NumMatchingShards = s.cfg.NumMatchingShards
 
 	params.Logger.Info("Starting service " + s.name)
 
@@ -307,19 +310,11 @@ func (s *server) startService() common.Daemon {
 func (*server) wrapHashRingsWithShardDistributor(
 	hashRings map[string]membership.SingleProvider,
 	spectator spectatorclient.Spectator,
-	operationalDC *dynamicconfig.Collection,
-	numMatchingShards int,
-	percentageOnboarded membership.PercentageOnboarded,
+	taskListDifferentiator *membership.TaskListDifferentiator,
 	logger log.Logger,
 	metricsScope metrics.Scope,
 ) map[string]membership.SingleProvider {
 	if _, ok := hashRings[service.Matching]; ok {
-		taskListDifferentiator := membership.NewTaskListDifferentiator(
-			operationalDC.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
-			operationalDC.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
-			percentageOnboarded,
-			numMatchingShards,
-		)
 		hashRings[service.Matching] = membership.NewShardDistributorResolver(
 			spectator,
 			taskListDifferentiator,

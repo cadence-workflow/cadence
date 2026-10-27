@@ -107,9 +107,6 @@ type (
 
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
 		ShardDistributorMatchingConfig clientcommon.Config
-		// NumMatchingShards is the number of shards matching hashes task list names into, see
-		// config.Config.NumMatchingShards
-		NumMatchingShards int
 
 		// Spectator watches shard distributor namespace state for membership resolution.
 		// Optional; nil when shard distributor is not configured.
@@ -122,5 +119,8 @@ type (
 		DrainObserver clientcommon.DrainSignalObserver
 
 		PercentageOnboarded membership.PercentageOnboarded
+		// TaskListDifferentiator decides which task lists the shard distributor owns and which shard each
+		// one belongs to. The matching membership resolver and the matching service share it, so they agree.
+		TaskListDifferentiator *membership.TaskListDifferentiator
 	}
 )

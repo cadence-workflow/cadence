@@ -113,7 +113,6 @@ func TestNewConfig(t *testing.T) {
 	}
 	operationalConfigFields := map[string]configTestCase{
 		"ExcludeShortLivedTaskListsFromShardManager": {dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager, false},
-		"ShardTaskListsByHashForShardManager":        {dynamicproperties.MatchingShardTaskListsByHashForShardManager, true},
 	}
 	client := newTestClient(t, fields)
 	operationalClient := newTestClient(t, operationalConfigFields)

@@ -113,12 +113,17 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			config := defaultTestConfig()
 			// Exclude all task lists from the ShardDistributor so that errIfShardOwnershipLost
 			// exercises the ringpop (hash-ring) ownership path that these test cases are actually
-			// testing. With the onboarding percentage at 0 (set when constructing the engine
-			// below), no task list name is below the percentage threshold, so every name is
-			// considered excluded regardless of whether it contains a UUID.
-			config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+			// testing. With the onboarding percentage at 0, no task list name is below the
+			// percentage threshold, so every name is considered excluded regardless of whether it
+			// contains a UUID.
 			pct := membership.NewMockPercentageOnboarded(ctrl)
 			pct.EXPECT().Value().Return(0).AnyTimes()
+			taskListDifferentiator := membership.NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(true),
+				dynamicproperties.GetBoolPropertyFn(false),
+				pct,
+				commonConfig.DefaultNumMatchingShards,
+			)
 
 			matchingEngine := NewEngine(
 				taskManager,
@@ -138,7 +143,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				mockTimeSource,
 				mockShardDistributorExecutorClient,
 				defaultSDExecutorConfig(),
-				commonConfig.DefaultNumMatchingShards,
+				taskListDifferentiator,
 				nil,
 				pct,
 			).(*matchingEngineImpl)

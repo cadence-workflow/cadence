@@ -234,6 +234,18 @@ func TestTaskListDifferentiator_ShardID(t *testing.T) {
 	}
 }
 
+func TestTaskListDifferentiator_ShardCount(t *testing.T) {
+	shardCount := 1000
+	differentiator := NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		StaticPercentageOnboarded(0),
+		shardCount,
+	)
+
+	assert.Equal(t, shardCount, differentiator.ShardCount())
+}
+
 func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 	shardCount := 1000
 	taskListName := "orders" // farm.Fingerprint64([]byte("orders"))%1000 = 639

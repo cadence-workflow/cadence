@@ -21,14 +21,14 @@
 package matching
 
 import (
+	"errors"
+	"fmt"
 	"sync/atomic"
 	"time"
 
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
 
 	"github.com/uber/cadence/common"
-	commonconfig "github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
@@ -47,7 +47,7 @@ type Service struct {
 	stopC                          chan struct{}
 	config                         *config.Config
 	ShardDistributorMatchingConfig clientcommon.Config
-	shardCount                     int
+	taskListDifferentiator         *membership.TaskListDifferentiator
 	drainObserver                  clientcommon.DrainSignalObserver
 	percentageOnboarded            membership.PercentageOnboarded
 }
@@ -56,12 +56,13 @@ type Service struct {
 func NewService(
 	params *resource.Params,
 ) (resource.Resource, error) {
-	// Callers that build Params themselves may leave the shard count unset, and task list names
-	// are hashed modulo it, so fall back to the default the static config uses.
-	shardCount := params.NumMatchingShards
-	if shardCount == 0 {
-		shardCount = commonconfig.DefaultNumMatchingShards
-		params.Logger.Warn("NumMatchingShards is unset, using the default", tag.Value(shardCount))
+	if params.TaskListDifferentiator == nil {
+		return nil, errors.New("creating matching service: resource.Params.TaskListDifferentiator must be set")
+	}
+	// The task list registry hashes every task list name into a shard, so a non-positive count
+	// would panic make that panic. We fail here instead.
+	if shardCount := params.TaskListDifferentiator.ShardCount(); shardCount <= 0 {
+		return nil, fmt.Errorf("creating matching service: numMatchingShards must be positive, got %d", shardCount)
 	}
 
 	serviceConfig := config.NewConfig(
@@ -93,7 +94,7 @@ func NewService(
 		config:                         serviceConfig,
 		stopC:                          make(chan struct{}),
 		ShardDistributorMatchingConfig: params.ShardDistributorMatchingConfig,
-		shardCount:                     shardCount,
+		taskListDifferentiator:         params.TaskListDifferentiator,
 		drainObserver:                  params.DrainObserver,
 		percentageOnboarded:            params.PercentageOnboarded,
 	}, nil
@@ -126,7 +127,7 @@ func (s *Service) Start() {
 		s.GetTimeSource(),
 		s.GetShardDistributorExecutorClient(),
 		s.ShardDistributorMatchingConfig,
-		s.shardCount,
+		s.taskListDifferentiator,
 		s.drainObserver,
 		s.percentageOnboarded,
 	)
