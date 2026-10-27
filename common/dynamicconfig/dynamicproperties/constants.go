@@ -2441,6 +2441,8 @@ const (
 
 	// MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard
 	// manager. When disabled, each task list name is its own shard.
+	// Enabling it also requires matching's namespace in the shard distributor to be a fixed namespace with
+	// shardNum set to numMatchingShards.
 	// Only change it while matching.percentageOnboardedToShardManager is 0, because hosts that disagree on it
 	// route the same task list to different owners.
 	// Read from the primary database-backed operational dynamic config store.
