@@ -99,6 +99,9 @@ func (sp *shardProcessorImpl) GetShardReport() executorclient.ShardReport {
 }
 
 func (sp *shardProcessorImpl) SetShardStatus(status smtypes.ShardStatus) {
+	if sp.taskListDifferentiator.ShardsByHash() && status == smtypes.ShardStatusDONE {
+		return
+	}
 	sp.Status.Store(int32(status))
 }
 
