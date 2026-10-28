@@ -171,12 +171,10 @@ func TestShardDistributorOnboardingWithFixedShards(t *testing.T) {
 	})
 }
 
-// sd is the route of a task list that SD sends to the host.
 func sd(host string) route {
 	return route{routedBy: routedBySD, owner: host}
 }
 
-// ring is the route of a task list that the hash ring sends to the host.
 func ring(host string) route {
 	return route{routedBy: routedByHashRing, owner: host}
 }
@@ -225,10 +223,7 @@ func newOnboardingTestData(
 	return td
 }
 
-// newShardDistributorResolver builds the resolver matching routes task lists with. It asks SD
-// about onboarded task lists and the hash ring about the rest. SD answers with the host holding
-// the shard, and the hash ring with the task list's ringOwner. Both note that the resolver asked
-// them.
+// newShardDistributorResolver builds the real resolver on top of the SD and hash ring mocks.
 func (td *onboardingTestData) newShardDistributorResolver(hostCount int) membership.SingleProvider {
 	spectator := spectatorclient.NewMockSpectator(td.ctrl)
 	spectator.EXPECT().GetShardOwner(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -269,8 +264,7 @@ func (td *onboardingTestData) newShardDistributorResolver(hostCount int) members
 	return shardDistributorResolver
 }
 
-// newHost starts a matching engine that knows itself as hostName and routes task lists with the
-// shared resolver.
+// newHost starts a real matching engine for hostName.
 func (td *onboardingTestData) newHost(t *testing.T, hostName string, percentageOnboarded membership.PercentageOnboarded) *onboardingHost {
 	peerProvider := membership.NewMockPeerProvider(td.ctrl)
 	self := membership.NewDetailedHostInfo("", hostName, nil)
@@ -324,7 +318,6 @@ func (td *onboardingTestData) newHost(t *testing.T, hostName string, percentageO
 	return host
 }
 
-// newExecutor returns an executor that holds the processors of the shards SD has given the host.
 func (td *onboardingTestData) newExecutor(host *onboardingHost) executorclient.Executor[tasklist.ShardProcessor] {
 	executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](td.ctrl)
 	executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -339,8 +332,7 @@ func (td *onboardingTestData) newExecutor(host *onboardingHost) executorclient.E
 	return executor
 }
 
-// newManager returns the host's manager for the task list, which reports 1 qps. requireShards
-// checks every stop, so Stop can happen any number of times.
+// newManager returns the host's manager for the task list, which reports 1 qps.
 func (td *onboardingTestData) newManager(t *testing.T, host *onboardingHost, taskList onboardingTaskList) *tasklist.MockManager {
 	taskListID := tasklist.NewTestTaskListID(t, "domain-id", taskList.name, persistence.TaskListTypeDecision)
 	manager := tasklist.NewMockManager(td.ctrl)
@@ -356,10 +348,7 @@ func (td *onboardingTestData) newManager(t *testing.T, host *onboardingHost, tas
 	return manager
 }
 
-// setPercentage changes the onboarding percentage every host reads. A host joins SD and gets its
-// shards once matching lets its executor heartbeat. Then each host stops the task lists it no
-// longer owns and starts the ones it now owns. In production a host only runs that stop check when
-// the hash ring's membership changes.
+// setPercentage changes the onboarding percentage every host reads, then updates each host.
 func (td *onboardingTestData) setPercentage(t *testing.T, percentage int) {
 	td.percentageOnboarded = percentage
 	td.joinSDOnceOnboarded(t)
@@ -367,17 +356,15 @@ func (td *onboardingTestData) setPercentage(t *testing.T, percentage int) {
 	td.startTaskListsHostsNowOwn(t)
 }
 
-// moveShard moves the shard to the host, as SD does when it rebalances. The host that loses the
-// shard stops its processor. Then each host starts the task lists it now owns.
+// moveShard moves the shard to the host, as SD does when it rebalances.
 func (td *onboardingTestData) moveShard(t *testing.T, shardID string, toHostName string) {
 	td.shardHolder(shardID).removeShard(shardID)
 	td.host(toHostName).addShard(t, shardID)
 	td.startTaskListsHostsNowOwn(t)
 }
 
-// requireShards requires the host that holds each shard, the load it reports, and where the
-// resolver sends each task list in the shard. It also requires that each task list runs only on the
-// host it's routed to, and didn't stop there since the last requireShards.
+// requireShards requires every shard to match want, and each task list to run only on the host
+// it's routed to, without restarting there.
 func (td *onboardingTestData) requireShards(t *testing.T, want shards) {
 	t.Helper()
 	// Move time past the report TTL, so every shard computes a fresh load.
@@ -396,8 +383,7 @@ func (td *onboardingTestData) requireShards(t *testing.T, want shards) {
 	}
 }
 
-// currentShards returns each shard as the hosts and the resolver report it now: the host holding
-// it, the load it reports, and where the resolver sends each of its task lists.
+// currentShards returns the holder, load and task list routes of every shard right now.
 func (td *onboardingTestData) currentShards(t *testing.T) shards {
 	t.Helper()
 	shardsByID := make(shards)
@@ -432,8 +418,7 @@ func (td *onboardingTestData) joinSDOnceOnboarded(t *testing.T) {
 	}
 }
 
-// stopTaskListsHostsNoLongerOwn runs, on every host, the check matching runs when the hash ring's
-// membership changes. It stops every task list the resolver no longer routes to the host.
+// stopTaskListsHostsNoLongerOwn runs the stop check that matching only runs on hash ring changes.
 func (td *onboardingTestData) stopTaskListsHostsNoLongerOwn(t *testing.T) {
 	for _, host := range td.hosts {
 		err := host.engine.shutDownNonOwnedTasklists()
@@ -441,9 +426,7 @@ func (td *onboardingTestData) stopTaskListsHostsNoLongerOwn(t *testing.T) {
 	}
 }
 
-// startTaskListsHostsNowOwn starts, on every host, the task lists the host owns but isn't running
-// yet. Matching starts a task list when its first request arrives, after checking that the host
-// owns it.
+// startTaskListsHostsNowOwn starts the task lists each host owns, as their first request would.
 func (td *onboardingTestData) startTaskListsHostsNowOwn(t *testing.T) {
 	for _, host := range td.hosts {
 		for _, manager := range host.managers {
@@ -456,7 +439,6 @@ func (td *onboardingTestData) startTaskListsHostsNowOwn(t *testing.T) {
 	}
 }
 
-// routeOf returns where the resolver sends the task list.
 func (td *onboardingTestData) routeOf(t *testing.T, taskListName string) route {
 	t.Helper()
 	td.routedBy = ""
@@ -465,8 +447,7 @@ func (td *onboardingTestData) routeOf(t *testing.T, taskListName string) route {
 	return route{routedBy: td.routedBy, owner: owner.Identity()}
 }
 
-// requireRunsOnlyOn requires that the task list runs on owner and on no other host, and that it
-// didn't stop on owner since the last requireShards.
+// requireRunsOnlyOn requires the task list to run only on owner, without restarting there.
 func (td *onboardingTestData) requireRunsOnlyOn(t *testing.T, taskListName string, owner string) {
 	t.Helper()
 	var runsOn []string
@@ -481,12 +462,10 @@ func (td *onboardingTestData) requireRunsOnlyOn(t *testing.T, taskListName strin
 	require.False(t, restarted, "%s should keep running on %s, but it restarted there", taskListName, owner)
 }
 
-// shardIDs returns the IDs of the shards SD gives out, in order.
 func (td *onboardingTestData) shardIDs() []string {
 	return slices.Sorted(maps.Keys(td.shardOwners))
 }
 
-// shardHolder returns the host SD has given the shard to, or nil.
 func (td *onboardingTestData) shardHolder(shardID string) *onboardingHost {
 	for _, host := range td.hosts {
 		if _, ok := host.shardProcessors[shardID]; ok {
@@ -496,7 +475,6 @@ func (td *onboardingTestData) shardHolder(shardID string) *onboardingHost {
 	return nil
 }
 
-// host returns the host with the name.
 func (td *onboardingTestData) host(hostName string) *onboardingHost {
 	for _, host := range td.hosts {
 		if host.name == hostName {
@@ -531,7 +509,6 @@ func (h *onboardingHost) owns(t *testing.T, taskListID *tasklist.Identifier) boo
 	return false
 }
 
-// runs reports whether the host runs the task list.
 func (h *onboardingHost) runs(taskListName string) bool {
 	taskListID := h.managers[taskListName].TaskListID()
 	_, running := h.engine.taskListRegistry.ManagerByTaskListIdentifier(*taskListID)
