@@ -407,7 +407,7 @@ func (m *semaphoreManagerImpl) grantFreeToken(ctx context.Context, cache *bucket
 }
 
 // tryGrantFreeToken tries once to grant ownerID a free token. alreadyHeld means ownerID already holds
-// the returned token.
+// the returned token and the caller must mark it.
 func (m *semaphoreManagerImpl) tryGrantFreeToken(ctx context.Context, cache *bucketCache, ownerID string) (tokenID int, alreadyHeld bool, err error) {
 	lockedToken := cache.tryLockFreeToken()
 	if lockedToken == nil {
@@ -441,12 +441,19 @@ func (m *semaphoreManagerImpl) tryGrantFreeToken(ctx context.Context, cache *buc
 		lockedToken.markUnavailable()
 		return emptyTokenID, false, nil
 
-	case persistence.SemaphoreGrantAlreadyHeld: // ownerID holds another token; tokenID stays free
+	case persistence.SemaphoreGrantAlreadyHeld: // ownerID already holds resp.HeldToken
 		if !cache.tokenRange.Contains(resp.HeldToken) {
 			// The owner row names a token this bucket does not own, so it is corrupt. Every acquire
 			// for this owner fails this way until the owner row is fixed.
 			return emptyTokenID, false, &types.InternalServiceError{Message: fmt.Sprintf("grant reported AlreadyHeld with token %d, outside tokens %d to %d of bucket %v", resp.HeldToken, cache.tokenRange.First, cache.tokenRange.Last(), m.id)}
 		}
+		if resp.HeldToken == tokenID {
+			// The cache had ownerID's own token as free, for example after a grant that timed out
+			// but landed. Mark it before unlocking, so no other call sees it as free.
+			lockedToken.markHeld(ownerID)
+			return tokenID, false, nil
+		}
+		// tokenID stays free.
 		return resp.HeldToken, true, nil
 
 	default:

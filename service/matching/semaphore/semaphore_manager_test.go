@@ -193,6 +193,7 @@ func TestManagerLifecycle(t *testing.T) {
 			{name: "no metadata manager", params: without(func(p *ManagerParams) { p.Metadata = nil })},
 			{name: "no logger", params: without(func(p *ManagerParams) { p.Logger = nil })},
 			{name: "no idle ttl", params: without(func(p *ManagerParams) { p.IdleTTL = 0 })},
+			{name: "negative idle ttl", params: without(func(p *ManagerParams) { p.IdleTTL = -time.Second })},
 			{name: "no stop callback", params: without(func(p *ManagerParams) { p.OnStopFn = nil })},
 			{name: "no time source", params: without(func(p *ManagerParams) { p.TimeSource = nil })},
 		}
@@ -605,12 +606,14 @@ func TestGrant_FreeToken(t *testing.T) {
 			lockToken2      bool
 			want            AcquireResult
 			wantOwners      map[string]int
+			wantFree        []int
 			wantUnavailable []int
 			// assertErr checks the error. Nil expects no error.
 			assertErr func(t *testing.T, err error)
 		}{
 			{
 				name:            "write fails: error",
+				wantFree:        []int{1},
 				writeErr:        writeErr,
 				wantOwners:      map[string]int{},
 				wantUnavailable: []int{2},
@@ -619,6 +622,7 @@ func TestGrant_FreeToken(t *testing.T) {
 			{
 				// The zero value, which is what a store that never set the field returns.
 				name:            "unknown outcome: error",
+				wantFree:        []int{1},
 				resp:            &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantUnknown},
 				wantOwners:      map[string]int{},
 				wantUnavailable: []int{2},
@@ -632,6 +636,16 @@ func TestGrant_FreeToken(t *testing.T) {
 				resp:       &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantAlreadyHeld, HeldToken: 2},
 				want:       AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 2},
 				wantOwners: map[string]int{"owner-a": 2},
+				wantFree:   []int{1},
+			},
+			{
+				// The cache had owner-a's own token 1 as free, for example after a grant that timed out
+				// but landed.
+				name:            "AlreadyHeld token 1, the token written: returns and records token 1",
+				resp:            &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantAlreadyHeld, HeldToken: 1},
+				want:            AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 1},
+				wantOwners:      map[string]int{"owner-a": 1},
+				wantUnavailable: []int{2},
 			},
 			{
 				name:            "AlreadyHeld token 2, locked by another call: returns token 2 unrecorded",
@@ -639,10 +653,12 @@ func TestGrant_FreeToken(t *testing.T) {
 				lockToken2:      true,
 				want:            AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 2},
 				wantOwners:      map[string]int{},
+				wantFree:        []int{1},
 				wantUnavailable: []int{2},
 			},
 			{
 				name:            "AlreadyHeld a token outside the bucket: error",
+				wantFree:        []int{1},
 				resp:            &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantAlreadyHeld, HeldToken: 9},
 				wantOwners:      map[string]int{},
 				wantUnavailable: []int{2},
@@ -681,7 +697,7 @@ func TestGrant_FreeToken(t *testing.T) {
 				}
 				assert.Equal(t, tc.want, got)
 				assert.Equal(t, tc.wantOwners, copyTokenByOwner(mgr.currentCache()))
-				assert.Equal(t, []int{1}, tokensInState(mgr.currentCache(), tokenFree), "token 1 stays free")
+				assert.Equal(t, tc.wantFree, tokensInState(mgr.currentCache(), tokenFree))
 				assert.Equal(t, tc.wantUnavailable, tokensInState(mgr.currentCache(), tokenUnavailable))
 				assertTokensUnlocked(t, mgr)
 				assertCacheConsistent(t, mgr.currentCache())
