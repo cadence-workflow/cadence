@@ -499,7 +499,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 			{
 				name:                 "shard by hash",
 				shardTaskListsByHash: true,
-				wantShardID:          "14128", // farm.Fingerprint64([]byte("test-tasklist"))%16384
+				wantShardID:          "5936", // farm.Fingerprint64([]byte("test-tasklist"))%8192
 			},
 		}
 		for _, tt := range tests {

@@ -532,7 +532,7 @@ const (
 
 // DefaultNumMatchingShards is used when [Config.NumMatchingShards] is unset. To use a different count,
 // set the field. Changing the default changes the count in every cluster that leaves it unset.
-const DefaultNumMatchingShards = 16384
+const DefaultNumMatchingShards = 8192
 
 func (n *NoSQL) ConvertToShardedNoSQLConfig() *ShardedNoSQL {
 	connections := make(map[string]DBShardConnection)

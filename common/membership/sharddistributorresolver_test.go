@@ -51,7 +51,7 @@ func TestShardDistributorResolver_Lookup(t *testing.T) {
 		{
 			name:                 "shard by hash uses the hashed shard",
 			shardTaskListsByHash: true,
-			wantShardID:          "7126", // farm.Fingerprint64([]byte("test-key"))%16384
+			wantShardID:          "7126", // farm.Fingerprint64([]byte("test-key"))%8192
 		},
 	}
 	for _, tt := range tests {
