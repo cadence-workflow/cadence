@@ -512,6 +512,18 @@ func TestFromChildWorkflowExecutionFailedCause(t *testing.T) {
 		})
 	}
 }
+
+func TestSemaphoreAcquireFailedCause(t *testing.T) {
+	for _, item := range []*types.SemaphoreAcquireFailedCause{
+		nil,
+		types.SemaphoreAcquireFailedCauseNotFound.Ptr(),
+	} {
+		assert.Equal(t, item, ToSemaphoreAcquireFailedCause(FromSemaphoreAcquireFailedCause(item)))
+	}
+	assert.Equal(t, apiv1.SemaphoreAcquireFailedCause_SEMAPHORE_ACQUIRE_FAILED_CAUSE_INVALID, FromSemaphoreAcquireFailedCause(types.SemaphoreAcquireFailedCause(UnknownValue).Ptr()))
+	assert.Nil(t, ToSemaphoreAcquireFailedCause(apiv1.SemaphoreAcquireFailedCause(UnknownValue)))
+}
+
 func TestContinueAsNewInitiator(t *testing.T) {
 	for _, item := range []*types.ContinueAsNewInitiator{
 		nil,

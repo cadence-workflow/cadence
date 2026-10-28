@@ -205,6 +205,7 @@ func (s *adminHandlerSuite) testMaintainCorruptWorkflow(
 		s.mockHistoryClient.EXPECT().DescribeMutableState(gomock.Any(), gomock.Any()).Return(testMutableState, nil)
 
 		s.mockHistoryV2Mgr.On("DeleteHistoryBranch", mock.Anything, mock.Anything).Return(nil).Once()
+		s.mockResource.ExecutionMgr.On("DeleteActiveClusterSelectionPolicy", mock.Anything, mock.Anything).Return(nil).Once()
 		s.mockResource.ExecutionMgr.On("DeleteWorkflowExecution", mock.Anything, mock.Anything).Return(nil).Once()
 		s.mockResource.ExecutionMgr.On("DeleteCurrentWorkflowExecution", mock.Anything, mock.Anything).Return(nil).Once()
 		s.mockResource.VisibilityMgr.On("DeleteWorkflowExecution", mock.Anything, mock.Anything).Return(nil).Once()
@@ -3094,4 +3095,48 @@ func TestListOperationalDynamicConfig(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "testGetIntPropertyKey", resp.Entries[0].Name)
 	})
+}
+
+func TestDeleteWorkflowFromExecutions(t *testing.T) {
+	tests := []struct {
+		name       string
+		policyErr  error
+		wantDelete bool
+		want       bool
+	}{
+		{
+			name:       "policy row is deleted together with the execution rows",
+			wantDelete: true,
+			want:       true,
+		},
+		{
+			name:      "policy delete failure leaves the execution rows untouched",
+			policyErr: errors.New("cassandra is down"),
+			want:      false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			res := resource.NewTest(t, ctrl, metrics.Frontend)
+			defer res.Finish(t)
+			res.DomainCache.EXPECT().GetDomainName("domain-id").Return("domain-name", nil)
+
+			res.ExecutionMgr.On("DeleteActiveClusterSelectionPolicy", mock.Anything, &persistence.DeleteActiveClusterSelectionPolicyRequest{
+				ShardID:    common.Ptr(7),
+				DomainID:   "domain-id",
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			}).Return(tc.policyErr).Once()
+			if tc.wantDelete {
+				res.ExecutionMgr.On("DeleteWorkflowExecution", mock.Anything, mock.Anything).Return(nil).Once()
+				res.ExecutionMgr.On("DeleteCurrentWorkflowExecution", mock.Anything, mock.Anything).Return(nil).Once()
+			}
+
+			h := &adminHandlerImpl{Resource: res}
+			got := h.deleteWorkflowFromExecutions(context.Background(), testlogger.New(t), 7, "domain-id", "wf-id", "run-id", metrics.NoopScope)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }

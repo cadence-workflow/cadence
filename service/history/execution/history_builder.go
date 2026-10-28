@@ -650,6 +650,20 @@ func (b *HistoryBuilder) AddSemaphoreAcquiredEvent(
 	return b.addEventToHistory(event)
 }
 
+// AddSemaphoreAcquireFailedEvent adds SemaphoreAcquireFailed event to history
+func (b *HistoryBuilder) AddSemaphoreAcquireFailedEvent(
+	initiatedEventID int64,
+	cause types.SemaphoreAcquireFailedCause,
+) *types.HistoryEvent {
+	event := b.msBuilder.CreateNewHistoryEvent(types.EventTypeSemaphoreAcquireFailed)
+	event.SemaphoreAcquireFailedEventAttributes = &types.SemaphoreAcquireFailedEventAttributes{
+		Cause:            cause.Ptr(),
+		InitiatedEventID: initiatedEventID,
+	}
+
+	return b.addEventToHistory(event)
+}
+
 // AddSemaphoreReleasedEvent adds SemaphoreReleased event to history
 func (b *HistoryBuilder) AddSemaphoreReleasedEvent(
 	decisionTaskCompletedEventID int64,

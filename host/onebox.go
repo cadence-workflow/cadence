@@ -928,6 +928,12 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 				TTLReport:         1 * time.Minute,
 			}},
 		}
+		params.TaskListDifferentiator = membership.NewTaskListDifferentiator(
+			params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
+			params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
+			params.PercentageOnboarded,
+			config.DefaultNumMatchingShards,
+		)
 
 		matchingService, err := matching.NewService(params)
 		if err != nil {

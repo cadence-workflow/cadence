@@ -775,20 +775,14 @@ func TestHandleDecisionStartTimer(t *testing.T) {
 
 func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 	domainInfo := constants.TestLocalDomainEntry.GetInfo()
-	getRequest := &persistence.GetSemaphoreRequest{DomainID: domainInfo.ID, SemaphoreName: "my-semaphore"}
-	notFoundAttr := &types.FailWorkflowExecutionDecisionAttributes{
-		Reason:  common.StringPtr(common.FailureReasonSemaphoreNotFound),
-		Details: []byte(fmt.Sprintf("semaphore %q does not exist in domain %q", "my-semaphore", domainInfo.Name)),
-	}
 
 	tests := []struct {
 		name               string
 		disabled           bool
 		defaultWaitTimeout time.Duration
 		nameMaxLength      int
-		hasUnhandledEvents bool
 		attr               *types.AcquireSemaphoreDecisionAttributes
-		expectMockCalls    func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager)
+		expectMockCalls    func(ms *execution.MockMutableState)
 		wantErr            error
 		wantFailCause      *types.DecisionTaskFailedCause
 		wantFailMessage    *string
@@ -832,42 +826,9 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 			wantStopProcessing: true,
 		},
 		{
-			name: "semaphore does not exist: the workflow fails",
-			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
-			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
-				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(nil, &types.EntityNotExistsError{})
-				ms.EXPECT().IsWorkflowExecutionRunning().Return(true)
-				ms.EXPECT().IsCancelRequested().Return(false, "")
-				ms.EXPECT().GetRetryBackoffDuration(common.FailureReasonSemaphoreNotFound).Return(backoff.NoBackoff)
-				ms.EXPECT().GetCronBackoffDuration(gomock.Any()).Return(backoff.NoBackoff, nil)
-				ms.EXPECT().AddFailWorkflowEvent(testTaskCompletedID, notFoundAttr).Return(&types.HistoryEvent{}, nil)
-			},
-			wantStopProcessing: true,
-		},
-		{
-			name:               "semaphore does not exist and new events are waiting: the decision fails",
-			hasUnhandledEvents: true,
-			attr:               &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
-			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
-				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(nil, &types.EntityNotExistsError{})
-			},
-			wantFailCause:      types.DecisionTaskFailedCauseUnhandledDecision.Ptr(),
-			wantFailMessage:    common.StringPtr("cannot fail workflow for a missing semaphore, new events arrived while this decision was processing"),
-			wantStopProcessing: true,
-		},
-		{
-			name: "reading the semaphore fails: the error is returned",
-			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
-			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
-				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(nil, &types.InternalServiceError{Message: "read failed"})
-			},
-			wantErr: &types.InternalServiceError{Message: "read failed"},
-		},
-		{
 			name: "wait timeout set on the decision: the acquire uses it",
 			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
-			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
-				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(&persistence.GetSemaphoreResponse{}, nil)
+			expectMockCalls: func(ms *execution.MockMutableState) {
 				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(30))
 			},
 		},
@@ -875,8 +836,7 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 			name:               "wait timeout not set: the acquire uses the domain default",
 			defaultWaitTimeout: 2 * time.Minute,
 			attr:               &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
-			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
-				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(&persistence.GetSemaphoreResponse{}, nil)
+			expectMockCalls: func(ms *execution.MockMutableState) {
 				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(120))
 			},
 		},
@@ -884,8 +844,7 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 			name:               "wait timeout not set and the domain default is under 1s: the acquire uses the built-in default",
 			defaultWaitTimeout: 500 * time.Millisecond,
 			attr:               &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(0)},
-			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
-				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(&persistence.GetSemaphoreResponse{}, nil)
+			expectMockCalls: func(ms *execution.MockMutableState) {
 				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore",
 					int32(dynamicproperties.SemaphoreAcquireDefaultWaitTimeout.DefaultDuration()/time.Second))
 			},
@@ -893,8 +852,7 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 		{
 			name: "recording the acquire fails: the error is returned",
 			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
-			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
-				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(&persistence.GetSemaphoreResponse{}, nil)
+			expectMockCalls: func(ms *execution.MockMutableState) {
 				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(30)).
 					Return(nil, nil, execution.ErrWorkflowFinished)
 			},
@@ -903,8 +861,7 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 		{
 			name: "run already holds or is waiting for a semaphore: the decision fails",
 			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
-			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
-				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(&persistence.GetSemaphoreResponse{}, nil)
+			expectMockCalls: func(ms *execution.MockMutableState) {
 				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(30)).
 					Return(nil, nil, &types.BadRequestError{Message: "invalid history builder state for action"})
 			},
@@ -915,8 +872,7 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 		{
 			name: "recording the acquire fails with another internal error: the error is returned",
 			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
-			expectMockCalls: func(ms *execution.MockMutableState, mgr *persistence.MockSemaphoreMetadataManager) {
-				mgr.EXPECT().GetSemaphore(gomock.Any(), getRequest).Return(&persistence.GetSemaphoreResponse{}, nil)
+			expectMockCalls: func(ms *execution.MockMutableState) {
 				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(30)).
 					Return(nil, nil, &types.InternalServiceError{Message: "write failed"})
 			},
@@ -927,7 +883,6 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			taskHandler := newTaskHandlerForTest(t)
-			taskHandler.hasUnhandledEventsBeforeDecisions = tc.hasUnhandledEvents
 			taskHandler.config.EnableDistributedSemaphore = func(string) bool { return !tc.disabled }
 			if tc.defaultWaitTimeout != 0 {
 				taskHandler.config.SemaphoreAcquireDefaultWaitTimeout = func(string) time.Duration { return tc.defaultWaitTimeout }
@@ -936,10 +891,7 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 				taskHandler.config.SemaphoreNameMaxLength = func(string) int { return tc.nameMaxLength }
 			}
 			if tc.expectMockCalls != nil {
-				tc.expectMockCalls(
-					taskHandler.mutableState.(*execution.MockMutableState),
-					taskHandler.semaphoreMetadataManager.(*persistence.MockSemaphoreMetadataManager),
-				)
+				tc.expectMockCalls(taskHandler.mutableState.(*execution.MockMutableState))
 			}
 
 			err := taskHandler.handleDecision(context.Background(), &types.Decision{
@@ -1917,7 +1869,6 @@ func newTaskHandlerForTest(t *testing.T) *taskHandlerImpl {
 		common.NewMockTaskTokenSerializer(ctrl),
 		testLogger,
 		mockDomainCache,
-		persistence.NewMockSemaphoreMetadataManager(ctrl),
 		metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}),
 		testConfig,
 	)

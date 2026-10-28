@@ -60,10 +60,56 @@ func (e *historyEngineImpl) RecordChildExecutionCompleted(
 			completedExecution := completionRequest.CompletedExecution
 			completionEvent := completionRequest.CompletionEvent
 
+			// the current branch of the parent does not wait for a child from another branch, so drop its completion with
+			// a non-retryable error
+			dropFromOtherBranch := func() error {
+				e.metricsClient.IncCounter(metrics.HistoryRecordChildExecutionCompletedScope, metrics.ChildWorkflowCompletionOtherBranchCounter)
+				e.logger.Info("Drop the completion of a child that was started by an initiated event that is not on the current branch",
+					tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+					tag.WorkflowID(workflowExecution.GetWorkflowID()),
+					tag.WorkflowRunID(workflowExecution.GetRunID()),
+					tag.WorkflowInitiatedID(initiatedID),
+					tag.WorkflowNextEventID(mutableState.GetNextEventID()),
+					tag.Dynamic("child-first-run-id", completionRequest.FirstExecutionRunID),
+					tag.Dynamic("child-start-version", completionRequest.ChildStartVersion),
+				)
+				return &types.EntityNotExistsError{Message: "Pending child execution is from another branch of the parent."}
+			}
+
 			// Check mutable state to make sure child execution is in pending child executions
 			ci, isRunning := mutableState.GetChildExecutionInfo(initiatedID)
 			if !isRunning {
 				if initiatedID >= mutableState.GetNextEventID() {
+					childStartVersion := completionRequest.ChildStartVersion
+					// a completion without the start version of the child can not be checked
+					versionsComparable := childStartVersion != nil
+					if versionsComparable && domainEntry.GetReplicationConfig().IsActiveActive() {
+						// the versions of the child can be compared only when they come from the same cluster attribute as
+						// the versions of the parent
+						childPolicy, err := e.shard.GetActiveClusterManager().GetActiveClusterSelectionPolicyForWorkflow(
+							ctx,
+							domainID,
+							completedExecution.GetWorkflowID(),
+							completedExecution.GetRunID(),
+						)
+						if err != nil {
+							return err
+						}
+						versionsComparable = childPolicy.Equals(mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy)
+					}
+					if versionsComparable {
+						lastWriteVersion, err := mutableState.GetLastWriteVersion()
+						if err != nil {
+							return err
+						}
+						// the current branch does not have an event with the initiated ID of the child, as checked above.
+						// When the child start version is lower than the last write version, the initiated event can not
+						// be added to the current branch, so the child is from another branch. When it is equal or
+						// higher, the initiated event can still be added, for example because the parent state is stale.
+						if lastWriteVersion > *childStartVersion {
+							return dropFromOtherBranch()
+						}
+					}
 					e.metricsClient.IncCounter(metrics.HistoryRecordChildExecutionCompletedScope, metrics.StaleMutableStateCounter)
 					e.logger.Error("Encounter stale mutable state in RecordChildExecutionCompleted",
 						tag.WorkflowDomainName(domainEntry.GetInfo().Name),
@@ -96,6 +142,14 @@ func (e *historyEngineImpl) RecordChildExecutionCompleted(
 			}
 			if ci.StartedWorkflowID != completedExecution.GetWorkflowID() {
 				return &types.EntityNotExistsError{Message: "Pending child execution workflowID mismatch."}
+			}
+			firstRunID := completionRequest.FirstExecutionRunID
+			// a completion without the first run ID can not be checked
+			if firstRunID != "" && firstRunID != ci.StartedRunID {
+				// the completion is from a child run that the current branch of the parent did not start, for example a
+				// closed child run from a losing branch, after the current branch started a new run with the same
+				// workflow ID
+				return dropFromOtherBranch()
 			}
 
 			switch *completionEvent.EventType {

@@ -623,6 +623,12 @@ type RecordChildExecutionCompletedRequest struct {
 	CompletedExecution *WorkflowExecution `json:"completedExecution,omitempty"`
 	CompletionEvent    *HistoryEvent      `json:"completionEvent,omitempty"`
 	StartedID          int64              `json:"startedId,omitempty"`
+	// FirstExecutionRunID is the first run of the chain of the completed child, so the parent accepts only the
+	// completion of the child run it started
+	FirstExecutionRunID string `json:"firstExecutionRunId,omitempty"`
+	// ChildStartVersion is the version of the started event of the completed child, set only when the parent is in the
+	// same domain, so the parent can drop a completion from an initiated event that can not be on its current branch
+	ChildStartVersion *int64 `json:"childStartVersion,omitempty"`
 }
 
 // GetDomainUUID is an internal getter (TBD...)
