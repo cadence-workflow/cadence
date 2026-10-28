@@ -5,8 +5,8 @@ Migrate visibility read/write dynamic configs from the old enable/mode names to 
 
 | Old name (pre-v1.2.17)                                                                                                   | New name                                                                                                                                                                                               |
 | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `system.enableReadVisibilityFromES` / `system.enableReadVisibilityFromPinot` (bool: read from advanced visibility or DB) | `[system.readVisibilityStoreName](https://github.com/cadence-workflow/cadence/blob/v1.2.17/common/dynamicconfig/constants.go#L4593)` (which store to read: `db`, `es`, `pinot`, `os`)                  |
-| `system.advancedVisibilityWritingMode` (`off` / `on` / `dual`)                                                           | `[system.writeVisibilityStoreName](https://github.com/cadence-workflow/cadence/blob/v1.2.17/common/dynamicconfig/constants.go#L4530)` (which store(s) to write; comma-separated for dual/triple write) |
+| `system.enableReadVisibilityFromES` / `system.enableReadVisibilityFromPinot` (bool: read from advanced visibility or DB) | [`system.readVisibilityStoreName`](https://github.com/cadence-workflow/cadence/blob/v1.2.17/common/dynamicconfig/constants.go#L4593) (which store to read: `db`, `es`, `pinot`, `os`)                  |
+| `system.advancedVisibilityWritingMode` (`off` / `on` / `dual`)                                                           | [`system.writeVisibilityStoreName`](https://github.com/cadence-workflow/cadence/blob/v1.2.17/common/dynamicconfig/constants.go#L4530) (which store(s) to write; comma-separated for dual/triple write) |
 
 
 Also removed: `system.advancedVisibilityMigrationWritingMode`.
@@ -32,12 +32,14 @@ Translate `system.advancedVisibilityWritingMode` → `system.writeVisibilityStor
 
 | Old value | New value (ES as advanced store) | Meaning                        |
 | --------- | -------------------------------- | ------------------------------ |
-| `off`     | `off` (or `db`)                  | Write DB visibility only       |
+| `off`     | `off`                            | Write DB visibility only       |
 | `on`      | `es`                             | Write advanced visibility only |
 | `dual`    | `db,es`                          | Dual-write DB and ES           |
 
 
 If advanced visibility is Pinot or OpenSearch, use `pinot` / `os` instead of `es` (for example `db,pinot` or `db,os`).
+
+Use `off`, not `db`, to map the old `off` when an advanced store is still configured. Both write only to DB visibility, but `db` still counts as advanced visibility writing enabled: history keeps generating search-attribute upsert tasks and the worker still starts the indexer. With no advanced store configured, `off` and `db` behave the same.
 
 To write to two advanced stores (for example `es,os` or `es,pinot`), the ES store must also be created; see [section 5](#5-es--opensearch--pinot-migration). Without it, `es` is not available: its writes fall back to DB unless the list already includes `db`, while the other stores still write. For example, `es,os` without the migration config writes to DB and OpenSearch.
 
@@ -102,29 +104,29 @@ Same rollout as before, with the new keys:
 
 1. Keep DB visibility configured. Add advanced visibility (`advancedVisibilityStore`) per [visibility-on-elasticsearch.md](../visibility-on-elasticsearch.md).
 2. Dual-write, still read from DB:
-  ```yaml
+   ```yaml
    system.writeVisibilityStoreName:
      - value: "db,es"
    system.readVisibilityStoreName:
      - value: "db"
-  ```
+   ```
 3. After enough retention / backlog catch-up, flip reads per domain, then globally:
-  ```yaml
+   ```yaml
    system.writeVisibilityStoreName:
      - value: "db,es"
    system.readVisibilityStoreName:
      - value: "es"
-  ```
+   ```
 4. Optionally stop writing to DB (`writeVisibilityStoreName: "es"`) and remove DB visibility from static config when no longer needed.
 
 ## 5. ES → OpenSearch / Pinot migration
 
 **Note:** Running OpenSearch through the ES visibility store (`advancedVisibilityStore: es-visibility` with `version: "os2"`) is still the ES store. Use store name `es` for read/write — not `os`. The `os` name applies only when `advancedVisibilityStore` is `os-visibility` (the dedicated OpenSearch store used for ES → OS migration below). See [config/development_es_opensearch.yaml](../../config/development_es_opensearch.yaml).
 
-The same keys move visibility between advanced stores. The steps below use OpenSearch; for Pinot, replace `os` with `pinot` and `os-visibility` with `pinot-visibility`. Pinot’s datastore block uses `pinot:` instead of `elasticsearch:`.
+The same keys move visibility between advanced stores. The steps below use OpenSearch; for Pinot, replace `os` with `pinot` and `os-visibility` with `pinot-visibility`. Pinot's datastore block uses `pinot:` instead of `elasticsearch:`.
 
-1. In static config, set `advancedVisibilityStore` to the new store and enable `migration` on it, keeping the existing `es-visibility` datastore. This creates both the ES and the new store. See [config/development_es_opensearch_migration.yaml](../../config/development_es_opensearch_migration.yaml) and [config/development_pinot.yaml](../../config/development_pinot.yaml) for full examples.
-  ```yaml
+1. In static config, set `advancedVisibilityStore` to the new store and enable `migration` on it, keeping the existing `es-visibility` datastore. This creates both the ES and the new store. For OpenSearch, also set a distinct `consumerName` on `os-visibility`: otherwise the ES and OS indexers join the same Kafka consumer group, split the topic's partitions, and each store gets only part of the records. Pinot ingests from Kafka directly, so this does not apply to Pinot. See [config/development_es_opensearch_migration.yaml](../../config/development_es_opensearch_migration.yaml) and [config/development_pinot.yaml](../../config/development_pinot.yaml) for examples. The Pinot sample has `migration: enabled: false`; set it to `true` for a migration.
+   ```yaml
    persistence:
      advancedVisibilityStore: os-visibility
      datastores:
@@ -136,19 +138,21 @@ The same keys move visibility between advanced stores. The steps below use OpenS
            # new OpenSearch config
            migration:
              enabled: true
-  ```
+           # Required: must differ from the ES consumer group (default "<es-index>-consumer").
+           consumerName: "<topic>-os-consumer"
+   ```
 2. Dual-write, still read from ES, and shadow-read the new store to check it under production read traffic:
-  ```yaml
+   ```yaml
    system.writeVisibilityStoreName:
      - value: "es,os"
    system.readVisibilityStoreName:
      - value: "es,os"   # primary: es, shadow: os
-  ```
+   ```
 3. After enough retention / backlog catch-up, flip the primary per domain, then globally. Keep ES as the shadow if you want to compare in the other direction:
-  ```yaml
+   ```yaml
    system.readVisibilityStoreName:
      - value: "os,es"
-  ```
+   ```
 4. Stop writing to ES (`writeVisibilityStoreName: "os"`), set reads to `os`, then remove the `es-visibility` datastore and `migration` from static config.
 
 ## 6. Defaults after upgrade
