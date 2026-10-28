@@ -66,9 +66,8 @@ func (db *bucketDB) scanTokenRows(ctx context.Context) ([]*persistence.Semaphore
 	}
 }
 
-// grantToken gives tokenID to ownerID with the conditional write to semaphore_tokens. A write
-// that does not apply comes back as an outcome, not an error. When err is nil, the response is
-// never nil.
+// grantToken writes ownerID's conditional grant of tokenID to semaphore_tokens. A write that does
+// not apply is an outcome, not an error.
 func (db *bucketDB) grantToken(ctx context.Context, tokenID int, ownerID string) (*persistence.GrantSemaphoreTokenResponse, error) {
 	resp, err := db.tokens.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
 		DomainID:      db.id.DomainID,
@@ -86,9 +85,9 @@ func (db *bucketDB) grantToken(ctx context.Context, tokenID int, ownerID string)
 	return resp, nil
 }
 
-// getTokenRow reads tokenID's token row from semaphore_tokens. found is false when the token has
-// no row. When found, row is never nil.
-func (db *bucketDB) getTokenRow(ctx context.Context, tokenID int) (row *persistence.SemaphoreOwnership, found bool, err error) {
+// getTokenRow reads tokenID's token row from semaphore_tokens. It returns nil if the token has no
+// row.
+func (db *bucketDB) getTokenRow(ctx context.Context, tokenID int) (*persistence.SemaphoreOwnership, error) {
 	resp, err := db.tokens.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
 		DomainID:      db.id.DomainID,
 		SemaphoreName: db.id.SemaphoreName,
@@ -98,12 +97,12 @@ func (db *bucketDB) getTokenRow(ctx context.Context, tokenID int) (row *persiste
 	if err != nil {
 		var notExists *types.EntityNotExistsError
 		if errors.As(err, &notExists) {
-			return nil, false, nil
+			return nil, nil
 		}
-		return nil, false, err
+		return nil, err
 	}
 	if resp == nil || resp.Ownership == nil {
-		return nil, false, &types.InternalServiceError{Message: fmt.Sprintf("no token row returned for token %d of bucket %v", tokenID, db.id)}
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("no token row returned for token %d of bucket %v", tokenID, db.id)}
 	}
-	return resp.Ownership, true, nil
+	return resp.Ownership, nil
 }

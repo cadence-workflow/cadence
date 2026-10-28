@@ -1,8 +1,10 @@
 package semaphore
 
 import (
+	"context"
 	"maps"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +17,7 @@ import (
 // newCacheFromRows. A test that changes one token uses token 2 and checks that tokens 1 and 3 are
 // untouched. Every test ends with assertCacheConsistent, which checks the cache's own rules.
 //
-// The helpers below read the cache without the bucket lock: the tests that use them run on one
+// The helpers below read the cache without the cache lock: the tests that use them run on one
 // goroutine, or read only after every goroutine has finished.
 var testTokenRange = commonsemaphore.TokenRange{First: 1, Count: 3}
 
@@ -51,23 +53,38 @@ func tokensInState(c *bucketCache, state tokenState) []int {
 
 // getTokenEntry returns a copy of tokenID's entry.
 func getTokenEntry(c *bucketCache, tokenID int) tokenEntry {
-	entry, _ := c.lookupToken(tokenID)
+	entry := c.lookupTokenLocked(tokenID)
 	return *entry
 }
 
-// setTokenEntry sets tokenID's entry through updateToken, the same code the cache's methods use.
+// setTokenEntry sets tokenID's entry through updateTokenLocked, the same code the cache's methods
+// use.
 func setTokenEntry(t *testing.T, c *bucketCache, tokenID int, entry tokenEntry) {
 	t.Helper()
 	require.True(t, c.tokenRange.Contains(tokenID))
-	c.updateToken(tokenID, entry)
+	c.updateTokenLocked(tokenID, entry)
 }
 
-// assertCacheConsistent checks the cache's rules: tokens has one entry per token in the range, and
-// tokenByOwner and freeCount match tokens.
+// lockTokenForTest locks tokenID for the test
+func lockTokenForTest(t *testing.T, c *bucketCache, tokenID int) *lockedToken {
+	t.Helper()
+	lockedToken := c.tryLockToken(tokenID)
+	require.NotNil(t, lockedToken, "token %d is already locked", tokenID)
+	return lockedToken
+}
+
+// assertCacheConsistent checks the cache's rules: tokens has one entry and one lock per token in the
+// range, tokenByOwner and freeCount match tokens, and no token is left locked.
 func assertCacheConsistent(t *testing.T, c *bucketCache) {
 	t.Helper()
 
 	require.Len(t, c.tokens, c.tokenRange.Count, "one entry per token in the range")
+	require.Len(t, c.tokenMutexes, c.tokenRange.Count, "one lock per token in the range")
+	for i, lock := range c.tokenMutexes {
+		if assert.True(t, lock.TryLock(), "token %d is still locked", c.tokenRange.First+i) {
+			lock.Unlock()
+		}
+	}
 
 	wantTokenByOwner := make(map[string]int)
 	wantFreeCount := 0
@@ -178,242 +195,377 @@ func TestNewBucketCache(t *testing.T) {
 	}
 }
 
-// Tests that pickFreeToken returns only free tokens, can return each of them, changes nothing, and
-// reports none when no token is free.
-func TestPickFreeToken(t *testing.T) {
-	c := newCacheFromRows(tokenRow(2, "owner-a"), ownerRow("owner-a", 2))
-
-	seen := map[int]bool{}
-	for range 200 {
-		tokenID, ok := c.pickFreeToken()
-		require.True(t, ok)
-		seen[tokenID] = true
-	}
-	assert.Equal(t, map[int]bool{1: true, 3: true}, seen, "only free tokens, and each of them")
-	assert.Equal(t, []int{1, 3}, tokensInState(c, tokenFree), "picking changes nothing")
-
-	setTokenEntry(t, c, 1, unavailable)
-	setTokenEntry(t, c, 3, heldByB)
-	_, ok := c.pickFreeToken()
-	assert.False(t, ok, "no free token is left")
-	assertCacheConsistent(t, c)
-}
-
-// Tests every database answer the cache records, from every start state of token 2.
-func TestRecordAnswers(t *testing.T) {
-	startStates := []struct {
-		name  string
-		entry tokenEntry
-	}{
-		{"free", free},
-		{"heldByA", heldByA},
-		{"heldByB", heldByB},
-		{"unavailable", unavailable},
-	}
-
+func TestTryLockFreeToken(t *testing.T) {
 	tests := []struct {
-		name   string
-		record func(c *bucketCache)
-		// want is token 2's entry after the answer, whatever it started as. Nil means it does not
-		// change.
-		want *tokenEntry
+		name           string
+		tokenRange     commonsemaphore.TokenRange
+		entries        map[int]tokenEntry
+		lockedByOthers []int
+		wantToken      int
+		wantLocked     bool
 	}{
 		{
-			name: "grant applied",
-			record: func(c *bucketCache) {
-				require.NoError(t, c.recordGrantResult("owner-a", 2, &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}))
-			},
-			want: &heldByA,
+			name:           "skips a free token another call holds",
+			tokenRange:     testTokenRange,
+			entries:        map[int]tokenEntry{2: heldByA},
+			lockedByOthers: []int{1},
+			wantToken:      3,
+			wantLocked:     true,
 		},
 		{
-			name: "grant taken",
-			record: func(c *bucketCache) {
-				require.NoError(t, c.recordGrantResult("owner-a", 2, &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantSlotTaken}))
-			},
-			want: &unavailable,
+			name:           "range not starting at 1: returns the free token's id",
+			tokenRange:     commonsemaphore.TokenRange{First: 11, Count: 3},
+			entries:        map[int]tokenEntry{12: heldByA},
+			lockedByOthers: []int{11},
+			wantToken:      13,
+			wantLocked:     true,
 		},
 		{
-			name: "grant unknown outcome",
-			record: func(c *bucketCache) {
-				require.NoError(t, c.recordGrantResult("owner-a", 2, &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantUnknown}))
-			},
+			name:           "returns none when every free token is held by another call",
+			tokenRange:     testTokenRange,
+			entries:        map[int]tokenEntry{2: heldByA},
+			lockedByOthers: []int{1, 3},
 		},
 		{
-			name:   "read finds owner-a",
-			record: func(c *bucketCache) { c.updateFromTokenRow("owner-a", 2, tokenRow(2, "owner-a")) },
-			want:   &heldByA,
-		},
-		{
-			name:   "read finds no holder",
-			record: func(c *bucketCache) { c.updateFromTokenRow("owner-a", 2, tokenRow(2, "")) },
-			want:   &free,
-		},
-		{
-			name:   "read finds another owner",
-			record: func(c *bucketCache) { c.updateFromTokenRow("owner-a", 2, tokenRow(2, "owner-b")) },
-			want:   &unavailable,
-		},
-		{
-			name:   "read finds no row",
-			record: func(c *bucketCache) { c.updateFromTokenRow("owner-a", 2, nil) },
-			want:   &unavailable,
-		},
-	}
-
-	for _, tc := range tests {
-		for _, start := range startStates {
-			t.Run(tc.name+" from "+start.name, func(t *testing.T) {
-				c := newCacheFromRows()
-				setTokenEntry(t, c, 2, start.entry)
-
-				tc.record(c)
-
-				want := start.entry
-				if tc.want != nil {
-					want = *tc.want
-				}
-				assert.Equal(t, want, getTokenEntry(c, 2))
-				assertCacheConsistent(t, c)
-				assert.Equal(t, free, getTokenEntry(c, 1), "token 1 is untouched")
-				assert.Equal(t, free, getTokenEntry(c, 3), "token 3 is untouched")
-			})
-		}
-	}
-}
-
-// Tests that when owner-a holds token 1 and a grant gives owner-a token 2, token 1 becomes
-// unavailable: an owner holds one token, so token 1 is no longer owner-a's, but the database has
-// not said it is free.
-func TestRecordGrantMarksTheOwnersPreviousTokenUnavailable(t *testing.T) {
-	c := newCacheFromRows(tokenRow(1, "owner-a"), ownerRow("owner-a", 1))
-
-	require.NoError(t, c.recordGrantResult("owner-a", 2, &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}))
-
-	assert.Equal(t, map[string]int{"owner-a": 2}, copyTokenByOwner(c))
-	assert.Equal(t, []int{1}, tokensInState(c, tokenUnavailable))
-	assert.Equal(t, []int{3}, tokensInState(c, tokenFree))
-	assertCacheConsistent(t, c)
-}
-
-// Tests a grant of token 1 answered AlreadyHeld: token 1 stays free, and owner-a is recorded on the
-// token it holds, or an error is returned if that token is outside the range.
-func TestRecordGrantAlreadyHeld(t *testing.T) {
-	tests := []struct {
-		name            string
-		token3Start     tokenEntry
-		heldToken       int
-		wantErr         bool
-		wantOwnerTokens map[string]int
-		wantFree        []int
-	}{
-		{
-			name:            "held token was free",
-			token3Start:     free,
-			heldToken:       3,
-			wantOwnerTokens: map[string]int{"owner-a": 3},
-			wantFree:        []int{1, 2},
-		},
-		{
-			name:            "held token was recorded for another owner",
-			token3Start:     heldByB,
-			heldToken:       3,
-			wantOwnerTokens: map[string]int{"owner-a": 3},
-			wantFree:        []int{1, 2},
-		},
-		{
-			name:            "held token was unavailable",
-			token3Start:     unavailable,
-			heldToken:       3,
-			wantOwnerTokens: map[string]int{"owner-a": 3},
-			wantFree:        []int{1, 2},
-		},
-		{
-			name:            "held token is outside the range",
-			token3Start:     free,
-			heldToken:       9,
-			wantErr:         true,
-			wantOwnerTokens: map[string]int{},
-			wantFree:        []int{1, 2, 3},
-		},
-		{
-			// 0 is below every bucket's range. The Cassandra store answers SlotTaken rather than
-			// AlreadyHeld(0), but the interface does not promise that.
-			name:            "held token is 0",
-			token3Start:     free,
-			heldToken:       0,
-			wantErr:         true,
-			wantOwnerTokens: map[string]int{},
-			wantFree:        []int{1, 2, 3},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			c := newCacheFromRows()
-			setTokenEntry(t, c, 3, tc.token3Start)
-
-			err := c.recordGrantResult("owner-a", 1, &persistence.GrantSemaphoreTokenResponse{
-				Outcome:   persistence.SemaphoreGrantAlreadyHeld,
-				HeldToken: tc.heldToken,
-			})
-
-			if tc.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-			assert.Equal(t, tc.wantOwnerTokens, copyTokenByOwner(c))
-			assert.Equal(t, tc.wantFree, tokensInState(c, tokenFree))
-			assertCacheConsistent(t, c)
-		})
-	}
-}
-
-// Tests that no call can put a token outside the range into the cache, including the empty range
-// a manager's cache has before its load finishes.
-func TestCacheIgnoresTokensOutsideTheRange(t *testing.T) {
-	tests := []struct {
-		name       string
-		tokenRange commonsemaphore.TokenRange
-		tokenIDs   []int
-		wantFree   []int
-	}{
-		{
-			name:       "tokens just outside the range",
+			name:       "returns none when no token is free",
 			tokenRange: testTokenRange,
-			tokenIDs:   []int{0, 4, -1},
-			wantFree:   []int{1, 2, 3},
+			entries:    map[int]tokenEntry{1: heldByA, 2: heldByB, 3: unavailable},
 		},
 		{
-			// The zero value must contain no token: with no entries, a token it let through would
-			// index past the end of tokens.
-			name:       "empty range",
+			name:       "returns none for the empty range a cache has before its load",
 			tokenRange: commonsemaphore.TokenRange{},
-			tokenIDs:   []int{-1, 0, 1},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			c, _ := newBucketCache(tc.tokenRange, nil)
-
-			for _, tokenID := range tc.tokenIDs {
-				for _, outcome := range []persistence.SemaphoreGrantOutcome{persistence.SemaphoreGrantApplied, persistence.SemaphoreGrantSlotTaken, persistence.SemaphoreGrantUnknown} {
-					assert.NoError(t, c.recordGrantResult("owner-a", tokenID, &persistence.GrantSemaphoreTokenResponse{Outcome: outcome}))
-				}
-				assert.Error(t, c.recordGrantResult("owner-a", tokenID, &persistence.GrantSemaphoreTokenResponse{
-					Outcome:   persistence.SemaphoreGrantAlreadyHeld,
-					HeldToken: tokenID,
-				}))
-				for _, holder := range []string{"owner-a", "", "owner-b"} {
-					c.updateFromTokenRow("owner-a", tokenID, tokenRow(tokenID, holder))
-				}
-				c.updateFromTokenRow("owner-a", tokenID, nil)
+			for tokenID, entry := range tc.entries {
+				setTokenEntry(t, c, tokenID, entry)
+			}
+			var others []*lockedToken
+			for _, tokenID := range tc.lockedByOthers {
+				others = append(others, lockTokenForTest(t, c, tokenID))
 			}
 
-			assert.Equal(t, tc.wantFree, tokensInState(c, tokenFree))
-			assert.Empty(t, copyTokenByOwner(c))
+			for range 20 {
+				lockedToken := c.tryLockFreeToken()
+				require.Equal(t, tc.wantLocked, lockedToken != nil)
+				if lockedToken != nil {
+					assert.Equal(t, tc.wantToken, lockedToken.id())
+					lockedToken.unlock()
+				}
+			}
+
+			for _, other := range others {
+				other.unlock()
+			}
 			assertCacheConsistent(t, c)
 		})
 	}
+}
+
+func TestLockToken(t *testing.T) {
+	tests := []struct {
+		name          string
+		tokenID       int
+		heldByAnother bool
+		wantErr       bool
+	}{
+		{name: "no other call holds the token", tokenID: 2},
+		{name: "context ends while another call holds the token", tokenID: 2, heldByAnother: true, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := newBucketCache(testTokenRange, nil)
+			var other *lockedToken
+			if tc.heldByAnother {
+				other = lockTokenForTest(t, c, tc.tokenID)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+			defer cancel()
+
+			lockedToken, err := c.lockToken(ctx, tc.tokenID)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.tokenID, lockedToken.id())
+				lockedToken.unlock()
+			}
+			if other != nil {
+				other.unlock()
+			}
+			assertCacheConsistent(t, c)
+		})
+	}
+}
+
+func TestTryLockToken(t *testing.T) {
+	tests := []struct {
+		name          string
+		tokenID       int
+		heldByAnother bool
+		wantLocked    bool
+	}{
+		{name: "no other call holds the token", tokenID: 2, wantLocked: true},
+		{name: "another call holds the token", tokenID: 2, heldByAnother: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := newBucketCache(testTokenRange, nil)
+			var other *lockedToken
+			if tc.heldByAnother {
+				other = lockTokenForTest(t, c, tc.tokenID)
+			}
+
+			lockedToken := c.tryLockToken(tc.tokenID)
+
+			if tc.wantLocked {
+				require.NotNil(t, lockedToken)
+				assert.Equal(t, tc.tokenID, lockedToken.id())
+				lockedToken.unlock()
+			} else {
+				assert.Nil(t, lockedToken)
+			}
+			if other != nil {
+				other.unlock()
+			}
+			assertCacheConsistent(t, c)
+		})
+	}
+}
+
+func TestLockHeldToken(t *testing.T) {
+	tests := []struct {
+		name          string
+		ownerID       string
+		heldByAnother bool
+		wantLocked    bool
+		wantErr       bool
+	}{
+		{name: "owner has no cached token", ownerID: "owner-b"},
+		{name: "locks the owner's token", ownerID: "owner-a", wantLocked: true},
+		{name: "context ends while another call holds the owner's token", ownerID: "owner-a", heldByAnother: true, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newCacheFromRows(tokenRow(2, "owner-a"), ownerRow("owner-a", 2))
+			var other *lockedToken
+			if tc.heldByAnother {
+				other = lockTokenForTest(t, c, 2)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+			defer cancel()
+
+			got, err := c.lockHeldToken(ctx, tc.ownerID)
+			if other != nil {
+				other.unlock()
+			}
+
+			if tc.wantErr {
+				assert.ErrorIs(t, err, context.DeadlineExceeded)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.wantLocked, got != nil)
+			if got != nil {
+				assert.Equal(t, 2, got.id())
+				got.unlock()
+			}
+			assertCacheConsistent(t, c)
+		})
+	}
+}
+
+// Tests lockHeldToken when another call holds owner-a's token 2: lockHeldToken waits, the other call
+// changes the token and unlocks, and lockHeldToken returns the token only if owner-a is still on it.
+func TestLockHeldTokenAfterWaiting(t *testing.T) {
+	tests := []struct {
+		name string
+		// change is what the other call does to the cache before it unlocks token 2.
+		change     func(t *testing.T, holder *lockedToken)
+		wantLocked bool
+	}{
+		{
+			name:       "the owner stays on the token",
+			change:     func(_ *testing.T, holder *lockedToken) { holder.markHeld("owner-a") },
+			wantLocked: true,
+		},
+		{
+			name:   "the token was freed",
+			change: func(_ *testing.T, holder *lockedToken) { holder.markFree() },
+		},
+		{
+			name: "the owner moved to another token",
+			change: func(t *testing.T, holder *lockedToken) {
+				other := lockTokenForTest(t, holder.cache, 3)
+				other.markHeld("owner-a")
+				other.unlock()
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newCacheFromRows(tokenRow(2, "owner-a"), ownerRow("owner-a", 2))
+			holder := lockTokenForTest(t, c, 2)
+
+			result := lockHeldTokenInBackground(t, c, "owner-a")
+			waitBriefly() // let lockHeldToken start waiting for token 2
+			tc.change(t, holder)
+			holder.unlock()
+			got := <-result
+
+			require.Equal(t, tc.wantLocked, got != nil)
+			if got != nil {
+				assert.Equal(t, 2, got.id())
+				got.unlock()
+			}
+			assertCacheConsistent(t, c)
+		})
+	}
+}
+
+// waitBriefly gives a goroutine time to reach a blocking call. Tests use it only to check that
+// something has not happened yet; a slow machine can make the check pass when it should fail, but
+// never fail when it should pass.
+func waitBriefly() { time.Sleep(20 * time.Millisecond) }
+
+// lockHeldTokenInBackground runs lockHeldToken in a goroutine and returns a channel with its result.
+func lockHeldTokenInBackground(t *testing.T, c *bucketCache, ownerID string) <-chan *lockedToken {
+	result := make(chan *lockedToken, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		lockedToken, err := c.lockHeldToken(ctx, ownerID)
+		assert.NoError(t, err)
+		result <- lockedToken
+	}()
+	return result
+}
+
+// Tests each mark on token 2, checking every token afterwards. Only marking an owner held changes
+// another token: the owner's previous token becomes unavailable.
+func TestMark(t *testing.T) {
+	tests := []struct {
+		name string
+		// before and want are the entries before and after the mark. A token not listed is free.
+		before map[int]tokenEntry
+		mark   func(lockedToken *lockedToken)
+		want   map[int]tokenEntry
+	}{
+		{
+			name:   "mark held by owner-a on a free token",
+			before: map[int]tokenEntry{2: free},
+			mark:   func(lockedToken *lockedToken) { lockedToken.markHeld("owner-a") },
+			want:   map[int]tokenEntry{2: heldByA},
+		},
+		{
+			name:   "mark held by owner-a on a token held by owner-a",
+			before: map[int]tokenEntry{2: heldByA},
+			mark:   func(lockedToken *lockedToken) { lockedToken.markHeld("owner-a") },
+			want:   map[int]tokenEntry{2: heldByA},
+		},
+		{
+			name:   "mark held by owner-a on a token held by a different owner",
+			before: map[int]tokenEntry{2: heldByB},
+			mark:   func(lockedToken *lockedToken) { lockedToken.markHeld("owner-a") },
+			want:   map[int]tokenEntry{2: heldByA},
+		},
+		{
+			name:   "mark held by owner-a on an unavailable token",
+			before: map[int]tokenEntry{2: unavailable},
+			mark:   func(lockedToken *lockedToken) { lockedToken.markHeld("owner-a") },
+			want:   map[int]tokenEntry{2: heldByA},
+		},
+		{
+			name:   "mark held by owner-a on a free token while owner-a holds token 1: token 1 becomes unavailable",
+			before: map[int]tokenEntry{1: heldByA},
+			mark:   func(lockedToken *lockedToken) { lockedToken.markHeld("owner-a") },
+			want:   map[int]tokenEntry{1: unavailable, 2: heldByA},
+		},
+		{
+			name:   "mark free on a token held by owner-a",
+			before: map[int]tokenEntry{2: heldByA},
+			mark:   func(lockedToken *lockedToken) { lockedToken.markFree() },
+			want:   map[int]tokenEntry{2: free},
+		},
+		{
+			name:   "mark free on an unavailable token",
+			before: map[int]tokenEntry{2: unavailable},
+			mark:   func(lockedToken *lockedToken) { lockedToken.markFree() },
+			want:   map[int]tokenEntry{2: free},
+		},
+		{
+			name:   "mark unavailable on a free token",
+			before: map[int]tokenEntry{2: free},
+			mark:   func(lockedToken *lockedToken) { lockedToken.markUnavailable() },
+			want:   map[int]tokenEntry{2: unavailable},
+		},
+		{
+			name:   "mark unavailable on a token held by owner-a",
+			before: map[int]tokenEntry{2: heldByA},
+			mark:   func(lockedToken *lockedToken) { lockedToken.markUnavailable() },
+			want:   map[int]tokenEntry{2: unavailable},
+		},
+		{
+			name:   "mark unavailable on an unavailable token",
+			before: map[int]tokenEntry{2: unavailable},
+			mark:   func(lockedToken *lockedToken) { lockedToken.markUnavailable() },
+			want:   map[int]tokenEntry{2: unavailable},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newCacheFromRows()
+			for tokenID, entry := range tc.before {
+				setTokenEntry(t, c, tokenID, entry)
+			}
+
+			lockedToken := lockTokenForTest(t, c, 2)
+			tc.mark(lockedToken)
+			lockedToken.unlock()
+
+			for tokenID := testTokenRange.First; tokenID <= testTokenRange.Last(); tokenID++ {
+				want, ok := tc.want[tokenID]
+				if !ok {
+					want = free
+				}
+				assert.Equal(t, want, getTokenEntry(c, tokenID), "token %d", tokenID)
+			}
+			assertCacheConsistent(t, c)
+		})
+	}
+}
+
+// Tests that a second unlock does nothing, even after another call has locked the token.
+func TestUnlockTwice(t *testing.T) {
+	c, _ := newBucketCache(testTokenRange, nil)
+	first := lockTokenForTest(t, c, 2)
+	first.unlock()
+	second := lockTokenForTest(t, c, 2)
+
+	first.unlock()
+
+	assert.Nil(t, c.tryLockToken(2), "the second unlock let go of another call's lock")
+	second.unlock()
+	assertCacheConsistent(t, c)
+}
+
+// Tests that a mark after unlock panics and leaves the token unchanged.
+func TestMarkAfterUnlock(t *testing.T) {
+	c := newCacheFromRows(tokenRow(2, "owner-b"), ownerRow("owner-b", 2))
+	lockedToken := lockTokenForTest(t, c, 2)
+	lockedToken.unlock()
+
+	assert.PanicsWithValue(t, "token 2 marked after unlock", func() { lockedToken.markFree() })
+
+	assert.Equal(t, map[string]int{"owner-b": 2}, copyTokenByOwner(c))
+	assertCacheConsistent(t, c)
 }

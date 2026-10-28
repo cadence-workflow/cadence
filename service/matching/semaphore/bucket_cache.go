@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"sync"
+	"sync/atomic"
 
 	"github.com/uber/cadence/common/locks"
 	"github.com/uber/cadence/common/persistence"
@@ -30,31 +32,53 @@ type tokenEntry struct {
 	owner string
 }
 
-// bucketCache is this host's view of a bucket, loaded from a scan. It may be stale; the database's
-// conditional writes have the final say.
+// bucketCache is this host's view of a bucket. It may be stale; the database has the final say.
 //
-// One lock guards the bucket. The manager holds it across each database call: lock, look in the
-// cache, call the database, record the answer, unlock. So a bucket makes one call at a time, like
-// History's shard lock; Cassandra runs conditional writes on one partition one at a time anyway.
-// Every method except lock, unlock and newBucketCache needs the caller to hold the lock.
+// Two kinds of lock:
+//   - token lock (tokenMutexes): one per token. A lock method takes it and returns a lockedToken. The
+//     caller holds it across that token's database call, marks the answer, then unlocks.
+//   - cache lock (mu): one for the whole cache, guarding the entries. Taken and let go inside one
+//     method; never held across a database call or while waiting.
 //
-// When unsure whether a token is free, the cache marks it unavailable: a wrong free costs a refused
-// write, and enough of them make acquires answer NoSlot while tokens are free.
+// Rules:
+//   - Take a token lock before the cache lock, never after. The exception is tryLockFreeToken, which
+//     takes one under the cache lock with TryLock, which never waits.
+//   - Hold at most one token lock. A caller defers unlock right after getting a lockedToken, and
+//     takes no other token lock before returning.
+//   - Only the holder of a token's lock changes that token. The exception is marking an owner held,
+//     which marks its previous token unavailable (see updateTokenLocked).
+//
+// Token ids from the database are range-checked where they enter; inside the cache every id is in
+// the range.
 type bucketCache struct {
-	// tokenRange is the bucket's token ids. It is set once by newBucketCache.
+	// tokenRange is the ids of the bucket's tokens. Set once by newBucketCache.
 	tokenRange commonsemaphore.TokenRange
+	// tokenMutexes are the token locks, one per token, in token id order. Set once by newBucketCache.
+	tokenMutexes []locks.Mutex
 
-	// mu is the bucket lock. Lock gives up when the caller's context ends, so a request waiting
-	// behind a slow database call leaves at its own deadline.
-	mu locks.Mutex
-	// tokens holds tokenID's entry at tokens[tokenID-tokenRange.First]. Change entries only through
-	// updateToken, so tokenByOwner and freeCount stay matching.
+	// mu is the cache lock.
+	mu sync.Mutex
+	// tokens is the token list, one entry per token in token id order. Change it only through
+	// updateTokenLocked.
 	tokens []tokenEntry
 	// tokenByOwner maps each owner to the token it holds.
 	tokenByOwner map[string]int
-	// freeCount is how many entries in tokens are free.
-	freeCount int
+	freeCount    int
 }
+
+// lockedToken is a token whose lock the caller holds.
+type lockedToken struct {
+	cache   *bucketCache
+	tokenID int
+	// status becomes unlockCalled on the first unlock, so a second one cannot let go of a lock another
+	// call has taken since.
+	status int32
+}
+
+const (
+	unlockNotCalled int32 = 0
+	unlockCalled    int32 = 1
+)
 
 // skippedRows counts the scanned rows newBucketCache did not use.
 type skippedRows struct {
@@ -62,20 +86,20 @@ type skippedRows struct {
 	outOfRange int
 }
 
-// newBucketCache builds the cache from a bucket scan. Each token in tokenRange is:
-//   - held, if an owner row names it
-//   - unavailable, if its token row has a holder but no owner row names it
-//   - free, otherwise, including a token with no row
-//
-// Unreadable rows and rows for tokens outside tokenRange are skipped and counted in skippedRows.
+// newBucketCache builds the cache from a bucket scan. A token is held if an owner row names it,
+// unavailable if only its token row has a holder, and free otherwise. Unreadable and out-of-range
+// rows are skipped and counted.
 func newBucketCache(tokenRange commonsemaphore.TokenRange, rows []*persistence.SemaphoreOwnership) (*bucketCache, skippedRows) {
-	c := &bucketCache{
-		tokenRange: tokenRange,
-		mu:         locks.NewMutex(),
+	bc := &bucketCache{
+		tokenRange:   tokenRange,
+		tokenMutexes: make([]locks.Mutex, tokenRange.Count),
 		// Every entry starts as tokenFree, the zero value.
 		tokens:       make([]tokenEntry, tokenRange.Count),
 		tokenByOwner: make(map[string]int),
 		freeCount:    tokenRange.Count,
+	}
+	for i := range bc.tokenMutexes {
+		bc.tokenMutexes[i] = locks.NewMutex()
 	}
 
 	// No lock is needed below: the cache is not shared until newBucketCache returns.
@@ -107,7 +131,7 @@ func newBucketCache(tokenRange commonsemaphore.TokenRange, rows []*persistence.S
 				skipped.outOfRange++
 				continue
 			}
-			c.updateToken(row.HeldToken, tokenEntry{state: tokenHeld, owner: row.OwnerID})
+			bc.updateTokenLocked(row.HeldToken, tokenEntry{state: tokenHeld, owner: row.OwnerID})
 		default:
 			skipped.unreadable++
 		}
@@ -115,142 +139,177 @@ func newBucketCache(tokenRange commonsemaphore.TokenRange, rows []*persistence.S
 	// Applied after every owner row, so an owner row decides who holds its token whatever order
 	// the rows came in.
 	for _, tokenID := range heldTokenRows {
-		if entry, _ := c.lookupToken(tokenID); entry.state != tokenHeld {
-			c.updateToken(tokenID, tokenEntry{state: tokenUnavailable})
+		if bc.lookupTokenLocked(tokenID).state != tokenHeld {
+			bc.updateTokenLocked(tokenID, tokenEntry{state: tokenUnavailable})
 		}
 	}
-	return c, skipped
+	return bc, skipped
 }
 
-// lock takes the bucket lock, waiting while another call holds it. It returns an error if ctx
-// ends while it waits.
-func (c *bucketCache) lock(ctx context.Context) error {
-	return c.mu.Lock(ctx)
-}
+// tryLockFreeToken locks a random free token that no other call holds and returns its lockedToken. It
+// returns nil if there is no such token.
+func (bc *bucketCache) tryLockFreeToken() *lockedToken {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
 
-// unlock lets go of the bucket lock.
-func (c *bucketCache) unlock() {
-	c.mu.Unlock()
-}
-
-// updateToken replaces tokenID's entry with newEntry, and keeps tokenByOwner and freeCount in
-// step:
-//   - freeCount goes up if tokenID becomes free, and down if it stops being free
-//   - if tokenID was held, its old owner leaves tokenByOwner
-//   - if newEntry's owner held another token, that token becomes unavailable: an owner holds one
-//     token, but the database has not said the other one is free
-//
-// A token outside the range is ignored.
-func (c *bucketCache) updateToken(tokenID int, newEntry tokenEntry) {
-	oldEntry, ok := c.lookupToken(tokenID)
-	if !ok || *oldEntry == newEntry {
-		return
+	if bc.freeCount == 0 {
+		return nil
 	}
-	if oldEntry.state == tokenFree {
-		c.freeCount--
-	}
-	if newEntry.state == tokenFree {
-		c.freeCount++
-	}
-	if oldEntry.state == tokenHeld {
-		delete(c.tokenByOwner, oldEntry.owner)
-	}
-	if newEntry.state == tokenHeld {
-		// An owner holds at most one token. If the cache already has this owner on another token,
-		// that record is now out of date, because the database just said the owner holds tokenID.
-		// But the database didn't say the other token is free, so it becomes unavailable rather
-		// than free.
-		if otherToken, ok := c.tokenByOwner[newEntry.owner]; ok && otherToken != tokenID {
-			c.tokens[otherToken-c.tokenRange.First] = tokenEntry{state: tokenUnavailable}
-		}
-		c.tokenByOwner[newEntry.owner] = tokenID
-	}
-	*oldEntry = newEntry
-}
-
-// lookupToken returns tokenID's entry, or false if tokenID is outside the range.
-func (c *bucketCache) lookupToken(tokenID int) (*tokenEntry, bool) {
-	if !c.tokenRange.Contains(tokenID) {
-		return nil, false
-	}
-	return &c.tokens[tokenID-c.tokenRange.First], true
-}
-
-// lookupHeldToken returns the token the cache records ownerID as holding, or false if none.
-func (c *bucketCache) lookupHeldToken(ownerID string) (int, bool) {
-	tokenID, ok := c.tokenByOwner[ownerID]
-	return tokenID, ok
-}
-
-// updateFromTokenRow updates tokenID's entry from what its token row says. row is nil if the token
-// has no row.
-//   - row names ownerID: tokenID is held by ownerID
-//   - row has no holder: tokenID is free
-//   - row names another owner: tokenID becomes unavailable. The cache records an owner only from an
-//     owner row, as load does
-//   - no row: tokenID becomes unavailable. This should not happen, since a grant writes the token
-//     row together with the owner row and nothing deletes it
-func (c *bucketCache) updateFromTokenRow(ownerID string, tokenID int, row *persistence.SemaphoreOwnership) {
-	switch {
-	case row == nil:
-		c.updateToken(tokenID, tokenEntry{state: tokenUnavailable})
-	case row.Holder == ownerID:
-		c.updateToken(tokenID, tokenEntry{state: tokenHeld, owner: ownerID})
-	case row.Holder == "":
-		c.updateToken(tokenID, tokenEntry{state: tokenFree})
-	default:
-		c.updateToken(tokenID, tokenEntry{state: tokenUnavailable})
-	}
-}
-
-// pickFreeToken returns a random free token, or false if there is none. It changes nothing: the
-// caller holds the lock until it records the grant's answer, so no other call can pick it meanwhile.
-func (c *bucketCache) pickFreeToken() (int, bool) {
-	if c.freeCount == 0 {
-		return 0, false
-	}
-	k := rand.Intn(c.freeCount)
-	for i := range c.tokens {
-		if c.tokens[i].state != tokenFree {
+	// Start at a random free token, so each free token is equally likely when none is locked.
+	start, k := 0, rand.Intn(bc.freeCount)
+	for i := range bc.tokens {
+		if bc.tokens[i].state != tokenFree {
 			continue
 		}
 		if k == 0 {
-			return c.tokenRange.First + i, true
+			start = i
+			break
 		}
 		k--
 	}
-	return 0, false
-}
-
-// recordGrantResult records the answer to ownerID's grant of tokenID. For a write that returned an
-// error, record nothing: tokenID stays free, and if the write did land, the database refuses the
-// next grant on it and the cache marks it unavailable.
-//   - applied: tokenID is held by ownerID
-//   - taken: someone else holds tokenID, so it becomes unavailable
-//   - AlreadyHeld: the grant did not take tokenID, and ownerID is recorded on resp.HeldToken. If
-//     resp.HeldToken is outside the range, nothing changes and an error is returned
-//   - an outcome the cache cannot read: nothing changes
-func (c *bucketCache) recordGrantResult(ownerID string, tokenID int, resp *persistence.GrantSemaphoreTokenResponse) error {
-	switch resp.Outcome {
-	case persistence.SemaphoreGrantApplied:
-		c.updateToken(tokenID, tokenEntry{state: tokenHeld, owner: ownerID})
-	case persistence.SemaphoreGrantSlotTaken:
-		c.updateToken(tokenID, tokenEntry{state: tokenUnavailable})
-	case persistence.SemaphoreGrantAlreadyHeld:
-		if !c.tokenRange.Contains(resp.HeldToken) {
-			return fmt.Errorf("owner %v holds token %d, which is outside tokens %d to %d", ownerID, resp.HeldToken, c.tokenRange.First, c.tokenRange.Last())
+	for n := range bc.tokens {
+		i := (start + n) % len(bc.tokens)
+		// A free token can be locked by a grant writing it, or by a call that has just freed it.
+		if bc.tokens[i].state == tokenFree && bc.tokenMutexes[i].TryLock() {
+			return &lockedToken{cache: bc, tokenID: bc.tokenRange.First + i}
 		}
-		c.updateToken(resp.HeldToken, tokenEntry{state: tokenHeld, owner: ownerID})
 	}
 	return nil
 }
 
-// freeTokenCount returns how many tokens are free.
-func (c *bucketCache) freeTokenCount() int {
-	return c.freeCount
+// lockHeldToken locks ownerID's cached token, waiting until another holder unlocks it or the ctx
+// deadline passes. It returns nil if ownerID has no cached token, or lost it before the lock.
+func (bc *bucketCache) lockHeldToken(ctx context.Context, ownerID string) (*lockedToken, error) {
+	tokenID, ok := bc.lookupHeldToken(ownerID)
+	if !ok {
+		return nil, nil
+	}
+	lockedToken, err := bc.lockToken(ctx, tokenID)
+	if err != nil {
+		return nil, err
+	}
+	// Another call may have changed ownerID's token between the lookup and taking the lock
+	if heldTokenID, ok := bc.lookupHeldToken(ownerID); !ok || heldTokenID != tokenID {
+		lockedToken.unlock()
+		return nil, nil
+	}
+	return lockedToken, nil
 }
 
-// ownerCount returns how many owners hold a token.
-func (c *bucketCache) ownerCount() int {
-	return len(c.tokenByOwner)
+// lockToken locks tokenID, waiting until another holder unlocks it or the ctx deadline passes.
+// It returns an error only if the deadline passes.
+func (bc *bucketCache) lockToken(ctx context.Context, tokenID int) (*lockedToken, error) {
+	if err := bc.tokenMutexes[bc.index(tokenID)].Lock(ctx); err != nil {
+		return nil, err
+	}
+	return &lockedToken{cache: bc, tokenID: tokenID}, nil
+}
+
+// tryLockToken locks tokenID without waiting. It returns nil if another call holds it.
+func (bc *bucketCache) tryLockToken(tokenID int) *lockedToken {
+	if !bc.tokenMutexes[bc.index(tokenID)].TryLock() {
+		return nil
+	}
+	return &lockedToken{cache: bc, tokenID: tokenID}
+}
+
+// lookupHeldToken returns the token the cache records ownerID as holding, or false if none.
+func (bc *bucketCache) lookupHeldToken(ownerID string) (int, bool) {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+	tokenID, ok := bc.tokenByOwner[ownerID]
+	return tokenID, ok
+}
+
+// freeTokenCount returns how many tokens are free.
+func (bc *bucketCache) freeTokenCount() int {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+	return bc.freeCount
+}
+
+// heldTokenCount returns how many tokens are held.
+func (bc *bucketCache) heldTokenCount() int {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+	return len(bc.tokenByOwner)
+}
+
+// updateTokenLocked sets tokenID's entry to newEntry and updates tokenByOwner and freeCount to
+// match. The caller holds mu.
+func (bc *bucketCache) updateTokenLocked(tokenID int, newEntry tokenEntry) {
+	oldEntry := bc.lookupTokenLocked(tokenID)
+	if *oldEntry == newEntry {
+		return
+	}
+	if oldEntry.state == tokenFree {
+		bc.freeCount--
+	}
+	if newEntry.state == tokenFree {
+		bc.freeCount++
+	}
+	if oldEntry.state == tokenHeld {
+		delete(bc.tokenByOwner, oldEntry.owner)
+	}
+	if newEntry.state == tokenHeld {
+		// The owner holds one token, so a record of this owner on another token is out of date. That
+		// token becomes unavailable, not free, since the database has not said it is free. Its lock
+		// is not taken (a call holds one token lock at a time). A call holding it records what the
+		// database says for that token afterwards, which replaces this.
+		if otherToken, ok := bc.tokenByOwner[newEntry.owner]; ok && otherToken != tokenID {
+			bc.tokens[bc.index(otherToken)] = tokenEntry{state: tokenUnavailable}
+		}
+		bc.tokenByOwner[newEntry.owner] = tokenID
+	}
+	*oldEntry = newEntry
+}
+
+// lookupTokenLocked returns tokenID's entry. The caller holds mu.
+func (bc *bucketCache) lookupTokenLocked(tokenID int) *tokenEntry {
+	return &bc.tokens[bc.index(tokenID)]
+}
+
+// index returns tokenID's position in tokens and tokenMutexes.
+func (bc *bucketCache) index(tokenID int) int {
+	return tokenID - bc.tokenRange.First
+}
+
+// id returns the locked token's id.
+func (lt *lockedToken) id() int {
+	return lt.tokenID
+}
+
+// unlock lets go of the token's lock. Only the first call does anything.
+func (lt *lockedToken) unlock() {
+	if !atomic.CompareAndSwapInt32(&lt.status, unlockNotCalled, unlockCalled) {
+		return
+	}
+	lt.cache.tokenMutexes[lt.cache.index(lt.tokenID)].Unlock()
+}
+
+// markHeld marks the token as held by ownerID.
+func (lt *lockedToken) markHeld(ownerID string) {
+	lt.mark(tokenEntry{state: tokenHeld, owner: ownerID})
+}
+
+// markFree marks the token as free.
+func (lt *lockedToken) markFree() {
+	lt.mark(tokenEntry{state: tokenFree})
+}
+
+// markUnavailable marks the token as unavailable.
+func (lt *lockedToken) markUnavailable() {
+	lt.mark(tokenEntry{state: tokenUnavailable})
+}
+
+// mark sets the token's entry to newEntry. It panics after unlock, since the token may then be
+// locked by another call.
+func (lt *lockedToken) mark(newEntry tokenEntry) {
+	if atomic.LoadInt32(&lt.status) == unlockCalled {
+		panic(fmt.Sprintf("token %d marked after unlock", lt.tokenID))
+	}
+	bc := lt.cache
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+	bc.updateTokenLocked(lt.tokenID, newEntry)
 }

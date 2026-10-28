@@ -16,7 +16,7 @@ type (
 		// Stop shuts the manager down: later acquires get ErrNotReady. Safe to call again, and
 		// called by the manager itself once the bucket has gone IdleTTL without a request.
 		Stop()
-		// Acquire answers Acquired or NoSlot.
+		// Acquire answers Acquired or NoSlot. ownerID has already been parsed by the engine.
 		Acquire(ctx context.Context, ownerID string) (AcquireResult, error)
 		// Identifier names the bucket this manager serves.
 		Identifier() Identifier

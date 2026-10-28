@@ -31,6 +31,7 @@ type (
 	// is closed.
 	Mutex interface {
 		Lock(context.Context) error
+		TryLock() bool
 		Unlock()
 	}
 )
@@ -53,6 +54,15 @@ func (m *impl) Lock(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+func (m *impl) TryLock() bool {
+	select {
+	case <-m.ch:
+		return true
+	default:
+		return false
 	}
 }
 
