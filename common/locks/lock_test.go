@@ -58,6 +58,20 @@ func TestExpiredContext(t *testing.T) {
 	lock.Unlock()
 }
 
+func TestTryLock(t *testing.T) {
+	lock := NewMutex()
+	require.True(t, lock.TryLock(), "a free lock is taken")
+	require.False(t, lock.TryLock(), "a held lock is not taken")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.Error(t, lock.Lock(ctx), "Lock cannot take a lock TryLock holds")
+
+	lock.Unlock()
+	require.True(t, lock.TryLock(), "the lock is taken again after Unlock")
+	lock.Unlock()
+}
+
 func BenchmarkLock(b *testing.B) {
 	l := NewMutex()
 	ctx := context.Background()
