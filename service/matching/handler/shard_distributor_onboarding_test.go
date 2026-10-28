@@ -38,7 +38,7 @@ const (
 	host1 = "host1"
 	host2 = "host2"
 
-	// noHost is the holder of a shard that no host holds.
+	// noHost means SD hasn't given the shard to any host.
 	noHost = ""
 
 	// routedBySD and routedByHashRing say which one the resolver asked for a task list's owner.
@@ -384,7 +384,7 @@ func (td *onboardingTestData) requireShards(t *testing.T, want shards) {
 	reportTTL := td.hosts[0].engine.taskListsFactory.ReportTTL
 	td.timeSource.Advance(reportTTL + time.Second)
 
-	got := td.observeShards(t)
+	got := td.currentShards(t)
 	require.Equal(t, want, got, "every shard after this step")
 
 	for _, taskList := range td.taskLists {
@@ -396,24 +396,24 @@ func (td *onboardingTestData) requireShards(t *testing.T, want shards) {
 	}
 }
 
-// observeShards returns the host that holds each shard, and where the resolver sends each task
-// list in the shard.
-func (td *onboardingTestData) observeShards(t *testing.T) shards {
+// currentShards returns each shard as the hosts and the resolver report it now: the host holding
+// it, the load it reports, and where the resolver sends each of its task lists.
+func (td *onboardingTestData) currentShards(t *testing.T) shards {
 	t.Helper()
-	observed := make(shards)
+	shardsByID := make(shards)
 	for _, shardID := range td.shardIDs() {
-		observedShard := shard{heldBy: noHost, taskLists: make(routes)}
+		shardState := shard{heldBy: noHost, taskLists: make(routes)}
 		holder := td.shardHolder(shardID)
 		if holder != nil {
-			observedShard.heldBy = holder.name
-			observedShard.load = holder.shardProcessors[shardID].GetShardReport().ShardLoad
+			shardState.heldBy = holder.name
+			shardState.load = holder.shardProcessors[shardID].GetShardReport().ShardLoad
 		}
-		observed[shardID] = observedShard
+		shardsByID[shardID] = shardState
 	}
 	for _, taskList := range td.taskLists {
-		observed[taskList.shard].taskLists[taskList.name] = td.routeOf(t, taskList.name)
+		shardsByID[taskList.shard].taskLists[taskList.name] = td.routeOf(t, taskList.name)
 	}
-	return observed
+	return shardsByID
 }
 
 // joinSDOnceOnboarded gives each host its shards once matching lets the host's executor heartbeat
