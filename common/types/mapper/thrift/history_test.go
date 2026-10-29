@@ -25,12 +25,14 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/.gen/go/history"
 	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
 )
 
@@ -695,4 +697,269 @@ func TestRatelimitUpdate(t *testing.T) {
 		assert.Equal(t, &types.RatelimitUpdateRequest{Any: internal}, ToHistoryRatelimitUpdateRequest(&history.RatelimitUpdateRequest{Data: thrift}), "request to internal")
 		assert.Equal(t, &history.RatelimitUpdateResponse{Data: thrift}, FromHistoryRatelimitUpdateResponse(&types.RatelimitUpdateResponse{Any: internal}), "response from internal")
 	})
+}
+
+func FailureCategoryFuzzer(e *types.FailureCategory, c fuzz.Continue) {
+	*e = types.FailureCategory(c.Intn(3)) // 0-2: Standard, Poll, Fatal
+}
+
+func DecisionTaskFailedCauseFuzzer(e *types.DecisionTaskFailedCause, c fuzz.Continue) {
+	*e = types.DecisionTaskFailedCause(c.Intn(25)) // 0-24: All DecisionTaskFailedCause values
+}
+
+func WorkflowIDReusePolicyFuzzer(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
+	*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
+}
+
+func ContinueAsNewInitiatorFuzzer(e *types.ContinueAsNewInitiator, c fuzz.Continue) {
+	*e = types.ContinueAsNewInitiator(c.Intn(3)) // 0-2: Decider, RetryPolicy, CronSchedule
+}
+
+func TestDomainFilterFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDomainFilter, ToDomainFilter)
+}
+
+func TestEventAlreadyStartedErrorFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromEventAlreadyStartedError, ToEventAlreadyStartedError)
+}
+
+func TestFailoverMarkerTokenFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverMarkerToken, ToFailoverMarkerToken)
+}
+
+func TestFailoverMarkerTokenArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverMarkerTokenArray, ToFailoverMarkerTokenArray)
+}
+
+func TestGetFailoverInfoRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromGetFailoverInfoRequest, ToGetFailoverInfoRequest)
+}
+
+func TestGetFailoverInfoResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromGetFailoverInfoResponse, ToGetFailoverInfoResponse)
+}
+
+func TestHistoryDescribeMutableStateRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryDescribeMutableStateRequest, ToHistoryDescribeMutableStateRequest)
+}
+
+func TestHistoryDescribeMutableStateResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryDescribeMutableStateResponse, ToHistoryDescribeMutableStateResponse)
+}
+
+func TestHistoryDescribeWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryDescribeWorkflowExecutionRequest, ToHistoryDescribeWorkflowExecutionRequest,
+		testutils.WithCustomFuncs(QueryConsistencyLevelFuzzer),
+	)
+}
+
+func TestHistoryGetMutableStateRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryGetMutableStateRequest, ToHistoryGetMutableStateRequest)
+}
+
+func TestHistoryGetMutableStateResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryGetMutableStateResponse, ToHistoryGetMutableStateResponse)
+}
+
+func TestHistoryNotifyFailoverMarkersRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryNotifyFailoverMarkersRequest, ToHistoryNotifyFailoverMarkersRequest)
+}
+
+func TestHistoryPollMutableStateRequestFuzz(t *testing.T) {
+	// [BUG] VersionHistoryItem exists in types.PollMutableStateRequest but is not mapped
+	// in FromHistoryPollMutableStateRequest; it is silently dropped.
+	testutils.RunMapperFuzzTest(t, FromHistoryPollMutableStateRequest, ToHistoryPollMutableStateRequest,
+		testutils.WithExcludedFields("VersionHistoryItem"),
+	)
+}
+
+func TestHistoryPollMutableStateResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryPollMutableStateResponse, ToHistoryPollMutableStateResponse)
+}
+
+func TestHistoryQueryWorkflowRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryQueryWorkflowRequest, ToHistoryQueryWorkflowRequest,
+		testutils.WithCustomFuncs(QueryConsistencyLevelFuzzer, QueryRejectConditionFuzzer),
+	)
+}
+
+func TestHistoryQueryWorkflowResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryQueryWorkflowResponse, ToHistoryQueryWorkflowResponse)
+}
+
+func TestHistoryRatelimitUpdateRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRatelimitUpdateRequest, ToHistoryRatelimitUpdateRequest)
+}
+
+func TestHistoryRatelimitUpdateResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRatelimitUpdateResponse, ToHistoryRatelimitUpdateResponse)
+}
+
+func TestHistoryReapplyEventsRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryReapplyEventsRequest, ToHistoryReapplyEventsRequest,
+		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
+	)
+}
+
+func TestHistoryRecordActivityTaskHeartbeatRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRecordActivityTaskHeartbeatRequest, ToHistoryRecordActivityTaskHeartbeatRequest)
+}
+
+func TestHistoryRefreshWorkflowTasksRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRefreshWorkflowTasksRequest, ToHistoryRefreshWorkflowTasksRequest)
+}
+
+func TestHistoryRemoveSignalMutableStateRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRemoveSignalMutableStateRequest, ToHistoryRemoveSignalMutableStateRequest)
+}
+
+func TestHistoryReplicateEventsV2RequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryReplicateEventsV2Request, ToHistoryReplicateEventsV2Request,
+		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
+	)
+}
+
+func TestHistoryRequestCancelWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRequestCancelWorkflowExecutionRequest, ToHistoryRequestCancelWorkflowExecutionRequest)
+}
+
+func TestHistoryResetStickyTaskListRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryResetStickyTaskListRequest, ToHistoryResetStickyTaskListRequest)
+}
+
+func TestHistoryResetStickyTaskListResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryResetStickyTaskListResponse, ToHistoryResetStickyTaskListResponse)
+}
+
+func TestHistoryResetWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryResetWorkflowExecutionRequest, ToHistoryResetWorkflowExecutionRequest)
+}
+
+func TestHistoryRespondActivityTaskCanceledRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondActivityTaskCanceledRequest, ToHistoryRespondActivityTaskCanceledRequest)
+}
+
+func TestHistoryRespondActivityTaskCompletedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondActivityTaskCompletedRequest, ToHistoryRespondActivityTaskCompletedRequest)
+}
+
+func TestHistoryRespondActivityTaskFailedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondActivityTaskFailedRequest, ToHistoryRespondActivityTaskFailedRequest,
+		testutils.WithCustomFuncs(FailureCategoryFuzzer),
+	)
+}
+
+func TestHistoryRespondDecisionTaskCompletedRequestFuzz(t *testing.T) {
+	// CompleteRequest carries Decisions, whose attributes embed many enum types;
+	// the decision mappers are covered by the shared mapper tests.
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondDecisionTaskCompletedRequest, ToHistoryRespondDecisionTaskCompletedRequest,
+		testutils.WithExcludedFields("CompleteRequest"),
+	)
+}
+
+func TestHistoryRespondDecisionTaskCompletedResponseFuzz(t *testing.T) {
+	// StartedResponse is a RecordDecisionTaskStartedResponse; tested separately in
+	// TestRecordDecisionTaskStartedResponseFuzz.
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondDecisionTaskCompletedResponse, ToHistoryRespondDecisionTaskCompletedResponse,
+		testutils.WithExcludedFields("StartedResponse"),
+	)
+}
+
+func TestHistoryRespondDecisionTaskFailedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondDecisionTaskFailedRequest, ToHistoryRespondDecisionTaskFailedRequest,
+		testutils.WithCustomFuncs(DecisionTaskFailedCauseFuzzer),
+	)
+}
+
+func TestHistoryScheduleDecisionTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryScheduleDecisionTaskRequest, ToHistoryScheduleDecisionTaskRequest)
+}
+
+func TestHistorySignalWithStartWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistorySignalWithStartWorkflowExecutionRequest, ToHistorySignalWithStartWorkflowExecutionRequest,
+		testutils.WithCommonEnumFuzzers(),
+		testutils.WithCustomFuncs(WorkflowIDReusePolicyFuzzer),
+	)
+}
+
+func TestHistorySignalWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistorySignalWorkflowExecutionRequest, ToHistorySignalWorkflowExecutionRequest)
+}
+
+func TestHistoryStartWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryStartWorkflowExecutionRequest, ToHistoryStartWorkflowExecutionRequest,
+		testutils.WithCommonEnumFuzzers(),
+		testutils.WithCustomFuncs(WorkflowIDReusePolicyFuzzer, ContinueAsNewInitiatorFuzzer),
+	)
+}
+
+func TestHistorySyncActivityRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistorySyncActivityRequest, ToHistorySyncActivityRequest,
+		testutils.WithCustomFuncs(FailureCategoryFuzzer),
+	)
+}
+
+func TestHistorySyncShardStatusRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistorySyncShardStatusRequest, ToHistorySyncShardStatusRequest)
+}
+
+func TestHistoryTerminateWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryTerminateWorkflowExecutionRequest, ToHistoryTerminateWorkflowExecutionRequest)
+}
+
+func TestParentExecutionInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromParentExecutionInfo, ToParentExecutionInfo)
+}
+
+func TestProcessingQueueStateFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromProcessingQueueState, ToProcessingQueueState)
+}
+
+func TestProcessingQueueStateArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromProcessingQueueStateArray, ToProcessingQueueStateArray)
+}
+
+func TestProcessingQueueStateArrayMapFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromProcessingQueueStateArrayMap, ToProcessingQueueStateArrayMap)
+}
+
+func TestProcessingQueueStatesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromProcessingQueueStates, ToProcessingQueueStates)
+}
+
+func TestRecordActivityTaskStartedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRecordActivityTaskStartedRequest, ToRecordActivityTaskStartedRequest)
+}
+
+func TestRecordActivityTaskStartedResponseFuzz(t *testing.T) {
+	// ScheduledEvent is a HistoryEvent requiring complex enum handling; HistoryEvent
+	// mapping is covered by the shared mapper tests.
+	testutils.RunMapperFuzzTest(t, FromRecordActivityTaskStartedResponse, ToRecordActivityTaskStartedResponse,
+		testutils.WithExcludedFields("ScheduledEvent"),
+	)
+}
+
+func TestRecordChildExecutionCompletedRequestFuzz(t *testing.T) {
+	// CompletionEvent is a HistoryEvent requiring complex enum handling; HistoryEvent
+	// mapping is covered by the shared mapper tests.
+	testutils.RunMapperFuzzTest(t, FromRecordChildExecutionCompletedRequest, ToRecordChildExecutionCompletedRequest,
+		testutils.WithExcludedFields("CompletionEvent"),
+	)
+}
+
+func TestRecordDecisionTaskStartedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRecordDecisionTaskStartedRequest, ToRecordDecisionTaskStartedRequest)
+}
+
+func TestRecordDecisionTaskStartedResponseFuzz(t *testing.T) {
+	// DecisionInfo contains TransientDecisionInfo, which holds HistoryEvent fields
+	// requiring complex enum handling; HistoryEvent mapping is covered by the shared mapper tests.
+	testutils.RunMapperFuzzTest(t, FromRecordDecisionTaskStartedResponse, ToRecordDecisionTaskStartedResponse,
+		testutils.WithCommonEnumFuzzers(),
+		testutils.WithExcludedFields("DecisionInfo"),
+	)
+}
+
+func TestShardOwnershipLostErrorFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromShardOwnershipLostError, ToShardOwnershipLostError)
 }
