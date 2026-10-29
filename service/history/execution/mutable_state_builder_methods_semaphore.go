@@ -248,10 +248,17 @@ func (e *mutableStateBuilder) AddSemaphoreReleasedEvent(
 	return event, nil
 }
 
-// ReplicateSemaphoreReleasedEvent ends the hold the released token belonged to.
+// ReplicateSemaphoreReleasedEvent ends the hold the released token belonged to, and adds the
+// transfer task that frees the token in Matching.
 func (e *mutableStateBuilder) ReplicateSemaphoreReleasedEvent(
 	event *types.HistoryEvent,
 ) error {
 
-	return e.DeleteSemaphoreInfo(event.SemaphoreReleasedEventAttributes.GetInitiatedEventID())
+	initiatedEventID := event.SemaphoreReleasedEventAttributes.GetInitiatedEventID()
+	if semaphoreInfo, ok := e.GetSemaphoreInfo(initiatedEventID); ok {
+		if err := e.taskGenerator.GenerateReleaseSemaphoreTasks(event, semaphoreInfo.SemaphoreName); err != nil {
+			return err
+		}
+	}
+	return e.DeleteSemaphoreInfo(initiatedEventID)
 }

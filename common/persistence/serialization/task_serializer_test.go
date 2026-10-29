@@ -204,6 +204,20 @@ func TestTaskSerializerThriftRW(t *testing.T) {
 			},
 		},
 		{
+			category: persistence.HistoryTaskCategoryTransfer,
+			task: &persistence.ReleaseSemaphoreTask{
+				WorkflowIdentifier: workflowIdentifier,
+				TaskData: persistence.TaskData{
+					Version:             10,
+					TaskID:              10,
+					VisibilityTimestamp: time.Unix(10, 10),
+				},
+				InitiatedID:   5,
+				SemaphoreName: "sem",
+				TaskList:      "tl",
+			},
+		},
+		{
 			category: persistence.HistoryTaskCategoryTimer,
 			task: &persistence.DecisionTimeoutTask{
 				WorkflowIdentifier: workflowIdentifier,

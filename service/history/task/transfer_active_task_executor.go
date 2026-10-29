@@ -164,6 +164,8 @@ func (t *transferActiveTaskExecutor) Execute(task Task) (ExecuteResponse, error)
 		return executeResponse, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
 	case *persistence.AcquireSemaphoreTask:
 		return executeResponse, t.processAcquireSemaphore(ctx, transferTask)
+	case *persistence.ReleaseSemaphoreTask:
+		return executeResponse, t.processReleaseSemaphore(ctx, transferTask)
 	default:
 		return executeResponse, errUnknownTransferTask
 	}
@@ -1280,7 +1282,7 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 		return nil
 	}
 
-	bucket, err := t.getOwnerBucket(ctx, task.DomainID, semaphoreInfo)
+	bucket, err := t.getOwnerBucket(ctx, task.DomainID, semaphoreInfo.SemaphoreName, semaphoreInfo.OwnerID)
 	if errors.As(err, new(*types.EntityNotExistsError)) {
 		// The semaphore does not exist, so the acquire can never succeed.
 		return recordSemaphoreAcquireFailed(ctx, t.logger, wfContext, task.InitiatedID,
@@ -1302,6 +1304,48 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 	}
 
 	return recordSemaphoreGranted(ctx, t.logger, wfContext, task.InitiatedID, tokenID, t.shard.GetTimeSource().Now())
+}
+
+func (t *transferActiveTaskExecutor) processReleaseSemaphore(
+	ctx context.Context,
+	task *persistence.ReleaseSemaphoreTask,
+) error {
+
+	// Must match the owner_id acquire stored.
+	ownerID := commonsemaphore.Owner{
+		WorkflowID: task.WorkflowID,
+		RunID:      task.RunID,
+		HoldID:     task.InitiatedID,
+	}.String()
+
+	bucket, err := t.getOwnerBucket(ctx, task.DomainID, task.SemaphoreName, ownerID)
+	if errors.As(err, new(*types.EntityNotExistsError)) {
+		// No metadata means no bucket to send the release to, so a retry can't help. Only a manual
+		// change to the metadata gets here. Logged, since the token can no longer be freed.
+		t.logger.Warn("Semaphore not found, completing the release task without freeing a token",
+			tag.WorkflowDomainID(task.DomainID),
+			tag.WorkflowID(task.WorkflowID),
+			tag.WorkflowRunID(task.RunID),
+			tag.WorkflowInitiatedID(task.InitiatedID),
+			tag.SemaphoreName(task.SemaphoreName),
+		)
+		return nil
+	}
+	if err != nil {
+		// Retried: a failed read may pass next time, and invalid metadata stays visible in the
+		// task's error logs rather than dropping the release.
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
+	defer cancel()
+	_, err = t.matchingClient.ReleaseSemaphore(ctx, &types.ReleaseSemaphoreRequest{
+		DomainUUID:    task.DomainID,
+		SemaphoreName: task.SemaphoreName,
+		Bucket:        int32(bucket),
+		OwnerID:       ownerID,
+	})
+	return err
 }
 
 func recordChildExecutionStarted(
@@ -2127,16 +2171,17 @@ func getWorkflowExecutionStatus(mutableState execution.MutableState, closeEvent 
 	}
 }
 
-// getOwnerBucket returns the bucket that serves the hold's owner_id.
+// getOwnerBucket returns the bucket of semaphoreName that serves ownerID.
 func (t *transferActiveTaskExecutor) getOwnerBucket(
 	ctx context.Context,
 	domainID string,
-	semaphoreInfo *persistence.SemaphoreInfo,
+	semaphoreName string,
+	ownerID string,
 ) (int, error) {
 
 	resp, err := t.semaphoreMetadataManager.GetSemaphore(ctx, &persistence.GetSemaphoreRequest{
 		DomainID:      domainID,
-		SemaphoreName: semaphoreInfo.SemaphoreName,
+		SemaphoreName: semaphoreName,
 	})
 	if err != nil {
 		return 0, err
@@ -2144,13 +2189,22 @@ func (t *transferActiveTaskExecutor) getOwnerBucket(
 
 	numBuckets, err := commonsemaphore.NumBuckets(resp.Semaphore.Size, resp.Semaphore.BucketSize)
 	if err != nil {
-		return 0, &types.InternalServiceError{Message: err.Error()}
+		return 0, invalidSemaphoreMetadataError(domainID, semaphoreName, err)
 	}
-	bucket, err := commonsemaphore.OwnerIDToBucket(semaphoreInfo.OwnerID, numBuckets)
+	bucket, err := commonsemaphore.OwnerIDToBucket(ownerID, numBuckets)
 	if err != nil {
-		return 0, &types.InternalServiceError{Message: err.Error()}
+		return 0, invalidSemaphoreMetadataError(domainID, semaphoreName, err)
 	}
 	return bucket, nil
+}
+
+// invalidSemaphoreMetadataError reports a metadata row that can't be split into buckets.
+// CreateSemaphore never stores such values, so only a manual change to the row gets here.
+// It's an internal error, so the task retries rather than dropping the hold's token.
+func invalidSemaphoreMetadataError(domainID, semaphoreName string, err error) error {
+	return &types.InternalServiceError{
+		Message: fmt.Sprintf("semaphore metadata for domain %v, semaphore %v is invalid: %v", domainID, semaphoreName, err),
+	}
 }
 
 // acquireSemaphoreToken asks the bucket's Matching host for a token and returns it.

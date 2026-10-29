@@ -2256,6 +2256,29 @@ func (s *transferActiveTaskExecutorSuite) testProcessAcquireSemaphore(
 	s.Equal(expectedErr, err)
 }
 
+// Tests that a release task reaches processReleaseSemaphore, which needs no mutable state.
+func (s *transferActiveTaskExecutorSuite) TestProcessReleaseSemaphore() {
+	transferTask := s.newTransferTaskFromInfo(&persistence.ReleaseSemaphoreTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: "wid",
+			RunID:      "rid",
+		},
+		TaskData: persistence.TaskData{
+			Version: s.version,
+			TaskID:  int64(59),
+		},
+		InitiatedID:   7,
+		SemaphoreName: testSemaphoreName,
+	})
+	s.mockShard.Resource.SemaphoreMetadataMgr.EXPECT().GetSemaphore(gomock.Any(), gomock.Any()).
+		Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{Size: 4, BucketSize: 2}}, nil)
+	s.mockMatchingClient.EXPECT().ReleaseSemaphore(gomock.Any(), gomock.Any()).Return(&types.ReleaseSemaphoreResponse{}, nil)
+
+	_, err := s.transferActiveTaskExecutor.Execute(transferTask)
+	s.NoError(err)
+}
+
 func (s *transferActiveTaskExecutorSuite) expectAcquireSemaphoreRequest(
 	semaphoreInfo *persistence.SemaphoreInfo,
 	resp *types.AcquireSemaphoreResponse,
@@ -2799,5 +2822,92 @@ func createRecordWorkflowExecutionUninitializedRequest(
 		WorkflowTypeName: executionInfo.WorkflowTypeName,
 		UpdateTimestamp:  updateTime.UnixNano(),
 		ShardID:          shardID,
+	}
+}
+
+// Tests what processReleaseSemaphore sends to Matching and which errors it retries.
+func TestProcessReleaseSemaphore(t *testing.T) {
+	const (
+		domainID = "domain-id"
+		// The owner_id acquire stored for workflow "wid", run "rid" and hold 7.
+		ownerID = "3:wid:rid:7"
+	)
+	task := &persistence.ReleaseSemaphoreTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: domainID, WorkflowID: "wid", RunID: "rid"},
+		InitiatedID:        7,
+		SemaphoreName:      testSemaphoreName,
+	}
+	metadata := &persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{Size: 4, BucketSize: 2}}
+	bucket, err := commonsemaphore.OwnerIDToBucket(ownerID, 2)
+	require.NoError(t, err)
+	matchingErr := &types.ServiceBusyError{Message: "busy"}
+	metadataErr := &types.InternalServiceError{Message: "db down"}
+
+	testCases := []struct {
+		name         string
+		metadataResp *persistence.GetSemaphoreResponse
+		metadataErr  error
+		callMatching bool
+		matchingErr  error
+		wantErr      error
+	}{
+		{
+			name:         "sends the rebuilt owner_id to the owner's bucket",
+			metadataResp: metadata,
+			callMatching: true,
+		},
+		{
+			name:         "Matching error: returned, so the task retries",
+			metadataResp: metadata,
+			callMatching: true,
+			matchingErr:  matchingErr,
+			wantErr:      matchingErr,
+		},
+		{
+			name:        "semaphore not found: completes with no call",
+			metadataErr: &types.EntityNotExistsError{Message: "semaphore not found"},
+		},
+		{
+			name:        "metadata read fails: returned, so the task retries",
+			metadataErr: metadataErr,
+			wantErr:     metadataErr,
+		},
+		{
+			name:         "invalid metadata: returned, so the task retries",
+			metadataResp: &persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{Size: 0, BucketSize: 2}},
+			wantErr: &types.InternalServiceError{
+				Message: "semaphore metadata for domain domain-id, semaphore my-semaphore is invalid: size must be positive, got 0",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			metadataMgr := persistence.NewMockSemaphoreMetadataManager(ctrl)
+			metadataMgr.EXPECT().GetSemaphore(gomock.Any(), &persistence.GetSemaphoreRequest{
+				DomainID:      domainID,
+				SemaphoreName: testSemaphoreName,
+			}).Return(tc.metadataResp, tc.metadataErr)
+			matchingClient := matching.NewMockClient(ctrl)
+			if tc.callMatching {
+				matchingClient.EXPECT().ReleaseSemaphore(gomock.Any(), &types.ReleaseSemaphoreRequest{
+					DomainUUID:    domainID,
+					SemaphoreName: testSemaphoreName,
+					Bucket:        int32(bucket),
+					OwnerID:       ownerID,
+				}).Return(&types.ReleaseSemaphoreResponse{}, tc.matchingErr)
+			}
+			executor := &transferActiveTaskExecutor{
+				transferTaskExecutorBase: &transferTaskExecutorBase{
+					logger:         log.NewNoop(),
+					matchingClient: matchingClient,
+				},
+				semaphoreMetadataManager: metadataMgr,
+			}
+
+			err := executor.processReleaseSemaphore(context.Background(), task)
+			assert.Equal(t, tc.wantErr, err)
+		})
 	}
 }

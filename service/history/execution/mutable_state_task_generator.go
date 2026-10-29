@@ -80,6 +80,10 @@ type (
 		GenerateAcquireSemaphoreTasks(
 			initiatedEventID int64,
 		) error
+		GenerateReleaseSemaphoreTasks(
+			event *types.HistoryEvent,
+			semaphoreName string,
+		) error
 		GenerateWorkflowSearchAttrTasks() error
 		GenerateWorkflowResetTasks() error
 		// these 2 APIs should only be called when mutable state transaction is being closed
@@ -492,6 +496,31 @@ func (r *mutableStateTaskGeneratorImpl) GenerateAcquireSemaphoreTasks(
 		},
 		InitiatedID: semaphoreInfo.InitiatedID,
 		TaskList:    executionInfo.TaskList,
+	})
+	return nil
+}
+
+// GenerateReleaseSemaphoreTasks adds the transfer task that frees the released hold's token in
+// Matching. The caller passes the name, since the hold is deleted with the event.
+func (r *mutableStateTaskGeneratorImpl) GenerateReleaseSemaphoreTasks(
+	event *types.HistoryEvent,
+	semaphoreName string,
+) error {
+
+	executionInfo := r.mutableState.GetExecutionInfo()
+	r.mutableState.AddTransferTasks(&persistence.ReleaseSemaphoreTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   executionInfo.DomainID,
+			WorkflowID: executionInfo.WorkflowID,
+			RunID:      executionInfo.RunID,
+		},
+		TaskData: persistence.TaskData{
+			// TaskID and VisibilityTimestamp are set by shard context
+			Version: event.Version,
+		},
+		InitiatedID:   event.SemaphoreReleasedEventAttributes.GetInitiatedEventID(),
+		SemaphoreName: semaphoreName,
+		TaskList:      executionInfo.TaskList,
 	})
 	return nil
 }

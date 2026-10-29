@@ -52,6 +52,7 @@ func TestTaskCommonMethods(t *testing.T) {
 		&StartChildExecutionTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&RecordWorkflowClosedTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&AcquireSemaphoreTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&ReleaseSemaphoreTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&HistoryReplicationTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&SyncActivityTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&FailoverMarkerTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
@@ -97,6 +98,8 @@ func TestTaskCommonMethods(t *testing.T) {
 			assert.Equal(t, TransferTaskTypeRecordWorkflowClosed, ty.GetTaskType())
 		case *AcquireSemaphoreTask:
 			assert.Equal(t, TransferTaskTypeAcquireSemaphore, ty.GetTaskType())
+		case *ReleaseSemaphoreTask:
+			assert.Equal(t, TransferTaskTypeReleaseSemaphore, ty.GetTaskType())
 		case *HistoryReplicationTask:
 			assert.Equal(t, ReplicationTaskTypeHistory, ty.GetTaskType())
 		case *SyncActivityTask:
@@ -146,6 +149,7 @@ func TestTransferTaskMapping(t *testing.T) {
 		&StartChildExecutionTask{},
 		&RecordWorkflowClosedTask{},
 		&AcquireSemaphoreTask{},
+		&ReleaseSemaphoreTask{},
 	}
 	for i := 0; i < 1000; i++ {
 		for _, task := range tasks {
@@ -638,6 +642,7 @@ func TestIsTaskCorruptedWithAllTaskTypes(t *testing.T) {
 		&StartChildExecutionTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&RecordWorkflowClosedTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&AcquireSemaphoreTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&ReleaseSemaphoreTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&ActivityTimeoutTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&UserTimerTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&ActivityRetryTimerTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
@@ -664,6 +669,7 @@ func TestIsTaskCorruptedWithAllTaskTypes(t *testing.T) {
 		&StartChildExecutionTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&RecordWorkflowClosedTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&AcquireSemaphoreTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&ReleaseSemaphoreTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&ActivityTimeoutTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&UserTimerTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&ActivityRetryTimerTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},

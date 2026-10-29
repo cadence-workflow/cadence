@@ -1351,6 +1351,8 @@ const (
 	TransferActiveTaskApplyParentClosePolicyScope
 	// TransferActiveTaskAcquireSemaphoreScope is the scope used for acquire semaphore task processing by transfer queue processor
 	TransferActiveTaskAcquireSemaphoreScope
+	// TransferActiveTaskReleaseSemaphoreScope is the scope used for release semaphore task processing by transfer queue processor
+	TransferActiveTaskReleaseSemaphoreScope
 	// TransferStandbyTaskResetWorkflowScope is the scope used for record workflow started task processing by transfer queue processor
 	TransferStandbyTaskResetWorkflowScope
 	// TransferStandbyTaskActivityScope is the scope used for activity task processing by transfer queue processor
@@ -1377,6 +1379,8 @@ const (
 	TransferStandbyTaskApplyParentClosePolicyScope
 	// TransferStandbyTaskAcquireSemaphoreScope is the scope used for acquire semaphore task processing by transfer queue processor
 	TransferStandbyTaskAcquireSemaphoreScope
+	// TransferStandbyTaskReleaseSemaphoreScope is the scope used for release semaphore task processing by transfer queue processor
+	TransferStandbyTaskReleaseSemaphoreScope
 	// TimerQueueProcessorScope is the scope used by all metric emitted by timer queue processor
 	TimerQueueProcessorScope
 	// TimerQueueProcessorV2Scope is the scope used by all metric emitted by timer queue processor
@@ -2211,6 +2215,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TransferActiveTaskRecordChildExecutionCompletedScope:            {operation: "TransferActiveTaskRecordChildExecutionCompleted"},
 		TransferActiveTaskApplyParentClosePolicyScope:                   {operation: "TransferActiveTaskApplyParentClosePolicy"},
 		TransferActiveTaskAcquireSemaphoreScope:                         {operation: "TransferActiveTaskAcquireSemaphore"},
+		TransferActiveTaskReleaseSemaphoreScope:                         {operation: "TransferActiveTaskReleaseSemaphore"},
 		TransferStandbyTaskActivityScope:                                {operation: "TransferStandbyTaskActivity"},
 		TransferStandbyTaskDecisionScope:                                {operation: "TransferStandbyTaskDecision"},
 		TransferStandbyTaskCloseExecutionScope:                          {operation: "TransferStandbyTaskCloseExecution"},
@@ -2224,6 +2229,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TransferStandbyTaskRecordChildExecutionCompletedScope:           {operation: "TransferStandbyTaskRecordChildExecutionCompleted"},
 		TransferStandbyTaskApplyParentClosePolicyScope:                  {operation: "TransferStandbyTaskApplyParentClosePolicy"},
 		TransferStandbyTaskAcquireSemaphoreScope:                        {operation: "TransferStandbyTaskAcquireSemaphore"},
+		TransferStandbyTaskReleaseSemaphoreScope:                        {operation: "TransferStandbyTaskReleaseSemaphore"},
 		TimerQueueProcessorScope:                                        {operation: "TimerQueueProcessor"},
 		TimerQueueProcessorV2Scope:                                      {operation: "TimerQueueProcessorV2"},
 		TimerActiveQueueProcessorScope:                                  {operation: "TimerActiveQueueProcessor"},

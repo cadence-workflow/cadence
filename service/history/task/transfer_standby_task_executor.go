@@ -137,6 +137,11 @@ func (t *transferStandbyTaskExecutor) Execute(task Task) (ExecuteResponse, error
 		return executeResponse, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
 	case *persistence.AcquireSemaphoreTask:
 		return executeResponse, t.processAcquireSemaphore(ctx, transferTask)
+	case *persistence.ReleaseSemaphoreTask:
+		// no action needed for standby: tokens are regional, and a standby acquired none here.
+		// A token left in this region by a run that was active here before a failover is freed
+		// by reconciliation.
+		return executeResponse, nil
 	default:
 		return executeResponse, errUnknownTransferTask
 	}
