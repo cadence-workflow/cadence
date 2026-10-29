@@ -67,6 +67,7 @@ func NewFrontendClient(d *yarpc.Dispatcher) FrontendClient {
 		apiv1.NewWorkerAPIYARPCClient(config),
 		apiv1.NewVisibilityAPIYARPCClient(config),
 		apiv1.NewScheduleAPIYARPCClient(config),
+		apiv1.NewSemaphoreAPIYARPCClient(config),
 	)
 }
 

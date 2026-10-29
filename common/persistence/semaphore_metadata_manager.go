@@ -41,6 +41,14 @@ const DefaultSemaphoreBucketSize = 100
 // whatever the semaphore's total size — 500 a second at this cap with one-second holds.
 const MaxSemaphoreBucketSize = 250
 
+// SemaphoreBucketSizeOrDefault returns bucketSize, or DefaultSemaphoreBucketSize if it is zero.
+func SemaphoreBucketSizeOrDefault(bucketSize int) int {
+	if bucketSize == 0 {
+		return DefaultSemaphoreBucketSize
+	}
+	return bucketSize
+}
+
 type semaphoreMetadataManagerImpl struct {
 	persistence SemaphoreMetadataStore
 	logger      log.Logger
@@ -84,17 +92,11 @@ func (m *semaphoreMetadataManagerImpl) CreateSemaphore(
 	if request.BucketSize > MaxSemaphoreBucketSize {
 		return nil, fmt.Errorf("BucketSize must not exceed %d, got %d", MaxSemaphoreBucketSize, request.BucketSize)
 	}
-	// BucketSize is optional: an unset (zero) value falls back to the default.
-	bucketSize := request.BucketSize
-	if bucketSize == 0 {
-		bucketSize = DefaultSemaphoreBucketSize
-	}
-
 	semaphore := &SemaphoreMetadata{
 		DomainID:      request.DomainID,
 		SemaphoreName: request.SemaphoreName,
 		Size:          request.Size,
-		BucketSize:    bucketSize,
+		BucketSize:    SemaphoreBucketSizeOrDefault(request.BucketSize),
 		CreatedTime:   m.timeSrc.Now().UTC(),
 	}
 
