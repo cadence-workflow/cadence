@@ -140,21 +140,20 @@ func (c *clientImpl) PollForActivityTask(
 		request,
 		request.GetIsolationGroup(),
 	)
-	originalTaskList := request.PollRequest.TaskList
-	request.PollRequest.TaskList = &types.TaskList{
-		Name: partition,
-		Kind: originalTaskList.Kind,
-	}
-	peer, err := c.peerResolver.FromTaskList(request.PollRequest.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(partition)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.PollForActivityTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	partitionTaskList := &types.TaskList{Name: partition, Kind: request.PollRequest.TaskList.Kind}
+	pollRequest := *request.PollRequest
+	pollRequest.TaskList = partitionTaskList
+	partitionRequest := *request
+	partitionRequest.PollRequest = &pollRequest
+	resp, err := c.client.PollForActivityTask(ctx, &partitionRequest, append(opts, yarpc.WithShardKey(peer))...)
 	if err != nil {
-		return nil, cadence_errors.NewPeerHostnameError(err, peer)
+		return nil, &PollError{TaskList: partitionTaskList, Err: cadence_errors.NewPeerHostnameError(err, peer)}
 	}
 
-	request.PollRequest.TaskList = originalTaskList
 	c.provider.UpdatePartitionConfig(
 		request.GetDomainUUID(),
 		*request.PollRequest.GetTaskList(),
@@ -167,8 +166,6 @@ func (c *clientImpl) PollForActivityTask(
 		partition,
 		resp.LoadBalancerHints,
 	)
-	// caller needs to know the actual partition for cancelling long poll, so modify the request to pass this information
-	request.PollRequest.TaskList.Name = partition
 	return resp, nil
 }
 
@@ -182,20 +179,20 @@ func (c *clientImpl) PollForDecisionTask(
 		request,
 		request.GetIsolationGroup(),
 	)
-	originalTaskList := request.PollRequest.TaskList
-	request.PollRequest.TaskList = &types.TaskList{
-		Name: partition,
-		Kind: originalTaskList.Kind,
-	}
-	peer, err := c.peerResolver.FromTaskList(request.PollRequest.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(partition)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.PollForDecisionTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	partitionTaskList := &types.TaskList{Name: partition, Kind: request.PollRequest.TaskList.Kind}
+	pollRequest := *request.PollRequest
+	pollRequest.TaskList = partitionTaskList
+	partitionRequest := *request
+	partitionRequest.PollRequest = &pollRequest
+	resp, err := c.client.PollForDecisionTask(ctx, &partitionRequest, append(opts, yarpc.WithShardKey(peer))...)
 	if err != nil {
-		return nil, cadence_errors.NewPeerHostnameError(err, peer)
+		return nil, &PollError{TaskList: partitionTaskList, Err: cadence_errors.NewPeerHostnameError(err, peer)}
 	}
-	request.PollRequest.TaskList = originalTaskList
+
 	c.provider.UpdatePartitionConfig(
 		request.GetDomainUUID(),
 		*request.PollRequest.GetTaskList(),
@@ -208,8 +205,6 @@ func (c *clientImpl) PollForDecisionTask(
 		partition,
 		resp.LoadBalancerHints,
 	)
-	// caller needs to know the actual partition for cancelling long poll, so modify the request to pass this information
-	request.PollRequest.TaskList.Name = partition
 	return resp, nil
 }
 
