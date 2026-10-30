@@ -123,6 +123,7 @@ func TestCassandraLWT(t *testing.T) {
 	testflags.RequireCassandra(t)
 	t.Logf("Running Cassandra LWT tests, concurrency: %d", concurrency)
 
+	dc := *persistence.NewDefaultDynamicConfiguration()
 	testBase := persistencetests.NewTestBase(t, pt.TestBaseParams{
 		PersistenceConfig:    pt.SimplePersistenceConfig(t, public.NewTestConfigWithPublicCassandra),
 		DynamicConfiguration: &dc,
