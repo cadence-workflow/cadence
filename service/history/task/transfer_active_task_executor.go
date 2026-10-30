@@ -432,6 +432,16 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 	parentWorkflowID := executionInfo.ParentWorkflowID
 	parentRunID := executionInfo.ParentRunID
 	initiatedID := executionInfo.InitiatedID
+	firstExecutionRunID := executionInfo.FirstExecutionRunID
+	// versions of different domains can not be compared, so the parent gets the start version only in the same domain
+	var childStartVersion *int64
+	if parentDomainID == task.GetDomainID() {
+		startVersion, err := mutableState.GetStartVersion()
+		if err != nil {
+			return err
+		}
+		childStartVersion = common.Int64Ptr(startVersion)
+	}
 
 	workflowTypeName := executionInfo.WorkflowTypeName
 	workflowCloseTimestamp := wfCloseTime
@@ -516,7 +526,9 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 				WorkflowID: task.GetWorkflowID(),
 				RunID:      task.GetRunID(),
 			},
-			CompletionEvent: completionEvent,
+			CompletionEvent:     completionEvent,
+			FirstExecutionRunID: firstExecutionRunID,
+			ChildStartVersion:   childStartVersion,
 		})
 
 		// Check to see if the error is non-transient, in which case reset the error and continue with processing
@@ -880,6 +892,16 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 		return err
 	}
 
+	// the child start uses the current branch of the parent to find out if an existing child run is from a stale branch
+	var parentVersionHistoryItems []*types.VersionHistoryItem
+	if versionHistories := mutableState.GetVersionHistories(); versionHistories != nil {
+		currentVersionHistory, err := versionHistories.GetCurrentVersionHistory()
+		if err != nil {
+			return err
+		}
+		parentVersionHistoryItems = currentVersionHistory.ToInternalType().Items
+	}
+
 	attributes := initiatedEvent.StartChildWorkflowExecutionInitiatedEventAttributes
 	childRunID, err := startWorkflowWithRetry(
 		ctx,
@@ -892,6 +914,7 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 		attributes,
 		mutableState.GetExecutionInfo().PartitionConfig,
 		mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy,
+		parentVersionHistoryItems,
 	)
 	if err != nil {
 
@@ -1255,8 +1278,8 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 
 	semaphoreInfo, ok := mutableState.GetSemaphoreInfo(task.InitiatedID)
 	if !ok {
-		// The hold is gone: a release removed it, so there is nothing to acquire.
-		// TODO: once the acquire timeout timer exists, it also removes a hold that waited too long.
+		// The hold is gone: a release removed it, or an earlier attempt of this task recorded
+		// SemaphoreAcquireFailed, so there is nothing to acquire.
 		return nil
 	}
 	ok, err = verifyTaskVersion(t.shard, t.logger, task.DomainID, semaphoreInfo.Version, task.Version, task)
@@ -1269,6 +1292,11 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 	}
 
 	bucket, err := t.getOwnerBucket(ctx, task.DomainID, semaphoreInfo)
+	if errors.As(err, new(*types.EntityNotExistsError)) {
+		// The semaphore does not exist, so the acquire can never succeed.
+		return recordSemaphoreAcquireFailed(ctx, t.logger, wfContext, task.InitiatedID,
+			types.SemaphoreAcquireFailedCauseNotFound, t.shard.GetTimeSource().Now())
+	}
 	if err != nil {
 		return err
 	}
@@ -1741,6 +1769,7 @@ func startWorkflowWithRetry(
 	attributes *types.StartChildWorkflowExecutionInitiatedEventAttributes,
 	partitionConfig map[string]string,
 	activeClusterSelectionPolicy *types.ActiveClusterSelectionPolicy,
+	parentVersionHistoryItems []*types.VersionHistoryItem,
 ) (string, error) {
 
 	// Get parent domain name
@@ -1789,6 +1818,7 @@ func startWorkflowWithRetry(
 		},
 		InitiatedID: task.InitiatedID,
 	}
+	historyStartReq.ParentVersionHistoryItems = parentVersionHistoryItems
 
 	startWorkflowCtx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
 	defer cancel()
@@ -2121,11 +2151,6 @@ func (t *transferActiveTaskExecutor) getOwnerBucket(
 		DomainID:      domainID,
 		SemaphoreName: semaphoreInfo.SemaphoreName,
 	})
-	if errors.As(err, new(*types.EntityNotExistsError)) {
-		// Retry: EntityNotExistsError would drop the task and leave the hold waiting forever.
-		// TODO: fail the run with ErrSemaphoreNotFound instead.
-		return 0, &types.InternalServiceError{Message: fmt.Sprintf("semaphore %q not found", semaphoreInfo.SemaphoreName)}
-	}
 	if err != nil {
 		return 0, err
 	}
@@ -2191,7 +2216,52 @@ func recordSemaphoreGranted(
 	return updateWorkflowExecution(ctx, logger, wfContext, true,
 		func(ctx context.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
-				return &types.EntityNotExistsError{Message: "Workflow execution already completed."}
+				return &types.WorkflowExecutionAlreadyCompletedError{Message: "Workflow execution already completed."}
+			}
+
+			semaphoreInfo, ok := mutableState.GetSemaphoreInfo(initiatedEventID)
+			if !ok {
+				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
+			}
+			if semaphoreInfo.HasToken() {
+				if semaphoreInfo.TokenID != int(tokenID) {
+					// Matching gives one token per owner, so a different token is a bug.
+					executionInfo := mutableState.GetExecutionInfo()
+					logger.Warn("Semaphore hold already has a different token than the one granted",
+						tag.WorkflowDomainID(executionInfo.DomainID),
+						tag.WorkflowID(executionInfo.WorkflowID),
+						tag.WorkflowRunID(executionInfo.RunID),
+						tag.WorkflowInitiatedID(initiatedEventID),
+						tag.SemaphoreName(semaphoreInfo.SemaphoreName),
+						tag.SemaphoreTokenID(semaphoreInfo.TokenID),
+						tag.SemaphoreGrantedTokenID(int(tokenID)),
+					)
+				}
+				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
+			}
+
+			_, err := mutableState.AddSemaphoreAcquiredEvent(initiatedEventID, tokenID)
+			return err
+		},
+		now,
+	)
+}
+
+// recordSemaphoreAcquireFailed ends the hold without a token and schedules a decision so the
+// workflow sees the failure. It skips a closed run, a missing hold, or a hold that has a token.
+func recordSemaphoreAcquireFailed(
+	ctx context.Context,
+	logger log.Logger,
+	wfContext execution.Context,
+	initiatedEventID int64,
+	cause types.SemaphoreAcquireFailedCause,
+	now time.Time,
+) error {
+
+	return updateWorkflowExecution(ctx, logger, wfContext, true,
+		func(ctx context.Context, mutableState execution.MutableState) error {
+			if !mutableState.IsWorkflowExecutionRunning() {
+				return &types.WorkflowExecutionAlreadyCompletedError{Message: "Workflow execution already completed."}
 			}
 
 			semaphoreInfo, ok := mutableState.GetSemaphoreInfo(initiatedEventID)
@@ -2199,7 +2269,7 @@ func recordSemaphoreGranted(
 				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
 			}
 
-			_, err := mutableState.AddSemaphoreAcquiredEvent(initiatedEventID, tokenID)
+			_, err := mutableState.AddSemaphoreAcquireFailedEvent(initiatedEventID, cause)
 			return err
 		},
 		now,

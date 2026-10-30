@@ -32,7 +32,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
       
       - name: Run unit test
         uses: nick-fields/retry@v3
@@ -66,7 +66,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run golint
         run: docker compose -f docker/github_actions/docker-compose.yml run coverage-report bash -c "./scripts/github_actions/golint.sh"
@@ -86,7 +86,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run integration profile for cassandra
         uses: nick-fields/retry@v3
@@ -117,7 +117,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run integration profile for cassandra running history queue v2 with alert
         uses: nick-fields/retry@v3
@@ -148,7 +148,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run integration profile for cassandra and elasticsearch v7
         uses: nick-fields/retry@v3
@@ -180,7 +180,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run integration test with cassandra and pinot
         uses: nick-fields/retry@v3
@@ -212,7 +212,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run integration profile for cassandra and opensearch v2
         uses: nick-fields/retry@v3
@@ -244,7 +244,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run ndc profile for cassandra
         uses: nick-fields/retry@v3
@@ -276,7 +276,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run integration profile for mysql
         uses: nick-fields/retry@v3
@@ -308,7 +308,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run ndc profile for mysql
         uses: nick-fields/retry@v3
@@ -340,7 +340,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run integration profile for postgres
         uses: nick-fields/retry@v3
@@ -371,7 +371,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run integration profile for sqlite
         uses: nick-fields/retry@v3
@@ -402,7 +402,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run ndc profile for postgres
         uses: nick-fields/retry@v3
@@ -433,7 +433,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
 
       - name: Run async wf integration test with kafka
         uses: nick-fields/retry@v3

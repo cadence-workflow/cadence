@@ -2175,8 +2175,8 @@ const (
 	// Allowed filters: DomainName
 	EnableStickyQuery
 	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
-	// frontend, the acquire decision on history, and serving semaphore buckets on matching. While it
-	// is off matching loads no bucket, so no partition is scanned and nothing is held in memory.
+	// frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so
+	// tokens granted before it was turned off are still freed.
 	// Global domains also need HistoryTaskDLQMode enabled, or a hold still waiting at failover is never acquired.
 	// KeyName: system.enableDistributedSemaphore
 	// Value type: Bool
@@ -2354,6 +2354,15 @@ const (
 	// Allowed filters: DomainName
 	EnableDeterministicChildWorkflowRequestID
 
+	// EnableReplaceChildWorkflowFromStaleParentBranch lets a child start terminate the running child and start a new run,
+	// when the running child was started by an initiated event of the parent that is not on the current branch of the
+	// parent. It applies only to children started when EnableDeterministicChildWorkflowRequestID was enabled.
+	// KeyName: history.enableReplaceChildWorkflowFromStaleParentBranch
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableReplaceChildWorkflowFromStaleParentBranch
+
 	// MatchingEnableClientAutoConfig enables auto config for domain and tasklist on client (worker) side
 	// KeyName: matching.enableClientAutoConfig
 	// Value type: Bool
@@ -2450,6 +2459,19 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
+
+	// MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard
+	// manager. When disabled, each task list name is its own shard.
+	// Enabling it also requires matching's namespace in the shard distributor to be a fixed namespace with
+	// shardNum set to numMatchingShards.
+	// Only change it while matching.percentageOnboardedToShardManager is 0, because hosts that disagree on it
+	// route the same task list to different owners.
+	// Read from the primary database-backed operational dynamic config store.
+	// KeyName: matching.shardTaskListsByHashForShardManager
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingShardTaskListsByHashForShardManager
 
 	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
 	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
@@ -5168,7 +5190,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableDistributedSemaphore: {
 		KeyName:      "system.enableDistributedSemaphore",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and serving semaphore buckets on matching. Global domains also need HistoryTaskDLQMode enabled",
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so tokens granted before it was turned off are still freed. Global domains also need HistoryTaskDLQMode enabled",
 		DefaultValue: false,
 	},
 	EnableFailoverManager: {
@@ -5305,6 +5327,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableDeterministicChildWorkflowRequestID derives the request ID that starts a child workflow from its initiated event, so all clusters start the child with the same request ID",
 		DefaultValue: false,
 	},
+	EnableReplaceChildWorkflowFromStaleParentBranch: {
+		KeyName:      "history.enableReplaceChildWorkflowFromStaleParentBranch",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableReplaceChildWorkflowFromStaleParentBranch lets a child start terminate the running child and start a new run, when the running child was started by an initiated event of the parent that is not on the current branch of the parent",
+		DefaultValue: false,
+	},
 	MatchingEnableClientAutoConfig: {
 		KeyName:      "matching.enableClientAutoConfig",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
@@ -5392,6 +5420,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
 		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
 		DefaultValue: true,
+	},
+	MatchingShardTaskListsByHashForShardManager: {
+		KeyName:      "matching.shardTaskListsByHashForShardManager",
+		Description:  "MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard manager",
+		DefaultValue: false,
 	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",

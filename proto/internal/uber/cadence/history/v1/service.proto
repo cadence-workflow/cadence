@@ -252,6 +252,9 @@ message StartWorkflowExecutionRequest {
   api.v1.Payload last_completion_result = 8;
   google.protobuf.Duration first_decision_task_backoff = 9;
   map<string, string> partition_config = 10;
+  // version history items of the current branch of the parent, set only for a child start, to find out if an existing
+  // child run was started by an initiated event that is not on that branch
+  repeated admin.v1.VersionHistoryItem parent_version_history_items = 11;
 }
 
 message StartWorkflowExecutionResponse {
@@ -531,6 +534,11 @@ message RecordChildExecutionCompletedRequest {
   api.v1.WorkflowExecution completed_execution = 4;
   api.v1.HistoryEvent completion_event = 5;
   int64 started_id = 6;
+  // first run of the chain of the completed child, so the parent accepts only the completion of the child run it started
+  string first_execution_run_id = 7;
+  // version of the started event of the completed child, set only when the parent is in the same domain, so the parent
+  // can drop a completion from an initiated event that can not be on its current branch
+  google.protobuf.Int64Value child_start_version = 8;
 }
 
 message RecordChildExecutionCompletedResponse {

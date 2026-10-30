@@ -119,5 +119,8 @@ type (
 		DrainObserver clientcommon.DrainSignalObserver
 
 		PercentageOnboarded membership.PercentageOnboarded
+		// TaskListDifferentiator decides which task lists the shard distributor owns and which shard each
+		// one belongs to. The matching membership resolver and the matching service share it, so they agree.
+		TaskListDifferentiator *membership.TaskListDifferentiator
 	}
 )

@@ -262,6 +262,26 @@ func (mr *MockClientMockRecorder) RefreshTaskListPartitionConfig(arg0, arg1 any,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshTaskListPartitionConfig", reflect.TypeOf((*MockClient)(nil).RefreshTaskListPartitionConfig), varargs...)
 }
 
+// ReleaseSemaphore mocks base method.
+func (m *MockClient) ReleaseSemaphore(arg0 context.Context, arg1 *types.ReleaseSemaphoreRequest, arg2 ...yarpc.CallOption) (*types.ReleaseSemaphoreResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ReleaseSemaphore", varargs...)
+	ret0, _ := ret[0].(*types.ReleaseSemaphoreResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseSemaphore indicates an expected call of ReleaseSemaphore.
+func (mr *MockClientMockRecorder) ReleaseSemaphore(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseSemaphore", reflect.TypeOf((*MockClient)(nil).ReleaseSemaphore), varargs...)
+}
+
 // RespondQueryTaskCompleted mocks base method.
 func (m *MockClient) RespondQueryTaskCompleted(arg0 context.Context, arg1 *types.MatchingRespondQueryTaskCompletedRequest, arg2 ...yarpc.CallOption) error {
 	m.ctrl.T.Helper()

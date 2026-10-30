@@ -1,8 +1,8 @@
 module github.com/uber/cadence/common/archiver/gcloud
 
-go 1.26.0
+go 1.26.2
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 // build against the current code in the "main" module, not a specific SHA.
 //
@@ -86,7 +86,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.17.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/m3db/prometheus_client_model v0.2.1 // indirect
 	github.com/m3db/prometheus_common v0.34.6 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
@@ -104,7 +104,7 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/uber-go/mapdecode v1.0.0 // indirect
-	github.com/uber/cadence-idl v0.0.0-20261019185959-9d5deb7a629d // indirect
+	github.com/uber/cadence-idl v0.0.0-20261027224305-300c6109dba2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect

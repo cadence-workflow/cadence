@@ -626,12 +626,14 @@ func FromRecordChildExecutionCompletedRequest(t *types.RecordChildExecutionCompl
 		return nil
 	}
 	return &history.RecordChildExecutionCompletedRequest{
-		DomainUUID:         &t.DomainUUID,
-		WorkflowExecution:  FromWorkflowExecution(t.WorkflowExecution),
-		InitiatedId:        &t.InitiatedID,
-		CompletedExecution: FromWorkflowExecution(t.CompletedExecution),
-		CompletionEvent:    FromHistoryEvent(t.CompletionEvent),
-		StartedId:          &t.StartedID,
+		DomainUUID:          &t.DomainUUID,
+		WorkflowExecution:   FromWorkflowExecution(t.WorkflowExecution),
+		InitiatedId:         &t.InitiatedID,
+		CompletedExecution:  FromWorkflowExecution(t.CompletedExecution),
+		CompletionEvent:     FromHistoryEvent(t.CompletionEvent),
+		StartedId:           &t.StartedID,
+		FirstExecutionRunId: &t.FirstExecutionRunID,
+		ChildStartVersion:   t.ChildStartVersion,
 	}
 }
 
@@ -641,12 +643,14 @@ func ToRecordChildExecutionCompletedRequest(t *history.RecordChildExecutionCompl
 		return nil
 	}
 	return &types.RecordChildExecutionCompletedRequest{
-		DomainUUID:         t.GetDomainUUID(),
-		WorkflowExecution:  ToWorkflowExecution(t.WorkflowExecution),
-		InitiatedID:        t.GetInitiatedId(),
-		CompletedExecution: ToWorkflowExecution(t.CompletedExecution),
-		CompletionEvent:    ToHistoryEvent(t.CompletionEvent),
-		StartedID:          t.GetStartedId(),
+		DomainUUID:          t.GetDomainUUID(),
+		WorkflowExecution:   ToWorkflowExecution(t.WorkflowExecution),
+		InitiatedID:         t.GetInitiatedId(),
+		CompletedExecution:  ToWorkflowExecution(t.CompletedExecution),
+		CompletionEvent:     ToHistoryEvent(t.CompletionEvent),
+		StartedID:           t.GetStartedId(),
+		FirstExecutionRunID: t.GetFirstExecutionRunId(),
+		ChildStartVersion:   t.ChildStartVersion,
 	}
 }
 
@@ -1135,6 +1139,7 @@ func FromHistoryStartWorkflowExecutionRequest(t *types.HistoryStartWorkflowExecu
 		LastCompletionResult:            t.LastCompletionResult,
 		FirstDecisionTaskBackoffSeconds: t.FirstDecisionTaskBackoffSeconds,
 		PartitionConfig:                 t.PartitionConfig,
+		ParentVersionHistoryItems:       FromVersionHistoryItemArray(t.ParentVersionHistoryItems),
 	}
 }
 
@@ -1155,6 +1160,7 @@ func ToHistoryStartWorkflowExecutionRequest(t *history.StartWorkflowExecutionReq
 		LastCompletionResult:            t.LastCompletionResult,
 		FirstDecisionTaskBackoffSeconds: t.FirstDecisionTaskBackoffSeconds,
 		PartitionConfig:                 t.PartitionConfig,
+		ParentVersionHistoryItems:       ToVersionHistoryItemArray(t.ParentVersionHistoryItems),
 	}
 }
 

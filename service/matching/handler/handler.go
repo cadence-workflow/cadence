@@ -556,6 +556,40 @@ func (h *handlerImpl) AcquireSemaphore(
 	return response, hCtx.handleErr(err)
 }
 
+// ReleaseSemaphore frees the token slot one owner holds in one semaphore bucket.
+func (h *handlerImpl) ReleaseSemaphore(
+	ctx context.Context,
+	request *types.ReleaseSemaphoreRequest,
+) (resp *types.ReleaseSemaphoreResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
+
+	domainName := h.domainName(request.DomainUUID)
+	id := semaphore.Identifier{
+		DomainID:      request.DomainUUID,
+		SemaphoreName: request.SemaphoreName,
+		Bucket:        int(request.Bucket),
+	}
+	hCtx := h.newSemaphoreHandlerContext(ctx, domainName, id, metrics.MatchingReleaseSemaphoreScope)
+
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
+
+	if ok := h.userRateLimiter.Allow(quotas.Info{Domain: domainName}); !ok {
+		return nil, hCtx.handleErr(errMatchingHostThrottle)
+	}
+
+	response, err := h.engine.ReleaseSemaphore(hCtx, request)
+	if err != nil && hCtx.Err() != nil {
+		// The caller's deadline passed or it cancelled: counted, not logged as a failure.
+		hCtx.scope.IncCounter(metrics.CadenceErrSemaphoreContextTimeoutCounter)
+		return nil, &types.InternalServiceError{Message: hCtx.Err().Error()}
+	}
+	return response, hCtx.handleErr(err)
+}
+
 func (h *handlerImpl) domainName(id string) string {
 	domainName, err := h.domainCache.GetDomainName(id)
 	if err != nil {

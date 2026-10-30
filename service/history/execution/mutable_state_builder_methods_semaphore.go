@@ -183,6 +183,44 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquiredEvent(
 	return nil
 }
 
+// AddSemaphoreAcquireFailedEvent records that the acquire started by initiatedEventID ended
+// without a token. It refuses a missing hold or a hold that already has a token.
+func (e *mutableStateBuilder) AddSemaphoreAcquireFailedEvent(
+	initiatedEventID int64,
+	cause types.SemaphoreAcquireFailedCause,
+) (*types.HistoryEvent, error) {
+
+	opTag := tag.WorkflowActionSemaphoreAcquireFailed
+	if err := e.checkMutability(opTag); err != nil {
+		return nil, err
+	}
+
+	semaphoreInfo, ok := e.GetSemaphoreInfo(initiatedEventID)
+	// Callers check the hold first, so reaching this is a caller bug.
+	if !ok || semaphoreInfo.HasToken() {
+		e.logWarn(mutableStateInvalidHistoryActionMsg, opTag,
+			tag.WorkflowEventID(e.GetNextEventID()),
+			tag.ErrorTypeInvalidHistoryAction,
+			tag.Bool(ok),
+			tag.WorkflowInitiatedID(initiatedEventID))
+		return nil, e.createInternalServerError(opTag)
+	}
+
+	event := e.hBuilder.AddSemaphoreAcquireFailedEvent(initiatedEventID, cause)
+	if err := e.ReplicateSemaphoreAcquireFailedEvent(event); err != nil {
+		return nil, err
+	}
+	return event, nil
+}
+
+// ReplicateSemaphoreAcquireFailedEvent ends the hold whose acquire failed.
+func (e *mutableStateBuilder) ReplicateSemaphoreAcquireFailedEvent(
+	event *types.HistoryEvent,
+) error {
+
+	return e.DeleteSemaphoreInfo(event.SemaphoreAcquireFailedEventAttributes.GetInitiatedEventID())
+}
+
 // AddSemaphoreReleasedEvent releases the hold started by initiatedEventID. It refuses a missing hold.
 func (e *mutableStateBuilder) AddSemaphoreReleasedEvent(
 	decisionCompletedEventID int64,

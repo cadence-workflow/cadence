@@ -21,6 +21,8 @@
 package matching
 
 import (
+	"errors"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -45,6 +47,7 @@ type Service struct {
 	stopC                          chan struct{}
 	config                         *config.Config
 	ShardDistributorMatchingConfig clientcommon.Config
+	taskListDifferentiator         *membership.TaskListDifferentiator
 	drainObserver                  clientcommon.DrainSignalObserver
 	percentageOnboarded            membership.PercentageOnboarded
 }
@@ -53,6 +56,14 @@ type Service struct {
 func NewService(
 	params *resource.Params,
 ) (resource.Resource, error) {
+	if params.TaskListDifferentiator == nil {
+		return nil, errors.New("creating matching service: resource.Params.TaskListDifferentiator must be set")
+	}
+	// The task list registry hashes every task list name into a shard, and a non-positive count
+	// would make that panic. We fail here instead.
+	if shardCount := params.TaskListDifferentiator.ShardCount(); shardCount <= 0 {
+		return nil, fmt.Errorf("creating matching service: numMatchingShards must be positive, got %d", shardCount)
+	}
 
 	serviceConfig := config.NewConfig(
 		params.DynamicCollection,
@@ -83,6 +94,7 @@ func NewService(
 		config:                         serviceConfig,
 		stopC:                          make(chan struct{}),
 		ShardDistributorMatchingConfig: params.ShardDistributorMatchingConfig,
+		taskListDifferentiator:         params.TaskListDifferentiator,
 		drainObserver:                  params.DrainObserver,
 		percentageOnboarded:            params.PercentageOnboarded,
 	}, nil
@@ -116,6 +128,7 @@ func (s *Service) Start() {
 		s.GetTimeSource(),
 		s.GetShardDistributorExecutorClient(),
 		s.ShardDistributorMatchingConfig,
+		s.taskListDifferentiator,
 		s.drainObserver,
 		s.percentageOnboarded,
 	)

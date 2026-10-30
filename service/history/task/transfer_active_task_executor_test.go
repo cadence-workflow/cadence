@@ -771,12 +771,17 @@ func (s *transferActiveTaskExecutorSuite) testProcessCloseExecutionWithParent(
 		if failRecordChild {
 			recordChildErr = &types.DomainNotActiveError{}
 		}
+		// the parent is in the same domain, so the child also sends its start version
+		startVersion, err := mutableState.GetStartVersion()
+		s.NoError(err)
 		s.mockHistoryClient.EXPECT().RecordChildExecutionCompleted(gomock.Any(), &types.RecordChildExecutionCompletedRequest{
-			DomainUUID:         targetDomainID,
-			WorkflowExecution:  &parentExecution,
-			InitiatedID:        parentInitiatedID,
-			CompletedExecution: &workflowExecution,
-			CompletionEvent:    event,
+			DomainUUID:          targetDomainID,
+			WorkflowExecution:   &parentExecution,
+			InitiatedID:         parentInitiatedID,
+			CompletedExecution:  &workflowExecution,
+			CompletionEvent:     event,
+			FirstExecutionRunID: executionInfo.FirstExecutionRunID,
+			ChildStartVersion:   common.Int64Ptr(startVersion),
 		}).Return(recordChildErr).Times(1)
 	}
 
@@ -1511,6 +1516,8 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Success
 			taskInfo := transferTask.GetInfo().(*persistence.StartChildExecutionTask)
 			event, err = mutableState.GetChildExecutionInitiatedEvent(context.Background(), taskInfo.InitiatedID)
 			s.NoError(err)
+			currentVersionHistory, err := mutableState.GetVersionHistories().GetCurrentVersionHistory()
+			s.NoError(err)
 			historyReq, err := createTestChildWorkflowExecutionRequest(
 				s.domainName,
 				constants.TestDomainName,
@@ -1520,6 +1527,8 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Success
 				s.mockShard.GetTimeSource().Now(),
 				mutableState.GetExecutionInfo().PartitionConfig,
 				mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy,
+				// the parent sends its current branch, so the child start can find a run from a stale branch
+				currentVersionHistory.ToInternalType().Items,
 			)
 			require.NoError(s.T(), err)
 			s.mockHistoryClient.EXPECT().StartWorkflowExecution(gomock.Any(), historyReq).Return(&types.StartWorkflowExecutionResponse{RunID: childExecution.RunID}, nil).Times(1)
@@ -1553,6 +1562,8 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Failure
 			taskInfo := transferTask.GetInfo().(*persistence.StartChildExecutionTask)
 			event, err = mutableState.GetChildExecutionInitiatedEvent(context.Background(), taskInfo.InitiatedID)
 			s.NoError(err)
+			currentVersionHistory, err := mutableState.GetVersionHistories().GetCurrentVersionHistory()
+			s.NoError(err)
 			historyReq, err := createTestChildWorkflowExecutionRequest(
 				s.domainName,
 				constants.TestDomainName,
@@ -1562,6 +1573,8 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Failure
 				s.mockShard.GetTimeSource().Now(),
 				mutableState.GetExecutionInfo().PartitionConfig,
 				mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy,
+				// the parent sends its current branch, so the child start can find a run from a stale branch
+				currentVersionHistory.ToInternalType().Items,
 			)
 			require.NoError(s.T(), err)
 			s.mockHistoryClient.EXPECT().StartWorkflowExecution(gomock.Any(), historyReq).Return(nil, &types.WorkflowExecutionAlreadyStartedError{}).Times(1)
@@ -2169,10 +2182,32 @@ func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_NoTokenInR
 }
 
 func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_SemaphoreNotFound() {
-	s.testProcessAcquireSemaphore(func(execution.MutableState, *persistence.SemaphoreInfo) {
+	s.testProcessAcquireSemaphore(func(_ execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
 		s.mockShard.Resource.SemaphoreMetadataMgr.EXPECT().GetSemaphore(gomock.Any(), gomock.Any()).
 			Return(nil, &types.EntityNotExistsError{Message: "semaphore not found"})
-	}, &types.InternalServiceError{Message: `semaphore "my-semaphore" not found`})
+		s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.MatchedBy(func(request *persistence.AppendHistoryNodesRequest) bool {
+			for _, event := range request.Events {
+				if event.GetEventType() == types.EventTypeSemaphoreAcquireFailed {
+					attributes := event.SemaphoreAcquireFailedEventAttributes
+					return attributes.GetCause() == types.SemaphoreAcquireFailedCauseNotFound &&
+						attributes.GetInitiatedEventID() == semaphoreInfo.InitiatedID
+				}
+			}
+			return false
+		})).Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+		s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.MatchedBy(func(request *persistence.UpdateWorkflowExecutionRequest) bool {
+			mutation := request.UpdateWorkflowMutation
+			if len(mutation.DeleteSemaphoreInfos) != 1 || mutation.DeleteSemaphoreInfos[0] != semaphoreInfo.InitiatedID {
+				return false
+			}
+			for _, task := range mutation.TasksByCategory[persistence.HistoryTaskCategoryTransfer] {
+				if _, ok := task.(*persistence.DecisionTask); ok {
+					return true
+				}
+			}
+			return false
+		})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
+	}, nil)
 }
 
 func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_Duplication() {
@@ -2248,30 +2283,109 @@ func (s *transferActiveTaskExecutorSuite) expectAcquireSemaphoreRequest(
 	}).Return(resp, err)
 }
 
-func TestRecordSemaphoreGranted(t *testing.T) {
+func TestRecordSemaphoreAcquire(t *testing.T) {
+	recordGranted := func(wfContext execution.Context) error {
+		return recordSemaphoreGranted(context.Background(), log.NewNoop(), wfContext, 5, 3, testTime)
+	}
+	recordFailed := func(wfContext execution.Context) error {
+		return recordSemaphoreAcquireFailed(context.Background(), log.NewNoop(), wfContext, 5, types.SemaphoreAcquireFailedCauseNotFound, testTime)
+	}
+	expectSaved := func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+		mutableState.EXPECT().HasPendingDecision().Return(false)
+		mutableState.EXPECT().AddDecisionTaskScheduledEvent(false).Return(&execution.DecisionInfo{}, nil)
+		mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{})
+		wfContext.EXPECT().UpdateWorkflowExecutionAsActive(gomock.Any(), testTime).Return(nil)
+	}
+	errCompleted := &types.WorkflowExecutionAlreadyCompletedError{Message: "Workflow execution already completed."}
+	errHoldNotFound := &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
+
 	testCases := []struct {
 		name      string
-		setupMock func(mutableState *execution.MockMutableState)
+		record    func(wfContext execution.Context) error
+		setupMock func(mutableState *execution.MockMutableState, wfContext *execution.MockContext)
+		wantErr   error
 	}{
 		{
-			name: "workflow not running",
-			setupMock: func(mutableState *execution.MockMutableState) {
-				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(false)
+			name:   "granted: the token is recorded and a decision is scheduled",
+			record: recordGranted,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5}, true)
+				mutableState.EXPECT().AddSemaphoreAcquiredEvent(int64(5), int32(3)).Return(&types.HistoryEvent{}, nil)
+				expectSaved(mutableState, wfContext)
 			},
 		},
 		{
-			name: "hold not found",
-			setupMock: func(mutableState *execution.MockMutableState) {
+			name:   "granted: workflow not running",
+			record: recordGranted,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(false)
+			},
+			wantErr: errCompleted,
+		},
+		{
+			name:   "granted: hold not found",
+			record: recordGranted,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
 				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
 				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(nil, false)
 			},
+			wantErr: errHoldNotFound,
 		},
 		{
-			name: "hold already has a token",
-			setupMock: func(mutableState *execution.MockMutableState) {
+			name:   "granted: hold already has the granted token",
+			record: recordGranted,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 3}, true)
+			},
+			wantErr: errHoldNotFound,
+		},
+		{
+			name:   "granted: hold already has a different token",
+			record: recordGranted,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 7}, true)
+				mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{})
+			},
+			wantErr: errHoldNotFound,
+		},
+		{
+			name:   "acquire failed: the failure is recorded and a decision is scheduled",
+			record: recordFailed,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5}, true)
+				mutableState.EXPECT().AddSemaphoreAcquireFailedEvent(int64(5), types.SemaphoreAcquireFailedCauseNotFound).Return(&types.HistoryEvent{}, nil)
+				expectSaved(mutableState, wfContext)
+			},
+		},
+		{
+			name:   "acquire failed: workflow not running",
+			record: recordFailed,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(false)
+			},
+			wantErr: errCompleted,
+		},
+		{
+			name:   "acquire failed: hold not found",
+			record: recordFailed,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(nil, false)
+			},
+			wantErr: errHoldNotFound,
+		},
+		{
+			name:   "acquire failed: hold already has a token",
+			record: recordFailed,
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
 				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
 				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 7}, true)
 			},
+			wantErr: errHoldNotFound,
 		},
 	}
 
@@ -2281,10 +2395,10 @@ func TestRecordSemaphoreGranted(t *testing.T) {
 			wfContext := execution.NewMockContext(ctrl)
 			mutableState := execution.NewMockMutableState(ctrl)
 			wfContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(mutableState, nil)
-			tc.setupMock(mutableState)
+			tc.setupMock(mutableState, wfContext)
 
-			err := recordSemaphoreGranted(context.Background(), log.NewNoop(), wfContext, 5, 3, testTime)
-			assert.ErrorAs(t, err, new(*types.EntityNotExistsError))
+			err := tc.record(wfContext)
+			assert.Equal(t, tc.wantErr, err)
 		})
 	}
 }
@@ -2581,6 +2695,7 @@ func createTestChildWorkflowExecutionRequest(
 	now time.Time,
 	partitionConfig map[string]string,
 	activeClusterSelectionPolicy *types.ActiveClusterSelectionPolicy,
+	parentVersionHistoryItems []*types.VersionHistoryItem,
 ) (*types.HistoryStartWorkflowExecutionRequest, error) {
 
 	workflowExecution := types.WorkflowExecution{
@@ -2616,6 +2731,7 @@ func createTestChildWorkflowExecutionRequest(
 	}
 
 	historyStartReq.ParentExecutionInfo = parentInfo
+	historyStartReq.ParentVersionHistoryItems = parentVersionHistoryItems
 	return historyStartReq, nil
 }
 

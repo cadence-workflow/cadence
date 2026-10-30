@@ -18,6 +18,9 @@ type (
 		Stop()
 		// Acquire answers Acquired or NoSlot.
 		Acquire(ctx context.Context, ownerID string) (AcquireResult, error)
+		// Release frees the token ownerID holds. An owner that holds nothing is released too, so a
+		// repeated release succeeds.
+		Release(ctx context.Context, ownerID string) error
 		// Identifier names the bucket this manager serves.
 		Identifier() Identifier
 	}

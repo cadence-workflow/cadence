@@ -70,6 +70,9 @@ const (
 	TerminateIfRunningReason = "TerminateIfRunning Policy"
 	// TerminateIfRunningDetailsTemplate details template for terminateIfRunning
 	TerminateIfRunningDetailsTemplate = "New runID: %s"
+	// ChildFromStaleBranchReplacedReason reason for the termination of a child run whose initiated event is not on the
+	// current branch of the parent, when a new run of the child replaces it
+	ChildFromStaleBranchReplacedReason = "Replaced by a new run because a failover made stale the branch of the parent workflow that started this run"
 )
 
 var (

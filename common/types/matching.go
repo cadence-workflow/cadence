@@ -783,3 +783,49 @@ type AcquireSemaphoreResponse struct {
 	// by the per-bucket token budget, so 0 is never a real slot.
 	TokenID int32
 }
+
+// ReleaseSemaphoreRequest asks the matching host that owns a bucket to free the slot an owner holds.
+// It carries no token id: matching finds the slot from OwnerID.
+type ReleaseSemaphoreRequest struct {
+	DomainUUID    string
+	SemaphoreName string
+	// Bucket is the partition that holds the owner's slot, the same bucket its acquire used.
+	Bucket  int32
+	OwnerID string
+}
+
+// GetDomainUUID is an internal getter (TBD...)
+func (v *ReleaseSemaphoreRequest) GetDomainUUID() (o string) {
+	if v != nil {
+		return v.DomainUUID
+	}
+	return
+}
+
+// GetSemaphoreName is an internal getter (TBD...)
+func (v *ReleaseSemaphoreRequest) GetSemaphoreName() (o string) {
+	if v != nil {
+		return v.SemaphoreName
+	}
+	return
+}
+
+// GetBucket is an internal getter (TBD...)
+func (v *ReleaseSemaphoreRequest) GetBucket() (o int32) {
+	if v != nil {
+		return v.Bucket
+	}
+	return
+}
+
+// GetOwnerID is an internal getter (TBD...)
+func (v *ReleaseSemaphoreRequest) GetOwnerID() (o string) {
+	if v != nil {
+		return v.OwnerID
+	}
+	return
+}
+
+// ReleaseSemaphoreResponse is empty: an owner that held nothing is released too, so the only
+// failures are errors.
+type ReleaseSemaphoreResponse struct{}

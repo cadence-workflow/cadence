@@ -227,4 +227,11 @@ var (
 		Outcome: types.SemaphoreAcquireOutcomeAcquired,
 		TokenID: 17,
 	}
+
+	MatchingReleaseSemaphoreRequest = types.ReleaseSemaphoreRequest{
+		DomainUUID:    DomainID,
+		SemaphoreName: SemaphoreName,
+		Bucket:        2,
+		OwnerID:       SemaphoreOwnerID,
+	}
 )

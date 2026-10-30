@@ -489,6 +489,8 @@ const (
 	MatchingClientRefreshTaskListPartitionConfigScope
 	// MatchingClientAcquireSemaphoreScope tracks RPC calls to matching service
 	MatchingClientAcquireSemaphoreScope
+	// MatchingClientReleaseSemaphoreScope tracks RPC calls to matching service
+	MatchingClientReleaseSemaphoreScope
 
 	// FrontendClientDeleteDomainScope tracks RPC calls to frontend service
 	FrontendClientDeleteDomainScope
@@ -1554,6 +1556,8 @@ const (
 	MatchingRefreshTaskListPartitionConfigScope
 	// MatchingAcquireSemaphoreScope tracks AcquireSemaphore API calls received by service
 	MatchingAcquireSemaphoreScope
+	// MatchingReleaseSemaphoreScope tracks ReleaseSemaphore API calls received by service
+	MatchingReleaseSemaphoreScope
 
 	NumMatchingScopes
 )
@@ -1777,6 +1781,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingClientUpdateTaskListPartitionConfigScope:  {operation: "MatchingClientUpdateTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientRefreshTaskListPartitionConfigScope: {operation: "MatchingClientRefreshTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientAcquireSemaphoreScope:               {operation: "MatchingClientAcquireSemaphore", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
+		MatchingClientReleaseSemaphoreScope:               {operation: "MatchingClientReleaseSemaphore", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 
 		FrontendClientDeleteDomainScope:                          {operation: "FrontendClientDeleteDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientDeprecateDomainScope:                       {operation: "FrontendClientDeprecateDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
@@ -2306,6 +2311,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingUpdateTaskListPartitionConfigScope:  {operation: "UpdateTaskListPartitionConfig"},
 		MatchingRefreshTaskListPartitionConfigScope: {operation: "RefreshTaskListPartitionConfig"},
 		MatchingAcquireSemaphoreScope:               {operation: "AcquireSemaphore"},
+		MatchingReleaseSemaphoreScope:               {operation: "ReleaseSemaphore"},
 	},
 	// Worker Scope Names
 	Worker: {
@@ -2793,6 +2799,8 @@ const (
 	AutoResetPointsLimitExceededCounter
 	AutoResetPointCorruptionCounter
 	ConcurrencyUpdateFailureCounter
+	ChildWorkflowCompletionOtherBranchCounter
+	ChildWorkflowStaleBranchReplacedCounter
 	CadenceErrEventAlreadyStartedCounter
 	CadenceErrShardOwnershipLostCounter
 	HeartbeatTimeoutCounter
@@ -3797,6 +3805,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		AutoResetPointsLimitExceededCounter:                           {metricName: "auto_reset_points_exceed_limit", metricType: Counter},
 		AutoResetPointCorruptionCounter:                               {metricName: "auto_reset_point_corruption", metricType: Counter},
 		ConcurrencyUpdateFailureCounter:                               {metricName: "concurrency_update_failure", metricType: Counter},
+		ChildWorkflowCompletionOtherBranchCounter:                     {metricName: "child_workflow_completion_other_branch", metricType: Counter},
+		ChildWorkflowStaleBranchReplacedCounter:                       {metricName: "child_workflow_stale_branch_replaced", metricType: Counter},
 		CadenceErrShardOwnershipLostCounter:                           {metricName: "cadence_errors_shard_ownership_lost", metricType: Counter},
 		CadenceErrEventAlreadyStartedCounter:                          {metricName: "cadence_errors_event_already_started", metricType: Counter},
 		HeartbeatTimeoutCounter:                                       {metricName: "heartbeat_timeout", metricType: Counter},

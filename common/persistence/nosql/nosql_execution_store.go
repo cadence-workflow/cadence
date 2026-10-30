@@ -153,44 +153,8 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 		shardCondition,
 	)
 	if err != nil {
-		conditionFailureErr, isConditionFailedError := err.(*nosqlplugin.WorkflowOperationConditionFailure)
-		if isConditionFailedError {
-			switch {
-			case conditionFailureErr.UnknownConditionFailureDetails != nil:
-				return nil, &persistence.ShardOwnershipLostError{
-					ShardID: shardID,
-					Msg:     *conditionFailureErr.UnknownConditionFailureDetails,
-				}
-			case conditionFailureErr.ShardRangeIDNotMatch != nil:
-				return nil, &persistence.ShardOwnershipLostError{
-					ShardID: shardID,
-					Msg: fmt.Sprintf("Failed to create workflow execution.  Request RangeID: %v, Actual RangeID: %v",
-						request.RangeID, *conditionFailureErr.ShardRangeIDNotMatch),
-				}
-			case conditionFailureErr.CurrentWorkflowConditionFailInfo != nil:
-				return nil, &persistence.CurrentWorkflowConditionFailedError{
-					Msg: *conditionFailureErr.CurrentWorkflowConditionFailInfo,
-				}
-			case conditionFailureErr.WorkflowExecutionAlreadyExists != nil:
-				return nil, &persistence.WorkflowExecutionAlreadyStartedError{
-					Msg:              conditionFailureErr.WorkflowExecutionAlreadyExists.OtherInfo,
-					StartRequestID:   conditionFailureErr.WorkflowExecutionAlreadyExists.CreateRequestID,
-					RunID:            conditionFailureErr.WorkflowExecutionAlreadyExists.RunID,
-					State:            conditionFailureErr.WorkflowExecutionAlreadyExists.State,
-					CloseStatus:      conditionFailureErr.WorkflowExecutionAlreadyExists.CloseStatus,
-					LastWriteVersion: conditionFailureErr.WorkflowExecutionAlreadyExists.LastWriteVersion,
-				}
-			case conditionFailureErr.DuplicateRequest != nil:
-				return nil, &persistence.DuplicateRequestError{
-					RequestType: conditionFailureErr.DuplicateRequest.RequestType,
-					RunID:       conditionFailureErr.DuplicateRequest.RunID,
-				}
-			default:
-				// If ever runs into this branch, there is bug in the code either in here, or in the implementation of nosql plugin
-				err := fmt.Errorf("unsupported conditionFailureReason error")
-				d.GetLogger().Error("A code bug exists in persistence layer, please investigate ASAP", tag.Error(err))
-				return nil, err
-			}
+		if conditionFailureErr, ok := err.(*nosqlplugin.WorkflowOperationConditionFailure); ok {
+			return nil, d.convertWorkflowConditionFailure("create", shardID, request.RangeID, conditionFailureErr)
 		}
 		return nil, convertCommonErrors(storeShard.db, "CreateWorkflowExecution", err)
 	}

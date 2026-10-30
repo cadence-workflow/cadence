@@ -69,6 +69,14 @@ type (
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
 		ShardDistributorMatchingConfig clientcommon.Config `yaml:"shard-distributor-matching"`
 
+		// NumMatchingShards is the number of shards matching hashes task list names into when
+		// matching.shardTaskListsByHashForShardManager is enabled. It must equal the shardNum of
+		// matching's namespace in the shard distributor, and every service must use the same value.
+		//
+		// Changing it moves almost every task list to a different shard, so only change it while
+		// matching.percentageOnboardedToShardManager is 0. Defaults to DefaultNumMatchingShards.
+		NumMatchingShards int `yaml:"numMatchingShards"`
+
 		// Deprecated: Archival config is now loaded via archiverfx from config.Provider.
 		// This field exists only for backward compatibility with existing YAML files.
 		// The actual archival configuration is decoded separately by archiverfx.New.
@@ -522,6 +530,10 @@ const (
 	S3storeConfig   = "s3store"
 )
 
+// DefaultNumMatchingShards is used when [Config.NumMatchingShards] is unset. To use a different count,
+// set the field. Changing the default changes the count in every cluster that leaves it unset.
+const DefaultNumMatchingShards = 8192
+
 func (n *NoSQL) ConvertToShardedNoSQLConfig() *ShardedNoSQL {
 	connections := make(map[string]DBShardConnection)
 	connections[NonShardedStoreName] = DBShardConnection{
@@ -546,6 +558,9 @@ func (c *Config) validate() error {
 	}
 	if err := c.ClusterGroupMetadata.Validate(); err != nil {
 		return err
+	}
+	if c.NumMatchingShards < 0 {
+		return fmt.Errorf("numMatchingShards must not be negative, got %d", c.NumMatchingShards)
 	}
 
 	return c.Authorization.Validate()
@@ -577,6 +592,10 @@ func (c *Config) fillDefaults() {
 	if c.ClusterGroupMetadata.ClusterRedirectionPolicy == nil && c.DCRedirectionPolicy != nil {
 		log.Println("[WARN] dcRedirectionPolicy config is deprecated. Please replace it with clusterRedirectionPolicy.")
 		c.ClusterGroupMetadata.ClusterRedirectionPolicy = c.DCRedirectionPolicy
+	}
+
+	if c.NumMatchingShards == 0 {
+		c.NumMatchingShards = DefaultNumMatchingShards
 	}
 }
 

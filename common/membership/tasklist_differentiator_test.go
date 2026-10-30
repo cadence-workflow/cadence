@@ -4,15 +4,21 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
-func TestTaskListExcludedFromShardDistributor(t *testing.T) {
+func TestTaskListDifferentiator_TaskListExcludedFromShardDistributor(t *testing.T) {
+	shardCount := 1000
+
 	tests := []struct {
 		name                       string
 		taskListName               string
 		want                       bool
-		percentageOnboarded        uint64
+		percentageOnboarded        int
 		excludeShortLivedTaskLists bool
+		shardTaskListsByHash       bool
 	}{
 		{
 			name:                       "task list with UUID - exclude enabled",
@@ -105,10 +111,40 @@ func TestTaskListExcludedFromShardDistributor(t *testing.T) {
 			percentageOnboarded:        60,
 			excludeShortLivedTaskLists: true,
 		},
+		{
+			name:                 "sharded by hash - shard below percentage",
+			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
+			want:                 false,
+			percentageOnboarded:  64,
+			shardTaskListsByHash: true,
+		},
+		{
+			// The task list's own hash%100 is 39, so only the shard puts it above the percentage.
+			name:                 "sharded by hash - shard above percentage",
+			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
+			want:                 true,
+			percentageOnboarded:  63,
+			shardTaskListsByHash: true,
+		},
+		{
+			name:                       "sharded by hash - UUID - exclude enabled",
+			taskListName:               "tasklist-550e8400-e29b-41d4-a716-446655440000",
+			want:                       true,
+			percentageOnboarded:        100,
+			excludeShortLivedTaskLists: true,
+			shardTaskListsByHash:       true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := TaskListExcludedFromShardDistributor(tt.taskListName, tt.percentageOnboarded, tt.excludeShortLivedTaskLists)
+			differentiator := NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(tt.excludeShortLivedTaskLists),
+				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				StaticPercentageOnboarded(tt.percentageOnboarded),
+				shardCount,
+			)
+
+			got := differentiator.TaskListExcludedFromShardDistributor(tt.taskListName)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -159,4 +195,82 @@ func TestIsbelowPercentage(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestTaskListDifferentiator_ShardID(t *testing.T) {
+	shardCount := 1000
+
+	tests := []struct {
+		name                 string
+		taskListName         string
+		shardTaskListsByHash bool
+		want                 string
+	}{
+		{
+			name:                 "shard by task list name",
+			taskListName:         "orders",
+			shardTaskListsByHash: false,
+			want:                 "orders",
+		},
+		{
+			name:                 "shard by hash",
+			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
+			shardTaskListsByHash: true,
+			want:                 "639",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			differentiator := NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				StaticPercentageOnboarded(100),
+				shardCount,
+			)
+
+			got := differentiator.ShardID(tt.taskListName)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestTaskListDifferentiator_ShardCount(t *testing.T) {
+	shardCount := 1000
+	differentiator := NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		StaticPercentageOnboarded(0),
+		shardCount,
+	)
+
+	assert.Equal(t, shardCount, differentiator.ShardCount())
+}
+
+func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
+	shardCount := 1000
+	taskListName := "orders" // farm.Fingerprint64([]byte("orders"))%1000 = 639
+	hashedShardID := "639"
+
+	shardTaskListsByHash := false
+	percentageOnboarded := 0
+	pct := NewMockPercentageOnboarded(gomock.NewController(t))
+	pct.EXPECT().Value().DoAndReturn(func() int { return percentageOnboarded }).AnyTimes()
+
+	differentiator := NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		func(...dynamicproperties.FilterOption) bool { return shardTaskListsByHash },
+		pct,
+		shardCount,
+	)
+
+	assert.False(t, differentiator.ShardsByHash())
+	assert.Equal(t, taskListName, differentiator.ShardID(taskListName))
+	assert.True(t, differentiator.TaskListExcludedFromShardDistributor(taskListName))
+
+	shardTaskListsByHash = true
+	percentageOnboarded = 100
+
+	assert.True(t, differentiator.ShardsByHash())
+	assert.Equal(t, hashedShardID, differentiator.ShardID(taskListName))
+	assert.False(t, differentiator.TaskListExcludedFromShardDistributor(taskListName))
 }

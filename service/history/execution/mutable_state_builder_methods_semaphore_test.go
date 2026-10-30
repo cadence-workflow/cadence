@@ -399,10 +399,16 @@ func Test__SemaphoreEventsReplayToTheSameHolds(t *testing.T) {
 	require.NoError(t, err)
 	// Grant events are buffered until the transaction closes, which flushes them and gives them IDs.
 	require.NoError(t, original.FlushBufferedEvents())
-	// A later decision releases sem-a and acquires sem-b, which is never granted, so it is still waiting.
+	// A later decision releases sem-a and acquires sem-c, which doesn't exist, so the acquire fails.
 	_, err = original.AddSemaphoreReleasedEvent(10, acquireAEvent.ID)
 	require.NoError(t, err)
-	acquireBEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(10, "sem-b", 60)
+	acquireCEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(10, "sem-c", 30)
+	require.NoError(t, err)
+	_, err = original.AddSemaphoreAcquireFailedEvent(acquireCEvent.ID, types.SemaphoreAcquireFailedCauseNotFound)
+	require.NoError(t, err)
+	require.NoError(t, original.FlushBufferedEvents())
+	// A later decision acquires sem-b, which is never granted, so it is still waiting.
+	acquireBEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(14, "sem-b", 60)
 	require.NoError(t, err)
 
 	rebuilt := testSemaphoreMutableStateBuilder(t)
@@ -418,6 +424,90 @@ func Test__SemaphoreEventsReplayToTheSameHolds(t *testing.T) {
 	assert.Len(t, original.pendingSemaphoreInfoIDs, 1, "the released hold is gone")
 	assert.Equal(t, 0, original.pendingSemaphoreInfoIDs[acquireBEvent.ID].TokenID, "acquireB has no token yet")
 	assert.Equal(t, original.pendingSemaphoreInfoIDs, rebuilt.pendingSemaphoreInfoIDs)
+}
+
+func Test__AddSemaphoreAcquireFailedEvent(t *testing.T) {
+	errRefused := &types.InternalServiceError{Message: "add-semaphore-acquire-failed-event operation failed"}
+
+	tests := []struct {
+		name        string
+		holdTokenID *int // nil: no hold for event 2; 0: the hold has no token yet; >0: the hold has that token
+		finished    bool
+		wantErr     error
+	}{
+		{
+			name:        "the hold has no token yet: the failure is recorded and the hold is removed",
+			holdTokenID: common.IntPtr(0),
+		},
+		{
+			name:        "the hold already has a token: refused",
+			holdTokenID: common.IntPtr(7),
+			wantErr:     errRefused,
+		},
+		{
+			name:    "no hold for the initiated event: refused",
+			wantErr: errRefused,
+		},
+		{
+			name:        "the run is closed: refused",
+			holdTokenID: common.IntPtr(0),
+			finished:    true,
+			wantErr:     ErrWorkflowFinished,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mb := testSemaphoreMutableStateBuilder(t)
+			if tc.holdTokenID != nil {
+				hold := testSemaphoreInfo(2)
+				hold.TokenID = *tc.holdTokenID
+				mb.pendingSemaphoreInfoIDs[2] = hold
+			}
+			if tc.finished {
+				mb.executionInfo.State = persistence.WorkflowStateCompleted
+			}
+
+			event, err := mb.AddSemaphoreAcquireFailedEvent(2, types.SemaphoreAcquireFailedCauseNotFound)
+
+			if tc.wantErr != nil {
+				assert.Equal(t, tc.wantErr, err)
+				assert.Nil(t, event)
+				assert.Empty(t, mb.hBuilder.history, "a refused failure writes no event")
+				if tc.holdTokenID != nil {
+					assert.Contains(t, mb.pendingSemaphoreInfoIDs, int64(2), "a refused failure keeps the hold")
+				}
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, types.EventTypeSemaphoreAcquireFailed, event.GetEventType())
+			assert.Equal(t, &types.SemaphoreAcquireFailedEventAttributes{
+				Cause:            types.SemaphoreAcquireFailedCauseNotFound.Ptr(),
+				InitiatedEventID: 2,
+			}, event.SemaphoreAcquireFailedEventAttributes)
+			assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
+			assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
+		})
+	}
+}
+
+func Test__ReplicateSemaphoreAcquireFailedEvent(t *testing.T) {
+	mb := testSemaphoreMutableStateBuilder(t)
+	hold := testSemaphoreInfo(2)
+	hold.TokenID = 0
+	mb.UpsertSemaphoreInfo(hold)
+
+	err := mb.ReplicateSemaphoreAcquireFailedEvent(&types.HistoryEvent{
+		ID:        10,
+		EventType: types.EventTypeSemaphoreAcquireFailed.Ptr(),
+		SemaphoreAcquireFailedEventAttributes: &types.SemaphoreAcquireFailedEventAttributes{
+			Cause:            types.SemaphoreAcquireFailedCauseNotFound.Ptr(),
+			InitiatedEventID: 2,
+		},
+	})
+	require.NoError(t, err)
+	assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
+	assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
 }
 
 // Tests which releases AddSemaphoreReleasedEvent records and which it refuses.

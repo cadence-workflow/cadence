@@ -88,6 +88,7 @@ var (
 	// semaphore
 	WorkflowActionSemaphoreAcquireInitiated = workflowAction("add-semaphore-acquire-initiated-event")
 	WorkflowActionSemaphoreAcquired         = workflowAction("add-semaphore-acquired-event")
+	WorkflowActionSemaphoreAcquireFailed    = workflowAction("add-semaphore-acquire-failed-event")
 	WorkflowActionSemaphoreReleased         = workflowAction("add-semaphore-released-event")
 
 	WorkflowActionUnknown = workflowAction("add-unknown-event")
@@ -493,6 +494,7 @@ var (
 	MatchingClientOperationUpdateTaskListPartitionConfig  = clientOperation("matching-update-task-list-partition-config")
 	MatchingClientOperationRefreshTaskListPartitionConfig = clientOperation("matching-refresh-task-list-partition-config")
 	MatchingClientOperationAcquireSemaphore               = clientOperation("matching-acquire-semaphore")
+	MatchingClientOperationReleaseSemaphore               = clientOperation("matching-release-semaphore")
 )
 
 // Pre-defined values for TagIDType
