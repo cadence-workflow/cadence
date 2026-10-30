@@ -87,6 +87,7 @@ func TestNewConfig(t *testing.T) {
 		"BlobSizeLimitWarn":                                 {dynamicproperties.BlobSizeLimitWarn, 30},
 		"ThrottledLogRPS":                                   {dynamicproperties.FrontendThrottledLogRPS, 31},
 		"ShutdownDrainDuration":                             {dynamicproperties.FrontendShutdownDrainDuration, time.Duration(32)},
+		"CancelOutstandingPollsOnShutdown":                  {dynamicproperties.FrontendCancelOutstandingPollsOnShutdown, true},
 		"WarmupDuration":                                    {dynamicproperties.FrontendWarmupDuration, time.Duration(40)},
 		"EnableDomainNotActiveAutoForwarding":               {dynamicproperties.EnableDomainNotActiveAutoForwarding, true},
 		"EnableGracefulFailover":                            {dynamicproperties.EnableGracefulFailover, false},

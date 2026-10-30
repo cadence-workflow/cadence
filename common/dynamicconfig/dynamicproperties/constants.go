@@ -1827,6 +1827,13 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	EnableClientVersionCheck
+	// FrontendCancelOutstandingPollsOnShutdown is whether frontend cancels outstanding long-polls during shutdown,
+	// returning empty responses to pollers instead of waiting for polls to time out
+	// KeyName: frontend.cancelOutstandingPollsOnShutdown
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	FrontendCancelOutstandingPollsOnShutdown
 	// SendRawWorkflowHistory is whether to enable raw history retrieving
 	// KeyName: frontend.sendRawWorkflowHistory
 	// Value type: Bool
@@ -4877,6 +4884,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableClientVersionCheck: {
 		KeyName:      "frontend.enableClientVersionCheck",
 		Description:  "EnableClientVersionCheck is enables client version check for frontend",
+		DefaultValue: false,
+	},
+	FrontendCancelOutstandingPollsOnShutdown: {
+		KeyName:      "frontend.cancelOutstandingPollsOnShutdown",
+		Description:  "FrontendCancelOutstandingPollsOnShutdown is whether frontend cancels outstanding long-polls during shutdown, returning empty responses to pollers instead of waiting for polls to time out",
 		DefaultValue: false,
 	},
 	SendRawWorkflowHistory: {

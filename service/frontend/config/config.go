@@ -69,6 +69,7 @@ type Config struct {
 	EnableQueryAttributeValidation    dynamicproperties.BoolPropertyFn
 	DisallowQuery                     dynamicproperties.BoolPropertyFnWithDomainFilter
 	ShutdownDrainDuration             dynamicproperties.DurationPropertyFn
+	CancelOutstandingPollsOnShutdown  dynamicproperties.BoolPropertyFn
 	WarmupDuration                    dynamicproperties.DurationPropertyFn
 	Lockdown                          dynamicproperties.BoolPropertyFnWithDomainFilter
 
@@ -194,6 +195,7 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		BlobSizeLimitWarn:                                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitWarn),
 		ThrottledLogRPS:                                   dc.GetIntProperty(dynamicproperties.FrontendThrottledLogRPS),
 		ShutdownDrainDuration:                             dc.GetDurationProperty(dynamicproperties.FrontendShutdownDrainDuration),
+		CancelOutstandingPollsOnShutdown:                  dc.GetBoolProperty(dynamicproperties.FrontendCancelOutstandingPollsOnShutdown),
 		WarmupDuration:                                    dc.GetDurationProperty(dynamicproperties.FrontendWarmupDuration),
 		EnableDomainNotActiveAutoForwarding:               dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDomainNotActiveAutoForwarding),
 		EnableGracefulFailover:                            dc.GetBoolProperty(dynamicproperties.EnableGracefulFailover),

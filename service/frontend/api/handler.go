@@ -34,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/.gen/go/sqlblobs"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/backoff"
@@ -87,6 +88,7 @@ type (
 		producerManager           ProducerManager
 		thriftrwEncoder           codec.BinaryEncoder
 		requestValidator          RequestValidator
+		outstandingPolls          *outstandingPolls
 	}
 
 	getHistoryContinuationToken struct {
@@ -106,6 +108,11 @@ type (
 
 	// HealthStatus is an enum that refers to the rpc handler health status
 	HealthStatus int32
+)
+
+const (
+	cancelPollsOnShutdownConcurrency = 100
+	cancelPollsOnShutdownTimeout     = 2 * time.Second
 )
 
 var (
@@ -150,6 +157,7 @@ func NewWorkflowHandler(
 		),
 		thriftrwEncoder:  codec.NewThriftRWEncoder(),
 		requestValidator: NewRequestValidator(resource.GetLogger(), resource.GetMetricsClient(), config),
+		outstandingPolls: newOutstandingPolls(),
 	}
 }
 
@@ -171,6 +179,37 @@ func (wh *WorkflowHandler) Start() {
 // Stop stops the handler
 func (wh *WorkflowHandler) Stop() {
 	atomic.StoreInt32(&wh.shuttingDown, 1)
+	if wh.config.CancelOutstandingPollsOnShutdown() {
+		wh.cancelOutstandingPolls()
+	}
+}
+
+// cancelOutstandingPolls asks matching to release all long-polls sent by this frontend. Matching then responds
+// to them as usual (with an empty or a matched task), so no task is lost on the way back to the poller.
+func (wh *WorkflowHandler) cancelOutstandingPolls() {
+	polls := wh.outstandingPolls.close()
+	wh.GetLogger().Info("ShutdownHandler: Cancelling outstanding polls", tag.Counter(len(polls)))
+
+	ctx, cancel := context.WithTimeout(context.Background(), cancelPollsOnShutdownTimeout)
+	defer cancel()
+	var g errgroup.Group
+	g.SetLimit(cancelPollsOnShutdownConcurrency)
+	for pollerID, poll := range polls {
+		g.Go(func() error {
+			err := wh.GetMatchingClient().CancelOutstandingPoll(ctx, &types.CancelOutstandingPollRequest{
+				DomainUUID:   poll.domainID,
+				TaskListType: common.Int32Ptr(poll.taskListType),
+				TaskList:     poll.taskList,
+				PollerID:     pollerID,
+			})
+			if err != nil {
+				wh.GetLogger().Warn("Failed to cancel outstanding poller on shutdown.",
+					tag.WorkflowTaskListName(poll.taskList.GetName()), tag.Error(err))
+			}
+			return nil
+		})
+	}
+	_ = g.Wait()
 }
 
 // UpdateHealthStatus sets the health status for this rpc handler.
@@ -348,8 +387,14 @@ func (wh *WorkflowHandler) PollForActivityTask(
 		return &types.PollForActivityTaskResponse{}, nil
 	}
 	pollerID := uuid.New().String()
+	wh.outstandingPolls.add(pollerID, outstandingPoll{domainID: domainID, taskListType: persistence.TaskListTypeActivity, taskList: pollRequest.TaskList})
+	defer wh.outstandingPolls.remove(pollerID)
 	var matchingResp *types.MatchingPollForActivityTaskResponse
 	op := func(ctx context.Context) error {
+		if wh.outstandingPolls.isClosed() {
+			matchingResp = &types.MatchingPollForActivityTaskResponse{}
+			return nil
+		}
 		matchingResp, err = wh.GetMatchingClient().PollForActivityTask(ctx, &types.MatchingPollForActivityTaskRequest{
 			DomainUUID:     domainID,
 			PollerID:       pollerID,
@@ -361,7 +406,7 @@ func (wh *WorkflowHandler) PollForActivityTask(
 
 	err = wh.throttleRetry.Do(ctx, op)
 	if err != nil {
-		err = wh.cancelOutstandingPoll(ctx, err, domainID, persistence.TaskListTypeActivity, pollRequest.TaskList, pollerID)
+		err = wh.cancelOutstandingPoll(ctx, err, domainID, persistence.TaskListTypeActivity, pollerID)
 		if err != nil {
 			// For all other errors log an error and return it back to client.
 			ctxTimeout := "not-set"
@@ -489,8 +534,14 @@ func (wh *WorkflowHandler) PollForDecisionTask(
 	}
 
 	pollerID := uuid.New().String()
+	wh.outstandingPolls.add(pollerID, outstandingPoll{domainID: domainID, taskListType: persistence.TaskListTypeDecision, taskList: pollRequest.TaskList})
+	defer wh.outstandingPolls.remove(pollerID)
 	var matchingResp *types.MatchingPollForDecisionTaskResponse
 	op := func(ctx context.Context) error {
+		if wh.outstandingPolls.isClosed() {
+			matchingResp = &types.MatchingPollForDecisionTaskResponse{}
+			return nil
+		}
 		matchingResp, err = wh.GetMatchingClient().PollForDecisionTask(ctx, &types.MatchingPollForDecisionTaskRequest{
 			DomainUUID:     domainID,
 			PollerID:       pollerID,
@@ -502,7 +553,7 @@ func (wh *WorkflowHandler) PollForDecisionTask(
 
 	err = wh.throttleRetry.Do(ctx, op)
 	if err != nil {
-		err = wh.cancelOutstandingPoll(ctx, err, domainID, persistence.TaskListTypeDecision, pollRequest.TaskList, pollerID)
+		err = wh.cancelOutstandingPoll(ctx, err, domainID, persistence.TaskListTypeDecision, pollerID)
 		if err != nil {
 			// For all other errors log an error and return it back to client.
 			ctxTimeout := "not-set"
@@ -594,9 +645,19 @@ func (wh *WorkflowHandler) checkBadBinary(domainEntry *cache.DomainCacheEntry, b
 }
 
 func (wh *WorkflowHandler) cancelOutstandingPoll(ctx context.Context, err error, domainID string, taskListType int32,
-	taskList *types.TaskList, pollerID string) error {
+	pollerID string) error {
+	// taskList stays nil if the poll was never sent to matching
+	var taskList *types.TaskList
+	var pollErr *matching.PollError
+	if errors.As(err, &pollErr) {
+		taskList, err = pollErr.TaskList, pollErr.Err
+	}
+
 	// First check if this err is due to context cancellation.  This means client connection to frontend is closed.
 	if ctx.Err() == context.Canceled {
+		if taskList == nil {
+			return nil
+		}
 		// Our rpc stack does not propagates context cancellation to the other service.  Lets make an explicit
 		// call to matching to notify this poller is gone to prevent any tasks being dispatched to zombie pollers.
 		err = wh.GetMatchingClient().CancelOutstandingPoll(context.Background(), &types.CancelOutstandingPollRequest{
