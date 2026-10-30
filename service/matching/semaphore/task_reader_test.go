@@ -276,6 +276,52 @@ func TestReadTasks(t *testing.T) {
 	}
 }
 
+// Tests that a waiter counts from the moment the writer saves it until it is acked.
+func TestHasWaiters(t *testing.T) {
+	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
+	r.writer.start()
+	assert.False(t, r.hasWaiters(), "nothing saved yet")
+
+	store.EXPECT().CreateSemaphoreTasks(gomock.Any(), createRequest(1, written("wf-a", 1)))
+	require.NoError(t, r.writer.appendTask(testContext(t), waiter("wf-a")))
+	assert.True(t, r.hasWaiters(), "saved, not read yet")
+
+	store.EXPECT().GetSemaphoreTasks(gomock.Any(), getTasksRequest(0, 1, getTasksBatchSize)).Return(
+		&persistence.GetSemaphoreTasksResponse{Tasks: []*persistence.SemaphoreTask{written("wf-a", 1)}}, nil)
+	require.True(t, r.readTasks())
+	assert.True(t, r.hasWaiters(), "in the buffer")
+
+	task := <-r.taskBuffer
+	assert.True(t, r.hasWaiters(), "taken from the buffer, not acked yet")
+
+	r.taskAckManager.AckItem(task.TaskID)
+	assert.False(t, r.hasWaiters(), "acked")
+}
+
+// Tests that a waiter skipped for its deadline stops counting once it is read.
+func TestHasWaitersSkipsAnExpiredWaiter(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSourceAt(now))
+	r.writer.start()
+
+	expired := waiter("wf-a")
+	deadline := now.Add(-time.Second)
+	expired.AcquireDeadline = &deadline
+	saved := *expired
+	saved.TaskID = 1
+	store.EXPECT().CreateSemaphoreTasks(gomock.Any(), createRequest(1, &saved))
+	require.NoError(t, r.writer.appendTask(testContext(t), expired))
+	assert.True(t, r.hasWaiters(), "saved, not read yet")
+
+	store.EXPECT().GetSemaphoreTasks(gomock.Any(), getTasksRequest(0, 1, getTasksBatchSize)).Return(
+		&persistence.GetSemaphoreTasksResponse{Tasks: []*persistence.SemaphoreTask{&saved}}, nil)
+	require.True(t, r.readTasks())
+	assert.Empty(t, r.taskBuffer, "the expired waiter is skipped")
+	assert.False(t, r.hasWaiters())
+}
+
 func TestGetTasksPumpConditionFailedReportsFatal(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))

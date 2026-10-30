@@ -110,6 +110,17 @@ func (tr *taskReader) signal() {
 	}
 }
 
+// hasWaiters reports whether a waiter is saved but not read, or read but not acked. The read level
+// is checked first, since ReadItem counts a waiter in the backlog before moving the read level.
+//
+// TODO: Acquire calls it before granting, so a newcomer queues behind existing waiters.
+func (tr *taskReader) hasWaiters() bool {
+	if tr.taskAckManager.GetReadLevel() < tr.writer.getMaxReadLevel() {
+		return true
+	}
+	return tr.taskAckManager.GetBacklogCount() > 0
+}
+
 // getTasksPump reads waiters into taskBuffer when signaled, and saves the ack level on a timer.
 func (tr *taskReader) getTasksPump() {
 	defer tr.wg.Done()
