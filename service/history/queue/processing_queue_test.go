@@ -110,6 +110,60 @@ func (s *processingQueueSuite) TestAddTasks() {
 	s.Equal(newReadLevel, queue.state.readLevel)
 }
 
+// concurrentlyMutatedTask simulates a task that has already been submitted for execution,
+// whose fields are being written by a worker goroutine while the queue inspects it
+type concurrentlyMutatedTask struct {
+	task.Task
+	executing bool
+}
+
+func (c *concurrentlyMutatedTask) GetDomainID() string   { return "some random domainID" }
+func (c *concurrentlyMutatedTask) GetWorkflowID() string { return "some random workflowID" }
+func (c *concurrentlyMutatedTask) GetRunID() string      { return "some random runID" }
+func (c *concurrentlyMutatedTask) GetTaskType() int      { return 0 }
+
+func TestAddTasks_TaskOutOfScope_DoesNotRaceWithExecution(t *testing.T) {
+	outOfScopeTask := &concurrentlyMutatedTask{}
+	tasks := map[task.Key]task.Task{
+		testKey{ID: 15}: outOfScopeTask,
+	}
+
+	queue := newProcessingQueue(
+		&processingQueueStateImpl{
+			level:        0,
+			ackLevel:     testKey{ID: 1},
+			readLevel:    testKey{ID: 1},
+			maxLevel:     testKey{ID: 10},
+			domainFilter: NewDomainFilter(nil, true),
+		},
+		make(map[task.Key]task.Task),
+		testlogger.New(t),
+		metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}),
+	)
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				outOfScopeTask.executing = !outOfScopeTask.executing
+			}
+		}
+	}()
+
+	for i := 0; i != 100; i++ {
+		queue.AddTasks(tasks, testKey{ID: 10})
+	}
+	close(stop)
+	<-done
+
+	require.Empty(t, queue.outstandingTasks)
+}
+
 func (s *processingQueueSuite) TestGetTask_TaskNotFound_Error() {
 	ackLevel := testKey{ID: 1}
 	maxLevel := testKey{ID: 10}
