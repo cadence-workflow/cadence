@@ -2354,14 +2354,16 @@ const (
 	// Allowed filters: DomainName
 	EnableDeterministicChildWorkflowRequestID
 
-	// EnableReplaceChildWorkflowFromStaleParentBranch lets a child start terminate the running child and start a new run,
-	// when the running child was started by an initiated event of the parent that is not on the current branch of the
-	// parent. It applies only to children started when EnableDeterministicChildWorkflowRequestID was enabled.
-	// KeyName: history.enableReplaceChildWorkflowFromStaleParentBranch
+	// EnableExistingChildWorkflowRunHandling lets a child start handle a run with the same workflow ID that the parent
+	// started before. When the first run of the chain of the run has the request ID of the start, the start adopts the
+	// run. When the run is running and was started by an initiated event that is not on the current branch of the parent,
+	// the start terminates it and starts a new run. The replacement applies only to children started when
+	// EnableDeterministicChildWorkflowRequestID was enabled.
+	// KeyName: history.enableExistingChildWorkflowRunHandling
 	// Value type: Bool
 	// Default value: false
 	// Allowed filters: DomainName
-	EnableReplaceChildWorkflowFromStaleParentBranch
+	EnableExistingChildWorkflowRunHandling
 
 	// MatchingEnableClientAutoConfig enables auto config for domain and tasklist on client (worker) side
 	// KeyName: matching.enableClientAutoConfig
@@ -5321,10 +5323,10 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableDeterministicChildWorkflowRequestID derives the request ID that starts a child workflow from its initiated event, so all clusters start the child with the same request ID",
 		DefaultValue: false,
 	},
-	EnableReplaceChildWorkflowFromStaleParentBranch: {
-		KeyName:      "history.enableReplaceChildWorkflowFromStaleParentBranch",
+	EnableExistingChildWorkflowRunHandling: {
+		KeyName:      "history.enableExistingChildWorkflowRunHandling",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableReplaceChildWorkflowFromStaleParentBranch lets a child start terminate the running child and start a new run, when the running child was started by an initiated event of the parent that is not on the current branch of the parent",
+		Description:  "EnableExistingChildWorkflowRunHandling lets a child start adopt a run whose chain was started by the same request, and terminate and start again a running child that was started by an initiated event of the parent that is not on the current branch of the parent",
 		DefaultValue: false,
 	},
 	MatchingEnableClientAutoConfig: {
