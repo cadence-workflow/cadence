@@ -1493,6 +1493,26 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessAcquireSemaphore_Success()
 	s.Nil(err)
 }
 
+// Tests that a standby completes a release task without calling Matching or loading the workflow.
+func (s *transferStandbyTaskExecutorSuite) TestProcessReleaseSemaphore() {
+	transferTask := s.newTransferTaskFromInfo(&persistence.ReleaseSemaphoreTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: "wid",
+			RunID:      "rid",
+		},
+		TaskData: persistence.TaskData{
+			Version: s.version,
+			TaskID:  int64(59),
+		},
+		InitiatedID:   7,
+		SemaphoreName: "some random semaphore",
+	})
+
+	_, err := s.transferStandbyTaskExecutor.Execute(transferTask)
+	s.NoError(err)
+}
+
 func (s *transferStandbyTaskExecutorSuite) newTransferTaskFromInfo(
 	task persistence.Task,
 ) Task {

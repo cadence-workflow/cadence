@@ -305,6 +305,7 @@ const (
 	TransferTaskTypeRecordChildExecutionCompleted
 	TransferTaskTypeApplyParentClosePolicy // Deprecated: this is related to cross-cluster tasks
 	TransferTaskTypeAcquireSemaphore
+	TransferTaskTypeReleaseSemaphore
 )
 
 // Types of replication tasks
@@ -556,6 +557,7 @@ type (
 		RecordVisibility        bool
 		OriginalTaskList        string
 		OriginalTaskListKind    types.TaskListKind
+		SemaphoreName           string
 	}
 
 	// CrossClusterTaskInfo describes a cross-cluster task
@@ -2669,6 +2671,14 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			InitiatedID:        t.ScheduleID,
+			TaskList:           t.TaskList,
+		}, nil
+	case TransferTaskTypeReleaseSemaphore:
+		return &ReleaseSemaphoreTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			InitiatedID:        t.ScheduleID,
+			SemaphoreName:      t.SemaphoreName,
 			TaskList:           t.TaskList,
 		}, nil
 	default:

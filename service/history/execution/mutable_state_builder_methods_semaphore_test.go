@@ -573,18 +573,36 @@ func Test__AddSemaphoreReleasedEvent(t *testing.T) {
 }
 
 func Test__ReplicateSemaphoreReleasedEvent(t *testing.T) {
-	mb := testSemaphoreMutableStateBuilder(t)
-	mb.UpsertSemaphoreInfo(testSemaphoreInfo(2))
-
-	err := mb.ReplicateSemaphoreReleasedEvent(&types.HistoryEvent{
+	event := &types.HistoryEvent{
 		ID:        10,
+		Version:   3,
 		EventType: types.EventTypeSemaphoreReleased.Ptr(),
 		SemaphoreReleasedEventAttributes: &types.SemaphoreReleasedEventAttributes{
 			TokenID:          7,
 			InitiatedEventID: 2,
 		},
+	}
+
+	t.Run("deletes the hold and adds the release task", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+		mb.UpsertSemaphoreInfo(testSemaphoreInfo(2))
+
+		require.NoError(t, mb.ReplicateSemaphoreReleasedEvent(event))
+
+		assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
+		assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
+		assert.Equal(t, []persistence.Task{&persistence.ReleaseSemaphoreTask{
+			WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
+			TaskData:           persistence.TaskData{Version: 3},
+			InitiatedID:        2,
+			SemaphoreName:      "my-semaphore",
+		}}, mb.GetTransferTasks())
 	})
-	require.NoError(t, err)
-	assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
-	assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
+	t.Run("hold missing from a broken mutable state: replay succeeds and adds no release task", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+
+		require.NoError(t, mb.ReplicateSemaphoreReleasedEvent(event))
+
+		assert.Empty(t, mb.GetTransferTasks())
+	})
 }

@@ -594,6 +594,8 @@ func parseTransferTaskInfo(
 			info.OriginalTaskList = v.(string)
 		case "original_task_list_kind":
 			info.OriginalTaskListKind = types.TaskListKind(int32(v.(int)))
+		case "semaphore_name":
+			info.SemaphoreName = v.(string)
 		}
 	}
 

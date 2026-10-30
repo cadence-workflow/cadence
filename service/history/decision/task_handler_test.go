@@ -908,11 +908,8 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 }
 
 func TestHandleDecisionReleaseSemaphore(t *testing.T) {
-	domainInfo := constants.TestLocalDomainEntry.GetInfo()
-
 	tests := []struct {
 		name               string
-		disabled           bool
 		attr               *types.ReleaseSemaphoreDecisionAttributes
 		expectMockCalls    func(ms *execution.MockMutableState)
 		wantErr            error
@@ -920,15 +917,6 @@ func TestHandleDecisionReleaseSemaphore(t *testing.T) {
 		wantFailMessage    *string
 		wantStopProcessing bool
 	}{
-		{
-			name:     "semaphores disabled for the domain: the request is rejected before attributes are checked",
-			disabled: true,
-			attr:     &types.ReleaseSemaphoreDecisionAttributes{},
-			wantErr: &types.BadRequestError{Message: fmt.Sprintf(
-				"Semaphores are not enabled for domain %q. Set dynamic config system.enableDistributedSemaphore=true for this domain to enable them.",
-				domainInfo.Name,
-			)},
-		},
 		{
 			name:               "attributes not set: the decision fails",
 			wantFailCause:      types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes.Ptr(),
@@ -973,7 +961,6 @@ func TestHandleDecisionReleaseSemaphore(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			taskHandler := newTaskHandlerForTest(t)
-			taskHandler.config.EnableDistributedSemaphore = func(string) bool { return !tc.disabled }
 			if tc.expectMockCalls != nil {
 				tc.expectMockCalls(taskHandler.mutableState.(*execution.MockMutableState))
 			}

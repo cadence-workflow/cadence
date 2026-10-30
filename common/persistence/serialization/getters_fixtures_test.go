@@ -118,6 +118,7 @@ var expectedNil = map[string]map[string]any{
 		"GetVisibilityTimestamp":     zeroUnix,
 		"GetOriginalTaskList":        "",
 		"GetOriginalTaskListKind":    types.TaskListKindNormal,
+		"GetSemaphoreName":           "",
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []uint8(nil),
@@ -368,6 +369,7 @@ var expectedEmpty = map[string]map[string]any{
 		"GetVisibilityTimestamp":     time.Time{},
 		"GetOriginalTaskList":        "",
 		"GetOriginalTaskListKind":    types.TaskListKindNormal,
+		"GetSemaphoreName":           "",
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []uint8(nil),
@@ -620,6 +622,7 @@ var expectedNonEmpty = map[string]map[string]any{
 		"GetVisibilityTimestamp":     taskInfoCreateTime,
 		"GetOriginalTaskList":        "originalTaskList",
 		"GetOriginalTaskListKind":    types.TaskListKindEphemeral,
+		"GetSemaphoreName":           "semaphoreName",
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []byte(taskDomainID),

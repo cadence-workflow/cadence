@@ -173,6 +173,13 @@ func (s *taskSerializerImpl) serializeTransferTask(task persistence.Task) (persi
 		info.RunID = MustParseUUID(t.RunID)
 		info.ScheduleID = t.InitiatedID
 		info.TaskList = t.TaskList
+	case *persistence.ReleaseSemaphoreTask:
+		info.DomainID = MustParseUUID(t.DomainID)
+		info.WorkflowID = t.WorkflowID
+		info.RunID = MustParseUUID(t.RunID)
+		info.ScheduleID = t.InitiatedID
+		info.SemaphoreName = t.SemaphoreName
+		info.TaskList = t.TaskList
 	default:
 		return persistence.DataBlob{}, &types.InternalServiceError{
 			Message: fmt.Sprintf("Unknown transfer type: %v", task.GetTaskType()),
@@ -290,6 +297,14 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			InitiatedID:        info.GetScheduleID(),
+			TaskList:           info.GetTaskList(),
+		}
+	case persistence.TransferTaskTypeReleaseSemaphore:
+		task = &persistence.ReleaseSemaphoreTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			InitiatedID:        info.GetScheduleID(),
+			SemaphoreName:      info.GetSemaphoreName(),
 			TaskList:           info.GetTaskList(),
 		}
 	default:

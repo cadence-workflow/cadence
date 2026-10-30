@@ -1606,6 +1606,14 @@ func (t *TransferTaskInfo) GetOriginalTaskListKind() (o types.TaskListKind) {
 	return
 }
 
+// GetSemaphoreName internal sql blob getter
+func (t *TransferTaskInfo) GetSemaphoreName() (o string) {
+	if t != nil {
+		return t.SemaphoreName
+	}
+	return
+}
+
 // GetDomainID internal sql blob getter
 func (t *TimerTaskInfo) GetDomainID() (o []byte) {
 	if t != nil && t.DomainID != nil {

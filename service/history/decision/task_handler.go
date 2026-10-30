@@ -1102,15 +1102,6 @@ func (handler *taskHandlerImpl) handleDecisionReleaseSemaphore(
 		metrics.DecisionTypeReleaseSemaphoreCounter,
 	)
 
-	// Semaphores are off for this domain: reject without recording anything.
-	domainName := handler.domainEntry.GetInfo().Name
-	if !handler.config.EnableDistributedSemaphore(domainName) {
-		return &types.BadRequestError{Message: fmt.Sprintf(
-			"Semaphores are not enabled for domain %q. Set dynamic config system.enableDistributedSemaphore=true for this domain to enable them.",
-			domainName,
-		)}
-	}
-
 	if err := handler.validateDecisionAttr(
 		func() error {
 			return handler.attrValidator.validateReleaseSemaphoreAttributes(attr)

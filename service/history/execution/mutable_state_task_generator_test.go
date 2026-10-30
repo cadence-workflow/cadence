@@ -1686,3 +1686,35 @@ func TestGenerateAcquireSemaphoreTasks(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateReleaseSemaphoreTasks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockMutableState := NewMockMutableState(ctrl)
+	mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+		DomainID:   constants.TestDomainID,
+		WorkflowID: constants.TestWorkflowID,
+		RunID:      constants.TestRunID,
+		TaskList:   "task-list",
+	})
+	mockMutableState.EXPECT().AddTransferTasks(&persistence.ReleaseSemaphoreTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   constants.TestDomainID,
+			WorkflowID: constants.TestWorkflowID,
+			RunID:      constants.TestRunID,
+		},
+		TaskData:      persistence.TaskData{Version: 3},
+		InitiatedID:   5,
+		SemaphoreName: "my-semaphore",
+		TaskList:      "task-list",
+	})
+	taskGenerator := NewMutableStateTaskGenerator(log.NewNoop(), constants.TestClusterMetadata, cache.NewMockDomainCache(ctrl), mockMutableState)
+
+	err := taskGenerator.GenerateReleaseSemaphoreTasks(&types.HistoryEvent{
+		ID:      9,
+		Version: 3,
+		SemaphoreReleasedEventAttributes: &types.SemaphoreReleasedEventAttributes{
+			InitiatedEventID: 5,
+		},
+	}, "my-semaphore")
+	assert.NoError(t, err)
+}
