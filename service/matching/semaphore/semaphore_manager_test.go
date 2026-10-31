@@ -16,9 +16,11 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/matching/config"
 )
 
 var testBucketID = Identifier{DomainID: "domain-1", SemaphoreName: "sem-1", Bucket: 0}
@@ -90,6 +92,24 @@ func singleBucketMetadata(t *testing.T, tokenCount int) persistence.SemaphoreMet
 	return md
 }
 
+// claimingTasks returns a task store that answers the startup claim.
+func claimingTasks(t *testing.T) *persistence.MockSemaphoreTaskManager {
+	t.Helper()
+	tasks := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+	// At most once: some tests never start the manager.
+	tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).MaxTimes(1).
+		Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+	return tasks
+}
+
+// testConfig returns a config whose buckets unload after idleTime.
+func testConfig(idleTime time.Duration) *config.Config {
+	return &config.Config{
+		SemaphoreIdleTime:          func(string) time.Duration { return idleTime },
+		SemaphoreUpdateAckInterval: func(string) time.Duration { return testUpdateAckInterval() },
+	}
+}
+
 // testManagerParams returns valid params for a bucket of tokens 1 to tokenCount. The clock only
 // moves when a test moves it, so nothing is evicted unless the test asks for it. Tests override
 // fields as needed.
@@ -99,8 +119,10 @@ func testManagerParams(t *testing.T, m persistence.SemaphoreTokenManager, tokenC
 		ID:         testBucketID,
 		Tokens:     m,
 		Metadata:   singleBucketMetadata(t, tokenCount),
+		Tasks:      claimingTasks(t),
 		Logger:     testlogger.New(t),
-		IdleTTL:    testIdleTTL,
+		Cfg:        testConfig(testIdleTTL),
+		DomainName: "test-domain",
 		OnStopFn:   func(Manager) {},
 		TimeSource: clock.NewMockedTimeSource(),
 	}
@@ -189,9 +211,10 @@ func TestNewManagerValidatesItsParams(t *testing.T) {
 		{name: "no identifier", params: without(func(p *ManagerParams) { p.ID = Identifier{} })},
 		{name: "no token manager", params: without(func(p *ManagerParams) { p.Tokens = nil })},
 		{name: "no metadata manager", params: without(func(p *ManagerParams) { p.Metadata = nil })},
+		{name: "no task manager", params: without(func(p *ManagerParams) { p.Tasks = nil })},
 		{name: "no logger", params: without(func(p *ManagerParams) { p.Logger = nil })},
-		{name: "no idle ttl", params: without(func(p *ManagerParams) { p.IdleTTL = 0 })},
-		{name: "negative idle ttl", params: without(func(p *ManagerParams) { p.IdleTTL = -time.Second })},
+		{name: "no config", params: without(func(p *ManagerParams) { p.Cfg = nil })},
+		{name: "no domain name", params: without(func(p *ManagerParams) { p.DomainName = "" })},
 		{name: "no stop callback", params: without(func(p *ManagerParams) { p.OnStopFn = nil })},
 		{name: "no time source", params: without(func(p *ManagerParams) { p.TimeSource = nil })},
 	}
@@ -236,6 +259,10 @@ func TestManagerLifecycle_StartFails(t *testing.T) {
 		}}
 	}
 	scanErr := errors.New("scan failed")
+	claimed := func(tasks *persistence.MockSemaphoreTaskManager) {
+		tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).
+			Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+	}
 
 	tests := []struct {
 		name   string
@@ -243,9 +270,18 @@ func TestManagerLifecycle_StartFails(t *testing.T) {
 		// metadata stubs the metadata read. Nil reads one bucket of 2 tokens.
 		metadata func(md *persistence.MockSemaphoreMetadataManager)
 		// scan stubs the scan. Nil expects no scan.
-		scan      func(m *persistence.MockSemaphoreTokenManager)
+		scan func(m *persistence.MockSemaphoreTokenManager)
+		// claim stubs the claim on the queue. Nil expects no claim.
+		claim     func(tasks *persistence.MockSemaphoreTaskManager)
 		assertErr func(t *testing.T, err error)
 	}{
+		{
+			name: "claiming the queue fails",
+			claim: func(tasks *persistence.MockSemaphoreTaskManager) {
+				tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+			},
+			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, assert.AnError) },
+		},
 		{
 			name: "metadata read fails",
 			metadata: func(md *persistence.MockSemaphoreMetadataManager) {
@@ -285,7 +321,8 @@ func TestManagerLifecycle_StartFails(t *testing.T) {
 		},
 		{
 			// The first page's rows must not be installed.
-			name: "scan fails on its second page",
+			name:  "scan fails on its second page",
+			claim: claimed,
 			scan: func(m *persistence.MockSemaphoreTokenManager) {
 				var calls int
 				m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(2).DoAndReturn(
@@ -303,7 +340,8 @@ func TestManagerLifecycle_StartFails(t *testing.T) {
 			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, scanErr) },
 		},
 		{
-			name: "scan returns no response and no error",
+			name:  "scan returns no response and no error",
+			claim: claimed,
 			scan: func(m *persistence.MockSemaphoreTokenManager) {
 				m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).Return(nil, nil)
 			},
@@ -325,6 +363,12 @@ func TestManagerLifecycle_StartFails(t *testing.T) {
 				tc.metadata(md)
 				p.Metadata = md
 			}
+			// A failed metadata read must write nothing to semaphore_tasks.
+			tasks := persistence.NewMockSemaphoreTaskManager(ctrl)
+			if tc.claim != nil {
+				tc.claim(tasks)
+			}
+			p.Tasks = tasks
 			var stopped []Manager
 			p.OnStopFn = func(s Manager) { stopped = append(stopped, s) }
 			mgr := newManagerFromParams(t, p)
@@ -461,6 +505,63 @@ func TestManagerLifecycle_IdleTimeout(t *testing.T) {
 	case <-stopped:
 		t.Fatal("a second Stop called OnStopFn again")
 	default:
+	}
+}
+
+// Tests that a bucket that loses its claim on the queue stops serving, grants included.
+func TestManagerLifecycle_LostClaimStopsTheBucket(t *testing.T) {
+	conditionFailed := &persistence.ConditionFailedError{Msg: "range_id changed"}
+	tests := []struct {
+		name string
+		// loseClaim makes mgr find out another host has claimed the bucket.
+		loseClaim func(t *testing.T, mgr *semaphoreManagerImpl, tasks *persistence.MockSemaphoreTaskManager, mockClock clock.MockedTimeSource)
+	}{
+		{
+			name: "reader's ack level save fails with ConditionFailedError",
+			loseClaim: func(_ *testing.T, _ *semaphoreManagerImpl, tasks *persistence.MockSemaphoreTaskManager, mockClock clock.MockedTimeSource) {
+				tasks.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).Return(nil, conditionFailed)
+				// The idle clock and the ack level ticker.
+				mockClock.BlockUntil(2)
+				mockClock.Advance(testUpdateAckInterval())
+			},
+		},
+		{
+			name: "writer's waiter write fails with ConditionFailedError",
+			loseClaim: func(t *testing.T, mgr *semaphoreManagerImpl, tasks *persistence.MockSemaphoreTaskManager, _ clock.MockedTimeSource) {
+				tasks.EXPECT().CreateSemaphoreTasks(gomock.Any(), gomock.Any()).Return(nil, conditionFailed)
+				assert.ErrorIs(t, mgr.taskWriter.appendTask(testContext(t), &persistence.SemaphoreTask{WorkflowID: "wf"}), conditionFailed)
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			defer goleak.VerifyNone(t)
+			ctrl := gomock.NewController(t)
+			m := persistence.NewMockSemaphoreTokenManager(ctrl)
+			expectScan(t, m, [][]*persistence.SemaphoreOwnership{nil})
+			tasks := claimingTasks(t)
+			p := testManagerParams(t, m, 1)
+			p.Tasks = tasks
+			mockClock := clock.NewMockedTimeSource()
+			p.TimeSource = mockClock
+			// Longer than the ack level interval, so the bucket is not unloaded for being idle.
+			p.Cfg = testConfig(2 * testUpdateAckInterval())
+			stopped := make(chan Manager, 1)
+			p.OnStopFn = func(s Manager) { stopped <- s }
+			mgr := newManagerFromParams(t, p)
+			require.NoError(t, mgr.Start(context.Background()))
+
+			tc.loseClaim(t, mgr, tasks, mockClock)
+
+			select {
+			case s := <-stopped:
+				assert.Same(t, mgr, s)
+			case <-time.After(time.Second):
+				t.Fatal("a bucket that lost its claim was not stopped")
+			}
+			_, err := mgr.Acquire(context.Background(), "owner-a")
+			assert.ErrorIs(t, err, ErrNotReady)
+		})
 	}
 }
 
@@ -1120,6 +1221,58 @@ func TestGrant_WaitsForTheBucketLock(t *testing.T) {
 		assertBucketUnlocked(t, mgr)
 		assertCacheConsistent(t, cache)
 	})
+}
+
+func TestNewSemaphoreConfigIdleTime(t *testing.T) {
+	defaultIdleTime := dynamicproperties.MatchingSemaphoreIdleTime.DefaultDuration()
+	tests := []struct {
+		name       string
+		configured time.Duration
+		want       time.Duration
+	}{
+		{name: "positive idle time is used as is", configured: time.Minute, want: time.Minute},
+		{name: "2ns is used as is", configured: 2, want: 2},
+		{name: "1ns falls back to the default", configured: 1, want: defaultIdleTime},
+		{name: "zero idle time falls back to the default", configured: 0, want: defaultIdleTime},
+		{name: "negative idle time falls back to the default", configured: -time.Second, want: defaultIdleTime},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := testConfig(tc.configured)
+			assert.Equal(t, tc.want, newSemaphoreConfig(cfg, "test-domain").IdleTime())
+		})
+	}
+}
+
+// A bad idle time must not fail the request or panic the idle clock when the manager starts.
+func TestManagerLifecycle_NonPositiveIdleTimeStarts(t *testing.T) {
+	m := persistence.NewMockSemaphoreTokenManager(gomock.NewController(t))
+	expectScan(t, m, [][]*persistence.SemaphoreOwnership{nil})
+	p := testManagerParams(t, m, 1)
+	p.Cfg = testConfig(0)
+	mgr := newManagerFromParams(t, p)
+	require.NoError(t, mgr.Start(context.Background()))
+	assert.Equal(t, managerStateRunning, getManagerState(mgr))
+}
+
+func TestNewSemaphoreConfigUpdateAckInterval(t *testing.T) {
+	defaultInterval := dynamicproperties.MatchingSemaphoreUpdateAckInterval.DefaultDuration()
+	tests := []struct {
+		name       string
+		configured time.Duration
+		want       time.Duration
+	}{
+		{name: "positive interval is used as is", configured: 30 * time.Second, want: 30 * time.Second},
+		{name: "zero interval falls back to the default", configured: 0, want: defaultInterval},
+		{name: "negative interval falls back to the default", configured: -time.Second, want: defaultInterval},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := testConfig(time.Hour)
+			cfg.SemaphoreUpdateAckInterval = func(string) time.Duration { return tc.configured }
+			assert.Equal(t, tc.want, newSemaphoreConfig(cfg, "test-domain").UpdateAckInterval())
+		})
+	}
 }
 
 func TestRelease_NotBuiltYet(t *testing.T) {

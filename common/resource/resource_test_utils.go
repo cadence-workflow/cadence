@@ -103,6 +103,7 @@ type (
 		DomainAuditMgr       *persistence.MockDomainAuditManager
 		SemaphoreMetadataMgr *persistence.MockSemaphoreMetadataManager
 		SemaphoreTokenMgr    *persistence.MockSemaphoreTokenManager
+		SemaphoreTaskMgr     *persistence.MockSemaphoreTaskManager
 		TaskMgr              *mocks.TaskManager
 		VisibilityMgr        *mocks.VisibilityManager
 		ShardMgr             *mocks.ShardManager
@@ -160,6 +161,7 @@ func NewTest(
 	domainAuditMgr := persistence.NewMockDomainAuditManager(controller)
 	semaphoreMetadataMgr := persistence.NewMockSemaphoreMetadataManager(controller)
 	semaphoreTokenMgr := persistence.NewMockSemaphoreTokenManager(controller)
+	semaphoreTaskMgr := persistence.NewMockSemaphoreTaskManager(controller)
 	taskMgr := &mocks.TaskManager{}
 	visibilityMgr := &mocks.VisibilityManager{}
 	shardMgr := &mocks.ShardManager{}
@@ -173,6 +175,7 @@ func NewTest(
 	persistenceBean.EXPECT().GetDomainAuditManager().Return(domainAuditMgr).AnyTimes()
 	persistenceBean.EXPECT().GetSemaphoreMetadataManager().Return(semaphoreMetadataMgr).AnyTimes()
 	persistenceBean.EXPECT().GetSemaphoreTokenManager().Return(semaphoreTokenMgr).AnyTimes()
+	persistenceBean.EXPECT().GetSemaphoreTaskManager().Return(semaphoreTaskMgr).AnyTimes()
 	persistenceBean.EXPECT().GetTaskManager().Return(taskMgr).AnyTimes()
 	persistenceBean.EXPECT().GetVisibilityManager().Return(visibilityMgr).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
@@ -233,6 +236,7 @@ func NewTest(
 		DomainAuditMgr:       domainAuditMgr,
 		SemaphoreMetadataMgr: semaphoreMetadataMgr,
 		SemaphoreTokenMgr:    semaphoreTokenMgr,
+		SemaphoreTaskMgr:     semaphoreTaskMgr,
 		TaskMgr:              taskMgr,
 		VisibilityMgr:        visibilityMgr,
 		ShardMgr:             shardMgr,
@@ -437,6 +441,11 @@ func (s *Test) GetSemaphoreMetadataManager() persistence.SemaphoreMetadataManage
 // GetSemaphoreTokenManager for testing
 func (s *Test) GetSemaphoreTokenManager() persistence.SemaphoreTokenManager {
 	return s.SemaphoreTokenMgr
+}
+
+// GetSemaphoreTaskManager for testing
+func (s *Test) GetSemaphoreTaskManager() persistence.SemaphoreTaskManager {
+	return s.SemaphoreTaskMgr
 }
 
 // GetTaskManager for testing

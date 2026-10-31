@@ -2927,6 +2927,12 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: DomainName
 	MatchingSemaphoreIdleTime
+	// MatchingSemaphoreUpdateAckInterval is how often a semaphore bucket saves its waiter queue's ack level
+	// KeyName: matching.semaphoreUpdateAckInterval
+	// Value type: Duration
+	// Default value: 1m (1*time.Minute)
+	// Allowed filters: DomainName
+	MatchingSemaphoreUpdateAckInterval
 	// MatchingShutdownDrainDuration is the duration of traffic drain during shutdown
 	// KeyName: matching.shutdownDrainDuration
 	// Value type: Duration
@@ -5814,6 +5820,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName},
 		Description:  "MatchingSemaphoreIdleTime is the max time a semaphore bucket being idle before it is unloaded",
 		DefaultValue: time.Minute * 5,
+	},
+	MatchingSemaphoreUpdateAckInterval: {
+		KeyName:      "matching.semaphoreUpdateAckInterval",
+		Filters:      []Filter{DomainName},
+		Description:  "MatchingSemaphoreUpdateAckInterval is how often a semaphore bucket saves its waiter queue's ack level",
+		DefaultValue: time.Minute,
 	},
 	MatchingShutdownDrainDuration: {
 		KeyName:      "matching.shutdownDrainDuration",

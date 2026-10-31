@@ -1956,6 +1956,15 @@ func newSemaphoreMetadata(t *testing.T) persistence.SemaphoreMetadataManager {
 	return md
 }
 
+// newSemaphoreTasks returns a task store on which every bucket claims its queue.
+func newSemaphoreTasks(t *testing.T) persistence.SemaphoreTaskManager {
+	t.Helper()
+	tasks := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+	tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+	return tasks
+}
+
 // mustNewSemaphoreIdentifier returns the id of one bucket of the test semaphore.
 func mustNewSemaphoreIdentifier(t *testing.T, bucket int) semaphore.Identifier {
 	t.Helper()
@@ -1982,6 +1991,7 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 		semaphoreRegistry:        semaphore.NewSemaphoreRegistry(),
 		semaphoreTokenManager:    tokens,
 		semaphoreMetadataManager: newSemaphoreMetadata(t),
+		semaphoreTaskManager:     newSemaphoreTasks(t),
 		domainCache:              domainCache,
 		membershipResolver:       resolver,
 		metricsClient:            metrics.NewNoopMetricsClient(),
@@ -1991,6 +2001,7 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 		config: &config.Config{
 			EnableDistributedSemaphore: func(string) bool { return true },
 			SemaphoreIdleTime:          func(string) time.Duration { return time.Minute },
+			SemaphoreUpdateAckInterval: func(string) time.Duration { return time.Minute },
 		},
 	}
 
@@ -2007,11 +2018,16 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 func newUnstartedSemaphoreManager(t *testing.T, id semaphore.Identifier, tokens persistence.SemaphoreTokenManager) semaphore.Manager {
 	t.Helper()
 	mgr, err := semaphore.NewManager(semaphore.ManagerParams{
-		ID:         id,
-		Tokens:     tokens,
-		Metadata:   newSemaphoreMetadata(t),
-		Logger:     log.NewNoop(),
-		IdleTTL:    time.Minute,
+		ID:       id,
+		Tokens:   tokens,
+		Metadata: newSemaphoreMetadata(t),
+		Tasks:    newSemaphoreTasks(t),
+		Logger:   log.NewNoop(),
+		Cfg: &config.Config{
+			SemaphoreIdleTime:          func(string) time.Duration { return time.Minute },
+			SemaphoreUpdateAckInterval: func(string) time.Duration { return time.Minute },
+		},
+		DomainName: "test-domain",
 		OnStopFn:   func(semaphore.Manager) {},
 		TimeSource: clock.NewMockedTimeSource(),
 	})

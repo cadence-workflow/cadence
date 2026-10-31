@@ -8,11 +8,14 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/persistence"
 	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/liveness"
 )
 
@@ -49,17 +52,23 @@ var _ Manager = (*semaphoreManagerImpl)(nil)
 
 // semaphoreManagerImpl serves one semaphore bucket from this host.
 type semaphoreManagerImpl struct {
-	// id names the bucket this manager serves.
-	id Identifier
-	// db makes this bucket's persistence calls.
-	db     *bucketDB
-	logger log.Logger
+	id             Identifier
+	bucketDB       *bucketDB
+	logger         log.Logger
+	timeSource     clock.TimeSource
+	config         *config.SemaphoreConfig
+	taskDB         *taskDB
+	taskAckManager messaging.AckManager
+	taskWriter     *taskWriter
+	taskReader     *taskReader
+	// shutdownCh is closed by Stop, so watchForStop exits.
+	shutdownCh chan struct{}
 
 	// startupDoneCh is closed when startup ends. Start and Acquire both wait on it.
 	startupDoneCh chan struct{}
 	// startupOnce keeps the close to one, since closing twice panics.
 	startupOnce sync.Once
-	// liveness unloads the bucket once it has gone IdleTTL without serving a request.
+	// liveness unloads the bucket once it has gone its idle time without serving a request.
 	liveness *liveness.Liveness
 	// stopOnce runs the teardown once; a second caller blocks until it has finished.
 	stopOnce sync.Once
@@ -81,11 +90,14 @@ type ManagerParams struct {
 	ID       Identifier
 	Tokens   persistence.SemaphoreTokenManager
 	Metadata persistence.SemaphoreMetadataManager
+	Tasks    persistence.SemaphoreTaskManager
 	// Tagged with the bucket's identity here, so an already-tagged logger duplicates fields.
 	Logger log.Logger
 
-	// IdleTTL is how long the manager may go without a request before it unloads itself.
-	IdleTTL time.Duration
+	// Cfg is the matching config; DomainName picks the bucket's values from it, since dynamic
+	// config filters by domain name.
+	Cfg        *config.Config
+	DomainName string
 	// OnStopFn is called once from Stop to unregister this manager.
 	// It must not call Stop and must tolerate a manager that is already unregistered.
 	OnStopFn   func(Manager)
@@ -102,13 +114,17 @@ func validateParams(p ManagerParams) error {
 	if p.Metadata == nil {
 		return fmt.Errorf("ManagerParams.Metadata is required")
 	}
+	if p.Tasks == nil {
+		return fmt.Errorf("ManagerParams.Tasks is required")
+	}
 	if p.Logger == nil {
 		return fmt.Errorf("ManagerParams.Logger is required")
 	}
-	// Rejected rather than passed through: liveness builds a ticker from this and a
-	// non-positive interval panics, which would take the host down on a bad config value.
-	if p.IdleTTL <= 0 {
-		return fmt.Errorf("ManagerParams.IdleTTL must be positive")
+	if p.Cfg == nil {
+		return fmt.Errorf("ManagerParams.Cfg is required")
+	}
+	if p.DomainName == "" {
+		return fmt.Errorf("ManagerParams.DomainName is required")
 	}
 	if p.OnStopFn == nil {
 		return fmt.Errorf("ManagerParams.OnStopFn is required")
@@ -124,20 +140,51 @@ func NewManager(p ManagerParams) (Manager, error) {
 	if err := validateParams(p); err != nil {
 		return nil, &types.BadRequestError{Message: err.Error()}
 	}
+	logger := p.Logger.WithTags(p.ID.LogTags()...)
 	m := &semaphoreManagerImpl{
-		id:            p.ID,
-		db:            &bucketDB{id: p.ID, tokens: p.Tokens, metadata: p.Metadata},
-		logger:        p.Logger.WithTags(p.ID.LogTags()...),
-		onStopFn:      p.OnStopFn,
-		startupDoneCh: make(chan struct{}),
+		id:             p.ID,
+		bucketDB:       &bucketDB{id: p.ID, tokens: p.Tokens, metadata: p.Metadata},
+		logger:         logger,
+		timeSource:     p.TimeSource,
+		config:         newSemaphoreConfig(p.Cfg, p.DomainName),
+		taskDB:         newTaskDB(p.ID, p.Tasks),
+		taskAckManager: messaging.NewAckManager(logger),
+		shutdownCh:     make(chan struct{}),
+		onStopFn:       p.OnStopFn,
+		startupDoneCh:  make(chan struct{}),
 	}
+	// The writer first: the reader reads the writer's maxReadLevel.
+	m.taskWriter = newTaskWriter(m)
+	m.taskReader = newTaskReader(m)
 	m.cache, _ = newBucketCache(commonsemaphore.TokenRange{}, nil)
-	m.liveness = liveness.NewLiveness(p.TimeSource, p.IdleTTL, func() {
+	// Read once: the idle clock takes a fixed duration.
+	idleTime := m.config.IdleTime()
+	m.liveness = liveness.NewLiveness(p.TimeSource, idleTime, func() {
 		m.logger.Info("Semaphore manager unloading after no recent requests",
-			tag.Dynamic("idle-ttl", p.IdleTTL))
+			tag.Dynamic("idle-ttl", idleTime))
 		m.Stop()
 	})
 	return m, nil
+}
+
+// newSemaphoreConfig returns the bucket's dynamic config, filtered by its domain.
+func newSemaphoreConfig(cfg *config.Config, domainName string) *config.SemaphoreConfig {
+	return &config.SemaphoreConfig{
+		IdleTime: func() time.Duration {
+			// liveness ticks at half this; a zero tick panics.
+			if idleTime := cfg.SemaphoreIdleTime(domainName); idleTime > 1 {
+				return idleTime
+			}
+			return dynamicproperties.MatchingSemaphoreIdleTime.DefaultDuration()
+		},
+		UpdateAckInterval: func() time.Duration {
+			// A zero or negative interval would save the ack level in a tight loop.
+			if interval := cfg.SemaphoreUpdateAckInterval(domainName); interval > 0 {
+				return interval
+			}
+			return dynamicproperties.MatchingSemaphoreUpdateAckInterval.DefaultDuration()
+		},
+	}
 }
 
 // Identifier names the bucket this manager serves.
@@ -191,8 +238,8 @@ func (m *semaphoreManagerImpl) awaitStartup(ctx context.Context) error {
 	return nil
 }
 
-// load reads the bucket's token range and builds its cache from the database, then starts
-// serving.
+// load claims the bucket's queue, reads its token range and builds its cache from the database,
+// then starts serving.
 func (m *semaphoreManagerImpl) load(ctx context.Context) error {
 	// Deferred, so startup ends however this returns and no caller is left waiting. Ending it
 	// any earlier would answer ErrNotReady for a bucket that is still loading.
@@ -200,9 +247,16 @@ func (m *semaphoreManagerImpl) load(ctx context.Context) error {
 
 	m.logger.Info("Semaphore manager starting", tag.LifeCycleStarting)
 
+	// Read before the claim, so a request for a semaphore or bucket that does not exist writes
+	// nothing to semaphore_tasks.
 	tokenRange, err := m.readTokenRange(ctx)
 	if err != nil {
 		// Stop unregisters, so the next request builds a fresh manager and loads again.
+		m.Stop()
+		return fmt.Errorf("failed to load semaphore bucket %v: %w", m.id, err)
+	}
+	// Claimed before the scan, so a host that cannot hold the bucket does not scan it.
+	if err := m.taskWriter.claim(); err != nil {
 		m.Stop()
 		return fmt.Errorf("failed to load semaphore bucket %v: %w", m.id, err)
 	}
@@ -224,10 +278,12 @@ func (m *semaphoreManagerImpl) load(ctx context.Context) error {
 	m.tokenRange = tokenRange
 	m.cache = cache
 	m.state = managerStateRunning
-	// Armed here, not earlier or later. Earlier, the idle clock would run during the scan, so a
-	// slow load could unload the bucket before its first request. Later, outside the lock, a
-	// concurrent Stop could finish first and leave the idle clock running with nothing to stop it.
+	// Started under the lock, after the stopped check, so a concurrent Stop either sees them
+	// started or prevents them. The idle clock starts only now, so a slow scan is not idle time.
 	m.liveness.Start()
+	m.taskWriter.start()
+	m.taskReader.start()
+	go m.watchForStop()
 	m.mu.Unlock()
 
 	m.logger.Info("Semaphore manager started",
@@ -240,7 +296,7 @@ func (m *semaphoreManagerImpl) load(ctx context.Context) error {
 
 // readTokenRange reads the semaphore's metadata and returns the token ids this bucket owns.
 func (m *semaphoreManagerImpl) readTokenRange(ctx context.Context) (commonsemaphore.TokenRange, error) {
-	meta, err := m.db.getMetadata(ctx)
+	meta, err := m.bucketDB.getMetadata(ctx)
 	if err != nil {
 		return commonsemaphore.TokenRange{}, err
 	}
@@ -260,7 +316,7 @@ func (m *semaphoreManagerImpl) readTokenRange(ctx context.Context) (commonsemaph
 // buildCache scans the bucket's rows in semaphore_tokens and builds a new cache for tokenRange
 // from them.
 func (m *semaphoreManagerImpl) buildCache(ctx context.Context, tokenRange commonsemaphore.TokenRange) (*bucketCache, error) {
-	rows, err := m.db.scanTokenRows(ctx)
+	rows, err := m.bucketDB.scanTokenRows(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -290,10 +346,27 @@ func (m *semaphoreManagerImpl) Stop() {
 		// no longer serve.
 		m.onStopFn(m)
 		m.liveness.Stop()
+		// Unblocks watchForStop, which must not outlive the manager.
+		close(m.shutdownCh)
+		m.taskWriter.stop()
+		m.taskReader.stop()
 
 		m.markStartupDone()
 		m.logger.Info("Semaphore manager stopped", tag.LifeCycleStopped)
 	})
+}
+
+// watchForStop stops the bucket once it has lost its claim on the queue: another host claimed
+// it, or a renewal failed.
+func (m *semaphoreManagerImpl) watchForStop() {
+	select {
+	case <-m.taskWriter.fatal():
+	case <-m.taskReader.fatal():
+	case <-m.shutdownCh:
+		return
+	}
+	m.logger.Info("Semaphore manager unloading after losing its claim on the bucket")
+	m.Stop()
 }
 
 func (m *semaphoreManagerImpl) isRunning() bool {
@@ -381,7 +454,7 @@ func (m *semaphoreManagerImpl) findHeldToken(ctx context.Context, cache *bucketC
 	if !ok {
 		return 0, false, nil
 	}
-	row, rowFound, err := m.db.getTokenRow(ctx, tokenID)
+	row, rowFound, err := m.bucketDB.getTokenRow(ctx, tokenID)
 	if err != nil {
 		return 0, false, err
 	}
@@ -441,7 +514,7 @@ func (m *semaphoreManagerImpl) grantRandomFreeToken(ctx context.Context, cache *
 		return AcquireResult{}, false, &types.InternalServiceError{Message: fmt.Sprintf("token %d is outside the range of bucket %v", tokenID, m.id)}
 	}
 
-	resp, err := m.db.grantToken(ctx, tokenID, ownerID)
+	resp, err := m.bucketDB.grantToken(ctx, tokenID, ownerID)
 	if err != nil {
 		// Nothing is recorded, so tokenID stays free. If the write did land, the database refuses
 		// the next grant on it and the cache marks it unavailable.

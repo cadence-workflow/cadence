@@ -193,6 +193,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		taskMgr,
 		persistence.NewMockSemaphoreTokenManager(s.controller),
 		persistence.NewMockSemaphoreMetadataManager(s.controller),
+		persistence.NewMockSemaphoreTaskManager(s.controller),
 		cluster.GetTestClusterMetadata(true),
 		s.mockHistoryClient,
 		s.mockMatchingClient,
