@@ -185,18 +185,17 @@ func TestComputeNextRunTime(t *testing.T) {
 func TestSchedulerWorkflowFractionalStartVersion(t *testing.T) {
 	minute := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	for _, tt := range []struct {
-		name    string
-		version workflow.Version
-		want    time.Time
+		name           string
+		alreadyChoseV1 bool
+		want           time.Time
 	}{
-		{"existing history", workflow.DefaultVersion, minute},
-		{"new execution", 1, minute.Add(time.Minute)},
+		{"new execution uses the old timer during rollout", false, minute},
+		{"execution already on version 1 uses the corrected timer", true, minute.Add(time.Minute)},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var suite testsuite.WorkflowTestSuite
 			env := suite.NewTestWorkflowEnvironment()
 			env.SetStartTime(minute.Add(-time.Minute))
-			env.OnGetVersion(fractionalStartTimeChangeID, workflow.DefaultVersion, 1).Return(tt.version)
 			var desc ScheduleDescription
 			env.RegisterDelayedCallback(func() {
 				result, err := env.QueryWorkflow(QueryTypeDescribe)
@@ -204,7 +203,13 @@ func TestSchedulerWorkflowFractionalStartVersion(t *testing.T) {
 				require.NoError(t, result.Get(&desc))
 				env.SignalWorkflow(SignalNameDelete, nil)
 			}, time.Second)
-			env.ExecuteWorkflow(SchedulerWorkflow, SchedulerWorkflowInput{
+			env.ExecuteWorkflow(func(ctx workflow.Context, input SchedulerWorkflowInput) error {
+				if tt.alreadyChoseV1 {
+					// Seed the version a worker with the fix enabled would have chosen.
+					workflow.GetVersion(ctx, fractionalStartTimeChangeID, workflow.DefaultVersion, 1)
+				}
+				return SchedulerWorkflow(ctx, input)
+			}, SchedulerWorkflowInput{
 				Spec: types.ScheduleSpec{CronExpression: "* * * * *", StartTime: minute.Add(500 * time.Millisecond)},
 			})
 			require.NoError(t, env.GetWorkflowError())

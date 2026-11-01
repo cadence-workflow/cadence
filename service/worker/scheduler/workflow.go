@@ -120,10 +120,12 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		return fmt.Errorf("invalid cron expression %q: %w", input.Spec.CronExpression, err)
 	}
 
+	// Keep new executions on the old timing until all scheduler workers can replay
+	// version 1. Then remove ExecuteWithMinVersion to enable the corrected timing.
 	if input.Spec.StartTime.Nanosecond() != 0 &&
-		workflow.GetVersion(ctx, fractionalStartTimeChangeID, workflow.DefaultVersion, 1) == 1 {
-		// Existing histories may already contain a timer or activity for the earlier fire.
+		workflow.GetVersion(ctx, fractionalStartTimeChangeID, workflow.DefaultVersion, 1, workflow.ExecuteWithMinVersion()) == 1 {
 		sched = fractionalStartCron{Schedule: sched, start: input.Spec.StartTime}
+		updateBackfillTotals(sched, input.Spec, state.PendingBackfills)
 	}
 
 	// activityBudget is the per-execution ceiling for local-activity dispatches.
