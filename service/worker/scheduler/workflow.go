@@ -34,6 +34,23 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
+const fractionalStartTimeChangeID = "scheduler-fractional-start-time"
+
+// fractionalStartCron excludes a whole-second fire that falls just before
+// StartTime. Retain already-eligible fires so @every intervals keep their phase.
+type fractionalStartCron struct {
+	cron.Schedule
+	start time.Time
+}
+
+func (s fractionalStartCron) Next(after time.Time) time.Time {
+	next := s.Schedule.Next(after)
+	if !next.IsZero() && next.Before(s.start) {
+		return s.Schedule.Next(s.start)
+	}
+	return next
+}
+
 // signalChannels bundles the signal channels used by the scheduler workflow
 type signalChannels struct {
 	pause    workflow.Channel
@@ -101,6 +118,12 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	if err != nil {
 		logger.Error("invalid cron expression, terminating", zap.String("cron", input.Spec.CronExpression), zap.Error(err))
 		return fmt.Errorf("invalid cron expression %q: %w", input.Spec.CronExpression, err)
+	}
+
+	if input.Spec.StartTime.Nanosecond() != 0 &&
+		workflow.GetVersion(ctx, fractionalStartTimeChangeID, workflow.DefaultVersion, 1) == 1 {
+		// Existing histories may already contain a timer or activity for the earlier fire.
+		sched = fractionalStartCron{Schedule: sched, start: input.Spec.StartTime}
 	}
 
 	// activityBudget is the per-execution ceiling for local-activity dispatches.
