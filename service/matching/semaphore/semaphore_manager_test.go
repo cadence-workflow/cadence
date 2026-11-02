@@ -1132,15 +1132,14 @@ func TestManager_ConcurrentCalls(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := range owners {
 		wg.Add(1)
-		go func() {
+		go func(ownerID string) {
 			defer wg.Done()
-			ownerID := fmt.Sprintf("owner-%d", i)
 			got, err := mgr.Acquire(context.Background(), ownerID)
 			if !assert.NoError(t, err) || got.Outcome != types.SemaphoreAcquireOutcomeAcquired {
 				return
 			}
 			assert.NoError(t, mgr.Release(context.Background(), ownerID))
-		}()
+		}(fmt.Sprintf("owner-%d", i))
 	}
 	wg.Wait()
 
