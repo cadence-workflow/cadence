@@ -270,6 +270,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableStrongIdempotencySanityCheck":                     {dynamicproperties.EnableStrongIdempotencySanityCheck, true},
 		"EnableDeterministicChildWorkflowRequestID":              {dynamicproperties.EnableDeterministicChildWorkflowRequestID, true},
 		"EnableExistingChildWorkflowRunHandling":                 {dynamicproperties.EnableExistingChildWorkflowRunHandling, true},
+		"EnableChildWorkflowStaleBranchReplacement":              {dynamicproperties.EnableChildWorkflowStaleBranchReplacement, true},
 		"GlobalRatelimiterNewDataWeight":                         {dynamicproperties.HistoryGlobalRatelimiterNewDataWeight, 17.0},
 		"GlobalRatelimiterUpdateInterval":                        {dynamicproperties.GlobalRatelimiterUpdateInterval, time.Second},
 		"GlobalRatelimiterDecayAfter":                            {dynamicproperties.HistoryGlobalRatelimiterDecayAfter, time.Second},

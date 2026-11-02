@@ -2807,6 +2807,7 @@ const (
 	ConcurrencyUpdateFailureCounter
 	ChildWorkflowCompletionOtherBranchCounter
 	ChildWorkflowStaleBranchReplacedCounter
+	ChildWorkflowStaleBranchNewExecutionCounter
 	ChildWorkflowChainAdoptedCounter
 	ChildWorkflowCompletionRequestedCounter
 	CadenceErrEventAlreadyStartedCounter
@@ -3815,6 +3816,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ConcurrencyUpdateFailureCounter:                               {metricName: "concurrency_update_failure", metricType: Counter},
 		ChildWorkflowCompletionOtherBranchCounter:                     {metricName: "child_workflow_completion_other_branch", metricType: Counter},
 		ChildWorkflowStaleBranchReplacedCounter:                       {metricName: "child_workflow_stale_branch_replaced", metricType: Counter},
+		ChildWorkflowStaleBranchNewExecutionCounter:                   {metricName: "child_workflow_stale_branch_new_execution", metricType: Counter},
 		ChildWorkflowChainAdoptedCounter:                              {metricName: "child_workflow_chain_adopted", metricType: Counter},
 		ChildWorkflowCompletionRequestedCounter:                       {metricName: "child_workflow_completion_requested", metricType: Counter},
 		CadenceErrShardOwnershipLostCounter:                           {metricName: "cadence_errors_shard_ownership_lost", metricType: Counter},

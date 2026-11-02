@@ -316,8 +316,10 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		terminateRunning := shouldTerminateAndStart(startRequest, t.State)
 		var runningWFCtx workflow.Context
 		var terminateReason string
+		var ignoreReusePolicy bool
 		// a child start handles a run that the parent started before: it adopts the chain of the run when this request
-		// started it, and it replaces a running run from a stale branch of the parent
+		// started it, it replaces a running run from a stale branch of the parent, and it starts a new execution after a
+		// closed run from a stale branch of the parent
 		if isChildStart && e.config.EnableExistingChildWorkflowRunHandling(domain) {
 			wfCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, prevRunID)
 			if err != nil {
@@ -368,7 +370,9 @@ func (e *historyEngineImpl) startWorkflowHelper(
 				return &types.StartWorkflowExecutionResponse{
 					RunID: firstRunID,
 				}, workflowExecution, historyBlob, nil
-			case persistence.IsWorkflowRunning(runInfo.State) && isChildRunFromStaleBranch(startRequest, runInfo, firstRunCreateRequestID):
+			case persistence.IsWorkflowRunning(runInfo.State) &&
+				e.config.EnableChildWorkflowStaleBranchReplacement(domain) &&
+				isChildRunFromStaleBranch(startRequest, runInfo, firstRunCreateRequestID):
 				defer func() { wfCtx.GetReleaseFn()(retError) }()
 				runningWFCtx = wfCtx
 				terminateReason = ChildFromStaleBranchReplacedReason
@@ -382,6 +386,24 @@ func (e *historyEngineImpl) startWorkflowHelper(
 				)
 				e.metricsClient.Scope(metrics.HistoryStartWorkflowExecutionScope, metrics.DomainTag(domain)).
 					IncCounter(metrics.ChildWorkflowStaleBranchReplacedCounter)
+			case runInfo.State == persistence.WorkflowStateCompleted &&
+				e.config.EnableChildWorkflowStaleBranchReplacement(domain) &&
+				isChildRunFromStaleBranch(startRequest, runInfo, firstRunCreateRequestID):
+				// the run was only read, so release it without an error to keep its state in the cache
+				wfCtx.GetReleaseFn()(nil)
+				// the reuse policy applies to runs of the current branch of the parent, so it does not stop a new execution
+				// after a closed run from a stale branch
+				ignoreReusePolicy = true
+				e.logger.Info("Child start starts a new execution after a closed run from a stale branch of the parent",
+					tag.WorkflowDomainID(domainID),
+					tag.WorkflowID(workflowID),
+					tag.WorkflowRunID(prevRunID),
+					tag.Dynamic("parent-run-id", runInfo.ParentRunID),
+					tag.WorkflowInitiatedID(runInfo.InitiatedID),
+					tag.Dynamic("new-run-id", workflowExecution.RunID),
+				)
+				e.metricsClient.Scope(metrics.HistoryStartWorkflowExecutionScope, metrics.DomainTag(domain)).
+					IncCounter(metrics.ChildWorkflowStaleBranchNewExecutionCounter)
 			default:
 				// the run was only read, so release it without an error to keep its state in the cache
 				wfCtx.GetReleaseFn()(nil)
@@ -418,15 +440,17 @@ func (e *historyEngineImpl) startWorkflowHelper(
 				return resp, workflowExecution, historyBlob, err
 			}
 		}
-		if err = e.applyWorkflowIDReusePolicyHelper(
-			t.StartRequestID,
-			prevRunID,
-			t.State,
-			t.CloseStatus,
-			*workflowExecution,
-			startRequest.StartRequest.GetWorkflowIDReusePolicy(),
-		); err != nil {
-			return nil, workflowExecution, historyBlob, err
+		if !ignoreReusePolicy {
+			if err = e.applyWorkflowIDReusePolicyHelper(
+				t.StartRequestID,
+				prevRunID,
+				t.State,
+				t.CloseStatus,
+				*workflowExecution,
+				startRequest.StartRequest.GetWorkflowIDReusePolicy(),
+			); err != nil {
+				return nil, workflowExecution, historyBlob, err
+			}
 		}
 		// create as ID reuse
 		createMode = persistence.CreateWorkflowModeWorkflowIDReuse
