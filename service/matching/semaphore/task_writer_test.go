@@ -51,8 +51,8 @@ func claimRequest(haveRangeID int64) *persistence.ClaimSemaphoreTaskBucketReques
 
 // expectClaim expects one claim sent while holding haveRangeID, answered with rangeID and
 // ackLevel.
-func expectClaim(store *persistence.MockSemaphoreTaskManager, haveRangeID, rangeID, ackLevel int64) {
-	store.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), claimRequest(haveRangeID)).Times(1).
+func expectClaim(store *persistence.MockSemaphoreTaskManager, haveRangeID, rangeID, ackLevel int64) *gomock.Call {
+	return store.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), claimRequest(haveRangeID)).Times(1).
 		Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: rangeID, AckLevel: ackLevel}, nil)
 }
 
@@ -127,6 +127,8 @@ func TestRangeIDToTaskIDBlock(t *testing.T) {
 func TestClaim(t *testing.T) {
 	tests := []struct {
 		name string
+		// firstErr, if set, fails the first claim before a retry succeeds.
+		firstErr error
 		// rangeID and ackLevel are what the claim returns.
 		rangeID  int64
 		ackLevel int64
@@ -147,11 +149,25 @@ func TestClaim(t *testing.T) {
 			wantMaxReadLevel: 200,
 			wantBlock:        taskIDBlock{start: 201, end: 300},
 		},
+		{
+			name:             "first claim times out, then its retry claims the bucket",
+			firstErr:         &persistence.TimeoutError{Msg: "timed out"},
+			rangeID:          1,
+			wantMaxReadLevel: 0,
+			wantBlock:        taskIDBlock{start: 1, end: 100},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
-			expectClaim(store, 0, tc.rangeID, tc.ackLevel)
+			if tc.firstErr != nil {
+				gomock.InOrder(
+					store.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), claimRequest(0)).Return(nil, tc.firstErr),
+					expectClaim(store, 0, tc.rangeID, tc.ackLevel),
+				)
+			} else {
+				expectClaim(store, 0, tc.rangeID, tc.ackLevel)
+			}
 			w := newTestTaskWriter(t, store)
 			w.rangeSize = 100
 
@@ -237,9 +253,11 @@ func TestTaskWriterFailures(t *testing.T) {
 		// rangeSize 1 makes the second append renew.
 		rangeSize int64
 		// fail sets up the second append to fail with wantErr.
-		fail      func(store *persistence.MockSemaphoreTaskManager)
-		wantErr   error
-		wantFatal bool
+		fail    func(store *persistence.MockSemaphoreTaskManager)
+		wantErr error
+		// wantMaxReadLevel is 2 if the second append got a task id.
+		wantMaxReadLevel int64
+		wantFatal        bool
 		// wantStopped is whether the writer stops itself, so later appends get ErrNotReady.
 		wantStopped bool
 	}{
@@ -249,8 +267,9 @@ func TestTaskWriterFailures(t *testing.T) {
 			fail: func(store *persistence.MockSemaphoreTaskManager) {
 				store.EXPECT().CreateSemaphoreTasks(gomock.Any(), createRequest(1, written("wf-b", 2))).Return(nil, conditionFailed)
 			},
-			wantErr:   conditionFailed,
-			wantFatal: true,
+			wantErr:          conditionFailed,
+			wantMaxReadLevel: 2,
+			wantFatal:        true,
 		},
 		{
 			name:      "write fails with another error, so the bucket stays loaded",
@@ -258,7 +277,8 @@ func TestTaskWriterFailures(t *testing.T) {
 			fail: func(store *persistence.MockSemaphoreTaskManager) {
 				store.EXPECT().CreateSemaphoreTasks(gomock.Any(), createRequest(1, written("wf-b", 2))).Return(nil, assert.AnError)
 			},
-			wantErr: assert.AnError,
+			wantErr:          assert.AnError,
+			wantMaxReadLevel: 2,
 		},
 		{
 			name:      "renewal fails with a non-transient error, so the writer stops",
@@ -266,9 +286,10 @@ func TestTaskWriterFailures(t *testing.T) {
 			fail: func(store *persistence.MockSemaphoreTaskManager) {
 				store.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), claimRequest(1)).Return(nil, assert.AnError)
 			},
-			wantErr:     assert.AnError,
-			wantFatal:   true,
-			wantStopped: true,
+			wantErr:          assert.AnError,
+			wantMaxReadLevel: 1,
+			wantFatal:        true,
+			wantStopped:      true,
 		},
 		{
 			// The retry's error is not returned: ThrottleRetry prefers the earlier one.
@@ -280,9 +301,10 @@ func TestTaskWriterFailures(t *testing.T) {
 					store.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), claimRequest(1)).Return(nil, conditionFailed),
 				)
 			},
-			wantErr:     timedOut,
-			wantFatal:   true,
-			wantStopped: true,
+			wantErr:          timedOut,
+			wantMaxReadLevel: 1,
+			wantFatal:        true,
+			wantStopped:      true,
 		},
 	}
 	for _, tc := range tests {
@@ -294,7 +316,7 @@ func TestTaskWriterFailures(t *testing.T) {
 			tc.fail(store)
 
 			assert.ErrorIs(t, w.appendTask(testContext(t), waiter("wf-b")), tc.wantErr)
-			assert.Equal(t, int64(1), w.getMaxReadLevel(), "a failed write is not readable")
+			assert.Equal(t, tc.wantMaxReadLevel, w.getMaxReadLevel())
 			assert.Equal(t, tc.wantFatal, isClosed(w.fatal()))
 			if tc.wantStopped {
 				// The mock fails the test on another claim.

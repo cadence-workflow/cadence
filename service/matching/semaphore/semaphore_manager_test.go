@@ -529,7 +529,12 @@ func TestManagerLifecycle_LostClaimStopsTheBucket(t *testing.T) {
 			name: "writer's waiter write fails with ConditionFailedError",
 			loseClaim: func(t *testing.T, mgr *semaphoreManagerImpl, tasks *persistence.MockSemaphoreTaskManager, _ clock.MockedTimeSource) {
 				tasks.EXPECT().CreateSemaphoreTasks(gomock.Any(), gomock.Any()).Return(nil, conditionFailed)
-				assert.ErrorIs(t, mgr.taskWriter.appendTask(testContext(t), &persistence.SemaphoreTask{WorkflowID: "wf"}), conditionFailed)
+				// The failed write still moves maxReadLevel, so the reader may read before the bucket stops.
+				tasks.EXPECT().GetSemaphoreTasks(gomock.Any(), gomock.Any()).
+					Return(&persistence.GetSemaphoreTasksResponse{}, nil).AnyTimes()
+				// ErrNotReady if the manager stops the writer before the writer answers.
+				err := mgr.taskWriter.appendTask(testContext(t), &persistence.SemaphoreTask{WorkflowID: "wf"})
+				assert.True(t, errors.Is(err, conditionFailed) || errors.Is(err, ErrNotReady), "got %v", err)
 			},
 		},
 	}

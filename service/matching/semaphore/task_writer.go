@@ -84,10 +84,10 @@ func newTaskWriter(m *semaphoreManagerImpl) *taskWriter {
 	}
 }
 
-// claim takes the bucket and sets the ack level, task id block and maxReadLevel from it. Call it
-// once, before start.
+// claim takes the bucket, retrying transient errors, and sets the ack level, task id block and
+// maxReadLevel from it. Call it once, before start.
 func (w *taskWriter) claim() error {
-	state, err := w.db.claim()
+	state, err := w.claimWithRetry()
 	if err != nil {
 		return err
 	}
@@ -191,10 +191,10 @@ writerLoop:
 					tag.Error(err),
 					tag.Number(taskIDs[0]),
 					tag.NextNumber(taskIDs[len(taskIDs)-1]))
-			} else {
-				// Only after a successful write, so the reader never reads ids that did not land.
-				atomic.StoreInt64(&w.maxReadLevel, taskIDs[len(taskIDs)-1])
 			}
+			// Moved even when the write failed: a write that timed out may have landed, and the reader
+			// must still read it. Ids that did not land read as empty.
+			atomic.StoreInt64(&w.maxReadLevel, taskIDs[len(taskIDs)-1])
 			w.sendWriteResponse(reqs, err)
 		case <-w.stopCh:
 			break writerLoop
@@ -242,20 +242,28 @@ func (w *taskWriter) allocTaskIDs(count int) ([]int64, error) {
 // allocTaskIDBlock claims the next range, retrying transient errors, and returns its block of task
 // ids. Any failure unloads the bucket.
 func (w *taskWriter) allocTaskIDBlock() (taskIDBlock, error) {
-	var state taskBucketState
-	op := func(context.Context) error {
-		var err error
-		state, err = w.db.claim()
-		return err
-	}
-	if err := w.throttleRetry.Do(context.Background(), op); err != nil {
+	state, err := w.claimWithRetry()
+	if err != nil {
 		w.signalFatal()
 		return taskIDBlock{}, err
 	}
 	return rangeIDToTaskIDBlock(state.rangeID, w.rangeSize), nil
 }
 
-// handleErr reports the bucket lost on a ConditionFailedError: another host has claimed it.
+// claimWithRetry claims the bucket, retrying transient errors.
+func (w *taskWriter) claimWithRetry() (taskBucketState, error) {
+	var state taskBucketState
+	op := func(context.Context) error {
+		var err error
+		state, err = w.db.claim()
+		return err
+	}
+	err := w.throttleRetry.Do(context.Background(), op)
+	return state, err
+}
+
+// handleErr reports the bucket lost on a ConditionFailedError. Callers are answered after, so they
+// may get ErrNotReady if the bucket stops first.
 func (w *taskWriter) handleErr(err error) error {
 	if errors.As(err, new(*persistence.ConditionFailedError)) {
 		reportConditionFailed(w.logger, err)
