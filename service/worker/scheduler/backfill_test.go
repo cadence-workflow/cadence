@@ -139,16 +139,20 @@ func TestAffectedCappedBackfillsCountOutsideWorkflow(t *testing.T) {
 	pending := make([]BackfillRequest, maxPendingBackfills)
 	for i := range pending {
 		pending[i] = BackfillRequest{
-			StartTime: boundary, EndTime: boundary.Add(24 * time.Hour),
+			StartTime: boundary, EndTime: boundary.Add(24*time.Hour + time.Duration(i)*time.Second),
 			RunsTotal: maxBackfillRunsTotalCount, RunsTotalComputed: true,
 		}
 	}
 
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	var activities int
+	var activities, probesAtFirstStart int
 	env.RegisterActivity(recountBackfillActivity)
 	env.SetOnActivityStartedListener(func(*activity.Info, context.Context, encoded.Values) {
+		if activities == 0 {
+			// The test environment delivers this callback after the workflow first yields.
+			probesAtFirstStart = raw.calls
+		}
 		activities++
 	})
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
@@ -158,10 +162,11 @@ func TestAffectedCappedBackfillsCountOutsideWorkflow(t *testing.T) {
 		return reconcileBackfillTotals(ctx, corrected, spec, pending)
 	})
 	require.NoError(t, env.GetWorkflowError())
+	require.Equal(t, len(pending), probesAtFirstStart)
 	require.Equal(t, len(pending), activities)
 	require.LessOrEqual(t, raw.calls, len(pending))
-	for _, bf := range pending {
-		require.Equal(t, int32(24*60*60), bf.RunsTotal)
+	for i, bf := range pending {
+		require.EqualValues(t, 24*60*60+i, bf.RunsTotal)
 		require.True(t, bf.RunsTotalWithFractionalStart)
 	}
 }

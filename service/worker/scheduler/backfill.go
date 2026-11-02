@@ -122,6 +122,7 @@ func countCronFires(ctx context.Context, sched cron.Schedule, start, end time.Ti
 // before StartTime forever, in which case its cached total is always the cap.
 func reconcileBackfillTotals(ctx workflow.Context, sched cron.Schedule, spec types.ScheduleSpec, pending []BackfillRequest) error {
 	corrected, fractionalStart := sched.(fractionalStartCron)
+	recounts := make([]workflow.Future, len(pending))
 	for i := range pending {
 		bf := &pending[i]
 		if !bf.RunsTotalComputed || bf.RunsTotalWithFractionalStart == fractionalStart {
@@ -132,21 +133,30 @@ func reconcileBackfillTotals(ctx workflow.Context, sched cron.Schedule, spec typ
 				bf.RunsTotal = maxBackfillRunsTotalCount
 			}
 		} else if needsFractionalStartRecount(corrected.Schedule, spec, *bf) {
-			// A calendar scan can exceed the decision timeout. Replay uses the recorded activity result.
+			// Start all recounts before waiting so their timeouts overlap.
 			actCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 				ScheduleToStartTimeout: time.Minute,
 				StartToCloseTimeout:    time.Minute,
 			})
-			if err := workflow.ExecuteActivity(actCtx, recountBackfillActivity, spec, *bf).Get(ctx, &bf.RunsTotal); err != nil {
-				if ctx.Err() != nil {
-					return ctx.Err()
-				}
-				// Keep the old total for a later retry while scheduling continues.
-				workflow.GetLogger(ctx).Warn("could not refresh backfill total", zap.String("backfillId", bf.BackfillID), zap.Error(err))
-				continue
-			}
+			recounts[i] = workflow.ExecuteActivity(actCtx, recountBackfillActivity, spec, *bf)
+			continue
 		}
 		bf.RunsTotalWithFractionalStart = fractionalStart
+	}
+	for i, recount := range recounts {
+		if recount == nil {
+			continue
+		}
+		bf := &pending[i]
+		if err := recount.Get(ctx, &bf.RunsTotal); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			// Leave the cached total and its version intact for a later retry.
+			workflow.GetLogger(ctx).Warn("could not refresh backfill total", zap.String("backfillId", bf.BackfillID), zap.Error(err))
+			continue
+		}
+		bf.RunsTotalWithFractionalStart = true
 	}
 	return nil
 }
