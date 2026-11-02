@@ -21,6 +21,7 @@
 package scheduler
 
 import (
+	"context"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -100,12 +101,12 @@ func effectiveFireOverlap(trigger TriggerSource, backfillOverlap, scheduleOverla
 }
 
 // countCronFires returns the number of cron fire times in (start, end] without
-// materializing them, capped at limit. The second return value is true when
-// the range would have produced more fires than the cap.
-func countCronFires(sched cron.Schedule, start, end time.Time, spec types.ScheduleSpec, limit int) (int, bool) {
+// materializing them. It stops at cancellation or the limit and reports whether
+// it reached the limit.
+func countCronFires(ctx context.Context, sched cron.Schedule, start, end time.Time, spec types.ScheduleSpec, limit int) (int, bool) {
 	count := 0
 	t := start
-	for count < limit {
+	for count < limit && ctx.Err() == nil {
 		next := computeNextRunTime(sched, t, spec)
 		if next.IsZero() || next.After(end) {
 			return count, false
@@ -113,30 +114,93 @@ func countCronFires(sched cron.Schedule, start, end time.Time, spec types.Schedu
 		count++
 		t = next
 	}
-	return count, true
+	return count, count == limit
 }
 
-// updateBackfillTotals counts each request once for the fire-time rules in use.
+// reconcileBackfillTotals updates cached totals when a continued execution picks
+// a different fractional-start version. A legacy cron could rediscover a tick
+// before StartTime forever, in which case its cached total is always the cap.
+func reconcileBackfillTotals(ctx workflow.Context, sched cron.Schedule, spec types.ScheduleSpec, pending []BackfillRequest) error {
+	corrected, fractionalStart := sched.(fractionalStartCron)
+	for i := range pending {
+		bf := &pending[i]
+		if !bf.RunsTotalComputed || bf.RunsTotalWithFractionalStart == fractionalStart {
+			continue
+		}
+		if !fractionalStart {
+			if repeatsBeforeStart(sched, spec, bf.StartTime, bf.EndTime) {
+				bf.RunsTotal = maxBackfillRunsTotalCount
+			}
+		} else if needsFractionalStartRecount(corrected.Schedule, spec, *bf) {
+			// A calendar scan can exceed the decision timeout. Replay uses the recorded activity result.
+			actCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+				ScheduleToStartTimeout: time.Minute,
+				StartToCloseTimeout:    time.Minute,
+			})
+			if err := workflow.ExecuteActivity(actCtx, recountBackfillActivity, spec, *bf).Get(ctx, &bf.RunsTotal); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				// Keep the old total for a later retry while scheduling continues.
+				workflow.GetLogger(ctx).Warn("could not refresh backfill total", zap.String("backfillId", bf.BackfillID), zap.Error(err))
+				continue
+			}
+		}
+		bf.RunsTotalWithFractionalStart = fractionalStart
+	}
+	return nil
+}
+
+func needsFractionalStartRecount(legacy cron.Schedule, spec types.ScheduleSpec, bf BackfillRequest) bool {
+	if bf.RunsTotal != maxBackfillRunsTotalCount || bf.RunsCompleted >= maxBackfillRunsTotalCount {
+		return false
+	}
+	start := bf.StartTime
+	if bf.RunsCompleted > 0 {
+		// The original start is lost once a request has advanced. Rule out
+		// stale counts only if the spec itself could never produce the bad tick.
+		start = spec.StartTime
+	}
+	return repeatsBeforeStart(legacy, spec, start, bf.EndTime)
+}
+
+func repeatsBeforeStart(legacy cron.Schedule, spec types.ScheduleSpec, start, end time.Time) bool {
+	cursor := start.Add(-time.Second)
+	if !cursor.Before(spec.StartTime) {
+		return false
+	}
+	first := computeNextRunTime(legacy, cursor, spec)
+	return !first.IsZero() && first.Before(spec.StartTime) && !first.After(end)
+}
+
+func recountBackfillActivity(ctx context.Context, spec types.ScheduleSpec, bf BackfillRequest) (int32, error) {
+	sched, err := cron.ParseStandard(spec.CronExpression)
+	if err != nil {
+		return 0, err
+	}
+	total := backfillTotal(ctx, fractionalStartCron{Schedule: sched, start: spec.StartTime}, spec, bf, bf.RunsCompleted)
+	return total, ctx.Err()
+}
+
+func backfillTotal(ctx context.Context, sched cron.Schedule, spec types.ScheduleSpec, bf BackfillRequest, completed int32) int32 {
+	completed = min(completed, maxBackfillRunsTotalCount)
+	remaining, _ := countCronFires(ctx, sched, bf.StartTime.Add(-time.Second), bf.EndTime, spec, maxBackfillRunsTotalCount-int(completed))
+	return completed + int32(remaining)
+}
+
+// updateBackfillTotals initializes totals for newly queued requests.
 func updateBackfillTotals(sched cron.Schedule, spec types.ScheduleSpec, pending []BackfillRequest) {
 	_, fractionalStart := sched.(fractionalStartCron)
 	for i := range pending {
 		bf := &pending[i]
-		if bf.RunsTotalComputed && bf.RunsTotalWithFractionalStart == fractionalStart {
+		if bf.RunsTotalComputed {
 			continue
 		}
-
-		// A legacy count that included a tick before the fractional start kept
-		// rediscovering that tick until it hit the cap. Smaller totals are exact.
-		if !bf.RunsTotalComputed || !fractionalStart || bf.RunsTotal == maxBackfillRunsTotalCount {
-			// A partially processed request starts at its first unprocessed fire.
-			// Preserve the old initial-count behavior when replaying legacy state.
-			var completed int32
-			if fractionalStart || bf.RunsTotalWithFractionalStart {
-				completed = min(bf.RunsCompleted, maxBackfillRunsTotalCount)
-			}
-			remaining, _ := countCronFires(sched, bf.StartTime.Add(-time.Second), bf.EndTime, spec, maxBackfillRunsTotalCount-int(completed))
-			bf.RunsTotal = completed + int32(remaining)
+		var completed int32
+		if fractionalStart {
+			completed = bf.RunsCompleted
 		}
+		bf.RunsTotal = backfillTotal(context.Background(), sched, spec, *bf, completed)
 		bf.RunsTotalComputed = true
 		bf.RunsTotalWithFractionalStart = fractionalStart
 	}

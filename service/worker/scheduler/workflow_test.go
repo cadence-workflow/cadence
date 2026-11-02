@@ -184,18 +184,55 @@ func TestComputeNextRunTime(t *testing.T) {
 
 func TestSchedulerWorkflowFractionalStartVersion(t *testing.T) {
 	minute := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	pausedWithNextRun := func(next time.Time) SchedulerWorkflowState {
+		return SchedulerWorkflowState{Paused: true, CreateTime: minute.Add(-time.Hour), NextRunTime: next}
+	}
 	for _, tt := range []struct {
 		name           string
 		alreadyChoseV1 bool
+		state          SchedulerWorkflowState
+		end            time.Time
 		want           time.Time
 	}{
-		{"new execution uses the old timer during rollout", false, minute},
-		{"execution already on version 1 uses the corrected timer", true, minute.Add(time.Minute)},
+		{name: "new execution uses the old timer during rollout", want: minute},
+		{name: "execution already on version 1 uses the corrected timer", alreadyChoseV1: true, want: minute.Add(time.Minute)},
+		{
+			name:  "paused legacy execution retains its cached tick",
+			state: pausedWithNextRun(minute),
+			want:  minute,
+		},
+		{
+			name:           "paused version 1 corrects its cached tick",
+			alreadyChoseV1: true,
+			state:          pausedWithNextRun(minute),
+			want:           minute.Add(time.Minute),
+		},
+		{
+			name:           "paused version 1 has no eligible tick before end",
+			alreadyChoseV1: true,
+			state:          pausedWithNextRun(minute),
+			end:            minute.Add(time.Second),
+		},
+		{
+			name:           "paused version 1 retains an unset tick",
+			alreadyChoseV1: true,
+			state:          pausedWithNextRun(time.Time{}),
+		},
+		{
+			name:           "paused version 1 retains a valid cached tick",
+			alreadyChoseV1: true,
+			state:          pausedWithNextRun(minute.Add(2 * time.Minute)),
+			want:           minute.Add(2 * time.Minute),
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var suite testsuite.WorkflowTestSuite
 			env := suite.NewTestWorkflowEnvironment()
 			env.SetStartTime(minute.Add(-time.Minute))
+			if tt.state.Paused {
+				// A paused schedule may carry its last computed tick across executions.
+				env.SetStartTime(minute.Add(time.Hour))
+			}
 			var desc ScheduleDescription
 			env.RegisterDelayedCallback(func() {
 				result, err := env.QueryWorkflow(QueryTypeDescribe)
@@ -210,9 +247,11 @@ func TestSchedulerWorkflowFractionalStartVersion(t *testing.T) {
 				}
 				return SchedulerWorkflow(ctx, input)
 			}, SchedulerWorkflowInput{
-				Spec: types.ScheduleSpec{CronExpression: "* * * * *", StartTime: minute.Add(500 * time.Millisecond)},
+				Spec:  types.ScheduleSpec{CronExpression: "* * * * *", StartTime: minute.Add(500 * time.Millisecond), EndTime: tt.end},
+				State: tt.state,
 			})
 			require.NoError(t, env.GetWorkflowError())
+			require.Equal(t, tt.state.Paused, desc.Paused)
 			require.Equal(t, tt.want, desc.NextRunTime)
 		})
 	}
@@ -1104,7 +1143,7 @@ func TestCountCronFires(t *testing.T) {
 			if tt.specStart.Nanosecond() != 0 {
 				sched = fractionalStartCron{Schedule: sched, start: tt.specStart}
 			}
-			count, truncated := countCronFires(sched, tt.start, tt.end, types.ScheduleSpec{StartTime: tt.specStart}, tt.limit)
+			count, truncated := countCronFires(t.Context(), sched, tt.start, tt.end, types.ScheduleSpec{StartTime: tt.specStart}, tt.limit)
 			assert.Equal(t, tt.wantCount, count)
 			assert.Equal(t, tt.wantTrunc, truncated)
 		})

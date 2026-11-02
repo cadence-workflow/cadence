@@ -1,12 +1,15 @@
 package scheduler
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/robfig/cron/v3"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/cadence/activity"
+	"go.uber.org/cadence/encoded"
 	"go.uber.org/cadence/testsuite"
 	"go.uber.org/cadence/workflow"
 
@@ -34,16 +37,21 @@ func TestDescribeRecountsLegacyFractionalStartBackfills(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name           string
-		v1             bool
-		queued, active int32
+		name            string
+		v1, unavailable bool
+		queued, active  int32
 	}{
-		{"legacy", false, maxBackfillRunsTotalCount, maxBackfillRunsTotalCount},
-		{"corrected", true, 1, 502},
+		{"legacy", false, false, maxBackfillRunsTotalCount, maxBackfillRunsTotalCount},
+		{"corrected", true, false, 1, 502},
+		{"recount worker unavailable", true, true, maxBackfillRunsTotalCount, maxBackfillRunsTotalCount},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var suite testsuite.WorkflowTestSuite
 			env := suite.NewTestWorkflowEnvironment()
+			env.RegisterActivity(recountBackfillActivity)
+			if tt.unavailable {
+				env.SetActivityTaskList("another-task-list", recountBackfillActivity)
+			}
 			env.SetStartTime(minute.Add(-time.Minute))
 			var desc ScheduleDescription
 			env.RegisterDelayedCallback(func() {
@@ -85,8 +93,6 @@ func TestFractionalStartBackfillCountCap(t *testing.T) {
 	sched := fractionalStartCron{Schedule: raw, start: spec.StartTime}
 	req := BackfillRequest{StartTime: minute.Add(2 * time.Second), EndTime: minute.Add(48 * time.Hour)}
 	pending := []BackfillRequest{req, req, req}
-	pending[1].RunsTotalComputed = true
-	pending[1].RunsTotal = maxBackfillRunsTotalCount
 	pending[1].RunsCompleted = maxBackfillRunsTotalCount - 1
 	pending[2].RunsCompleted = maxBackfillRunsTotalCount + 1
 	updateBackfillTotals(sched, spec, pending)
@@ -103,4 +109,86 @@ func TestFractionalStartBackfillCountCap(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &resumed))
 	updateBackfillTotals(sched, spec, resumed)
 	require.Equal(t, maxBackfillRunsTotalCount+1, raw.calls)
+}
+
+func TestReuseUnaffectedCappedBackfills(t *testing.T) {
+	boundary := time.Date(2026, 1, 1, 12, 0, 0, 500000000, time.UTC)
+	spec := types.ScheduleSpec{CronExpression: "0 * * * *", StartTime: boundary}
+	raw := &countingBackfillCron{Schedule: mustParseCron(t, spec.CronExpression)}
+	corrected := fractionalStartCron{Schedule: raw, start: boundary}
+	pending := make([]BackfillRequest, maxPendingBackfills)
+	for i := range pending {
+		pending[i] = BackfillRequest{
+			StartTime: boundary.Add(time.Hour), EndTime: boundary.AddDate(15, 0, 0),
+			RunsTotal: maxBackfillRunsTotalCount, RunsTotalComputed: true,
+		}
+	}
+	require.NoError(t, reconcileBackfillTotals(nil, corrected, spec, pending))
+	for _, bf := range pending {
+		require.Equal(t, int32(maxBackfillRunsTotalCount), bf.RunsTotal)
+		require.True(t, bf.RunsTotalWithFractionalStart)
+	}
+	require.Zero(t, raw.calls)
+}
+
+func TestAffectedCappedBackfillsCountOutsideWorkflow(t *testing.T) {
+	boundary := time.Date(2026, 1, 1, 12, 0, 0, 500000000, time.UTC)
+	spec := types.ScheduleSpec{CronExpression: "@every 1s", StartTime: boundary}
+	raw := &countingBackfillCron{Schedule: mustParseCron(t, spec.CronExpression)}
+	corrected := fractionalStartCron{Schedule: raw, start: boundary}
+	pending := make([]BackfillRequest, maxPendingBackfills)
+	for i := range pending {
+		pending[i] = BackfillRequest{
+			StartTime: boundary, EndTime: boundary.Add(24 * time.Hour),
+			RunsTotal: maxBackfillRunsTotalCount, RunsTotalComputed: true,
+		}
+	}
+
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	var activities int
+	env.RegisterActivity(recountBackfillActivity)
+	env.SetOnActivityStartedListener(func(*activity.Info, context.Context, encoded.Values) {
+		activities++
+	})
+	env.ExecuteWorkflow(func(ctx workflow.Context) error {
+		if err := reconcileBackfillTotals(ctx, corrected, spec, pending); err != nil {
+			return err
+		}
+		return reconcileBackfillTotals(ctx, corrected, spec, pending)
+	})
+	require.NoError(t, env.GetWorkflowError())
+	require.Equal(t, len(pending), activities)
+	require.LessOrEqual(t, raw.calls, len(pending))
+	for _, bf := range pending {
+		require.Equal(t, int32(24*60*60), bf.RunsTotal)
+		require.True(t, bf.RunsTotalWithFractionalStart)
+	}
+}
+
+func TestRollbackRecountsBeforeCatchUpContinues(t *testing.T) {
+	noon := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.SetStartTime(noon.Add(24 * time.Hour))
+	env.ExecuteWorkflow(SchedulerWorkflow, SchedulerWorkflowInput{
+		Spec:     types.ScheduleSpec{CronExpression: "* * * * *", StartTime: noon.Add(500 * time.Millisecond)},
+		Policies: types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicySkip},
+		State: SchedulerWorkflowState{
+			CreateTime: noon.Add(time.Minute),
+			PendingBackfills: []BackfillRequest{{
+				StartTime: noon, EndTime: noon.Add(time.Minute),
+				RunsTotal: 1, RunsTotalComputed: true, RunsTotalWithFractionalStart: true,
+			}},
+		},
+	})
+
+	var continued *workflow.ContinueAsNewError
+	require.ErrorAs(t, env.GetWorkflowError(), &continued)
+	state := continued.Args()[0].(SchedulerWorkflowInput).State
+	require.EqualValues(t, 1000, state.SkippedRuns)
+	require.Len(t, state.PendingBackfills, 1)
+	bf := state.PendingBackfills[0]
+	require.EqualValues(t, maxBackfillRunsTotalCount, bf.RunsTotal)
+	require.False(t, bf.RunsTotalWithFractionalStart)
 }

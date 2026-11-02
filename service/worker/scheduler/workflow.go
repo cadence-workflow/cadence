@@ -125,7 +125,14 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	if input.Spec.StartTime.Nanosecond() != 0 &&
 		workflow.GetVersion(ctx, fractionalStartTimeChangeID, workflow.DefaultVersion, 1, workflow.ExecuteWithMinVersion()) == 1 {
 		sched = fractionalStartCron{Schedule: sched, start: input.Spec.StartTime}
-		updateBackfillTotals(sched, input.Spec, state.PendingBackfills)
+		// A paused execution can retain this cached tick indefinitely.
+		if !state.NextRunTime.IsZero() && state.NextRunTime.Before(input.Spec.StartTime) {
+			state.NextRunTime = computeNextRunTime(sched, state.NextRunTime, input.Spec)
+		}
+	}
+	// Catch-up can continue as new before processBackfills sees the queue.
+	if err := reconcileBackfillTotals(ctx, sched, input.Spec, state.PendingBackfills); err != nil {
+		return err
 	}
 
 	// activityBudget is the per-execution ceiling for local-activity dispatches.
