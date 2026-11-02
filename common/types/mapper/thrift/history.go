@@ -740,6 +740,7 @@ func FromHistoryRefreshWorkflowTasksRequest(t *types.HistoryRefreshWorkflowTasks
 	return &history.RefreshWorkflowTasksRequest{
 		DomainUIID: &t.DomainUIID,
 		Request:    FromAdminRefreshWorkflowTasksRequest(t.Request),
+		Scopes:     FromRefreshWorkflowTasksScopeArray(t.Scopes),
 	}
 }
 
@@ -751,7 +752,76 @@ func ToHistoryRefreshWorkflowTasksRequest(t *history.RefreshWorkflowTasksRequest
 	return &types.HistoryRefreshWorkflowTasksRequest{
 		DomainUIID: t.GetDomainUIID(),
 		Request:    ToAdminRefreshWorkflowTasksRequest(t.Request),
+		Scopes:     ToRefreshWorkflowTasksScopeArray(t.Scopes),
 	}
+}
+
+// FromRefreshWorkflowTasksScopeArray converts internal RefreshWorkflowTasksScope type array to thrift
+func FromRefreshWorkflowTasksScopeArray(t []*types.RefreshWorkflowTasksScope) []*history.RefreshWorkflowTasksScope {
+	if t == nil {
+		return nil
+	}
+	v := make([]*history.RefreshWorkflowTasksScope, len(t))
+	for i := range t {
+		v[i] = FromRefreshWorkflowTasksScope(t[i])
+	}
+	return v
+}
+
+// ToRefreshWorkflowTasksScopeArray converts thrift RefreshWorkflowTasksScope type array to internal
+func ToRefreshWorkflowTasksScopeArray(t []*history.RefreshWorkflowTasksScope) []*types.RefreshWorkflowTasksScope {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.RefreshWorkflowTasksScope, len(t))
+	for i := range t {
+		v[i] = ToRefreshWorkflowTasksScope(t[i])
+	}
+	return v
+}
+
+// FromRefreshWorkflowTasksScope converts internal RefreshWorkflowTasksScope type to thrift
+func FromRefreshWorkflowTasksScope(t *types.RefreshWorkflowTasksScope) *history.RefreshWorkflowTasksScope {
+	if t == nil {
+		return nil
+	}
+	return &history.RefreshWorkflowTasksScope{
+		ScopeType: FromRefreshWorkflowTasksScopeType(t.ScopeType),
+	}
+}
+
+// ToRefreshWorkflowTasksScope converts thrift RefreshWorkflowTasksScope type to internal
+func ToRefreshWorkflowTasksScope(t *history.RefreshWorkflowTasksScope) *types.RefreshWorkflowTasksScope {
+	if t == nil {
+		return nil
+	}
+	return &types.RefreshWorkflowTasksScope{
+		ScopeType: ToRefreshWorkflowTasksScopeType(t.ScopeType),
+	}
+}
+
+// FromRefreshWorkflowTasksScopeType converts internal RefreshWorkflowTasksScopeType type to thrift
+func FromRefreshWorkflowTasksScopeType(t *types.RefreshWorkflowTasksScopeType) *history.RefreshWorkflowTasksScopeType {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case types.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted:
+		return history.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted.Ptr()
+	}
+	return nil
+}
+
+// ToRefreshWorkflowTasksScopeType converts thrift RefreshWorkflowTasksScopeType type to internal
+func ToRefreshWorkflowTasksScopeType(t *history.RefreshWorkflowTasksScopeType) *types.RefreshWorkflowTasksScopeType {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case history.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted:
+		return types.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted.Ptr()
+	}
+	return nil
 }
 
 // FromHistoryRemoveSignalMutableStateRequest converts internal RemoveSignalMutableStateRequest type to thrift

@@ -939,6 +939,7 @@ func FromHistoryRefreshWorkflowTasksRequest(t *types.HistoryRefreshWorkflowTasks
 		DomainId:          t.DomainUIID,
 		Domain:            t.Request.Domain,
 		WorkflowExecution: FromWorkflowExecution(t.Request.Execution),
+		Scopes:            FromRefreshWorkflowTasksScopeArray(t.Scopes),
 	}
 }
 
@@ -952,6 +953,7 @@ func ToHistoryRefreshWorkflowTasksRequest(t *historyv1.RefreshWorkflowTasksReque
 			Execution: ToWorkflowExecution(t.WorkflowExecution),
 		},
 		DomainUIID: t.DomainId,
+		Scopes:     ToRefreshWorkflowTasksScopeArray(t.Scopes),
 	}
 }
 

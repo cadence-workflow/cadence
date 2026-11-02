@@ -69,7 +69,7 @@ type (
 		ReadDLQMessages(ctx context.Context, messagesRequest *types.ReadDLQMessagesRequest) (*types.ReadDLQMessagesResponse, error)
 		PurgeDLQMessages(ctx context.Context, messagesRequest *types.PurgeDLQMessagesRequest) error
 		MergeDLQMessages(ctx context.Context, messagesRequest *types.MergeDLQMessagesRequest) (*types.MergeDLQMessagesResponse, error)
-		RefreshWorkflowTasks(ctx context.Context, domainUUID string, execution types.WorkflowExecution) error
+		RefreshWorkflowTasks(ctx context.Context, domainUUID string, execution types.WorkflowExecution, scopes []*types.RefreshWorkflowTasksScope) error
 		ResetTransferQueue(ctx context.Context, clusterName string) error
 		ResetTimerQueue(ctx context.Context, clusterName string) error
 		DescribeTransferQueue(ctx context.Context, clusterName string) (*types.DescribeQueueResponse, error)

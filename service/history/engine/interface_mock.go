@@ -360,17 +360,17 @@ func (mr *MockEngineMockRecorder) RecordDecisionTaskStarted(ctx, request any) *g
 }
 
 // RefreshWorkflowTasks mocks base method.
-func (m *MockEngine) RefreshWorkflowTasks(ctx context.Context, domainUUID string, execution types.WorkflowExecution) error {
+func (m *MockEngine) RefreshWorkflowTasks(ctx context.Context, domainUUID string, execution types.WorkflowExecution, scopes []*types.RefreshWorkflowTasksScope) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RefreshWorkflowTasks", ctx, domainUUID, execution)
+	ret := m.ctrl.Call(m, "RefreshWorkflowTasks", ctx, domainUUID, execution, scopes)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RefreshWorkflowTasks indicates an expected call of RefreshWorkflowTasks.
-func (mr *MockEngineMockRecorder) RefreshWorkflowTasks(ctx, domainUUID, execution any) *gomock.Call {
+func (mr *MockEngineMockRecorder) RefreshWorkflowTasks(ctx, domainUUID, execution, scopes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshWorkflowTasks", reflect.TypeOf((*MockEngine)(nil).RefreshWorkflowTasks), ctx, domainUUID, execution)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshWorkflowTasks", reflect.TypeOf((*MockEngine)(nil).RefreshWorkflowTasks), ctx, domainUUID, execution, scopes)
 }
 
 // RemoveSignalMutableState mocks base method.

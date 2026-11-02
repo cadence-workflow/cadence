@@ -673,6 +673,9 @@ message RefreshWorkflowTasksRequest {
   string domain = 1;
   string domain_id = 2;
   api.v1.WorkflowExecution workflow_execution = 3;
+  // scopes limits the refresh to these groups of tasks. When it is empty, all tasks are refreshed. A scope with an
+  // unknown type is rejected.
+  repeated shared.v1.RefreshWorkflowTasksScope scopes = 4;
 }
 
 message RefreshWorkflowTasksResponse {

@@ -180,6 +180,10 @@ var (
 	HistoryRefreshWorkflowTasksRequest = types.HistoryRefreshWorkflowTasksRequest{
 		DomainUIID: DomainID,
 		Request:    &AdminRefreshWorkflowTasksRequest,
+		Scopes:     RefreshWorkflowTasksScopes,
+	}
+	RefreshWorkflowTasksScopes = []*types.RefreshWorkflowTasksScope{
+		{ScopeType: types.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted.Ptr()},
 	}
 	HistoryRemoveSignalMutableStateRequest = types.RemoveSignalMutableStateRequest{
 		DomainUUID:        DomainID,

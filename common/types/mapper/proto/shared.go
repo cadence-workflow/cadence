@@ -396,6 +396,67 @@ func ToWorkflowState(t sharedv1.WorkflowState) *int32 {
 	return nil
 }
 
+func FromRefreshWorkflowTasksScopeArray(t []*types.RefreshWorkflowTasksScope) []*sharedv1.RefreshWorkflowTasksScope {
+	if t == nil {
+		return nil
+	}
+	v := make([]*sharedv1.RefreshWorkflowTasksScope, len(t))
+	for i := range t {
+		v[i] = FromRefreshWorkflowTasksScope(t[i])
+	}
+	return v
+}
+
+func ToRefreshWorkflowTasksScopeArray(t []*sharedv1.RefreshWorkflowTasksScope) []*types.RefreshWorkflowTasksScope {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.RefreshWorkflowTasksScope, len(t))
+	for i := range t {
+		v[i] = ToRefreshWorkflowTasksScope(t[i])
+	}
+	return v
+}
+
+func FromRefreshWorkflowTasksScope(t *types.RefreshWorkflowTasksScope) *sharedv1.RefreshWorkflowTasksScope {
+	if t == nil {
+		return nil
+	}
+	return &sharedv1.RefreshWorkflowTasksScope{
+		ScopeType: FromRefreshWorkflowTasksScopeType(t.ScopeType),
+	}
+}
+
+func ToRefreshWorkflowTasksScope(t *sharedv1.RefreshWorkflowTasksScope) *types.RefreshWorkflowTasksScope {
+	if t == nil {
+		return nil
+	}
+	return &types.RefreshWorkflowTasksScope{
+		ScopeType: ToRefreshWorkflowTasksScopeType(t.ScopeType),
+	}
+}
+
+func FromRefreshWorkflowTasksScopeType(t *types.RefreshWorkflowTasksScopeType) sharedv1.RefreshWorkflowTasksScopeType {
+	if t == nil {
+		return sharedv1.RefreshWorkflowTasksScopeType_REFRESH_WORKFLOW_TASKS_SCOPE_TYPE_INVALID
+	}
+	switch *t {
+	case types.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted:
+		return sharedv1.RefreshWorkflowTasksScopeType_REFRESH_WORKFLOW_TASKS_SCOPE_TYPE_RECORD_CHILD_EXECUTION_COMPLETED
+	}
+	return sharedv1.RefreshWorkflowTasksScopeType_REFRESH_WORKFLOW_TASKS_SCOPE_TYPE_INVALID
+}
+
+func ToRefreshWorkflowTasksScopeType(t sharedv1.RefreshWorkflowTasksScopeType) *types.RefreshWorkflowTasksScopeType {
+	switch t {
+	case sharedv1.RefreshWorkflowTasksScopeType_REFRESH_WORKFLOW_TASKS_SCOPE_TYPE_RECORD_CHILD_EXECUTION_COMPLETED:
+		return types.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted.Ptr()
+	default:
+		// for REFRESH_WORKFLOW_TASKS_SCOPE_TYPE_INVALID and unknown values, return nil
+		return nil
+	}
+}
+
 func FromHostInfoArray(t []*types.HostInfo) []*adminv1.HostInfo {
 	if t == nil {
 		return nil

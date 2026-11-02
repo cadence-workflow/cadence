@@ -33,3 +33,13 @@ enum WorkflowState {
   WORKFLOW_STATE_VOID = 5;
   WORKFLOW_STATE_CORRUPTED = 6;
 }
+
+enum RefreshWorkflowTasksScopeType {
+  REFRESH_WORKFLOW_TASKS_SCOPE_TYPE_INVALID = 0;
+  REFRESH_WORKFLOW_TASKS_SCOPE_TYPE_RECORD_CHILD_EXECUTION_COMPLETED = 1;
+}
+
+// RefreshWorkflowTasksScope is one group of tasks to refresh. Add a new type and its attributes for a new group.
+message RefreshWorkflowTasksScope {
+  RefreshWorkflowTasksScopeType scope_type = 1;
+}

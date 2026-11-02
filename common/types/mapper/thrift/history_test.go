@@ -696,3 +696,15 @@ func TestRatelimitUpdate(t *testing.T) {
 		assert.Equal(t, &history.RatelimitUpdateResponse{Data: thrift}, FromHistoryRatelimitUpdateResponse(&types.RatelimitUpdateResponse{Any: internal}), "response from internal")
 	})
 }
+
+func TestRefreshWorkflowTasksScopeTypeConversion(t *testing.T) {
+	for _, item := range []*types.RefreshWorkflowTasksScopeType{
+		nil,
+		types.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted.Ptr(),
+	} {
+		assert.Equal(t, item, ToRefreshWorkflowTasksScopeType(FromRefreshWorkflowTasksScopeType(item)))
+	}
+	// an unknown type maps to nil in both directions
+	assert.Nil(t, FromRefreshWorkflowTasksScopeType(types.RefreshWorkflowTasksScopeType(5).Ptr()))
+	assert.Nil(t, ToRefreshWorkflowTasksScopeType(history.RefreshWorkflowTasksScopeType(5).Ptr()))
+}

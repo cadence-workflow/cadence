@@ -26,10 +26,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/cluster"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -168,6 +171,7 @@ func TestRefreshWorkflowTasks(t *testing.T) {
 				context.Background(),
 				constants.TestDomainID,
 				tc.execution,
+				nil,
 			)
 
 			// Error validations
@@ -206,6 +210,152 @@ func TestRefreshWorkflowTasks(t *testing.T) {
 				timer1, ok := gotUpdateExecReq.UpdateWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryTimer][1].(*persistence.DecisionTimeoutTask)
 				if !ok {
 					t.Fatalf("failed to cast TimerTask[0] to *persistence.WorkflowTimeoutTask, type is %T", timer1)
+				}
+			}
+		})
+	}
+}
+
+func TestRefreshWorkflowTasks_Scopes(t *testing.T) {
+	const lastWriteVersion = int64(10)
+	recordChildExecutionCompleted := []*types.RefreshWorkflowTasksScope{
+		{ScopeType: types.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted.Ptr()},
+	}
+	execution := types.WorkflowExecution{
+		WorkflowID: constants.TestWorkflowID,
+		RunID:      constants.TestRunID,
+	}
+
+	tests := []struct {
+		name          string
+		scopes        []*types.RefreshWorkflowTasksScope
+		running       bool
+		withoutParent bool
+		activeCluster string
+		wantLoad      bool
+		wantErr       error
+		wantTask      bool
+	}{
+		{
+			name:          "closed child active on this cluster: only the record child execution completed task",
+			scopes:        recordChildExecutionCompleted,
+			activeCluster: cluster.TestCurrentClusterName,
+			wantLoad:      true,
+			wantTask:      true,
+		},
+		{
+			name:          "closed child active on another cluster: domain not active",
+			scopes:        recordChildExecutionCompleted,
+			activeCluster: cluster.TestAlternativeClusterName,
+			wantLoad:      true,
+			wantErr:       &types.DomainNotActiveError{},
+		},
+		{
+			name:          "running child: bad request",
+			scopes:        recordChildExecutionCompleted,
+			running:       true,
+			activeCluster: cluster.TestCurrentClusterName,
+			wantLoad:      true,
+			wantErr:       &types.BadRequestError{},
+		},
+		{
+			name:          "closed run without a parent: bad request",
+			scopes:        recordChildExecutionCompleted,
+			withoutParent: true,
+			activeCluster: cluster.TestCurrentClusterName,
+			wantLoad:      true,
+			wantErr:       &types.BadRequestError{},
+		},
+		{
+			// an unknown type never causes a full refresh
+			name:    "unknown scope type: bad request",
+			scopes:  []*types.RefreshWorkflowTasksScope{{ScopeType: types.RefreshWorkflowTasksScopeType(5).Ptr()}},
+			wantErr: &types.BadRequestError{},
+		},
+		{
+			name:    "scope without a type: bad request",
+			scopes:  []*types.RefreshWorkflowTasksScope{{}},
+			wantErr: &types.BadRequestError{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
+			eft.Engine.Start()
+			defer eft.Engine.Stop()
+
+			eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, execution.WorkflowID, execution.RunID).
+				Return(&types.ActiveClusterInfo{ActiveClusterName: tc.activeCluster}, nil).AnyTimes()
+			if tc.wantLoad {
+				executionInfo := &persistence.WorkflowExecutionInfo{
+					DomainID:           constants.TestDomainID,
+					WorkflowID:         execution.WorkflowID,
+					RunID:              execution.RunID,
+					ParentDomainID:     constants.TestDomainID,
+					ParentWorkflowID:   "parent-workflow-id",
+					ParentRunID:        "parent-run-id",
+					InitiatedID:        5,
+					State:              persistence.WorkflowStateCompleted,
+					CloseStatus:        persistence.WorkflowCloseStatusCompleted,
+					NextEventID:        3,
+					DecisionScheduleID: commonconstants.EmptyEventID,
+					DecisionStartedID:  commonconstants.EmptyEventID,
+				}
+				if tc.running {
+					executionInfo.State = persistence.WorkflowStateRunning
+					executionInfo.CloseStatus = persistence.WorkflowCloseStatusNone
+				}
+				if tc.withoutParent {
+					executionInfo.ParentDomainID = ""
+					executionInfo.ParentWorkflowID = ""
+					executionInfo.ParentRunID = ""
+					executionInfo.InitiatedID = commonconstants.EmptyEventID
+				}
+				eft.ShardCtx.Resource.ExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{
+					State: &persistence.WorkflowMutableState{
+						ExecutionInfo:  executionInfo,
+						ExecutionStats: &persistence.ExecutionStats{},
+						VersionHistories: persistence.NewVersionHistories(persistence.NewVersionHistory(
+							[]byte("branch-token"),
+							[]*persistence.VersionHistoryItem{persistence.NewVersionHistoryItem(2, lastWriteVersion)},
+						)),
+					},
+					MutableStateStats: &persistence.MutableStateStats{},
+				}, nil).Once()
+			}
+			var gotUpdate *persistence.UpdateWorkflowExecutionRequest
+			if tc.wantTask {
+				eft.ShardCtx.Resource.ExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.Anything).
+					Run(func(args mock.Arguments) {
+						gotUpdate = args.Get(1).(*persistence.UpdateWorkflowExecutionRequest)
+					}).
+					Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
+			}
+
+			err := eft.Engine.RefreshWorkflowTasks(context.Background(), constants.TestDomainID, execution, tc.scopes)
+			if tc.wantErr != nil {
+				assert.IsType(t, tc.wantErr, err)
+				eft.ShardCtx.Resource.ExecutionMgr.AssertNotCalled(t, "UpdateWorkflowExecution", mock.Anything, mock.Anything)
+			} else {
+				assert.NoError(t, err)
+			}
+			if !tc.wantLoad {
+				eft.ShardCtx.Resource.ExecutionMgr.AssertNotCalled(t, "GetWorkflowExecution", mock.Anything, mock.Anything)
+			}
+			if !tc.wantTask {
+				return
+			}
+			// the refresh writes only the task that sends the completion to the parent
+			assert.Empty(t, gotUpdate.UpdateWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryTimer])
+			transferTasks := gotUpdate.UpdateWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryTransfer]
+			if assert.Len(t, transferTasks, 1) {
+				task, ok := transferTasks[0].(*persistence.RecordChildExecutionCompletedTask)
+				if assert.True(t, ok, "got task type %T", transferTasks[0]) {
+					assert.Equal(t, lastWriteVersion, task.Version)
+					assert.Equal(t, execution.RunID, task.RunID)
+					assert.Equal(t, "parent-workflow-id", task.TargetWorkflowID)
+					assert.Equal(t, "parent-run-id", task.TargetRunID)
 				}
 			}
 		})

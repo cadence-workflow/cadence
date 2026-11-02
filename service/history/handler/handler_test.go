@@ -3368,6 +3368,9 @@ func (s *handlerSuite) TestRefreshWorkflowTasks() {
 				RunID:      testValidUUID,
 			},
 		},
+		Scopes: []*types.RefreshWorkflowTasksScope{
+			{ScopeType: types.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted.Ptr()},
+		},
 	}
 
 	testInput := map[string]struct {
@@ -3394,7 +3397,7 @@ func (s *handlerSuite) TestRefreshWorkflowTasks() {
 			expectedError: true,
 			mockFn: func() {
 				s.mockShardController.EXPECT().GetEngine(testWorkflowID).Return(s.mockEngine, nil).Times(1)
-				s.mockEngine.EXPECT().RefreshWorkflowTasks(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("error")).Times(1)
+				s.mockEngine.EXPECT().RefreshWorkflowTasks(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("error")).Times(1)
 			},
 		},
 		"success": {
@@ -3402,7 +3405,8 @@ func (s *handlerSuite) TestRefreshWorkflowTasks() {
 			expectedError: false,
 			mockFn: func() {
 				s.mockShardController.EXPECT().GetEngine(testWorkflowID).Return(s.mockEngine, nil).Times(1)
-				s.mockEngine.EXPECT().RefreshWorkflowTasks(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+				// the scopes of the request are passed to the engine
+				s.mockEngine.EXPECT().RefreshWorkflowTasks(gomock.Any(), testDomainID, gomock.Any(), validInput.Scopes).Return(nil).Times(1)
 			},
 		},
 	}

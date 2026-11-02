@@ -489,6 +489,16 @@ func HistoryRefreshWorkflowTasksRequestFuzzer(r *types.HistoryRefreshWorkflowTas
 	if r.Request == nil {
 		r.Request = &types.RefreshWorkflowTasksRequest{}
 	}
+	for _, scope := range r.Scopes {
+		if scope != nil {
+			c.Fuzz(scope)
+		}
+	}
+}
+
+// RefreshWorkflowTasksScopeTypeFuzzer sets only a known type, because an unknown type maps to nil
+func RefreshWorkflowTasksScopeTypeFuzzer(e *types.RefreshWorkflowTasksScopeType, c fuzz.Continue) {
+	*e = types.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted
 }
 
 func TestHistoryCloseShardRequestFuzz(t *testing.T) {
@@ -806,7 +816,7 @@ func TestHistoryRefreshWorkflowTasksRequestFuzz(t *testing.T) {
 	// FromHistoryRefreshWorkflowTasksRequest returns nil when t.Request == nil, so round-trip
 	// fails for nil Request. HistoryRefreshWorkflowTasksRequestFuzzer ensures Request is always set.
 	testutils.RunMapperFuzzTest(t, FromHistoryRefreshWorkflowTasksRequest, ToHistoryRefreshWorkflowTasksRequest,
-		testutils.WithCustomFuncs(HistoryRefreshWorkflowTasksRequestFuzzer),
+		testutils.WithCustomFuncs(HistoryRefreshWorkflowTasksRequestFuzzer, RefreshWorkflowTasksScopeTypeFuzzer),
 	)
 }
 

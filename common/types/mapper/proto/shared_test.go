@@ -726,3 +726,16 @@ func TestReplicationTaskFuzz(t *testing.T) {
 		),
 	)
 }
+
+func TestRefreshWorkflowTasksScopeType(t *testing.T) {
+	for _, item := range []*types.RefreshWorkflowTasksScopeType{
+		nil,
+		types.RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted.Ptr(),
+	} {
+		assert.Equal(t, item, ToRefreshWorkflowTasksScopeType(FromRefreshWorkflowTasksScopeType(item)))
+	}
+	// an unknown type maps to INVALID and back to nil
+	assert.Equal(t, sharedv1.RefreshWorkflowTasksScopeType_REFRESH_WORKFLOW_TASKS_SCOPE_TYPE_INVALID,
+		FromRefreshWorkflowTasksScopeType(types.RefreshWorkflowTasksScopeType(5).Ptr()))
+	assert.Nil(t, ToRefreshWorkflowTasksScopeType(sharedv1.RefreshWorkflowTasksScopeType(6)))
+}

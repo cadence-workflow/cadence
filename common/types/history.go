@@ -20,6 +20,12 @@
 
 package types
 
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
+
 // DescribeMutableStateRequest is an internal type (TBD...)
 type DescribeMutableStateRequest struct {
 	DomainUUID string             `json:"domainUUID,omitempty"`
@@ -720,6 +726,8 @@ func (v *RecordDecisionTaskStartedResponse) GetAttempt() (o int64) {
 type HistoryRefreshWorkflowTasksRequest struct {
 	DomainUIID string                       `json:"domainUIID,omitempty"`
 	Request    *RefreshWorkflowTasksRequest `json:"request,omitempty"`
+	// Scopes limits the refresh to these groups of tasks. When it is empty, all tasks are refreshed.
+	Scopes []*RefreshWorkflowTasksScope `json:"scopes,omitempty"`
 }
 
 // GetRequest is an internal getter (TBD...)
@@ -729,6 +737,72 @@ func (v *HistoryRefreshWorkflowTasksRequest) GetRequest() (o *RefreshWorkflowTas
 	}
 	return
 }
+
+// GetScopes is an internal getter
+func (v *HistoryRefreshWorkflowTasksRequest) GetScopes() (o []*RefreshWorkflowTasksScope) {
+	if v != nil {
+		return v.Scopes
+	}
+	return
+}
+
+// RefreshWorkflowTasksScope is one group of tasks to refresh
+type RefreshWorkflowTasksScope struct {
+	ScopeType *RefreshWorkflowTasksScopeType `json:"scopeType,omitempty"`
+}
+
+// GetScopeType is an internal getter
+func (v *RefreshWorkflowTasksScope) GetScopeType() (o RefreshWorkflowTasksScopeType) {
+	if v != nil && v.ScopeType != nil {
+		return *v.ScopeType
+	}
+	return
+}
+
+// RefreshWorkflowTasksScopeType is the type of a group of tasks to refresh
+type RefreshWorkflowTasksScopeType int32
+
+// Ptr is a helper function for getting pointer value
+func (e RefreshWorkflowTasksScopeType) Ptr() *RefreshWorkflowTasksScopeType {
+	return &e
+}
+
+// String returns a readable string representation of RefreshWorkflowTasksScopeType.
+func (e RefreshWorkflowTasksScopeType) String() string {
+	w := int32(e)
+	switch w {
+	case 0:
+		return "RECORD_CHILD_EXECUTION_COMPLETED"
+	}
+	return fmt.Sprintf("RefreshWorkflowTasksScopeType(%d)", w)
+}
+
+// UnmarshalText parses enum value from string representation
+func (e *RefreshWorkflowTasksScopeType) UnmarshalText(value []byte) error {
+	switch s := strings.ToUpper(string(value)); s {
+	case "RECORD_CHILD_EXECUTION_COMPLETED":
+		*e = RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "RefreshWorkflowTasksScopeType", err)
+		}
+		*e = RefreshWorkflowTasksScopeType(val)
+		return nil
+	}
+}
+
+// MarshalText encodes RefreshWorkflowTasksScopeType to text.
+func (e RefreshWorkflowTasksScopeType) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
+const (
+	// RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted creates only the task that sends the completion of a
+	// closed child workflow to its parent
+	RefreshWorkflowTasksScopeTypeRecordChildExecutionCompleted RefreshWorkflowTasksScopeType = iota
+)
 
 // RemoveSignalMutableStateRequest is an internal type (TBD...)
 type RemoveSignalMutableStateRequest struct {

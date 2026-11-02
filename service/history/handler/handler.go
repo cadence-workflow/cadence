@@ -2023,6 +2023,7 @@ func (h *handlerImpl) RefreshWorkflowTasks(
 			WorkflowID: execution.WorkflowID,
 			RunID:      execution.RunID,
 		},
+		request.GetScopes(),
 	)
 
 	if err != nil {
