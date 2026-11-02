@@ -86,9 +86,9 @@ func (db *bucketDB) grantToken(ctx context.Context, tokenID int, ownerID string)
 	return resp, nil
 }
 
-// getTokenRow reads tokenID's token row from semaphore_tokens. found is false when the token has
-// no row. When found, row is never nil.
-func (db *bucketDB) getTokenRow(ctx context.Context, tokenID int) (row *persistence.SemaphoreOwnership, found bool, err error) {
+// getTokenRow reads tokenID's token row from semaphore_tokens. It returns nil if the token has no
+// row.
+func (db *bucketDB) getTokenRow(ctx context.Context, tokenID int) (*persistence.SemaphoreOwnership, error) {
 	resp, err := db.tokens.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
 		DomainID:      db.id.DomainID,
 		SemaphoreName: db.id.SemaphoreName,
@@ -98,12 +98,54 @@ func (db *bucketDB) getTokenRow(ctx context.Context, tokenID int) (row *persiste
 	if err != nil {
 		var notExists *types.EntityNotExistsError
 		if errors.As(err, &notExists) {
-			return nil, false, nil
+			return nil, nil
 		}
-		return nil, false, err
+		return nil, err
 	}
 	if resp == nil || resp.Ownership == nil {
-		return nil, false, &types.InternalServiceError{Message: fmt.Sprintf("no token row returned for token %d of bucket %v", tokenID, db.id)}
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("no token row returned for token %d of bucket %v", tokenID, db.id)}
 	}
-	return resp.Ownership, true, nil
+	return resp.Ownership, nil
+}
+
+// releaseToken frees tokenID with the guarded release in semaphore_tokens: it applies only if
+// tokenID's token row names ownerID, and deletes ownerID's owner row with it. applied is false
+// when the guard refused it.
+func (db *bucketDB) releaseToken(ctx context.Context, tokenID int, ownerID string) (applied bool, err error) {
+	resp, err := db.tokens.ReleaseSemaphoreToken(ctx, &persistence.ReleaseSemaphoreTokenRequest{
+		DomainID:      db.id.DomainID,
+		SemaphoreName: db.id.SemaphoreName,
+		Bucket:        db.id.Bucket,
+		TokenID:       tokenID,
+		OwnerID:       ownerID,
+	})
+	if err != nil {
+		return false, err
+	}
+	if resp == nil {
+		return false, &types.InternalServiceError{Message: fmt.Sprintf("no release response returned for token %d of bucket %v", tokenID, db.id)}
+	}
+	return resp.Applied, nil
+}
+
+// getOwnerRow reads ownerID's owner row from semaphore_tokens. It returns nil if the owner has no
+// row.
+func (db *bucketDB) getOwnerRow(ctx context.Context, ownerID string) (*persistence.SemaphoreOwnership, error) {
+	resp, err := db.tokens.GetSemaphoreOwnershipByOwner(ctx, &persistence.GetSemaphoreOwnershipByOwnerRequest{
+		DomainID:      db.id.DomainID,
+		SemaphoreName: db.id.SemaphoreName,
+		Bucket:        db.id.Bucket,
+		OwnerID:       ownerID,
+	})
+	if err != nil {
+		var notExists *types.EntityNotExistsError
+		if errors.As(err, &notExists) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if resp == nil || resp.Ownership == nil {
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("no owner row returned for owner %v of bucket %v", ownerID, db.id)}
+	}
+	return resp.Ownership, nil
 }
