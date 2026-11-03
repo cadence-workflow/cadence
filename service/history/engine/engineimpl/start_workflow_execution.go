@@ -43,6 +43,14 @@ import (
 
 var errClusterAttributeNotFound = &types.BadRequestError{Message: "Cannot start workflow with a cluster attribute that is not found in the domain's metadata."}
 
+// messages of the errors of a child start that can not adopt the run with the same request ID
+const (
+	childRunClosedByOtherClusterMsg = "Workflow execution already finished in another cluster."
+	childChainEndUnknownMsg         = "Workflow execution started by this request already finished, and the cluster that closed it can not be determined, so it can not be adopted."
+	childRunNotFoundMsg             = "Workflow execution was started by this request but no longer exists, so it can not be adopted."
+	childRunZombieMsg               = "Workflow execution started by this request is a zombie, so it can not be adopted."
+)
+
 // for startWorkflowHelper be reused by signalWithStart
 type signalWithStartArg struct {
 	signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest
@@ -132,6 +140,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	var prevMutableState execution.MutableState
 	var signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest
 	isSignalWithStart := sigWithStartArg != nil
+	isChildStart := startRequest.ParentExecutionInfo != nil
 	if isSignalWithStart {
 		prevMutableState = sigWithStartArg.prevMutableState
 		signalWithStartRequest = sigWithStartArg.signalWithStartRequest
@@ -242,8 +251,14 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		prevLastWriteVersion,
 		persistence.CreateWorkflowRequestModeNew,
 	)
+	// only NoSQL stores with history.enableStrongIdempotency enabled return a duplicate request error
 	if t, ok := persistence.AsDuplicateRequestError(err); ok {
 		if t.RequestType == persistence.WorkflowRequestTypeStart || (isSignalWithStart && t.RequestType == persistence.WorkflowRequestTypeSignal) {
+			if isChildStart {
+				if err := e.validateDuplicateChildRunAdoption(ctx, startRequest, domainEntry, t.RunID); err != nil {
+					return nil, workflowExecution, historyBlob, err
+				}
+			}
 			return &types.StartWorkflowExecutionResponse{
 				RunID: t.RunID,
 			}, workflowExecution, historyBlob, nil
@@ -254,6 +269,18 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	// handle already started error
 	if t, ok := err.(*persistence.WorkflowExecutionAlreadyStartedError); ok {
 		if t.StartRequestID == request.GetRequestID() {
+			if isChildStart {
+				// t is the current run, so it is the last run of its chain
+				currentRun := childRunInfo{
+					runID:            t.RunID,
+					state:            t.State,
+					closeStatus:      t.CloseStatus,
+					lastWriteVersion: t.LastWriteVersion,
+				}
+				if err := e.validateLastRunOfChain(ctx, startRequest, domainEntry, currentRun); err != nil {
+					return nil, workflowExecution, historyBlob, err
+				}
+			}
 			return &types.StartWorkflowExecutionResponse{
 				RunID: t.RunID,
 			}, workflowExecution, historyBlob, nil
@@ -286,13 +313,91 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		}
 
 		prevRunID = t.RunID
-		if shouldTerminateAndStart(startRequest, t.State) {
-			runningWFCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, prevRunID)
+		terminateRunning := shouldTerminateAndStart(startRequest, t.State)
+		var runningWFCtx workflow.Context
+		var terminateReason string
+		// a child start handles a run that the parent started before: it adopts the chain of the run when this request
+		// started it, and it replaces a running run from a stale branch of the parent
+		if isChildStart && e.config.EnableExistingChildWorkflowRunHandling(domain) {
+			wfCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, prevRunID)
 			if err != nil {
 				return nil, workflowExecution, historyBlob, err
 			}
-			defer func() { runningWFCtx.GetReleaseFn()(retError) }()
-
+			// the run is checked under its lock, so it can not change before it is terminated
+			runInfo := wfCtx.GetMutableState().GetExecutionInfo()
+			firstRunID := runInfo.FirstExecutionRunID
+			firstRunCreateRequestID := runInfo.CreateRequestID
+			if runInfo.FirstExecutionRunID != runInfo.RunID &&
+				runInfo.ParentRunID == startRequest.ParentExecutionInfo.Execution.GetRunID() {
+				// the run is not the first run of its chain, so we read the first run to get its requestID
+				firstRunCreateRequestID, err = e.getFirstRunCreateRequestID(ctx, domainEntry, runInfo)
+				if err != nil {
+					// the run was only read, so release it without an error to keep its state in the cache
+					wfCtx.GetReleaseFn()(nil)
+					return nil, workflowExecution, historyBlob, err
+				}
+			}
+			switch {
+			case firstRunCreateRequestID == request.GetRequestID():
+				// this request started the chain, so the current run is the last run of the chain
+				// the state of the run is read under its lock, because the current record can be stale
+				lastWriteVersion, err := wfCtx.GetMutableState().GetLastWriteVersion()
+				currentRun := childRunInfo{
+					runID:            runInfo.RunID,
+					state:            runInfo.State,
+					closeStatus:      runInfo.CloseStatus,
+					lastWriteVersion: lastWriteVersion,
+				}
+				// the run was only read, so release it without an error to keep its state in the cache
+				wfCtx.GetReleaseFn()(nil)
+				if err != nil {
+					return nil, workflowExecution, historyBlob, err
+				}
+				if err := e.validateLastRunOfChain(ctx, startRequest, domainEntry, currentRun); err != nil {
+					return nil, workflowExecution, historyBlob, err
+				}
+				e.logger.Info("Child start adopts a chain started by the same request",
+					tag.WorkflowDomainID(domainID),
+					tag.WorkflowID(workflowID),
+					tag.WorkflowRunID(prevRunID),
+					tag.Dynamic("first-run-id", firstRunID),
+					tag.WorkflowRequestID(request.GetRequestID()),
+				)
+				e.metricsClient.Scope(metrics.HistoryStartWorkflowExecutionScope, metrics.DomainTag(domain)).
+					IncCounter(metrics.ChildWorkflowChainAdoptedCounter)
+				return &types.StartWorkflowExecutionResponse{
+					RunID: firstRunID,
+				}, workflowExecution, historyBlob, nil
+			case persistence.IsWorkflowRunning(runInfo.State) && isChildRunFromStaleBranch(startRequest, runInfo, firstRunCreateRequestID):
+				defer func() { wfCtx.GetReleaseFn()(retError) }()
+				runningWFCtx = wfCtx
+				terminateReason = ChildFromStaleBranchReplacedReason
+				e.logger.Info("Child start replaces a run from a stale branch of the parent",
+					tag.WorkflowDomainID(domainID),
+					tag.WorkflowID(workflowID),
+					tag.WorkflowRunID(prevRunID),
+					tag.Dynamic("parent-run-id", runInfo.ParentRunID),
+					tag.WorkflowInitiatedID(runInfo.InitiatedID),
+					tag.Dynamic("new-run-id", workflowExecution.RunID),
+				)
+				e.metricsClient.Scope(metrics.HistoryStartWorkflowExecutionScope, metrics.DomainTag(domain)).
+					IncCounter(metrics.ChildWorkflowStaleBranchReplacedCounter)
+			default:
+				// the run was only read, so release it without an error to keep its state in the cache
+				wfCtx.GetReleaseFn()(nil)
+			}
+		}
+		// if the child start does not already replace the run, the reuse policy decides if the run is terminated
+		if terminateReason != ChildFromStaleBranchReplacedReason && terminateRunning {
+			wfCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, prevRunID)
+			if err != nil {
+				return nil, workflowExecution, historyBlob, err
+			}
+			defer func() { wfCtx.GetReleaseFn()(retError) }()
+			runningWFCtx = wfCtx
+			terminateReason = TerminateIfRunningReason
+		}
+		if terminateReason != "" {
 			resp, err := e.terminateAndStartWorkflow(
 				ctx,
 				runningWFCtx,
@@ -301,11 +406,13 @@ func (e *historyEngineImpl) startWorkflowHelper(
 				domainID,
 				startRequest,
 				nil,
+				terminateReason,
 			)
-			switch err.(type) {
+			var workflowExecutionAlreadyCompletedError *types.WorkflowExecutionAlreadyCompletedError
+			switch {
 			// By the time we try to terminate the workflow, it was already terminated
 			// So continue as if we didn't need to terminate it in the first place
-			case *types.WorkflowExecutionAlreadyCompletedError:
+			case errors.As(err, &workflowExecutionAlreadyCompletedError):
 				e.shard.GetLogger().Warn("Workflow completed while trying to terminate, will continue starting workflow", tag.Error(err))
 			default:
 				return resp, workflowExecution, historyBlob, err
@@ -334,6 +441,11 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		)
 		if t, ok := persistence.AsDuplicateRequestError(err); ok {
 			if t.RequestType == persistence.WorkflowRequestTypeStart || (isSignalWithStart && t.RequestType == persistence.WorkflowRequestTypeSignal) {
+				if isChildStart {
+					if err := e.validateDuplicateChildRunAdoption(ctx, startRequest, domainEntry, t.RunID); err != nil {
+						return nil, workflowExecution, historyBlob, err
+					}
+				}
 				return &types.StartWorkflowExecutionResponse{
 					RunID: t.RunID,
 				}, workflowExecution, historyBlob, nil
@@ -536,6 +648,7 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 					domainID,
 					nil,
 					signalWithStartRequest,
+					TerminateIfRunningReason,
 				)
 				// By the time we try to terminate the workflow, it was already terminated
 				// So continue as if we didn't need to terminate it in the first place
@@ -771,6 +884,7 @@ func (e *historyEngineImpl) terminateAndStartWorkflow(
 	domainID string,
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
 	signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest,
+	terminateReason string,
 ) (*types.StartWorkflowExecutionResponse, error) {
 	runningMutableState := runningWFCtx.GetMutableState()
 	var err error
@@ -802,7 +916,7 @@ UpdateWorkflowLoop:
 		if err := execution.TerminateWorkflow(
 			runningMutableState,
 			runningMutableState.GetNextEventID(),
-			TerminateIfRunningReason,
+			terminateReason,
 			getTerminateIfRunningDetails(workflowExecution.GetRunID()),
 			execution.IdentityHistoryService,
 		); err != nil {
@@ -973,6 +1087,351 @@ func (e *historyEngineImpl) applyWorkflowIDReusePolicyHelper(
 	}
 
 	return nil
+}
+
+// childChainEndUnknownError returns the error of a child start that can not determine which cluster closed the last
+// run of the chain of the duplicate run, so the run can not be adopted.
+func (e *historyEngineImpl) childChainEndUnknownError(
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	duplicateRunID string,
+	currentRunID string,
+) error {
+	e.logger.Info("Child start can not determine which cluster closed the chain of the run with the same request ID",
+		tag.WorkflowDomainID(startRequest.DomainUUID),
+		tag.WorkflowID(startRequest.StartRequest.GetWorkflowID()),
+		tag.WorkflowRunID(duplicateRunID),
+		tag.WorkflowRequestID(startRequest.StartRequest.GetRequestID()))
+	return &types.WorkflowExecutionAlreadyStartedError{
+		Message:        childChainEndUnknownMsg,
+		StartRequestID: startRequest.StartRequest.GetRequestID(),
+		RunID:          currentRunID,
+	}
+}
+
+// validateLastRunOfChain returns an error when the last run of the chain of the duplicate run, which sends the
+// completion to the parent, can not be adopted.
+func (e *historyEngineImpl) validateLastRunOfChain(
+	ctx context.Context,
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+	run childRunInfo,
+) error {
+	switch {
+	case persistence.IsWorkflowRunning(run.state):
+		// the run is still open and sends the completion to the parent when it closes, so it can be adopted
+		return nil
+	case run.state == persistence.WorkflowStateCorrupted:
+		// a corrupted run does not progress, but it is the run of this request, so it is adopted and linked to the parent
+		return nil
+	case run.state == persistence.WorkflowStateZombie:
+		// a zombie run does not run on this cluster, so it does not send the completion and can not be adopted
+		e.logger.Info("Child start found a zombie run with the same request ID",
+			tag.WorkflowDomainID(startRequest.DomainUUID),
+			tag.WorkflowID(startRequest.StartRequest.GetWorkflowID()),
+			tag.WorkflowRunID(run.runID),
+			tag.WorkflowRequestID(startRequest.StartRequest.GetRequestID()))
+		return &types.WorkflowExecutionAlreadyStartedError{
+			Message:        childRunZombieMsg,
+			StartRequestID: startRequest.StartRequest.GetRequestID(),
+			RunID:          run.runID,
+		}
+	case run.state == persistence.WorkflowStateCompleted:
+		closingCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(run.lastWriteVersion)
+		if err != nil {
+			return err
+		}
+		if closingCluster == e.currentClusterName {
+			// the close transfer task of the run retries the completion until the parent records the start
+			return nil
+		}
+		// a run that continued as new does not send the completion, and the last run of its chain is not known here
+		if e.config.EnableExistingChildWorkflowRunHandling(domainEntry.GetInfo().Name) &&
+			run.closeStatus != persistence.WorkflowCloseStatusContinuedAsNew {
+			// the run closed in another cluster before a failover, so it never sends its completion to the parent of this
+			// cluster. This cluster adds the completion task to the run again.
+			return e.requestChildCompletion(ctx, startRequest, domainEntry, run.runID)
+		}
+		// only the cluster that closed the run sends the completion to the parent, and after a failover it does not
+		// send it, so the run can not be adopted. The start fails, because this request already started the chain of the
+		// run, and the reuse policy only applies to a new request.
+		e.logger.Info("Child start found a run with the same request ID closed by another cluster",
+			tag.WorkflowDomainID(startRequest.DomainUUID),
+			tag.WorkflowID(startRequest.StartRequest.GetWorkflowID()),
+			tag.WorkflowRunID(run.runID),
+			tag.WorkflowRequestID(startRequest.StartRequest.GetRequestID()),
+			tag.ClusterName(closingCluster),
+			tag.FailoverVersion(run.lastWriteVersion))
+		return &types.WorkflowExecutionAlreadyStartedError{
+			Message:        childRunClosedByOtherClusterMsg,
+			StartRequestID: startRequest.StartRequest.GetRequestID(),
+			RunID:          run.runID,
+		}
+	default:
+		return &types.InternalServiceError{Message: fmt.Sprintf("Child start found a run with the same request ID in an invalid state: %v.", run.state)}
+	}
+}
+
+// requestChildCompletion adds the task that sends the completion of a closed run of the child to the parent, so the
+// parent can adopt the run. Only the active cluster runs this task, so the run must be active on this cluster.
+func (e *historyEngineImpl) requestChildCompletion(
+	ctx context.Context,
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+	runID string,
+) (retError error) {
+	domainID := domainEntry.GetInfo().ID
+	workflowID := startRequest.StartRequest.GetWorkflowID()
+	if _, err := e.getActiveDomainByWorkflow(ctx, domainID, workflowID, runID); err != nil {
+		return err
+	}
+
+	wfCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, runID)
+	if err != nil {
+		return err
+	}
+	defer func() { wfCtx.GetReleaseFn()(retError) }()
+
+	mutableState := wfCtx.GetMutableState()
+	executionInfo := mutableState.GetExecutionInfo()
+	parent := startRequest.ParentExecutionInfo
+	if executionInfo.ParentRunID != parent.Execution.GetRunID() || executionInfo.InitiatedID != parent.InitiatedID {
+		// the task sends the completion to the parent of the run, so the parent of this request would never receive it
+		e.logger.Warn("Child start found a closed run with the same request ID and another parent",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(workflowID),
+			tag.WorkflowRunID(runID),
+			tag.WorkflowRequestID(startRequest.StartRequest.GetRequestID()),
+			tag.Dynamic("parent-run-id", executionInfo.ParentRunID),
+			tag.WorkflowInitiatedID(executionInfo.InitiatedID))
+		return &types.WorkflowExecutionAlreadyStartedError{
+			Message:        childRunClosedByOtherClusterMsg,
+			StartRequestID: startRequest.StartRequest.GetRequestID(),
+			RunID:          runID,
+		}
+	}
+	lastWriteVersion, err := mutableState.GetLastWriteVersion()
+	if err != nil {
+		return err
+	}
+	mutableState.AddTransferTasks(&persistence.RecordChildExecutionCompletedTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowID,
+			RunID:      runID,
+		},
+		TaskData: persistence.TaskData{
+			// TaskID and VisibilityTimestamp are set by shard context. The executor runs the task only when its version
+			// is the last write version of the run.
+			Version: lastWriteVersion,
+		},
+		TargetDomainID:   executionInfo.ParentDomainID,
+		TargetWorkflowID: executionInfo.ParentWorkflowID,
+		TargetRunID:      executionInfo.ParentRunID,
+		TaskList:         executionInfo.TaskList,
+	})
+	if err := wfCtx.GetContext().UpdateWorkflowExecutionTasks(ctx, e.shard.GetTimeSource().Now()); err != nil {
+		return err
+	}
+
+	e.logger.Info("Child start requests the completion of a run with the same request ID closed by another cluster",
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowID(workflowID),
+		tag.WorkflowRunID(runID),
+		tag.WorkflowRequestID(startRequest.StartRequest.GetRequestID()),
+		tag.FailoverVersion(lastWriteVersion))
+	e.metricsClient.Scope(metrics.HistoryStartWorkflowExecutionScope, metrics.DomainTag(domainEntry.GetInfo().Name)).
+		IncCounter(metrics.ChildWorkflowCompletionRequestedCounter)
+	return nil
+}
+
+// validateDuplicateChildRunAdoption returns an error when the parent would not receive the completion of the run of a
+// duplicate child start request, so the run can not be adopted as it is.
+func (e *historyEngineImpl) validateDuplicateChildRunAdoption(
+	ctx context.Context,
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+	duplicateRunID string,
+) error {
+	domainID := domainEntry.GetInfo().ID
+	workflowID := startRequest.StartRequest.GetWorkflowID()
+	requestID := startRequest.StartRequest.GetRequestID()
+
+	var notExistsErr *types.EntityNotExistsError
+	duplicate, err := e.loadChildRunInfo(ctx, domainID, workflowID, duplicateRunID)
+	if errors.As(err, &notExistsErr) {
+		// a run that no longer exists, for example because an operator deleted it or the domain retention is 0 days,
+		// can not send its completion to the parent, so it can not be adopted. The request row still blocks a new run
+		// with the same request ID, so the start fails.
+		e.logger.Info("Child start found a run with the same request ID that no longer exists",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(workflowID),
+			tag.WorkflowRunID(duplicateRunID),
+			tag.WorkflowRequestID(requestID))
+		return &types.WorkflowExecutionAlreadyStartedError{
+			Message:        childRunNotFoundMsg,
+			StartRequestID: requestID,
+			RunID:          duplicateRunID,
+		}
+	}
+	if err != nil {
+		return err
+	}
+	// the duplicate run did not continue as new, so it is the last run of its chain
+	if duplicate.closeStatus != persistence.WorkflowCloseStatusContinuedAsNew {
+		return e.validateLastRunOfChain(ctx, startRequest, domainEntry, duplicate)
+	}
+
+	// a run that continued as new does not send the completion, the last run of its chain does
+	current, err := e.executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		DomainName: domainEntry.GetInfo().Name,
+		ShardID:    common.Ptr(e.shard.GetShardID()),
+	})
+	if errors.As(err, &notExistsErr) {
+		return e.childChainEndUnknownError(startRequest, duplicateRunID, duplicateRunID)
+	}
+	if err != nil {
+		return err
+	}
+	currentRun, err := e.loadChildRunInfo(ctx, domainID, workflowID, current.RunID)
+	if errors.As(err, &notExistsErr) {
+		// without the current run, it is unknown whether the current run is in the chain of the duplicate run
+		return e.childChainEndUnknownError(startRequest, duplicateRunID, current.RunID)
+	}
+	if err != nil {
+		return err
+	}
+	switch {
+	case duplicate.firstRunID != "" && currentRun.firstRunID == duplicate.firstRunID:
+		// the current run is in the chain of the duplicate run, so it is the last run of the chain
+		return e.validateLastRunOfChain(ctx, startRequest, domainEntry, currentRun)
+	case !domainEntry.GetReplicationConfig().IsActiveActive() && duplicate.lastWriteVersion == currentRun.lastWriteVersion:
+		// in an active-passive domain, when the current run has the same version as the duplicate run, the chain of the
+		// duplicate run completed in the same cluster as the current run
+		return e.validateLastRunOfChain(ctx, startRequest, domainEntry, duplicate)
+	default:
+		return e.childChainEndUnknownError(startRequest, duplicateRunID, current.RunID)
+	}
+}
+
+// childRunInfo is the info of a run of a child workflow that validateDuplicateChildRunAdoption checks.
+type childRunInfo struct {
+	runID            string
+	firstRunID       string
+	state            int
+	closeStatus      int
+	lastWriteVersion int64
+}
+
+// loadChildRunInfo loads a run of a child workflow and releases it immediately, so that
+// validateDuplicateChildRunAdoption never holds the locks of two runs at the same time.
+func (e *historyEngineImpl) loadChildRunInfo(
+	ctx context.Context,
+	domainID string,
+	workflowID string,
+	runID string,
+) (_ childRunInfo, retError error) {
+	wfCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, runID)
+	if err != nil {
+		return childRunInfo{}, err
+	}
+	defer func() { wfCtx.GetReleaseFn()(retError) }()
+
+	mutableState := wfCtx.GetMutableState()
+	executionInfo := mutableState.GetExecutionInfo()
+	lastWriteVersion, err := mutableState.GetLastWriteVersion()
+	if err != nil {
+		return childRunInfo{}, err
+	}
+	return childRunInfo{
+		runID:            runID,
+		firstRunID:       executionInfo.FirstExecutionRunID,
+		state:            executionInfo.State,
+		closeStatus:      executionInfo.CloseStatus,
+		lastWriteVersion: lastWriteVersion,
+	}, nil
+}
+
+// getFirstRunCreateRequestID returns the request ID of the first run of the chain of the run. It returns an empty string
+// when the first run is unknown, for example after the retention of the domain deleted it.
+func (e *historyEngineImpl) getFirstRunCreateRequestID(
+	ctx context.Context,
+	domainEntry *cache.DomainCacheEntry,
+	run *persistence.WorkflowExecutionInfo,
+) (string, error) {
+	if run.FirstExecutionRunID == "" {
+		// a run created before the first run ID was stored does not have it
+		return "", nil
+	}
+	// the request ID of a run does not change, so the first run is read from the database without its lock
+	resp, err := e.shard.GetWorkflowExecution(ctx, &persistence.GetWorkflowExecutionRequest{
+		DomainID: run.DomainID,
+		Execution: types.WorkflowExecution{
+			WorkflowID: run.WorkflowID,
+			RunID:      run.FirstExecutionRunID,
+		},
+		DomainName: domainEntry.GetInfo().Name,
+	})
+	var notExistsErr *types.EntityNotExistsError
+	if errors.As(err, &notExistsErr) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return resp.State.ExecutionInfo.CreateRequestID, nil
+}
+
+// isChildRunFromStaleBranch returns true when the parent started the run or the first run of its chain from an initiated
+// event that is not on its current branch. A failover can cause this.
+// firstRunCreateRequestID is the request ID of the first run of the chain of the run, or an empty string when it is
+// unknown.
+func isChildRunFromStaleBranch(
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	run *persistence.WorkflowExecutionInfo,
+	firstRunCreateRequestID string,
+) bool {
+	parent := startRequest.ParentExecutionInfo
+	if parent == nil {
+		// a start request without a parent is not a child start
+		return false
+	}
+	if run.ParentDomainID != parent.DomainUUID ||
+		run.ParentWorkflowID != parent.Execution.GetWorkflowID() ||
+		run.ParentRunID != parent.Execution.GetRunID() {
+		// the run is not a child of this parent run
+		return false
+	}
+	// all runs of a chain have the parent run and the initiated ID of the first run, but only the first run has the
+	// request ID from the initiated event. A later run has a random request ID from the continue as new.
+	if !execution.IsDeterministicChildWorkflowCreateRequestID(firstRunCreateRequestID) {
+		// a chain whose first run is unknown, or was started without a deterministic request ID, can not be checked, so
+		// it is not treated as from a stale branch
+		return false
+	}
+	if len(startRequest.ParentVersionHistoryItems) == 0 {
+		// a parent that does not send its current branch does not let the run be checked
+		return false
+	}
+	// the loop checks if the initiated event that started the run, or the first run of its chain, is on the current
+	// branch of the parent. If it is not, the run is from a stale branch. The event can be on the current branch with
+	// an ID that is not the initiated ID of the start request, when the parent starts two children with the same
+	// workflow ID and the first child is still running when the second child starts.
+	for _, item := range startRequest.ParentVersionHistoryItems {
+		// the items are the version history of the current branch of the parent, sorted by event ID. Each item has the
+		// last event ID of a range of events and the version of all events in that range. The range starts after the
+		// event ID of the item before it.
+		if run.InitiatedID <= item.EventID {
+			// this check finds the version that the initiated event would have on the current branch of the parent
+			// the request ID of the first run matches only when the current branch has its initiated event, with the same
+			// ID and version, so a different request ID means the run is from a stale branch
+			return execution.NewChildWorkflowCreateRequestID(run.ParentRunID, run.InitiatedID, item.Version) != firstRunCreateRequestID
+		}
+	}
+	// the current branch does not have an event with the initiated ID of the run, so the initiated event that started
+	// the run is on a stale branch
+	return true
 }
 
 func getWorkflowAlreadyStartedError(errMsg string, createRequestID string, workflowID string, runID string) error {

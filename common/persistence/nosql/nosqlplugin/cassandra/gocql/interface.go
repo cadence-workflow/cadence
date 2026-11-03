@@ -87,6 +87,7 @@ type (
 		Scan(...interface{}) bool
 		MapScan(map[string]interface{}) bool
 		PageState() []byte
+		Warnings() []string
 		Close() error
 	}
 

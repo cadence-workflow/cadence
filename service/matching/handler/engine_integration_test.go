@@ -183,8 +183,16 @@ func (s *matchingEngineSuite) newMatchingEngine(
 ) *matchingEngineImpl {
 	pct := membership.NewMockPercentageOnboarded(s.controller)
 	pct.EXPECT().Value().Return(0).AnyTimes()
+	taskListDifferentiator := membership.NewTaskListDifferentiator(
+		config.ExcludeShortLivedTaskListsFromShardManager,
+		dynamicproperties.GetBoolPropertyFn(false),
+		pct,
+		commonConfig.DefaultNumMatchingShards,
+	)
 	e := NewEngine(
 		taskMgr,
+		persistence.NewMockSemaphoreTokenManager(s.controller),
+		persistence.NewMockSemaphoreMetadataManager(s.controller),
 		cluster.GetTestClusterMetadata(true),
 		s.mockHistoryClient,
 		s.mockMatchingClient,
@@ -199,6 +207,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		s.mockTimeSource,
 		s.mockShardExecutorClient,
 		defaultSDExecutorConfig(),
+		taskListDifferentiator,
 		nil,
 		pct,
 	).(*matchingEngineImpl)

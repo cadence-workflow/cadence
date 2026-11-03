@@ -143,12 +143,14 @@ var (
 		WorkflowDomain:                  DomainName,
 	}
 	HistoryRecordChildExecutionCompletedRequest = types.RecordChildExecutionCompletedRequest{
-		DomainUUID:         DomainID,
-		WorkflowExecution:  &WorkflowExecution,
-		InitiatedID:        EventID1,
-		CompletedExecution: &WorkflowExecution,
-		CompletionEvent:    &HistoryEvent_WorkflowExecutionStarted,
-		StartedID:          EventID2,
+		DomainUUID:          DomainID,
+		WorkflowExecution:   &WorkflowExecution,
+		InitiatedID:         EventID1,
+		CompletedExecution:  &WorkflowExecution,
+		CompletionEvent:     &HistoryEvent_WorkflowExecutionStarted,
+		StartedID:           EventID2,
+		FirstExecutionRunID: RunID1,
+		ChildStartVersion:   common.Int64Ptr(Version1),
 	}
 	HistoryRecordDecisionTaskStartedRequest = types.RecordDecisionTaskStartedRequest{
 		DomainUUID:        DomainID,
@@ -266,6 +268,7 @@ var (
 		LastCompletionResult:            Payload1,
 		FirstDecisionTaskBackoffSeconds: &Duration1,
 		PartitionConfig:                 PartitionConfig,
+		ParentVersionHistoryItems:       VersionHistoryItemArray,
 	}
 	HistoryStartWorkflowExecutionResponse = types.StartWorkflowExecutionResponse{
 		RunID: RunID,

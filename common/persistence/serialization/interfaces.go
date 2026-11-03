@@ -310,6 +310,7 @@ type (
 		VisibilityTimestamp     time.Time
 		OriginalTaskList        string
 		OriginalTaskListKind    types.TaskListKind
+		SemaphoreName           string
 	}
 
 	// CrossClusterTaskInfo blob in a serialization agnostic format

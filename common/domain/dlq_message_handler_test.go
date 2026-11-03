@@ -47,9 +47,10 @@ type (
 		*require.Assertions
 		controller *gomock.Controller
 
-		mockReplicationTaskExecutor *MockReplicationTaskExecutor
-		mockReplicationQueue        *MockReplicationQueue
-		dlqMessageHandler           *dlqMessageHandlerImpl
+		mockReplicationTaskExecutor          *MockReplicationTaskExecutor
+		mockSemaphoreReplicationTaskExecutor *MockSemaphoreReplicationTaskExecutor
+		mockReplicationQueue                 *MockReplicationQueue
+		dlqMessageHandler                    *dlqMessageHandlerImpl
 	}
 )
 
@@ -70,11 +71,13 @@ func (s *dlqMessageHandlerSuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 
 	s.mockReplicationTaskExecutor = NewMockReplicationTaskExecutor(s.controller)
+	s.mockSemaphoreReplicationTaskExecutor = NewMockSemaphoreReplicationTaskExecutor(s.controller)
 	s.mockReplicationQueue = NewMockReplicationQueue(s.controller)
 
 	logger := testlogger.New(s.Suite.T())
 	s.dlqMessageHandler = NewDLQMessageHandler(
 		s.mockReplicationTaskExecutor,
+		s.mockSemaphoreReplicationTaskExecutor,
 		s.mockReplicationQueue,
 		logger,
 		metrics.NewNoopMetricsClient(),
@@ -495,6 +498,39 @@ func (s *dlqMessageHandlerSuite) TestMergeMessages_IgnoreErrorOnUpdateDLQAckLeve
 	s.mockReplicationTaskExecutor.EXPECT().Execute(domainAttribute).Return(nil).Times(1)
 	s.mockReplicationQueue.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), ackLevel, messageID).Return(nil).Times(1)
 	s.mockReplicationQueue.EXPECT().UpdateDLQAckLevel(gomock.Any(), messageID).Return(testError).Times(1)
+
+	token, err := s.dlqMessageHandler.Merge(context.Background(), lastMessageID, pageSize, pageToken)
+	s.NoError(err)
+	s.Nil(token)
+}
+
+func (s *dlqMessageHandlerSuite) TestMergeMessages_SemaphoreTask() {
+	ackLevel := int64(10)
+	lastMessageID := int64(20)
+	pageSize := 100
+	pageToken := []byte{}
+	messageID := int64(11)
+
+	semaphoreAttribute := &types.SemaphoreMetadataTaskAttributes{
+		DomainID:       uuid.New(),
+		SemaphoreName:  "shipping-api",
+		Capacity:       10,
+		BucketCapacity: 5,
+	}
+	tasks := []*types.ReplicationTask{
+		{
+			TaskType:                        types.ReplicationTaskTypeSemaphoreMetadata.Ptr(),
+			SourceTaskID:                    messageID,
+			SemaphoreMetadataTaskAttributes: semaphoreAttribute,
+		},
+	}
+
+	s.mockReplicationQueue.EXPECT().GetDLQAckLevel(gomock.Any()).Return(ackLevel, nil).Times(1)
+	s.mockReplicationQueue.EXPECT().GetMessagesFromDLQ(gomock.Any(), ackLevel, lastMessageID, pageSize, pageToken).
+		Return(tasks, nil, nil).Times(1)
+	s.mockSemaphoreReplicationTaskExecutor.EXPECT().Execute(semaphoreAttribute).Return(nil).Times(1)
+	s.mockReplicationQueue.EXPECT().UpdateDLQAckLevel(gomock.Any(), messageID).Return(nil).Times(1)
+	s.mockReplicationQueue.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), ackLevel, messageID).Return(nil).Times(1)
 
 	token, err := s.dlqMessageHandler.Merge(context.Background(), lastMessageID, pageSize, pageToken)
 	s.NoError(err)

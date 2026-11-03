@@ -801,3 +801,41 @@ func ToMatchingAcquireSemaphoreResponse(t *matchingv1.AcquireSemaphoreResponse) 
 		TokenID: t.TokenId,
 	}
 }
+
+func FromMatchingReleaseSemaphoreRequest(t *types.ReleaseSemaphoreRequest) *matchingv1.ReleaseSemaphoreRequest {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.ReleaseSemaphoreRequest{
+		DomainId:      t.DomainUUID,
+		SemaphoreName: t.SemaphoreName,
+		Bucket:        t.Bucket,
+		OwnerId:       t.OwnerID,
+	}
+}
+
+func ToMatchingReleaseSemaphoreRequest(t *matchingv1.ReleaseSemaphoreRequest) *types.ReleaseSemaphoreRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ReleaseSemaphoreRequest{
+		DomainUUID:    t.DomainId,
+		SemaphoreName: t.SemaphoreName,
+		Bucket:        t.Bucket,
+		OwnerID:       t.OwnerId,
+	}
+}
+
+func FromMatchingReleaseSemaphoreResponse(t *types.ReleaseSemaphoreResponse) *matchingv1.ReleaseSemaphoreResponse {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.ReleaseSemaphoreResponse{}
+}
+
+func ToMatchingReleaseSemaphoreResponse(t *matchingv1.ReleaseSemaphoreResponse) *types.ReleaseSemaphoreResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ReleaseSemaphoreResponse{}
+}

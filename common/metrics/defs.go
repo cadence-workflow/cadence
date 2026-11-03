@@ -489,6 +489,8 @@ const (
 	MatchingClientRefreshTaskListPartitionConfigScope
 	// MatchingClientAcquireSemaphoreScope tracks RPC calls to matching service
 	MatchingClientAcquireSemaphoreScope
+	// MatchingClientReleaseSemaphoreScope tracks RPC calls to matching service
+	MatchingClientReleaseSemaphoreScope
 
 	// FrontendClientDeleteDomainScope tracks RPC calls to frontend service
 	FrontendClientDeleteDomainScope
@@ -1347,6 +1349,10 @@ const (
 	TransferActiveTaskRecordChildExecutionCompletedScope
 	// TransferActiveTaskApplyParentClosePolicyScope is the scope used for apply parent close policy task processing by transfer queue processor
 	TransferActiveTaskApplyParentClosePolicyScope
+	// TransferActiveTaskAcquireSemaphoreScope is the scope used for acquire semaphore task processing by transfer queue processor
+	TransferActiveTaskAcquireSemaphoreScope
+	// TransferActiveTaskReleaseSemaphoreScope is the scope used for release semaphore task processing by transfer queue processor
+	TransferActiveTaskReleaseSemaphoreScope
 	// TransferStandbyTaskResetWorkflowScope is the scope used for record workflow started task processing by transfer queue processor
 	TransferStandbyTaskResetWorkflowScope
 	// TransferStandbyTaskActivityScope is the scope used for activity task processing by transfer queue processor
@@ -1371,6 +1377,10 @@ const (
 	TransferStandbyTaskRecordChildExecutionCompletedScope
 	// TransferActiveTaskApplyParentClosePolicyScope is the scope used for apply parent close policy task processing by transfer queue processor
 	TransferStandbyTaskApplyParentClosePolicyScope
+	// TransferStandbyTaskAcquireSemaphoreScope is the scope used for acquire semaphore task processing by transfer queue processor
+	TransferStandbyTaskAcquireSemaphoreScope
+	// TransferStandbyTaskReleaseSemaphoreScope is the scope used for release semaphore task processing by transfer queue processor
+	TransferStandbyTaskReleaseSemaphoreScope
 	// TimerQueueProcessorScope is the scope used by all metric emitted by timer queue processor
 	TimerQueueProcessorScope
 	// TimerQueueProcessorV2Scope is the scope used by all metric emitted by timer queue processor
@@ -1550,6 +1560,8 @@ const (
 	MatchingRefreshTaskListPartitionConfigScope
 	// MatchingAcquireSemaphoreScope tracks AcquireSemaphore API calls received by service
 	MatchingAcquireSemaphoreScope
+	// MatchingReleaseSemaphoreScope tracks ReleaseSemaphore API calls received by service
+	MatchingReleaseSemaphoreScope
 
 	NumMatchingScopes
 )
@@ -1773,6 +1785,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingClientUpdateTaskListPartitionConfigScope:  {operation: "MatchingClientUpdateTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientRefreshTaskListPartitionConfigScope: {operation: "MatchingClientRefreshTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientAcquireSemaphoreScope:               {operation: "MatchingClientAcquireSemaphore", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
+		MatchingClientReleaseSemaphoreScope:               {operation: "MatchingClientReleaseSemaphore", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 
 		FrontendClientDeleteDomainScope:                          {operation: "FrontendClientDeleteDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientDeprecateDomainScope:                       {operation: "FrontendClientDeprecateDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
@@ -2201,6 +2214,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TransferActiveTaskRecordWorkflowClosedScope:                     {operation: "TransferActiveTaskRecordWorkflowClosed"},
 		TransferActiveTaskRecordChildExecutionCompletedScope:            {operation: "TransferActiveTaskRecordChildExecutionCompleted"},
 		TransferActiveTaskApplyParentClosePolicyScope:                   {operation: "TransferActiveTaskApplyParentClosePolicy"},
+		TransferActiveTaskAcquireSemaphoreScope:                         {operation: "TransferActiveTaskAcquireSemaphore"},
+		TransferActiveTaskReleaseSemaphoreScope:                         {operation: "TransferActiveTaskReleaseSemaphore"},
 		TransferStandbyTaskActivityScope:                                {operation: "TransferStandbyTaskActivity"},
 		TransferStandbyTaskDecisionScope:                                {operation: "TransferStandbyTaskDecision"},
 		TransferStandbyTaskCloseExecutionScope:                          {operation: "TransferStandbyTaskCloseExecution"},
@@ -2213,6 +2228,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TransferStandbyTaskRecordWorkflowClosedScope:                    {operation: "TransferStandbyTaskRecordWorkflowClosed"},
 		TransferStandbyTaskRecordChildExecutionCompletedScope:           {operation: "TransferStandbyTaskRecordChildExecutionCompleted"},
 		TransferStandbyTaskApplyParentClosePolicyScope:                  {operation: "TransferStandbyTaskApplyParentClosePolicy"},
+		TransferStandbyTaskAcquireSemaphoreScope:                        {operation: "TransferStandbyTaskAcquireSemaphore"},
+		TransferStandbyTaskReleaseSemaphoreScope:                        {operation: "TransferStandbyTaskReleaseSemaphore"},
 		TimerQueueProcessorScope:                                        {operation: "TimerQueueProcessor"},
 		TimerQueueProcessorV2Scope:                                      {operation: "TimerQueueProcessorV2"},
 		TimerActiveQueueProcessorScope:                                  {operation: "TimerActiveQueueProcessor"},
@@ -2300,6 +2317,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingUpdateTaskListPartitionConfigScope:  {operation: "UpdateTaskListPartitionConfig"},
 		MatchingRefreshTaskListPartitionConfigScope: {operation: "RefreshTaskListPartitionConfig"},
 		MatchingAcquireSemaphoreScope:               {operation: "AcquireSemaphore"},
+		MatchingReleaseSemaphoreScope:               {operation: "ReleaseSemaphore"},
 	},
 	// Worker Scope Names
 	Worker: {
@@ -2770,6 +2788,7 @@ const (
 	DecisionTypeSignalExternalWorkflowCounter
 	DecisionTypeUpsertWorkflowSearchAttributesCounter
 	DecisionTypeAcquireSemaphoreCounter
+	DecisionTypeReleaseSemaphoreCounter
 	EmptyCompletionDecisionsCounter
 	MultipleCompletionDecisionsCounter
 	FailedDecisionsCounter
@@ -2786,6 +2805,10 @@ const (
 	AutoResetPointsLimitExceededCounter
 	AutoResetPointCorruptionCounter
 	ConcurrencyUpdateFailureCounter
+	ChildWorkflowCompletionOtherBranchCounter
+	ChildWorkflowStaleBranchReplacedCounter
+	ChildWorkflowChainAdoptedCounter
+	ChildWorkflowCompletionRequestedCounter
 	CadenceErrEventAlreadyStartedCounter
 	CadenceErrShardOwnershipLostCounter
 	HeartbeatTimeoutCounter
@@ -3775,6 +3798,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		DecisionTypeSignalExternalWorkflowCounter:                     {metricName: "signal_external_workflow_decision", metricType: Counter},
 		DecisionTypeUpsertWorkflowSearchAttributesCounter:             {metricName: "upsert_workflow_search_attributes_decision", metricType: Counter},
 		DecisionTypeAcquireSemaphoreCounter:                           {metricName: "acquire_semaphore_decision", metricType: Counter},
+		DecisionTypeReleaseSemaphoreCounter:                           {metricName: "release_semaphore_decision", metricType: Counter},
 		DecisionTypeChildWorkflowCounter:                              {metricName: "child_workflow_decision", metricType: Counter},
 		EmptyCompletionDecisionsCounter:                               {metricName: "empty_completion_decisions", metricType: Counter},
 		MultipleCompletionDecisionsCounter:                            {metricName: "multiple_completion_decisions", metricType: Counter},
@@ -3792,6 +3816,10 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		AutoResetPointsLimitExceededCounter:                           {metricName: "auto_reset_points_exceed_limit", metricType: Counter},
 		AutoResetPointCorruptionCounter:                               {metricName: "auto_reset_point_corruption", metricType: Counter},
 		ConcurrencyUpdateFailureCounter:                               {metricName: "concurrency_update_failure", metricType: Counter},
+		ChildWorkflowCompletionOtherBranchCounter:                     {metricName: "child_workflow_completion_other_branch", metricType: Counter},
+		ChildWorkflowStaleBranchReplacedCounter:                       {metricName: "child_workflow_stale_branch_replaced", metricType: Counter},
+		ChildWorkflowChainAdoptedCounter:                              {metricName: "child_workflow_chain_adopted", metricType: Counter},
+		ChildWorkflowCompletionRequestedCounter:                       {metricName: "child_workflow_completion_requested", metricType: Counter},
 		CadenceErrShardOwnershipLostCounter:                           {metricName: "cadence_errors_shard_ownership_lost", metricType: Counter},
 		CadenceErrEventAlreadyStartedCounter:                          {metricName: "cadence_errors_event_already_started", metricType: Counter},
 		HeartbeatTimeoutCounter:                                       {metricName: "heartbeat_timeout", metricType: Counter},

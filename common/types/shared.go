@@ -3214,6 +3214,8 @@ func (e EventType) String() string {
 		return "SemaphoreAcquired"
 	case 44:
 		return "SemaphoreReleased"
+	case 45:
+		return "SemaphoreAcquireFailed"
 	}
 	return fmt.Sprintf("EventType(%d)", w)
 }
@@ -3356,6 +3358,9 @@ func (e *EventType) UnmarshalText(value []byte) error {
 	case "SEMAPHORERELEASED":
 		*e = EventTypeSemaphoreReleased
 		return nil
+	case "SEMAPHOREACQUIREFAILED":
+		*e = EventTypeSemaphoreAcquireFailed
+		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
@@ -3462,6 +3467,8 @@ const (
 	EventTypeSemaphoreAcquired
 	// EventTypeSemaphoreReleased is an option for EventType
 	EventTypeSemaphoreReleased
+	// EventTypeSemaphoreAcquireFailed is an option for EventType
+	EventTypeSemaphoreAcquireFailed
 )
 
 // ExternalWorkflowExecutionCancelRequestedEventAttributes is an internal type (TBD...)
@@ -3781,6 +3788,7 @@ type HistoryEvent struct {
 	SemaphoreAcquireInitiatedEventAttributes                       *SemaphoreAcquireInitiatedEventAttributes                       `json:"semaphoreAcquireInitiatedEventAttributes,omitempty"`
 	SemaphoreAcquiredEventAttributes                               *SemaphoreAcquiredEventAttributes                               `json:"semaphoreAcquiredEventAttributes,omitempty"`
 	SemaphoreReleasedEventAttributes                               *SemaphoreReleasedEventAttributes                               `json:"semaphoreReleasedEventAttributes,omitempty"`
+	SemaphoreAcquireFailedEventAttributes                          *SemaphoreAcquireFailedEventAttributes                          `json:"semaphoreAcquireFailedEventAttributes,omitempty"`
 }
 
 // GetTimestamp is an internal getter (TBD...)
@@ -4159,6 +4167,14 @@ func (v *HistoryEvent) GetSemaphoreReleasedEventAttributes() (o *SemaphoreReleas
 	return
 }
 
+// GetSemaphoreAcquireFailedEventAttributes is an internal getter
+func (v *HistoryEvent) GetSemaphoreAcquireFailedEventAttributes() (o *SemaphoreAcquireFailedEventAttributes) {
+	if v != nil && v.SemaphoreAcquireFailedEventAttributes != nil {
+		return v.SemaphoreAcquireFailedEventAttributes
+	}
+	return
+}
+
 // Size is an internal method to get the estimated size of the event
 func (v *HistoryEvent) ByteSize() uint64 {
 	if v == nil {
@@ -4345,6 +4361,10 @@ func (v *HistoryEvent) ByteSize() uint64 {
 
 	if v.SemaphoreReleasedEventAttributes != nil {
 		size += v.SemaphoreReleasedEventAttributes.ByteSize()
+	}
+
+	if v.SemaphoreAcquireFailedEventAttributes != nil {
+		size += v.SemaphoreAcquireFailedEventAttributes.ByteSize()
 	}
 
 	return size
@@ -8539,6 +8559,78 @@ func (v *SemaphoreReleasedEventAttributes) GetDecisionTaskCompletedEventID() (o 
 
 // Size returns the approximate memory used in bytes
 func (v *SemaphoreReleasedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
+// SemaphoreAcquireFailedCause is why an acquire ended without a token.
+type SemaphoreAcquireFailedCause int32
+
+// Ptr is a helper function for getting pointer value
+func (e SemaphoreAcquireFailedCause) Ptr() *SemaphoreAcquireFailedCause {
+	return &e
+}
+
+// String returns a readable string representation of SemaphoreAcquireFailedCause.
+func (e SemaphoreAcquireFailedCause) String() string {
+	w := int32(e)
+	switch w {
+	case 0:
+		return "NOT_FOUND"
+	}
+	return fmt.Sprintf("SemaphoreAcquireFailedCause(%d)", w)
+}
+
+// UnmarshalText parses enum value from string representation
+func (e *SemaphoreAcquireFailedCause) UnmarshalText(value []byte) error {
+	switch s := strings.ToUpper(string(value)); s {
+	case "NOT_FOUND":
+		*e = SemaphoreAcquireFailedCauseNotFound
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "SemaphoreAcquireFailedCause", err)
+		}
+		*e = SemaphoreAcquireFailedCause(val)
+		return nil
+	}
+}
+
+// MarshalText encodes SemaphoreAcquireFailedCause to text.
+func (e SemaphoreAcquireFailedCause) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
+const (
+	// SemaphoreAcquireFailedCauseNotFound is an option for SemaphoreAcquireFailedCause
+	SemaphoreAcquireFailedCauseNotFound SemaphoreAcquireFailedCause = iota
+)
+
+// SemaphoreAcquireFailedEventAttributes records that the acquire InitiatedEventID started ended
+// without a token.
+type SemaphoreAcquireFailedEventAttributes struct {
+	Cause            *SemaphoreAcquireFailedCause `json:"cause,omitempty"`
+	InitiatedEventID int64                        `json:"initiatedEventId,omitempty"`
+}
+
+// GetCause is an internal getter
+func (v *SemaphoreAcquireFailedEventAttributes) GetCause() (o SemaphoreAcquireFailedCause) {
+	if v != nil && v.Cause != nil {
+		return *v.Cause
+	}
+	return
+}
+
+// GetInitiatedEventID is an internal getter
+func (v *SemaphoreAcquireFailedEventAttributes) GetInitiatedEventID() (o int64) {
+	if v != nil {
+		return v.InitiatedEventID
+	}
+	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *SemaphoreAcquireFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 

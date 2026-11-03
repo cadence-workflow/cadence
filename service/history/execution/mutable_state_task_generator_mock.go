@@ -42,6 +42,20 @@ func (m *MockMutableStateTaskGenerator) EXPECT() *MockMutableStateTaskGeneratorM
 	return m.recorder
 }
 
+// GenerateAcquireSemaphoreTasks mocks base method.
+func (m *MockMutableStateTaskGenerator) GenerateAcquireSemaphoreTasks(initiatedEventID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenerateAcquireSemaphoreTasks", initiatedEventID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GenerateAcquireSemaphoreTasks indicates an expected call of GenerateAcquireSemaphoreTasks.
+func (mr *MockMutableStateTaskGeneratorMockRecorder) GenerateAcquireSemaphoreTasks(initiatedEventID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateAcquireSemaphoreTasks", reflect.TypeOf((*MockMutableStateTaskGenerator)(nil).GenerateAcquireSemaphoreTasks), initiatedEventID)
+}
+
 // GenerateActivityRetryTasks mocks base method.
 func (m *MockMutableStateTaskGenerator) GenerateActivityRetryTasks(activityScheduleID int64) error {
 	m.ctrl.T.Helper()
@@ -152,6 +166,20 @@ func (m *MockMutableStateTaskGenerator) GenerateRecordWorkflowStartedTasks(start
 func (mr *MockMutableStateTaskGeneratorMockRecorder) GenerateRecordWorkflowStartedTasks(startEvent any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateRecordWorkflowStartedTasks", reflect.TypeOf((*MockMutableStateTaskGenerator)(nil).GenerateRecordWorkflowStartedTasks), startEvent)
+}
+
+// GenerateReleaseSemaphoreTasks mocks base method.
+func (m *MockMutableStateTaskGenerator) GenerateReleaseSemaphoreTasks(event *types.HistoryEvent, semaphoreName string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenerateReleaseSemaphoreTasks", event, semaphoreName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GenerateReleaseSemaphoreTasks indicates an expected call of GenerateReleaseSemaphoreTasks.
+func (mr *MockMutableStateTaskGeneratorMockRecorder) GenerateReleaseSemaphoreTasks(event, semaphoreName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateReleaseSemaphoreTasks", reflect.TypeOf((*MockMutableStateTaskGenerator)(nil).GenerateReleaseSemaphoreTasks), event, semaphoreName)
 }
 
 // GenerateRequestCancelExternalTasks mocks base method.

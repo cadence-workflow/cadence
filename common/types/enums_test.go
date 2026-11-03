@@ -30,7 +30,7 @@ import (
 
 func Test_EventTypeValues(t *testing.T) {
 	result := EventTypeValues()
-	require.Equal(t, 45, len(result))
+	require.Equal(t, 46, len(result))
 }
 
 func Test_DecisionTypeValues(t *testing.T) {

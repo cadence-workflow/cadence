@@ -356,6 +356,9 @@ type Config struct {
 	EnableStrongIdempotency            dynamicproperties.BoolPropertyFnWithDomainFilter
 	EnableStrongIdempotencySanityCheck dynamicproperties.BoolPropertyFnWithDomainFilter
 
+	EnableDeterministicChildWorkflowRequestID dynamicproperties.BoolPropertyFnWithDomainFilter
+	EnableExistingChildWorkflowRunHandling    dynamicproperties.BoolPropertyFnWithDomainFilter
+
 	// Global ratelimiter
 	GlobalRatelimiterNewDataWeight  dynamicproperties.FloatPropertyFn
 	GlobalRatelimiterUpdateInterval dynamicproperties.DurationPropertyFn
@@ -644,6 +647,9 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 
 		EnableStrongIdempotency:            dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableStrongIdempotency),
 		EnableStrongIdempotencySanityCheck: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableStrongIdempotencySanityCheck),
+
+		EnableDeterministicChildWorkflowRequestID: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDeterministicChildWorkflowRequestID),
+		EnableExistingChildWorkflowRunHandling:    dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableExistingChildWorkflowRunHandling),
 
 		GlobalRatelimiterNewDataWeight:  dc.GetFloat64Property(dynamicproperties.HistoryGlobalRatelimiterNewDataWeight),
 		GlobalRatelimiterUpdateInterval: dc.GetDurationProperty(dynamicproperties.GlobalRatelimiterUpdateInterval),
