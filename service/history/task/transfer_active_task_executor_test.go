@@ -2921,3 +2921,125 @@ func TestProcessReleaseSemaphore(t *testing.T) {
 		})
 	}
 }
+
+func TestGetFirstRunStartVersion(t *testing.T) {
+	const (
+		closedRunID          = "closed-run-id"
+		firstRunID           = "first-run-id"
+		closedStartVersion   = int64(20)
+		firstRunStartVersion = int64(10)
+	)
+	clusterAttribute := &types.ActiveClusterSelectionPolicy{ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"}}
+	otherClusterAttribute := &types.ActiveClusterSelectionPolicy{ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region2"}}
+	// firstRun returns the response of the read of the first run of the chain
+	firstRun := func(policy *types.ActiveClusterSelectionPolicy, versionHistories *persistence.VersionHistories) *persistence.GetWorkflowExecutionResponse {
+		return &persistence.GetWorkflowExecutionResponse{
+			State: &persistence.WorkflowMutableState{
+				ExecutionInfo:    &persistence.WorkflowExecutionInfo{RunID: firstRunID, ActiveClusterSelectionPolicy: policy},
+				VersionHistories: versionHistories,
+			},
+		}
+	}
+	// the first run started at its first version and was written later at a higher version
+	firstRunBranch := persistence.NewVersionHistories(persistence.NewVersionHistory(
+		[]byte("branch-token"),
+		[]*persistence.VersionHistoryItem{
+			persistence.NewVersionHistoryItem(3, firstRunStartVersion),
+			persistence.NewVersionHistoryItem(8, closedStartVersion),
+		},
+	))
+
+	tests := []struct {
+		name string
+		// firstExecutionRunID is the first run ID of the closed run
+		firstExecutionRunID string
+		// readFirstRun is true when the first run is read
+		readFirstRun bool
+		firstRunResp *persistence.GetWorkflowExecutionResponse
+		firstRunErr  error
+		wantVersion  int64
+		wantErr      error
+	}{
+		{
+			name:                "closed run is the first run of its chain: start version of the closed run",
+			firstExecutionRunID: closedRunID,
+			wantVersion:         closedStartVersion,
+		},
+		{
+			name:        "closed run without a first run ID: start version of the closed run",
+			wantVersion: closedStartVersion,
+		},
+		{
+			name:                "later run of a chain: start version of the first run",
+			firstExecutionRunID: firstRunID,
+			readFirstRun:        true,
+			firstRunResp:        firstRun(clusterAttribute, firstRunBranch),
+			wantVersion:         firstRunStartVersion,
+		},
+		{
+			// for example the retention of the domain deleted the first run
+			name:                "later run of a chain, first run not found: start version of the closed run",
+			firstExecutionRunID: firstRunID,
+			readFirstRun:        true,
+			firstRunErr:         &types.EntityNotExistsError{},
+			wantVersion:         closedStartVersion,
+		},
+		{
+			// the parent compares the versions only with the cluster attribute of the closed run
+			name:                "later run of a chain, first run with another cluster attribute: start version of the closed run",
+			firstExecutionRunID: firstRunID,
+			readFirstRun:        true,
+			firstRunResp:        firstRun(otherClusterAttribute, firstRunBranch),
+			wantVersion:         closedStartVersion,
+		},
+		{
+			name:                "later run of a chain, first run without version histories: start version of the closed run",
+			firstExecutionRunID: firstRunID,
+			readFirstRun:        true,
+			firstRunResp:        firstRun(clusterAttribute, nil),
+			wantVersion:         closedStartVersion,
+		},
+		{
+			name:                "later run of a chain, failed to read the first run: error",
+			firstExecutionRunID: firstRunID,
+			readFirstRun:        true,
+			firstRunErr:         errors.New("some error"),
+			wantErr:             errors.New("some error"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			task := &persistence.CloseExecutionTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   constants.TestDomainID,
+					WorkflowID: "child-workflow-id",
+					RunID:      closedRunID,
+				},
+			}
+			mockShard := shard.NewMockContext(ctrl)
+			if tc.readFirstRun {
+				mockShard.EXPECT().GetWorkflowExecution(gomock.Any(), &persistence.GetWorkflowExecutionRequest{
+					DomainID:   constants.TestDomainID,
+					Execution:  types.WorkflowExecution{WorkflowID: "child-workflow-id", RunID: firstRunID},
+					DomainName: constants.TestDomainName,
+				}).Return(tc.firstRunResp, tc.firstRunErr)
+			}
+			executor := &transferActiveTaskExecutor{
+				transferTaskExecutorBase: &transferTaskExecutorBase{shard: mockShard},
+			}
+
+			version, err := executor.getFirstRunStartVersion(
+				context.Background(),
+				task,
+				constants.TestDomainName,
+				tc.firstExecutionRunID,
+				clusterAttribute,
+				closedStartVersion,
+			)
+			assert.Equal(t, tc.wantErr, err)
+			assert.Equal(t, tc.wantVersion, version)
+		})
+	}
+}
