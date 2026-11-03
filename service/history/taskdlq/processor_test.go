@@ -1759,3 +1759,45 @@ func TestProcessShard_NonBusyErrorIsNotRetried(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "db error")
 }
+
+func TestProcessShard_BusyThenNonBusyError_ReturnsTheNonBusyError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ts := clock.NewMockedTimeSource()
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        ts,
+		HostBudget:        &countingBudget{},
+	})
+
+	al := baseAckLevel(1)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	lost := &types.ShardOwnershipLostError{Message: "shard moved"}
+	gomock.InOrder(
+		mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).
+			Return(persistence.HistoryDLQGetTasksResponse{}, &types.ServiceBusyError{Message: "busy"}),
+		mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).
+			Return(persistence.HistoryDLQGetTasksResponse{}, lost),
+	)
+
+	done := make(chan error, 1)
+	go func() { done <- proc.ProcessShard(context.Background()) }()
+	ts.BlockUntil(1)
+	ts.Advance(5 * time.Second)
+	select {
+	case err := <-done:
+		require.Error(t, err)
+		var gotLost *types.ShardOwnershipLostError
+		assert.ErrorAs(t, err, &gotLost, "the last attempt's error must surface")
+		var gotBusy *types.ServiceBusyError
+		assert.False(t, errors.As(err, &gotBusy), "an earlier busy error must not mask the real failure")
+	case <-time.After(5 * time.Second):
+		t.Fatal("ProcessShard did not finish")
+	}
+}

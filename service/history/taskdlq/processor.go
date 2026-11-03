@@ -485,17 +485,27 @@ func (p *ProcessorImpl) getAckLevels(ctx context.Context) ([]persistence.History
 // backoff. The budget wait is inside the retried closure so retries also pay for their token.
 // Only ServiceBusy is retried: the rate-limited persistence wrappers return it before any write
 // happens, so retrying ReinjectHistoryTasks cannot double-create tasks.
+//
+// ThrottleRetry.Do prefers an earlier error over the final one (it assumes the last error is an
+// uninformative timeout). Here the earlier errors are always ServiceBusy, so the last error is the
+// informative one: return it.
 func (p *ProcessorImpl) do(ctx context.Context, op func(context.Context) error) error {
-	return p.retrier.Do(ctx, func(ctx context.Context) error {
+	var last error
+	err := p.retrier.Do(ctx, func(ctx context.Context) error {
 		if err := p.hostBudget.Wait(ctx); err != nil {
+			last = err
 			return err
 		}
-		err := op(ctx)
-		if isServiceBusy(err) {
+		last = op(ctx)
+		if isServiceBusy(last) {
 			p.metricsClient.IncCounter(metrics.HistoryTaskDLQProcessorScope, metrics.HistoryTaskDLQBusyRetriesCounter)
 		}
-		return err
+		return last
 	})
+	if err != nil && last != nil {
+		return last
+	}
+	return err
 }
 
 // isServiceBusy reports whether err is, or wraps, a ServiceBusyError. The persistence wrappers
