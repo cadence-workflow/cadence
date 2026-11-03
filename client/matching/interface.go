@@ -36,6 +36,12 @@ import (
 //go:generate gowrap gen -g -p . -i Client -t ../templates/thrift.tmpl -o ../wrappers/thrift/matching_generated.go -v client=Matching -v prefix=Matching
 //go:generate gowrap gen -g -p . -i Client -t ../templates/timeout.tmpl -o ../wrappers/timeout/matching_generated.go -v client=Matching
 
+// PollerDisconnector cancels the polls in flight and makes the client return empty responses to new polls.
+// It is meant for the graceful shutdown of a service which polls matching on behalf of workers.
+type PollerDisconnector interface {
+	DisconnectPollers(ctx context.Context) error
+}
+
 // Client is the interface exposed by types service client
 type Client interface {
 	AddActivityTask(context.Context, *types.AddActivityTaskRequest, ...yarpc.CallOption) (*types.AddActivityTaskResponse, error)

@@ -68,6 +68,8 @@ const (
 	HealthStatusShuttingDown
 )
 
+const disconnectPollersTimeout = 2 * time.Second
+
 var _ Handler = (*WorkflowHandler)(nil)
 
 type (
@@ -171,6 +173,14 @@ func (wh *WorkflowHandler) Start() {
 // Stop stops the handler
 func (wh *WorkflowHandler) Stop() {
 	atomic.StoreInt32(&wh.shuttingDown, 1)
+	if wh.config.CancelOutstandingPollsOnShutdown() {
+		// release the long-polls still waiting in matching, so the shutdown doesn't wait for them
+		ctx, cancel := context.WithTimeout(context.Background(), disconnectPollersTimeout)
+		defer cancel()
+		if err := wh.GetMatchingPollerDisconnector().DisconnectPollers(ctx); err != nil {
+			wh.GetLogger().Warn("Failed to disconnect pollers on shutdown", tag.Error(err))
+		}
+	}
 }
 
 // UpdateHealthStatus sets the health status for this rpc handler.

@@ -94,6 +94,7 @@ func TestNewConfig(t *testing.T) {
 		"DomainFailoverRefreshTimerJitterCoefficient":       {dynamicproperties.DomainFailoverRefreshTimerJitterCoefficient, 34.0},
 		"EnableActiveClusterSelectionPolicyInStartWorkflow": {dynamicproperties.EnableActiveClusterSelectionPolicyInStartWorkflow, true},
 		"EnableClientVersionCheck":                          {dynamicproperties.EnableClientVersionCheck, true},
+		"CancelOutstandingPollsOnShutdown":                  {dynamicproperties.FrontendCancelOutstandingPollsOnShutdown, true},
 		"EnableQueryAttributeValidation":                    {dynamicproperties.EnableQueryAttributeValidation, false},
 		"ValidSearchAttributes":                             {dynamicproperties.ValidSearchAttributes, map[string]interface{}{"foo": "bar"}},
 		"SearchAttributesNumberOfKeysLimit":                 {dynamicproperties.SearchAttributesNumberOfKeysLimit, 35},
