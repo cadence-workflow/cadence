@@ -2358,7 +2358,8 @@ const (
 	// started before. When the first run of the chain of the run has the request ID of the start, the start adopts the
 	// run. When the run is running and was started by an initiated event that is not on the current branch of the parent,
 	// the start terminates it and starts a new run. The replacement applies only to children started when
-	// EnableDeterministicChildWorkflowRequestID was enabled.
+	// EnableDeterministicChildWorkflowRequestID was enabled. When another cluster closed the run with the request ID of
+	// the start, the start adds the task that sends the completion of the run to the parent again, and adopts the run.
 	// KeyName: history.enableExistingChildWorkflowRunHandling
 	// Value type: Bool
 	// Default value: false
@@ -5326,7 +5327,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableExistingChildWorkflowRunHandling: {
 		KeyName:      "history.enableExistingChildWorkflowRunHandling",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableExistingChildWorkflowRunHandling lets a child start adopt a run whose chain was started by the same request, and terminate and start again a running child that was started by an initiated event of the parent that is not on the current branch of the parent",
+		Description:  "EnableExistingChildWorkflowRunHandling lets a child start adopt a run whose chain was started by the same request, send the completion again for such a run closed by another cluster, and terminate and start again a running child that was started by an initiated event of the parent that is not on the current branch of the parent",
 		DefaultValue: false,
 	},
 	MatchingEnableClientAutoConfig: {

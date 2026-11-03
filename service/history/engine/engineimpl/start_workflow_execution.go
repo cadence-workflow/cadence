@@ -277,7 +277,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 					closeStatus:      t.CloseStatus,
 					lastWriteVersion: t.LastWriteVersion,
 				}
-				if err := e.validateLastRunOfChain(startRequest, currentRun); err != nil {
+				if err := e.validateLastRunOfChain(ctx, startRequest, domainEntry, currentRun); err != nil {
 					return nil, workflowExecution, historyBlob, err
 				}
 			}
@@ -353,7 +353,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 				if err != nil {
 					return nil, workflowExecution, historyBlob, err
 				}
-				if err := e.validateLastRunOfChain(startRequest, currentRun); err != nil {
+				if err := e.validateLastRunOfChain(ctx, startRequest, domainEntry, currentRun); err != nil {
 					return nil, workflowExecution, historyBlob, err
 				}
 				e.logger.Info("Child start adopts a chain started by the same request",
@@ -1110,7 +1110,12 @@ func (e *historyEngineImpl) childChainEndUnknownError(
 
 // validateLastRunOfChain returns an error when the last run of the chain of the duplicate run, which sends the
 // completion to the parent, can not be adopted.
-func (e *historyEngineImpl) validateLastRunOfChain(startRequest *types.HistoryStartWorkflowExecutionRequest, run childRunInfo) error {
+func (e *historyEngineImpl) validateLastRunOfChain(
+	ctx context.Context,
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+	run childRunInfo,
+) error {
 	switch {
 	case persistence.IsWorkflowRunning(run.state):
 		// the run is still open and sends the completion to the parent when it closes, so it can be adopted
@@ -1139,6 +1144,13 @@ func (e *historyEngineImpl) validateLastRunOfChain(startRequest *types.HistorySt
 			// the close transfer task of the run retries the completion until the parent records the start
 			return nil
 		}
+		// a run that continued as new does not send the completion, and the last run of its chain is not known here
+		if e.config.EnableExistingChildWorkflowRunHandling(domainEntry.GetInfo().Name) &&
+			run.closeStatus != persistence.WorkflowCloseStatusContinuedAsNew {
+			// the run closed in another cluster before a failover, so it never sends its completion to the parent of this
+			// cluster. This cluster adds the completion task to the run again.
+			return e.requestChildCompletion(ctx, startRequest, domainEntry, run.runID)
+		}
 		// only the cluster that closed the run sends the completion to the parent, and after a failover it does not
 		// send it, so the run can not be adopted. The start fails, because this request already started the chain of the
 		// run, and the reuse policy only applies to a new request.
@@ -1157,6 +1169,79 @@ func (e *historyEngineImpl) validateLastRunOfChain(startRequest *types.HistorySt
 	default:
 		return &types.InternalServiceError{Message: fmt.Sprintf("Child start found a run with the same request ID in an invalid state: %v.", run.state)}
 	}
+}
+
+// requestChildCompletion adds the task that sends the completion of a closed run of the child to the parent, so the
+// parent can adopt the run. Only the active cluster runs this task, so the run must be active on this cluster.
+func (e *historyEngineImpl) requestChildCompletion(
+	ctx context.Context,
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+	runID string,
+) (retError error) {
+	domainID := domainEntry.GetInfo().ID
+	workflowID := startRequest.StartRequest.GetWorkflowID()
+	if _, err := e.getActiveDomainByWorkflow(ctx, domainID, workflowID, runID); err != nil {
+		return err
+	}
+
+	wfCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, runID)
+	if err != nil {
+		return err
+	}
+	defer func() { wfCtx.GetReleaseFn()(retError) }()
+
+	mutableState := wfCtx.GetMutableState()
+	executionInfo := mutableState.GetExecutionInfo()
+	parent := startRequest.ParentExecutionInfo
+	if executionInfo.ParentRunID != parent.Execution.GetRunID() || executionInfo.InitiatedID != parent.InitiatedID {
+		// the task sends the completion to the parent of the run, so the parent of this request would never receive it
+		e.logger.Warn("Child start found a closed run with the same request ID and another parent",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(workflowID),
+			tag.WorkflowRunID(runID),
+			tag.WorkflowRequestID(startRequest.StartRequest.GetRequestID()),
+			tag.Dynamic("parent-run-id", executionInfo.ParentRunID),
+			tag.WorkflowInitiatedID(executionInfo.InitiatedID))
+		return &types.WorkflowExecutionAlreadyStartedError{
+			Message:        childRunClosedByOtherClusterMsg,
+			StartRequestID: startRequest.StartRequest.GetRequestID(),
+			RunID:          runID,
+		}
+	}
+	lastWriteVersion, err := mutableState.GetLastWriteVersion()
+	if err != nil {
+		return err
+	}
+	mutableState.AddTransferTasks(&persistence.RecordChildExecutionCompletedTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowID,
+			RunID:      runID,
+		},
+		TaskData: persistence.TaskData{
+			// TaskID and VisibilityTimestamp are set by shard context. The executor runs the task only when its version
+			// is the last write version of the run.
+			Version: lastWriteVersion,
+		},
+		TargetDomainID:   executionInfo.ParentDomainID,
+		TargetWorkflowID: executionInfo.ParentWorkflowID,
+		TargetRunID:      executionInfo.ParentRunID,
+		TaskList:         executionInfo.TaskList,
+	})
+	if err := wfCtx.GetContext().UpdateWorkflowExecutionTasks(ctx, e.shard.GetTimeSource().Now()); err != nil {
+		return err
+	}
+
+	e.logger.Info("Child start requests the completion of a run with the same request ID closed by another cluster",
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowID(workflowID),
+		tag.WorkflowRunID(runID),
+		tag.WorkflowRequestID(startRequest.StartRequest.GetRequestID()),
+		tag.FailoverVersion(lastWriteVersion))
+	e.metricsClient.Scope(metrics.HistoryStartWorkflowExecutionScope, metrics.DomainTag(domainEntry.GetInfo().Name)).
+		IncCounter(metrics.ChildWorkflowCompletionRequestedCounter)
+	return nil
 }
 
 // validateDuplicateChildRunAdoption returns an error when the parent would not receive the completion of the run of a
@@ -1193,7 +1278,7 @@ func (e *historyEngineImpl) validateDuplicateChildRunAdoption(
 	}
 	// the duplicate run did not continue as new, so it is the last run of its chain
 	if duplicate.closeStatus != persistence.WorkflowCloseStatusContinuedAsNew {
-		return e.validateLastRunOfChain(startRequest, duplicate)
+		return e.validateLastRunOfChain(ctx, startRequest, domainEntry, duplicate)
 	}
 
 	// a run that continued as new does not send the completion, the last run of its chain does
@@ -1220,11 +1305,11 @@ func (e *historyEngineImpl) validateDuplicateChildRunAdoption(
 	switch {
 	case duplicate.firstRunID != "" && currentRun.firstRunID == duplicate.firstRunID:
 		// the current run is in the chain of the duplicate run, so it is the last run of the chain
-		return e.validateLastRunOfChain(startRequest, currentRun)
+		return e.validateLastRunOfChain(ctx, startRequest, domainEntry, currentRun)
 	case !domainEntry.GetReplicationConfig().IsActiveActive() && duplicate.lastWriteVersion == currentRun.lastWriteVersion:
 		// in an active-passive domain, when the current run has the same version as the duplicate run, the chain of the
 		// duplicate run completed in the same cluster as the current run
-		return e.validateLastRunOfChain(startRequest, duplicate)
+		return e.validateLastRunOfChain(ctx, startRequest, domainEntry, duplicate)
 	default:
 		return e.childChainEndUnknownError(startRequest, duplicateRunID, current.RunID)
 	}
