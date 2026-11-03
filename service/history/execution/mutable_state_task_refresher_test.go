@@ -583,6 +583,46 @@ func TestRefreshTasksForSignalExternalWorkflow(t *testing.T) {
 	}
 }
 
+func TestRefreshTasksForSemaphore(t *testing.T) {
+	testCases := []struct {
+		name      string
+		mockSetup func(*MockMutableState, *MockMutableStateTaskGenerator)
+		wantErr   bool
+	}{
+		{
+			name: "skips holds that already have a token",
+			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator) {
+				ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{
+					5: {InitiatedID: 5},
+					6: {InitiatedID: 6, TokenID: 3},
+				})
+				mtg.EXPECT().GenerateAcquireSemaphoreTasks(int64(5)).Return(nil)
+			},
+		},
+		{
+			name: "failed to generate acquire semaphore tasks",
+			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator) {
+				ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{5: {InitiatedID: 5}})
+				mtg.EXPECT().GenerateAcquireSemaphoreTasks(int64(5)).Return(errors.New("some error"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			ms := NewMockMutableState(ctrl)
+			mtg := NewMockMutableStateTaskGenerator(ctrl)
+			tc.mockSetup(ms, mtg)
+			err := refreshTasksForSemaphore(context.Background(), ms, mtg)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("refreshTasksForSemaphore err = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestRefreshTasksForWorkflowSearchAttr(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -630,6 +670,7 @@ func TestRefreshTasks(t *testing.T) {
 		refreshTasksForChildWorkflowFn                 func(context.Context, MutableState, MutableStateTaskGenerator, int, events.Cache) error
 		refreshTasksForRequestCancelExternalWorkflowFn func(context.Context, MutableState, MutableStateTaskGenerator, int, events.Cache) error
 		refreshTasksForSignalExternalWorkflowFn        func(context.Context, MutableState, MutableStateTaskGenerator, int, events.Cache) error
+		refreshTasksForSemaphoreFn                     func(context.Context, MutableState, MutableStateTaskGenerator) error
 		refreshTasksForWorkflowSearchAttrFn            func(context.Context, MutableState, MutableStateTaskGenerator) error
 		wantErr                                        bool
 	}{
@@ -648,6 +689,7 @@ func TestRefreshTasks(t *testing.T) {
 			refreshTasksForChildWorkflowFn:                 func(context.Context, MutableState, MutableStateTaskGenerator, int, events.Cache) error { return nil },
 			refreshTasksForRequestCancelExternalWorkflowFn: func(context.Context, MutableState, MutableStateTaskGenerator, int, events.Cache) error { return nil },
 			refreshTasksForSignalExternalWorkflowFn:        func(context.Context, MutableState, MutableStateTaskGenerator, int, events.Cache) error { return nil },
+			refreshTasksForSemaphoreFn:                     func(context.Context, MutableState, MutableStateTaskGenerator) error { return nil },
 			refreshTasksForWorkflowSearchAttrFn:            func(context.Context, MutableState, MutableStateTaskGenerator) error { return nil },
 			wantErr:                                        false,
 		},
@@ -677,6 +719,7 @@ func TestRefreshTasks(t *testing.T) {
 				refreshTasksForChildWorkflowFn:                 tc.refreshTasksForChildWorkflowFn,
 				refreshTasksForRequestCancelExternalWorkflowFn: tc.refreshTasksForRequestCancelExternalWorkflowFn,
 				refreshTasksForSignalExternalWorkflowFn:        tc.refreshTasksForSignalExternalWorkflowFn,
+				refreshTasksForSemaphoreFn:                     tc.refreshTasksForSemaphoreFn,
 				refreshTasksForWorkflowSearchAttrFn:            tc.refreshTasksForWorkflowSearchAttrFn,
 			}
 			err := refresher.RefreshTasks(context.Background(), time.Now(), ms)

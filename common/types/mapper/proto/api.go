@@ -4998,6 +4998,47 @@ func ToSemaphoreReleasedEventAttributes(t *apiv1.SemaphoreReleasedEventAttribute
 	}
 }
 
+func FromSemaphoreAcquireFailedCause(t *types.SemaphoreAcquireFailedCause) apiv1.SemaphoreAcquireFailedCause {
+	if t == nil {
+		return apiv1.SemaphoreAcquireFailedCause_SEMAPHORE_ACQUIRE_FAILED_CAUSE_INVALID
+	}
+	switch *t {
+	case types.SemaphoreAcquireFailedCauseNotFound:
+		return apiv1.SemaphoreAcquireFailedCause_SEMAPHORE_ACQUIRE_FAILED_CAUSE_NOT_FOUND
+	}
+	return apiv1.SemaphoreAcquireFailedCause_SEMAPHORE_ACQUIRE_FAILED_CAUSE_INVALID
+}
+
+func ToSemaphoreAcquireFailedCause(t apiv1.SemaphoreAcquireFailedCause) *types.SemaphoreAcquireFailedCause {
+	switch t {
+	case apiv1.SemaphoreAcquireFailedCause_SEMAPHORE_ACQUIRE_FAILED_CAUSE_INVALID:
+		return nil
+	case apiv1.SemaphoreAcquireFailedCause_SEMAPHORE_ACQUIRE_FAILED_CAUSE_NOT_FOUND:
+		return types.SemaphoreAcquireFailedCauseNotFound.Ptr()
+	}
+	return nil
+}
+
+func FromSemaphoreAcquireFailedEventAttributes(t *types.SemaphoreAcquireFailedEventAttributes) *apiv1.SemaphoreAcquireFailedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.SemaphoreAcquireFailedEventAttributes{
+		Cause:            FromSemaphoreAcquireFailedCause(t.Cause),
+		InitiatedEventId: t.InitiatedEventID,
+	}
+}
+
+func ToSemaphoreAcquireFailedEventAttributes(t *apiv1.SemaphoreAcquireFailedEventAttributes) *types.SemaphoreAcquireFailedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreAcquireFailedEventAttributes{
+		Cause:            ToSemaphoreAcquireFailedCause(t.Cause),
+		InitiatedEventID: t.InitiatedEventId,
+	}
+}
+
 func FromUpsertWorkflowSearchAttributesEventAttributes(t *types.UpsertWorkflowSearchAttributesEventAttributes) *apiv1.UpsertWorkflowSearchAttributesEventAttributes {
 	if t == nil {
 		return nil
@@ -6533,6 +6574,10 @@ func FromHistoryEvent(e *types.HistoryEvent) *apiv1.HistoryEvent {
 		event.Attributes = &apiv1.HistoryEvent_SemaphoreReleasedEventAttributes{
 			SemaphoreReleasedEventAttributes: FromSemaphoreReleasedEventAttributes(e.SemaphoreReleasedEventAttributes),
 		}
+	case types.EventTypeSemaphoreAcquireFailed:
+		event.Attributes = &apiv1.HistoryEvent_SemaphoreAcquireFailedEventAttributes{
+			SemaphoreAcquireFailedEventAttributes: FromSemaphoreAcquireFailedEventAttributes(e.SemaphoreAcquireFailedEventAttributes),
+		}
 	}
 	return &event
 }
@@ -6683,6 +6728,9 @@ func ToHistoryEvent(e *apiv1.HistoryEvent) *types.HistoryEvent {
 	case *apiv1.HistoryEvent_SemaphoreReleasedEventAttributes:
 		event.EventType = types.EventTypeSemaphoreReleased.Ptr()
 		event.SemaphoreReleasedEventAttributes = ToSemaphoreReleasedEventAttributes(attr.SemaphoreReleasedEventAttributes)
+	case *apiv1.HistoryEvent_SemaphoreAcquireFailedEventAttributes:
+		event.EventType = types.EventTypeSemaphoreAcquireFailed.Ptr()
+		event.SemaphoreAcquireFailedEventAttributes = ToSemaphoreAcquireFailedEventAttributes(attr.SemaphoreAcquireFailedEventAttributes)
 	}
 	return &event
 }

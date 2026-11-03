@@ -123,7 +123,7 @@ publicClient:
 dynamicconfig:
   client: filebased
   filebased:
-    filepath: "/etc/cadence/config/dynamicconfig/development.yaml"
+    filepath: "/etc/cadence/dynamicconfig/development.yaml"
     pollInterval: "60s"
 
 authorization:

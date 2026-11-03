@@ -268,6 +268,8 @@ func TestNewConfig(t *testing.T) {
 		"LargeShardHistoryBlobMetricThreshold":                   {dynamicproperties.LargeShardHistoryBlobMetricThreshold, 96},
 		"EnableStrongIdempotency":                                {dynamicproperties.EnableStrongIdempotency, true},
 		"EnableStrongIdempotencySanityCheck":                     {dynamicproperties.EnableStrongIdempotencySanityCheck, true},
+		"EnableDeterministicChildWorkflowRequestID":              {dynamicproperties.EnableDeterministicChildWorkflowRequestID, true},
+		"EnableExistingChildWorkflowRunHandling":                 {dynamicproperties.EnableExistingChildWorkflowRunHandling, true},
 		"GlobalRatelimiterNewDataWeight":                         {dynamicproperties.HistoryGlobalRatelimiterNewDataWeight, 17.0},
 		"GlobalRatelimiterUpdateInterval":                        {dynamicproperties.GlobalRatelimiterUpdateInterval, time.Second},
 		"GlobalRatelimiterDecayAfter":                            {dynamicproperties.HistoryGlobalRatelimiterDecayAfter, time.Second},

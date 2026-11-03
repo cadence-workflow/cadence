@@ -2582,6 +2582,9 @@ func FromEventType(t *types.EventType) *shared.EventType {
 	case types.EventTypeSemaphoreReleased:
 		v := shared.EventTypeSemaphoreReleased
 		return &v
+	case types.EventTypeSemaphoreAcquireFailed:
+		v := shared.EventTypeSemaphoreAcquireFailed
+		return &v
 	}
 	panic("unexpected enum value")
 }
@@ -2726,6 +2729,9 @@ func ToEventType(t *shared.EventType) *types.EventType {
 		return &v
 	case shared.EventTypeSemaphoreReleased:
 		v := types.EventTypeSemaphoreReleased
+		return &v
+	case shared.EventTypeSemaphoreAcquireFailed:
+		v := types.EventTypeSemaphoreAcquireFailed
 		return &v
 	}
 	panic("unexpected enum value")
@@ -3027,6 +3033,7 @@ func FromHistoryEvent(t *types.HistoryEvent) *shared.HistoryEvent {
 		SemaphoreAcquireInitiatedEventAttributes:                       FromSemaphoreAcquireInitiatedEventAttributes(t.SemaphoreAcquireInitiatedEventAttributes),
 		SemaphoreAcquiredEventAttributes:                               FromSemaphoreAcquiredEventAttributes(t.SemaphoreAcquiredEventAttributes),
 		SemaphoreReleasedEventAttributes:                               FromSemaphoreReleasedEventAttributes(t.SemaphoreReleasedEventAttributes),
+		SemaphoreAcquireFailedEventAttributes:                          FromSemaphoreAcquireFailedEventAttributes(t.SemaphoreAcquireFailedEventAttributes),
 	}
 }
 
@@ -3086,6 +3093,7 @@ func ToHistoryEvent(t *shared.HistoryEvent) *types.HistoryEvent {
 		SemaphoreAcquireInitiatedEventAttributes:                       ToSemaphoreAcquireInitiatedEventAttributes(t.SemaphoreAcquireInitiatedEventAttributes),
 		SemaphoreAcquiredEventAttributes:                               ToSemaphoreAcquiredEventAttributes(t.SemaphoreAcquiredEventAttributes),
 		SemaphoreReleasedEventAttributes:                               ToSemaphoreReleasedEventAttributes(t.SemaphoreReleasedEventAttributes),
+		SemaphoreAcquireFailedEventAttributes:                          ToSemaphoreAcquireFailedEventAttributes(t.SemaphoreAcquireFailedEventAttributes),
 	}
 }
 
@@ -6721,6 +6729,54 @@ func ToSemaphoreReleasedEventAttributes(t *shared.SemaphoreReleasedEventAttribut
 		TokenID:                      t.GetTokenId(),
 		InitiatedEventID:             t.GetInitiatedEventId(),
 		DecisionTaskCompletedEventID: t.GetDecisionTaskCompletedEventId(),
+	}
+}
+
+// FromSemaphoreAcquireFailedCause converts internal SemaphoreAcquireFailedCause type to thrift
+func FromSemaphoreAcquireFailedCause(t *types.SemaphoreAcquireFailedCause) *shared.SemaphoreAcquireFailedCause {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case types.SemaphoreAcquireFailedCauseNotFound:
+		v := shared.SemaphoreAcquireFailedCauseNotFound
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
+// ToSemaphoreAcquireFailedCause converts thrift SemaphoreAcquireFailedCause type to internal
+func ToSemaphoreAcquireFailedCause(t *shared.SemaphoreAcquireFailedCause) *types.SemaphoreAcquireFailedCause {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case shared.SemaphoreAcquireFailedCauseNotFound:
+		v := types.SemaphoreAcquireFailedCauseNotFound
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
+// FromSemaphoreAcquireFailedEventAttributes converts internal SemaphoreAcquireFailedEventAttributes type to thrift
+func FromSemaphoreAcquireFailedEventAttributes(t *types.SemaphoreAcquireFailedEventAttributes) *shared.SemaphoreAcquireFailedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &shared.SemaphoreAcquireFailedEventAttributes{
+		Cause:            FromSemaphoreAcquireFailedCause(t.Cause),
+		InitiatedEventId: &t.InitiatedEventID,
+	}
+}
+
+// ToSemaphoreAcquireFailedEventAttributes converts thrift SemaphoreAcquireFailedEventAttributes type to internal
+func ToSemaphoreAcquireFailedEventAttributes(t *shared.SemaphoreAcquireFailedEventAttributes) *types.SemaphoreAcquireFailedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreAcquireFailedEventAttributes{
+		Cause:            ToSemaphoreAcquireFailedCause(t.Cause),
+		InitiatedEventID: t.GetInitiatedEventId(),
 	}
 }
 

@@ -63,6 +63,7 @@ type (
 		refreshTasksForChildWorkflowFn                 func(context.Context, MutableState, MutableStateTaskGenerator, int, events.Cache) error
 		refreshTasksForRequestCancelExternalWorkflowFn func(context.Context, MutableState, MutableStateTaskGenerator, int, events.Cache) error
 		refreshTasksForSignalExternalWorkflowFn        func(context.Context, MutableState, MutableStateTaskGenerator, int, events.Cache) error
+		refreshTasksForSemaphoreFn                     func(context.Context, MutableState, MutableStateTaskGenerator) error
 		refreshTasksForWorkflowSearchAttrFn            func(context.Context, MutableState, MutableStateTaskGenerator) error
 	}
 )
@@ -94,6 +95,7 @@ func NewMutableStateTaskRefresher(
 		refreshTasksForChildWorkflowFn:                 refreshTasksForChildWorkflow,
 		refreshTasksForRequestCancelExternalWorkflowFn: refreshTasksForRequestCancelExternalWorkflow,
 		refreshTasksForSignalExternalWorkflowFn:        refreshTasksForSignalExternalWorkflow,
+		refreshTasksForSemaphoreFn:                     refreshTasksForSemaphore,
 		refreshTasksForWorkflowSearchAttrFn:            refreshTasksForWorkflowSearchAttr,
 	}
 }
@@ -190,6 +192,14 @@ func (r *mutableStateTaskRefresherImpl) RefreshTasks(
 		taskGenerator,
 		r.shardID,
 		r.eventsCache,
+	); err != nil {
+		return err
+	}
+
+	if err := r.refreshTasksForSemaphoreFn(
+		ctx,
+		mutableState,
+		taskGenerator,
 	); err != nil {
 		return err
 	}
@@ -418,6 +428,22 @@ func refreshTasksForChildWorkflow(
 		if err := taskGenerator.GenerateChildWorkflowTasks(
 			scheduleEvent,
 		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func refreshTasksForSemaphore(
+	ctx context.Context,
+	mutableState MutableState,
+	taskGenerator MutableStateTaskGenerator,
+) error {
+	for _, semaphoreInfo := range mutableState.GetPendingSemaphoreInfos() {
+		if semaphoreInfo.HasToken() {
+			continue
+		}
+		if err := taskGenerator.GenerateAcquireSemaphoreTasks(semaphoreInfo.InitiatedID); err != nil {
 			return err
 		}
 	}

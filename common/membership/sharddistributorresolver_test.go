@@ -27,38 +27,69 @@ import (
 
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 )
 
 func TestShardDistributorResolver_Lookup(t *testing.T) {
-	resolver, _, shardDistributorMock := newShardDistributorResolver(t)
+	tests := []struct {
+		name                 string
+		shardTaskListsByHash bool
+		wantShardID          string
+	}{
+		{
+			name:                 "shard per task list uses the task list name",
+			shardTaskListsByHash: false,
+			wantShardID:          "test-key",
+		},
+		{
+			name:                 "shard by hash uses the hashed shard",
+			shardTaskListsByHash: true,
+			wantShardID:          "7126", // farm.Fingerprint64([]byte("test-key"))%8192
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolver, _, shardDistributorMock := newShardDistributorResolver(t)
+			resolver.taskListDifferentiator = NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				StaticPercentageOnboarded(100),
+				config.DefaultNumMatchingShards,
+			)
 
-	shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), "test-key").
-		Return(&spectatorclient.ShardOwner{
-			ExecutorID: "test-owner",
-			Metadata: map[string]string{
-				"hostIP":   "127.0.0.1",
-				"tchannel": "7933",
-				"grpc":     "7833",
-			},
-		}, nil)
+			shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), tt.wantShardID).
+				Return(&spectatorclient.ShardOwner{
+					ExecutorID: "test-owner",
+					Metadata: map[string]string{
+						"hostIP":   "127.0.0.1",
+						"tchannel": "7933",
+						"grpc":     "7833",
+					},
+				}, nil)
 
-	host, err := resolver.Lookup("test-key")
-	assert.NoError(t, err)
-	assert.Equal(t, "127.0.0.1:7933", host.addr)
+			host, err := resolver.Lookup("test-key")
+			require.NoError(t, err)
+			assert.Equal(t, "127.0.0.1:7933", host.addr)
+		})
+	}
 }
 
 func TestShardDistributorResolver_Lookup_ExcludedFallsBackToHashRing(t *testing.T) {
 	resolver, ring, _ := newShardDistributorResolver(t)
 	// Set percentage to 0 so all task lists are excluded
-	pct := NewMockPercentageOnboarded(gomock.NewController(t))
-	pct.EXPECT().Value().Return(0).AnyTimes()
-	resolver.percentageOnboarded = pct
+	resolver.taskListDifferentiator = NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		StaticPercentageOnboarded(0),
+		config.DefaultNumMatchingShards,
+	)
 
 	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "test-addr"}, nil)
 
@@ -74,10 +105,15 @@ func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *test
 	pct := NewMockPercentageOnboarded(ctrl)
 	pct.EXPECT().Value().Return(100).AnyTimes()
 
-	resolver := NewShardDistributorResolver(
-		nil, // nil spectator
+	taskListDifferentiator := NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
 		pct,
+		config.DefaultNumMatchingShards,
+	)
+	resolver := NewShardDistributorResolver(
+		nil, // nil spectator
+		taskListDifferentiator,
 		ring,
 		logger,
 		metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),
@@ -144,10 +180,15 @@ func TestShardDistributorResolver_Lookup_RecordsRoutingPath(t *testing.T) {
 
 			testScope := tally.NewTestScope("", nil)
 			metricsClient := metrics.NewClient(testScope, metrics.Matching, metrics.MigrationConfig{})
-			resolver := NewShardDistributorResolver(
-				spectator,
+			taskListDifferentiator := NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(false),
 				percentageOnboarded,
+				config.DefaultNumMatchingShards,
+			)
+			resolver := NewShardDistributorResolver(
+				spectator,
+				taskListDifferentiator,
 				ring,
 				log.NewNoop(),
 				metricsClient.Scope(metrics.ShardDistributorResolverScope),
@@ -251,10 +292,15 @@ func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T
 			pct := NewMockPercentageOnboarded(ctrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 
+			taskListDifferentiator := NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(tc.excludeShortLivedTaskLists),
+				dynamicproperties.GetBoolPropertyFn(false),
+				pct,
+				config.DefaultNumMatchingShards,
+			)
 			resolver := NewShardDistributorResolver(
 				spectator,
-				dynamicproperties.GetBoolPropertyFn(tc.excludeShortLivedTaskLists),
-				pct,
+				taskListDifferentiator,
 				ring,
 				logger,
 				metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),
@@ -295,10 +341,15 @@ func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *Mock
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
 
+	taskListDifferentiator := NewTaskListDifferentiator(
+		excludeShortLivedTaskLists,
+		dynamicproperties.GetBoolPropertyFn(false),
+		percentageOnboarded,
+		config.DefaultNumMatchingShards,
+	)
 	resolver := NewShardDistributorResolver(
 		spectator,
-		excludeShortLivedTaskLists,
-		percentageOnboarded,
+		taskListDifferentiator,
 		ring,
 		logger,
 		metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),

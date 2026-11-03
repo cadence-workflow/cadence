@@ -576,6 +576,7 @@ func createTransferTasks(
 			task.Version,
 			task.OriginalTaskList,
 			int32(task.OriginalTaskListKind),
+			task.SemaphoreName,
 			taskBlob,
 			taskEncoding,
 			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp

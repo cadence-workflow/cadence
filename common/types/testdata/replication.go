@@ -95,12 +95,19 @@ var (
 		FailoverMarkerAttributes: &FailoverMarkerAttributes,
 		CreationTime:             &Timestamp1,
 	}
+	ReplicationTask_SemaphoreMetadata = types.ReplicationTask{
+		TaskType:                        types.ReplicationTaskTypeSemaphoreMetadata.Ptr(),
+		SourceTaskID:                    TaskID,
+		SemaphoreMetadataTaskAttributes: &SemaphoreMetadataTaskAttributes,
+		CreationTime:                    &Timestamp1,
+	}
 	ReplicationTaskArray = []*types.ReplicationTask{
 		&ReplicationTask_Domain,
 		&ReplicationTask_SyncShard,
 		&ReplicationTask_SyncActivity,
 		&ReplicationTask_History,
 		&ReplicationTask_Failover,
+		&ReplicationTask_SemaphoreMetadata,
 	}
 	DomainTaskAttributes = types.DomainTaskAttributes{
 		DomainOperation:         types.DomainOperationUpdate.Ptr(),
@@ -141,6 +148,12 @@ var (
 		VersionHistoryItems: VersionHistoryItemArray,
 		Events:              &DataBlob,
 		NewRunEvents:        &DataBlob,
+	}
+	SemaphoreMetadataTaskAttributes = types.SemaphoreMetadataTaskAttributes{
+		DomainID:       DomainID,
+		SemaphoreName:  SemaphoreName,
+		Capacity:       10,
+		BucketCapacity: 5,
 	}
 	FailoverMarkerAttributes = types.FailoverMarkerAttributes{
 		DomainID:        DomainID,

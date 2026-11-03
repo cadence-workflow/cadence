@@ -42,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/isolationgroup"
@@ -112,15 +113,22 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			config := defaultTestConfig()
 			// Exclude all task lists from the ShardDistributor so that errIfShardOwnershipLost
 			// exercises the ringpop (hash-ring) ownership path that these test cases are actually
-			// testing. With the onboarding percentage at 0 (set when constructing the engine
-			// below), no task list name is below the percentage threshold, so every name is
-			// considered excluded regardless of whether it contains a UUID.
-			config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+			// testing. With the onboarding percentage at 0, no task list name is below the
+			// percentage threshold, so every name is considered excluded regardless of whether it
+			// contains a UUID.
 			pct := membership.NewMockPercentageOnboarded(ctrl)
 			pct.EXPECT().Value().Return(0).AnyTimes()
+			taskListDifferentiator := membership.NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(true),
+				dynamicproperties.GetBoolPropertyFn(false),
+				pct,
+				commonConfig.DefaultNumMatchingShards,
+			)
 
 			matchingEngine := NewEngine(
 				taskManager,
+				persistence.NewMockSemaphoreTokenManager(ctrl),
+				persistence.NewMockSemaphoreMetadataManager(ctrl),
 				cluster.GetTestClusterMetadata(true),
 				mockHistoryClient,
 				mockMatchingClient,
@@ -135,6 +143,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				mockTimeSource,
 				mockShardDistributorExecutorClient,
 				defaultSDExecutorConfig(),
+				taskListDifferentiator,
 				nil,
 				pct,
 			).(*matchingEngineImpl)
@@ -200,7 +209,7 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
@@ -236,7 +245,7 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
@@ -295,7 +304,7 @@ func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
@@ -343,19 +352,17 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	engine := matchingEngineImpl{
-		shutdownCompletion:  &shutdownWG,
-		membershipResolver:  mockResolver,
-		taskListRegistry:    tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
-		semaphoreRegistry:   semaphore.NewSemaphoreRegistry(),
-		metricsClient:       metrics.NewNoopMetricsClient(),
-		percentageOnboarded: pct,
-		config: &config.Config{
-			ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return true },
-		},
-		shutdown:    make(chan struct{}),
-		logger:      log.NewNoop(),
-		domainCache: mockDomainCache,
-		executor:    mockExecutor,
+		shutdownCompletion:     &shutdownWG,
+		membershipResolver:     mockResolver,
+		taskListRegistry:       tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
+		semaphoreRegistry:      semaphore.NewSemaphoreRegistry(),
+		metricsClient:          metrics.NewNoopMetricsClient(),
+		percentageOnboarded:    pct,
+		taskListDifferentiator: newTestTaskListDifferentiator(true, false),
+		shutdown:               make(chan struct{}),
+		logger:                 log.NewNoop(),
+		domainCache:            mockDomainCache,
+		executor:               mockExecutor,
 	}
 
 	// set this engine to be shutting down to trigger the tasklistGetTasklistByID guard
@@ -398,9 +405,9 @@ func TestShutDownNonOwnedSemaphoreManagers(t *testing.T) {
 	}
 
 	start := func(id semaphore.Identifier) semaphore.Manager {
-		mgr := newSemaphoreManager(t, id, tokens)
+		mgr := newUnstartedSemaphoreManager(t, id, tokens)
 		require.NoError(t, mgr.Start(context.Background()))
-		registerSemaphoreManagerForTest(t, e, mgr)
+		registerSemaphoreManager(t, e, mgr)
 		return mgr
 	}
 	mineMgr := start(mine)
@@ -436,7 +443,7 @@ func TestShutDownNonOwnedSemaphoreManagersReportsAPanic(t *testing.T) {
 		membershipResolver: resolver,
 		logger:             log.NewNoop(),
 	}
-	registerSemaphoreManagerForTest(t, e, mgr)
+	registerSemaphoreManager(t, e, mgr)
 
 	var err error
 	require.NotPanics(t, func() { err = e.shutDownNonOwnedSemaphoreManagers() })
@@ -462,9 +469,9 @@ func TestShutDownNonOwnedSemaphoreManagersSurfacesALookupFailure(t *testing.T) {
 		membershipResolver: resolver,
 		logger:             log.NewNoop(),
 	}
-	mgr := newSemaphoreManager(t, mustNewSemaphoreIdentifier(t, 0), tokens)
+	mgr := newUnstartedSemaphoreManager(t, mustNewSemaphoreIdentifier(t, 0), tokens)
 	require.NoError(t, mgr.Start(context.Background()))
-	registerSemaphoreManagerForTest(t, e, mgr)
+	registerSemaphoreManager(t, e, mgr)
 
 	assert.ErrorIs(t, e.shutDownNonOwnedSemaphoreManagers(), lookupErr)
 	assert.Len(t, e.semaphoreRegistry.AllManagers(), 1, "a lookup failure must not unload anything")
