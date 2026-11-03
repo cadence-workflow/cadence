@@ -372,6 +372,22 @@ func (c *clientImpl) AcquireSemaphore(
 	return resp, nil
 }
 
+func (c *clientImpl) ReleaseSemaphore(
+	ctx context.Context,
+	request *types.ReleaseSemaphoreRequest,
+	opts ...yarpc.CallOption,
+) (*types.ReleaseSemaphoreResponse, error) {
+	peer, err := c.peerResolver.FromSemaphoreBucket(request.GetDomainUUID(), request.GetSemaphoreName(), int(request.GetBucket()))
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.client.ReleaseSemaphore(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func (c *clientImpl) UpdateTaskListPartitionConfig(
 	ctx context.Context,
 	request *types.MatchingUpdateTaskListPartitionConfigRequest,

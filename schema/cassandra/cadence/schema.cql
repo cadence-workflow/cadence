@@ -137,6 +137,7 @@ CREATE TYPE transfer_task (
   record_visibility          boolean,      -- indicates whether or not to create a visibility record
   original_task_list         text,         -- the original task list of the task if the task is a sticky decision task
   original_task_list_kind    int,          -- enum TaskListKind {Normal, Sticky, Ephemeral},
+  semaphore_name             text,
 );
 
 CREATE TYPE replication_task (

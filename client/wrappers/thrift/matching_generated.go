@@ -72,6 +72,10 @@ func (g matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 
 	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 
+func (g matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
 	err = g.c.RespondQueryTaskCompleted(ctx, thrift.FromMatchingRespondQueryTaskCompletedRequest(mp1), p1...)
 	return thrift.ToError(err)

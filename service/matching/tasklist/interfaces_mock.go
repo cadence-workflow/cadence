@@ -88,6 +88,20 @@ func (mr *MockTaskListRegistryMockRecorder) ManagersByDomainID(domainID any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ManagersByDomainID", reflect.TypeOf((*MockTaskListRegistry)(nil).ManagersByDomainID), domainID)
 }
 
+// ManagersByShard mocks base method.
+func (m *MockTaskListRegistry) ManagersByShard(shardID string) []Manager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ManagersByShard", shardID)
+	ret0, _ := ret[0].([]Manager)
+	return ret0
+}
+
+// ManagersByShard indicates an expected call of ManagersByShard.
+func (mr *MockTaskListRegistryMockRecorder) ManagersByShard(shardID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ManagersByShard", reflect.TypeOf((*MockTaskListRegistry)(nil).ManagersByShard), shardID)
+}
+
 // ManagersByTaskListName mocks base method.
 func (m *MockTaskListRegistry) ManagersByTaskListName(name string) []Manager {
 	m.ctrl.T.Helper()

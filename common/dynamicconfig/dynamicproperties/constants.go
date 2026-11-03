@@ -2175,8 +2175,9 @@ const (
 	// Allowed filters: DomainName
 	EnableStickyQuery
 	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
-	// frontend, the acquire decision on history, and serving semaphore buckets on matching. While it
-	// is off matching loads no bucket, so no partition is scanned and nothing is held in memory.
+	// frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so
+	// tokens granted before it was turned off are still freed.
+	// Global domains also need HistoryTaskDLQMode enabled, or a hold still waiting at failover is never acquired.
 	// KeyName: system.enableDistributedSemaphore
 	// Value type: Bool
 	// Default value: false
@@ -2342,6 +2343,29 @@ const (
 	// Allowed filters: DomainName
 	EnableStrongIdempotencySanityCheck
 
+	// EnableDeterministicChildWorkflowRequestID derives the request ID that starts a child workflow from its initiated event,
+	// so all clusters start the child with the same request ID. Enable it on a cluster only after all hosts of the cluster
+	// run a release with https://github.com/cadence-workflow/cadence/pull/8644, which checks which cluster closed a child run
+	// before adopting it. Roll back only to a release with that change. To roll back to a release without it, disable the
+	// flag on the cluster, wait until the children initiated while it was enabled have started, then roll back.
+	// KeyName: history.enableDeterministicChildWorkflowRequestID
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableDeterministicChildWorkflowRequestID
+
+	// EnableExistingChildWorkflowRunHandling lets a child start handle a run with the same workflow ID that the parent
+	// started before. When the first run of the chain of the run has the request ID of the start, the start adopts the
+	// run. When the run is running and was started by an initiated event that is not on the current branch of the parent,
+	// the start terminates it and starts a new run. The replacement applies only to children started when
+	// EnableDeterministicChildWorkflowRequestID was enabled. When another cluster closed the run with the request ID of
+	// the start, the start adds the task that sends the completion of the run to the parent again, and adopts the run.
+	// KeyName: history.enableExistingChildWorkflowRunHandling
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableExistingChildWorkflowRunHandling
+
 	// MatchingEnableClientAutoConfig enables auto config for domain and tasklist on client (worker) side
 	// KeyName: matching.enableClientAutoConfig
 	// Value type: Bool
@@ -2438,6 +2462,19 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
+
+	// MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard
+	// manager. When disabled, each task list name is its own shard.
+	// Enabling it also requires matching's namespace in the shard distributor to be a fixed namespace with
+	// shardNum set to numMatchingShards.
+	// Only change it while matching.percentageOnboardedToShardManager is 0, because hosts that disagree on it
+	// route the same task list to different owners.
+	// Read from the primary database-backed operational dynamic config store.
+	// KeyName: matching.shardTaskListsByHashForShardManager
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingShardTaskListsByHashForShardManager
 
 	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
 	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
@@ -2777,6 +2814,9 @@ const (
 	//
 	// * "enabled" - tasks are written to the DLQ and processed by the HistoryTaskDLQProcessor.
 	// * "shadow" - tasks are written to the DLQ but never processed.
+	//
+	// Global domains that use distributed semaphores need "enabled": a standby acquire task that gives up
+	// while its hold is still waiting runs again after failover only if it was kept in the DLQ.
 	//
 	// KeyName: history.HistoryTaskDLQMode
 	// Value type: string ["disabled","shadow","enabled"]
@@ -5147,7 +5187,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableDistributedSemaphore: {
 		KeyName:      "system.enableDistributedSemaphore",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and serving semaphore buckets on matching",
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so tokens granted before it was turned off are still freed. Global domains also need HistoryTaskDLQMode enabled",
 		DefaultValue: false,
 	},
 	EnableFailoverManager: {
@@ -5278,6 +5318,18 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableStrongIdempotencySanityCheck enables sanity check for strong idempotency",
 		DefaultValue: false,
 	},
+	EnableDeterministicChildWorkflowRequestID: {
+		KeyName:      "history.enableDeterministicChildWorkflowRequestID",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableDeterministicChildWorkflowRequestID derives the request ID that starts a child workflow from its initiated event, so all clusters start the child with the same request ID",
+		DefaultValue: false,
+	},
+	EnableExistingChildWorkflowRunHandling: {
+		KeyName:      "history.enableExistingChildWorkflowRunHandling",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableExistingChildWorkflowRunHandling lets a child start adopt a run whose chain was started by the same request, send the completion again for such a run closed by another cluster, and terminate and start again a running child that was started by an initiated event of the parent that is not on the current branch of the parent",
+		DefaultValue: false,
+	},
 	MatchingEnableClientAutoConfig: {
 		KeyName:      "matching.enableClientAutoConfig",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
@@ -5365,6 +5417,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
 		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
 		DefaultValue: true,
+	},
+	MatchingShardTaskListsByHashForShardManager: {
+		KeyName:      "matching.shardTaskListsByHashForShardManager",
+		Description:  "MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard manager",
+		DefaultValue: false,
 	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
@@ -5645,7 +5702,7 @@ var StringKeys = map[StringKey]DynamicString{
 	},
 	HistoryTaskDLQMode: {
 		KeyName:      "history.historyTaskDLQMode",
-		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
+		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries. Global domains using distributed semaphores need it enabled.",
 		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 		Filters:      []Filter{DomainName},
 	},

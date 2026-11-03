@@ -49,6 +49,7 @@ type (
 		UpdateTaskListPartitionConfig(hCtx *handlerContext, request *types.MatchingUpdateTaskListPartitionConfigRequest) (*types.MatchingUpdateTaskListPartitionConfigResponse, error)
 		RefreshTaskListPartitionConfig(hCtx *handlerContext, request *types.MatchingRefreshTaskListPartitionConfigRequest) (*types.MatchingRefreshTaskListPartitionConfigResponse, error)
 		AcquireSemaphore(hCtx *handlerContext, request *types.AcquireSemaphoreRequest) (*types.AcquireSemaphoreResponse, error)
+		ReleaseSemaphore(hCtx *handlerContext, request *types.ReleaseSemaphoreRequest) (*types.ReleaseSemaphoreResponse, error)
 	}
 
 	// Handler interface for matching service
@@ -69,5 +70,6 @@ type (
 		UpdateTaskListPartitionConfig(context.Context, *types.MatchingUpdateTaskListPartitionConfigRequest) (*types.MatchingUpdateTaskListPartitionConfigResponse, error)
 		RefreshTaskListPartitionConfig(context.Context, *types.MatchingRefreshTaskListPartitionConfigRequest) (*types.MatchingRefreshTaskListPartitionConfigResponse, error)
 		AcquireSemaphore(context.Context, *types.AcquireSemaphoreRequest) (*types.AcquireSemaphoreResponse, error)
+		ReleaseSemaphore(context.Context, *types.ReleaseSemaphoreRequest) (*types.ReleaseSemaphoreResponse, error)
 	}
 )

@@ -223,6 +223,30 @@ func TestGetTransferTaskMetricsScope(t *testing.T) {
 			expectedScope: metrics.TransferActiveTaskApplyParentClosePolicyScope,
 		},
 		{
+			name:          "TransferTaskTypeAcquireSemaphore - active",
+			taskType:      persistence.TransferTaskTypeAcquireSemaphore,
+			isActive:      true,
+			expectedScope: metrics.TransferActiveTaskAcquireSemaphoreScope,
+		},
+		{
+			name:          "TransferTaskTypeAcquireSemaphore - standby",
+			taskType:      persistence.TransferTaskTypeAcquireSemaphore,
+			isActive:      false,
+			expectedScope: metrics.TransferStandbyTaskAcquireSemaphoreScope,
+		},
+		{
+			name:          "TransferTaskTypeReleaseSemaphore - active",
+			taskType:      persistence.TransferTaskTypeReleaseSemaphore,
+			isActive:      true,
+			expectedScope: metrics.TransferActiveTaskReleaseSemaphoreScope,
+		},
+		{
+			name:          "TransferTaskTypeReleaseSemaphore - standby",
+			taskType:      persistence.TransferTaskTypeReleaseSemaphore,
+			isActive:      false,
+			expectedScope: metrics.TransferStandbyTaskReleaseSemaphoreScope,
+		},
+		{
 			name:          "TransferTaskTypeApplyParentClosePolicy - standby",
 			taskType:      persistence.TransferTaskTypeApplyParentClosePolicy,
 			isActive:      false,

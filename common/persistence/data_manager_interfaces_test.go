@@ -885,3 +885,20 @@ func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
 		})
 	}
 }
+
+func TestSemaphoreInfoHasToken(t *testing.T) {
+	tests := []struct {
+		name    string
+		tokenID int
+		want    bool
+	}{
+		{name: "token id 1 is granted", tokenID: 1, want: true},
+		{name: "zero is waiting", tokenID: 0, want: false},
+		{name: "negative is waiting", tokenID: -1, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, (&SemaphoreInfo{TokenID: tt.tokenID}).HasToken())
+		})
+	}
+}

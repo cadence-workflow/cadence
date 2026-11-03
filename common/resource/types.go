@@ -110,6 +110,7 @@ type Resource interface {
 	GetDomainManager() persistence.DomainManager
 	GetDomainAuditManager() persistence.DomainAuditManager
 	GetSemaphoreMetadataManager() persistence.SemaphoreMetadataManager
+	GetSemaphoreTokenManager() persistence.SemaphoreTokenManager
 	GetTaskManager() persistence.TaskManager
 	GetVisibilityManager() persistence.VisibilityManager
 	GetShardManager() persistence.ShardManager

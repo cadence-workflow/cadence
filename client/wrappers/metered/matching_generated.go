@@ -306,6 +306,31 @@ func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1
 	return mp2, err
 }
 
+func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.MatchingClientReleaseSemaphoreScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.MatchingClientReleaseSemaphoreScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+	c.emitForwardedFromStats(scope, rp1)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	rp2, err = c.client.ReleaseSemaphore(ctx, rp1, p1...)
+	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return rp2, err
+}
+
 func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
 	retryCount := getRetryCountFromContext(ctx)
 

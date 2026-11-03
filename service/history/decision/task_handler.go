@@ -22,7 +22,6 @@ package decision
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -37,7 +36,6 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/execution"
@@ -73,11 +71,10 @@ type (
 
 		tokenSerializer common.TaskTokenSerializer
 
-		logger                   log.Logger
-		domainCache              cache.DomainCache
-		semaphoreMetadataManager persistence.SemaphoreMetadataManager
-		metricsClient            metrics.Client
-		config                   *config.Config
+		logger        log.Logger
+		domainCache   cache.DomainCache
+		metricsClient metrics.Client
+		config        *config.Config
 	}
 
 	decisionResult struct {
@@ -95,7 +92,6 @@ func newDecisionTaskHandler(
 	tokenSerializer common.TaskTokenSerializer,
 	logger log.Logger,
 	domainCache cache.DomainCache,
-	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
 	metricsClient metrics.Client,
 	config *config.Config,
 ) *taskHandlerImpl {
@@ -121,11 +117,10 @@ func newDecisionTaskHandler(
 
 		tokenSerializer: tokenSerializer,
 
-		logger:                   logger,
-		domainCache:              domainCache,
-		semaphoreMetadataManager: semaphoreMetadataManager,
-		metricsClient:            metricsClient,
-		config:                   config,
+		logger:        logger,
+		domainCache:   domainCache,
+		metricsClient: metricsClient,
+		config:        config,
 	}
 }
 
@@ -211,6 +206,9 @@ func (handler *taskHandlerImpl) handleDecision(
 
 	case types.DecisionTypeAcquireSemaphore:
 		return handler.handleDecisionAcquireSemaphore(ctx, decision.AcquireSemaphoreDecisionAttributes)
+
+	case types.DecisionTypeReleaseSemaphore:
+		return handler.handleDecisionReleaseSemaphore(ctx, decision.ReleaseSemaphoreDecisionAttributes)
 
 	default:
 		return &types.BadRequestError{Message: fmt.Sprintf("Unknown decision type: %v", decision.GetDecisionType())}
@@ -538,16 +536,6 @@ func (handler *taskHandlerImpl) handleDecisionFailWorkflow(
 		return err
 	}
 
-	return handler.handleWorkflowFailure(ctx, attr)
-}
-
-// handleWorkflowFailure cancels the run if a cancel was requested, else retries or cron-restarts
-// it, else fails it. No-op if the run already closed.
-func (handler *taskHandlerImpl) handleWorkflowFailure(
-	ctx context.Context,
-	attr *types.FailWorkflowExecutionDecisionAttributes,
-) error {
-
 	// If the decision has more than one completion event than just pick the first one
 	if !handler.mutableState.IsWorkflowExecutionRunning() {
 		handler.metricsClient.IncCounter(
@@ -582,7 +570,6 @@ func (handler *taskHandlerImpl) handleWorkflowFailure(
 	// first check the backoff retry
 	if backoffInterval == backoff.NoBackoff {
 		// if no backoff retry, set the backoffInterval using cron schedule
-		var err error
 		backoffInterval, err = handler.mutableState.GetCronBackoffDuration(ctx)
 		if err != nil {
 			handler.stopProcessing = true
@@ -942,9 +929,8 @@ func (handler *taskHandlerImpl) handleDecisionStartChildWorkflow(
 		}
 	}
 
-	requestID := uuid.New()
 	_, _, err = handler.mutableState.AddStartChildWorkflowExecutionInitiatedEvent(
-		handler.decisionTaskCompletedID, requestID, attr,
+		handler.decisionTaskCompletedID, attr,
 	)
 	return err
 }
@@ -1086,18 +1072,7 @@ func (handler *taskHandlerImpl) handleDecisionAcquireSemaphore(
 		return err
 	}
 
-	_, err := handler.semaphoreMetadataManager.GetSemaphore(ctx, &persistence.GetSemaphoreRequest{
-		DomainID:      handler.domainEntry.GetInfo().ID,
-		SemaphoreName: attr.GetSemaphoreName(),
-	})
-	if errors.As(err, new(*types.EntityNotExistsError)) {
-		return handler.failWorkflowSemaphoreNotFound(ctx, attr.GetSemaphoreName(), domainName)
-	}
-	if err != nil {
-		return err
-	}
-
-	_, _, err = handler.mutableState.AddSemaphoreAcquireInitiatedEvent(
+	_, _, err := handler.mutableState.AddSemaphoreAcquireInitiatedEvent(
 		handler.decisionTaskCompletedID,
 		attr.GetSemaphoreName(),
 		handler.acquireWaitTimeoutSeconds(attr, domainName),
@@ -1106,36 +1081,53 @@ func (handler *taskHandlerImpl) handleDecisionAcquireSemaphore(
 	case nil:
 		return nil
 	case *types.BadRequestError:
+		// A run holds or waits for at most one semaphore at a time, so a second acquire fails the
+		// decision. Clients are expected to refuse it first.
 		return handler.handlerFailDecision(
 			types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes,
-			fmt.Sprintf("Run already holds or is waiting for semaphore %q.", attr.GetSemaphoreName()),
+			fmt.Sprintf("Run already holds or is waiting for a semaphore, so it cannot acquire semaphore %q.", attr.GetSemaphoreName()),
 		)
 	default:
 		return err
 	}
 }
 
-// failWorkflowSemaphoreNotFound fails the run because the semaphore does not exist.
-func (handler *taskHandlerImpl) failWorkflowSemaphoreNotFound(
+func (handler *taskHandlerImpl) handleDecisionReleaseSemaphore(
 	ctx context.Context,
-	semaphoreName string,
-	domainName string,
+	attr *types.ReleaseSemaphoreDecisionAttributes,
 ) error {
 
-	// If new events, such as a signal, arrived while the worker was deciding, don't close the run
-	// yet. Fail the decision instead, so the worker sees those events and decides again.
-	if handler.hasUnhandledEventsBeforeDecisions {
-		return handler.handlerFailDecision(
-			types.DecisionTaskFailedCauseUnhandledDecision,
-			"cannot fail workflow for a missing semaphore, new events arrived while this decision was processing",
-		)
+	handler.metricsClient.IncCounter(
+		metrics.HistoryRespondDecisionTaskCompletedScope,
+		metrics.DecisionTypeReleaseSemaphoreCounter,
+	)
+
+	if err := handler.validateDecisionAttr(
+		func() error {
+			return handler.attrValidator.validateReleaseSemaphoreAttributes(attr)
+		},
+		types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes,
+	); err != nil || handler.stopProcessing {
+		return err
 	}
 
-	handler.stopProcessing = true
-	return handler.handleWorkflowFailure(ctx, &types.FailWorkflowExecutionDecisionAttributes{
-		Reason:  common.StringPtr(common.FailureReasonSemaphoreNotFound),
-		Details: []byte(fmt.Sprintf("semaphore %q does not exist in domain %q", semaphoreName, domainName)),
-	})
+	_, err := handler.mutableState.AddSemaphoreReleasedEvent(
+		handler.decisionTaskCompletedID,
+		attr.GetInitiatedEventID(),
+	)
+	switch err.(type) {
+	case nil:
+		return nil
+	case *types.BadRequestError:
+		// A duplicate release, or one with no matching hold, fails the decision.
+		// Clients are expected to skip duplicates first.
+		return handler.handlerFailDecision(
+			types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes,
+			fmt.Sprintf("Run has no semaphore hold started by event %d.", attr.GetInitiatedEventID()),
+		)
+	default:
+		return err
+	}
 }
 
 // acquireWaitTimeoutSeconds returns the decision's wait timeout, or the domain's default when the
