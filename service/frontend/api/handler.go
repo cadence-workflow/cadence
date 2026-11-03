@@ -83,7 +83,6 @@ type (
 		domainHandler             domain.Handler
 		visibilityQueryValidator  *validator.VisibilityQueryValidator
 		searchAttributesValidator *validator.SearchAttributesValidator
-		throttleRetry             *backoff.ThrottleRetry
 		producerManager           ProducerManager
 		thriftrwEncoder           codec.BinaryEncoder
 		requestValidator          RequestValidator
@@ -106,10 +105,6 @@ type (
 
 	// HealthStatus is an enum that refers to the rpc handler health status
 	HealthStatus int32
-)
-
-var (
-	frontendServiceRetryPolicy = common.CreateFrontendServiceRetryPolicy()
 )
 
 // NewWorkflowHandler creates a thrift handler for the cadence service
@@ -137,10 +132,6 @@ func NewWorkflowHandler(
 			config.SearchAttributesNumberOfKeysLimit,
 			config.SearchAttributesSizeOfValueLimit,
 			config.SearchAttributesTotalSizeLimit,
-		),
-		throttleRetry: backoff.NewThrottleRetry(
-			backoff.WithRetryPolicy(frontendServiceRetryPolicy),
-			backoff.WithRetryableError(common.IsServiceTransientError),
 		),
 		producerManager: NewProducerManager(
 			resource.GetDomainCache(),
@@ -348,18 +339,12 @@ func (wh *WorkflowHandler) PollForActivityTask(
 		return &types.PollForActivityTaskResponse{}, nil
 	}
 	pollerID := uuid.New().String()
-	var matchingResp *types.MatchingPollForActivityTaskResponse
-	op := func(ctx context.Context) error {
-		matchingResp, err = wh.GetMatchingClient().PollForActivityTask(ctx, &types.MatchingPollForActivityTaskRequest{
-			DomainUUID:     domainID,
-			PollerID:       pollerID,
-			PollRequest:    pollRequest,
-			IsolationGroup: isolationGroup,
-		})
-		return err
-	}
-
-	err = wh.throttleRetry.Do(ctx, op)
+	matchingResp, err := wh.GetMatchingClient().PollForActivityTask(ctx, &types.MatchingPollForActivityTaskRequest{
+		DomainUUID:     domainID,
+		PollerID:       pollerID,
+		PollRequest:    pollRequest,
+		IsolationGroup: isolationGroup,
+	})
 	if err != nil {
 		err = wh.cancelOutstandingPoll(ctx, err, domainID, persistence.TaskListTypeActivity, pollRequest.TaskList, pollerID)
 		if err != nil {
@@ -489,18 +474,12 @@ func (wh *WorkflowHandler) PollForDecisionTask(
 	}
 
 	pollerID := uuid.New().String()
-	var matchingResp *types.MatchingPollForDecisionTaskResponse
-	op := func(ctx context.Context) error {
-		matchingResp, err = wh.GetMatchingClient().PollForDecisionTask(ctx, &types.MatchingPollForDecisionTaskRequest{
-			DomainUUID:     domainID,
-			PollerID:       pollerID,
-			PollRequest:    pollRequest,
-			IsolationGroup: isolationGroup,
-		})
-		return err
-	}
-
-	err = wh.throttleRetry.Do(ctx, op)
+	matchingResp, err := wh.GetMatchingClient().PollForDecisionTask(ctx, &types.MatchingPollForDecisionTaskRequest{
+		DomainUUID:     domainID,
+		PollerID:       pollerID,
+		PollRequest:    pollRequest,
+		IsolationGroup: isolationGroup,
+	})
 	if err != nil {
 		err = wh.cancelOutstandingPoll(ctx, err, domainID, persistence.TaskListTypeDecision, pollRequest.TaskList, pollerID)
 		if err != nil {
