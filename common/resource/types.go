@@ -96,8 +96,8 @@ type Resource interface {
 	GetSDKClient() workflowserviceclient.Interface
 	GetFrontendRawClient() frontend.Client
 	GetFrontendClient() frontend.Client
-	GetMatchingRawClient() matching.Client
-	GetMatchingClient() matching.Client
+	GetMatchingRawClient() matching.Gateway
+	GetMatchingClient() matching.Gateway
 	GetHistoryRawClient() history.Client
 	GetHistoryClient() history.Client
 	GetRatelimiterAggregatorsClient() qrpc.Client

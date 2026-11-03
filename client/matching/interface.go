@@ -28,15 +28,35 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go -package matching github.com/uber/cadence/client/matching Client
-//go:generate gowrap gen -g -p . -i Client -t ../templates/retry.tmpl -o ../wrappers/retryable/matching_generated.go -v client=Matching
-//go:generate gowrap gen -g -p . -i Client -t ../templates/metered.tmpl -o ../wrappers/metered/matching_generated.go -v client=Matching
-//go:generate gowrap gen -g -p . -i Client -t ../templates/errorinjectors.tmpl -o ../wrappers/errorinjectors/matching_generated.go -v client=Matching
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go -package matching github.com/uber/cadence/client/matching Client,Gateway
+//go:generate gowrap gen -g -p . -i Gateway -t ../templates/retry.tmpl -o ../wrappers/retryable/matching_generated.go -v client=Matching
+//go:generate gowrap gen -g -p . -i Gateway -t ../templates/metered.tmpl -o ../wrappers/metered/matching_generated.go -v client=Matching
+//go:generate gowrap gen -g -p . -i Gateway -t ../templates/errorinjectors.tmpl -o ../wrappers/errorinjectors/matching_generated.go -v client=Matching
 //go:generate gowrap gen -g -p . -i Client -t ../templates/grpc.tmpl -o ../wrappers/grpc/matching_generated.go -v client=Matching -v package=matchingv1 -v path=github.com/uber/cadence/.gen/proto/matching/v1 -v prefix=Matching
 //go:generate gowrap gen -g -p . -i Client -t ../templates/thrift.tmpl -o ../wrappers/thrift/matching_generated.go -v client=Matching -v prefix=Matching
-//go:generate gowrap gen -g -p . -i Client -t ../templates/timeout.tmpl -o ../wrappers/timeout/matching_generated.go -v client=Matching
+//go:generate gowrap gen -g -p . -i Gateway -t ../templates/timeout.tmpl -o ../wrappers/timeout/matching_generated.go -v client=Matching
 
-// Client is the interface exposed by types service client
+// Gateway is the interface services use to talk to matching.
+// It hides task list partitioning and peer resolution, so it does not have to follow the RPC API one to one.
+type Gateway interface {
+	AddActivityTask(context.Context, *types.AddActivityTaskRequest) (*types.AddActivityTaskResponse, error)
+	AddDecisionTask(context.Context, *types.AddDecisionTaskRequest) (*types.AddDecisionTaskResponse, error)
+	CancelOutstandingPoll(context.Context, *types.CancelOutstandingPollRequest) error
+	DescribeTaskList(context.Context, *types.MatchingDescribeTaskListRequest) (*types.DescribeTaskListResponse, error)
+	ListTaskListPartitions(context.Context, *types.MatchingListTaskListPartitionsRequest) (*types.ListTaskListPartitionsResponse, error)
+	GetTaskListsByDomain(context.Context, *types.GetTaskListsByDomainRequest) (*types.GetTaskListsByDomainResponse, error)
+	PollForActivityTask(context.Context, *types.MatchingPollForActivityTaskRequest) (*types.MatchingPollForActivityTaskResponse, error)
+	PollForDecisionTask(context.Context, *types.MatchingPollForDecisionTaskRequest) (*types.MatchingPollForDecisionTaskResponse, error)
+	QueryWorkflow(context.Context, *types.MatchingQueryWorkflowRequest) (*types.MatchingQueryWorkflowResponse, error)
+	RespondQueryTaskCompleted(context.Context, *types.MatchingRespondQueryTaskCompletedRequest) error
+	UpdateTaskListPartitionConfig(context.Context, *types.MatchingUpdateTaskListPartitionConfigRequest) (*types.MatchingUpdateTaskListPartitionConfigResponse, error)
+	RefreshTaskListPartitionConfig(context.Context, *types.MatchingRefreshTaskListPartitionConfigRequest) (*types.MatchingRefreshTaskListPartitionConfigResponse, error)
+	AcquireSemaphore(context.Context, *types.AcquireSemaphoreRequest) (*types.AcquireSemaphoreResponse, error)
+	ReleaseSemaphore(context.Context, *types.ReleaseSemaphoreRequest) (*types.ReleaseSemaphoreResponse, error)
+}
+
+// Client is the RPC client of the matching service API, implemented by the gRPC and Thrift transports.
+// Requests are sent as is to the peer given in the call options.
 type Client interface {
 	AddActivityTask(context.Context, *types.AddActivityTaskRequest, ...yarpc.CallOption) (*types.AddActivityTaskResponse, error)
 	AddDecisionTask(context.Context, *types.AddDecisionTaskRequest, ...yarpc.CallOption) (*types.AddDecisionTaskResponse, error)

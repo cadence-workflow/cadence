@@ -2746,7 +2746,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 	testCases := []struct {
 		name          string
 		req           *types.UpdateTaskListPartitionConfigRequest
-		setupMocks    func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache)
+		setupMocks    func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache)
 		expectError   bool
 		expectedError string
 	}{
@@ -2758,7 +2758,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				TaskListType:    &taskListType,
 				PartitionConfig: partitionConfig,
 			},
-			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+			setupMocks: func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
 				mockMatchingClient.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.MatchingUpdateTaskListPartitionConfigRequest{
 					DomainUUID:      domainID,
@@ -2772,7 +2772,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 		{
 			name: "request not set",
 			req:  nil,
-			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+			setupMocks: func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache) {
 				// no mocks needed as the function should exit early
 			},
 			expectError:   true,
@@ -2783,7 +2783,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			req: &types.UpdateTaskListPartitionConfigRequest{
 				Domain: domainName,
 			},
-			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+			setupMocks: func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
 			},
 			expectError:   true,
@@ -2795,7 +2795,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				Domain:   domainName,
 				TaskList: &types.TaskList{Name: taskListName},
 			},
-			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+			setupMocks: func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
 			},
 			expectError:   true,
@@ -2807,7 +2807,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				Domain:   domainName,
 				TaskList: &types.TaskList{Name: taskListName, Kind: types.TaskListKindSticky.Ptr()},
 			},
-			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+			setupMocks: func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
 			},
 			expectError:   true,
@@ -2819,7 +2819,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				Domain:   domainName,
 				TaskList: &types.TaskList{Name: taskListName, Kind: &kind},
 			},
-			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+			setupMocks: func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
 			},
 			expectError:   true,
@@ -2832,7 +2832,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				TaskList:     &types.TaskList{Name: taskListName, Kind: &kind},
 				TaskListType: &taskListType,
 			},
-			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+			setupMocks: func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
 			},
 			expectError:   true,
@@ -2857,7 +2857,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 					},
 				},
 			},
-			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+			setupMocks: func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
 			},
 			expectError:   true,
@@ -2880,7 +2880,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 					WritePartitions: nil,
 				},
 			},
-			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+			setupMocks: func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
 			},
 			expectError:   true,
@@ -2897,7 +2897,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				TaskListType:    &taskListType,
 				PartitionConfig: partitionConfig,
 			},
-			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+			setupMocks: func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomainID(domainName).Return("", errors.New("domain cache error"))
 			},
 			expectError:   true,
@@ -2914,7 +2914,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				TaskListType:    &taskListType,
 				PartitionConfig: partitionConfig,
 			},
-			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+			setupMocks: func(mockMatchingClient *matching.MockGateway, mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
 				mockMatchingClient.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.MatchingUpdateTaskListPartitionConfigRequest{
 					DomainUUID:      domainID,
@@ -2932,7 +2932,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
-			mockMatchingClient := matching.NewMockClient(ctrl)
+			mockMatchingClient := matching.NewMockGateway(ctrl)
 			tc.setupMocks(mockMatchingClient, mockDomainCache)
 			adh := adminHandlerImpl{
 				Resource: &resource.Test{

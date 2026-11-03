@@ -90,8 +90,8 @@ type Cadence interface {
 	GetFrontendClient() frontendClient.Client
 	FrontendHost() membership.HostInfo
 	GetHistoryClient() historyClient.Client
-	GetMatchingClient() matchingClient.Client
-	GetMatchingClients() []matchingClient.Client
+	GetMatchingClient() matchingClient.Gateway
+	GetMatchingClients() []matchingClient.Gateway
 	GetExecutionManager() persistence.ExecutionManager
 }
 
@@ -104,7 +104,7 @@ type (
 		adminClient                      adminClient.Client
 		frontendClient                   frontendClient.Client
 		historyClient                    historyClient.Client
-		matchingClients                  []matchingClient.Client
+		matchingClients                  []matchingClient.Gateway
 		logger                           log.Logger
 		zapLogger                        *zap.Logger
 		clusterMetadata                  cluster.Metadata
@@ -668,11 +668,11 @@ func (c *cadenceImpl) GetHistoryClient() historyClient.Client {
 	return c.historyClient
 }
 
-func (c *cadenceImpl) GetMatchingClient() matchingClient.Client {
+func (c *cadenceImpl) GetMatchingClient() matchingClient.Gateway {
 	return c.matchingClients[0]
 }
 
-func (c *cadenceImpl) GetMatchingClients() []matchingClient.Client {
+func (c *cadenceImpl) GetMatchingClients() []matchingClient.Gateway {
 	return c.matchingClients
 }
 

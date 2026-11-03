@@ -63,7 +63,7 @@ type (
 		mockShard              *shard.TestContext
 		mockDomainCache        *cache.MockDomainCache
 		mockNDCHistoryResender *ndc.MockHistoryResender
-		mockMatchingClient     *matching.MockClient
+		mockMatchingClient     *matching.MockGateway
 
 		mockVisibilityMgr    *mocks.VisibilityManager
 		mockExecutionMgr     *mocks.ExecutionManager

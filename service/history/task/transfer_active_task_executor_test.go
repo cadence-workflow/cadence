@@ -76,7 +76,7 @@ type (
 		mockDomainCache    *cache.MockDomainCache
 		mockWFCache        *workflowcache.MockWFCache
 		mockHistoryClient  *hclient.MockClient
-		mockMatchingClient *matching.MockClient
+		mockMatchingClient *matching.MockGateway
 
 		mockVisibilityMgr           *mocks.VisibilityManager
 		mockExecutionMgr            *mocks.ExecutionManager
@@ -2899,7 +2899,7 @@ func TestProcessReleaseSemaphore(t *testing.T) {
 				DomainID:      domainID,
 				SemaphoreName: testSemaphoreName,
 			}).Return(tc.metadataResp, tc.metadataErr)
-			matchingClient := matching.NewMockClient(ctrl)
+			matchingClient := matching.NewMockGateway(ctrl)
 			if tc.callMatching {
 				matchingClient.EXPECT().ReleaseSemaphore(gomock.Any(), &types.ReleaseSemaphoreRequest{
 					DomainUUID:    domainID,

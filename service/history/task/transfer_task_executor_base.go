@@ -63,7 +63,7 @@ type (
 		executionCache execution.Cache
 		logger         log.Logger
 		metricsClient  metrics.Client
-		matchingClient matching.Client
+		matchingClient matching.Gateway
 		visibilityMgr  persistence.VisibilityManager
 		config         *config.Config
 		throttleRetry  *backoff.ThrottleRetry

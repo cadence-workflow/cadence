@@ -7,22 +7,20 @@ package retryable
 import (
 	"context"
 
-	"go.uber.org/yarpc"
-
 	_sourceMatching "github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/types"
 )
 
-// matchingClient implements _sourceMatching.Client interface instrumented with retries
-type matchingClient struct {
-	client        _sourceMatching.Client
+// matchingGateway implements _sourceMatching.Gateway interface instrumented with retries
+type matchingGateway struct {
+	client        _sourceMatching.Gateway
 	throttleRetry *backoff.ThrottleRetry
 }
 
-// NewMatchingClient creates a new instance of matchingClient with retry policy
-func NewMatchingClient(client _sourceMatching.Client, policy backoff.RetryPolicy, isRetryable backoff.IsRetryable) _sourceMatching.Client {
-	return &matchingClient{
+// NewMatchingGateway creates a new instance of matchingGateway with retry policy
+func NewMatchingGateway(client _sourceMatching.Gateway, policy backoff.RetryPolicy, isRetryable backoff.IsRetryable) _sourceMatching.Gateway {
+	return &matchingGateway{
 		client: client,
 		throttleRetry: backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(policy),
@@ -31,146 +29,146 @@ func NewMatchingClient(client _sourceMatching.Client, policy backoff.RetryPolicy
 	}
 }
 
-func (c *matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest, p1 ...yarpc.CallOption) (ap2 *types.AcquireSemaphoreResponse, err error) {
+func (c *matchingGateway) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest) (ap2 *types.AcquireSemaphoreResponse, err error) {
 	var resp *types.AcquireSemaphoreResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.AcquireSemaphore(ctx, ap1, p1...)
+		resp, err = c.client.AcquireSemaphore(ctx, ap1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
 
-func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
+func (c *matchingGateway) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest) (ap2 *types.AddActivityTaskResponse, err error) {
 	var resp *types.AddActivityTaskResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.AddActivityTask(ctx, ap1, p1...)
+		resp, err = c.client.AddActivityTask(ctx, ap1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
 
-func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddDecisionTaskResponse, err error) {
+func (c *matchingGateway) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest) (ap2 *types.AddDecisionTaskResponse, err error) {
 	var resp *types.AddDecisionTaskResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.AddDecisionTask(ctx, ap1, p1...)
+		resp, err = c.client.AddDecisionTask(ctx, ap1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
 
-func (c *matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
+func (c *matchingGateway) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest) (err error) {
 	op := func(ctx context.Context) error {
-		return c.client.CancelOutstandingPoll(ctx, cp1, p1...)
+		return c.client.CancelOutstandingPoll(ctx, cp1)
 	}
 	return c.throttleRetry.Do(ctx, op)
 }
 
-func (c *matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.MatchingDescribeTaskListRequest, p1 ...yarpc.CallOption) (dp1 *types.DescribeTaskListResponse, err error) {
+func (c *matchingGateway) DescribeTaskList(ctx context.Context, mp1 *types.MatchingDescribeTaskListRequest) (dp1 *types.DescribeTaskListResponse, err error) {
 	var resp *types.DescribeTaskListResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.DescribeTaskList(ctx, mp1, p1...)
+		resp, err = c.client.DescribeTaskList(ctx, mp1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
 
-func (c *matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest, p1 ...yarpc.CallOption) (gp2 *types.GetTaskListsByDomainResponse, err error) {
+func (c *matchingGateway) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest) (gp2 *types.GetTaskListsByDomainResponse, err error) {
 	var resp *types.GetTaskListsByDomainResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.GetTaskListsByDomain(ctx, gp1, p1...)
+		resp, err = c.client.GetTaskListsByDomain(ctx, gp1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
 
-func (c *matchingClient) ListTaskListPartitions(ctx context.Context, mp1 *types.MatchingListTaskListPartitionsRequest, p1 ...yarpc.CallOption) (lp1 *types.ListTaskListPartitionsResponse, err error) {
+func (c *matchingGateway) ListTaskListPartitions(ctx context.Context, mp1 *types.MatchingListTaskListPartitionsRequest) (lp1 *types.ListTaskListPartitionsResponse, err error) {
 	var resp *types.ListTaskListPartitionsResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.ListTaskListPartitions(ctx, mp1, p1...)
+		resp, err = c.client.ListTaskListPartitions(ctx, mp1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
 
-func (c *matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingPollForActivityTaskResponse, err error) {
+func (c *matchingGateway) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest) (mp2 *types.MatchingPollForActivityTaskResponse, err error) {
 	var resp *types.MatchingPollForActivityTaskResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.PollForActivityTask(ctx, mp1, p1...)
+		resp, err = c.client.PollForActivityTask(ctx, mp1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
 
-func (c *matchingClient) PollForDecisionTask(ctx context.Context, mp1 *types.MatchingPollForDecisionTaskRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingPollForDecisionTaskResponse, err error) {
+func (c *matchingGateway) PollForDecisionTask(ctx context.Context, mp1 *types.MatchingPollForDecisionTaskRequest) (mp2 *types.MatchingPollForDecisionTaskResponse, err error) {
 	var resp *types.MatchingPollForDecisionTaskResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.PollForDecisionTask(ctx, mp1, p1...)
+		resp, err = c.client.PollForDecisionTask(ctx, mp1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
 
-func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingQueryWorkflowResponse, err error) {
+func (c *matchingGateway) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest) (mp2 *types.MatchingQueryWorkflowResponse, err error) {
 	var resp *types.MatchingQueryWorkflowResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.QueryWorkflow(ctx, mp1, p1...)
+		resp, err = c.client.QueryWorkflow(ctx, mp1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
 
-func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
+func (c *matchingGateway) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
 	var resp *types.MatchingRefreshTaskListPartitionConfigResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.RefreshTaskListPartitionConfig(ctx, mp1, p1...)
+		resp, err = c.client.RefreshTaskListPartitionConfig(ctx, mp1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
 
-func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+func (c *matchingGateway) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest) (rp2 *types.ReleaseSemaphoreResponse, err error) {
 	var resp *types.ReleaseSemaphoreResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.ReleaseSemaphore(ctx, rp1, p1...)
+		resp, err = c.client.ReleaseSemaphore(ctx, rp1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
 
-func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
+func (c *matchingGateway) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest) (err error) {
 	op := func(ctx context.Context) error {
-		return c.client.RespondQueryTaskCompleted(ctx, mp1, p1...)
+		return c.client.RespondQueryTaskCompleted(ctx, mp1)
 	}
 	return c.throttleRetry.Do(ctx, op)
 }
 
-func (c *matchingClient) UpdateTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingUpdateTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingUpdateTaskListPartitionConfigResponse, err error) {
+func (c *matchingGateway) UpdateTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingUpdateTaskListPartitionConfigRequest) (mp2 *types.MatchingUpdateTaskListPartitionConfigResponse, err error) {
 	var resp *types.MatchingUpdateTaskListPartitionConfigResponse
 	op := func(ctx context.Context) error {
 		var err error
-		resp, err = c.client.UpdateTaskListPartitionConfig(ctx, mp1, p1...)
+		resp, err = c.client.UpdateTaskListPartitionConfig(ctx, mp1)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)

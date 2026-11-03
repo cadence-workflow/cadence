@@ -72,7 +72,7 @@ type (
 		suite.Suite
 		controller                     *gomock.Controller
 		mockHistoryClient              *history.MockClient
-		mockMatchingClient             *matching.MockClient
+		mockMatchingClient             *matching.MockGateway
 		mockDomainCache                *cache.MockDomainCache
 		mockMembershipResolver         *membership.MockResolver
 		mockIsolationStore             *dynamicconfig.MockClient
@@ -134,7 +134,7 @@ func (s *matchingEngineSuite) SetupTest() {
 	s.mockExecutionManager = &mocks.ExecutionManager{}
 	s.controller = gomock.NewController(s.T())
 	s.mockHistoryClient = history.NewMockClient(s.controller)
-	s.mockMatchingClient = matching.NewMockClient(s.controller)
+	s.mockMatchingClient = matching.NewMockGateway(s.controller)
 	s.mockTimeSource = clock.NewMockedTimeSourceAt(time.Now())
 	s.taskManager = tasklist.NewTestTaskManager(s.T(), s.logger, s.mockTimeSource)
 	s.mockDomainCache = cache.NewMockDomainCache(s.controller)

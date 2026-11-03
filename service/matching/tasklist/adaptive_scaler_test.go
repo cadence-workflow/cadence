@@ -51,7 +51,7 @@ type mockAdaptiveScalerDeps struct {
 	mockManager        *MockManager
 	mockQPSTracker     *stats.MockQPSTracker
 	mockTimeSource     clock.MockedTimeSource
-	mockMatchingClient *matching.MockClient
+	mockMatchingClient *matching.MockGateway
 	dynamicClient      dynamicconfig.Client
 
 	config *config.TaskListConfig
@@ -66,7 +66,7 @@ func setupMocksForAdaptiveScaler(t *testing.T, taskListID *Identifier) (*adaptiv
 	mockManager := NewMockManager(ctrl)
 	mockQPSTracker := stats.NewMockQPSTracker(ctrl)
 	mockTimeSource := clock.NewMockedTimeSourceAt(time.Now())
-	mockMatchingClient := matching.NewMockClient(ctrl)
+	mockMatchingClient := matching.NewMockGateway(ctrl)
 	dynamicClient := dynamicconfig.NewInMemoryClient()
 	cfg := newTaskListConfig(taskListID, config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), dynamicconfig.NewNopCollection(), "test-host", commonConfig.RPC{}, func() []string { return nil }), "test-domain")
 

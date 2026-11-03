@@ -43,7 +43,7 @@ type (
 	Bean interface {
 		GetHistoryClient() history.Client
 		GetHistoryPeers() history.PeerResolver
-		GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error)
+		GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Gateway, error)
 		GetFrontendClient() frontend.Client
 		GetShardDistributorExecutorClient() executorclient.Client
 		GetRemoteAdminClient(cluster string) (admin.Client, error)
@@ -123,9 +123,9 @@ func (h *clientBeanImpl) GetHistoryPeers() history.PeerResolver {
 	return h.historyPeers
 }
 
-func (h *clientBeanImpl) GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error) {
+func (h *clientBeanImpl) GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Gateway, error) {
 	if client := h.matchingClient.Load(); client != nil {
-		return client.(matching.Client), nil
+		return client.(matching.Gateway), nil
 	}
 	return h.lazyInitMatchingClient(domainIDToName)
 }
@@ -162,11 +162,11 @@ func (h *clientBeanImpl) GetRemoteFrontendClient(cluster string) (frontend.Clien
 	return client, nil
 }
 
-func (h *clientBeanImpl) lazyInitMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error) {
+func (h *clientBeanImpl) lazyInitMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Gateway, error) {
 	h.Lock()
 	defer h.Unlock()
 	if cached := h.matchingClient.Load(); cached != nil {
-		return cached.(matching.Client), nil
+		return cached.(matching.Gateway), nil
 	}
 	client, err := h.factory.NewMatchingClient(domainIDToName)
 	if err != nil {

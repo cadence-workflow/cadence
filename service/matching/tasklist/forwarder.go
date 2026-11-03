@@ -42,7 +42,7 @@ type (
 		cfg          *config.ForwarderConfig
 		taskListID   *Identifier
 		taskListKind types.TaskListKind
-		client       matching.Client
+		client       matching.Gateway
 
 		// token channels that vend tokens necessary to make
 		// API calls exposed by forwarder. Tokens are used
@@ -94,7 +94,7 @@ func newForwarder(
 	cfg *config.ForwarderConfig,
 	taskListID *Identifier,
 	kind types.TaskListKind,
-	client matching.Client,
+	client matching.Gateway,
 	scope metrics.Scope,
 ) Forwarder {
 	rpsFunc := func() float64 { return float64(cfg.ForwarderMaxRatePerSecond()) }

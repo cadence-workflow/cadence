@@ -64,7 +64,7 @@ type mockDeps struct {
 	mockDomainCache    *cache.MockDomainCache
 	mockTaskManager    *persistence.MockTaskManager
 	mockIsolationState *isolationgroup.MockState
-	mockMatchingClient *matching.MockClient
+	mockMatchingClient *matching.MockGateway
 	mockTimeSource     clock.MockedTimeSource
 	dynamicClient      dynamicconfig.Client
 }
@@ -83,7 +83,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 		mockDomainCache:    cache.NewMockDomainCache(ctrl),
 		mockTaskManager:    persistence.NewMockTaskManager(ctrl),
 		mockIsolationState: isolationgroup.NewMockState(ctrl),
-		mockMatchingClient: matching.NewMockClient(ctrl),
+		mockMatchingClient: matching.NewMockGateway(ctrl),
 		mockTimeSource:     clock.NewMockedTimeSource(),
 		dynamicClient:      dynamicClient,
 	}
@@ -235,7 +235,7 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 	mockDomainCache := cache.NewMockDomainCache(controller)
 	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
-	mockMatchingClient := matching.NewMockClient(controller)
+	mockMatchingClient := matching.NewMockGateway(controller)
 	mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	mockHistoryService := history.NewMockClient(controller)
 	mockRegistry := NewMockTaskListRegistry(controller)
@@ -997,7 +997,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		TaskManager:     tm,
 		ClusterMetadata: cluster.GetTestClusterMetadata(true),
 		IsolationState:  mockIsolationState,
-		MatchingClient:  matching.NewMockClient(controller),
+		MatchingClient:  matching.NewMockGateway(controller),
 		Registry:        mockRegistry,
 		TaskList:        taskListID,
 		TaskListKind:    types.TaskListKindNormal,
@@ -1069,7 +1069,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		TaskManager:     tm,
 		ClusterMetadata: cluster.GetTestClusterMetadata(true),
 		IsolationState:  mockIsolationState,
-		MatchingClient:  matching.NewMockClient(controller),
+		MatchingClient:  matching.NewMockGateway(controller),
 		Registry:        mockRegistry,
 		TaskList:        taskListID,
 		TaskListKind:    types.TaskListKindNormal,
@@ -1131,7 +1131,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 		TaskManager:     tm,
 		ClusterMetadata: cluster.GetTestClusterMetadata(true),
 		IsolationState:  mockIsolationState,
-		MatchingClient:  matching.NewMockClient(controller),
+		MatchingClient:  matching.NewMockGateway(controller),
 		Registry:        mockRegistry,
 		TaskList:        taskListID,
 		TaskListKind:    types.TaskListKindNormal,
@@ -1281,7 +1281,7 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 				TaskManager:     tm,
 				ClusterMetadata: cluster.GetTestClusterMetadata(true),
 				IsolationState:  mockIsolationState,
-				MatchingClient:  matching.NewMockClient(controller),
+				MatchingClient:  matching.NewMockGateway(controller),
 				Registry:        mockRegistry,
 				TaskList:        taskListID,
 				TaskListKind:    types.TaskListKindNormal,

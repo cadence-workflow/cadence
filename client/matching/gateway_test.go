@@ -45,34 +45,34 @@ const (
 
 type testCase struct {
 	name          string
-	op            func(Client) (any, error)
+	op            func(Gateway) (any, error)
 	mock          func(*MockPeerResolver, *MockLoadBalancer, *MockClient, *MockPartitionConfigProvider)
 	want          any
 	wantError     bool
 	validateError func(*testing.T, error)
 }
 
-func TestNewClient(t *testing.T) {
+func TestNewGateway(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	client := NewMockClient(ctrl)
 	peerResolver := NewMockPeerResolver(ctrl)
 	loadbalancer := NewMockLoadBalancer(ctrl)
 	provider := NewMockPartitionConfigProvider(ctrl)
 
-	c := NewClient(client, peerResolver, loadbalancer, provider)
+	c := NewGateway(client, peerResolver, loadbalancer, provider)
 	assert.NotNil(t, c)
 }
 
 func TestClient_withoutResponse(t *testing.T) {
 	tests := []struct {
 		name      string
-		op        func(Client) error
+		op        func(Gateway) error
 		mock      func(*MockPeerResolver, *MockLoadBalancer, *MockClient)
 		wantError bool
 	}{
 		{
 			name: "RespondQueryTaskCompleted",
-			op: func(c Client) error {
+			op: func(c Gateway) error {
 				return c.RespondQueryTaskCompleted(context.Background(), testRespondQueryTaskCompletedRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient) {
@@ -82,7 +82,7 @@ func TestClient_withoutResponse(t *testing.T) {
 		},
 		{
 			name: "RespondQueryTaskCompleted - Error in resolving peer",
-			op: func(c Client) error {
+			op: func(c Gateway) error {
 				return c.RespondQueryTaskCompleted(context.Background(), testRespondQueryTaskCompletedRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient) {
@@ -92,7 +92,7 @@ func TestClient_withoutResponse(t *testing.T) {
 		},
 		{
 			name: "RespondQueryTaskCompleted - Error while responding to completion of QueryTask",
-			op: func(c Client) error {
+			op: func(c Gateway) error {
 				return c.RespondQueryTaskCompleted(context.Background(), testRespondQueryTaskCompletedRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient) {
@@ -103,7 +103,7 @@ func TestClient_withoutResponse(t *testing.T) {
 		},
 		{
 			name: "CancelOutstandingPoll",
-			op: func(c Client) error {
+			op: func(c Gateway) error {
 				return c.CancelOutstandingPoll(context.Background(), testCancelOutstandingPollRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient) {
@@ -113,7 +113,7 @@ func TestClient_withoutResponse(t *testing.T) {
 		},
 		{
 			name: "CancelOutstandingPoll - Error in resolving peer",
-			op: func(c Client) error {
+			op: func(c Gateway) error {
 				return c.CancelOutstandingPoll(context.Background(), testCancelOutstandingPollRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient) {
@@ -123,7 +123,7 @@ func TestClient_withoutResponse(t *testing.T) {
 		},
 		{
 			name: "CancelOutstandingPoll - Error while cancelling outstanding poll",
-			op: func(c Client) error {
+			op: func(c Gateway) error {
 				return c.CancelOutstandingPoll(context.Background(), testCancelOutstandingPollRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient) {
@@ -144,7 +144,7 @@ func TestClient_withoutResponse(t *testing.T) {
 			loadbalancerMock := NewMockLoadBalancer(ctrl)
 			providerMock := NewMockPartitionConfigProvider(ctrl)
 			tt.mock(peerResolverMock, loadbalancerMock, client)
-			c := NewClient(client, peerResolverMock, loadbalancerMock, providerMock)
+			c := NewGateway(client, peerResolverMock, loadbalancerMock, providerMock)
 
 			err := tt.op(c)
 			if tt.wantError {
@@ -160,7 +160,7 @@ func TestClient_withoutResponse(t *testing.T) {
 func TestClient_withResponse(t *testing.T) {
 	tests := []struct {
 		name          string
-		op            func(Client) (any, error)
+		op            func(Gateway) (any, error)
 		mock          func(*MockPeerResolver, *MockLoadBalancer, *MockClient, *MockPartitionConfigProvider)
 		want          any
 		wantError     bool
@@ -168,7 +168,7 @@ func TestClient_withResponse(t *testing.T) {
 	}{
 		{
 			name: "AddActivityTask",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.AddActivityTask(context.Background(), testAddActivityTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -181,7 +181,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "AddActivityTask - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.AddActivityTask(context.Background(), testAddActivityTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -192,7 +192,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "AddActivityTask - Error while adding activity task",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.AddActivityTask(context.Background(), testAddActivityTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -204,7 +204,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "AddActivityTask - ReadOnlyPartitionError triggers cache invalidation",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.AddActivityTask(context.Background(), testAddActivityTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -222,7 +222,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "AddDecisionTask",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.AddDecisionTask(context.Background(), testAddDecisionTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -235,7 +235,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "AddDecisionTask - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.AddDecisionTask(context.Background(), testAddDecisionTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -246,7 +246,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "AddDecisionTask - Error while adding decision task",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.AddDecisionTask(context.Background(), testAddDecisionTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -258,7 +258,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "AddDecisionTask - ReadOnlyPartitionError triggers cache invalidation",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.AddDecisionTask(context.Background(), testAddDecisionTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -276,7 +276,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "PollForActivityTask",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.PollForActivityTask(context.Background(), testMatchingPollForActivityTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -290,7 +290,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "PollForActivityTask - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.PollForActivityTask(context.Background(), testMatchingPollForActivityTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -302,7 +302,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "PollForActivityTask - Error while polling for ActivityTask",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.PollForActivityTask(context.Background(), testMatchingPollForActivityTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -323,7 +323,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "PollForDecisionTask",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.PollForDecisionTask(context.Background(), testMatchingPollForDecisionTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -337,7 +337,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "PollForDecisionTask - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.PollForDecisionTask(context.Background(), testMatchingPollForDecisionTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -349,7 +349,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "PollForDecisionTask - Error while polling for DecisionTask",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.PollForDecisionTask(context.Background(), testMatchingPollForDecisionTaskRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -370,7 +370,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "QueryWorkflow",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.QueryWorkflow(context.Background(), testMatchingQueryWorkflowRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -383,7 +383,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "QueryWorkflow - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.QueryWorkflow(context.Background(), testMatchingQueryWorkflowRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -395,7 +395,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "QueryWorkflow - Error while querying workflow",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.QueryWorkflow(context.Background(), testMatchingQueryWorkflowRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -408,7 +408,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "DescribeTaskList",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.DescribeTaskList(context.Background(), testMatchingDescribeTaskListRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -419,7 +419,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "DescribeTaskList - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.DescribeTaskList(context.Background(), testMatchingDescribeTaskListRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -430,7 +430,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "DescribeTaskList - Error while describing tasklist",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.DescribeTaskList(context.Background(), testMatchingDescribeTaskListRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -442,7 +442,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "ListTaskListPartitions",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.ListTaskListPartitions(context.Background(), testMatchingListTaskListPartitionsRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -453,7 +453,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "ListTaskListPartitions - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.ListTaskListPartitions(context.Background(), testMatchingListTaskListPartitionsRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -464,7 +464,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "ListTaskListPartitions - Error while listing tasklist partitions",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.ListTaskListPartitions(context.Background(), testMatchingListTaskListPartitionsRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -476,7 +476,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "GetTaskListsByDomain",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.GetTaskListsByDomain(context.Background(), testGetTaskListsByDomainRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -491,7 +491,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "GetTaskListsByDomain - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.GetTaskListsByDomain(context.Background(), testGetTaskListsByDomainRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -502,7 +502,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "UpdateTaskListPartitionConfig",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.UpdateTaskListPartitionConfig(context.Background(), testMatchingUpdateTaskListPartitionConfigRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -513,7 +513,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "UpdateTaskListPartitionConfig - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.UpdateTaskListPartitionConfig(context.Background(), testMatchingUpdateTaskListPartitionConfigRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -524,7 +524,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "UpdateTaskListPartitionConfig - Error while listing tasklist partitions",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.UpdateTaskListPartitionConfig(context.Background(), testMatchingUpdateTaskListPartitionConfigRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -536,7 +536,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "RefreshTaskListPartitionConfig",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.RefreshTaskListPartitionConfig(context.Background(), testMatchingRefreshTaskListPartitionConfigRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -547,7 +547,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "RefreshTaskListPartitionConfig - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.RefreshTaskListPartitionConfig(context.Background(), testMatchingRefreshTaskListPartitionConfigRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -558,7 +558,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "RefreshTaskListPartitionConfig - Error while listing tasklist partitions",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.RefreshTaskListPartitionConfig(context.Background(), testMatchingRefreshTaskListPartitionConfigRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -570,7 +570,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "AcquireSemaphore",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.AcquireSemaphore(context.Background(), testAcquireSemaphoreRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -581,7 +581,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "AcquireSemaphore - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.AcquireSemaphore(context.Background(), testAcquireSemaphoreRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -592,7 +592,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "AcquireSemaphore - Error while adding semaphore task",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.AcquireSemaphore(context.Background(), testAcquireSemaphoreRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -604,7 +604,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "ReleaseSemaphore",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.ReleaseSemaphore(context.Background(), testReleaseSemaphoreRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -615,7 +615,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "ReleaseSemaphore - Error in resolving peer",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.ReleaseSemaphore(context.Background(), testReleaseSemaphoreRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -626,7 +626,7 @@ func TestClient_withResponse(t *testing.T) {
 		},
 		{
 			name: "ReleaseSemaphore - Error while releasing",
-			op: func(c Client) (any, error) {
+			op: func(c Gateway) (any, error) {
 				return c.ReleaseSemaphore(context.Background(), testReleaseSemaphoreRequest())
 			},
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
@@ -648,7 +648,7 @@ func TestClient_withResponse(t *testing.T) {
 			loadbalancerMock := NewMockLoadBalancer(ctrl)
 			providerMock := NewMockPartitionConfigProvider(ctrl)
 			tt.mock(peerResolverMock, loadbalancerMock, client, providerMock)
-			c := NewClient(client, peerResolverMock, loadbalancerMock, providerMock)
+			c := NewGateway(client, peerResolverMock, loadbalancerMock, providerMock)
 
 			res, err := tt.op(c)
 			if tt.wantError {

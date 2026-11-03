@@ -83,7 +83,7 @@ type (
 		mockResource       *resource.Test
 		mockDomainCache    *cache.MockDomainCache
 		mockHistoryClient  *history.MockClient
-		mockMatchingClient *matching.MockClient
+		mockMatchingClient *matching.MockGateway
 		domainHandler      domain.Handler
 
 		mockProducer           *mocks.KafkaProducer

@@ -99,7 +99,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			mockTimeSource := clock.NewMockedTimeSourceAt(time.Now())
 			taskManager := tasklist.NewTestTaskManager(t, logger, mockTimeSource)
 			mockHistoryClient := history.NewMockClient(ctrl)
-			mockMatchingClient := matching.NewMockClient(ctrl)
+			mockMatchingClient := matching.NewMockGateway(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 			resolverMock := membership.NewMockResolver(ctrl)
 			resolverMock.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).AnyTimes()

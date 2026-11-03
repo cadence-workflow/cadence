@@ -213,7 +213,7 @@ func TestPushDecision(t *testing.T) {
 				mockShard.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSourceAt(visTS)).AnyTimes()
 				mockShard.EXPECT().GetDomainCache().Return(domainCache).AnyTimes()
 
-				matchingClient := matching.NewMockClient(ctrl)
+				matchingClient := matching.NewMockGateway(ctrl)
 				matchingClient.EXPECT().AddDecisionTask(gomock.Any(), gomock.Any()).Return(&types.AddDecisionTaskResponse{}, nil)
 
 				writer := &mockDLQWriter{}

@@ -31,7 +31,6 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
@@ -45,7 +44,7 @@ import (
 type ForwarderTestSuite struct {
 	suite.Suite
 	controller *gomock.Controller
-	client     *matching.MockClient
+	client     *matching.MockGateway
 	fwdr       *forwarderImpl
 	cfg        *config.ForwarderConfig
 	taskList   *Identifier
@@ -57,7 +56,7 @@ func TestForwarderSuite(t *testing.T) {
 
 func (t *ForwarderTestSuite) SetupTest() {
 	t.controller = gomock.NewController(t.T())
-	t.client = matching.NewMockClient(t.controller)
+	t.client = matching.NewMockGateway(t.controller)
 	t.cfg = &config.ForwarderConfig{
 		ForwarderMaxOutstandingPolls: func() int { return 1 },
 		ForwarderMaxRatePerSecond:    func() int { return 2 },
@@ -88,7 +87,7 @@ func (t *ForwarderTestSuite) TestForwardDecisionTask() {
 
 	var request *types.AddDecisionTaskRequest
 	t.client.EXPECT().AddDecisionTask(gomock.Any(), gomock.Any()).Do(
-		func(arg0 context.Context, arg1 *types.AddDecisionTaskRequest, option ...yarpc.CallOption) {
+		func(arg0 context.Context, arg1 *types.AddDecisionTaskRequest) {
 			request = arg1
 		},
 	).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
@@ -112,7 +111,7 @@ func (t *ForwarderTestSuite) TestForwardActivityTask() {
 
 	var request *types.AddActivityTaskRequest
 	t.client.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).Do(
-		func(arg0 context.Context, arg1 *types.AddActivityTaskRequest, option ...yarpc.CallOption) {
+		func(arg0 context.Context, arg1 *types.AddActivityTaskRequest) {
 			request = arg1
 		},
 	).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
@@ -162,7 +161,7 @@ func (t *ForwarderTestSuite) TestForwardQueryTask() {
 	resp := &types.MatchingQueryWorkflowResponse{}
 	var request *types.MatchingQueryWorkflowRequest
 	t.client.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Do(
-		func(arg0 context.Context, arg1 *types.MatchingQueryWorkflowRequest, option ...yarpc.CallOption) {
+		func(arg0 context.Context, arg1 *types.MatchingQueryWorkflowRequest) {
 			request = arg1
 		},
 	).Return(resp, nil).Times(1)
@@ -210,7 +209,7 @@ func (t *ForwarderTestSuite) TestForwardPollForDecision() {
 
 	var request *types.MatchingPollForDecisionTaskRequest
 	t.client.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any()).Do(
-		func(arg0 context.Context, arg1 *types.MatchingPollForDecisionTaskRequest, option ...yarpc.CallOption) {
+		func(arg0 context.Context, arg1 *types.MatchingPollForDecisionTaskRequest) {
 			request = arg1
 		},
 	).Return(resp, nil).Times(1)
@@ -238,7 +237,7 @@ func (t *ForwarderTestSuite) TestForwardPollForActivity() {
 
 	var request *types.MatchingPollForActivityTaskRequest
 	t.client.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any()).Do(
-		func(arg0 context.Context, arg1 *types.MatchingPollForActivityTaskRequest, option ...yarpc.CallOption) {
+		func(arg0 context.Context, arg1 *types.MatchingPollForActivityTaskRequest) {
 			request = arg1
 		},
 	).Return(resp, nil).Times(1)

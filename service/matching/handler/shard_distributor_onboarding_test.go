@@ -288,7 +288,7 @@ func (td *onboardingTestData) newHost(t *testing.T, hostName string, percentageO
 		persistence.NewMockSemaphoreMetadataManager(td.ctrl),
 		cluster.GetTestClusterMetadata(true),
 		history.NewMockClient(td.ctrl),
-		matching.NewMockClient(td.ctrl),
+		matching.NewMockGateway(td.ctrl),
 		defaultTestConfig(),
 		log.NewNoop(),
 		zap.NewNop(),

@@ -120,8 +120,8 @@ type Impl struct {
 	sdkClient                      workflowserviceclient.Interface
 	frontendRawClient              frontend.Client
 	frontendClient                 frontend.Client
-	matchingRawClient              matching.Client
-	matchingClient                 matching.Client
+	matchingRawClient              matching.Gateway
+	matchingClient                 matching.Gateway
 	historyRawClient               history.Client
 	historyClient                  history.Client
 	shardDistributorExecutorClient executorclient.Client
@@ -268,7 +268,7 @@ func New(
 	if err != nil {
 		return nil, err
 	}
-	matchingClient := retryable.NewMatchingClient(
+	matchingClient := retryable.NewMatchingGateway(
 		matchingRawClient,
 		common.CreateMatchingServiceRetryPolicy(),
 		serviceConfig.IsErrorRetryableFunction,
@@ -591,12 +591,12 @@ func (h *Impl) GetFrontendClient() frontend.Client {
 }
 
 // GetMatchingRawClient return matching client without retry policy
-func (h *Impl) GetMatchingRawClient() matching.Client {
+func (h *Impl) GetMatchingRawClient() matching.Gateway {
 	return h.matchingRawClient
 }
 
 // GetMatchingClient return matching client with retry policy
-func (h *Impl) GetMatchingClient() matching.Client {
+func (h *Impl) GetMatchingClient() matching.Gateway {
 	return h.matchingClient
 }
 

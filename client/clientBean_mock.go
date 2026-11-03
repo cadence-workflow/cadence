@@ -88,10 +88,10 @@ func (mr *MockBeanMockRecorder) GetHistoryPeers() *gomock.Call {
 }
 
 // GetMatchingClient mocks base method.
-func (m *MockBean) GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error) {
+func (m *MockBean) GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Gateway, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMatchingClient", domainIDToName)
-	ret0, _ := ret[0].(matching.Client)
+	ret0, _ := ret[0].(matching.Gateway)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

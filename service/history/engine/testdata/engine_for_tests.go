@@ -52,11 +52,11 @@ type EngineForTest struct {
 type NewEngineFn func(
 	shard shard.Context,
 	visibilityMgr persistence.VisibilityManager,
-	matching matching.Client,
+	matching matching.Gateway,
 	historyEventNotifier events.Notifier,
 	config *config.Config,
 	replicationTaskFetchers replication.TaskFetchers,
-	rawMatchingClient matching.Client,
+	rawMatchingClient matching.Gateway,
 	failoverCoordinator failover.Coordinator,
 	queueFactories []queue.Factory,
 	dlqHostLimiter *taskdlq.HostLimiter,

@@ -59,7 +59,7 @@ type mockDeps struct {
 	mockResource           *resource.Test
 	mockDomainCache        *cache.MockDomainCache
 	mockHistoryClient      *history.MockClient
-	mockMatchingClient     *matching.MockClient
+	mockMatchingClient     *matching.MockGateway
 	mockProducer           *mocks.KafkaProducer
 	mockMessagingClient    messaging.Client
 	mockMetadataMgr        *mocks.MetadataManager

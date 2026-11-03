@@ -82,15 +82,15 @@ func TestWrappers(t *testing.T) {
 func TestMatching(t *testing.T) {
 	t.Run("forwarded", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		clientMock := matching.NewMockClient(ctrl)
+		clientMock := matching.NewMockGateway(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
 		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 
-		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
+		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).
 			Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 
-		retryableClient := NewMatchingClient(
+		retryableClient := NewMatchingGateway(
 			clientMock,
 			metricsClient)
 
@@ -103,15 +103,15 @@ func TestMatching(t *testing.T) {
 	})
 	t.Run("forwarded poller", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		clientMock := matching.NewMockClient(ctrl)
+		clientMock := matching.NewMockGateway(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
 		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 
-		clientMock.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any(), gomock.Any()).
+		clientMock.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any()).
 			Return(&types.MatchingPollForDecisionTaskResponse{}, nil).Times(1)
 
-		retryableClient := NewMatchingClient(
+		retryableClient := NewMatchingGateway(
 			clientMock,
 			metricsClient)
 
@@ -126,15 +126,15 @@ func TestMatching(t *testing.T) {
 	})
 	t.Run("not forwarded", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		clientMock := matching.NewMockClient(ctrl)
+		clientMock := matching.NewMockGateway(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
 		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 
-		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
+		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).
 			Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 
-		retryableClient := NewMatchingClient(
+		retryableClient := NewMatchingGateway(
 			clientMock,
 			metricsClient)
 
@@ -147,15 +147,15 @@ func TestMatching(t *testing.T) {
 	})
 	t.Run("invalid task list", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		clientMock := matching.NewMockClient(ctrl)
+		clientMock := matching.NewMockGateway(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
 		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 
-		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
+		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).
 			Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 
-		retryableClient := NewMatchingClient(
+		retryableClient := NewMatchingGateway(
 			clientMock,
 			metricsClient)
 

@@ -50,7 +50,7 @@ type HistoryClient interface {
 }
 
 type MatchingClient interface {
-	matching.Client
+	matching.Gateway
 }
 
 // NewAdminClient creates a client to cadence admin client

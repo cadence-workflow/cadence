@@ -54,7 +54,7 @@ type (
 		timeSource     clock.TimeSource
 		logger         log.Logger
 		scope          metrics.Scope
-		matchingClient matching.Client
+		matchingClient matching.Gateway
 
 		taskListType *types.TaskListType
 		status       int32
@@ -89,7 +89,7 @@ func NewAdaptiveScaler(
 	timeSource clock.TimeSource,
 	logger log.Logger,
 	scope metrics.Scope,
-	matchingClient matching.Client,
+	matchingClient matching.Gateway,
 	baseEvent event.E,
 ) AdaptiveScaler {
 	ctx, cancel := context.WithCancel(context.Background())

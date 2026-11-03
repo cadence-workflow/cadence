@@ -100,7 +100,7 @@ type (
 		taskManager                    persistence.TaskManager
 		clusterMetadata                cluster.Metadata
 		historyService                 history.Client
-		matchingClient                 matching.Client
+		matchingClient                 matching.Gateway
 		tokenSerializer                common.TaskTokenSerializer
 		logger                         log.Logger
 		metricsClient                  metrics.Client
@@ -154,7 +154,7 @@ func NewEngine(
 	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
 	clusterMetadata cluster.Metadata,
 	historyService history.Client,
-	matchingClient matching.Client,
+	matchingClient matching.Gateway,
 	config *config.Config,
 	logger log.Logger,
 	zapLogger *zap.Logger,

@@ -7,8 +7,6 @@ package errorinjectors
 import (
 	"context"
 
-	"go.uber.org/yarpc"
-
 	_sourceMatching "github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
@@ -20,18 +18,18 @@ const (
 	msgMatchingInjectedFakeErr = "Injected fake matching client error"
 )
 
-// matchingClient implements _sourceMatching.Client interface instrumented with retries
-type matchingClient struct {
-	client        _sourceMatching.Client
+// matchingGateway implements _sourceMatching.Gateway interface instrumented with retries
+type matchingGateway struct {
+	client        _sourceMatching.Gateway
 	errorRate     float64
 	logger        log.Logger
 	fakeErrFn     func(float64) error
 	forwardCallFn func(error) bool
 }
 
-// NewMatchingClient creates a new instance of matchingClient that injects error into every call with a given rate.
-func NewMatchingClient(client _sourceMatching.Client, errorRate float64, logger log.Logger) _sourceMatching.Client {
-	return &matchingClient{
+// NewMatchingGateway creates a new instance of matchingGateway that injects error into every call with a given rate.
+func NewMatchingGateway(client _sourceMatching.Gateway, errorRate float64, logger log.Logger) _sourceMatching.Gateway {
+	return &matchingGateway{
 		client:        client,
 		errorRate:     errorRate,
 		logger:        logger,
@@ -40,11 +38,11 @@ func NewMatchingClient(client _sourceMatching.Client, errorRate float64, logger 
 	}
 }
 
-func (c *matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest, p1 ...yarpc.CallOption) (ap2 *types.AcquireSemaphoreResponse, err error) {
+func (c *matchingGateway) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest) (ap2 *types.AcquireSemaphoreResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		ap2, err = c.client.AcquireSemaphore(ctx, ap1, p1...)
+		ap2, err = c.client.AcquireSemaphore(ctx, ap1)
 	}
 
 	if fakeErr != nil {
@@ -60,11 +58,11 @@ func (c *matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.Acquir
 	return
 }
 
-func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
+func (c *matchingGateway) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest) (ap2 *types.AddActivityTaskResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		ap2, err = c.client.AddActivityTask(ctx, ap1, p1...)
+		ap2, err = c.client.AddActivityTask(ctx, ap1)
 	}
 
 	if fakeErr != nil {
@@ -80,11 +78,11 @@ func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActi
 	return
 }
 
-func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddDecisionTaskResponse, err error) {
+func (c *matchingGateway) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest) (ap2 *types.AddDecisionTaskResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		ap2, err = c.client.AddDecisionTask(ctx, ap1, p1...)
+		ap2, err = c.client.AddDecisionTask(ctx, ap1)
 	}
 
 	if fakeErr != nil {
@@ -100,11 +98,11 @@ func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDeci
 	return
 }
 
-func (c *matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
+func (c *matchingGateway) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest) (err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		err = c.client.CancelOutstandingPoll(ctx, cp1, p1...)
+		err = c.client.CancelOutstandingPoll(ctx, cp1)
 	}
 
 	if fakeErr != nil {
@@ -120,11 +118,11 @@ func (c *matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.C
 	return
 }
 
-func (c *matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.MatchingDescribeTaskListRequest, p1 ...yarpc.CallOption) (dp1 *types.DescribeTaskListResponse, err error) {
+func (c *matchingGateway) DescribeTaskList(ctx context.Context, mp1 *types.MatchingDescribeTaskListRequest) (dp1 *types.DescribeTaskListResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		dp1, err = c.client.DescribeTaskList(ctx, mp1, p1...)
+		dp1, err = c.client.DescribeTaskList(ctx, mp1)
 	}
 
 	if fakeErr != nil {
@@ -140,11 +138,11 @@ func (c *matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.Matchi
 	return
 }
 
-func (c *matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest, p1 ...yarpc.CallOption) (gp2 *types.GetTaskListsByDomainResponse, err error) {
+func (c *matchingGateway) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest) (gp2 *types.GetTaskListsByDomainResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		gp2, err = c.client.GetTaskListsByDomain(ctx, gp1, p1...)
+		gp2, err = c.client.GetTaskListsByDomain(ctx, gp1)
 	}
 
 	if fakeErr != nil {
@@ -160,11 +158,11 @@ func (c *matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.Ge
 	return
 }
 
-func (c *matchingClient) ListTaskListPartitions(ctx context.Context, mp1 *types.MatchingListTaskListPartitionsRequest, p1 ...yarpc.CallOption) (lp1 *types.ListTaskListPartitionsResponse, err error) {
+func (c *matchingGateway) ListTaskListPartitions(ctx context.Context, mp1 *types.MatchingListTaskListPartitionsRequest) (lp1 *types.ListTaskListPartitionsResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		lp1, err = c.client.ListTaskListPartitions(ctx, mp1, p1...)
+		lp1, err = c.client.ListTaskListPartitions(ctx, mp1)
 	}
 
 	if fakeErr != nil {
@@ -180,11 +178,11 @@ func (c *matchingClient) ListTaskListPartitions(ctx context.Context, mp1 *types.
 	return
 }
 
-func (c *matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingPollForActivityTaskResponse, err error) {
+func (c *matchingGateway) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest) (mp2 *types.MatchingPollForActivityTaskResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		mp2, err = c.client.PollForActivityTask(ctx, mp1, p1...)
+		mp2, err = c.client.PollForActivityTask(ctx, mp1)
 	}
 
 	if fakeErr != nil {
@@ -200,11 +198,11 @@ func (c *matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.Mat
 	return
 }
 
-func (c *matchingClient) PollForDecisionTask(ctx context.Context, mp1 *types.MatchingPollForDecisionTaskRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingPollForDecisionTaskResponse, err error) {
+func (c *matchingGateway) PollForDecisionTask(ctx context.Context, mp1 *types.MatchingPollForDecisionTaskRequest) (mp2 *types.MatchingPollForDecisionTaskResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		mp2, err = c.client.PollForDecisionTask(ctx, mp1, p1...)
+		mp2, err = c.client.PollForDecisionTask(ctx, mp1)
 	}
 
 	if fakeErr != nil {
@@ -220,11 +218,11 @@ func (c *matchingClient) PollForDecisionTask(ctx context.Context, mp1 *types.Mat
 	return
 }
 
-func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingQueryWorkflowResponse, err error) {
+func (c *matchingGateway) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest) (mp2 *types.MatchingQueryWorkflowResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		mp2, err = c.client.QueryWorkflow(ctx, mp1, p1...)
+		mp2, err = c.client.QueryWorkflow(ctx, mp1)
 	}
 
 	if fakeErr != nil {
@@ -240,11 +238,11 @@ func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQ
 	return
 }
 
-func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
+func (c *matchingGateway) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		mp2, err = c.client.RefreshTaskListPartitionConfig(ctx, mp1, p1...)
+		mp2, err = c.client.RefreshTaskListPartitionConfig(ctx, mp1)
 	}
 
 	if fakeErr != nil {
@@ -260,11 +258,11 @@ func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1
 	return
 }
 
-func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+func (c *matchingGateway) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest) (rp2 *types.ReleaseSemaphoreResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		rp2, err = c.client.ReleaseSemaphore(ctx, rp1, p1...)
+		rp2, err = c.client.ReleaseSemaphore(ctx, rp1)
 	}
 
 	if fakeErr != nil {
@@ -280,11 +278,11 @@ func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.Releas
 	return
 }
 
-func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
+func (c *matchingGateway) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest) (err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		err = c.client.RespondQueryTaskCompleted(ctx, mp1, p1...)
+		err = c.client.RespondQueryTaskCompleted(ctx, mp1)
 	}
 
 	if fakeErr != nil {
@@ -300,11 +298,11 @@ func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *typ
 	return
 }
 
-func (c *matchingClient) UpdateTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingUpdateTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingUpdateTaskListPartitionConfigResponse, err error) {
+func (c *matchingGateway) UpdateTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingUpdateTaskListPartitionConfigRequest) (mp2 *types.MatchingUpdateTaskListPartitionConfigResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		mp2, err = c.client.UpdateTaskListPartitionConfig(ctx, mp1, p1...)
+		mp2, err = c.client.UpdateTaskListPartitionConfig(ctx, mp1)
 	}
 
 	if fakeErr != nil {

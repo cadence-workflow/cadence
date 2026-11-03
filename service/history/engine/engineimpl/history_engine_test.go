@@ -82,7 +82,7 @@ type (
 		mockTimerProcessor   *queue.MockProcessor
 		mockDomainCache      *cache.MockDomainCache
 		mockHistoryClient    *hclient.MockClient
-		mockMatchingClient   *matching.MockClient
+		mockMatchingClient   *matching.MockGateway
 		mockEventsReapplier  *ndc.MockEventsReapplier
 		mockWorkflowResetter *reset.MockWorkflowResetter
 

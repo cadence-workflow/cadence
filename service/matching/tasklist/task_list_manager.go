@@ -94,7 +94,7 @@ type (
 		TaskManager     persistence.TaskManager
 		ClusterMetadata cluster.Metadata
 		IsolationState  isolationgroup.State
-		MatchingClient  matching.Client
+		MatchingClient  matching.Gateway
 		Registry        TaskListRegistry
 		TaskList        *Identifier
 		TaskListKind    types.TaskListKind
@@ -132,7 +132,7 @@ type (
 		logger          log.Logger
 		scope           metrics.Scope
 		timeSource      clock.TimeSource
-		matchingClient  matching.Client
+		matchingClient  matching.Gateway
 		domainName      string
 		// pollers stores poller which poll from this tasklist in last few minutes
 		pollers       poller.Manager

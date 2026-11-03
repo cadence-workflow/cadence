@@ -460,10 +460,10 @@ func (mr *MockResourceMockRecorder) GetLogger() *gomock.Call {
 }
 
 // GetMatchingClient mocks base method.
-func (m *MockResource) GetMatchingClient() matching.Client {
+func (m *MockResource) GetMatchingClient() matching.Gateway {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMatchingClient")
-	ret0, _ := ret[0].(matching.Client)
+	ret0, _ := ret[0].(matching.Gateway)
 	return ret0
 }
 
@@ -474,10 +474,10 @@ func (mr *MockResourceMockRecorder) GetMatchingClient() *gomock.Call {
 }
 
 // GetMatchingRawClient mocks base method.
-func (m *MockResource) GetMatchingRawClient() matching.Client {
+func (m *MockResource) GetMatchingRawClient() matching.Gateway {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMatchingRawClient")
-	ret0, _ := ret[0].(matching.Client)
+	ret0, _ := ret[0].(matching.Gateway)
 	return ret0
 }
 

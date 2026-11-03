@@ -90,7 +90,7 @@ type (
 
 		SDKClient                      *publicservicetest.MockClient
 		FrontendClient                 *frontend.MockClient
-		MatchingClient                 *matching.MockClient
+		MatchingClient                 *matching.MockGateway
 		HistoryClient                  *history.MockClient
 		ShardDistributorExecutorClient *sharddistributorexecutor.MockClient
 		RemoteAdminClient              *admin.MockClient
@@ -144,7 +144,7 @@ func NewTest(
 	logger := testlogger.New(t)
 
 	frontendClient := frontend.NewMockClient(controller)
-	matchingClient := matching.NewMockClient(controller)
+	matchingClient := matching.NewMockGateway(controller)
 	historyClient := history.NewMockClient(controller)
 	remoteAdminClient := admin.NewMockClient(controller)
 	remoteFrontendClient := frontend.NewMockClient(controller)
@@ -369,12 +369,12 @@ func (s *Test) GetFrontendClient() frontend.Client {
 }
 
 // GetMatchingRawClient for testing
-func (s *Test) GetMatchingRawClient() matching.Client {
+func (s *Test) GetMatchingRawClient() matching.Gateway {
 	return s.MatchingClient
 }
 
 // GetMatchingClient for testing
-func (s *Test) GetMatchingClient() matching.Client {
+func (s *Test) GetMatchingClient() matching.Gateway {
 	return s.MatchingClient
 }
 

@@ -32,23 +32,23 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-var _ Client = (*clientImpl)(nil)
+var _ Gateway = (*gatewayImpl)(nil)
 
-type clientImpl struct {
+type gatewayImpl struct {
 	client       Client
 	peerResolver PeerResolver
 	loadBalancer LoadBalancer
 	provider     PartitionConfigProvider
 }
 
-// NewClient creates a new history service TChannel client
-func NewClient(
+// NewGateway creates a matching Gateway which sends requests through the given RPC client
+func NewGateway(
 	client Client,
 	peerResolver PeerResolver,
 	lb LoadBalancer,
 	provider PartitionConfigProvider,
-) Client {
-	return &clientImpl{
+) Gateway {
+	return &gatewayImpl{
 		client:       client,
 		peerResolver: peerResolver,
 		loadBalancer: lb,
@@ -56,10 +56,9 @@ func NewClient(
 	}
 }
 
-func (c *clientImpl) AddActivityTask(
+func (c *gatewayImpl) AddActivityTask(
 	ctx context.Context,
 	request *types.AddActivityTaskRequest,
-	opts ...yarpc.CallOption,
 ) (*types.AddActivityTaskResponse, error) {
 	partition := c.loadBalancer.PickWritePartition(
 		persistence.TaskListTypeActivity,
@@ -74,7 +73,7 @@ func (c *clientImpl) AddActivityTask(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.AddActivityTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.AddActivityTask(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		// ReadOnlyPartitionError indicates the partition is being drained - invalidate cache to force next request to route to root partition
 		var readOnlyErr *types.ReadOnlyPartitionError
@@ -93,10 +92,9 @@ func (c *clientImpl) AddActivityTask(
 	return resp, nil
 }
 
-func (c *clientImpl) AddDecisionTask(
+func (c *gatewayImpl) AddDecisionTask(
 	ctx context.Context,
 	request *types.AddDecisionTaskRequest,
-	opts ...yarpc.CallOption,
 ) (*types.AddDecisionTaskResponse, error) {
 	partition := c.loadBalancer.PickWritePartition(
 		persistence.TaskListTypeDecision,
@@ -111,7 +109,7 @@ func (c *clientImpl) AddDecisionTask(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.AddDecisionTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.AddDecisionTask(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		// ReadOnlyPartitionError indicates the partition is being drained - invalidate cache to force next request to route to root partition
 		var readOnlyErr *types.ReadOnlyPartitionError
@@ -130,10 +128,9 @@ func (c *clientImpl) AddDecisionTask(
 	return resp, nil
 }
 
-func (c *clientImpl) PollForActivityTask(
+func (c *gatewayImpl) PollForActivityTask(
 	ctx context.Context,
 	request *types.MatchingPollForActivityTaskRequest,
-	opts ...yarpc.CallOption,
 ) (*types.MatchingPollForActivityTaskResponse, error) {
 	partition := c.loadBalancer.PickReadPartition(
 		persistence.TaskListTypeActivity,
@@ -149,7 +146,7 @@ func (c *clientImpl) PollForActivityTask(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.PollForActivityTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.PollForActivityTask(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		return nil, cadence_errors.NewPeerHostnameError(err, peer)
 	}
@@ -172,10 +169,9 @@ func (c *clientImpl) PollForActivityTask(
 	return resp, nil
 }
 
-func (c *clientImpl) PollForDecisionTask(
+func (c *gatewayImpl) PollForDecisionTask(
 	ctx context.Context,
 	request *types.MatchingPollForDecisionTaskRequest,
-	opts ...yarpc.CallOption,
 ) (*types.MatchingPollForDecisionTaskResponse, error) {
 	partition := c.loadBalancer.PickReadPartition(
 		persistence.TaskListTypeDecision,
@@ -191,7 +187,7 @@ func (c *clientImpl) PollForDecisionTask(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.PollForDecisionTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.PollForDecisionTask(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		return nil, cadence_errors.NewPeerHostnameError(err, peer)
 	}
@@ -213,10 +209,9 @@ func (c *clientImpl) PollForDecisionTask(
 	return resp, nil
 }
 
-func (c *clientImpl) QueryWorkflow(
+func (c *gatewayImpl) QueryWorkflow(
 	ctx context.Context,
 	request *types.MatchingQueryWorkflowRequest,
-	opts ...yarpc.CallOption,
 ) (*types.MatchingQueryWorkflowResponse, error) {
 	partition := c.loadBalancer.PickReadPartition(
 		persistence.TaskListTypeDecision,
@@ -232,7 +227,7 @@ func (c *clientImpl) QueryWorkflow(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.QueryWorkflow(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.QueryWorkflow(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		return nil, err
 	}
@@ -246,74 +241,69 @@ func (c *clientImpl) QueryWorkflow(
 	return resp, nil
 }
 
-func (c *clientImpl) RespondQueryTaskCompleted(
+func (c *gatewayImpl) RespondQueryTaskCompleted(
 	ctx context.Context,
 	request *types.MatchingRespondQueryTaskCompletedRequest,
-	opts ...yarpc.CallOption,
 ) error {
 	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
 	if err != nil {
 		return err
 	}
-	err = c.client.RespondQueryTaskCompleted(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	err = c.client.RespondQueryTaskCompleted(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *clientImpl) CancelOutstandingPoll(
+func (c *gatewayImpl) CancelOutstandingPoll(
 	ctx context.Context,
 	request *types.CancelOutstandingPollRequest,
-	opts ...yarpc.CallOption,
 ) error {
 	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
 	if err != nil {
 		return err
 	}
-	err = c.client.CancelOutstandingPoll(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	err = c.client.CancelOutstandingPoll(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *clientImpl) DescribeTaskList(
+func (c *gatewayImpl) DescribeTaskList(
 	ctx context.Context,
 	request *types.MatchingDescribeTaskListRequest,
-	opts ...yarpc.CallOption,
 ) (*types.DescribeTaskListResponse, error) {
 	peer, err := c.peerResolver.FromTaskList(request.DescRequest.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.DescribeTaskList(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.DescribeTaskList(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (c *clientImpl) ListTaskListPartitions(
+func (c *gatewayImpl) ListTaskListPartitions(
 	ctx context.Context,
 	request *types.MatchingListTaskListPartitionsRequest,
-	opts ...yarpc.CallOption,
 ) (*types.ListTaskListPartitionsResponse, error) {
 	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.ListTaskListPartitions(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.ListTaskListPartitions(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (c *clientImpl) GetTaskListsByDomain(
+func (c *gatewayImpl) GetTaskListsByDomain(
 	ctx context.Context,
 	request *types.GetTaskListsByDomainRequest,
-	opts ...yarpc.CallOption,
 ) (*types.GetTaskListsByDomainResponse, error) {
 	peers, err := c.peerResolver.GetAllPeers()
 	if err != nil {
@@ -323,7 +313,7 @@ func (c *clientImpl) GetTaskListsByDomain(
 	var futures []future.Future
 	for _, peer := range peers {
 		future, settable := future.NewFuture()
-		settable.Set(c.client.GetTaskListsByDomain(ctx, request, append(opts, yarpc.WithShardKey(peer))...))
+		settable.Set(c.client.GetTaskListsByDomain(ctx, request, yarpc.WithShardKey(peer)))
 		futures = append(futures, future)
 	}
 
@@ -356,64 +346,60 @@ func (c *clientImpl) GetTaskListsByDomain(
 	}, nil
 }
 
-func (c *clientImpl) AcquireSemaphore(
+func (c *gatewayImpl) AcquireSemaphore(
 	ctx context.Context,
 	request *types.AcquireSemaphoreRequest,
-	opts ...yarpc.CallOption,
 ) (*types.AcquireSemaphoreResponse, error) {
 	peer, err := c.peerResolver.FromSemaphoreBucket(request.GetDomainUUID(), request.GetSemaphoreName(), int(request.GetBucket()))
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.AcquireSemaphore(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.AcquireSemaphore(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (c *clientImpl) ReleaseSemaphore(
+func (c *gatewayImpl) ReleaseSemaphore(
 	ctx context.Context,
 	request *types.ReleaseSemaphoreRequest,
-	opts ...yarpc.CallOption,
 ) (*types.ReleaseSemaphoreResponse, error) {
 	peer, err := c.peerResolver.FromSemaphoreBucket(request.GetDomainUUID(), request.GetSemaphoreName(), int(request.GetBucket()))
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.ReleaseSemaphore(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.ReleaseSemaphore(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (c *clientImpl) UpdateTaskListPartitionConfig(
+func (c *gatewayImpl) UpdateTaskListPartitionConfig(
 	ctx context.Context,
 	request *types.MatchingUpdateTaskListPartitionConfigRequest,
-	opts ...yarpc.CallOption,
 ) (*types.MatchingUpdateTaskListPartitionConfigResponse, error) {
 	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.UpdateTaskListPartitionConfig(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.UpdateTaskListPartitionConfig(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (c *clientImpl) RefreshTaskListPartitionConfig(
+func (c *gatewayImpl) RefreshTaskListPartitionConfig(
 	ctx context.Context,
 	request *types.MatchingRefreshTaskListPartitionConfigRequest,
-	opts ...yarpc.CallOption,
 ) (*types.MatchingRefreshTaskListPartitionConfigResponse, error) {
 	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.RefreshTaskListPartitionConfig(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.RefreshTaskListPartitionConfig(ctx, request, yarpc.WithShardKey(peer))
 	if err != nil {
 		return nil, err
 	}

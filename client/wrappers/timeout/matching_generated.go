@@ -8,112 +8,110 @@ import (
 	"context"
 	"time"
 
-	"go.uber.org/yarpc"
-
 	_sourceMatching "github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/types"
 )
 
-var _ _sourceMatching.Client = (*matchingClient)(nil)
+var _ _sourceMatching.Gateway = (*matchingGateway)(nil)
 
-// matchingClient implements the _sourceMatching.Client interface instrumented with timeouts
-type matchingClient struct {
-	client          _sourceMatching.Client
+// matchingGateway implements the _sourceMatching.Gateway interface instrumented with timeouts
+type matchingGateway struct {
+	client          _sourceMatching.Gateway
 	longPollTimeout time.Duration
 	timeout         time.Duration
 }
 
-// NewMatchingClient creates a new matchingClient instance
-func NewMatchingClient(
-	client _sourceMatching.Client,
+// NewMatchingGateway creates a new matchingGateway instance
+func NewMatchingGateway(
+	client _sourceMatching.Gateway,
 	longPollTimeout time.Duration,
 	timeout time.Duration,
-) _sourceMatching.Client {
-	return &matchingClient{
+) _sourceMatching.Gateway {
+	return &matchingGateway{
 		client:          client,
 		longPollTimeout: longPollTimeout,
 		timeout:         timeout,
 	}
 }
 
-func (c *matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest, p1 ...yarpc.CallOption) (ap2 *types.AcquireSemaphoreResponse, err error) {
+func (c *matchingGateway) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest) (ap2 *types.AcquireSemaphoreResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
-	return c.client.AcquireSemaphore(ctx, ap1, p1...)
+	return c.client.AcquireSemaphore(ctx, ap1)
 }
 
-func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
+func (c *matchingGateway) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest) (ap2 *types.AddActivityTaskResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
-	return c.client.AddActivityTask(ctx, ap1, p1...)
+	return c.client.AddActivityTask(ctx, ap1)
 }
 
-func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddDecisionTaskResponse, err error) {
+func (c *matchingGateway) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest) (ap2 *types.AddDecisionTaskResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
-	return c.client.AddDecisionTask(ctx, ap1, p1...)
+	return c.client.AddDecisionTask(ctx, ap1)
 }
 
-func (c *matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
+func (c *matchingGateway) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest) (err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
-	return c.client.CancelOutstandingPoll(ctx, cp1, p1...)
+	return c.client.CancelOutstandingPoll(ctx, cp1)
 }
 
-func (c *matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.MatchingDescribeTaskListRequest, p1 ...yarpc.CallOption) (dp1 *types.DescribeTaskListResponse, err error) {
+func (c *matchingGateway) DescribeTaskList(ctx context.Context, mp1 *types.MatchingDescribeTaskListRequest) (dp1 *types.DescribeTaskListResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
-	return c.client.DescribeTaskList(ctx, mp1, p1...)
+	return c.client.DescribeTaskList(ctx, mp1)
 }
 
-func (c *matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest, p1 ...yarpc.CallOption) (gp2 *types.GetTaskListsByDomainResponse, err error) {
-	return c.client.GetTaskListsByDomain(ctx, gp1, p1...)
+func (c *matchingGateway) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest) (gp2 *types.GetTaskListsByDomainResponse, err error) {
+	return c.client.GetTaskListsByDomain(ctx, gp1)
 }
 
-func (c *matchingClient) ListTaskListPartitions(ctx context.Context, mp1 *types.MatchingListTaskListPartitionsRequest, p1 ...yarpc.CallOption) (lp1 *types.ListTaskListPartitionsResponse, err error) {
+func (c *matchingGateway) ListTaskListPartitions(ctx context.Context, mp1 *types.MatchingListTaskListPartitionsRequest) (lp1 *types.ListTaskListPartitionsResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
-	return c.client.ListTaskListPartitions(ctx, mp1, p1...)
+	return c.client.ListTaskListPartitions(ctx, mp1)
 }
 
-func (c *matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingPollForActivityTaskResponse, err error) {
+func (c *matchingGateway) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest) (mp2 *types.MatchingPollForActivityTaskResponse, err error) {
 	ctx, cancel := createContext(ctx, c.longPollTimeout)
 	defer cancel()
-	return c.client.PollForActivityTask(ctx, mp1, p1...)
+	return c.client.PollForActivityTask(ctx, mp1)
 }
 
-func (c *matchingClient) PollForDecisionTask(ctx context.Context, mp1 *types.MatchingPollForDecisionTaskRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingPollForDecisionTaskResponse, err error) {
+func (c *matchingGateway) PollForDecisionTask(ctx context.Context, mp1 *types.MatchingPollForDecisionTaskRequest) (mp2 *types.MatchingPollForDecisionTaskResponse, err error) {
 	ctx, cancel := createContext(ctx, c.longPollTimeout)
 	defer cancel()
-	return c.client.PollForDecisionTask(ctx, mp1, p1...)
+	return c.client.PollForDecisionTask(ctx, mp1)
 }
 
-func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingQueryWorkflowResponse, err error) {
+func (c *matchingGateway) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest) (mp2 *types.MatchingQueryWorkflowResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
-	return c.client.QueryWorkflow(ctx, mp1, p1...)
+	return c.client.QueryWorkflow(ctx, mp1)
 }
 
-func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
+func (c *matchingGateway) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
-	return c.client.RefreshTaskListPartitionConfig(ctx, mp1, p1...)
+	return c.client.RefreshTaskListPartitionConfig(ctx, mp1)
 }
 
-func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+func (c *matchingGateway) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest) (rp2 *types.ReleaseSemaphoreResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
-	return c.client.ReleaseSemaphore(ctx, rp1, p1...)
+	return c.client.ReleaseSemaphore(ctx, rp1)
 }
 
-func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
+func (c *matchingGateway) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest) (err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
-	return c.client.RespondQueryTaskCompleted(ctx, mp1, p1...)
+	return c.client.RespondQueryTaskCompleted(ctx, mp1)
 }
 
-func (c *matchingClient) UpdateTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingUpdateTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingUpdateTaskListPartitionConfigResponse, err error) {
+func (c *matchingGateway) UpdateTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingUpdateTaskListPartitionConfigRequest) (mp2 *types.MatchingUpdateTaskListPartitionConfigResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
-	return c.client.UpdateTaskListPartitionConfig(ctx, mp1, p1...)
+	return c.client.UpdateTaskListPartitionConfig(ctx, mp1)
 }
