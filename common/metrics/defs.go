@@ -1223,6 +1223,16 @@ const (
 	FrontendListSchedulesScope
 	// FrontendCreateSemaphoreScope is the metric scope for frontend.CreateSemaphore
 	FrontendCreateSemaphoreScope
+	// FrontendStartBatchOperationScope is the metric scope for frontend.StartBatchOperation
+	FrontendStartBatchOperationScope
+	// FrontendDescribeBatchOperationScope is the metric scope for frontend.DescribeBatchOperation
+	FrontendDescribeBatchOperationScope
+	// FrontendListBatchOperationsScope is the metric scope for frontend.ListBatchOperations
+	FrontendListBatchOperationsScope
+	// FrontendStopBatchOperationScope is the metric scope for frontend.StopBatchOperation
+	FrontendStopBatchOperationScope
+	// FrontendUpdateBatchOperationScope is the metric scope for frontend.UpdateBatchOperation
+	FrontendUpdateBatchOperationScope
 
 	NumFrontendScopes
 )
@@ -2146,6 +2156,11 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendBackfillScheduleScope:                      {operation: "BackfillSchedule"},
 		FrontendListSchedulesScope:                         {operation: "ListSchedules"},
 		FrontendCreateSemaphoreScope:                       {operation: "CreateSemaphore"},
+		FrontendStartBatchOperationScope:                   {operation: "StartBatchOperation"},
+		FrontendDescribeBatchOperationScope:                {operation: "DescribeBatchOperation"},
+		FrontendListBatchOperationsScope:                   {operation: "ListBatchOperations"},
+		FrontendStopBatchOperationScope:                    {operation: "StopBatchOperation"},
+		FrontendUpdateBatchOperationScope:                  {operation: "UpdateBatchOperation"},
 		FrontendGetSearchAttributesScope:                   {operation: "GetSearchAttributes"},
 		FrontendGetClusterInfoScope:                        {operation: "GetClusterInfo"},
 	},

@@ -57,6 +57,20 @@ func toInt64Value(v *gogo.Int64Value) *int64 {
 	return common.Int64Ptr(v.Value)
 }
 
+func fromBoolValue(v *bool) *gogo.BoolValue {
+	if v == nil {
+		return nil
+	}
+	return &gogo.BoolValue{Value: *v}
+}
+
+func toBoolValue(v *gogo.BoolValue) *bool {
+	if v == nil {
+		return nil
+	}
+	return common.BoolPtr(v.Value)
+}
+
 func unixNanoToTime(t *int64) *gogo.Timestamp {
 	if t == nil {
 		return nil
