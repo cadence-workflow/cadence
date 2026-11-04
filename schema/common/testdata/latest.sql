@@ -14,5 +14,5 @@ CREATE TABLE domain_metadata (
 );
 
 -- This doesn't match v0.2 and that's okay
-INSERT INTO domain_metadata (notification_version) VALUES (1);
+INSERT INTO domain_metadata (notification_version) VALUES (1); -- trailing comment
 
