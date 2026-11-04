@@ -83,6 +83,7 @@ type (
 		numberOfHistoryShards int
 		allIsolationGroups    func() []string
 		logger                log.Logger
+		matchingPollTracker   matching.PollTracker
 	}
 )
 
@@ -96,6 +97,7 @@ func NewRPCClientFactory(
 	numberOfHistoryShards int,
 	allIsolationGroups func() []string,
 	logger log.Logger,
+	matchingPollTracker matching.PollTracker,
 ) Factory {
 	return &rpcClientFactory{
 		rpcFactory:            rpcFactory,
@@ -106,6 +108,7 @@ func NewRPCClientFactory(
 		numberOfHistoryShards: numberOfHistoryShards,
 		allIsolationGroups:    allIsolationGroups,
 		logger:                logger,
+		matchingPollTracker:   matchingPollTracker,
 	}
 }
 
@@ -181,6 +184,7 @@ func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 		peerResolver,
 		matching.NewMultiLoadBalancer(defaultLoadBalancer, loadBalancers, domainIDToName, cf.dynConfig, cf.logger),
 		partitionConfigProvider,
+		cf.matchingPollTracker,
 	)
 	client = timeoutwrapper.NewMatchingClient(client, longPollTimeout, timeout)
 	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.MatchingErrorInjectionRate)(); errorRate != 0 {
