@@ -175,6 +175,7 @@ func (wh *WorkflowHandler) Stop() {
 	atomic.StoreInt32(&wh.shuttingDown, 1)
 	if wh.config.CancelOutstandingPollsOnShutdown() {
 		// release the long-polls still waiting in matching, so the shutdown doesn't wait for them
+		wh.GetLogger().Info("ShutdownHandler: Cancelling outstanding polls to matching")
 		ctx, cancel := context.WithTimeout(context.Background(), disconnectPollersTimeout)
 		defer cancel()
 		wh.GetMatchingPollerDisconnector().DisconnectPollers(ctx)
