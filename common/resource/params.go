@@ -28,6 +28,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -62,6 +63,8 @@ type (
 		ZapLogger          *zap.Logger
 		HostName           string
 		GetIsolationGroups func() []string
+		// MatchingPollTracker is told about every poll sent through the matching client; it can be nil
+		MatchingPollTracker matching.PollTracker
 
 		MetricScope        tally.Scope
 		MembershipResolver membership.Resolver

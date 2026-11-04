@@ -68,6 +68,8 @@ const (
 	HealthStatusShuttingDown
 )
 
+const cancelPollsTimeout = 2 * time.Second
+
 var _ Handler = (*WorkflowHandler)(nil)
 
 type (
@@ -87,6 +89,7 @@ type (
 		producerManager           ProducerManager
 		thriftrwEncoder           codec.BinaryEncoder
 		requestValidator          RequestValidator
+		pollTracker               *PollTracker
 	}
 
 	getHistoryContinuationToken struct {
@@ -112,13 +115,18 @@ var (
 	frontendServiceRetryPolicy = common.CreateFrontendServiceRetryPolicy()
 )
 
-// NewWorkflowHandler creates a thrift handler for the cadence service
+// NewWorkflowHandler creates a thrift handler for the cadence service.
+// pollTracker must be the one given to the matching client of the resource; nil means no polls are tracked.
 func NewWorkflowHandler(
 	resource resource.Resource,
 	config *config.Config,
 	versionChecker client.VersionChecker,
 	domainHandler domain.Handler,
+	pollTracker *PollTracker,
 ) *WorkflowHandler {
+	if pollTracker == nil {
+		pollTracker = NewPollTracker()
+	}
 	return &WorkflowHandler{
 		Resource:        resource,
 		config:          config,
@@ -150,6 +158,7 @@ func NewWorkflowHandler(
 		),
 		thriftrwEncoder:  codec.NewThriftRWEncoder(),
 		requestValidator: NewRequestValidator(resource.GetLogger(), resource.GetMetricsClient(), config),
+		pollTracker:      pollTracker,
 	}
 }
 
@@ -171,6 +180,13 @@ func (wh *WorkflowHandler) Start() {
 // Stop stops the handler
 func (wh *WorkflowHandler) Stop() {
 	atomic.StoreInt32(&wh.shuttingDown, 1)
+	if wh.config.CancelOutstandingPollsOnShutdown() {
+		// release the long-polls still waiting in matching, so the shutdown doesn't wait for them
+		wh.GetLogger().Info("ShutdownHandler: Cancelling outstanding polls to matching")
+		ctx, cancel := context.WithTimeout(context.Background(), cancelPollsTimeout)
+		defer cancel()
+		wh.pollTracker.cancelAll(ctx, wh.GetMatchingRawClient(), wh.GetLogger())
+	}
 }
 
 // UpdateHealthStatus sets the health status for this rpc handler.

@@ -145,7 +145,7 @@ func TestCreateSemaphore(t *testing.T) {
 			if tc.nameMaxLength != 0 {
 				config.SemaphoreNameMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(tc.nameMaxLength)
 			}
-			handler := NewWorkflowHandler(mockResource, config, client.NewMockVersionChecker(ctrl), nil)
+			handler := NewWorkflowHandler(mockResource, config, client.NewMockVersionChecker(ctrl), nil, nil)
 
 			if tc.create != nil {
 				mockResource.DomainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil)
@@ -174,7 +174,7 @@ func TestCreateSemaphoreUnknownDomain(t *testing.T) {
 		10, false, "hostname", mockResource.Logger,
 	)
 	config.EnableDistributedSemaphore = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
-	handler := NewWorkflowHandler(mockResource, config, client.NewMockVersionChecker(ctrl), nil)
+	handler := NewWorkflowHandler(mockResource, config, client.NewMockVersionChecker(ctrl), nil, nil)
 
 	notFound := &types.EntityNotExistsError{Message: "domain not found"}
 	mockResource.DomainCache.EXPECT().GetDomainID(testDomain).Return("", notFound)

@@ -185,6 +185,7 @@ func New(
 			numShards,
 			params.GetIsolationGroups,
 			logger,
+			params.MatchingPollTracker,
 		),
 		params.RPCFactory.GetDispatcher(),
 		params.ClusterMetadata,
