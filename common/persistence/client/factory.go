@@ -75,6 +75,8 @@ type (
 		NewSemaphoreTaskManager() (p.SemaphoreTaskManager, error)
 		// NewHistoryTaskDLQManager returns a new history task DLQ manager
 		NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error)
+		// NewAsyncWorkflowQueueManager returns a new async workflow queue manager
+		NewAsyncWorkflowQueueManager() (p.AsyncWorkflowQueueManager, error)
 		// NewExecutionManager returns a new execution manager
 		NewExecutionManager() (p.ExecutionManager, error)
 		// NewVisibilityManager returns a new visibility manager
@@ -108,6 +110,8 @@ type (
 		NewSemaphoreTaskStore() (p.SemaphoreTaskStore, error)
 		// NewHistoryDLQTaskStore returns a new history DLQ task store
 		NewHistoryDLQTaskStore() (p.HistoryDLQTaskStore, error)
+		// NewAsyncWorkflowQueueStore returns a new async workflow queue store
+		NewAsyncWorkflowQueueStore() (p.AsyncWorkflowQueueStore, error)
 		// NewExecutionStore returns an execution store
 		NewExecutionStore() (p.ExecutionStore, error)
 		// NewVisibilityStore returns a new visibility store,
@@ -358,6 +362,26 @@ func (f *factoryImpl) NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error
 	}
 	if f.metricsClient != nil {
 		result = metered.NewHistoryTaskDLQManager(result, f.metricsClient, f.logger, f.config)
+	}
+	return result, nil
+}
+
+// NewAsyncWorkflowQueueManager returns a new async workflow queue manager
+func (f *factoryImpl) NewAsyncWorkflowQueueManager() (p.AsyncWorkflowQueueManager, error) {
+	ds := f.datastores[storeTypeExecution]
+	store, err := ds.factory.NewAsyncWorkflowQueueStore()
+	if err != nil {
+		return nil, err
+	}
+	result := p.NewAsyncWorkflowQueueManager(store, f.logger)
+	if errorRate := f.dc.ErrorInjectionRate(); errorRate != 0 {
+		result = errorinjectors.NewAsyncWorkflowQueueManager(result, errorRate, f.logger, time.Now())
+	}
+	if ds.ratelimit != nil {
+		result = ratelimited.NewAsyncWorkflowQueueManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
+	}
+	if f.metricsClient != nil {
+		result = metered.NewAsyncWorkflowQueueManager(result, f.metricsClient, f.logger, f.config)
 	}
 	return result, nil
 }
