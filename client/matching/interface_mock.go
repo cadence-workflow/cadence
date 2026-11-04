@@ -19,44 +19,6 @@ import (
 	types "github.com/uber/cadence/common/types"
 )
 
-// MockPollerDisconnector is a mock of PollerDisconnector interface.
-type MockPollerDisconnector struct {
-	ctrl     *gomock.Controller
-	recorder *MockPollerDisconnectorMockRecorder
-	isgomock struct{}
-}
-
-// MockPollerDisconnectorMockRecorder is the mock recorder for MockPollerDisconnector.
-type MockPollerDisconnectorMockRecorder struct {
-	mock *MockPollerDisconnector
-}
-
-// NewMockPollerDisconnector creates a new mock instance.
-func NewMockPollerDisconnector(ctrl *gomock.Controller) *MockPollerDisconnector {
-	mock := &MockPollerDisconnector{ctrl: ctrl}
-	mock.recorder = &MockPollerDisconnectorMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockPollerDisconnector) EXPECT() *MockPollerDisconnectorMockRecorder {
-	return m.recorder
-}
-
-// DisconnectPollers mocks base method.
-func (m *MockPollerDisconnector) DisconnectPollers(ctx context.Context) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DisconnectPollers", ctx)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DisconnectPollers indicates an expected call of DisconnectPollers.
-func (mr *MockPollerDisconnectorMockRecorder) DisconnectPollers(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisconnectPollers", reflect.TypeOf((*MockPollerDisconnector)(nil).DisconnectPollers), ctx)
-}
-
 // MockClient is a mock of Client interface.
 type MockClient struct {
 	ctrl     *gomock.Controller

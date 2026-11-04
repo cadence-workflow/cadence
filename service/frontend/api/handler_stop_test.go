@@ -16,7 +16,7 @@ func TestStopDisconnectsPollersOnlyWhenEnabled(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		res := resource.NewTest(t, gomock.NewController(t), metrics.Frontend)
 		if enabled {
-			res.MatchingPollerDisconnector.EXPECT().DisconnectPollers(gomock.Any()).Return(nil)
+			res.MatchingPollerDisconnector.EXPECT().DisconnectPollers(gomock.Any())
 		}
 		wh := &WorkflowHandler{
 			Resource: res,

@@ -178,6 +178,7 @@ func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 		peerResolver,
 		matching.NewMultiLoadBalancer(defaultLoadBalancer, loadBalancers, domainIDToName, cf.dynConfig, cf.logger),
 		partitionConfigProvider,
+		cf.logger,
 	)
 	client := timeoutwrapper.NewMatchingClient(baseClient, longPollTimeout, timeout)
 	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.MatchingErrorInjectionRate)(); errorRate != 0 {

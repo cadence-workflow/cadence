@@ -23,14 +23,14 @@ package matching
 import (
 	"context"
 	"errors"
-	"fmt"
-	"sync/atomic"
+	"sync"
 
 	"go.uber.org/yarpc"
-	"golang.org/x/sync/errgroup"
 
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/future"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -51,6 +51,7 @@ type clientImpl struct {
 	loadBalancer     LoadBalancer
 	provider         PartitionConfigProvider
 	outstandingPolls *outstandingPolls
+	logger           log.Logger
 }
 
 // NewClient creates a new history service TChannel client
@@ -59,6 +60,7 @@ func NewClient(
 	peerResolver PeerResolver,
 	lb LoadBalancer,
 	provider PartitionConfigProvider,
+	logger log.Logger,
 ) ClientWithPollerDisconnector {
 	return &clientImpl{
 		client:           client,
@@ -66,19 +68,22 @@ func NewClient(
 		loadBalancer:     lb,
 		provider:         provider,
 		outstandingPolls: newOutstandingPolls(),
+		logger:           logger,
 	}
 }
 
 // DisconnectPollers cancels the polls in flight through this client,
 // and makes the client return empty responses to new polls without sending them to matching.
-func (c *clientImpl) DisconnectPollers(ctx context.Context) error {
+// It is best-effort: a poll which fails to cancel is logged and finishes on its own timeout.
+func (c *clientImpl) DisconnectPollers(ctx context.Context) {
 	polls := c.outstandingPolls.close()
 
-	var failed atomic.Int32
-	var g errgroup.Group
-	g.SetLimit(disconnectPollersConcurrency)
+	var wg sync.WaitGroup
+	limiter := make(chan struct{}, disconnectPollersConcurrency)
 	for pollerID, poll := range polls {
-		g.Go(func() error {
+		limiter <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-limiter }()
 			err := c.CancelOutstandingPoll(ctx, &types.CancelOutstandingPollRequest{
 				DomainUUID:   poll.domainID,
 				TaskListType: &poll.taskListType,
@@ -86,15 +91,15 @@ func (c *clientImpl) DisconnectPollers(ctx context.Context) error {
 				PollerID:     pollerID,
 			})
 			if err != nil {
-				failed.Add(1)
+				c.logger.Warn("Failed to cancel outstanding poll",
+					tag.WorkflowDomainID(poll.domainID),
+					tag.WorkflowTaskListName(poll.taskList.GetName()),
+					tag.Error(err),
+				)
 			}
-			return err
 		})
 	}
-	if err := g.Wait(); err != nil {
-		return fmt.Errorf("failed to cancel %d of %d outstanding polls: %w", failed.Load(), len(polls), err)
-	}
-	return nil
+	wg.Wait()
 }
 
 func (c *clientImpl) AddActivityTask(
@@ -181,7 +186,7 @@ func (c *clientImpl) PollForActivityTask(
 		request,
 		request.GetIsolationGroup(),
 	)
-	untrack, ok := c.outstandingPolls.add(request.GetPollerID(), outstandingPoll{
+	ok, untrack := c.outstandingPolls.add(request.GetPollerID(), outstandingPoll{
 		domainID:     request.GetDomainUUID(),
 		taskListType: persistence.TaskListTypeActivity,
 		taskList:     types.TaskList{Name: partition, Kind: request.PollRequest.TaskList.Kind},
@@ -232,7 +237,7 @@ func (c *clientImpl) PollForDecisionTask(
 		request,
 		request.GetIsolationGroup(),
 	)
-	untrack, ok := c.outstandingPolls.add(request.GetPollerID(), outstandingPoll{
+	ok, untrack := c.outstandingPolls.add(request.GetPollerID(), outstandingPoll{
 		domainID:     request.GetDomainUUID(),
 		taskListType: persistence.TaskListTypeDecision,
 		taskList:     types.TaskList{Name: partition, Kind: request.PollRequest.TaskList.Kind},

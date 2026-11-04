@@ -177,9 +177,7 @@ func (wh *WorkflowHandler) Stop() {
 		// release the long-polls still waiting in matching, so the shutdown doesn't wait for them
 		ctx, cancel := context.WithTimeout(context.Background(), disconnectPollersTimeout)
 		defer cancel()
-		if err := wh.GetMatchingPollerDisconnector().DisconnectPollers(ctx); err != nil {
-			wh.GetLogger().Warn("Failed to disconnect pollers on shutdown", tag.Error(err))
-		}
+		wh.GetMatchingPollerDisconnector().DisconnectPollers(ctx)
 	}
 }
 

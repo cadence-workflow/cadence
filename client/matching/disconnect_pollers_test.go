@@ -3,84 +3,86 @@ package matching_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
 const (
 	testDomainID  = "domain-id"
-	testPollerID  = "poller-id"
 	testPartition = "/__cadence_sys/task-list/1"
 )
 
-func TestDisconnectPollersCancelsPollsInFlight(t *testing.T) {
-	cancelErr := errors.New("cancel failed")
-
-	tests := []struct {
-		name      string
-		cancelErr error
-		wantErr   error
-	}{
-		{name: "poll is cancelled"},
-		{name: "cancel failure is reported", cancelErr: cancelErr, wantErr: cancelErr},
+func TestDisconnectPollersCancelsEveryPollInFlight(t *testing.T) {
+	rawClient, client := newTestClient(t)
+	cancelErrs := map[string]error{
+		"poller-1": errors.New("matching is restarting"),
+		"poller-2": nil,
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rawClient, client := newTestClient(t)
-			pollStarted, pollReleased := make(chan struct{}), make(chan struct{})
-			rawClient.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-				func(context.Context, *types.MatchingPollForDecisionTaskRequest, ...yarpc.CallOption) (*types.MatchingPollForDecisionTaskResponse, error) {
-					close(pollStarted)
-					<-pollReleased
-					return &types.MatchingPollForDecisionTaskResponse{}, nil
-				})
-			rawClient.EXPECT().CancelOutstandingPoll(gomock.Any(), &types.CancelOutstandingPollRequest{
-				DomainUUID:   testDomainID,
-				TaskListType: common.Int32Ptr(persistence.TaskListTypeDecision),
-				TaskList:     &types.TaskList{Name: testPartition, Kind: types.TaskListKindNormal.Ptr()},
-				PollerID:     testPollerID,
-			}, gomock.Any()).DoAndReturn(
-				func(context.Context, *types.CancelOutstandingPollRequest, ...yarpc.CallOption) error {
-					close(pollReleased)
-					return tt.cancelErr
-				})
+	released := map[string]chan struct{}{
+		"poller-1": make(chan struct{}),
+		"poller-2": make(chan struct{}),
+	}
+	var pollsStarted sync.WaitGroup
+	pollsStarted.Add(len(released))
 
-			pollErr := make(chan error)
-			go func() {
-				_, err := client.PollForDecisionTask(context.Background(), newDecisionPollRequest())
-				pollErr <- err
-			}()
-			<-pollStarted
-
-			err := client.DisconnectPollers(context.Background())
-			assert.ErrorIs(t, err, tt.wantErr)
-			assert.NoError(t, <-pollErr)
+	rawClient.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any(), gomock.Any()).Times(len(released)).DoAndReturn(
+		func(_ context.Context, request *types.MatchingPollForDecisionTaskRequest, _ ...yarpc.CallOption) (*types.MatchingPollForDecisionTaskResponse, error) {
+			pollsStarted.Done()
+			<-released[request.GetPollerID()]
+			return &types.MatchingPollForDecisionTaskResponse{}, nil
 		})
+	for pollerID, cancelErr := range cancelErrs {
+		rawClient.EXPECT().CancelOutstandingPoll(gomock.Any(), &types.CancelOutstandingPollRequest{
+			DomainUUID:   testDomainID,
+			TaskListType: common.Int32Ptr(persistence.TaskListTypeDecision),
+			TaskList:     &types.TaskList{Name: testPartition, Kind: types.TaskListKindNormal.Ptr()},
+			PollerID:     pollerID,
+		}, gomock.Any()).DoAndReturn(
+			func(context.Context, *types.CancelOutstandingPollRequest, ...yarpc.CallOption) error {
+				close(released[pollerID])
+				return cancelErr
+			})
+	}
+
+	pollErrs := make(chan error, len(released))
+	for pollerID := range released {
+		go func() {
+			_, err := client.PollForDecisionTask(context.Background(), newDecisionPollRequest(pollerID))
+			pollErrs <- err
+		}()
+	}
+	pollsStarted.Wait()
+
+	client.DisconnectPollers(context.Background())
+
+	for range released {
+		assert.NoError(t, <-pollErrs)
 	}
 }
 
 func TestPollAfterDisconnectIsNotSentToMatching(t *testing.T) {
 	_, client := newTestClient(t)
-	require.NoError(t, client.DisconnectPollers(context.Background()))
+	client.DisconnectPollers(context.Background())
 
 	activityResp, err := client.PollForActivityTask(context.Background(), &types.MatchingPollForActivityTaskRequest{
 		DomainUUID:  testDomainID,
-		PollerID:    testPollerID,
+		PollerID:    "poller-1",
 		PollRequest: &types.PollForActivityTaskRequest{TaskList: newRootTaskList()},
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, &types.MatchingPollForActivityTaskResponse{}, activityResp)
 
-	decisionResp, err := client.PollForDecisionTask(context.Background(), newDecisionPollRequest())
+	decisionResp, err := client.PollForDecisionTask(context.Background(), newDecisionPollRequest("poller-1"))
 	assert.NoError(t, err)
 	assert.Equal(t, &types.MatchingPollForDecisionTaskResponse{}, decisionResp)
 }
@@ -98,13 +100,13 @@ func newTestClient(t *testing.T) (*matching.MockClient, matching.ClientWithPolle
 	provider := matching.NewMockPartitionConfigProvider(ctrl)
 	provider.EXPECT().UpdatePartitionConfig(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
-	return rawClient, matching.NewClient(rawClient, peerResolver, loadBalancer, provider)
+	return rawClient, matching.NewClient(rawClient, peerResolver, loadBalancer, provider, log.NewNoop())
 }
 
-func newDecisionPollRequest() *types.MatchingPollForDecisionTaskRequest {
+func newDecisionPollRequest(pollerID string) *types.MatchingPollForDecisionTaskRequest {
 	return &types.MatchingPollForDecisionTaskRequest{
 		DomainUUID:  testDomainID,
-		PollerID:    testPollerID,
+		PollerID:    pollerID,
 		PollRequest: &types.PollForDecisionTaskRequest{TaskList: newRootTaskList()},
 	}
 }
