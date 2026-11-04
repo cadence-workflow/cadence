@@ -53,12 +53,10 @@ import (
 {{$permissionMap = set $permissionMap "CreateSemaphore" "PermissionWrite"}}
 
 {{$permissionMap = set $permissionMap "StartBatchOperation" "PermissionWrite"}}
-{{$permissionMap = set $permissionMap "DescribeBatchOperation" "PermissionRead"}}
-{{$permissionMap = set $permissionMap "ListBatchOperations" "PermissionRead"}}
+{{$permissionMap = set $permissionMap "DescribeBatchOperation" "PermissionWrite"}}
+{{$permissionMap = set $permissionMap "ListBatchOperations" "PermissionWrite"}}
 {{$permissionMap = set $permissionMap "StopBatchOperation" "PermissionWrite"}}
 {{$permissionMap = set $permissionMap "UpdateBatchOperation" "PermissionWrite"}}
-
-{{$adminOperationAPIs := list "StartBatchOperation"}}
 
 {{$adminPermissionMap := dict }}
 {{$adminPermissionMap = set $adminPermissionMap "DescribeCluster" "PermissionRead"}}
@@ -110,12 +108,6 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 	scope := a.getMetricsScopeWithDomain(metrics.Frontend{{$method.Name}}Scope, {{(index $method.Params 1).Name}}.GetDomain())
 	{{- end}}
 	{{- end}}
-	{{- if has $method.Name $adminOperationAPIs}}
-	permission := authorization.{{get $permissionMap $method.Name}}
-	if op := {{(index $method.Params 1).Name}}.GetOperation(); op.GetReplicateBatchOperation() != nil || op.GetRefreshBatchOperation() != nil {
-		permission = authorization.PermissionAdmin
-	}
-	{{- end}}
 	attr := &authorization.Attributes{
 		APIName: "{{$method.Name}}",
 		{{- if eq $handlerName "Admin"}}
@@ -124,8 +116,6 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 		{{- else}}
 		Permission:  authorization.PermissionAdmin,
 		{{- end}}
-		{{- else if has $method.Name $adminOperationAPIs}}
-		Permission: permission,
 		{{- else if hasKey $permissionMap $method.Name}}
 		Permission: authorization.{{get $permissionMap $method.Name}},
 		{{- end}}

@@ -162,10 +162,8 @@ func (v *SignalBatchOperation) GetInput() []byte {
 	return nil
 }
 
-// ReplicateBatchOperation re-sends replication tasks for each matching workflow.
-// The batch must run in the source cluster. Like the single-workflow
-// AdminAPI.ResendReplicationTasks, this requires admin access to the domain;
-// write access alone is not sufficient.
+// ReplicateBatchOperation re-sends replication tasks for each matching
+// workflow. The batch must run in the source cluster.
 type ReplicateBatchOperation struct {
 	SourceCluster string `json:"sourceCluster,omitempty"`
 	TargetCluster string `json:"targetCluster,omitempty"`
@@ -185,9 +183,7 @@ func (v *ReplicateBatchOperation) GetTargetCluster() (o string) {
 	return
 }
 
-// RefreshBatchOperation refreshes the tasks of each matching workflow. Like
-// the single-workflow RefreshWorkflowTasks, this requires admin access to
-// the domain; write access alone is not sufficient.
+// RefreshBatchOperation refreshes the tasks of each matching workflow.
 type RefreshBatchOperation struct {
 }
 

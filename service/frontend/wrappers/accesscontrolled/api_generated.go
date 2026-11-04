@@ -167,7 +167,7 @@ func (a *apiHandler) DescribeBatchOperation(ctx context.Context, dp1 *types.Desc
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendDescribeBatchOperationScope, dp1.GetDomain())
 	attr := &authorization.Attributes{
 		APIName:     "DescribeBatchOperation",
-		Permission:  authorization.PermissionRead,
+		Permission:  authorization.PermissionWrite,
 		RequestBody: authorization.NewFilteredRequestBody(dp1),
 		DomainName:  dp1.GetDomain(),
 	}
@@ -345,7 +345,7 @@ func (a *apiHandler) ListBatchOperations(ctx context.Context, lp1 *types.ListBat
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendListBatchOperationsScope, lp1.GetDomain())
 	attr := &authorization.Attributes{
 		APIName:     "ListBatchOperations",
-		Permission:  authorization.PermissionRead,
+		Permission:  authorization.PermissionWrite,
 		RequestBody: authorization.NewFilteredRequestBody(lp1),
 		DomainName:  lp1.GetDomain(),
 	}
@@ -746,13 +746,9 @@ func (a *apiHandler) SignalWorkflowExecution(ctx context.Context, sp1 *types.Sig
 
 func (a *apiHandler) StartBatchOperation(ctx context.Context, sp1 *types.StartBatchOperationRequest) (sp2 *types.StartBatchOperationResponse, err error) {
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendStartBatchOperationScope, sp1.GetDomain())
-	permission := authorization.PermissionWrite
-	if op := sp1.GetOperation(); op.GetReplicateBatchOperation() != nil || op.GetRefreshBatchOperation() != nil {
-		permission = authorization.PermissionAdmin
-	}
 	attr := &authorization.Attributes{
 		APIName:     "StartBatchOperation",
-		Permission:  permission,
+		Permission:  authorization.PermissionWrite,
 		RequestBody: authorization.NewFilteredRequestBody(sp1),
 		DomainName:  sp1.GetDomain(),
 	}

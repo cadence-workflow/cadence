@@ -17,7 +17,7 @@ func (wh *WorkflowHandler) StartBatchOperation(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
-	return nil, &types.InternalServiceError{Message: "StartBatchOperation is not yet implemented."}
+	return nil, &types.BadRequestError{Message: "StartBatchOperation is not yet implemented."}
 }
 
 // DescribeBatchOperation returns the details and progress of a single batch.
@@ -31,7 +31,7 @@ func (wh *WorkflowHandler) DescribeBatchOperation(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
-	return nil, &types.InternalServiceError{Message: "DescribeBatchOperation is not yet implemented."}
+	return nil, &types.BadRequestError{Message: "DescribeBatchOperation is not yet implemented."}
 }
 
 // ListBatchOperations returns the batches targeting a domain. Implementation
@@ -44,7 +44,7 @@ func (wh *WorkflowHandler) ListBatchOperations(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
-	return nil, &types.InternalServiceError{Message: "ListBatchOperations is not yet implemented."}
+	return nil, &types.BadRequestError{Message: "ListBatchOperations is not yet implemented."}
 }
 
 // StopBatchOperation stops a running batch. Implementation tracked
@@ -57,7 +57,7 @@ func (wh *WorkflowHandler) StopBatchOperation(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
-	return nil, &types.InternalServiceError{Message: "StopBatchOperation is not yet implemented."}
+	return nil, &types.BadRequestError{Message: "StopBatchOperation is not yet implemented."}
 }
 
 // UpdateBatchOperation changes the rate and concurrency of a running batch.
@@ -71,5 +71,5 @@ func (wh *WorkflowHandler) UpdateBatchOperation(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
-	return nil, &types.InternalServiceError{Message: "UpdateBatchOperation is not yet implemented."}
+	return nil, &types.BadRequestError{Message: "UpdateBatchOperation is not yet implemented."}
 }
