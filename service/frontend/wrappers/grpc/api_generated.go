@@ -56,6 +56,11 @@ func (g APIHandler) DeprecateDomain(ctx context.Context, request *apiv1.Deprecat
 	return &apiv1.DeprecateDomainResponse{}, proto.FromError(err)
 }
 
+func (g APIHandler) DescribeBatchOperation(ctx context.Context, request *apiv1.DescribeBatchOperationRequest) (*apiv1.DescribeBatchOperationResponse, error) {
+	response, err := g.h.DescribeBatchOperation(ctx, proto.ToDescribeBatchOperationRequest(request))
+	return proto.FromDescribeBatchOperationResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) DescribeDomain(ctx context.Context, request *apiv1.DescribeDomainRequest) (*apiv1.DescribeDomainResponse, error) {
 	response, err := g.h.DescribeDomain(ctx, proto.ToDescribeDomainRequest(request))
 	return proto.FromDescribeDomainResponse(response), proto.FromError(err)
@@ -109,6 +114,11 @@ func (g APIHandler) GetWorkflowExecutionHistory(ctx context.Context, request *ap
 func (g APIHandler) ListArchivedWorkflowExecutions(ctx context.Context, request *apiv1.ListArchivedWorkflowExecutionsRequest) (*apiv1.ListArchivedWorkflowExecutionsResponse, error) {
 	response, err := g.h.ListArchivedWorkflowExecutions(ctx, proto.ToListArchivedWorkflowExecutionsRequest(request))
 	return proto.FromListArchivedWorkflowExecutionsResponse(response), proto.FromError(err)
+}
+
+func (g APIHandler) ListBatchOperations(ctx context.Context, request *apiv1.ListBatchOperationsRequest) (*apiv1.ListBatchOperationsResponse, error) {
+	response, err := g.h.ListBatchOperations(ctx, proto.ToListBatchOperationsRequest(request))
+	return proto.FromListBatchOperationsResponse(response), proto.FromError(err)
 }
 
 func (g APIHandler) ListClosedWorkflowExecutions(ctx context.Context, request *apiv1.ListClosedWorkflowExecutionsRequest) (*apiv1.ListClosedWorkflowExecutionsResponse, error) {
@@ -271,6 +281,11 @@ func (g APIHandler) SignalWorkflowExecution(ctx context.Context, request *apiv1.
 	return &apiv1.SignalWorkflowExecutionResponse{}, proto.FromError(err)
 }
 
+func (g APIHandler) StartBatchOperation(ctx context.Context, request *apiv1.StartBatchOperationRequest) (*apiv1.StartBatchOperationResponse, error) {
+	response, err := g.h.StartBatchOperation(ctx, proto.ToStartBatchOperationRequest(request))
+	return proto.FromStartBatchOperationResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) StartWorkflowExecution(ctx context.Context, request *apiv1.StartWorkflowExecutionRequest) (*apiv1.StartWorkflowExecutionResponse, error) {
 	response, err := g.h.StartWorkflowExecution(ctx, proto.ToStartWorkflowExecutionRequest(request))
 	return proto.FromStartWorkflowExecutionResponse(response), proto.FromError(err)
@@ -281,6 +296,11 @@ func (g APIHandler) StartWorkflowExecutionAsync(ctx context.Context, request *ap
 	return proto.FromStartWorkflowExecutionAsyncResponse(response), proto.FromError(err)
 }
 
+func (g APIHandler) StopBatchOperation(ctx context.Context, request *apiv1.StopBatchOperationRequest) (*apiv1.StopBatchOperationResponse, error) {
+	response, err := g.h.StopBatchOperation(ctx, proto.ToStopBatchOperationRequest(request))
+	return proto.FromStopBatchOperationResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) TerminateWorkflowExecution(ctx context.Context, request *apiv1.TerminateWorkflowExecutionRequest) (*apiv1.TerminateWorkflowExecutionResponse, error) {
 	err := g.h.TerminateWorkflowExecution(ctx, proto.ToTerminateWorkflowExecutionRequest(request))
 	return &apiv1.TerminateWorkflowExecutionResponse{}, proto.FromError(err)
@@ -289,6 +309,11 @@ func (g APIHandler) TerminateWorkflowExecution(ctx context.Context, request *api
 func (g APIHandler) UnpauseSchedule(ctx context.Context, request *apiv1.UnpauseScheduleRequest) (*apiv1.UnpauseScheduleResponse, error) {
 	response, err := g.h.UnpauseSchedule(ctx, proto.ToUnpauseScheduleRequest(request))
 	return proto.FromUnpauseScheduleResponse(response), proto.FromError(err)
+}
+
+func (g APIHandler) UpdateBatchOperation(ctx context.Context, request *apiv1.UpdateBatchOperationRequest) (*apiv1.UpdateBatchOperationResponse, error) {
+	response, err := g.h.UpdateBatchOperation(ctx, proto.ToUpdateBatchOperationRequest(request))
+	return proto.FromUpdateBatchOperationResponse(response), proto.FromError(err)
 }
 
 func (g APIHandler) UpdateDomain(ctx context.Context, request *apiv1.UpdateDomainRequest) (*apiv1.UpdateDomainResponse, error) {

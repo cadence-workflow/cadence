@@ -230,6 +230,10 @@ func (handler *clusterRedirectionHandler) DeprecateDomain(ctx context.Context, d
 	return handler.frontendHandler.DeprecateDomain(ctx, dp1)
 }
 
+func (handler *clusterRedirectionHandler) DescribeBatchOperation(ctx context.Context, dp1 *types.DescribeBatchOperationRequest) (dp2 *types.DescribeBatchOperationResponse, err error) {
+	return handler.frontendHandler.DescribeBatchOperation(ctx, dp1)
+}
+
 func (handler *clusterRedirectionHandler) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest) (dp2 *types.DescribeDomainResponse, err error) {
 	return handler.frontendHandler.DescribeDomain(ctx, dp1)
 }
@@ -499,6 +503,10 @@ func (handler *clusterRedirectionHandler) ListArchivedWorkflowExecutions(ctx con
 	})
 
 	return lp2, err
+}
+
+func (handler *clusterRedirectionHandler) ListBatchOperations(ctx context.Context, lp1 *types.ListBatchOperationsRequest) (lp2 *types.ListBatchOperationsResponse, err error) {
+	return handler.frontendHandler.ListBatchOperations(ctx, lp1)
 }
 
 func (handler *clusterRedirectionHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *types.ListClosedWorkflowExecutionsRequest) (lp2 *types.ListClosedWorkflowExecutionsResponse, err error) {
@@ -1703,6 +1711,10 @@ func (handler *clusterRedirectionHandler) SignalWorkflowExecution(ctx context.Co
 	return err
 }
 
+func (handler *clusterRedirectionHandler) StartBatchOperation(ctx context.Context, sp1 *types.StartBatchOperationRequest) (sp2 *types.StartBatchOperationResponse, err error) {
+	return handler.frontendHandler.StartBatchOperation(ctx, sp1)
+}
+
 func (handler *clusterRedirectionHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.StartWorkflowExecutionRequest) (sp2 *types.StartWorkflowExecutionResponse, err error) {
 	var (
 		apiName                   = "StartWorkflowExecution"
@@ -1789,6 +1801,10 @@ func (handler *clusterRedirectionHandler) StartWorkflowExecutionAsync(ctx contex
 	return sp2, err
 }
 
+func (handler *clusterRedirectionHandler) StopBatchOperation(ctx context.Context, sp1 *types.StopBatchOperationRequest) (sp2 *types.StopBatchOperationResponse, err error) {
+	return handler.frontendHandler.StopBatchOperation(ctx, sp1)
+}
+
 func (handler *clusterRedirectionHandler) TerminateWorkflowExecution(ctx context.Context, tp1 *types.TerminateWorkflowExecutionRequest) (err error) {
 	var (
 		apiName                   = "TerminateWorkflowExecution"
@@ -1866,6 +1882,10 @@ func (handler *clusterRedirectionHandler) UnpauseSchedule(ctx context.Context, u
 	})
 
 	return up2, err
+}
+
+func (handler *clusterRedirectionHandler) UpdateBatchOperation(ctx context.Context, up1 *types.UpdateBatchOperationRequest) (up2 *types.UpdateBatchOperationResponse, err error) {
+	return handler.frontendHandler.UpdateBatchOperation(ctx, up1)
 }
 
 func (handler *clusterRedirectionHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {
