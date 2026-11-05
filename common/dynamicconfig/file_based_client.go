@@ -315,7 +315,17 @@ func match(v *constrainedValue, filters map[dynamicproperties.Filter]interface{}
 
 	for constrain, constrainedValue := range v.Constraints {
 		constrainKey := dynamicproperties.ParseFilter(constrain)
-		if filters[constrainKey] == nil || filters[constrainKey] != constrainedValue {
+		filterValue := filters[constrainKey]
+		if filterValue == nil {
+			return false
+		}
+		if m, ok := filterValue.(dynamicproperties.Matcher); ok {
+			if !m.Matches(constrainedValue) {
+				return false
+			}
+			continue
+		}
+		if filterValue != constrainedValue {
 			return false
 		}
 	}
