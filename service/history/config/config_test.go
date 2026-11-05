@@ -301,7 +301,7 @@ func TestNewConfig(t *testing.T) {
 		"HistoryTaskDLQMode":                                     {dynamicproperties.HistoryTaskDLQMode, "enabled"},
 		"HistoryTaskDLQProcessorInterval":                        {dynamicproperties.HistoryTaskDLQProcessorInterval, time.Second},
 		"HistoryTaskDLQProcessorFailoverJitterMaxDelay":          {dynamicproperties.HistoryTaskDLQProcessorFailoverJitterMaxDelay, time.Second},
-		"HistoryTaskDLQProcessorHostConcurrency":                 {dynamicproperties.HistoryTaskDLQProcessorHostConcurrency, 11},
+		"HistoryTaskDLQProcessorHostMaxQPS":                      {dynamicproperties.HistoryTaskDLQProcessorHostMaxQPS, 11},
 		"HistoryTaskDLQProcessorEnabled":                         {dynamicproperties.HistoryTaskDLQProcessorEnabled, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()

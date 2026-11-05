@@ -58,6 +58,7 @@ func NewTestContext(
 	shardInfo = shardInfo.ToNilSafeCopy()
 	shardInfo.ClusterTransferAckLevel = map[string]int64{resource.ClusterMetadata.GetCurrentClusterName(): 3, "standby": 2}
 
+	dlqAckLevelIndex := NewDLQAckLevelIndex()
 	shard := &contextImpl{
 		Resource:                     resource,
 		shardID:                      shardInfo.ShardID,
@@ -72,9 +73,10 @@ func NewTestContext(
 		maxTaskSequenceNumber:        100000,
 		scheduledTaskMaxReadLevelMap: make(map[string]time.Time),
 		failoverLevels:               make(map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel),
+		historyTaskDLQAckLevelIndex:  dlqAckLevelIndex,
 		historyTaskDLQWriter: &shardedHistoryTaskDLQWriter{
-			writer:              resource.GetHistoryTaskDLQManager(),
-			dlqAckLevelsCreated: make(map[dlqAckLevelKey]struct{}),
+			writer: resource.GetHistoryTaskDLQManager(),
+			index:  dlqAckLevelIndex,
 		},
 		remoteClusterCurrentTime: make(map[string]time.Time),
 		eventsCache:              eventsCache,
