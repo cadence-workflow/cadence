@@ -105,25 +105,11 @@ func (c *matchingClient) ListTaskListPartitions(ctx context.Context, mp1 *types.
 }
 
 func (c *matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingPollForActivityTaskResponse, err error) {
-	var resp *types.MatchingPollForActivityTaskResponse
-	op := func(ctx context.Context) error {
-		var err error
-		resp, err = c.client.PollForActivityTask(ctx, mp1, p1...)
-		return err
-	}
-	err = c.throttleRetry.Do(ctx, op)
-	return resp, err
+	return c.client.PollForActivityTask(ctx, mp1, p1...)
 }
 
 func (c *matchingClient) PollForDecisionTask(ctx context.Context, mp1 *types.MatchingPollForDecisionTaskRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingPollForDecisionTaskResponse, err error) {
-	var resp *types.MatchingPollForDecisionTaskResponse
-	op := func(ctx context.Context) error {
-		var err error
-		resp, err = c.client.PollForDecisionTask(ctx, mp1, p1...)
-		return err
-	}
-	err = c.throttleRetry.Do(ctx, op)
-	return resp, err
+	return c.client.PollForDecisionTask(ctx, mp1, p1...)
 }
 
 func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingQueryWorkflowResponse, err error) {
