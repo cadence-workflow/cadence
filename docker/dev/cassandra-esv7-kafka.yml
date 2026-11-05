@@ -14,7 +14,7 @@ services:
     environment:
       - discovery.type=single-node
   kafka:
-    image: docker.io/bitnamilegacy/kafka:3.7
+    image: docker.io/soldevelo/kafka:3.7
     hostname: kafka
     container_name: kafka
     ports:
