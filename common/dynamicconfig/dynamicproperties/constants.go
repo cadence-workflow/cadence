@@ -2192,10 +2192,9 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableStickyQuery
-	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
-	// frontend, the acquire decision on history, and acquires on matching. Releases and token lookups
-	// are not gated, so tokens granted before it was turned off are still freed and checked.
-	// Global domains also need HistoryTaskDLQMode enabled, or a hold still waiting at failover is never acquired.
+	// EnableDistributedSemaphore enables distributed semaphores for a domain. Releases and token
+	// lookups always work, so tokens granted before it was turned off can still be freed.
+	// Global domains also need HistoryTaskDLQMode enabled and HistoryTaskDLQProcessorEnabled true.
 	// KeyName: system.enableDistributedSemaphore
 	// Value type: Bool
 	// Default value: false
@@ -2520,6 +2519,7 @@ const (
 
 	// HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages.
 	// When enabled the HistoryTaskDLQProcessor will be started alongside the lifecycle of the history engine.
+	// Global domains that use distributed semaphores need it true, with HistoryTaskDLQMode enabled.
 	// KeyName: history.historyTaskDLQProcessorEnabled
 	// Value type: Bool
 	// Default value: false
@@ -2850,8 +2850,9 @@ const (
 	// * "enabled" - tasks are written to the DLQ and processed by the HistoryTaskDLQProcessor.
 	// * "shadow" - tasks are written to the DLQ but never processed.
 	//
-	// Global domains that use distributed semaphores need "enabled": a standby acquire task that gives up
-	// while its hold is still waiting runs again after failover only if it was kept in the DLQ.
+	// Global domains that use distributed semaphores need "enabled", with HistoryTaskDLQProcessorEnabled true:
+	// a standby acquire task that gives up while its hold is still waiting runs again after failover only if
+	// it was kept in the DLQ and the processor puts it back.
 	//
 	// KeyName: history.HistoryTaskDLQMode
 	// Value type: string ["disabled","shadow","enabled"]
@@ -5271,7 +5272,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableDistributedSemaphore: {
 		KeyName:      "system.enableDistributedSemaphore",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and acquires on matching. Releases and token lookups are not gated, so tokens granted before it was turned off are still freed and checked. Global domains also need HistoryTaskDLQMode enabled",
+		Description:  "EnableDistributedSemaphore enables distributed semaphores for a domain. Releases and token lookups always work, so tokens granted before it was turned off can still be freed. Global domains also need HistoryTaskDLQMode enabled and HistoryTaskDLQProcessorEnabled true",
 		DefaultValue: false,
 	},
 	EnableFailoverManager: {
@@ -5526,7 +5527,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	},
 	HistoryTaskDLQProcessorEnabled: {
 		KeyName:      "history.historyTaskDLQProcessorEnabled",
-		Description:  "HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages",
+		Description:  "HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages. Global domains using distributed semaphores need it true, with HistoryTaskDLQMode enabled",
 		DefaultValue: false,
 	},
 	EnforceSchemaVerificationV2: {
@@ -5798,7 +5799,7 @@ var StringKeys = map[StringKey]DynamicString{
 	},
 	HistoryTaskDLQMode: {
 		KeyName:      "history.historyTaskDLQMode",
-		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries. Global domains using distributed semaphores need it enabled.",
+		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries. Global domains using distributed semaphores need it enabled, with HistoryTaskDLQProcessorEnabled true.",
 		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 		Filters:      []Filter{DomainName},
 	},
