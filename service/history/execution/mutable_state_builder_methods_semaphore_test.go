@@ -498,57 +498,22 @@ func Test__AddSemaphoreAcquireFailedEvent(t *testing.T) {
 }
 
 func Test__ReplicateSemaphoreAcquireFailedEvent(t *testing.T) {
-	releaseTask := &persistence.ReleaseSemaphoreTask{
-		WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
-		TaskData:           persistence.TaskData{Version: 1},
-		InitiatedID:        2,
-		SemaphoreName:      "my-semaphore",
-	}
-	tests := []struct {
-		name          string
-		cause         types.SemaphoreAcquireFailedCause
-		noHold        bool
-		wantTransfers []persistence.Task
-	}{
-		{
-			name:  "not found deletes the hold and adds no release task",
-			cause: types.SemaphoreAcquireFailedCauseNotFound,
-		},
-		{
-			name:          "timed out deletes the hold and adds a release task",
-			cause:         types.SemaphoreAcquireFailedCauseTimedOut,
-			wantTransfers: []persistence.Task{releaseTask},
-		},
-		{
-			name:   "timed out with the hold missing from a broken mutable state adds no release task",
-			cause:  types.SemaphoreAcquireFailedCauseTimedOut,
-			noHold: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mb := testSemaphoreMutableStateBuilder(t)
-			if !tt.noHold {
-				hold := testSemaphoreInfo(2)
-				hold.TokenID = 0
-				mb.UpsertSemaphoreInfo(hold)
-			}
+	mb := testSemaphoreMutableStateBuilder(t)
+	hold := testSemaphoreInfo(2)
+	hold.TokenID = 0
+	mb.UpsertSemaphoreInfo(hold)
 
-			err := mb.ReplicateSemaphoreAcquireFailedEvent(&types.HistoryEvent{
-				ID:        10,
-				Version:   3,
-				EventType: types.EventTypeSemaphoreAcquireFailed.Ptr(),
-				SemaphoreAcquireFailedEventAttributes: &types.SemaphoreAcquireFailedEventAttributes{
-					Cause:            tt.cause.Ptr(),
-					InitiatedEventID: 2,
-				},
-			})
-			require.NoError(t, err)
-			assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
-			assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
-			assert.Equal(t, tt.wantTransfers, mb.GetTransferTasks())
-		})
-	}
+	err := mb.ReplicateSemaphoreAcquireFailedEvent(&types.HistoryEvent{
+		ID:        10,
+		EventType: types.EventTypeSemaphoreAcquireFailed.Ptr(),
+		SemaphoreAcquireFailedEventAttributes: &types.SemaphoreAcquireFailedEventAttributes{
+			Cause:            types.SemaphoreAcquireFailedCauseNotFound.Ptr(),
+			InitiatedEventID: 2,
+		},
+	})
+	require.NoError(t, err)
+	assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
+	assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
 }
 
 // Tests which releases AddSemaphoreReleasedEvent records and which it refuses.

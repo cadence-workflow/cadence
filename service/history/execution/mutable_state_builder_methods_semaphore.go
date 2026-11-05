@@ -219,22 +219,12 @@ func (e *mutableStateBuilder) AddSemaphoreAcquireFailedEvent(
 	return event, nil
 }
 
-// ReplicateSemaphoreAcquireFailedEvent ends the hold whose acquire failed. On a timeout it also adds
-// a release task, since Matching may have granted a token that History never recorded.
+// ReplicateSemaphoreAcquireFailedEvent ends the hold whose acquire failed.
 func (e *mutableStateBuilder) ReplicateSemaphoreAcquireFailedEvent(
 	event *types.HistoryEvent,
 ) error {
 
-	attributes := event.SemaphoreAcquireFailedEventAttributes
-	initiatedEventID := attributes.GetInitiatedEventID()
-	if attributes.GetCause() == types.SemaphoreAcquireFailedCauseTimedOut {
-		if _, ok := e.GetSemaphoreInfo(initiatedEventID); ok {
-			if err := e.taskGenerator.GenerateReleaseSemaphoreTasks(initiatedEventID); err != nil {
-				return err
-			}
-		}
-	}
-	return e.DeleteSemaphoreInfo(initiatedEventID)
+	return e.DeleteSemaphoreInfo(event.SemaphoreAcquireFailedEventAttributes.GetInitiatedEventID())
 }
 
 // AddSemaphoreReleasedEvent releases the hold started by initiatedEventID. It refuses a missing hold.

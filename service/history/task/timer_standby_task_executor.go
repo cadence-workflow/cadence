@@ -457,6 +457,7 @@ func (t *timerStandbyTaskExecutor) executeSemaphoreAcquireTimeoutTask(
 		if err != nil || !ok {
 			return nil, err
 		}
+		// The active side recorded the grant before this timer ran, so the grant wins and there is nothing to wait for.
 		if semaphoreInfo.HasToken() {
 			return nil, nil
 		}

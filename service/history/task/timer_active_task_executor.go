@@ -923,6 +923,7 @@ func (t *timerActiveTaskExecutor) executeSemaphoreAcquireTimeoutTask(
 	if err != nil || !ok {
 		return err
 	}
+	// The grant was recorded before this timer ran, so the grant wins and the timeout does nothing.
 	if semaphoreInfo.HasToken() {
 		return nil
 	}
