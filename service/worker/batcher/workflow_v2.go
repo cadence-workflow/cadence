@@ -64,7 +64,7 @@ func init() {
 // with updated RPS/Concurrency; progress is preserved via heartbeat details.
 func BatchWorkflowV2(ctx workflow.Context, batchParams BatchParams) (HeartBeatDetails, error) {
 	batchParams = setDefaultParams(batchParams)
-	if err := validateParams(batchParams); err != nil {
+	if err := ValidateParams(batchParams); err != nil {
 		return HeartBeatDetails{}, err
 	}
 
