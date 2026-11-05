@@ -1280,8 +1280,7 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 
 	semaphoreInfo, ok := mutableState.GetSemaphoreInfo(task.InitiatedID)
 	if !ok {
-		// The hold is gone: a release removed it, or an earlier attempt of this task recorded
-		// SemaphoreAcquireFailed, so there is nothing to acquire.
+		// The hold was released, timed out, or already failed, so there is nothing to acquire.
 		return nil
 	}
 	ok, err = verifyTaskVersion(t.shard, t.logger, task.DomainID, semaphoreInfo.Version, task.Version, task)

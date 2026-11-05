@@ -244,7 +244,8 @@ func Test__ReplicateSemaphoreAcquireInitiatedEvent_AcceptsSecondHold(t *testing.
 }
 
 func Test__ReplicateSemaphoreAcquireInitiatedEvent(t *testing.T) {
-	timestamp := time.Unix(1700000000, 0)
+	// Sub-millisecond part, to check the deadline is cut to milliseconds.
+	timestamp := time.Unix(1700000000, 123456789)
 	mb := testSemaphoreMutableStateBuilder(t)
 	event := &types.HistoryEvent{
 		ID:        7,
@@ -266,7 +267,7 @@ func Test__ReplicateSemaphoreAcquireInitiatedEvent(t *testing.T) {
 		SemaphoreName: "my-semaphore",
 		OwnerID:       "3:wid:rid:7",
 		// From the event timestamp, so replay gets the same deadline.
-		AcquireDeadline: timestamp.Add(30 * time.Second),
+		AcquireDeadline: time.Unix(1700000030, 123000000),
 	}
 	assert.Equal(t, want, semaphoreInfo)
 	assert.Equal(t, want, mb.pendingSemaphoreInfoIDs[7])
@@ -277,6 +278,11 @@ func Test__ReplicateSemaphoreAcquireInitiatedEvent(t *testing.T) {
 		TaskData:           persistence.TaskData{Version: 3},
 		InitiatedID:        7,
 	}}, mb.GetTransferTasks())
+	assert.Equal(t, []persistence.Task{&persistence.SemaphoreAcquireTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
+		TaskData:           persistence.TaskData{Version: 3, VisibilityTimestamp: time.Unix(1700000030, 123000000)},
+		EventID:            7,
+	}}, mb.GetTimerTasks())
 }
 
 // Tests which grants AddSemaphoreAcquiredEvent records and which it refuses.
@@ -492,22 +498,57 @@ func Test__AddSemaphoreAcquireFailedEvent(t *testing.T) {
 }
 
 func Test__ReplicateSemaphoreAcquireFailedEvent(t *testing.T) {
-	mb := testSemaphoreMutableStateBuilder(t)
-	hold := testSemaphoreInfo(2)
-	hold.TokenID = 0
-	mb.UpsertSemaphoreInfo(hold)
-
-	err := mb.ReplicateSemaphoreAcquireFailedEvent(&types.HistoryEvent{
-		ID:        10,
-		EventType: types.EventTypeSemaphoreAcquireFailed.Ptr(),
-		SemaphoreAcquireFailedEventAttributes: &types.SemaphoreAcquireFailedEventAttributes{
-			Cause:            types.SemaphoreAcquireFailedCauseNotFound.Ptr(),
-			InitiatedEventID: 2,
+	releaseTask := &persistence.ReleaseSemaphoreTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
+		TaskData:           persistence.TaskData{Version: 1},
+		InitiatedID:        2,
+		SemaphoreName:      "my-semaphore",
+	}
+	tests := []struct {
+		name          string
+		cause         types.SemaphoreAcquireFailedCause
+		noHold        bool
+		wantTransfers []persistence.Task
+	}{
+		{
+			name:  "not found deletes the hold and adds no release task",
+			cause: types.SemaphoreAcquireFailedCauseNotFound,
 		},
-	})
-	require.NoError(t, err)
-	assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
-	assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
+		{
+			name:          "timed out deletes the hold and adds a release task",
+			cause:         types.SemaphoreAcquireFailedCauseTimedOut,
+			wantTransfers: []persistence.Task{releaseTask},
+		},
+		{
+			name:   "timed out with the hold missing from a broken mutable state adds no release task",
+			cause:  types.SemaphoreAcquireFailedCauseTimedOut,
+			noHold: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mb := testSemaphoreMutableStateBuilder(t)
+			if !tt.noHold {
+				hold := testSemaphoreInfo(2)
+				hold.TokenID = 0
+				mb.UpsertSemaphoreInfo(hold)
+			}
+
+			err := mb.ReplicateSemaphoreAcquireFailedEvent(&types.HistoryEvent{
+				ID:        10,
+				Version:   3,
+				EventType: types.EventTypeSemaphoreAcquireFailed.Ptr(),
+				SemaphoreAcquireFailedEventAttributes: &types.SemaphoreAcquireFailedEventAttributes{
+					Cause:            tt.cause.Ptr(),
+					InitiatedEventID: 2,
+				},
+			})
+			require.NoError(t, err)
+			assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
+			assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
+			assert.Equal(t, tt.wantTransfers, mb.GetTransferTasks())
+		})
+	}
 }
 
 // Tests which releases AddSemaphoreReleasedEvent records and which it refuses.
@@ -593,7 +634,7 @@ func Test__ReplicateSemaphoreReleasedEvent(t *testing.T) {
 		assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
 		assert.Equal(t, []persistence.Task{&persistence.ReleaseSemaphoreTask{
 			WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
-			TaskData:           persistence.TaskData{Version: 3},
+			TaskData:           persistence.TaskData{Version: 1},
 			InitiatedID:        2,
 			SemaphoreName:      "my-semaphore",
 		}}, mb.GetTransferTasks())

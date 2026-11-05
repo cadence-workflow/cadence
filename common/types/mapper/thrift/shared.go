@@ -6741,6 +6741,9 @@ func FromSemaphoreAcquireFailedCause(t *types.SemaphoreAcquireFailedCause) *shar
 	case types.SemaphoreAcquireFailedCauseNotFound:
 		v := shared.SemaphoreAcquireFailedCauseNotFound
 		return &v
+	case types.SemaphoreAcquireFailedCauseTimedOut:
+		v := shared.SemaphoreAcquireFailedCauseTimedOut
+		return &v
 	}
 	panic("unexpected enum value")
 }
@@ -6753,6 +6756,9 @@ func ToSemaphoreAcquireFailedCause(t *shared.SemaphoreAcquireFailedCause) *types
 	switch *t {
 	case shared.SemaphoreAcquireFailedCauseNotFound:
 		v := types.SemaphoreAcquireFailedCauseNotFound
+		return &v
+	case shared.SemaphoreAcquireFailedCauseTimedOut:
+		v := types.SemaphoreAcquireFailedCauseTimedOut
 		return &v
 	}
 	panic("unexpected enum value")

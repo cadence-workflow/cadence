@@ -1411,6 +1411,8 @@ const (
 	TimerActiveTaskActivityRetryTimerScope
 	// TimerActiveTaskWorkflowBackoffTimerScope is the scope used by metric emitted by timer queue processor for processing retry task.
 	TimerActiveTaskWorkflowBackoffTimerScope
+	// TimerActiveTaskSemaphoreAcquireTimeoutScope is the scope used by metric emitted by timer queue processor for processing semaphore acquire timeouts
+	TimerActiveTaskSemaphoreAcquireTimeoutScope
 	// TimerActiveTaskDeleteHistoryEventScope is the scope used by metric emitted by timer queue processor for processing history event cleanup
 	TimerActiveTaskDeleteHistoryEventScope
 	// TimerStandbyTaskActivityTimeoutScope is the scope used by metric emitted by timer queue processor for processing activity timeouts
@@ -1427,6 +1429,8 @@ const (
 	TimerStandbyTaskDeleteHistoryEventScope
 	// TimerStandbyTaskWorkflowBackoffTimerScope is the scope used by metric emitted by timer queue processor for processing retry task.
 	TimerStandbyTaskWorkflowBackoffTimerScope
+	// TimerStandbyTaskSemaphoreAcquireTimeoutScope is the scope used by metric emitted by timer queue processor for processing semaphore acquire timeouts
+	TimerStandbyTaskSemaphoreAcquireTimeoutScope
 	// CrossClusterQueueProcessorScope is the scope used by all metric emitted by cross cluster queue processor in the source cluster
 	CrossClusterQueueProcessorScope
 	// CrossClusterTaskProcessorScope is the scope used by all metric emitted by cross cluster task processor in the target cluster
@@ -2255,6 +2259,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TimerActiveTaskWorkflowTimeoutScope:                             {operation: "TimerActiveTaskWorkflowTimeout"},
 		TimerActiveTaskActivityRetryTimerScope:                          {operation: "TimerActiveTaskActivityRetryTimer"},
 		TimerActiveTaskWorkflowBackoffTimerScope:                        {operation: "TimerActiveTaskWorkflowBackoffTimer"},
+		TimerActiveTaskSemaphoreAcquireTimeoutScope:                     {operation: "TimerActiveTaskSemaphoreAcquireTimeout"},
 		TimerActiveTaskDeleteHistoryEventScope:                          {operation: "TimerActiveTaskDeleteHistoryEvent"},
 		TimerStandbyTaskActivityTimeoutScope:                            {operation: "TimerStandbyTaskActivityTimeout"},
 		TimerStandbyTaskDecisionTimeoutScope:                            {operation: "TimerStandbyTaskDecisionTimeout"},
@@ -2262,6 +2267,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TimerStandbyTaskWorkflowTimeoutScope:                            {operation: "TimerStandbyTaskWorkflowTimeout"},
 		TimerStandbyTaskActivityRetryTimerScope:                         {operation: "TimerStandbyTaskActivityRetryTimer"},
 		TimerStandbyTaskWorkflowBackoffTimerScope:                       {operation: "TimerStandbyTaskWorkflowBackoffTimer"},
+		TimerStandbyTaskSemaphoreAcquireTimeoutScope:                    {operation: "TimerStandbyTaskSemaphoreAcquireTimeout"},
 		TimerStandbyTaskDeleteHistoryEventScope:                         {operation: "TimerStandbyTaskDeleteHistoryEvent"},
 		CrossClusterQueueProcessorScope:                                 {operation: "CrossClusterQueueProcessor"},
 		CrossClusterTaskProcessorScope:                                  {operation: "CrossClusterTaskProcessor"},
