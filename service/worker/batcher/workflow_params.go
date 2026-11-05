@@ -26,7 +26,7 @@ import (
 	"github.com/uber/cadence/common"
 )
 
-func validateParams(params BatchParams) error {
+func ValidateParams(params BatchParams) error {
 	if params.BatchType == "" ||
 		params.Reason == "" ||
 		params.DomainName == "" ||
@@ -58,12 +58,14 @@ func validateParams(params BatchParams) error {
 	}
 }
 
-// normalizeOperation derives BatchType and the matching legacy Xxx Params
+// NormalizeOperation derives BatchType and the matching legacy Xxx Params
 // field from params.Operation when set, so the rest of this package can keep
 // switching on BatchType regardless of whether the caller is the old CLI
 // flow (which already sets BatchType/Xxx Params directly) or the newer
-// StartBatchOperation handler (which only sets Operation).
-func normalizeOperation(params BatchParams) BatchParams {
+// StartBatchOperation handler (which only sets Operation). Exported so the
+// frontend handler can validate a request against the same rules the
+// workflow itself enforces before starting it.
+func NormalizeOperation(params BatchParams) BatchParams {
 	if params.Operation == nil {
 		return params
 	}
@@ -92,7 +94,7 @@ func normalizeOperation(params BatchParams) BatchParams {
 }
 
 func setDefaultParams(params BatchParams) BatchParams {
-	params = normalizeOperation(params)
+	params = NormalizeOperation(params)
 	if params.RPS <= 0 {
 		params.RPS = DefaultRPS
 	}

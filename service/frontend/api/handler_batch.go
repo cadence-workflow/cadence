@@ -28,10 +28,55 @@ func batchOperationWorkflowID(domainName, batchID string) string {
 	return fmt.Sprintf("%s%s:%s", batchOperationWorkflowIDPrefix, domainName, batchID)
 }
 
+// batchOperationRetryPolicy mirrors the CLI's copyRetryPolicyFromWorkflow:
+// the workflow-level retry policy is derived from the same activity retry
+// policy the batch activity itself uses.
+func batchOperationRetryPolicy() *types.RetryPolicy {
+	return &types.RetryPolicy{
+		InitialIntervalInSeconds:    int32(batcher.BatchActivityRetryPolicy.InitialInterval.Seconds()),
+		BackoffCoefficient:          batcher.BatchActivityRetryPolicy.BackoffCoefficient,
+		MaximumIntervalInSeconds:    int32(batcher.BatchActivityRetryPolicy.MaximumInterval.Seconds()),
+		NonRetriableErrorReasons:    batcher.BatchActivityRetryPolicy.NonRetriableErrorReasons,
+		ExpirationIntervalInSeconds: int32(batcher.BatchActivityRetryPolicy.ExpirationInterval.Seconds()),
+	}
+}
+
+// batchOperationMemo and batchOperationSearchAttributes JSON-encode each
+// field's value, matching the encoding tools/cli's getWorkflowMemo and
+// serializeSearchAttributes use, so API-started and CLI-started batches
+// store these fields in the same format.
+func batchOperationMemo(reason string) (*types.Memo, error) {
+	reasonBytes, err := json.Marshal(reason)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Memo{Fields: map[string][]byte{"Reason": reasonBytes}}, nil
+}
+
+// batchOperationSearchAttributes sets CustomDomain and Operator, matching
+// the CLI's start path. ListBatchJobs and domain-scoped batch listing query
+// on CustomDomain, so without it batches started via this API would never
+// appear in those results.
+func batchOperationSearchAttributes(domainName, operator string) (*types.SearchAttributes, error) {
+	domainBytes, err := json.Marshal(domainName)
+	if err != nil {
+		return nil, err
+	}
+	operatorBytes, err := json.Marshal(operator)
+	if err != nil {
+		return nil, err
+	}
+	return &types.SearchAttributes{IndexedFields: map[string][]byte{
+		"CustomDomain": domainBytes,
+		"Operator":     operatorBytes,
+	}}, nil
+}
+
 // toBatchParams builds the batcher.BatchParams blob the batch workflow
-// consumes as JSON input. The workflow normalizes Operation into its legacy
-// BatchType/Xxx Params fields itself (see batcher.normalizeOperation), so
-// this is a direct passthrough rather than a per-operation-type translation.
+// consumes as JSON input. BatchType and the matching legacy Xxx Params field
+// are filled in via batcher.NormalizeOperation so that any consumer of the
+// stored workflow input (e.g. cadence-web, which only reads the legacy
+// fields) can still determine the operation without understanding Operation.
 func toBatchParams(request *types.StartBatchOperationRequest) batcher.BatchParams {
 	params := batcher.BatchParams{
 		DomainName: request.GetDomain(),
@@ -44,9 +89,14 @@ func toBatchParams(request *types.StartBatchOperationRequest) batcher.BatchParam
 		params.Concurrency = int(limits.GetConcurrency())
 		params.PageSize = int(limits.GetPageSize())
 	}
-	return params
+	return batcher.NormalizeOperation(params)
 }
 
+// validateStartBatchOperationRequest checks the request shape, then runs the
+// normalized params through the same validation the workflow itself applies
+// (batcher.ValidateParams), so a malformed request (missing reason, a signal
+// with no name, a replicate with no clusters, etc.) is rejected here instead
+// of starting a workflow that immediately fails on its first decision.
 func validateStartBatchOperationRequest(request *types.StartBatchOperationRequest) error {
 	if request == nil {
 		return validate.ErrRequestNotSet
@@ -65,6 +115,9 @@ func validateStartBatchOperationRequest(request *types.StartBatchOperationReques
 	}
 	if batcher.BatchTypeFromOperation(request.GetOperation()) == "" {
 		return validate.ErrBatchOperationTypeNotSet
+	}
+	if err := batcher.ValidateParams(toBatchParams(request)); err != nil {
+		return &types.BadRequestError{Message: err.Error()}
 	}
 	return nil
 }
@@ -95,6 +148,15 @@ func (wh *WorkflowHandler) StartBatchOperation(
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to serialize batch workflow input: %v", err)}
 	}
 
+	memo, err := batchOperationMemo(request.GetReason())
+	if err != nil {
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to encode batch job memo: %v", err)}
+	}
+	searchAttributes, err := batchOperationSearchAttributes(domainName, request.GetIdentity())
+	if err != nil {
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to encode batch job search attributes: %v", err)}
+	}
+
 	batchID := request.GetBatchID()
 	wfID := batchOperationWorkflowID(domainName, batchID)
 	executionTimeout := common.Int32Ptr(int32(batcher.InfiniteDuration.Seconds()))
@@ -109,9 +171,9 @@ func (wh *WorkflowHandler) StartBatchOperation(
 		Input:                               inputBytes,
 		ExecutionStartToCloseTimeoutSeconds: executionTimeout,
 		TaskStartToCloseTimeoutSeconds:      decisionTimeout,
-		Memo: &types.Memo{Fields: map[string][]byte{
-			"Reason": []byte(request.GetReason()),
-		}},
+		Memo:                                memo,
+		SearchAttributes:                    searchAttributes,
+		RetryPolicy:                         batchOperationRetryPolicy(),
 	})
 	if err != nil {
 		var alreadyStarted *types.WorkflowExecutionAlreadyStartedError

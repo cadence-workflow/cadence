@@ -1,23 +1,3 @@
-// Copyright (c) 2026 Uber Technologies, Inc.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
 package api
 
 import (
@@ -93,6 +73,46 @@ func TestStartBatchOperation(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
+		"missing reason": {
+			request: &types.StartBatchOperationRequest{
+				Domain:  testDomain,
+				BatchID: "b1",
+				Query:   "q",
+				Operation: &types.BatchOperation{
+					OperationType: types.BatchOperationTypeTerminate.Ptr(),
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"signal missing signal name": {
+			request: &types.StartBatchOperationRequest{
+				Domain:  testDomain,
+				BatchID: "b1",
+				Query:   "q",
+				Reason:  "my-reason",
+				Operation: &types.BatchOperation{
+					OperationType:        types.BatchOperationTypeSignal.Ptr(),
+					SignalBatchOperation: &types.SignalBatchOperation{},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"replicate missing clusters": {
+			request: &types.StartBatchOperationRequest{
+				Domain:  testDomain,
+				BatchID: "b1",
+				Query:   "q",
+				Reason:  "my-reason",
+				Operation: &types.BatchOperation{
+					OperationType:           types.BatchOperationTypeReplicate.Ptr(),
+					ReplicateBatchOperation: &types.ReplicateBatchOperation{},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
 		"domain not found": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -132,11 +152,22 @@ func TestStartBatchOperation(t *testing.T) {
 						assert.Equal(t, constants.BatcherLocalDomainName, req.StartRequest.Domain)
 						assert.Equal(t, batcher.BatchWFV2TypeName, req.StartRequest.WorkflowType.Name)
 						assert.Equal(t, batcher.BatcherTaskListName, req.StartRequest.TaskList.Name)
+						require.NotNil(t, req.StartRequest.RetryPolicy)
+
+						var reason string
+						require.NoError(t, json.Unmarshal(req.StartRequest.Memo.Fields["Reason"], &reason))
+						assert.Equal(t, "my-reason", reason)
+
+						var customDomain string
+						require.NoError(t, json.Unmarshal(req.StartRequest.SearchAttributes.IndexedFields["CustomDomain"], &customDomain))
+						assert.Equal(t, testDomain, customDomain)
 
 						var params batcher.BatchParams
 						require.NoError(t, json.Unmarshal(req.StartRequest.Input, &params))
 						assert.Equal(t, testDomain, params.DomainName)
 						assert.Equal(t, "WorkflowType = 'my-workflow-type'", params.Query)
+						assert.Equal(t, batcher.BatchTypeSignal, params.BatchType)
+						assert.Equal(t, "my-signal", params.SignalParams.SignalName)
 						require.NotNil(t, params.Operation)
 						assert.Equal(t, types.BatchOperationTypeSignal, params.Operation.GetOperationType())
 						assert.Equal(t, "my-signal", params.Operation.GetSignalBatchOperation().GetSignalName())

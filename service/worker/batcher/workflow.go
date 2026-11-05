@@ -138,7 +138,7 @@ func init() {
 // TODO: remove once no v1 executions remain.
 func BatchWorkflow(ctx workflow.Context, batchParams BatchParams) (HeartBeatDetails, error) {
 	batchParams = setDefaultParams(batchParams)
-	err := validateParams(batchParams)
+	err := ValidateParams(batchParams)
 	if err != nil {
 		return HeartBeatDetails{}, err
 	}

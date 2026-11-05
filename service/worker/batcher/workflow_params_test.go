@@ -185,7 +185,7 @@ func TestNormalizeOperation(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tt.want, normalizeOperation(tt.params))
+			assert.Equal(t, tt.want, NormalizeOperation(tt.params))
 		})
 	}
 }
