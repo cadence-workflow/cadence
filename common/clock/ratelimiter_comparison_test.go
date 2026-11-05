@@ -330,9 +330,7 @@ func assertRatelimitersBehaveSimilarly(t *testing.T, burst int, minWaitDuration 
 	ticker := time.NewTicker(fuzzGranularity)
 	defer ticker.Stop()
 	for round := range schedule {
-		round := round // for closure
 		for event := range schedule[round] {
-			event := event // for closure
 			<-ticker.C
 			ts.Advance(fuzzGranularity) // may also be advanced inside wait
 			debugLogf(t, "Tokens before round, real: %0.2f, wrapped: %0.2f, mocked: %0.2f", actual.Tokens(), wrapped.Tokens(), mocked.Tokens())
