@@ -20,17 +20,13 @@ const (
 	batchOperationDecisionTimeout  = 10 // seconds
 )
 
-// batchOperationWorkflowID derives a deterministic workflow ID from the
-// target domain and the caller-provided batch ID. Determinism is what makes
-// BatchID-based idempotency possible: a retry with the same (domain, batchID)
-// resolves to the same workflow instead of starting a duplicate.
+// batchOperationWorkflowID derives a deterministic workflow ID so retries
+// with the same (domain, batchID) resolve to the same workflow.
 func batchOperationWorkflowID(domainName, batchID string) string {
 	return fmt.Sprintf("%s%s:%s", batchOperationWorkflowIDPrefix, domainName, batchID)
 }
 
-// batchOperationRetryPolicy mirrors the CLI's copyRetryPolicyFromWorkflow:
-// the workflow-level retry policy is derived from the same activity retry
-// policy the batch activity itself uses.
+// batchOperationRetryPolicy mirrors the CLI's copyRetryPolicyFromWorkflow.
 func batchOperationRetryPolicy() *types.RetryPolicy {
 	return &types.RetryPolicy{
 		InitialIntervalInSeconds:    int32(batcher.BatchActivityRetryPolicy.InitialInterval.Seconds()),
@@ -41,10 +37,7 @@ func batchOperationRetryPolicy() *types.RetryPolicy {
 	}
 }
 
-// batchOperationMemo and batchOperationSearchAttributes JSON-encode each
-// field's value, matching the encoding tools/cli's getWorkflowMemo and
-// serializeSearchAttributes use, so API-started and CLI-started batches
-// store these fields in the same format.
+// batchOperationMemo matches tools/cli's getWorkflowMemo encoding.
 func batchOperationMemo(reason string) (*types.Memo, error) {
 	reasonBytes, err := json.Marshal(reason)
 	if err != nil {
@@ -53,10 +46,8 @@ func batchOperationMemo(reason string) (*types.Memo, error) {
 	return &types.Memo{Fields: map[string][]byte{"Reason": reasonBytes}}, nil
 }
 
-// batchOperationSearchAttributes sets CustomDomain and Operator, matching
-// the CLI's start path. ListBatchJobs and domain-scoped batch listing query
-// on CustomDomain, so without it batches started via this API would never
-// appear in those results.
+// batchOperationSearchAttributes sets CustomDomain/Operator, matching the
+// CLI's start path, so batches started here show up in domain-scoped listing.
 func batchOperationSearchAttributes(domainName, operator string) (*types.SearchAttributes, error) {
 	domainBytes, err := json.Marshal(domainName)
 	if err != nil {
@@ -73,10 +64,8 @@ func batchOperationSearchAttributes(domainName, operator string) (*types.SearchA
 }
 
 // toBatchParams builds the batcher.BatchParams blob the batch workflow
-// consumes as JSON input. BatchType and the matching legacy Xxx Params field
-// are filled in via batcher.NormalizeOperation so that any consumer of the
-// stored workflow input (e.g. cadence-web, which only reads the legacy
-// fields) can still determine the operation without understanding Operation.
+// consumes as JSON input, normalized so consumers like cadence-web that only
+// read the legacy fields can still determine the operation.
 func toBatchParams(request *types.StartBatchOperationRequest) batcher.BatchParams {
 	params := batcher.BatchParams{
 		DomainName: request.GetDomain(),
@@ -92,11 +81,8 @@ func toBatchParams(request *types.StartBatchOperationRequest) batcher.BatchParam
 	return batcher.NormalizeOperation(params)
 }
 
-// validateStartBatchOperationRequest checks the request shape, then runs the
-// normalized params through the same validation the workflow itself applies
-// (batcher.ValidateParams), so a malformed request (missing reason, a signal
-// with no name, a replicate with no clusters, etc.) is rejected here instead
-// of starting a workflow that immediately fails on its first decision.
+// validateStartBatchOperationRequest also runs batcher.ValidateParams so a
+// malformed request fails here instead of on the workflow's first decision.
 func validateStartBatchOperationRequest(request *types.StartBatchOperationRequest) error {
 	if request == nil {
 		return validate.ErrRequestNotSet
@@ -122,9 +108,8 @@ func validateStartBatchOperationRequest(request *types.StartBatchOperationReques
 	return nil
 }
 
-// StartBatchOperation validates the request, translates it into the batch
-// workflow's existing input shape, and starts (or, for a retried BatchID,
-// reuses) the cadence-batcher workflow under the hood.
+// StartBatchOperation validates the request and starts (or, for a retried
+// BatchID, reuses) the cadence-batcher workflow under the hood.
 func (wh *WorkflowHandler) StartBatchOperation(
 	ctx context.Context,
 	request *types.StartBatchOperationRequest,
@@ -178,8 +163,7 @@ func (wh *WorkflowHandler) StartBatchOperation(
 	if err != nil {
 		var alreadyStarted *types.WorkflowExecutionAlreadyStartedError
 		if errors.As(err, &alreadyStarted) {
-			// BatchID is scoped to the domain for idempotency: a retry with the same
-			// (domain, batchID) resolves to the already-started batch rather than erroring.
+			// Idempotent retry: treat as success rather than an error.
 			return &types.StartBatchOperationResponse{BatchID: batchID}, nil
 		}
 		return nil, err
