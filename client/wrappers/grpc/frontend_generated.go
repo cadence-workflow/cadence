@@ -29,6 +29,11 @@ func (g frontendClient) CreateSchedule(ctx context.Context, cp1 *types.CreateSch
 	return proto.ToCreateScheduleResponse(response), proto.ToError(err)
 }
 
+func (g frontendClient) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest, p1 ...yarpc.CallOption) (cp2 *types.CreateSemaphoreResponse, err error) {
+	response, err := g.c.CreateSemaphore(ctx, proto.FromCreateSemaphoreRequest(cp1), p1...)
+	return proto.ToCreateSemaphoreResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest, p1 ...yarpc.CallOption) (err error) {
 	_, err = g.c.DeleteDomain(ctx, proto.FromDeleteDomainRequest(dp1), p1...)
 	return proto.ToError(err)
