@@ -121,8 +121,8 @@ func NewWorkflowHandler(
 	resource resource.Resource,
 	config *config.Config,
 	versionChecker client.VersionChecker,
-	domainHandler domain.Handler,
 	pollTracker *PollTracker,
+	domainHandler domain.Handler,
 ) *WorkflowHandler {
 	if pollTracker == nil {
 		pollTracker = NewPollTracker()
