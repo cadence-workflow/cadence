@@ -1416,6 +1416,51 @@ func (h *handlerImpl) RecordChildExecutionCompleted(
 	return nil
 }
 
+// RecordSemaphoreAcquired records a semaphore token that Matching granted to a queued acquire.
+func (h *handlerImpl) RecordSemaphoreAcquired(
+	ctx context.Context,
+	request *types.RecordSemaphoreAcquiredRequest,
+) (resp *types.RecordSemaphoreAcquiredResponse, retError error) {
+
+	defer func() { log.CapturePanic(recover(), h.GetLogger(), &retError) }()
+	h.startWG.Wait()
+
+	scope, sw := h.startRequestProfile(ctx, metrics.HistoryRecordSemaphoreAcquiredScope)
+	defer sw.Stop()
+
+	if h.isShuttingDown() {
+		return nil, constants.ErrShuttingDown
+	}
+
+	domainID := request.GetDomainUUID()
+	if domainID == "" {
+		return nil, h.error(constants.ErrDomainNotSet, scope, domainID, "", "")
+	}
+
+	if ok := h.rateLimiter.Allow(); !ok {
+		return nil, h.error(constants.ErrHistoryHostThrottle, scope, domainID, "", "")
+	}
+
+	if request.WorkflowExecution == nil {
+		return nil, h.error(constants.ErrWorkflowExecutionNotSet, scope, domainID, "", "")
+	}
+
+	workflowExecution := request.WorkflowExecution
+	workflowID := workflowExecution.GetWorkflowID()
+	runID := workflowExecution.GetRunID()
+	engine, err1 := h.controller.GetEngine(workflowID)
+	if err1 != nil {
+		return nil, h.error(err1, scope, domainID, workflowID, runID)
+	}
+
+	response, err2 := engine.RecordSemaphoreAcquired(ctx, request)
+	if err2 != nil {
+		return nil, h.error(err2, scope, domainID, workflowID, runID)
+	}
+
+	return response, nil
+}
+
 // ResetStickyTaskList reset the volatile information in mutable state of a given types.
 // Volatile information are the information related to client, such as:
 // 1. StickyTaskList

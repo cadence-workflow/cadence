@@ -458,6 +458,7 @@ var (
 	HistoryClientOperationResetWorkflowExecution            = clientOperation("history-reset-wf-execution")
 	HistoryClientOperationScheduleDecisionTask              = clientOperation("history-schedule-decision-task")
 	HistoryClientOperationRecordChildExecutionCompleted     = clientOperation("history-record-child-execution-completed")
+	HistoryClientOperationRecordSemaphoreAcquired           = clientOperation("history-record-semaphore-acquired")
 	HistoryClientOperationReplicateEventsV2                 = clientOperation("history-replicate-events-v2")
 	HistoryClientOperationSyncShardStatus                   = clientOperation("history-sync-shard-status")
 	HistoryClientOperationSyncActivity                      = clientOperation("history-sync-activity")

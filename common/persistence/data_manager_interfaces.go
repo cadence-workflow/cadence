@@ -3307,10 +3307,9 @@ func (e *WorkflowExecutionInfo) CopyPartitionConfig() map[string]string {
 	return partitionConfig
 }
 
-// HasToken reports whether the hold has been granted. Token ids start at 1, so a
-// non-positive TokenID means the acquire is still waiting.
+// HasToken reports whether the hold has been granted.
 func (s *SemaphoreInfo) HasToken() bool {
-	return s.TokenID > 0
+	return s.TokenID > constants.NoSemaphoreTokenID
 }
 
 func (p *TaskListPartitionConfig) ToInternalType() *types.TaskListPartitionConfig {

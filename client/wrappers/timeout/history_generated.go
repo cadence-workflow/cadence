@@ -155,6 +155,12 @@ func (c *historyClient) RecordDecisionTaskStarted(ctx context.Context, rp1 *type
 	return c.client.RecordDecisionTaskStarted(ctx, rp1, p1...)
 }
 
+func (c *historyClient) RecordSemaphoreAcquired(ctx context.Context, rp1 *types.RecordSemaphoreAcquiredRequest, p1 ...yarpc.CallOption) (rp2 *types.RecordSemaphoreAcquiredResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.RecordSemaphoreAcquired(ctx, rp1, p1...)
+}
+
 func (c *historyClient) RefreshWorkflowTasks(ctx context.Context, hp1 *types.HistoryRefreshWorkflowTasksRequest, p1 ...yarpc.CallOption) (err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
