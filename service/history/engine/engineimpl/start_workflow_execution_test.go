@@ -2143,58 +2143,129 @@ func TestStartWorkflowExecution_ChildFromStaleBranchReplacement(t *testing.T) {
 		// chain makes the running child a later run of a chain, with a request ID that is not deterministic
 		chain           bool
 		firstRunDeleted bool
-		wantLoad        bool
-		wantReplaced    bool
+		// closed makes the child closed instead of running, and the start rejects a duplicate workflow ID
+		closed bool
+		// replacementEnabled enables EnableChildWorkflowStaleBranchReplacement
+		replacementEnabled bool
+		wantLoad           bool
+		wantReplaced       bool
+		// wantNewExecution is true when a new execution starts after the closed child
+		wantNewExecution bool
 	}{
 		{
 			// the other cluster started the child from event 6, and after the failover event 6 of the current branch is
 			// another event
-			name:             "running child from a stale branch: terminated and replaced",
-			flagEnabled:      true,
-			initiatedVersion: otherClusterVersion,
-			wantLoad:         true,
-			wantReplaced:     true,
+			name:               "running child from a stale branch: terminated and replaced",
+			flagEnabled:        true,
+			replacementEnabled: true,
+			initiatedVersion:   otherClusterVersion,
+			wantLoad:           true,
+			wantReplaced:       true,
 		},
 		{
-			name:             "running child of another initiated event on the current branch: already started",
-			flagEnabled:      true,
-			initiatedVersion: activeVersion,
-			wantLoad:         true,
+			name:               "running child of another initiated event on the current branch: already started",
+			flagEnabled:        true,
+			replacementEnabled: true,
+			initiatedVersion:   activeVersion,
+			wantLoad:           true,
 		},
 		{
 			name:             "running child from a stale branch, replacement disabled: already started",
-			initiatedVersion: otherClusterVersion,
-		},
-		{
-			name:             "running child without a deterministic request ID: already started",
 			flagEnabled:      true,
 			initiatedVersion: otherClusterVersion,
-			randomRequestID:  true,
 			wantLoad:         true,
 		},
 		{
-			name:             "running later run of a chain, first run from a stale branch: terminated and replaced",
-			flagEnabled:      true,
-			initiatedVersion: otherClusterVersion,
-			chain:            true,
-			wantLoad:         true,
-			wantReplaced:     true,
+			// the replacement is checked only after the handling of the existing run loads it
+			name:               "running child from a stale branch, handling disabled: already started",
+			replacementEnabled: true,
+			initiatedVersion:   otherClusterVersion,
 		},
 		{
-			name:             "running later run of a chain of another initiated event on the current branch: already started",
-			flagEnabled:      true,
-			initiatedVersion: activeVersion,
-			chain:            true,
-			wantLoad:         true,
+			name:               "running child without a deterministic request ID: already started",
+			flagEnabled:        true,
+			replacementEnabled: true,
+			initiatedVersion:   otherClusterVersion,
+			randomRequestID:    true,
+			wantLoad:           true,
+		},
+		{
+			name:               "running later run of a chain, first run from a stale branch: terminated and replaced",
+			flagEnabled:        true,
+			replacementEnabled: true,
+			initiatedVersion:   otherClusterVersion,
+			chain:              true,
+			wantLoad:           true,
+			wantReplaced:       true,
+		},
+		{
+			name:               "running later run of a chain of another initiated event on the current branch: already started",
+			flagEnabled:        true,
+			replacementEnabled: true,
+			initiatedVersion:   activeVersion,
+			chain:              true,
+			wantLoad:           true,
 		},
 		{
 			// for example the retention of the domain deleted the first run
-			name:             "running later run of a chain, first run deleted: already started",
+			name:               "running later run of a chain, first run deleted: already started",
+			flagEnabled:        true,
+			replacementEnabled: true,
+			initiatedVersion:   otherClusterVersion,
+			chain:              true,
+			firstRunDeleted:    true,
+			wantLoad:           true,
+		},
+		{
+			// the reuse policy applies only to runs of the current branch of the parent
+			name:               "closed child from a stale branch, reject duplicate: new execution started",
+			flagEnabled:        true,
+			replacementEnabled: true,
+			initiatedVersion:   otherClusterVersion,
+			closed:             true,
+			wantLoad:           true,
+			wantNewExecution:   true,
+		},
+		{
+			name:               "closed later run of a chain, first run from a stale branch, reject duplicate: new execution started",
+			flagEnabled:        true,
+			replacementEnabled: true,
+			initiatedVersion:   otherClusterVersion,
+			chain:              true,
+			closed:             true,
+			wantLoad:           true,
+			wantNewExecution:   true,
+		},
+		{
+			name:               "closed child of another initiated event on the current branch, reject duplicate: already started",
+			flagEnabled:        true,
+			replacementEnabled: true,
+			initiatedVersion:   activeVersion,
+			closed:             true,
+			wantLoad:           true,
+		},
+		{
+			name:               "closed child without a deterministic request ID, reject duplicate: already started",
+			flagEnabled:        true,
+			replacementEnabled: true,
+			initiatedVersion:   otherClusterVersion,
+			randomRequestID:    true,
+			closed:             true,
+			wantLoad:           true,
+		},
+		{
+			name:             "closed child from a stale branch, replacement disabled, reject duplicate: already started",
 			flagEnabled:      true,
 			initiatedVersion: otherClusterVersion,
-			chain:            true,
-			firstRunDeleted:  true,
+			closed:           true,
 			wantLoad:         true,
+		},
+		{
+			// the replacement is checked only after the handling of the existing run loads it
+			name:               "closed child from a stale branch, handling disabled, reject duplicate: already started",
+			replacementEnabled: true,
+			initiatedVersion:   otherClusterVersion,
+			closed:             true,
 		},
 	}
 
@@ -2204,7 +2275,15 @@ func TestStartWorkflowExecution_ChildFromStaleBranchReplacement(t *testing.T) {
 			eft.Engine.Start()
 			defer eft.Engine.Stop()
 
+			childState, childCloseStatus := persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone
+			reusePolicy := types.WorkflowIDReusePolicyAllowDuplicate
+			if tc.closed {
+				childState, childCloseStatus = persistence.WorkflowStateCompleted, persistence.WorkflowCloseStatusCompleted
+				reusePolicy = types.WorkflowIDReusePolicyRejectDuplicate
+			}
+
 			eft.ShardCtx.GetConfig().EnableExistingChildWorkflowRunHandling = dynamicproperties.GetBoolPropertyFnFilteredByDomain(tc.flagEnabled)
+			eft.ShardCtx.GetConfig().EnableChildWorkflowStaleBranchReplacement = dynamicproperties.GetBoolPropertyFnFilteredByDomain(tc.replacementEnabled)
 			eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestGlobalDomainEntry, nil).AnyTimes()
 			eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).AnyTimes()
 			// the domain failed over to this cluster, so the loaded child run is active here
@@ -2241,13 +2320,23 @@ func TestStartWorkflowExecution_ChildFromStaleBranchReplacement(t *testing.T) {
 					return req.Execution.RunID == childDuplicateRunID
 				})).Return(firstRunResponse, firstRunErr).Once()
 			}
-			eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).
-				Return(nil, &persistence.WorkflowExecutionAlreadyStartedError{
-					StartRequestID:   childRequestID,
-					RunID:            childCurrentRunID,
-					State:            persistence.WorkflowStateRunning,
-					LastWriteVersion: otherClusterVersion,
-				}).Once()
+			eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.CreateWorkflowExecutionRequest) bool {
+				return req.Mode == persistence.CreateWorkflowModeBrandNew
+			})).Return(nil, &persistence.WorkflowExecutionAlreadyStartedError{
+				StartRequestID:   childRequestID,
+				RunID:            childCurrentRunID,
+				State:            childState,
+				CloseStatus:      childCloseStatus,
+				LastWriteVersion: otherClusterVersion,
+			}).Once()
+			if tc.wantNewExecution {
+				// the new execution replaces the closed child as the current run
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.CreateWorkflowExecutionRequest) bool {
+					return req.Mode == persistence.CreateWorkflowModeWorkflowIDReuse &&
+						req.PreviousRunID == childCurrentRunID &&
+						req.PreviousLastWriteVersion == otherClusterVersion
+				})).Return(&persistence.CreateWorkflowExecutionResponse{}, nil).Once()
+			}
 			if tc.wantLoad {
 				eft.ShardCtx.Resource.ExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.GetWorkflowExecutionRequest) bool {
 					return req.Execution.RunID == childCurrentRunID
@@ -2263,7 +2352,8 @@ func TestStartWorkflowExecution_ChildFromStaleBranchReplacement(t *testing.T) {
 							ParentRunID:         "parent-run-id",
 							InitiatedID:         6,
 							CreateRequestID:     childRequestID,
-							State:               persistence.WorkflowStateRunning,
+							State:               childState,
+							CloseStatus:         childCloseStatus,
 							NextEventID:         3,
 							DecisionScheduleID:  commonconstants.EmptyEventID,
 							DecisionStartedID:   commonconstants.EmptyEventID,
@@ -2286,11 +2376,11 @@ func TestStartWorkflowExecution_ChildFromStaleBranchReplacement(t *testing.T) {
 				})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
 			}
 
-			request := newChildStartRequest(types.WorkflowIDReusePolicyAllowDuplicate.Ptr())
+			request := newChildStartRequest(reusePolicy.Ptr())
 			request.ParentExecutionInfo.InitiatedID = 7
 			request.ParentVersionHistoryItems = currentBranch
 			resp, err := eft.Engine.StartWorkflowExecution(context.Background(), request)
-			if tc.wantReplaced {
+			if tc.wantReplaced || tc.wantNewExecution {
 				assert.NoError(t, err)
 				assert.NotEqual(t, childCurrentRunID, resp.GetRunID())
 			} else {
@@ -2308,6 +2398,15 @@ func TestStartWorkflowExecution_ChildFromStaleBranchReplacement(t *testing.T) {
 			} else {
 				eft.ShardCtx.Resource.ExecutionMgr.AssertNotCalled(t, "GetWorkflowExecution", mock.Anything, mock.Anything)
 			}
+			// a closed child is not changed, the new run is created after it
+			if tc.closed {
+				eft.ShardCtx.Resource.ExecutionMgr.AssertNotCalled(t, "UpdateWorkflowExecution", mock.Anything, mock.Anything)
+			}
+			wantCreates := 1
+			if tc.wantNewExecution {
+				wantCreates = 2
+			}
+			eft.ShardCtx.Resource.ExecutionMgr.AssertNumberOfCalls(t, "CreateWorkflowExecution", wantCreates)
 		})
 	}
 }
