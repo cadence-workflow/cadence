@@ -114,7 +114,7 @@ func setupMocksForWorkflowHandler(t *testing.T) (*WorkflowHandler, *mockDeps) {
 		"hostname",
 		logger,
 	)
-	wh := NewWorkflowHandler(deps.mockResource, config, deps.mockVersionChecker, deps.mockDomainHandler, nil)
+	wh := NewWorkflowHandler(deps.mockResource, config, deps.mockVersionChecker, nil, deps.mockDomainHandler)
 	wh.requestValidator = deps.mockRequestValidator
 	return wh, deps
 }

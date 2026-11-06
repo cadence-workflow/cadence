@@ -94,8 +94,8 @@ func NewRPCClientFactory(
 	dc *dynamicconfig.Collection,
 	numberOfHistoryShards int,
 	allIsolationGroups func() []string,
-	logger log.Logger,
 	matchingPollTracker matching.PollTracker,
+	logger log.Logger,
 ) Factory {
 	return &rpcClientFactory{
 		rpcFactory:            rpcFactory,

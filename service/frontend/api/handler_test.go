@@ -168,7 +168,7 @@ func (s *workflowHandlerSuite) TearDownTest() {
 }
 
 func (s *workflowHandlerSuite) getWorkflowHandler(config *frontendcfg.Config) *WorkflowHandler {
-	return NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, s.domainHandler, nil)
+	return NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil, s.domainHandler)
 }
 
 func (s *workflowHandlerSuite) TestDisableListVisibilityByFilter() {
