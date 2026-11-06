@@ -54,7 +54,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -121,19 +120,29 @@ func (s *PinotIntegrationSuite) SetupSuite() {
 
 	s.TestRawHistoryDomainName = "TestRawHistoryDomain"
 	s.DomainName = s.RandomizeStr("integration-test-domain")
-	s.Require().NoError(
-		s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
-	s.Require().NoError(
-		s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 	s.ForeignDomainName = s.RandomizeStr("integration-foreign-test-domain")
-	s.Require().NoError(
-		s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
-	s.Require().NoError(s.registerArchivalDomain())
+	// Domain registrations share a persistence notification version. Keep them
+	// sequential so concurrent writes cannot race the metadata update.
+	registerDomain := func(domain string, registerFn func() error) {
+		s.Require().NoError(registerFn(), "register domain %s", domain)
+	}
 
-	// this sleep is necessary because domainv2 cache gets refreshed in the
-	// background only every domainCacheRefreshInterval period
-	time.Sleep(cache.DomainCacheRefreshInterval + time.Second)
+	registerDomain(s.DomainName, func() error {
+		return s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain(s.TestRawHistoryDomainName, func() error {
+		return s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain(s.ForeignDomainName, func() error {
+		return s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain("ArchivalDomain", func() error {
+		return s.registerArchivalDomain()
+	})
+
+	domains := []string{s.DomainName, s.TestRawHistoryDomainName, s.ForeignDomainName, s.ArchivalDomainName}
+	s.Require().NoError(s.waitForDomains(domains))
 
 	tableName := "cadence_visibility_pinot" // cadence_visibility_pinot_integration_test
 	pinotConfig := &config.PinotVisibilityConfig{
