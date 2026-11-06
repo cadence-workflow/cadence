@@ -87,6 +87,56 @@ func TestSetShardStatus(t *testing.T) {
 	require.Equal(t, smtypes.ShardStatusREADY, shardReport.Status)
 }
 
+func TestGetShardReportCachesLoadForReportTTL(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	timeSource := clock.NewMockedTimeSource()
+	reportTTL := time.Minute
+
+	initialQPS := 10.0
+	updatedQPS := 20.0
+
+	tlManager := NewMockManager(ctrl)
+	mockRegistry := NewMockTaskListRegistry(ctrl)
+	mockRegistry.EXPECT().ManagersByTaskListName(testIdentifier.GetName()).Return([]Manager{tlManager}).Times(2)
+
+	shardCount := 100
+	taskListDifferentiator := membership.NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		membership.StaticPercentageOnboarded(100),
+		shardCount,
+	)
+
+	params := ShardProcessorParams{
+		ShardID:                testIdentifier.GetName(),
+		TaskListsRegistry:      mockRegistry,
+		ReportTTL:              reportTTL,
+		TimeSource:             timeSource,
+		TaskListDifferentiator: taskListDifferentiator,
+	}
+	shardProcessor, err := NewShardProcessor(params)
+	require.NoError(t, err)
+
+	// The first report after the TTL computes the load.
+	timeSource.Advance(reportTTL + time.Second)
+	tlManager.EXPECT().QueriesPerSecond().Return(initialQPS)
+	shardReport := shardProcessor.GetShardReport()
+	require.Equal(t, initialQPS, shardReport.ShardLoad)
+
+	// Within the TTL, the cached load is reused, but a status change is reported right away.
+	timeSource.Advance(reportTTL / 2)
+	shardProcessor.SetShardStatus(smtypes.ShardStatusDONE)
+	shardReport = shardProcessor.GetShardReport()
+	require.Equal(t, initialQPS, shardReport.ShardLoad)
+	require.Equal(t, smtypes.ShardStatusDONE, shardReport.Status)
+
+	// Once the TTL has passed since the last computation, the load is recomputed.
+	timeSource.Advance(reportTTL)
+	tlManager.EXPECT().QueriesPerSecond().Return(updatedQPS)
+	shardReport = shardProcessor.GetShardReport()
+	require.Equal(t, updatedQPS, shardReport.ShardLoad)
+}
+
 func TestShardProcessor_ShardByHashSkipsTaskListsOwnedByHashRing(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	ctrl := gomock.NewController(t)
