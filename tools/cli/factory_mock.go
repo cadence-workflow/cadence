@@ -17,6 +17,7 @@ import (
 	gomock "go.uber.org/mock/gomock"
 
 	admin "github.com/uber/cadence/client/admin"
+	batch "github.com/uber/cadence/client/batch"
 	frontend "github.com/uber/cadence/client/frontend"
 	config "github.com/uber/cadence/common/config"
 )
@@ -88,6 +89,21 @@ func (m *MockClientFactory) ServerAdminClientForMigration(c *cli.Context) (admin
 func (mr *MockClientFactoryMockRecorder) ServerAdminClientForMigration(c any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServerAdminClientForMigration", reflect.TypeOf((*MockClientFactory)(nil).ServerAdminClientForMigration), c)
+}
+
+// ServerBatchClient mocks base method.
+func (m *MockClientFactory) ServerBatchClient(c *cli.Context) (batch.Client, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ServerBatchClient", c)
+	ret0, _ := ret[0].(batch.Client)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ServerBatchClient indicates an expected call of ServerBatchClient.
+func (mr *MockClientFactoryMockRecorder) ServerBatchClient(c any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServerBatchClient", reflect.TypeOf((*MockClientFactory)(nil).ServerBatchClient), c)
 }
 
 // ServerConfig mocks base method.

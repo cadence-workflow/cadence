@@ -46,6 +46,7 @@ import (
 	serverAdmin "github.com/uber/cadence/.gen/go/admin/adminserviceclient"
 	serverFrontend "github.com/uber/cadence/.gen/go/cadence/workflowserviceclient"
 	"github.com/uber/cadence/client/admin"
+	"github.com/uber/cadence/client/batch"
 	"github.com/uber/cadence/client/frontend"
 	grpcClient "github.com/uber/cadence/client/wrappers/grpc"
 	"github.com/uber/cadence/client/wrappers/thrift"
@@ -73,6 +74,7 @@ const (
 type ClientFactory interface {
 	ServerFrontendClient(c *cli.Context) (frontend.Client, error)
 	ServerAdminClient(c *cli.Context) (admin.Client, error)
+	ServerBatchClient(c *cli.Context) (batch.Client, error)
 
 	// ServerFrontendClientForMigration frontend client of the migration destination
 	ServerFrontendClientForMigration(c *cli.Context) (frontend.Client, error)
@@ -149,6 +151,18 @@ func (b *clientFactory) ServerAdminClient(c *cli.Context) (admin.Client, error) 
 		return grpcClient.NewAdminClient(adminv1.NewAdminAPIYARPCClient(clientConfig)), nil
 	}
 	return thrift.NewAdminClient(serverAdmin.New(clientConfig)), nil
+}
+
+// ServerBatchClient builds a batch operations API client. The batch API has
+// no thrift equivalent, so it's gRPC only; callers must set FlagTransport to
+// grpc before calling this.
+func (b *clientFactory) ServerBatchClient(c *cli.Context) (batch.Client, error) {
+	err := b.ensureDispatcher(c)
+	if err != nil {
+		return nil, commoncli.Problem("failed to create batch client dependency", err)
+	}
+	clientConfig := b.dispatcher.ClientConfig(cadenceFrontendService)
+	return grpcClient.NewBatchClient(apiv1.NewBatchAPIYARPCClient(clientConfig)), nil
 }
 
 // ServerFrontendClientForMigration builds a frontend client (based on server side thrift interface)

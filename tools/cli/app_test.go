@@ -38,6 +38,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/admin"
+	"github.com/uber/cadence/client/batch"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
@@ -68,6 +69,7 @@ var _ ClientFactory = (*clientFactoryMock)(nil)
 type clientFactoryMock struct {
 	serverFrontendClient frontend.Client
 	serverAdminClient    admin.Client
+	serverBatchClient    batch.Client
 	config               *config.Config
 }
 
@@ -77,6 +79,10 @@ func (m *clientFactoryMock) ServerFrontendClient(c *cli.Context) (frontend.Clien
 
 func (m *clientFactoryMock) ServerAdminClient(c *cli.Context) (admin.Client, error) {
 	return m.serverAdminClient, nil
+}
+
+func (m *clientFactoryMock) ServerBatchClient(c *cli.Context) (batch.Client, error) {
+	return m.serverBatchClient, nil
 }
 
 func (m *clientFactoryMock) ServerFrontendClientForMigration(c *cli.Context) (frontend.Client, error) {
