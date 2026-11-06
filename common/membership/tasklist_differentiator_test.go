@@ -121,11 +121,11 @@ func TestTaskListDifferentiator_TaskListExcludedFromShardDistributor(t *testing.
 			shardTaskListsByHash: true,
 		},
 		{
-			// The name alone hashes to shard 639, so only the domain ID puts it above the percentage.
+			// Without the domain ID, "returns" would hash to shard 404, under the percentage.
 			name:                 "sharded by hash - shard above percentage",
-			taskListName:         "orders", // farm.Fingerprint64([]byte(domainID + "/orders"))%1000 = 351
+			taskListName:         "returns", // farm.Fingerprint64([]byte(domainID + "/returns"))%1000 = 833
 			want:                 true,
-			percentageOnboarded:  35,
+			percentageOnboarded:  83,
 			shardTaskListsByHash: true,
 		},
 		{
