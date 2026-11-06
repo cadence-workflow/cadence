@@ -8,41 +8,25 @@ body:
       value: |
         ## Welcome to Cadence adopter onboarding!
 
-        Planning to run Cadence in production? We'd love to help you get there.
-        Through this free community program, Cadence maintainers work with your
-        team from evaluation through successfully provisioning your production cluster.
-        Assistance is subject to maintainer availability and offered on a
-        first-come, first-served basis.
+        Planning to run Cadence in production? We'd love to help you get there. Through this free community program, Cadence maintainers work with your team from evaluation through successfully provisioning your production cluster. Assistance is subject to maintainer availability and offered on a first-come, first-served basis.
 
-        Working alongside adopters helps us understand real-world challenges,
-        improve our documentation, and automate more of the work involved in
-        provisioning and operating Cadence. Your questions and feedback help
-        make Cadence better for everyone.
+        Once accepted, you can expect hands-on help such as architecture review, sizing and topology validation, persistence and visibility guidance, and support while you provision and harden your production cluster.
 
-        Tell us what you know so far. Estimates, ranges, and "not decided yet"
-        are welcome; you do not need a finished architecture to request help.
-        Maintainer assistance is free; your team provides and operates its
-        infrastructure and covers any associated costs.
+        Working alongside adopters helps us understand real-world challenges, improve our documentation, and automate more of the work involved in provisioning and operating Cadence. Your questions and feedback help make Cadence better for everyone.
 
-        **This issue is public.** A public issue helps organize the onboarding
-        and keeps progress visible, but share only information you are comfortable
-        publishing. Do not include credentials, customer data, or confidential
-        architecture details. You can note that a detail needs private follow-up.
+        Tell us what you know so far. Estimates, ranges, and "not decided yet" are welcome; you do not need a finished architecture to request help. Maintainer assistance is free; your team provides and operates its infrastructure and covers any associated costs.
 
-        Prefer a private channel? Reach out on
-        [CNCF Slack](https://cadenceworkflow.io/community/contact-us/#slack)
-        via **#cadence-users**, or message a
-        [TSC member](https://github.com/cadence-workflow/cadence/blob/master/MAINTAINERS.md)
-        directly.
+        **This issue is public.** A public issue helps organize the onboarding and keeps progress visible, but share only information you are comfortable publishing. Do not include credentials, customer data, or confidential architecture details. You can note that a detail needs private follow-up.
+
+        Prefer a private channel? Reach out on [CNCF Slack](https://cadenceworkflow.io/community/contact-us/#slack)
+        via **#cadence-users**, or message a [TSC member](https://github.com/cadence-workflow/cadence/blob/master/MAINTAINERS.md) directly.
 
   - type: textarea
     id: organization
     attributes:
       label: Company or organization details
       description: |
-        Tell us about your organization, the team adopting Cadence, and who
-        will coordinate onboarding. GitHub handles are sufficient for contact.
-        If your company name is confidential, say so and share a general description.
+        Tell us about your organization, the team adopting Cadence, and who will coordinate onboarding. GitHub handles are sufficient for contact. If your company name is confidential, say so and share a general description.
       placeholder: |
         Organization name and website (if public):
         Industry / what your organization does:
@@ -56,8 +40,7 @@ body:
     attributes:
       label: What are you building with Cadence?
       description: |
-        Describe your workflows, why you are considering Cadence, and whether
-        this is a new system or a migration. Include your SDK language(s), if known.
+        Describe your workflows, why you are considering Cadence, and whether this is a new system or a migration. Include your SDK language(s), if known.
       placeholder: |
         Main use case(s):
         New system or migration from:
@@ -70,9 +53,7 @@ body:
     attributes:
       label: Expected scale
       description: |
-        Share estimates for launch and expected growth over the next 6-12 months.
-        Use workflow and activity rates rather than only application request rates.
-        If you do not know a number yet, say so; we can help you estimate it.
+        Share estimates for launch and expected growth over the next 6-12 months. Ranges are fine (for example, 50-200 workflow starts/sec). Use workflow and activity rates rather than only application request rates. If you do not know a number yet, say so; we can help you estimate it.
       placeholder: |
         Average / peak workflow starts per second (or per day):
         Average / peak activity executions per second (if known):
@@ -104,8 +85,7 @@ body:
     attributes:
       label: Traffic pattern details
       description: |
-        If known, describe peak duration, frequency, peak-to-average ratio,
-        scheduled batches, and how quickly a backlog needs to drain.
+        If known, describe peak duration, frequency, peak-to-average ratio, scheduled batches, and how quickly a backlog needs to drain.
       placeholder: "Example: A nightly batch creates 100,000 workflows over 10 minutes; it must finish within 2 hours."
 
   - type: textarea
@@ -113,8 +93,7 @@ body:
     attributes:
       label: Cloud provider or on-premises environment
       description: |
-        Where and how do you plan to run Cadence? Include any existing tooling
-        or constraints. See [cluster configuration](https://cadenceworkflow.io/docs/operation-guide/setup/).
+        Where and how do you plan to run Cadence? Include any existing tooling or constraints. See [cluster configuration](https://cadenceworkflow.io/docs/operation-guide/setup/).
       placeholder: |
         Provider(s): AWS / GCP / Azure / OCI / other / on-premises / hybrid / undecided
         Region(s) and availability zones (if known):
@@ -129,10 +108,7 @@ body:
     attributes:
       label: Persistence database
       description: |
-        Which database can your team support for Cadence's durable workflow state?
-        Options include Cassandra (preferred), MySQL, and PostgreSQL. Tell us whether this
-        is an existing capability or something you need help choosing.
-        See [persistence documentation](https://github.com/cadence-workflow/cadence/blob/master/docs/persistence.md).
+        Which database can your team support for Cadence's durable workflow state? Options include Cassandra (preferred), MySQL, and PostgreSQL. Tell us whether this is an existing capability or something you need help choosing. See [persistence documentation](https://github.com/cadence-workflow/cadence/blob/master/docs/persistence.md).
       placeholder: |
         Preferred database and version (or undecided):
         Managed service / self-hosted, and service name if applicable:
@@ -146,13 +122,7 @@ body:
     attributes:
       label: Visibility and workflow search
       description: |
-        Visibility lets you list and find workflow executions. Do you need basic
-        listing, or advanced search using custom search attributes?
-        Basic visibility can use Cassandra, MySQL, or PostgreSQL.
-        Advanced visibility options include Elasticsearch, OpenSearch, and Pinot.
-        Tell us what your team can operate; we can help choose a configuration
-        for your Cadence version.
-        See [workflow search and advanced visibility](https://cadenceworkflow.io/docs/concepts/search-workflows/).
+        Visibility lets you list and find workflow executions. Do you need basic listing, or advanced search using custom search attributes? Basic visibility can use Cassandra, MySQL, or PostgreSQL. Advanced visibility options include Elasticsearch, OpenSearch, and Pinot. Tell us what your team can operate; we can help choose a configuration for your Cadence version. See [workflow search and advanced visibility](https://cadenceworkflow.io/docs/concepts/search-workflows/).
       placeholder: |
         Basic listing / advanced search / undecided:
         Search and custom search attribute requirements:
@@ -167,9 +137,7 @@ body:
     attributes:
       label: Target production launch date
       description: |
-        Give a date or approximate window, whether it is flexible, and any milestones
-        leading up to it. If you have no target yet, say so. A requested date does
-        not reserve maintainer capacity or guarantee a launch deadline.
+        Give a date or approximate window, whether it is flexible, and any milestones leading up to it. If you have no target yet, say so. A requested date does not reserve maintainer capacity or guarantee a launch deadline.
       placeholder: |
         Target date or window (YYYY-MM-DD or quarter):
         Flexible or fixed, and why:
@@ -182,10 +150,7 @@ body:
     attributes:
       label: Current progress and where you need help
       description: |
-        Have you run Cadence locally, provisioned a test cluster, or started a
-        production deployment? Share blockers, questions, and what a successful
-        onboarding would look like for your team. Sanitized configuration or
-        links to related issues are welcome.
+        Have you run Cadence locally, provisioned a test cluster, or started a production deployment? Share blockers, questions, and what a successful onboarding would look like for your team. Sanitized configuration or links to related issues are welcome.
       placeholder: |
         Current stage:
         What you have tried:
@@ -199,28 +164,15 @@ body:
     attributes:
       label: Operational requirements and other context
       description: |
-        Share anything else that could affect deployment: availability and disaster
-        recovery goals, multi-region needs, networking, authentication/TLS,
-        data residency, resource or budget constraints, monitoring and alerting,
-        backups, or archival/object storage needs. Include your team's operating
-        experience and who will own the cluster after launch, if known.
-        See the [production operation guide](https://cadenceworkflow.io/docs/operation-guide/)
-        and [monitoring guide](https://cadenceworkflow.io/docs/operation-guide/monitoring/).
+        Share anything else that could affect deployment: availability and disaster recovery goals, multi-region needs, networking, authentication/TLS, data residency, resource or budget constraints, monitoring and alerting, backups, or archival/object storage needs. Include your team's operating experience and who will own the cluster after launch, if known. See the [production operation guide](https://cadenceworkflow.io/docs/operation-guide/) and [monitoring guide](https://cadenceworkflow.io/docs/operation-guide/monitoring/).
 
   - type: markdown
     attributes:
       value: |
         ### Optional: join the adopters list
 
-        If your organization is comfortable sharing its evaluation publicly,
-        consider opening a separate pull request to add it under
-        [Evaluating / Early Adopters in ADOPTERS.md](https://github.com/cadence-workflow/cadence/blob/master/ADOPTERS.md#evaluating--early-adopters).
-        Please get your organization's approval before submitting its name or logo (optional).
-        You can add a link to that PR in this issue, or do this later.
+        If your organization is comfortable sharing its evaluation publicly, consider opening a separate pull request to add it under [Evaluating / Early Adopters in ADOPTERS.md](https://github.com/cadence-workflow/cadence/blob/master/ADOPTERS.md#evaluating--early-adopters). Please get your organization's approval before submitting its name or logo (optional). You can add a link to that PR in this issue, or do this later.
 
         ### What happens next?
 
-        Maintainers will follow up in this issue to clarify your needs and confirm
-        availability. Requests are handled in submission order as capacity becomes
-        available. Once onboarding starts, we'll agree on next steps with your team
-        and use this issue to track progress toward a provisioned production cluster.
+        Maintainers will follow up in this issue to clarify your needs and confirm availability. Requests are handled in submission order as capacity becomes available. Once onboarding starts, we'll agree on next steps with your team and use this issue to track progress toward a provisioned production cluster.
