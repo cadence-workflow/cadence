@@ -122,6 +122,7 @@ type Impl struct {
 	frontendClient                 frontend.Client
 	matchingRawClient              matching.Client
 	matchingClient                 matching.Client
+	matchingPollerDisconnector     matching.PollerDisconnector
 	historyRawClient               history.Client
 	historyClient                  history.Client
 	shardDistributorExecutorClient executorclient.Client
@@ -273,6 +274,10 @@ func New(
 		common.CreateMatchingServiceRetryPolicy(),
 		serviceConfig.IsErrorRetryableFunction,
 	)
+	matchingPollerDisconnector, err := clientBean.GetMatchingPollerDisconnector(domainCache.GetDomainName)
+	if err != nil {
+		return nil, err
+	}
 
 	shardDistributorExecutorRawClient := clientBean.GetShardDistributorExecutorClient()
 	var shardDistributorExecutorClient executorclient.Client
@@ -376,6 +381,7 @@ func New(
 		frontendClient:                 frontendClient,
 		matchingRawClient:              matchingRawClient,
 		matchingClient:                 matchingClient,
+		matchingPollerDisconnector:     matchingPollerDisconnector,
 		historyRawClient:               historyRawClient,
 		historyClient:                  historyClient,
 		shardDistributorExecutorClient: shardDistributorExecutorClient,
@@ -598,6 +604,11 @@ func (h *Impl) GetMatchingRawClient() matching.Client {
 // GetMatchingClient return matching client with retry policy
 func (h *Impl) GetMatchingClient() matching.Client {
 	return h.matchingClient
+}
+
+// GetMatchingPollerDisconnector return the disconnector of the polls sent through the matching client
+func (h *Impl) GetMatchingPollerDisconnector() matching.PollerDisconnector {
+	return h.matchingPollerDisconnector
 }
 
 // GetHistoryRawClient return history client without retry policy
