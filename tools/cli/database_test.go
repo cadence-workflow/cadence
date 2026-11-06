@@ -302,6 +302,7 @@ func TestOverrideTLS(t *testing.T) {
 	tests := []struct {
 		name         string
 		setupContext func(app *cli.App) *cli.Context
+		tlsEnabled   bool
 		expectedTLS  config.TLS
 	}{
 		{
@@ -351,8 +352,21 @@ func TestOverrideTLS(t *testing.T) {
 			name: "NoTLSFlagsSet",
 			setupContext: func(app *cli.App) *cli.Context {
 				set := flag.NewFlagSet("test", 0)
+				set.Bool(FlagEnableTLS, false, "")
 				return cli.NewContext(app, set, nil)
 			},
+			tlsEnabled:  true,
+			expectedTLS: config.TLS{Enabled: true},
+		},
+		{
+			name: "DisableConfiguredTLS",
+			setupContext: func(app *cli.App) *cli.Context {
+				set := flag.NewFlagSet("test", 0)
+				set.Bool(FlagEnableTLS, false, "")
+				require.NoError(t, set.Set(FlagEnableTLS, "false"))
+				return cli.NewContext(app, set, nil)
+			},
+			tlsEnabled:  true,
 			expectedTLS: config.TLS{},
 		},
 	}
@@ -363,8 +377,7 @@ func TestOverrideTLS(t *testing.T) {
 			app := cli.NewApp()
 			c := tt.setupContext(app)
 
-			// Initialize an empty TLS config and apply overrideTLS
-			tlsConfig := &config.TLS{}
+			tlsConfig := &config.TLS{Enabled: tt.tlsEnabled}
 			overrideTLS(c, tlsConfig)
 
 			// Validate TLS config settings
