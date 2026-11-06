@@ -1062,6 +1062,145 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowTimeout_Success() {
 	s.Nil(err)
 }
 
+func (s *timerStandbyTaskExecutorSuite) TestProcessSemaphoreAcquireTimeout_Pending() {
+
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+	event, semaphoreInfo, err := mutableState.AddSemaphoreAcquireInitiatedEvent(decisionCompletionID, "my-semaphore", 30)
+	s.NoError(err)
+	nextEventID := event.ID
+
+	timerTask := s.newTimerTaskFromInfo(&persistence.SemaphoreAcquireTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version:             s.version,
+			TaskID:              int64(100),
+			VisibilityTimestamp: s.timeSource.Now(),
+		},
+		EventID: semaphoreInfo.InitiatedID,
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, event.ID, event.Version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil).Once()
+
+	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now())
+	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
+	s.True(isRedispatchErr(err))
+
+	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.fetchHistoryDuration))
+	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.clusterName,
+		timerTask.GetDomainID(),
+		timerTask.GetWorkflowID(),
+		timerTask.GetRunID(),
+		common.Int64Ptr(nextEventID),
+		common.Int64Ptr(s.version),
+		nil,
+		nil,
+	).Return(nil).Times(1)
+	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
+	s.True(isRedispatchErr(err))
+
+	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
+	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
+}
+
+func (s *timerStandbyTaskExecutorSuite) TestProcessSemaphoreAcquireTimeout_Pending_ActiveActiveDomain() {
+
+	domainID := constants.TestActiveActiveDomainID
+	version := constants.TestActiveActiveDomainEntry.GetFailoverVersion()
+
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, domainID)
+	s.NoError(err)
+	event, _, err := mutableState.AddSemaphoreAcquireInitiatedEvent(decisionCompletionID, "my-semaphore", 30)
+	s.NoError(err)
+	nextEventID := event.ID
+
+	timerTask := s.newTimerTaskFromInfo(&persistence.SemaphoreAcquireTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version:             version,
+			TaskID:              int64(100),
+			VisibilityTimestamp: s.timeSource.Now(),
+		},
+		EventID: event.ID,
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, event.ID, event.Version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil).Once()
+
+	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now())
+	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
+	s.True(isRedispatchErr(err))
+
+	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.fetchHistoryDuration))
+	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.clusterName,
+		timerTask.GetDomainID(),
+		timerTask.GetWorkflowID(),
+		timerTask.GetRunID(),
+		common.Int64Ptr(nextEventID),
+		common.Int64Ptr(version),
+		nil,
+		nil,
+	).Return(nil).Times(1)
+	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
+	s.True(isRedispatchErr(err))
+
+	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
+	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(domainID, s.mockDLQWriter.calls[0].DomainID)
+}
+
+func (s *timerStandbyTaskExecutorSuite) TestProcessSemaphoreAcquireTimeout_Success() {
+
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+	initiatedEvent, _, err := mutableState.AddSemaphoreAcquireInitiatedEvent(decisionCompletionID, "my-semaphore", 30)
+	s.NoError(err)
+
+	timerTask := s.newTimerTaskFromInfo(&persistence.SemaphoreAcquireTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version:             s.version,
+			TaskID:              int64(100),
+			VisibilityTimestamp: s.timeSource.Now(),
+		},
+		EventID: initiatedEvent.ID,
+	})
+
+	event, err := mutableState.AddSemaphoreAcquireFailedEvent(initiatedEvent.ID, types.SemaphoreAcquireFailedCauseTimedOut)
+	s.NoError(err)
+	mutableState.FlushBufferedEvents()
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, event.ID, event.Version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil).Once()
+
+	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now())
+	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
+	s.Nil(err)
+}
+
 func (s *timerStandbyTaskExecutorSuite) TestProcessRetryTimeout() {
 
 	workflowExecution, _, err := test.StartWorkflow(s.T(), s.mockShard, s.domainID)

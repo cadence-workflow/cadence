@@ -270,6 +270,8 @@ type Config struct {
 	EnableDistributedSemaphore dynamicproperties.BoolPropertyFnWithDomainFilter
 	// SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout.
 	SemaphoreAcquireDefaultWaitTimeout dynamicproperties.DurationPropertyFnWithDomainFilter
+	// SemaphoreAcquireMaxWaitTimeout is the longest an acquire waits for a token. A longer wait timeout is lowered to it.
+	SemaphoreAcquireMaxWaitTimeout dynamicproperties.DurationPropertyFnWithDomainFilter
 	// MaxDecisionStartToCloseSeconds is the StartToCloseSeconds for decision
 	MaxDecisionStartToCloseSeconds           dynamicproperties.IntPropertyFnWithDomainFilter
 	DecisionRetryCriticalAttempts            dynamicproperties.IntPropertyFn
@@ -580,6 +582,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		DecisionHeartbeatTimeout:                 dc.GetDurationPropertyFilteredByDomain(dynamicproperties.DecisionHeartbeatTimeout),
 		EnableDistributedSemaphore:               dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDistributedSemaphore),
 		SemaphoreAcquireDefaultWaitTimeout:       dc.GetDurationPropertyFilteredByDomain(dynamicproperties.SemaphoreAcquireDefaultWaitTimeout),
+		SemaphoreAcquireMaxWaitTimeout:           dc.GetDurationPropertyFilteredByDomain(dynamicproperties.SemaphoreAcquireMaxWaitTimeout),
 		DecisionRetryCriticalAttempts:            dc.GetIntProperty(dynamicproperties.DecisionRetryCriticalAttempts),
 		DecisionRetryMaxAttempts:                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.DecisionRetryMaxAttempts),
 		EnforceDecisionTaskAttempts:              dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnforceDecisionTaskAttempts),

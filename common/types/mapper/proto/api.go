@@ -5005,6 +5005,8 @@ func FromSemaphoreAcquireFailedCause(t *types.SemaphoreAcquireFailedCause) apiv1
 	switch *t {
 	case types.SemaphoreAcquireFailedCauseNotFound:
 		return apiv1.SemaphoreAcquireFailedCause_SEMAPHORE_ACQUIRE_FAILED_CAUSE_NOT_FOUND
+	case types.SemaphoreAcquireFailedCauseTimedOut:
+		return apiv1.SemaphoreAcquireFailedCause_SEMAPHORE_ACQUIRE_FAILED_CAUSE_TIMED_OUT
 	}
 	return apiv1.SemaphoreAcquireFailedCause_SEMAPHORE_ACQUIRE_FAILED_CAUSE_INVALID
 }
@@ -5015,6 +5017,8 @@ func ToSemaphoreAcquireFailedCause(t apiv1.SemaphoreAcquireFailedCause) *types.S
 		return nil
 	case apiv1.SemaphoreAcquireFailedCause_SEMAPHORE_ACQUIRE_FAILED_CAUSE_NOT_FOUND:
 		return types.SemaphoreAcquireFailedCauseNotFound.Ptr()
+	case apiv1.SemaphoreAcquireFailedCause_SEMAPHORE_ACQUIRE_FAILED_CAUSE_TIMED_OUT:
+		return types.SemaphoreAcquireFailedCauseTimedOut.Ptr()
 	}
 	return nil
 }

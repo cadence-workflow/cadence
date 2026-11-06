@@ -282,7 +282,7 @@ func newAdminShardManagementCommands() []*cli.Command {
 					Name: FlagTimerType,
 					Usage: "timer types: 0 - DecisionTimeoutTask, 1 - TaskTypeActivityTimeout, " +
 						"2 - TaskTypeUserTimer, 3 - TaskTypeWorkflowTimeout, 4 - TaskTypeDeleteHistoryEvent, " +
-						"5 - TaskTypeActivityRetryTimer, 6 - TaskTypeWorkflowBackoffTimer",
+						"5 - TaskTypeActivityRetryTimer, 6 - TaskTypeWorkflowBackoffTimer, 7 - TaskTypeSemaphoreAcquireTimeout",
 					Value: cli.NewIntSlice(-1),
 				},
 				&cli.BoolFlag{

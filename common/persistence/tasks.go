@@ -275,6 +275,14 @@ type (
 		TaskList    string
 	}
 
+	// SemaphoreAcquireTimeoutTask ends a semaphore acquire that is still waiting at its deadline
+	SemaphoreAcquireTimeoutTask struct {
+		WorkflowIdentifier
+		TaskData
+		EventID  int64
+		TaskList string
+	}
+
 	// HistoryReplicationTask is the replication task created for shipping history replication events to other clusters
 	HistoryReplicationTask struct {
 		WorkflowIdentifier
@@ -321,6 +329,7 @@ var (
 	_ Task = (*UserTimerTask)(nil)
 	_ Task = (*ActivityRetryTimerTask)(nil)
 	_ Task = (*WorkflowBackoffTimerTask)(nil)
+	_ Task = (*SemaphoreAcquireTimeoutTask)(nil)
 	_ Task = (*HistoryReplicationTask)(nil)
 	_ Task = (*SyncActivityTask)(nil)
 	_ Task = (*FailoverMarkerTask)(nil)
@@ -1049,6 +1058,57 @@ func (r *WorkflowBackoffTimerTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 
 func (r *WorkflowBackoffTimerTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
 	return nil, fmt.Errorf("workflow backoff timer task is not replication task")
+}
+
+// GetType returns the type of the semaphore acquire timeout task
+func (r *SemaphoreAcquireTimeoutTask) GetTaskType() int {
+	return TaskTypeSemaphoreAcquireTimeout
+}
+
+func (r *SemaphoreAcquireTimeoutTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTimer
+}
+
+func (r *SemaphoreAcquireTimeoutTask) GetTaskKey() HistoryTaskKey {
+	return NewHistoryTaskKey(r.VisibilityTimestamp, r.TaskID)
+}
+
+func (r *SemaphoreAcquireTimeoutTask) GetTaskList() string {
+	return r.TaskList
+}
+
+func (r *SemaphoreAcquireTimeoutTask) GetOriginalTaskList() string {
+	return r.TaskList
+}
+
+func (r *SemaphoreAcquireTimeoutTask) GetOriginalTaskListKind() types.TaskListKind {
+	return types.TaskListKindNormal
+}
+
+func (r *SemaphoreAcquireTimeoutTask) ByteSize() uint64 {
+	return r.WorkflowIdentifier.ByteSize() + r.TaskData.ByteSize() + 8 + uint64(len(r.TaskList))
+}
+
+func (r *SemaphoreAcquireTimeoutTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
+	return nil, fmt.Errorf("semaphore acquire timeout task is not transfer task")
+}
+
+func (r *SemaphoreAcquireTimeoutTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
+	return &TimerTaskInfo{
+		TaskType:            TaskTypeSemaphoreAcquireTimeout,
+		DomainID:            r.DomainID,
+		WorkflowID:          r.WorkflowID,
+		RunID:               r.RunID,
+		TaskID:              r.TaskID,
+		VisibilityTimestamp: r.VisibilityTimestamp,
+		Version:             r.Version,
+		EventID:             r.EventID,
+		TaskList:            r.TaskList,
+	}, nil
+}
+
+func (r *SemaphoreAcquireTimeoutTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
+	return nil, fmt.Errorf("semaphore acquire timeout task is not replication task")
 }
 
 // GetType returns the type of the timeout task.

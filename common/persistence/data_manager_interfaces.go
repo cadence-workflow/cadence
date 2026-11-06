@@ -324,6 +324,7 @@ const (
 	TaskTypeDeleteHistoryEvent
 	TaskTypeActivityRetryTimer
 	TaskTypeWorkflowBackoffTimer
+	TaskTypeSemaphoreAcquireTimeout
 )
 
 // WorkflowRequestType is the type of workflow request
@@ -2838,6 +2839,13 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TimeoutType:        t.TimeoutType,
+			TaskList:           t.TaskList,
+		}, nil
+	case TaskTypeSemaphoreAcquireTimeout:
+		return &SemaphoreAcquireTimeoutTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			EventID:            t.EventID,
 			TaskList:           t.TaskList,
 		}, nil
 	default:

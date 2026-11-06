@@ -23,8 +23,6 @@ package decision
 import (
 	"context"
 	"fmt"
-	"math"
-	"time"
 
 	"github.com/pborman/uuid"
 
@@ -32,7 +30,6 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -1130,25 +1127,19 @@ func (handler *taskHandlerImpl) handleDecisionReleaseSemaphore(
 	}
 }
 
-// acquireWaitTimeoutSeconds returns the decision's wait timeout, or the domain's default when the
-// decision sets none. The result is always positive.
+// acquireWaitTimeoutSeconds returns the decision's wait timeout, or the domain default if unset,
+// capped at the domain max.
 func (handler *taskHandlerImpl) acquireWaitTimeoutSeconds(
 	attr *types.AcquireSemaphoreDecisionAttributes,
 	domainName string,
 ) int32 {
 
-	if timeout := attr.GetWaitTimeoutSeconds(); timeout > 0 {
-		return timeout
+	timeout := attr.GetWaitTimeoutSeconds()
+	if timeout == 0 {
+		timeout = int32(handler.config.SemaphoreAcquireDefaultWaitTimeout(domainName).Seconds())
 	}
-
-	timeout := handler.config.SemaphoreAcquireDefaultWaitTimeout(domainName)
-	if timeout < time.Second {
-		handler.logger.Warn("Semaphore acquire default wait timeout is under one second, using the built-in default",
-			tag.WorkflowDomainName(domainName),
-			tag.Dynamic("configured-timeout", timeout))
-		timeout = dynamicproperties.SemaphoreAcquireDefaultWaitTimeout.DefaultDuration()
-	}
-	return int32(min(timeout/time.Second, math.MaxInt32))
+	maxTimeout := int32(handler.config.SemaphoreAcquireMaxWaitTimeout(domainName).Seconds())
+	return min(timeout, maxTimeout)
 }
 
 func convertSearchAttributesToByteArray(fields map[string][]byte) []byte {
