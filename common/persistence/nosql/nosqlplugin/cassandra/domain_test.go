@@ -140,7 +140,7 @@ func TestInsertDomain(t *testing.T) {
 
 				// mock calls for deleting orphan domain
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Exec().Return(errors.New("orphan domain deletion failure")).Times(1)
+				query.EXPECT().MapScanCAS(gomock.Any()).Return(false, errors.New("orphan domain deletion failure")).Times(1)
 			},
 			wantErr: true,
 		},
@@ -166,7 +166,40 @@ func TestInsertDomain(t *testing.T) {
 
 				// mock calls for deleting orphan domain
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Exec().Return(nil).Times(1)
+				query.EXPECT().MapScanCAS(gomock.Any()).Return(true, nil).Times(1)
+			},
+			wantSessionQueries: []string{
+				`INSERT INTO domains (id, domain, created_time) VALUES(test-domain-id, {name: test-domain-name}, 2025-01-06T15:00:00Z) IF NOT EXISTS`,
+				`SELECT notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = cadence-domain-metadata `,
+				`DELETE FROM domains WHERE id = test-domain-id IF created_time = 2025-01-06T15:00:00Z`,
+			},
+			wantErr: true,
+		},
+		{
+			name:                      "insertion success - select metadata success - insertion to domains_by_name_v2 not applied - orphan domain record no longer matches",
+			row:                       testdata.NewDomainRow(ts),
+			mapExecuteBatchCASApplied: false,
+			queryMockFn: func(query *gocql.MockQuery) {
+				// mock calls for insert
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+				query.EXPECT().MapScanCAS(gomock.Any()).DoAndReturn(func(m map[string]interface{}) (bool, error) {
+					return true, nil
+				}).Times(1)
+
+				// mock calls for SelectDomainMetadata
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+				query.EXPECT().Scan(gomock.Any()).DoAndReturn(func(args ...interface{}) error {
+					return nil
+				}).Times(1)
+
+				// mock calls for deleting orphan domain: the conditional delete is not applied
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+				query.EXPECT().MapScanCAS(gomock.Any()).Return(false, nil).Times(1)
+			},
+			wantSessionQueries: []string{
+				`INSERT INTO domains (id, domain, created_time) VALUES(test-domain-id, {name: test-domain-name}, 2025-01-06T15:00:00Z) IF NOT EXISTS`,
+				`SELECT notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = cadence-domain-metadata `,
+				`DELETE FROM domains WHERE id = test-domain-id IF created_time = 2025-01-06T15:00:00Z`,
 			},
 			wantErr: true,
 		},
@@ -255,12 +288,14 @@ func TestInsertDomain(t *testing.T) {
 				t.Errorf("Got error = %v, wantErr %v", err, tc.wantErr)
 			}
 
-			if err != nil {
-				return
+			if tc.wantSessionQueries != nil {
+				if diff := cmp.Diff(tc.wantSessionQueries, session.queries); diff != "" {
+					t.Fatalf("Session queries mismatch (-want +got):\n%s", diff)
+				}
 			}
 
-			if diff := cmp.Diff(tc.wantSessionQueries, session.queries); diff != "" {
-				t.Fatalf("Session queries mismatch (-want +got):\n%s", diff)
+			if err != nil {
+				return
 			}
 
 			if len(session.batches) != 1 {

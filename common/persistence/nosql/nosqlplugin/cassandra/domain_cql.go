@@ -66,6 +66,10 @@ const (
 	templateDeleteDomainQuery = `DELETE FROM domains ` +
 		`WHERE id = ?`
 
+	templateDeleteOrphanDomainQuery = `DELETE FROM domains ` +
+		`WHERE id = ? ` +
+		`IF created_time = ?`
+
 	templateCreateDomainByNameQueryWithinBatchV2 = `INSERT INTO domains_by_name_v2 (` +
 		`domains_partition, name, domain, config, replication_config, is_global_domain, config_version, failover_version, failover_notification_version, previous_failover_version, failover_end_time, last_updated_time, notification_version, created_time) ` +
 		`VALUES(?, ?, ` + templateDomainInfoType + `, ` + templateDomainConfigType + `, ` + templateDomainReplicationConfigType + `, ?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
