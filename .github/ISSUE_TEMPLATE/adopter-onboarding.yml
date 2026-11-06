@@ -24,9 +24,16 @@ body:
         Maintainer assistance is free; your team provides and operates its
         infrastructure and covers any associated costs.
 
-        **This issue is public.** Share only information you are comfortable
+        **This issue is public.** A public issue helps organize the onboarding
+        and keeps progress visible, but share only information you are comfortable
         publishing. Do not include credentials, customer data, or confidential
         architecture details. You can note that a detail needs private follow-up.
+
+        Prefer a private channel? Reach out on
+        [CNCF Slack](https://cadenceworkflow.io/community/contact-us/#slack)
+        via **#cadence-users**, or message a
+        [TSC member](https://github.com/cadence-workflow/cadence/blob/master/MAINTAINERS.md)
+        directly.
 
   - type: textarea
     id: organization
