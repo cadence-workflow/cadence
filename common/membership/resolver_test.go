@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/service"
 )
 
 var testServices = []string{"test-worker", "test-services"}
@@ -78,6 +79,10 @@ func TestMethodsAreRoutedToARing(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "127", hi.GetAddress())
 
+	taskListHost, err := r.LookupTaskList("domain-id", "key")
+	assert.NoError(t, err)
+	assert.Equal(t, hi, taskListHost, "the hash ring should route a task list by its name only")
+
 	// the same ring will be picked here
 	_, err = a.Lookup("WRONG-RING-NAME", "key")
 	assert.Error(t, err)
@@ -110,6 +115,29 @@ func TestMethodsAreRoutedToARing(t *testing.T) {
 	serr = a.Unsubscribe("WRONG-RING-NAME", "sub1")
 	assert.Error(t, serr)
 
+}
+
+func TestLookupTaskListIsRoutedToTheMatchingRing(t *testing.T) {
+	domainID := "domain-id"
+	taskListName := "task-list"
+	owner := NewHostInfo("matching-host")
+
+	matchingRing := NewMockSingleProvider(gomock.NewController(t))
+	matchingRing.EXPECT().LookupTaskList(domainID, taskListName).Return(owner, nil)
+	resolver, err := NewResolver(nil, metrics.NewNoopMetricsClient(), log.NewNoop(), map[string]SingleProvider{
+		service.Matching: matchingRing,
+	})
+	require.NoError(t, err)
+
+	host, err := resolver.LookupTaskList(domainID, taskListName)
+	require.NoError(t, err)
+	assert.Equal(t, owner, host)
+}
+
+func TestLookupTaskListWithoutMatchingRingReturnsError(t *testing.T) {
+	a, _ := newTestResolver(t)
+	_, err := a.LookupTaskList("domain-id", "task-list")
+	assert.Error(t, err)
 }
 
 func TestNonExistingRingReturnsError(t *testing.T) {
