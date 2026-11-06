@@ -184,6 +184,7 @@ func New(
 			dynamicCollection,
 			numShards,
 			params.GetIsolationGroups,
+			params.MatchingPollTracker,
 			logger,
 		),
 		params.RPCFactory.GetDispatcher(),
