@@ -299,8 +299,8 @@ func (c *clientImpl) ListTaskListPartitions(
 	request *types.MatchingListTaskListPartitionsRequest,
 	opts ...yarpc.CallOption,
 ) (*types.ListTaskListPartitionsResponse, error) {
-	// The request names the domain but has no domain ID. Any matching host can answer it, because the
-	// handler looks up the owner of each partition itself, so routing without the domain ID is fine.
+	// The request has no domain ID, so this may pick a host other than the owner. The receiving
+	// host looks up each partition's owner itself.
 	peer, err := c.peerResolver.FromTaskList("", request.TaskList.GetName())
 	if err != nil {
 		return nil, err
