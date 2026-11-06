@@ -47,6 +47,7 @@ func TestNewConfig(t *testing.T) {
 		"IsAdvancedVisConfigExist":                          {nil, true},
 		"HostName":                                          {nil, "hostname"},
 		"DomainConfig":                                      ignoreField, // Handle this separately since it's also a config object
+		"EnableListDomainsFiltering":                        {dynamicproperties.EnableListDomainsFiltering, true},
 		"PersistenceMaxQPS":                                 {dynamicproperties.FrontendPersistenceMaxQPS, 1},
 		"PersistenceGlobalMaxQPS":                           {dynamicproperties.FrontendPersistenceGlobalMaxQPS, 2},
 		"VisibilityMaxPageSize":                             {dynamicproperties.FrontendVisibilityMaxPageSize, 3},

@@ -38,6 +38,9 @@ import (
 
 	"github.com/uber/cadence/common/authorization"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
 	"github.com/uber/cadence/common/resource"
@@ -82,7 +85,7 @@ func TestAuthorizationMetricsLabelConsistency(t *testing.T) {
 	mockHandler.EXPECT().RegisterDomain(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	mockHandler.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.DescribeWorkflowExecutionResponse{}, nil).Times(1)
 
-	handler := NewAPIHandler(mockHandler, mockResource, mockAuthorizer, config.Authorization{})
+	handler := NewAPIHandler(mockHandler, mockResource, mockAuthorizer, mockAuthorizer, config.Authorization{}, dynamicproperties.GetBoolPropertyFn(false))
 
 	ctx := context.Background()
 	_, err = handler.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{Domain: "my-domain"})
@@ -203,4 +206,160 @@ func TestDescribeCluster(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestListDomainsAuthorization(t *testing.T) {
+	someErr := errors.New("some random err")
+	nextPageToken := []byte("next-page")
+	allowGate := func(authenticator *authorization.MockAuthorizer) *gomock.Call {
+		return authenticator.EXPECT().Authorize(gomock.Any(), listDomainsAuthAttr("")).
+			Return(authorization.Result{Decision: authorization.DecisionAllow}, nil)
+	}
+
+	testCases := []struct {
+		name              string
+		enableFiltering   bool
+		mockSetup         func(authenticator, authorizer *authorization.MockAuthorizer, handler *api.MockHandler, request *types.ListDomainsRequest)
+		wantDomains       []string
+		wantNextPageToken []byte
+		wantErr           error
+	}{
+		{
+			name: "returns all domains without authorization calls by default",
+			mockSetup: func(authenticator, _ *authorization.MockAuthorizer, handler *api.MockHandler, request *types.ListDomainsRequest) {
+				gomock.InOrder(
+					allowGate(authenticator),
+					handler.EXPECT().ListDomains(gomock.Any(), request).Return(listDomainsResponse(nextPageToken, "first-domain", "second-domain"), nil),
+				)
+			},
+			wantDomains:       []string{"first-domain", "second-domain"},
+			wantNextPageToken: nextPageToken,
+		},
+		{
+			name: "unauthenticated caller is rejected",
+			mockSetup: func(authenticator, _ *authorization.MockAuthorizer, _ *api.MockHandler, _ *types.ListDomainsRequest) {
+				authenticator.EXPECT().Authorize(gomock.Any(), listDomainsAuthAttr("")).Return(authorization.Result{Decision: authorization.DecisionDeny}, nil)
+			},
+			wantErr: errUnauthorized,
+		},
+		{
+			name: "returns authentication error without fetching domains",
+			mockSetup: func(authenticator, _ *authorization.MockAuthorizer, _ *api.MockHandler, _ *types.ListDomainsRequest) {
+				authenticator.EXPECT().Authorize(gomock.Any(), listDomainsAuthAttr("")).Return(authorization.Result{}, someErr)
+			},
+			wantErr: someErr,
+		},
+		{
+			name:            "filters unauthorized domains when enabled",
+			enableFiltering: true,
+			mockSetup: func(authenticator, authorizer *authorization.MockAuthorizer, handler *api.MockHandler, request *types.ListDomainsRequest) {
+				gomock.InOrder(
+					allowGate(authenticator),
+					handler.EXPECT().ListDomains(gomock.Any(), request).Return(listDomainsResponse(nextPageToken, "allowed-domain", "denied-domain"), nil),
+					authorizer.EXPECT().Authorize(gomock.Any(), listDomainsAuthAttr("allowed-domain")).Return(authorization.Result{Decision: authorization.DecisionAllow}, nil),
+					authorizer.EXPECT().Authorize(gomock.Any(), listDomainsAuthAttr("denied-domain")).Return(authorization.Result{Decision: authorization.DecisionDeny}, nil),
+				)
+			},
+			wantDomains:       []string{"allowed-domain"},
+			wantNextPageToken: nextPageToken,
+		},
+		{
+			name:            "preserves pagination when all domains are denied",
+			enableFiltering: true,
+			mockSetup: func(authenticator, authorizer *authorization.MockAuthorizer, handler *api.MockHandler, request *types.ListDomainsRequest) {
+				gomock.InOrder(
+					allowGate(authenticator),
+					handler.EXPECT().ListDomains(gomock.Any(), request).Return(listDomainsResponse(nextPageToken, "denied-domain"), nil),
+					authorizer.EXPECT().Authorize(gomock.Any(), listDomainsAuthAttr("denied-domain")).Return(authorization.Result{Decision: authorization.DecisionDeny}, nil),
+				)
+			},
+			wantNextPageToken: nextPageToken,
+		},
+		{
+			name: "returns domain fetch error after authentication without checking domain permissions",
+			mockSetup: func(authenticator, _ *authorization.MockAuthorizer, handler *api.MockHandler, request *types.ListDomainsRequest) {
+				gomock.InOrder(
+					allowGate(authenticator),
+					handler.EXPECT().ListDomains(gomock.Any(), request).Return(nil, someErr),
+				)
+			},
+			wantErr: someErr,
+		},
+		{
+			name:            "returns domain authorization error while filtering fetched domains",
+			enableFiltering: true,
+			mockSetup: func(authenticator, authorizer *authorization.MockAuthorizer, handler *api.MockHandler, request *types.ListDomainsRequest) {
+				gomock.InOrder(
+					allowGate(authenticator),
+					handler.EXPECT().ListDomains(gomock.Any(), request).Return(listDomainsResponse(nil, "error-domain"), nil),
+					authorizer.EXPECT().Authorize(gomock.Any(), listDomainsAuthAttr("error-domain")).Return(authorization.Result{}, someErr),
+				)
+			},
+			wantErr: someErr,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockAuthenticator := authorization.NewMockAuthorizer(ctrl)
+			mockAuthorizer := authorization.NewMockAuthorizer(ctrl)
+			mockHandler := api.NewMockHandler(ctrl)
+			mockResource := resource.NewMockResource(ctrl)
+			mockResource.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
+			request := &types.ListDomainsRequest{PageSize: 10}
+			tc.mockSetup(mockAuthenticator, mockAuthorizer, mockHandler, request)
+
+			dcClient := dynamicconfig.NewInMemoryClient()
+			if tc.enableFiltering {
+				require.NoError(t, dcClient.UpdateValue(dynamicproperties.EnableListDomainsFiltering, true))
+			}
+			dc := dynamicconfig.NewCollection(dcClient, testlogger.New(t))
+			handler := NewAPIHandler(mockHandler, mockResource, mockAuthorizer, mockAuthenticator, config.Authorization{}, dc.GetBoolProperty(dynamicproperties.EnableListDomainsFiltering))
+			response, err := handler.ListDomains(context.Background(), request)
+
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				assert.Nil(t, response)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, response)
+			assert.Equal(t, tc.wantNextPageToken, response.NextPageToken)
+			assert.Equal(t, tc.wantDomains, domainNames(response.Domains))
+		})
+	}
+}
+
+// listDomainsAuthAttr matches the attributes for a single domain, or for the endpoint
+// gate itself when domain is empty.
+func listDomainsAuthAttr(domain string) gomock.Matcher {
+	return gomock.Cond(func(attr *authorization.Attributes) bool {
+		return attr.APIName == "ListDomains" &&
+			attr.Permission == authorization.PermissionRead &&
+			attr.DomainName == domain &&
+			attr.RequestBody != nil
+	})
+}
+
+func listDomainsResponse(nextPageToken []byte, domains ...string) *types.ListDomainsResponse {
+	response := &types.ListDomainsResponse{NextPageToken: nextPageToken}
+	for _, domain := range domains {
+		response.Domains = append(response.Domains, &types.DescribeDomainResponse{
+			DomainInfo: &types.DomainInfo{Name: domain},
+		})
+	}
+	return response
+}
+
+func domainNames(domains []*types.DescribeDomainResponse) []string {
+	if len(domains) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(domains))
+	for _, domain := range domains {
+		names = append(names, domain.GetDomainInfo().GetName())
+	}
+	return names
 }
