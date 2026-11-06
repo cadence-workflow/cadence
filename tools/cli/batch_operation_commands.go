@@ -3,7 +3,6 @@ package cli
 import (
 	"bufio"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/pborman/uuid"
@@ -21,10 +20,14 @@ type batchOperationsCLIImpl struct {
 }
 
 func withBatchOperationsClient(c *cli.Context, cb func(*batchOperationsCLIImpl) error) error {
-	if c.String(FlagTransport) != grpcTransport {
-		if err := c.Set(FlagTransport, grpcTransport); err != nil {
-			return commoncli.Problem("Batch commands require gRPC transport but failed to set it", err)
-		}
+	if c.IsSet(FlagTransport) && c.String(FlagTransport) != grpcTransport {
+		return commoncli.Problem("Batch commands require gRPC transport", fmt.Errorf("got --%s %q, the batch API has no thrift equivalent", FlagTransport, c.String(FlagTransport)))
+	}
+	if err := c.Set(FlagTransport, grpcTransport); err != nil {
+		return commoncli.Problem("Batch commands require gRPC transport but failed to set it", err)
+	}
+	if c.IsSet(FlagAddress) {
+		fmt.Fprintf(getDeps(c).Progress(), "Note: batch commands always use gRPC; --%s must point at the gRPC port.\n", FlagAddress)
 	}
 	batchClient, err := getDeps(c).ServerBatchClient(c)
 	if err != nil {
@@ -66,11 +69,12 @@ func (bc *batchOperationsCLIImpl) startBatchOperation(c *cli.Context, operation 
 	if err != nil {
 		return commoncli.Problem("Failed to count impacted workflows for starting a batch operation", err)
 	}
-	fmt.Printf("This batch operation will be operating on %v workflows.\n", countResp.GetCount())
+	progress := getDeps(c).Progress()
+	fmt.Fprintf(progress, "This batch operation will be operating on %v workflows.\n", countResp.GetCount())
 	if !c.Bool(FlagYes) {
-		reader := bufio.NewReader(os.Stdin)
+		reader := bufio.NewReader(getDeps(c).Input())
 		for {
-			fmt.Print("Please confirm[Yes/No]:")
+			fmt.Fprint(progress, "Please confirm[Yes/No]:")
 			text, err := reader.ReadString('\n')
 			if err != nil {
 				return commoncli.Problem("Failed to get confirmation for starting a batch operation", err)
@@ -78,7 +82,7 @@ func (bc *batchOperationsCLIImpl) startBatchOperation(c *cli.Context, operation 
 			if strings.EqualFold(strings.TrimSpace(text), "yes") {
 				break
 			}
-			fmt.Println("Batch operation is not started")
+			fmt.Fprintln(progress, "Batch operation is not started")
 			return nil
 		}
 	}
