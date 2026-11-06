@@ -79,27 +79,27 @@ func (s shardDistributorResolver) Stop() {
 	s.ring.Stop()
 }
 
-// Lookup routes matching keys that are not task lists, such as semaphore buckets. It treats the
-// key as a task list name with no domain ID. Semaphore keys already contain their domain ID.
+// Lookup routes keys that are not task lists, such as semaphore buckets. Those keys already include
+// the domain ID, so they are routed without a separate one.
 func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
-	return s.LookupTaskList(TaskListKey{Name: key})
+	return s.LookupTaskList("", key)
 }
 
-func (s shardDistributorResolver) LookupTaskList(key TaskListKey) (HostInfo, error) {
-	if s.taskListDifferentiator.TaskListExcludedFromShardDistributor(key) {
+func (s shardDistributorResolver) LookupTaskList(domainID, taskListName string) (HostInfo, error) {
+	if s.taskListDifferentiator.TaskListExcludedFromShardDistributor(domainID, taskListName) {
 		s.emitRoutingPathMetric(routingPathHashRing)
-		return s.ring.Lookup(key.Name)
+		return s.ring.Lookup(taskListName)
 	}
 
 	if s.spectator == nil {
 		s.logger.Warn("No shard distributor client, defaulting to hash ring")
 		s.emitRoutingPathMetric(routingPathHashRing)
-		return s.ring.Lookup(key.Name)
+		return s.ring.Lookup(taskListName)
 	}
 
 	s.emitRoutingPathMetric(routingPathShardDistributor)
 
-	shardID := s.taskListDifferentiator.ShardID(key)
+	shardID := s.taskListDifferentiator.ShardID(domainID, taskListName)
 	return s.lookUpInShardDistributor(shardID)
 }
 

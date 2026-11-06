@@ -137,7 +137,8 @@ func (sp *shardProcessorImpl) ownedManagers() []Manager {
 
 // ownsTaskList is false for task lists the hash ring owns, such as short-lived ones.
 func (sp *shardProcessorImpl) ownsTaskList(tlMgr Manager) bool {
-	return !sp.taskListDifferentiator.TaskListExcludedFromShardDistributor(tlMgr.TaskListID().MembershipKey())
+	id := tlMgr.TaskListID()
+	return !sp.taskListDifferentiator.TaskListExcludedFromShardDistributor(id.GetDomainID(), id.GetName())
 }
 
 func validateSPParams(params ShardProcessorParams) error {

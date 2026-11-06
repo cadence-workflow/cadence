@@ -216,7 +216,7 @@ func newOnboardingTestData(
 	)
 	for _, taskList := range taskLists {
 		require.Contains(t, shardOwners, taskList.shard, "SD gives out the shard of task list %q", taskList.name)
-		gotShardID := td.taskListDifferentiator.ShardID(membership.TaskListKey{DomainID: onboardingDomainID, Name: taskList.name})
+		gotShardID := td.taskListDifferentiator.ShardID(onboardingDomainID, taskList.name)
 		require.Equal(t, taskList.shard, gotShardID, "shard of task list %q", taskList.name)
 	}
 
@@ -464,7 +464,7 @@ func (td *onboardingTestData) startTaskListsHostsNowOwn(t *testing.T) {
 func (td *onboardingTestData) routeOf(t *testing.T, taskListName string) route {
 	t.Helper()
 	td.routedBy = ""
-	owner, err := td.shardDistributorResolver.LookupTaskList(membership.TaskListKey{DomainID: onboardingDomainID, Name: taskListName})
+	owner, err := td.shardDistributorResolver.LookupTaskList(onboardingDomainID, taskListName)
 	require.NoError(t, err, "routing task list %q", taskListName)
 	return route{routedBy: td.routedBy, owner: owner.Identity()}
 }

@@ -156,7 +156,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			mockExec.EXPECT().Stop().AnyTimes()
 			matchingEngine.executor = mockExec
 
-			resolverMock.EXPECT().LookupTaskList(gomock.Any()).Return(
+			resolverMock.EXPECT().LookupTaskList(gomock.Any(), gomock.Any()).Return(
 				membership.NewDetailedHostInfo("", tc.lookUpResult, make(membership.PortMap)), tc.lookUpErr,
 			).AnyTimes()
 			resolverMock.EXPECT().WhoAmI().Return(

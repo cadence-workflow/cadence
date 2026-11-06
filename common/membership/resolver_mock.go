@@ -99,18 +99,18 @@ func (mr *MockResolverMockRecorder) LookupN(service, key, n any) *gomock.Call {
 }
 
 // LookupTaskList mocks base method.
-func (m *MockResolver) LookupTaskList(key TaskListKey) (HostInfo, error) {
+func (m *MockResolver) LookupTaskList(domainID, taskListName string) (HostInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupTaskList", key)
+	ret := m.ctrl.Call(m, "LookupTaskList", domainID, taskListName)
 	ret0, _ := ret[0].(HostInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // LookupTaskList indicates an expected call of LookupTaskList.
-func (mr *MockResolverMockRecorder) LookupTaskList(key any) *gomock.Call {
+func (mr *MockResolverMockRecorder) LookupTaskList(domainID, taskListName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupTaskList", reflect.TypeOf((*MockResolver)(nil).LookupTaskList), key)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupTaskList", reflect.TypeOf((*MockResolver)(nil).LookupTaskList), domainID, taskListName)
 }
 
 // MemberCount mocks base method.

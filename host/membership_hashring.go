@@ -46,8 +46,8 @@ func (s *simpleHashring) Lookup(key string) (membership.HostInfo, error) {
 	return s.hosts[idx], nil
 }
 
-func (s *simpleHashring) LookupTaskList(key membership.TaskListKey) (membership.HostInfo, error) {
-	return s.Lookup(key.Name)
+func (s *simpleHashring) LookupTaskList(_, taskListName string) (membership.HostInfo, error) {
+	return s.Lookup(taskListName)
 }
 
 // LookupN returns up to n hosts for the given key using consecutive slots in

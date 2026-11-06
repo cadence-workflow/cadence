@@ -13,13 +13,6 @@ const uuidRegex = `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[
 
 var uuidRegexp = regexp.MustCompile(uuidRegex)
 
-// TaskListKey identifies a matching task list for routing. Name is the full name, including the
-// partition. DomainID can be empty for keys that carry no domain, such as semaphore buckets.
-type TaskListKey struct {
-	DomainID string
-	Name     string
-}
-
 // TaskListDifferentiator decides which shard holds a task list and whether the shard distributor
 // manages it. It reads the dynamic config on every call, so changes take effect without
 // rebuilding it.
@@ -46,10 +39,10 @@ func NewTaskListDifferentiator(
 
 // TaskListExcludedFromShardDistributor reports whether the hash ring owns the task list instead of
 // the shard distributor.
-func (d *TaskListDifferentiator) TaskListExcludedFromShardDistributor(key TaskListKey) bool {
+func (d *TaskListDifferentiator) TaskListExcludedFromShardDistributor(domainID, taskListName string) bool {
 	// This regex checks if the task list name has a UUID, if it does we
 	// consider it a short lived tasklist that will not be managed by the shard distributor.
-	if d.excludeShortLivedTaskLists() && uuidRegexp.MatchString(key.Name) {
+	if d.excludeShortLivedTaskLists() && uuidRegexp.MatchString(taskListName) {
 		return true
 	}
 
@@ -57,11 +50,11 @@ func (d *TaskListDifferentiator) TaskListExcludedFromShardDistributor(key TaskLi
 	if d.shardTaskListsByHash() {
 		// Onboard the first percentageOnboarded percent of shards, so every task list in a shard
 		// gets the same decision.
-		shardIndex := taskListShardIndex(key, d.shardCount)
+		shardIndex := taskListShardIndex(domainID, taskListName, d.shardCount)
 		return shardIndex*100 >= percentageOnboarded*uint64(d.shardCount)
 	}
 
-	hash := farm.Fingerprint64([]byte(key.Name))
+	hash := farm.Fingerprint64([]byte(taskListName))
 	return !isbelowPercentage(hash, percentageOnboarded)
 }
 
@@ -69,11 +62,11 @@ func (d *TaskListDifferentiator) TaskListExcludedFromShardDistributor(key TaskLi
 // of shardCount shards, formatted the way the shard manager formats the shard IDs of a fixed
 // namespace. Otherwise each task list name has its own shard, named after it, shared by every
 // domain that uses the name.
-func (d *TaskListDifferentiator) ShardID(key TaskListKey) string {
+func (d *TaskListDifferentiator) ShardID(domainID, taskListName string) string {
 	if d.shardTaskListsByHash() {
-		return TaskListToShard(key, d.shardCount)
+		return TaskListToShard(domainID, taskListName, d.shardCount)
 	}
-	return key.Name
+	return taskListName
 }
 
 // ShardsByHash reports whether task lists are currently grouped into hashed shards.
@@ -88,16 +81,16 @@ func (d *TaskListDifferentiator) ShardCount() int {
 
 // TaskListToShard returns which of shardCount shards a task list hashes to, formatted the way the
 // shard manager formats the shard IDs of a fixed namespace.
-func TaskListToShard(key TaskListKey, shardCount int) string {
-	shardIndex := taskListShardIndex(key, shardCount)
+func TaskListToShard(domainID, taskListName string, shardCount int) string {
+	shardIndex := taskListShardIndex(domainID, taskListName, shardCount)
 	return strconv.FormatUint(shardIndex, 10)
 }
 
 // taskListShardIndex hashes the domain ID together with the name, so task lists that share a name
 // across many domains, such as the scheduler's, spread over the shards instead of piling into one.
 // The domain ID is a UUID and never contains the separator, so the hashed key is unambiguous.
-func taskListShardIndex(key TaskListKey, shardCount int) uint64 {
-	hash := farm.Fingerprint64([]byte(key.DomainID + "/" + key.Name))
+func taskListShardIndex(domainID, taskListName string, shardCount int) uint64 {
+	hash := farm.Fingerprint64([]byte(domainID + "/" + taskListName))
 	return hash % uint64(shardCount)
 }
 

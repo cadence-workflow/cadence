@@ -70,7 +70,7 @@ func (r *taskListRegistryImpl) Register(id Identifier, mgr Manager) {
 	if _, ok := r.taskListsByTaskListName[id.GetName()]; !ok {
 		r.taskListsByTaskListName[id.GetName()] = make(map[Identifier]Manager)
 	}
-	shardID := membership.TaskListToShard(id.MembershipKey(), r.shardCount)
+	shardID := membership.TaskListToShard(id.GetDomainID(), id.GetName(), r.shardCount)
 	if _, ok := r.taskListsByShard[shardID]; !ok {
 		r.taskListsByShard[shardID] = make(map[Identifier]Manager)
 	}
@@ -101,7 +101,7 @@ func (r *taskListRegistryImpl) Unregister(mgr Manager) bool {
 			delete(r.taskListsByTaskListName, id.GetName())
 		}
 
-		shardID := membership.TaskListToShard(id.MembershipKey(), r.shardCount)
+		shardID := membership.TaskListToShard(id.GetDomainID(), id.GetName(), r.shardCount)
 		delete(r.taskListsByShard[shardID], *id)
 		if len(r.taskListsByShard[shardID]) == 0 {
 			delete(r.taskListsByShard, shardID)
