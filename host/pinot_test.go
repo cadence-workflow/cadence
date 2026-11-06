@@ -46,7 +46,6 @@ import (
 	"flag"
 	"fmt"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -123,19 +122,10 @@ func (s *PinotIntegrationSuite) SetupSuite() {
 	s.DomainName = s.RandomizeStr("integration-test-domain")
 	s.ForeignDomainName = s.RandomizeStr("integration-foreign-test-domain")
 
-	var wg sync.WaitGroup
-	errCh := make(chan error, 4)
-
+	// Domain registrations share a persistence notification version. Keep them
+	// sequential so concurrent writes cannot race the metadata update.
 	registerDomain := func(domain string, registerFn func() error) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := registerFn(); err != nil {
-				errCh <- fmt.Errorf("register %s: %w", domain, err)
-			} else {
-				errCh <- nil
-			}
-		}()
+		s.Require().NoError(registerFn(), "register domain %s", domain)
 	}
 
 	registerDomain(s.DomainName, func() error {
@@ -150,12 +140,6 @@ func (s *PinotIntegrationSuite) SetupSuite() {
 	registerDomain("ArchivalDomain", func() error {
 		return s.registerArchivalDomain()
 	})
-
-	wg.Wait()
-	close(errCh)
-	for err := range errCh {
-		s.Require().NoError(err)
-	}
 
 	domains := []string{s.DomainName, s.TestRawHistoryDomainName, s.ForeignDomainName, s.ArchivalDomainName}
 	s.Require().NoError(s.waitForDomains(domains))
