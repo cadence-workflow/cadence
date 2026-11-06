@@ -727,6 +727,76 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_HasParent_Fa
 	)
 }
 
+func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_HasParent_LaterRunOfChain() {
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+	executionInfo := mutableState.GetExecutionInfo()
+	parentInitiatedID := int64(3222)
+	parentExecution := types.WorkflowExecution{
+		WorkflowID: "some random parent workflow ID",
+		RunID:      uuid.New(),
+	}
+	executionInfo.ParentDomainID = s.domainID
+	executionInfo.ParentWorkflowID = parentExecution.WorkflowID
+	executionInfo.ParentRunID = parentExecution.RunID
+	executionInfo.InitiatedID = parentInitiatedID
+	// the closed run is a later run of a chain
+	firstRunID := uuid.New()
+	executionInfo.FirstExecutionRunID = firstRunID
+
+	event := test.AddCompleteWorkflowEvent(mutableState, decisionCompletionID, nil)
+
+	transferTask := s.newTransferTaskFromInfo(&persistence.CloseExecutionTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version: s.version,
+			TaskID:  int64(59),
+		},
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, event.ID, event.Version)
+	s.NoError(err)
+	closedRunStartVersion, err := mutableState.GetStartVersion()
+	s.NoError(err)
+	firstRunStartVersion := closedRunStartVersion - 1
+	// the first run of the chain is read only for its start version
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.MatchedBy(func(request *persistence.GetWorkflowExecutionRequest) bool {
+		return request.Execution.GetRunID() == firstRunID
+	})).Return(&persistence.GetWorkflowExecutionResponse{
+		State: &persistence.WorkflowMutableState{
+			ExecutionInfo: &persistence.WorkflowExecutionInfo{
+				DomainID:   s.domainID,
+				WorkflowID: workflowExecution.GetWorkflowID(),
+				RunID:      firstRunID,
+			},
+			VersionHistories: persistence.NewVersionHistories(persistence.NewVersionHistory(
+				[]byte("first-run-branch-token"),
+				[]*persistence.VersionHistoryItem{persistence.NewVersionHistoryItem(3, firstRunStartVersion)},
+			)),
+		},
+	}, nil).Once()
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+	s.mockVisibilityMgr.On("RecordWorkflowExecutionClosed", mock.Anything, mock.Anything).Return(nil).Once()
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewDisabledArchvialConfig())
+	// the parent gets the start version of the first run, not the start version of the closed run
+	s.mockHistoryClient.EXPECT().RecordChildExecutionCompleted(gomock.Any(), &types.RecordChildExecutionCompletedRequest{
+		DomainUUID:          s.domainID,
+		WorkflowExecution:   &parentExecution,
+		InitiatedID:         parentInitiatedID,
+		CompletedExecution:  &workflowExecution,
+		CompletionEvent:     event,
+		FirstExecutionRunID: firstRunID,
+		ChildStartVersion:   common.Int64Ptr(firstRunStartVersion),
+	}).Return(nil).Times(1)
+
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
+	s.NoError(err)
+}
+
 func (s *transferActiveTaskExecutorSuite) testProcessCloseExecutionWithParent(
 	targetDomainID string,
 	setupMockFn func(
