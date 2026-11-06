@@ -1,6 +1,7 @@
 name: Adopter onboarding
 description: Request maintainer assistance to bring your Cadence cluster to production.
 title: "[Adopter onboarding]: <Company name>"
+labels: ["adopter-onboarding"]
 body:
   - type: markdown
     attributes:
@@ -66,10 +67,10 @@ body:
         Use workflow and activity rates rather than only application request rates.
         If you do not know a number yet, say so; we can help you estimate it.
       placeholder: |
-        Average peak workflow starts per second (or per day):
-        Average peak activity executions per second (if known):
+        Average / peak workflow starts per second (or per day):
+        Average / peak activity executions per second (if known):
         Concurrent open workflows:
-        Typical longest workflow duration:
+        Typical / longest workflow duration:
         Approximate activities per workflow and payload sizes (if known):
         Completed-workflow retention needs:
         Expected growth:
