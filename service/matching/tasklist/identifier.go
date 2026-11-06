@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -154,6 +155,11 @@ func NewIdentifier(
 // GetDomainID returns the domain ID of the task list
 func (tid *Identifier) GetDomainID() string {
 	return tid.domainID
+}
+
+// MembershipKey returns the key matching routes this task list by.
+func (tid *Identifier) MembershipKey() membership.TaskListKey {
+	return membership.TaskListKey{DomainID: tid.domainID, Name: tid.name}
 }
 
 // GetType returns the task type of the task list

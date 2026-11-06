@@ -193,8 +193,8 @@ func (r *Ring) Lookup(key string) (HostInfo, error) {
 
 // LookupTaskList routes a matching task list by its name, like Lookup. Only the shard
 // distributor resolver uses the domain ID, so the plain ring ignores it.
-func (r *Ring) LookupTaskList(_, taskListName string) (HostInfo, error) {
-	return r.Lookup(taskListName)
+func (r *Ring) LookupTaskList(key TaskListKey) (HostInfo, error) {
+	return r.Lookup(key.Name)
 }
 
 // LookupN returns up to n hosts from the ring for the given key. This can be

@@ -144,7 +144,7 @@ func (s *matchingEngineSuite) SetupTest() {
 	s.mockDomainCache.EXPECT().RegisterDomainChangeCallback(service.Matching, gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	s.mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).AnyTimes()
 	s.mockMembershipResolver = membership.NewMockResolver(s.controller)
-	s.mockMembershipResolver.EXPECT().LookupTaskList(gomock.Any(), gomock.Any()).Return(membership.HostInfo{}, nil).AnyTimes()
+	s.mockMembershipResolver.EXPECT().LookupTaskList(gomock.Any()).Return(membership.HostInfo{}, nil).AnyTimes()
 	s.mockMembershipResolver.EXPECT().WhoAmI().Return(membership.HostInfo{}, nil).AnyTimes()
 	s.mockMembershipResolver.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).AnyTimes()
 	s.mockIsolationStore = dynamicconfig.NewMockClient(s.controller)

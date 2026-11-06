@@ -134,7 +134,7 @@ func (e *matchingEngineImpl) getNonOwnedTasklistsLocked() ([]tasklist.Manager, e
 	}
 
 	for _, tl := range taskLists {
-		taskListOwner, err := e.membershipResolver.LookupTaskList(tl.TaskListID().GetDomainID(), tl.TaskListID().GetName())
+		taskListOwner, err := e.membershipResolver.LookupTaskList(tl.TaskListID().MembershipKey())
 		if err != nil {
 			return nil, fmt.Errorf("failed to lookup task list owner: %w", err)
 		}

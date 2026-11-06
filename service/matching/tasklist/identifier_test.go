@@ -27,6 +27,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -138,4 +139,15 @@ func TestTaskListIDToString(t *testing.T) {
 	id, err = NewIdentifier("test-domain", "/tasklist/", persistence.TaskListTypeDecision)
 	require.NoError(t, err)
 	require.Equal(t, "[name=/tasklist/type=decision]", fmt.Sprint(id))
+}
+
+func TestTaskListIDMembershipKey(t *testing.T) {
+	domainID := "domain-id"
+	partitionName := "/__cadence_sys/orders/1"
+
+	id, err := NewIdentifier(domainID, partitionName, persistence.TaskListTypeDecision)
+	require.NoError(t, err)
+
+	want := membership.TaskListKey{DomainID: domainID, Name: partitionName}
+	require.Equal(t, want, id.MembershipKey(), "a partition should be routed by its full name, not the root name")
 }

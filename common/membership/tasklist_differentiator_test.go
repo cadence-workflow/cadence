@@ -146,7 +146,7 @@ func TestTaskListDifferentiator_TaskListExcludedFromShardDistributor(t *testing.
 				shardCount,
 			)
 
-			got := differentiator.TaskListExcludedFromShardDistributor(domainID, tt.taskListName)
+			got := differentiator.TaskListExcludedFromShardDistributor(TaskListKey{DomainID: domainID, Name: tt.taskListName})
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -247,7 +247,7 @@ func TestTaskListDifferentiator_ShardID(t *testing.T) {
 				shardCount,
 			)
 
-			got := differentiator.ShardID(tt.domainID, tt.taskListName)
+			got := differentiator.ShardID(TaskListKey{DomainID: tt.domainID, Name: tt.taskListName})
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -267,8 +267,7 @@ func TestTaskListDifferentiator_ShardCount(t *testing.T) {
 
 func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 	shardCount := 1000
-	domainID := "domain-a"
-	taskListName := "orders" // farm.Fingerprint64([]byte("domain-a/orders"))%1000 = 272
+	key := TaskListKey{DomainID: "domain-a", Name: "orders"} // farm.Fingerprint64([]byte("domain-a/orders"))%1000 = 272
 	hashedShardID := "272"
 
 	shardTaskListsByHash := false
@@ -284,13 +283,13 @@ func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 	)
 
 	assert.False(t, differentiator.ShardsByHash())
-	assert.Equal(t, taskListName, differentiator.ShardID(domainID, taskListName))
-	assert.True(t, differentiator.TaskListExcludedFromShardDistributor(domainID, taskListName))
+	assert.Equal(t, key.Name, differentiator.ShardID(key))
+	assert.True(t, differentiator.TaskListExcludedFromShardDistributor(key))
 
 	shardTaskListsByHash = true
 	percentageOnboarded = 100
 
 	assert.True(t, differentiator.ShardsByHash())
-	assert.Equal(t, hashedShardID, differentiator.ShardID(domainID, taskListName))
-	assert.False(t, differentiator.TaskListExcludedFromShardDistributor(domainID, taskListName))
+	assert.Equal(t, hashedShardID, differentiator.ShardID(key))
+	assert.False(t, differentiator.TaskListExcludedFromShardDistributor(key))
 }

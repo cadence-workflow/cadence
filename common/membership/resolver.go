@@ -64,7 +64,7 @@ type (
 		Lookup(service, key string) (HostInfo, error)
 
 		// LookupTaskList returns the matching host that owns the task list.
-		LookupTaskList(domainID, taskListName string) (HostInfo, error)
+		LookupTaskList(key TaskListKey) (HostInfo, error)
 
 		// LookupN returns up to n hosts responsible for the given key. This
 		// enables redundant workers across multiple hosts for the same key.
@@ -196,12 +196,12 @@ func (rpo *MultiringResolver) Lookup(service string, key string) (HostInfo, erro
 	return ring.Lookup(key)
 }
 
-func (rpo *MultiringResolver) LookupTaskList(domainID, taskListName string) (HostInfo, error) {
+func (rpo *MultiringResolver) LookupTaskList(key TaskListKey) (HostInfo, error) {
 	ring, err := rpo.getRing(service.Matching)
 	if err != nil {
 		return HostInfo{}, err
 	}
-	return ring.LookupTaskList(domainID, taskListName)
+	return ring.LookupTaskList(key)
 }
 
 func (rpo *MultiringResolver) LookupN(service string, key string, n int) ([]HostInfo, error) {

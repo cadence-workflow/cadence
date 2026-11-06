@@ -58,7 +58,7 @@ func TestTaskListRegistry_RegisterLookupAndUnregister(t *testing.T) {
 	got, ok = registry.ManagerByTaskListIdentifier(*id)
 	require.True(t, ok)
 	assert.Equal(t, updatedMgr, got)
-	shardID := membership.TaskListToShard(id.GetDomainID(), id.GetName(), shardCount)
+	shardID := membership.TaskListToShard(id.MembershipKey(), shardCount)
 	assert.ElementsMatch(t, []Manager{updatedMgr}, registry.ManagersByShard(shardID))
 
 	// Unregistering the current manager should remove the entry.
@@ -114,9 +114,9 @@ func TestTaskListRegistry_Filters(t *testing.T) {
 	})
 
 	t.Run("managers by shard", func(t *testing.T) {
-		domainASharedNameShardID := membership.TaskListToShard("domain-a", "shared-name", shardCount)
-		domainAOtherNameShardID := membership.TaskListToShard("domain-a", "other-name", shardCount)
-		domainBSharedNameShardID := membership.TaskListToShard("domain-b", "shared-name", shardCount)
+		domainASharedNameShardID := membership.TaskListToShard(domainA1.MembershipKey(), shardCount)
+		domainAOtherNameShardID := membership.TaskListToShard(domainA2.MembershipKey(), shardCount)
+		domainBSharedNameShardID := membership.TaskListToShard(domainB1.MembershipKey(), shardCount)
 		require.NotEqual(t, domainASharedNameShardID, domainAOtherNameShardID)
 		require.NotEqual(t, domainASharedNameShardID, domainBSharedNameShardID, "the same name in two domains should hash to different shards")
 		require.NotEqual(t, domainAOtherNameShardID, domainBSharedNameShardID)

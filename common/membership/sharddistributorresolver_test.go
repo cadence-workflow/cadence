@@ -38,8 +38,7 @@ import (
 )
 
 func TestShardDistributorResolver_LookupTaskList(t *testing.T) {
-	domainID := "domain-a"
-	taskListName := "test-key"
+	key := TaskListKey{DomainID: "domain-a", Name: "test-key"}
 
 	tests := []struct {
 		name                 string
@@ -49,7 +48,7 @@ func TestShardDistributorResolver_LookupTaskList(t *testing.T) {
 		{
 			name:                 "shard per task list uses the task list name",
 			shardTaskListsByHash: false,
-			wantShardID:          taskListName,
+			wantShardID:          key.Name,
 		},
 		{
 			name:                 "shard by hash uses the shard of the domain and name",
@@ -70,7 +69,7 @@ func TestShardDistributorResolver_LookupTaskList(t *testing.T) {
 			shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), tt.wantShardID).
 				Return(testShardOwner(), nil)
 
-			host, err := resolver.LookupTaskList(domainID, taskListName)
+			host, err := resolver.LookupTaskList(key)
 			require.NoError(t, err)
 			assert.Equal(t, "127.0.0.1:7933", host.addr)
 		})
@@ -78,8 +77,7 @@ func TestShardDistributorResolver_LookupTaskList(t *testing.T) {
 }
 
 func TestShardDistributorResolver_LookupTaskList_ExcludedUsesHashRingByName(t *testing.T) {
-	domainID := "domain-a"
-	taskListName := "test-key"
+	key := TaskListKey{DomainID: "domain-a", Name: "test-key"}
 
 	resolver, ring, _ := newShardDistributorResolver(t)
 	resolver.taskListDifferentiator = NewTaskListDifferentiator(
@@ -89,9 +87,9 @@ func TestShardDistributorResolver_LookupTaskList_ExcludedUsesHashRingByName(t *t
 		config.DefaultNumMatchingShards,
 	)
 
-	ring.EXPECT().Lookup(taskListName).Return(HostInfo{addr: "hash-ring-addr"}, nil)
+	ring.EXPECT().Lookup(key.Name).Return(HostInfo{addr: "hash-ring-addr"}, nil)
 
-	host, err := resolver.LookupTaskList(domainID, taskListName)
+	host, err := resolver.LookupTaskList(key)
 	require.NoError(t, err)
 	assert.Equal(t, "hash-ring-addr", host.addr)
 }

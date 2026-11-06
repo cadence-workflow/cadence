@@ -85,18 +85,18 @@ func (mr *MockSingleProviderMockRecorder) LookupN(key, n any) *gomock.Call {
 }
 
 // LookupTaskList mocks base method.
-func (m *MockSingleProvider) LookupTaskList(domainID, taskListName string) (HostInfo, error) {
+func (m *MockSingleProvider) LookupTaskList(key TaskListKey) (HostInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupTaskList", domainID, taskListName)
+	ret := m.ctrl.Call(m, "LookupTaskList", key)
 	ret0, _ := ret[0].(HostInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // LookupTaskList indicates an expected call of LookupTaskList.
-func (mr *MockSingleProviderMockRecorder) LookupTaskList(domainID, taskListName any) *gomock.Call {
+func (mr *MockSingleProviderMockRecorder) LookupTaskList(key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupTaskList", reflect.TypeOf((*MockSingleProvider)(nil).LookupTaskList), domainID, taskListName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupTaskList", reflect.TypeOf((*MockSingleProvider)(nil).LookupTaskList), key)
 }
 
 // MemberCount mocks base method.

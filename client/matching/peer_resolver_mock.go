@@ -13,6 +13,8 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+
+	membership "github.com/uber/cadence/common/membership"
 )
 
 // MockPeerResolver is a mock of PeerResolver interface.
@@ -70,18 +72,18 @@ func (mr *MockPeerResolverMockRecorder) FromSemaphoreBucket(domainID, semaphoreN
 }
 
 // FromTaskList mocks base method.
-func (m *MockPeerResolver) FromTaskList(domainID, taskListName string) (string, error) {
+func (m *MockPeerResolver) FromTaskList(key membership.TaskListKey) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FromTaskList", domainID, taskListName)
+	ret := m.ctrl.Call(m, "FromTaskList", key)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FromTaskList indicates an expected call of FromTaskList.
-func (mr *MockPeerResolverMockRecorder) FromTaskList(domainID, taskListName any) *gomock.Call {
+func (mr *MockPeerResolverMockRecorder) FromTaskList(key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FromTaskList", reflect.TypeOf((*MockPeerResolver)(nil).FromTaskList), domainID, taskListName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FromTaskList", reflect.TypeOf((*MockPeerResolver)(nil).FromTaskList), key)
 }
 
 // GetAllPeers mocks base method.
