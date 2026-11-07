@@ -859,6 +859,22 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 			},
 		},
 		{
+			name:           "domain max under one second: the built-in max is used",
+			maxWaitTimeout: 500 * time.Millisecond,
+			attr:           &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
+			expectMockCalls: func(ms *execution.MockMutableState) {
+				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(30))
+			},
+		},
+		{
+			name:               "domain default under one second: the built-in default is used",
+			defaultWaitTimeout: 500 * time.Millisecond,
+			attr:               &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
+			expectMockCalls: func(ms *execution.MockMutableState) {
+				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(300))
+			},
+		},
+		{
 			name: "recording the acquire fails: the error is returned",
 			attr: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
 			expectMockCalls: func(ms *execution.MockMutableState) {
