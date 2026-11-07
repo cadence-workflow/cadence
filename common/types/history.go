@@ -639,6 +639,51 @@ func (v *RecordChildExecutionCompletedRequest) GetDomainUUID() (o string) {
 	return
 }
 
+// RecordSemaphoreAcquiredRequest carries a semaphore token that Matching granted to a queued acquire.
+type RecordSemaphoreAcquiredRequest struct {
+	DomainUUID        string             `json:"domainUUID,omitempty"`
+	WorkflowExecution *WorkflowExecution `json:"workflowExecution,omitempty"`
+	// InitiatedID is the id of the SemaphoreAcquireInitiated event that started the acquire.
+	InitiatedID   int64  `json:"initiatedId,omitempty"`
+	TokenID       int32  `json:"tokenId,omitempty"`
+	SemaphoreName string `json:"semaphoreName,omitempty"`
+}
+
+// GetDomainUUID is an internal getter (TBD...)
+func (v *RecordSemaphoreAcquiredRequest) GetDomainUUID() (o string) {
+	if v != nil {
+		return v.DomainUUID
+	}
+	return
+}
+
+// GetInitiatedID is an internal getter (TBD...)
+func (v *RecordSemaphoreAcquiredRequest) GetInitiatedID() (o int64) {
+	if v != nil {
+		return v.InitiatedID
+	}
+	return
+}
+
+// GetTokenID is an internal getter (TBD...)
+func (v *RecordSemaphoreAcquiredRequest) GetTokenID() (o int32) {
+	if v != nil {
+		return v.TokenID
+	}
+	return
+}
+
+// GetSemaphoreName is an internal getter (TBD...)
+func (v *RecordSemaphoreAcquiredRequest) GetSemaphoreName() (o string) {
+	if v != nil {
+		return v.SemaphoreName
+	}
+	return
+}
+
+// RecordSemaphoreAcquiredResponse is empty: a refused grant is an error.
+type RecordSemaphoreAcquiredResponse struct{}
+
 // RecordDecisionTaskStartedRequest is an internal type (TBD...)
 type RecordDecisionTaskStartedRequest struct {
 	DomainUUID        string                      `json:"domainUUID,omitempty"`

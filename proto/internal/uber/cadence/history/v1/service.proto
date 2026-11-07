@@ -168,6 +168,10 @@ service HistoryAPI {
   // This is mainly called by transfer queue processor during the processing of DeleteExecution task.
   rpc RecordChildExecutionCompleted(RecordChildExecutionCompletedRequest) returns (RecordChildExecutionCompletedResponse);
 
+  // RecordSemaphoreAcquired records a semaphore token that Matching granted to a queued acquire.
+  // It's called by Matching when a slot frees up for the acquire.
+  rpc RecordSemaphoreAcquired(RecordSemaphoreAcquiredRequest) returns (RecordSemaphoreAcquiredResponse);
+
   rpc ReplicateEventsV2(ReplicateEventsV2Request) returns (ReplicateEventsV2Response);
 
   // SyncShardStatus sync the status between shards.
@@ -542,6 +546,17 @@ message RecordChildExecutionCompletedRequest {
 }
 
 message RecordChildExecutionCompletedResponse {
+}
+
+message RecordSemaphoreAcquiredRequest {
+  string domain_id = 1;
+  api.v1.WorkflowExecution workflow_execution = 2;
+  int64 initiated_id = 3;
+  int32 token_id = 4;
+  string semaphore_name = 5;
+}
+
+message RecordSemaphoreAcquiredResponse {
 }
 
 message ReplicateEventsV2Request {

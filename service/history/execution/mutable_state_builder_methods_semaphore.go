@@ -127,8 +127,7 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquireInitiatedEvent(
 }
 
 // AddSemaphoreAcquiredEvent records that the acquire started by initiatedEventID was granted
-// tokenID, replacing any different token the hold has. It refuses a missing hold or a repeat of
-// the hold's token.
+// tokenID. The hold must exist and have no token yet.
 func (e *mutableStateBuilder) AddSemaphoreAcquiredEvent(
 	initiatedEventID int64,
 	tokenID int32,
@@ -140,9 +139,9 @@ func (e *mutableStateBuilder) AddSemaphoreAcquiredEvent(
 	}
 
 	semaphoreInfo, ok := e.GetSemaphoreInfo(initiatedEventID)
-	// Callers handle a missing hold and a repeated grant first, so reaching this is a caller bug.
-	// Refuse it rather than write a grant with no hold, or a duplicate grant, to history.
-	if !ok || semaphoreInfo.TokenID == int(tokenID) {
+	// Only a hold still waiting for its token can be granted. Callers check this first, so this
+	// fires only on a caller bug. Refuse, so a bad grant never reaches history.
+	if !ok || semaphoreInfo.HasToken() {
 		e.logWarn(mutableStateInvalidHistoryActionMsg, opTag,
 			tag.WorkflowEventID(e.GetNextEventID()),
 			tag.ErrorTypeInvalidHistoryAction,
@@ -159,6 +158,8 @@ func (e *mutableStateBuilder) AddSemaphoreAcquiredEvent(
 }
 
 // ReplicateSemaphoreAcquiredEvent fills in the granted token, which moves the hold to held.
+// Unlike AddSemaphoreAcquiredEvent, it also accepts a hold that already has a token: a standby
+// cluster or a rebuild must apply whatever the active side wrote.
 func (e *mutableStateBuilder) ReplicateSemaphoreAcquiredEvent(
 	event *types.HistoryEvent,
 ) error {

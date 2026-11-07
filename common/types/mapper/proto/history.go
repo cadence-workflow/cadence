@@ -955,6 +955,46 @@ func ToHistoryRefreshWorkflowTasksRequest(t *historyv1.RefreshWorkflowTasksReque
 	}
 }
 
+func FromHistoryRecordSemaphoreAcquiredRequest(t *types.RecordSemaphoreAcquiredRequest) *historyv1.RecordSemaphoreAcquiredRequest {
+	if t == nil {
+		return nil
+	}
+	return &historyv1.RecordSemaphoreAcquiredRequest{
+		DomainId:          t.DomainUUID,
+		WorkflowExecution: FromWorkflowExecution(t.WorkflowExecution),
+		InitiatedId:       t.InitiatedID,
+		TokenId:           t.TokenID,
+		SemaphoreName:     t.SemaphoreName,
+	}
+}
+
+func ToHistoryRecordSemaphoreAcquiredRequest(t *historyv1.RecordSemaphoreAcquiredRequest) *types.RecordSemaphoreAcquiredRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.RecordSemaphoreAcquiredRequest{
+		DomainUUID:        t.DomainId,
+		WorkflowExecution: ToWorkflowExecution(t.WorkflowExecution),
+		InitiatedID:       t.InitiatedId,
+		TokenID:           t.TokenId,
+		SemaphoreName:     t.SemaphoreName,
+	}
+}
+
+func FromHistoryRecordSemaphoreAcquiredResponse(t *types.RecordSemaphoreAcquiredResponse) *historyv1.RecordSemaphoreAcquiredResponse {
+	if t == nil {
+		return nil
+	}
+	return &historyv1.RecordSemaphoreAcquiredResponse{}
+}
+
+func ToHistoryRecordSemaphoreAcquiredResponse(t *historyv1.RecordSemaphoreAcquiredResponse) *types.RecordSemaphoreAcquiredResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.RecordSemaphoreAcquiredResponse{}
+}
+
 func FromHistoryRemoveSignalMutableStateRequest(t *types.RemoveSignalMutableStateRequest) *historyv1.RemoveSignalMutableStateRequest {
 	if t == nil {
 		return nil
