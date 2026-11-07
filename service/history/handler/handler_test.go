@@ -2516,6 +2516,16 @@ func (s *handlerSuite) TestRecordSemaphoreAcquired() {
 				s.mockRatelimiter.EXPECT().Allow().Return(true).Times(1)
 			},
 		},
+		"token id not set": {
+			input: &types.RecordSemaphoreAcquiredRequest{
+				DomainUUID:        testDomainID,
+				WorkflowExecution: validInput.WorkflowExecution,
+			},
+			expectedError: true,
+			mockFn: func() {
+				s.mockRatelimiter.EXPECT().Allow().Return(true).Times(1)
+			},
+		},
 	}
 
 	for name, input := range testInput {

@@ -1448,6 +1448,10 @@ func (h *handlerImpl) RecordSemaphoreAcquired(
 	workflowExecution := request.WorkflowExecution
 	workflowID := workflowExecution.GetWorkflowID()
 	runID := workflowExecution.GetRunID()
+	if request.GetTokenID() <= commonconstants.NoSemaphoreTokenID {
+		return nil, h.error(constants.ErrSemaphoreTokenIDNotSet, scope, domainID, workflowID, runID)
+	}
+
 	engine, err1 := h.controller.GetEngine(workflowID)
 	if err1 != nil {
 		return nil, h.error(err1, scope, domainID, workflowID, runID)
