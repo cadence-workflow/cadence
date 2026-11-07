@@ -8426,8 +8426,8 @@ func (v *UpsertWorkflowSearchAttributesEventAttributes) ByteSize() uint64 {
 // AcquireSemaphoreDecisionAttributes asks for a token from the named semaphore.
 type AcquireSemaphoreDecisionAttributes struct {
 	SemaphoreName string `json:"semaphoreName,omitempty"`
-	// WaitTimeoutSeconds is how long this acquire may wait for a token before History fails the
-	// run. When unset or zero, the server's default applies.
+	// WaitTimeoutSeconds is how long this acquire may wait for a token before History records
+	// SemaphoreAcquireFailed. When unset or zero, the server's default applies.
 	WaitTimeoutSeconds *int32 `json:"waitTimeoutSeconds,omitempty"`
 }
 
@@ -8464,7 +8464,8 @@ func (v *ReleaseSemaphoreDecisionAttributes) GetInitiatedEventID() (o int64) {
 type SemaphoreAcquireInitiatedEventAttributes struct {
 	SemaphoreName string `json:"semaphoreName,omitempty"`
 	// WaitTimeoutSeconds is the timeout this acquire actually uses: the decision's value, or the
-	// server's default. Recorded so a replay reads the same value even if the default changes later.
+	// server's default, capped at the server's max. Recorded so a replay reads the same value even
+	// if the default or max changes later.
 	WaitTimeoutSeconds           *int32 `json:"waitTimeoutSeconds,omitempty"`
 	DecisionTaskCompletedEventID int64  `json:"decisionTaskCompletedEventId,omitempty"`
 }
@@ -8576,6 +8577,8 @@ func (e SemaphoreAcquireFailedCause) String() string {
 	switch w {
 	case 0:
 		return "NOT_FOUND"
+	case 1:
+		return "TIMED_OUT"
 	}
 	return fmt.Sprintf("SemaphoreAcquireFailedCause(%d)", w)
 }
@@ -8585,6 +8588,9 @@ func (e *SemaphoreAcquireFailedCause) UnmarshalText(value []byte) error {
 	switch s := strings.ToUpper(string(value)); s {
 	case "NOT_FOUND":
 		*e = SemaphoreAcquireFailedCauseNotFound
+		return nil
+	case "TIMED_OUT":
+		*e = SemaphoreAcquireFailedCauseTimedOut
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -8604,6 +8610,8 @@ func (e SemaphoreAcquireFailedCause) MarshalText() ([]byte, error) {
 const (
 	// SemaphoreAcquireFailedCauseNotFound is an option for SemaphoreAcquireFailedCause
 	SemaphoreAcquireFailedCauseNotFound SemaphoreAcquireFailedCause = iota
+	// SemaphoreAcquireFailedCauseTimedOut is an option for SemaphoreAcquireFailedCause
+	SemaphoreAcquireFailedCauseTimedOut
 )
 
 // SemaphoreAcquireFailedEventAttributes records that the acquire InitiatedEventID started ended

@@ -80,9 +80,11 @@ type (
 		GenerateAcquireSemaphoreTasks(
 			initiatedEventID int64,
 		) error
+		GenerateSemaphoreAcquireTimeoutTasks(
+			initiatedEventID int64,
+		) error
 		GenerateReleaseSemaphoreTasks(
-			event *types.HistoryEvent,
-			semaphoreName string,
+			initiatedEventID int64,
 		) error
 		GenerateWorkflowSearchAttrTasks() error
 		GenerateWorkflowResetTasks() error
@@ -500,12 +502,49 @@ func (r *mutableStateTaskGeneratorImpl) GenerateAcquireSemaphoreTasks(
 	return nil
 }
 
-// GenerateReleaseSemaphoreTasks adds the transfer task that frees the released hold's token in
-// Matching. The caller passes the name, since the hold is deleted with the event.
-func (r *mutableStateTaskGeneratorImpl) GenerateReleaseSemaphoreTasks(
-	event *types.HistoryEvent,
-	semaphoreName string,
+// GenerateSemaphoreAcquireTimeoutTasks adds the timer that ends the acquire started by
+// initiatedEventID at its deadline.
+func (r *mutableStateTaskGeneratorImpl) GenerateSemaphoreAcquireTimeoutTasks(
+	initiatedEventID int64,
 ) error {
+
+	semaphoreInfo, ok := r.mutableState.GetSemaphoreInfo(initiatedEventID)
+	if !ok {
+		return &types.InternalServiceError{
+			Message: fmt.Sprintf("it could be a bug, cannot get pending semaphore hold: %v", initiatedEventID),
+		}
+	}
+
+	executionInfo := r.mutableState.GetExecutionInfo()
+	r.mutableState.AddTimerTasks(&persistence.SemaphoreAcquireTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   executionInfo.DomainID,
+			WorkflowID: executionInfo.WorkflowID,
+			RunID:      executionInfo.RunID,
+		},
+		TaskData: persistence.TaskData{
+			// TaskID is set by shard
+			VisibilityTimestamp: semaphoreInfo.AcquireDeadline,
+			Version:             semaphoreInfo.Version,
+		},
+		EventID:  semaphoreInfo.InitiatedID,
+		TaskList: executionInfo.TaskList,
+	})
+	return nil
+}
+
+// GenerateReleaseSemaphoreTasks adds the transfer task that frees the hold's token in Matching.
+// The task keeps the semaphore name, since the hold is deleted before the task runs.
+func (r *mutableStateTaskGeneratorImpl) GenerateReleaseSemaphoreTasks(
+	initiatedEventID int64,
+) error {
+
+	semaphoreInfo, ok := r.mutableState.GetSemaphoreInfo(initiatedEventID)
+	if !ok {
+		return &types.InternalServiceError{
+			Message: fmt.Sprintf("it could be a bug, cannot get pending semaphore hold: %v", initiatedEventID),
+		}
+	}
 
 	executionInfo := r.mutableState.GetExecutionInfo()
 	r.mutableState.AddTransferTasks(&persistence.ReleaseSemaphoreTask{
@@ -516,10 +555,10 @@ func (r *mutableStateTaskGeneratorImpl) GenerateReleaseSemaphoreTasks(
 		},
 		TaskData: persistence.TaskData{
 			// TaskID and VisibilityTimestamp are set by shard context
-			Version: event.Version,
+			Version: semaphoreInfo.Version,
 		},
-		InitiatedID:   event.SemaphoreReleasedEventAttributes.GetInitiatedEventID(),
-		SemaphoreName: semaphoreName,
+		InitiatedID:   semaphoreInfo.InitiatedID,
+		SemaphoreName: semaphoreInfo.SemaphoreName,
 		TaskList:      executionInfo.TaskList,
 	})
 	return nil

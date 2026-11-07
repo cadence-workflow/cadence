@@ -216,6 +216,7 @@ func TestNewConfig(t *testing.T) {
 		"DecisionHeartbeatTimeout":                               {dynamicproperties.DecisionHeartbeatTimeout, time.Second},
 		"EnableDistributedSemaphore":                             {dynamicproperties.EnableDistributedSemaphore, true},
 		"SemaphoreAcquireDefaultWaitTimeout":                     {dynamicproperties.SemaphoreAcquireDefaultWaitTimeout, time.Minute},
+		"SemaphoreAcquireMaxWaitTimeout":                         {dynamicproperties.SemaphoreAcquireMaxWaitTimeout, time.Hour},
 		"MaxDecisionStartToCloseSeconds":                         {dynamicproperties.MaxDecisionStartToCloseSeconds, 81},
 		"DecisionRetryCriticalAttempts":                          {dynamicproperties.DecisionRetryCriticalAttempts, 82},
 		"DecisionRetryMaxAttempts":                               {dynamicproperties.DecisionRetryMaxAttempts, 83},

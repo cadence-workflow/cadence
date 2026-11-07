@@ -3273,12 +3273,18 @@ const (
 	// Default value: 30m (time.Minute*30)
 	// Allowed filters: DomainName
 	DecisionHeartbeatTimeout
-	// SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout
+	// SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout. A value under one second is treated as unset and the built-in default is used
 	// KeyName: history.semaphoreAcquireDefaultWaitTimeout
 	// Value type: Duration
 	// Default value: 5m (time.Minute*5)
 	// Allowed filters: DomainName
 	SemaphoreAcquireDefaultWaitTimeout
+	// SemaphoreAcquireMaxWaitTimeout is the longest an acquire waits for a token. A longer wait timeout is lowered to it. A value under one second is treated as unset and the built-in default is used
+	// KeyName: history.semaphoreAcquireMaxWaitTimeout
+	// Value type: Duration
+	// Default value: 24h (time.Hour*24)
+	// Allowed filters: DomainName
+	SemaphoreAcquireMaxWaitTimeout
 	// NormalDecisionScheduleToStartTimeout is scheduleToStart timeout duration for normal (non-sticky) decision task
 	// KeyName: history.normalDecisionScheduleToStartTimeout
 	// Value type: Duration
@@ -6112,8 +6118,14 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	SemaphoreAcquireDefaultWaitTimeout: {
 		KeyName:      "history.semaphoreAcquireDefaultWaitTimeout",
 		Filters:      []Filter{DomainName},
-		Description:  "SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout",
+		Description:  "SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout. A value under one second is treated as unset and the built-in default is used",
 		DefaultValue: time.Minute * 5,
+	},
+	SemaphoreAcquireMaxWaitTimeout: {
+		KeyName:      "history.semaphoreAcquireMaxWaitTimeout",
+		Filters:      []Filter{DomainName},
+		Description:  "SemaphoreAcquireMaxWaitTimeout is the longest an acquire waits for a token. A longer wait timeout is lowered to it. A value under one second is treated as unset and the built-in default is used",
+		DefaultValue: time.Hour * 24,
 	},
 	NormalDecisionScheduleToStartTimeout: {
 		KeyName:      "history.normalDecisionScheduleToStartTimeout",

@@ -102,7 +102,8 @@ func (e *mutableStateBuilder) AddSemaphoreAcquireInitiatedEvent(
 	return event, semaphoreInfo, nil
 }
 
-// ReplicateSemaphoreAcquireInitiatedEvent starts the hold and adds the transfer task that acquires its token.
+// ReplicateSemaphoreAcquireInitiatedEvent starts the hold and adds the transfer task that acquires its
+// token and the timer task that ends the acquire at its deadline.
 func (e *mutableStateBuilder) ReplicateSemaphoreAcquireInitiatedEvent(
 	event *types.HistoryEvent,
 ) (*persistence.SemaphoreInfo, error) {
@@ -118,12 +119,17 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquireInitiatedEvent(
 			HoldID:     event.ID,
 		}.String(),
 		// Measured from the event's own timestamp, not the clock, so replay gets the same deadline.
+		// Cut to milliseconds, which Cassandra keeps, so the stored value matches.
 		AcquireDeadline: time.Unix(0, event.GetTimestamp()).
-			Add(time.Duration(attributes.GetWaitTimeoutSeconds()) * time.Second),
+			Add(time.Duration(attributes.GetWaitTimeoutSeconds()) * time.Second).
+			Truncate(time.Millisecond),
 	}
 
 	e.UpsertSemaphoreInfo(semaphoreInfo)
-	return semaphoreInfo, e.taskGenerator.GenerateAcquireSemaphoreTasks(semaphoreInfo.InitiatedID)
+	if err := e.taskGenerator.GenerateAcquireSemaphoreTasks(semaphoreInfo.InitiatedID); err != nil {
+		return nil, err
+	}
+	return semaphoreInfo, e.taskGenerator.GenerateSemaphoreAcquireTimeoutTasks(semaphoreInfo.InitiatedID)
 }
 
 // AddSemaphoreAcquiredEvent records that the acquire started by initiatedEventID was granted
@@ -255,8 +261,8 @@ func (e *mutableStateBuilder) ReplicateSemaphoreReleasedEvent(
 ) error {
 
 	initiatedEventID := event.SemaphoreReleasedEventAttributes.GetInitiatedEventID()
-	if semaphoreInfo, ok := e.GetSemaphoreInfo(initiatedEventID); ok {
-		if err := e.taskGenerator.GenerateReleaseSemaphoreTasks(event, semaphoreInfo.SemaphoreName); err != nil {
+	if _, ok := e.GetSemaphoreInfo(initiatedEventID); ok {
+		if err := e.taskGenerator.GenerateReleaseSemaphoreTasks(initiatedEventID); err != nil {
 			return err
 		}
 	}

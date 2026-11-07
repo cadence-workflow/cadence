@@ -244,7 +244,8 @@ func Test__ReplicateSemaphoreAcquireInitiatedEvent_AcceptsSecondHold(t *testing.
 }
 
 func Test__ReplicateSemaphoreAcquireInitiatedEvent(t *testing.T) {
-	timestamp := time.Unix(1700000000, 0)
+	// Sub-millisecond part, to check the deadline is cut to milliseconds.
+	timestamp := time.Unix(1700000000, 123456789)
 	mb := testSemaphoreMutableStateBuilder(t)
 	event := &types.HistoryEvent{
 		ID:        7,
@@ -266,7 +267,7 @@ func Test__ReplicateSemaphoreAcquireInitiatedEvent(t *testing.T) {
 		SemaphoreName: "my-semaphore",
 		OwnerID:       "3:wid:rid:7",
 		// From the event timestamp, so replay gets the same deadline.
-		AcquireDeadline: timestamp.Add(30 * time.Second),
+		AcquireDeadline: time.Unix(1700000030, 123000000),
 	}
 	assert.Equal(t, want, semaphoreInfo)
 	assert.Equal(t, want, mb.pendingSemaphoreInfoIDs[7])
@@ -277,6 +278,11 @@ func Test__ReplicateSemaphoreAcquireInitiatedEvent(t *testing.T) {
 		TaskData:           persistence.TaskData{Version: 3},
 		InitiatedID:        7,
 	}}, mb.GetTransferTasks())
+	assert.Equal(t, []persistence.Task{&persistence.SemaphoreAcquireTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
+		TaskData:           persistence.TaskData{Version: 3, VisibilityTimestamp: time.Unix(1700000030, 123000000)},
+		EventID:            7,
+	}}, mb.GetTimerTasks())
 }
 
 // Tests which grants AddSemaphoreAcquiredEvent records and which it refuses.
@@ -593,7 +599,7 @@ func Test__ReplicateSemaphoreReleasedEvent(t *testing.T) {
 		assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
 		assert.Equal(t, []persistence.Task{&persistence.ReleaseSemaphoreTask{
 			WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
-			TaskData:           persistence.TaskData{Version: 3},
+			TaskData:           persistence.TaskData{Version: 1},
 			InitiatedID:        2,
 			SemaphoreName:      "my-semaphore",
 		}}, mb.GetTransferTasks())

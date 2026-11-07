@@ -44,6 +44,7 @@ func TestTaskCommonMethods(t *testing.T) {
 		&UserTimerTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&ActivityRetryTimerTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&WorkflowBackoffTimerTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&SemaphoreAcquireTimeoutTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&WorkflowTimeoutTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&CancelExecutionTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&SignalExecutionTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
@@ -82,6 +83,8 @@ func TestTaskCommonMethods(t *testing.T) {
 			assert.Equal(t, TaskTypeActivityRetryTimer, ty.GetTaskType())
 		case *WorkflowBackoffTimerTask:
 			assert.Equal(t, TaskTypeWorkflowBackoffTimer, ty.GetTaskType())
+		case *SemaphoreAcquireTimeoutTask:
+			assert.Equal(t, TaskTypeSemaphoreAcquireTimeout, ty.GetTaskType())
 		case *WorkflowTimeoutTask:
 			assert.Equal(t, TaskTypeWorkflowTimeout, ty.GetTaskType())
 		case *CancelExecutionTask:
@@ -174,6 +177,7 @@ func TestTimerTaskMapping(t *testing.T) {
 		&UserTimerTask{},
 		&ActivityRetryTimerTask{},
 		&WorkflowBackoffTimerTask{},
+		&SemaphoreAcquireTimeoutTask{},
 	}
 	for i := 0; i < 1000; i++ {
 		for _, task := range tasks {
@@ -647,6 +651,7 @@ func TestIsTaskCorruptedWithAllTaskTypes(t *testing.T) {
 		&UserTimerTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&ActivityRetryTimerTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&WorkflowBackoffTimerTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&SemaphoreAcquireTimeoutTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&HistoryReplicationTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&SyncActivityTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&FailoverMarkerTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}, DomainID: "test-domain"},
@@ -674,6 +679,7 @@ func TestIsTaskCorruptedWithAllTaskTypes(t *testing.T) {
 		&UserTimerTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&ActivityRetryTimerTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&WorkflowBackoffTimerTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&SemaphoreAcquireTimeoutTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&HistoryReplicationTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&SyncActivityTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&FailoverMarkerTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}, DomainID: ""},

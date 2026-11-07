@@ -446,6 +446,9 @@ func refreshTasksForSemaphore(
 		if err := taskGenerator.GenerateAcquireSemaphoreTasks(semaphoreInfo.InitiatedID); err != nil {
 			return err
 		}
+		if err := taskGenerator.GenerateSemaphoreAcquireTimeoutTasks(semaphoreInfo.InitiatedID); err != nil {
+			return err
+		}
 	}
 	return nil
 }

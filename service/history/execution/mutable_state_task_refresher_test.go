@@ -590,22 +590,41 @@ func TestRefreshTasksForSemaphore(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "skips holds that already have a token",
-			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator) {
-				ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{
-					5: {InitiatedID: 5},
-					6: {InitiatedID: 6, TokenID: 3},
-				})
-				mtg.EXPECT().GenerateAcquireSemaphoreTasks(int64(5)).Return(nil)
-			},
-		},
-		{
 			name: "failed to generate acquire semaphore tasks",
 			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator) {
 				ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{5: {InitiatedID: 5}})
 				mtg.EXPECT().GenerateAcquireSemaphoreTasks(int64(5)).Return(errors.New("some error"))
 			},
 			wantErr: true,
+		},
+		{
+			name: "failed to generate semaphore acquire timeout tasks",
+			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator) {
+				ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{5: {InitiatedID: 5}})
+				mtg.EXPECT().GenerateAcquireSemaphoreTasks(int64(5)).Return(nil)
+				mtg.EXPECT().GenerateSemaphoreAcquireTimeoutTasks(int64(5)).Return(errors.New("some error"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "success - no pending semaphore",
+			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator) {
+				ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{})
+			},
+		},
+		{
+			name: "success - hold already has a token",
+			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator) {
+				ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{6: {InitiatedID: 6, TokenID: 3}})
+			},
+		},
+		{
+			name: "success",
+			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator) {
+				ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{5: {InitiatedID: 5}})
+				mtg.EXPECT().GenerateAcquireSemaphoreTasks(int64(5)).Return(nil)
+				mtg.EXPECT().GenerateSemaphoreAcquireTimeoutTasks(int64(5)).Return(nil)
+			},
 		},
 	}
 

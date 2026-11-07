@@ -353,6 +353,18 @@ func TestGetTimerTaskMetricScope(t *testing.T) {
 			expectedScope: metrics.TimerStandbyTaskWorkflowBackoffTimerScope,
 		},
 		{
+			name:          "TimerTaskTypeSemaphoreAcquireTimeout - active",
+			taskType:      persistence.TaskTypeSemaphoreAcquireTimeout,
+			isActive:      true,
+			expectedScope: metrics.TimerActiveTaskSemaphoreAcquireTimeoutScope,
+		},
+		{
+			name:          "TimerTaskTypeSemaphoreAcquireTimeout - standby",
+			taskType:      persistence.TaskTypeSemaphoreAcquireTimeout,
+			isActive:      false,
+			expectedScope: metrics.TimerStandbyTaskSemaphoreAcquireTimeoutScope,
+		},
+		{
 			name:          "TimerTaskTypeDeleteHistoryEvent - active",
 			taskType:      persistence.TaskTypeDeleteHistoryEvent,
 			isActive:      true,

@@ -780,6 +780,7 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 		name               string
 		disabled           bool
 		defaultWaitTimeout time.Duration
+		maxWaitTimeout     time.Duration
 		nameMaxLength      int
 		attr               *types.AcquireSemaphoreDecisionAttributes
 		expectMockCalls    func(ms *execution.MockMutableState)
@@ -841,12 +842,36 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 			},
 		},
 		{
-			name:               "wait timeout not set and the domain default is under 1s: the acquire uses the built-in default",
-			defaultWaitTimeout: 500 * time.Millisecond,
-			attr:               &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(0)},
+			name:           "wait timeout above the domain max: the acquire uses the domain max",
+			maxWaitTimeout: time.Hour,
+			attr:           &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(7200)},
 			expectMockCalls: func(ms *execution.MockMutableState) {
-				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore",
-					int32(dynamicproperties.SemaphoreAcquireDefaultWaitTimeout.DefaultDuration()/time.Second))
+				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(3600))
+			},
+		},
+		{
+			name:               "wait timeout not set and the domain default is above the domain max: the acquire uses the domain max",
+			defaultWaitTimeout: 2 * time.Hour,
+			maxWaitTimeout:     time.Hour,
+			attr:               &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
+			expectMockCalls: func(ms *execution.MockMutableState) {
+				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(3600))
+			},
+		},
+		{
+			name:           "domain max under one second: the built-in max is used",
+			maxWaitTimeout: 500 * time.Millisecond,
+			attr:           &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
+			expectMockCalls: func(ms *execution.MockMutableState) {
+				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(30))
+			},
+		},
+		{
+			name:               "domain default under one second: the built-in default is used",
+			defaultWaitTimeout: 500 * time.Millisecond,
+			attr:               &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
+			expectMockCalls: func(ms *execution.MockMutableState) {
+				ms.EXPECT().AddSemaphoreAcquireInitiatedEvent(testTaskCompletedID, "my-semaphore", int32(300))
 			},
 		},
 		{
@@ -886,6 +911,9 @@ func TestHandleDecisionAcquireSemaphore(t *testing.T) {
 			taskHandler.config.EnableDistributedSemaphore = func(string) bool { return !tc.disabled }
 			if tc.defaultWaitTimeout != 0 {
 				taskHandler.config.SemaphoreAcquireDefaultWaitTimeout = func(string) time.Duration { return tc.defaultWaitTimeout }
+			}
+			if tc.maxWaitTimeout != 0 {
+				taskHandler.config.SemaphoreAcquireMaxWaitTimeout = func(string) time.Duration { return tc.maxWaitTimeout }
 			}
 			if tc.nameMaxLength != 0 {
 				taskHandler.config.SemaphoreNameMaxLength = func(string) int { return tc.nameMaxLength }

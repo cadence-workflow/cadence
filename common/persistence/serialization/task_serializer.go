@@ -355,6 +355,12 @@ func (s *taskSerializerImpl) serializeTimerTask(task persistence.Task) (persiste
 		info.RunID = MustParseUUID(t.RunID)
 		info.TimeoutType = common.Int16Ptr(int16(t.TimeoutType))
 		info.TaskList = t.TaskList
+	case *persistence.SemaphoreAcquireTimeoutTask:
+		info.DomainID = MustParseUUID(t.DomainID)
+		info.WorkflowID = t.WorkflowID
+		info.RunID = MustParseUUID(t.RunID)
+		info.EventID = t.EventID
+		info.TaskList = t.TaskList
 	case *persistence.WorkflowTimeoutTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
@@ -438,6 +444,13 @@ func (s *taskSerializerImpl) deserializeTimerTask(blob *persistence.DataBlob) (p
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TimeoutType:        int(info.GetTimeoutType()),
+			TaskList:           info.GetTaskList(),
+		}
+	case persistence.TaskTypeSemaphoreAcquireTimeout:
+		task = &persistence.SemaphoreAcquireTimeoutTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			EventID:            info.GetEventID(),
 			TaskList:           info.GetTaskList(),
 		}
 	default:
