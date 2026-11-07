@@ -37,7 +37,10 @@ import (
 	"github.com/uber/cadence/common/metrics"
 )
 
-func TestShardDistributorResolver_Lookup(t *testing.T) {
+func TestShardDistributorResolver_LookupTaskList(t *testing.T) {
+	domainID := "domain-a"
+	taskListName := "test-key"
+
 	tests := []struct {
 		name                 string
 		shardTaskListsByHash bool
@@ -46,12 +49,12 @@ func TestShardDistributorResolver_Lookup(t *testing.T) {
 		{
 			name:                 "shard per task list uses the task list name",
 			shardTaskListsByHash: false,
-			wantShardID:          "test-key",
+			wantShardID:          taskListName,
 		},
 		{
-			name:                 "shard by hash uses the hashed shard",
+			name:                 "shard by hash uses the shard of the domain and name",
 			shardTaskListsByHash: true,
-			wantShardID:          "7126", // farm.Fingerprint64([]byte("test-key"))%8192
+			wantShardID:          "5821", // farm.Fingerprint64([]byte("domain-a/test-key"))%8192
 		},
 	}
 	for _, tt := range tests {
@@ -65,20 +68,49 @@ func TestShardDistributorResolver_Lookup(t *testing.T) {
 			)
 
 			shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), tt.wantShardID).
-				Return(&spectatorclient.ShardOwner{
-					ExecutorID: "test-owner",
-					Metadata: map[string]string{
-						"hostIP":   "127.0.0.1",
-						"tchannel": "7933",
-						"grpc":     "7833",
-					},
-				}, nil)
+				Return(testShardOwner(), nil)
 
-			host, err := resolver.Lookup("test-key")
+			host, err := resolver.LookupTaskList(domainID, taskListName)
 			require.NoError(t, err)
 			assert.Equal(t, "127.0.0.1:7933", host.addr)
 		})
 	}
+}
+
+func TestShardDistributorResolver_LookupTaskList_ExcludedUsesHashRingByName(t *testing.T) {
+	domainID := "domain-a"
+	taskListName := "test-key"
+
+	resolver, ring, _ := newShardDistributorResolver(t)
+	resolver.taskListDifferentiator = NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(true),
+		StaticPercentageOnboarded(0),
+		config.DefaultNumMatchingShards,
+	)
+
+	ring.EXPECT().Lookup(taskListName).Return(HostInfo{addr: "hash-ring-addr"}, nil)
+
+	host, err := resolver.LookupTaskList(domainID, taskListName)
+	require.NoError(t, err)
+	assert.Equal(t, "hash-ring-addr", host.addr)
+}
+
+func TestShardDistributorResolver_Lookup_KeyWithoutDomainID(t *testing.T) {
+	resolver, _, shardDistributorMock := newShardDistributorResolver(t)
+	resolver.taskListDifferentiator = NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(true),
+		StaticPercentageOnboarded(100),
+		config.DefaultNumMatchingShards,
+	)
+
+	// farm.Fingerprint64([]byte("/test-key"))%8192 = 3390
+	shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), "3390").Return(testShardOwner(), nil)
+
+	host, err := resolver.Lookup("test-key")
+	require.NoError(t, err)
+	assert.Equal(t, "127.0.0.1:7933", host.addr)
 }
 
 func TestShardDistributorResolver_Lookup_ExcludedFallsBackToHashRing(t *testing.T) {
@@ -356,4 +388,15 @@ func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *Mock
 	).(*shardDistributorResolver)
 
 	return resolver, ring, spectator
+}
+
+func testShardOwner() *spectatorclient.ShardOwner {
+	return &spectatorclient.ShardOwner{
+		ExecutorID: "test-owner",
+		Metadata: map[string]string{
+			"hostIP":   "127.0.0.1",
+			"tchannel": "7933",
+			"grpc":     "7833",
+		},
+	}
 }

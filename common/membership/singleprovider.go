@@ -29,6 +29,9 @@ import "github.com/uber/cadence/common"
 type SingleProvider interface {
 	common.Daemon
 	Lookup(key string) (HostInfo, error)
+	// LookupTaskList returns the host that owns a matching task list. A plain hash ring routes it
+	// by name. The shard distributor resolver also uses the domain ID to pick the shard.
+	LookupTaskList(domainID, taskListName string) (HostInfo, error)
 	// LookupN returns up to n hosts responsible for the given key, enabling
 	// redundant workers across multiple hosts for the same key.
 	LookupN(key string, n int) ([]HostInfo, error)

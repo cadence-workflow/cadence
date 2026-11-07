@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/service"
 )
 
 type (
@@ -61,6 +62,9 @@ type (
 
 		// Lookup will return host which is an owner for provided key.
 		Lookup(service, key string) (HostInfo, error)
+
+		// LookupTaskList returns the matching host that owns the task list.
+		LookupTaskList(domainID, taskListName string) (HostInfo, error)
 
 		// LookupN returns up to n hosts responsible for the given key. This
 		// enables redundant workers across multiple hosts for the same key.
@@ -190,6 +194,14 @@ func (rpo *MultiringResolver) Lookup(service string, key string) (HostInfo, erro
 		return HostInfo{}, err
 	}
 	return ring.Lookup(key)
+}
+
+func (rpo *MultiringResolver) LookupTaskList(domainID, taskListName string) (HostInfo, error) {
+	ring, err := rpo.getRing(service.Matching)
+	if err != nil {
+		return HostInfo{}, err
+	}
+	return ring.LookupTaskList(domainID, taskListName)
 }
 
 func (rpo *MultiringResolver) LookupN(service string, key string, n int) ([]HostInfo, error) {

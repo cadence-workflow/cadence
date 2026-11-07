@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/service"
 )
 
 type simpleResolver struct {
@@ -72,6 +73,14 @@ func (s *simpleResolver) Lookup(service string, key string) (membership.HostInfo
 		return membership.HostInfo{}, fmt.Errorf("cannot lookup host for service %q", service)
 	}
 	return resolver.Lookup(key)
+}
+
+func (s *simpleResolver) LookupTaskList(domainID, taskListName string) (membership.HostInfo, error) {
+	resolver, ok := s.resolvers[service.Matching]
+	if !ok {
+		return membership.HostInfo{}, fmt.Errorf("cannot lookup host for service %q", service.Matching)
+	}
+	return resolver.LookupTaskList(domainID, taskListName)
 }
 
 func (s *simpleResolver) LookupN(service string, key string, n int) ([]membership.HostInfo, error) {

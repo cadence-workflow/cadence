@@ -329,7 +329,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	// The first check is an optimization so almost all requests will have a task list manager
 	// and return avoiding the write lock
 	result, ok := e.taskListRegistry.ManagerByTaskListIdentifier(*taskList)
-	excludedFromShardDistributor := e.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskList.GetName())
+	excludedFromShardDistributor := e.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskList.GetDomainID(), taskList.GetName())
 
 	// Task lists excluded from the ShardDistributor (short-lived task lists with UUIDs) bypass
 	// the executor/shard-processor entirely and always use local hash-ring assignment.
@@ -337,7 +337,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		return result, nil
 	}
 	if !excludedFromShardDistributor {
-		shardID := e.taskListDifferentiator.ShardID(taskList.GetName())
+		shardID := e.taskListDifferentiator.ShardID(taskList.GetDomainID(), taskList.GetName())
 		sp, _ := e.executor.GetShardProcess(ctx, shardID)
 		if sp != nil && ok {
 			return result, nil
@@ -1242,8 +1242,13 @@ func (e *matchingEngineImpl) listTaskListPartitions(
 	request *types.MatchingListTaskListPartitionsRequest,
 	taskListType int,
 ) ([]*types.TaskListPartitionMetadata, error) {
+	domainID, err := e.domainCache.GetDomainID(request.GetDomain())
+	if err != nil {
+		return nil, err
+	}
 	partitions, err := e.getAllPartitions(
 		request,
+		domainID,
 		taskListType,
 	)
 	if err != nil {
@@ -1252,7 +1257,7 @@ func (e *matchingEngineImpl) listTaskListPartitions(
 
 	var partitionHostInfo []*types.TaskListPartitionMetadata
 	for _, partition := range partitions {
-		host, _ := e.getHostInfo(partition)
+		host, _ := e.getHostInfo(domainID, partition)
 		partitionHostInfo = append(partitionHostInfo,
 			&types.TaskListPartitionMetadata{
 				Key:           partition,
@@ -1373,8 +1378,8 @@ func (e *matchingEngineImpl) RefreshTaskListPartitionConfig(
 	return &types.MatchingRefreshTaskListPartitionConfigResponse{}, nil
 }
 
-func (e *matchingEngineImpl) getHostInfo(partitionKey string) (string, error) {
-	host, err := e.membershipResolver.Lookup(service.Matching, partitionKey)
+func (e *matchingEngineImpl) getHostInfo(domainID, partitionKey string) (string, error) {
+	host, err := e.membershipResolver.LookupTaskList(domainID, partitionKey)
 	if err != nil {
 		return "", err
 	}
@@ -1383,12 +1388,9 @@ func (e *matchingEngineImpl) getHostInfo(partitionKey string) (string, error) {
 
 func (e *matchingEngineImpl) getAllPartitions(
 	request *types.MatchingListTaskListPartitionsRequest,
+	domainID string,
 	taskListType int,
 ) ([]string, error) {
-	domainID, err := e.domainCache.GetDomainID(request.GetDomain())
-	if err != nil {
-		return nil, err
-	}
 	taskList := request.GetTaskList()
 	taskListID, err := tasklist.NewIdentifier(domainID, taskList.GetName(), taskListType)
 	if err != nil {
@@ -1686,11 +1688,11 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 
 	// Task lists excluded from the ShardDistributor bypass the executor entirely and rely on
 	// the local hash-ring for ownership, so skip the SD-based ownership check for them.
-	if !e.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskList.GetName()) {
+	if !e.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskList.GetDomainID(), taskList.GetName()) {
 		// We have a shard-processor shared by all the task lists with the same name, or, when task
-		// lists are sharded by hash, by all the task lists whose names hash to the same shard.
+		// lists are sharded by hash, by all the task lists that hash to the same shard.
 		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
-		shardID := e.taskListDifferentiator.ShardID(taskList.GetName())
+		shardID := e.taskListDifferentiator.ShardID(taskList.GetDomainID(), taskList.GetName())
 		sp, err := e.executor.GetShardProcess(ctx, shardID)
 		if err != nil {
 			if errors.Is(err, executorclient.ErrShardProcessNotFound) {
@@ -1710,7 +1712,7 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 	//   If we try to create a task list manager for a task list that is not owned by us, return an error
 	//   The new task list manager will steal the task list from the current owner, which should only happen if
 	//   the task list is owned by the current host.
-	taskListOwner, err := e.membershipResolver.Lookup(service.Matching, taskList.GetName())
+	taskListOwner, err := e.membershipResolver.LookupTaskList(taskList.GetDomainID(), taskList.GetName())
 	if err != nil {
 		return fmt.Errorf("failed to lookup task list owner: %w", err)
 	}

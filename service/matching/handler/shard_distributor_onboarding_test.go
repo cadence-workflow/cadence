@@ -41,6 +41,9 @@ const (
 	// noHost means SD hasn't given the shard to any host.
 	noHost = ""
 
+	// onboardingDomainID is the domain of every task list in the test.
+	onboardingDomainID = "domain-id"
+
 	// routedBySD and routedByHashRing say which one the resolver asked for a task list's owner.
 	routedBySD       = "SD"
 	routedByHashRing = "ring"
@@ -69,7 +72,7 @@ type onboardingTestData struct {
 // onboardingTaskList is one task list in the test.
 type onboardingTaskList struct {
 	name string
-	// shard is the shard the name hashes into.
+	// shard is the shard the task list hashes into.
 	shard string
 	// ringOwner is the host the hash ring routes the task list to.
 	ringOwner string
@@ -116,7 +119,7 @@ type shards map[string]shard
 // sd entries in its row.
 func TestShardDistributorOnboardingWithFixedShards(t *testing.T) {
 	taskLists := []onboardingTaskList{
-		{name: "checkout", shard: "0", ringOwner: host1},
+		{name: "billing", shard: "0", ringOwner: host1},
 		{name: "returns", shard: "0", ringOwner: host2},
 		{name: "pricing", shard: "1", ringOwner: host2},
 	}
@@ -127,23 +130,23 @@ func TestShardDistributorOnboardingWithFixedShards(t *testing.T) {
 	// No host has joined SD, so no host holds a shard. The hash ring routes every task list.
 	td.setPercentage(t, 0)
 	td.requireShards(t, shards{
-		"0": {heldBy: noHost, load: 0, taskLists: routes{"checkout": ring(host1), "returns": ring(host2)}},
+		"0": {heldBy: noHost, load: 0, taskLists: routes{"billing": ring(host1), "returns": ring(host2)}},
 		"1": {heldBy: noHost, load: 0, taskLists: routes{"pricing": ring(host2)}},
 	})
 
 	// The hosts join SD, so host1 holds shard 0 and host2 holds shard 1. At 50% only shard 0 is
-	// onboarded. SD takes over "checkout" and "returns", so "returns" moves from host2 to host1. The
+	// onboarded. SD takes over "billing" and "returns", so "returns" moves from host2 to host1. The
 	// hash ring keeps "pricing".
 	td.setPercentage(t, 50)
 	td.requireShards(t, shards{
-		"0": {heldBy: host1, load: 2, taskLists: routes{"checkout": sd(host1), "returns": sd(host1)}},
+		"0": {heldBy: host1, load: 2, taskLists: routes{"billing": sd(host1), "returns": sd(host1)}},
 		"1": {heldBy: host2, load: 0, taskLists: routes{"pricing": ring(host2)}},
 	})
 
 	// At 100% shard 1 is onboarded too. SD takes over "pricing", which stays on host2.
 	td.setPercentage(t, 100)
 	td.requireShards(t, shards{
-		"0": {heldBy: host1, load: 2, taskLists: routes{"checkout": sd(host1), "returns": sd(host1)}},
+		"0": {heldBy: host1, load: 2, taskLists: routes{"billing": sd(host1), "returns": sd(host1)}},
 		"1": {heldBy: host2, load: 1, taskLists: routes{"pricing": sd(host2)}},
 	})
 
@@ -151,22 +154,22 @@ func TestShardDistributorOnboardingWithFixedShards(t *testing.T) {
 	// host2, and shard 1 stops counting its load.
 	td.setPercentage(t, 50)
 	td.requireShards(t, shards{
-		"0": {heldBy: host1, load: 2, taskLists: routes{"checkout": sd(host1), "returns": sd(host1)}},
+		"0": {heldBy: host1, load: 2, taskLists: routes{"billing": sd(host1), "returns": sd(host1)}},
 		"1": {heldBy: host2, load: 0, taskLists: routes{"pricing": ring(host2)}},
 	})
 
-	// SD moves shard 0 from host1 to host2. "checkout" and "returns" move from host1 to host2 with it.
+	// SD moves shard 0 from host1 to host2. "billing" and "returns" move from host1 to host2 with it.
 	td.moveShard(t, "0", host2)
 	td.requireShards(t, shards{
-		"0": {heldBy: host2, load: 2, taskLists: routes{"checkout": sd(host2), "returns": sd(host2)}},
+		"0": {heldBy: host2, load: 2, taskLists: routes{"billing": sd(host2), "returns": sd(host2)}},
 		"1": {heldBy: host2, load: 0, taskLists: routes{"pricing": ring(host2)}},
 	})
 
-	// At 0% the hash ring takes back every task list. "checkout" moves from host2 to host1, and
+	// At 0% the hash ring takes back every task list. "billing" moves from host2 to host1, and
 	// "returns" and "pricing" stay on host2. host2 keeps both shards, but they count no load.
 	td.setPercentage(t, 0)
 	td.requireShards(t, shards{
-		"0": {heldBy: host2, load: 0, taskLists: routes{"checkout": ring(host1), "returns": ring(host2)}},
+		"0": {heldBy: host2, load: 0, taskLists: routes{"billing": ring(host1), "returns": ring(host2)}},
 		"1": {heldBy: host2, load: 0, taskLists: routes{"pricing": ring(host2)}},
 	})
 }
@@ -213,7 +216,7 @@ func newOnboardingTestData(
 	)
 	for _, taskList := range taskLists {
 		require.Contains(t, shardOwners, taskList.shard, "SD gives out the shard of task list %q", taskList.name)
-		gotShardID := td.taskListDifferentiator.ShardID(taskList.name)
+		gotShardID := td.taskListDifferentiator.ShardID(onboardingDomainID, taskList.name)
 		require.Equal(t, taskList.shard, gotShardID, "shard of task list %q", taskList.name)
 	}
 
@@ -343,7 +346,7 @@ func (td *onboardingTestData) newExecutor(host *onboardingHost) executorclient.E
 // newManager returns the host's manager for the task list, which reports 1 qps. requireShards
 // checks every stop, so Stop can happen any number of times.
 func (td *onboardingTestData) newManager(t *testing.T, host *onboardingHost, taskList onboardingTaskList) *tasklist.MockManager {
-	taskListID := tasklist.NewTestTaskListID(t, "domain-id", taskList.name, persistence.TaskListTypeDecision)
+	taskListID := tasklist.NewTestTaskListID(t, onboardingDomainID, taskList.name, persistence.TaskListTypeDecision)
 	manager := tasklist.NewMockManager(td.ctrl)
 	manager.EXPECT().TaskListID().Return(taskListID).AnyTimes()
 	qps := 1.0
@@ -461,7 +464,7 @@ func (td *onboardingTestData) startTaskListsHostsNowOwn(t *testing.T) {
 func (td *onboardingTestData) routeOf(t *testing.T, taskListName string) route {
 	t.Helper()
 	td.routedBy = ""
-	owner, err := td.shardDistributorResolver.Lookup(taskListName)
+	owner, err := td.shardDistributorResolver.LookupTaskList(onboardingDomainID, taskListName)
 	require.NoError(t, err, "routing task list %q", taskListName)
 	return route{routedBy: td.routedBy, owner: owner.Identity()}
 }

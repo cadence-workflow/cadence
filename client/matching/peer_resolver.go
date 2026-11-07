@@ -33,7 +33,7 @@ import (
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination peer_resolver_mock.go -package matching github.com/uber/cadence/client/matching PeerResolver
 
 type PeerResolver interface {
-	FromTaskList(taskListName string) (string, error)
+	FromTaskList(domainID, taskListName string) (string, error)
 	FromSemaphoreBucket(domainID, semaphoreName string, bucket int) (string, error)
 	GetAllPeers() ([]string, error)
 	FromHostAddress(hostAddress string) (string, error)
@@ -52,11 +52,11 @@ func NewPeerResolver(membership membership.Resolver, namedPort string) PeerResol
 	}
 }
 
-// FromTaskList resolves the matching peer responsible for the given task list name.
+// FromTaskList resolves the matching peer responsible for the given task list.
 // It uses our membership provider to lookup which instance currently owns the given task list.
 // FromHostAddress is used for further resolving.
-func (pr peerResolver) FromTaskList(taskListName string) (string, error) {
-	host, err := pr.resolver.Lookup(service.Matching, taskListName)
+func (pr peerResolver) FromTaskList(domainID, taskListName string) (string, error) {
+	host, err := pr.resolver.LookupTaskList(domainID, taskListName)
 	if err != nil {
 		return "", common.ToServiceTransientError(err)
 	}
