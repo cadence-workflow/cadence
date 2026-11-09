@@ -94,9 +94,21 @@ system.enableWorkflowTimerTaskCleanup:
 worker.enableScheduler:
 - value: true
   constraints: {}
+worker.schedulerRefreshInterval:
+- value: 3s
+  constraints: {}
 frontend.failoverCoolDown:
 - value: 1s
   constraints: {}
 system.enforceSchemaVerificationV2:
+- value: true
+  constraints: {}
+history.enableTimerQueueV2:
+- value: true
+  constraints: {}
+history.enableTransferQueueV2:
+- value: true
+  constraints: {}
+history.taskSchedulerEnableRateLimiter:
 - value: true
   constraints: {}

@@ -58,6 +58,9 @@ var (
 	ErrEmptyQueueType                             = &types.BadRequestError{Message: "Queue type is not set."}
 	ErrDomainInLockdown                           = &types.BadRequestError{Message: "Domain is not accepting fail overs at this time due to lockdown."}
 	ErrShuttingDown                               = &types.InternalServiceError{Message: "Shutting down"}
+	ErrBatchIDNotSet                              = &types.BadRequestError{Message: "BatchID is not set on request."}
+	ErrBatchOperationNotSet                       = &types.BadRequestError{Message: "Operation is not set on request."}
+	ErrBatchOperationTypeNotSet                   = &types.BadRequestError{Message: "Operation.OperationType is not set or invalid on request."}
 
 	// Err for archival
 	ErrHistoryNotFound = &types.BadRequestError{Message: "Requested workflow history not found, may have passed retention period."}

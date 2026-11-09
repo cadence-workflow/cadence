@@ -13,6 +13,11 @@ import (
 	"github.com/uber/cadence/common/types/mapper/proto"
 )
 
+func (g matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest, p1 ...yarpc.CallOption) (ap2 *types.AcquireSemaphoreResponse, err error) {
+	response, err := g.c.AcquireSemaphore(ctx, proto.FromMatchingAcquireSemaphoreRequest(ap1), p1...)
+	return proto.ToMatchingAcquireSemaphoreResponse(response), proto.ToError(err)
+}
+
 func (g matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
 	response, err := g.c.AddActivityTask(ctx, proto.FromMatchingAddActivityTaskRequest(ap1), p1...)
 	return proto.ToMatchingAddActivityTaskResponse(response), proto.ToError(err)
@@ -61,6 +66,11 @@ func (g matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQu
 func (g matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
 	response, err := g.c.RefreshTaskListPartitionConfig(ctx, proto.FromMatchingRefreshTaskListPartitionConfigRequest(mp1), p1...)
 	return proto.ToMatchingRefreshTaskListPartitionConfigResponse(response), proto.ToError(err)
+}
+
+func (g matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	response, err := g.c.ReleaseSemaphore(ctx, proto.FromMatchingReleaseSemaphoreRequest(rp1), p1...)
+	return proto.ToMatchingReleaseSemaphoreResponse(response), proto.ToError(err)
 }
 
 func (g matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {

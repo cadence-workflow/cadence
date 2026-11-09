@@ -36,7 +36,10 @@ import (
 	"go.uber.org/yarpc"
 	"go.uber.org/zap"
 
+	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
@@ -200,13 +203,21 @@ func TestProcessInBatches_WhenItemsExceedBatchSizeItSplitsIntoSizedBatches(t *te
 }
 
 // newFailoverV2ActivityEnv wires a TestActivityEnvironment with a FailoverManager backed by mock
-// frontend clients, matching the production activity context.
+// frontend clients, matching the production activity context. The worker runs on "cluster1", the
+// destination every test in this package fails over to.
 func newFailoverV2ActivityEnv(t *testing.T) (*testsuite.TestActivityEnvironment, *resource.Test) {
+	return newFailoverV2ActivityEnvOnCluster(t, "cluster1")
+}
+
+// newFailoverV2ActivityEnvOnCluster is newFailoverV2ActivityEnv with the worker's own cluster chosen by
+// the caller, for tests that exercise the destination-cluster pre-check.
+func newFailoverV2ActivityEnvOnCluster(t *testing.T, currentCluster string) (*testsuite.TestActivityEnvironment, *resource.Test) {
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestActivityEnvironment()
 	ctrl := gomock.NewController(t)
 	mockResource := resource.NewTest(t, ctrl, metrics.Worker)
 	mgr := &FailoverManager{
+		cfg:        Config{ClusterMetadata: testClusterMetadata(currentCluster)},
 		svcClient:  mockResource.GetSDKClient(),
 		clientBean: mockResource.ClientBean,
 	}
@@ -367,4 +378,68 @@ func TestFailoverActivityV2_WhenDomainHasNoTimeoutItUsesForceFailover(t *testing
 	require.NoError(t, val.Get(&result))
 	assert.Len(t, result.SuccessDomains, 1)
 	assert.Nil(t, capturedReq.FailoverTimeoutInSeconds)
+}
+
+func TestFailoverActivityV2_WhenSkipDestinationClusterCheckIsSetEveryFailoverDomainRequestCarriesIt(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	var got []*types.FailoverDomainRequest
+	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *types.FailoverDomainRequest, _ ...yarpc.CallOption) (*types.FailoverDomainResponse, error) {
+			got = append(got, req)
+			return nil, nil
+		}).Times(2)
+
+	_, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{
+		DomainPreferences: []DomainFailoverPreferences{
+			{DomainName: "d1", TargetCluster: "cluster1"},
+			{DomainName: "d2", ClusterAttributeUpdates: []ClusterAttributePreference{
+				{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
+			}},
+		},
+		SkipDestinationClusterCheck: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	for _, req := range got {
+		assert.True(t, req.SkipDestinationClusterCheck, "domain %s", req.DomainName)
+	}
+}
+
+func TestFailoverActivityV2_WhenSkipDestinationClusterCheckIsUnsetRequestsDoNotSkipIt(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	var got *types.FailoverDomainRequest
+	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *types.FailoverDomainRequest, _ ...yarpc.CallOption) (*types.FailoverDomainResponse, error) {
+			got = req
+			return nil, nil
+		}).Times(1)
+
+	_, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{
+		DomainPreferences: []DomainFailoverPreferences{{DomainName: "d1", TargetCluster: "cluster1"}},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.False(t, got.SkipDestinationClusterCheck)
+}
+
+// testClusterMetadata builds cluster metadata for a three-cluster group (cluster0, cluster1, cluster2)
+// with currentCluster as the cluster this worker runs in.
+func testClusterMetadata(currentCluster string) cluster.Metadata {
+	group := map[string]config.ClusterInformation{}
+	for i, name := range []string{"cluster0", "cluster1", "cluster2"} {
+		group[name] = config.ClusterInformation{Enabled: true, InitialFailoverVersion: int64(i)}
+	}
+	return cluster.NewMetadata(
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: 10,
+			PrimaryClusterName:       "cluster0",
+			CurrentClusterName:       currentCluster,
+			ClusterGroup:             group,
+		},
+		func(string) bool { return false },
+		metrics.NewNoopMetricsClient(),
+		log.NewNoop(),
+	)
 }

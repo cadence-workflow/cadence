@@ -54,6 +54,7 @@ func (s *shardedNosqlStoreTestSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 
 	mockDB := nosqlplugin.NewMockDB(s.mockController)
+	mockDB.EXPECT().PluginName().Return("cassandra").AnyTimes()
 
 	mockPlugin := nosqlplugin.NewMockPlugin(s.mockController)
 	mockPlugin.EXPECT().
@@ -82,8 +83,10 @@ func (s *shardedNosqlStoreTestSuite) TestValidConfiguration() {
 func (s *shardedNosqlStoreTestSuite) TestStoreSelectionForHistoryShard() {
 	mockDB1 := nosqlplugin.NewMockDB(s.mockController)
 	mockDB1.EXPECT().Close().Times(1)
+	mockDB1.EXPECT().PluginName().Return("cassandra").AnyTimes()
 	mockDB2 := nosqlplugin.NewMockDB(s.mockController)
 	mockDB2.EXPECT().Close().Times(1)
+	mockDB2.EXPECT().PluginName().Return("cassandra").AnyTimes()
 
 	mockPlugin := nosqlplugin.NewMockPlugin(s.mockController)
 	gomock.InOrder(
@@ -156,7 +159,7 @@ func (s *shardedNosqlStoreTestSuite) newShardedStoreForTest() *shardedNosqlStore
 	logger := log.NewNoop()
 	storeInterface, err := newShardedNosqlStore(cfg, logger, metrics.NewNoopMetricsClient(), nil, false)
 	s.NoError(err)
-	s.Equal("shardedNosql", storeInterface.GetName())
+	s.Equal("cassandra", storeInterface.GetName())
 	s.Equal(logger, storeInterface.GetLogger())
 	store := storeInterface.(*shardedNosqlStoreImpl)
 	s.Equal(storeInterface.GetShardingPolicy(), store.shardingPolicy)
@@ -166,8 +169,10 @@ func (s *shardedNosqlStoreTestSuite) newShardedStoreForTest() *shardedNosqlStore
 func (s *shardedNosqlStoreTestSuite) TestStoreSelectionForTasklist() {
 	mockDB1 := nosqlplugin.NewMockDB(s.mockController)
 	mockDB1.EXPECT().Close().Times(1)
+	mockDB1.EXPECT().PluginName().Return("cassandra").AnyTimes()
 	mockDB2 := nosqlplugin.NewMockDB(s.mockController)
 	mockDB2.EXPECT().Close().Times(1)
+	mockDB2.EXPECT().PluginName().Return("cassandra").AnyTimes()
 
 	mockPlugin := nosqlplugin.NewMockPlugin(s.mockController)
 	gomock.InOrder(
@@ -225,8 +230,10 @@ func (s *shardedNosqlStoreTestSuite) TestStoreSelectionForTasklist() {
 func (s *shardedNosqlStoreTestSuite) TestEagerConnectConnectsAllShards() {
 	mockDB1 := nosqlplugin.NewMockDB(s.mockController)
 	mockDB1.EXPECT().Close().Times(1)
+	mockDB1.EXPECT().PluginName().Return("cassandra").AnyTimes()
 	mockDB2 := nosqlplugin.NewMockDB(s.mockController)
 	mockDB2.EXPECT().Close().Times(1)
+	mockDB2.EXPECT().PluginName().Return("cassandra").AnyTimes()
 
 	mockPlugin := nosqlplugin.NewMockPlugin(s.mockController)
 	mockPlugin.EXPECT().
@@ -244,7 +251,7 @@ func (s *shardedNosqlStoreTestSuite) TestEagerConnectConnectsAllShards() {
 	logger := log.NewNoop()
 	storeInterface, err := newShardedNosqlStore(cfg, logger, metrics.NewNoopMetricsClient(), nil, true)
 	s.NoError(err)
-	s.Equal("shardedNosql", storeInterface.GetName())
+	s.Equal("cassandra", storeInterface.GetName())
 	s.Equal(logger, storeInterface.GetLogger())
 	defer storeInterface.Close()
 

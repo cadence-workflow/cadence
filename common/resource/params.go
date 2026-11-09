@@ -22,6 +22,7 @@ package resource
 
 import (
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/zap"
@@ -107,6 +108,10 @@ type (
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
 		ShardDistributorMatchingConfig clientcommon.Config
 
+		// Spectator watches shard distributor namespace state for membership resolution.
+		// Optional; nil when shard distributor is not configured.
+		Spectator spectatorclient.Spectator
+
 		// DrainObserver is an optional observer that signals when this instance is
 		// drained from service discovery.
 		// It is used by shard-distributor executor clients to
@@ -114,5 +119,8 @@ type (
 		DrainObserver clientcommon.DrainSignalObserver
 
 		PercentageOnboarded membership.PercentageOnboarded
+		// TaskListDifferentiator decides which task lists the shard distributor owns and which shard each
+		// one belongs to. The matching membership resolver and the matching service share it, so they agree.
+		TaskListDifferentiator *membership.TaskListDifferentiator
 	}
 )

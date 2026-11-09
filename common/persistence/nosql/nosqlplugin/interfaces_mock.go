@@ -606,20 +606,6 @@ func (mr *MockDBMockRecorder) InsertSemaphoreTasks(ctx, tasks, controlCondition 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTasks", reflect.TypeOf((*MockDB)(nil).InsertSemaphoreTasks), ctx, tasks, controlCondition)
 }
 
-// InsertSemaphoreTokens mocks base method.
-func (m *MockDB) InsertSemaphoreTokens(ctx context.Context, rows []*SemaphoreOwnershipRow) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertSemaphoreTokens", ctx, rows)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// InsertSemaphoreTokens indicates an expected call of InsertSemaphoreTokens.
-func (mr *MockDBMockRecorder) InsertSemaphoreTokens(ctx, rows any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTokens", reflect.TypeOf((*MockDB)(nil).InsertSemaphoreTokens), ctx, rows)
-}
-
 // InsertShard mocks base method.
 func (m *MockDB) InsertShard(ctx context.Context, row *ShardRow) error {
 	m.ctrl.T.Helper()
@@ -2102,20 +2088,6 @@ func (m *MocktableCRUD) InsertSemaphoreTasks(ctx context.Context, tasks []*Semap
 func (mr *MocktableCRUDMockRecorder) InsertSemaphoreTasks(ctx, tasks, controlCondition any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTasks", reflect.TypeOf((*MocktableCRUD)(nil).InsertSemaphoreTasks), ctx, tasks, controlCondition)
-}
-
-// InsertSemaphoreTokens mocks base method.
-func (m *MocktableCRUD) InsertSemaphoreTokens(ctx context.Context, rows []*SemaphoreOwnershipRow) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertSemaphoreTokens", ctx, rows)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// InsertSemaphoreTokens indicates an expected call of InsertSemaphoreTokens.
-func (mr *MocktableCRUDMockRecorder) InsertSemaphoreTokens(ctx, rows any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTokens", reflect.TypeOf((*MocktableCRUD)(nil).InsertSemaphoreTokens), ctx, rows)
 }
 
 // InsertShard mocks base method.
@@ -4510,20 +4482,6 @@ func (m *MockSemaphoreTokenCRUD) GrantSemaphoreToken(ctx context.Context, row *S
 func (mr *MockSemaphoreTokenCRUDMockRecorder) GrantSemaphoreToken(ctx, row any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrantSemaphoreToken", reflect.TypeOf((*MockSemaphoreTokenCRUD)(nil).GrantSemaphoreToken), ctx, row)
-}
-
-// InsertSemaphoreTokens mocks base method.
-func (m *MockSemaphoreTokenCRUD) InsertSemaphoreTokens(ctx context.Context, rows []*SemaphoreOwnershipRow) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertSemaphoreTokens", ctx, rows)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// InsertSemaphoreTokens indicates an expected call of InsertSemaphoreTokens.
-func (mr *MockSemaphoreTokenCRUDMockRecorder) InsertSemaphoreTokens(ctx, rows any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSemaphoreTokens", reflect.TypeOf((*MockSemaphoreTokenCRUD)(nil).InsertSemaphoreTokens), ctx, rows)
 }
 
 // ReleaseSemaphoreToken mocks base method.

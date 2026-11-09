@@ -336,6 +336,20 @@ func TestWorkflowExecutionInfo_MigrateTaskList(t *testing.T) {
 	}
 }
 
+func TestAcquireSemaphoreDecisionAttributesConversion(t *testing.T) {
+	testCases := []*types.AcquireSemaphoreDecisionAttributes{
+		nil,
+		{},
+		&testdata.AcquireSemaphoreDecisionAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromAcquireSemaphoreDecisionAttributes(original)
+		roundTripObj := ToAcquireSemaphoreDecisionAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
 func TestActivityLocalDispatchInfoConversion(t *testing.T) {
 	testCases := []*types.ActivityLocalDispatchInfo{
 		nil,
@@ -880,6 +894,8 @@ func TestDecisionConverson(t *testing.T) {
 			DecisionType:                           types.DecisionTypeScheduleActivityTask.Ptr(),
 			ScheduleActivityTaskDecisionAttributes: &testdata.ScheduleActivityTaskDecisionAttributes,
 		},
+		&testdata.Decision_AcquireSemaphore,
+		&testdata.Decision_ReleaseSemaphore,
 	}
 
 	for _, original := range testCases {
@@ -929,6 +945,8 @@ func TestDecisionTaskFailedCauseConversion(t *testing.T) {
 		types.DecisionTaskFailedCauseBadBinary.Ptr(),
 		types.DecisionTaskFailedCauseScheduleActivityDuplicateID.Ptr(),
 		types.DecisionTaskFailedCauseBadSearchAttributes.Ptr(),
+		types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes.Ptr(),
+		types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes.Ptr(),
 	}
 
 	for _, original := range testCases {
@@ -1024,6 +1042,8 @@ func TestDecisionTypeConversion(t *testing.T) {
 		types.DecisionTypeStartChildWorkflowExecution.Ptr(),
 		types.DecisionTypeSignalExternalWorkflowExecution.Ptr(),
 		types.DecisionTypeUpsertWorkflowSearchAttributes.Ptr(),
+		types.DecisionTypeAcquireSemaphore.Ptr(),
+		types.DecisionTypeReleaseSemaphore.Ptr(),
 	}
 
 	for _, original := range testCases {
@@ -1461,6 +1481,10 @@ func TestEventTypeConversion(t *testing.T) {
 		types.EventTypeSignalExternalWorkflowExecutionFailed.Ptr(),
 		types.EventTypeExternalWorkflowExecutionSignaled.Ptr(),
 		types.EventTypeUpsertWorkflowSearchAttributes.Ptr(),
+		types.EventTypeSemaphoreAcquireInitiated.Ptr(),
+		types.EventTypeSemaphoreAcquired.Ptr(),
+		types.EventTypeSemaphoreReleased.Ptr(),
+		types.EventTypeSemaphoreAcquireFailed.Ptr(),
 	}
 
 	for _, original := range testCases {
@@ -1612,6 +1636,10 @@ func TestHistoryEventConversion(t *testing.T) {
 			EventType:                               types.EventTypeWorkflowExecutionStarted.Ptr(),
 			WorkflowExecutionStartedEventAttributes: &testdata.WorkflowExecutionStartedEventAttributes,
 		},
+		&testdata.HistoryEvent_SemaphoreAcquireInitiated,
+		&testdata.HistoryEvent_SemaphoreAcquired,
+		&testdata.HistoryEvent_SemaphoreReleased,
+		&testdata.HistoryEvent_SemaphoreAcquireFailed,
 	}
 
 	for _, original := range testCases {
@@ -2342,6 +2370,20 @@ func TestRegisterDomainRequestFuzz(t *testing.T) {
 	})
 }
 
+func TestReleaseSemaphoreDecisionAttributesConversion(t *testing.T) {
+	testCases := []*types.ReleaseSemaphoreDecisionAttributes{
+		nil,
+		{},
+		&testdata.ReleaseSemaphoreDecisionAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromReleaseSemaphoreDecisionAttributes(original)
+		roundTripObj := ToReleaseSemaphoreDecisionAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
 func TestRemoteSyncMatchedErrorConversion(t *testing.T) {
 	testCases := []*types.RemoteSyncMatchedError{
 		nil,
@@ -2730,6 +2772,76 @@ func TestSearchAttributesConversion(t *testing.T) {
 	for _, original := range testCases {
 		thriftObj := FromSearchAttributes(original)
 		roundTripObj := ToSearchAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestSemaphoreAcquireInitiatedEventAttributesConversion(t *testing.T) {
+	testCases := []*types.SemaphoreAcquireInitiatedEventAttributes{
+		nil,
+		{},
+		&testdata.SemaphoreAcquireInitiatedEventAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromSemaphoreAcquireInitiatedEventAttributes(original)
+		roundTripObj := ToSemaphoreAcquireInitiatedEventAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestSemaphoreAcquiredEventAttributesConversion(t *testing.T) {
+	testCases := []*types.SemaphoreAcquiredEventAttributes{
+		nil,
+		{},
+		&testdata.SemaphoreAcquiredEventAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromSemaphoreAcquiredEventAttributes(original)
+		roundTripObj := ToSemaphoreAcquiredEventAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestSemaphoreReleasedEventAttributesConversion(t *testing.T) {
+	testCases := []*types.SemaphoreReleasedEventAttributes{
+		nil,
+		{},
+		&testdata.SemaphoreReleasedEventAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromSemaphoreReleasedEventAttributes(original)
+		roundTripObj := ToSemaphoreReleasedEventAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestSemaphoreAcquireFailedEventAttributesConversion(t *testing.T) {
+	testCases := []*types.SemaphoreAcquireFailedEventAttributes{
+		nil,
+		{},
+		&testdata.SemaphoreAcquireFailedEventAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromSemaphoreAcquireFailedEventAttributes(original)
+		roundTripObj := ToSemaphoreAcquireFailedEventAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestSemaphoreAcquireFailedCauseConversion(t *testing.T) {
+	testCases := []*types.SemaphoreAcquireFailedCause{
+		nil,
+		types.SemaphoreAcquireFailedCauseNotFound.Ptr(),
+		types.SemaphoreAcquireFailedCauseTimedOut.Ptr(),
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromSemaphoreAcquireFailedCause(original)
+		roundTripObj := ToSemaphoreAcquireFailedCause(thriftObj)
 		assert.Equal(t, original, roundTripObj)
 	}
 }
@@ -3757,6 +3869,47 @@ func TestFailoverDomainRequestConversion(t *testing.T) {
 	}
 }
 
+func TestFailoverDomainRequestConversion_PreservesSkipDestinationClusterCheck(t *testing.T) {
+	in := &types.FailoverDomainRequest{
+		DomainName:                  "test-domain",
+		DomainActiveClusterName:     common.StringPtr("cluster1"),
+		SkipDestinationClusterCheck: true,
+	}
+	out := ToFailoverDomainRequest(FromFailoverDomainRequest(in))
+	assert.Equal(t, in, out)
+	assert.True(t, out.SkipDestinationClusterCheck)
+}
+
 func TestFailoverDomainRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest)
+}
+
+func TestAcquireSemaphoreDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAcquireSemaphoreDecisionAttributes, ToAcquireSemaphoreDecisionAttributes)
+}
+
+func TestReleaseSemaphoreDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReleaseSemaphoreDecisionAttributes, ToReleaseSemaphoreDecisionAttributes)
+}
+
+func TestSemaphoreAcquireInitiatedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreAcquireInitiatedEventAttributes, ToSemaphoreAcquireInitiatedEventAttributes)
+}
+
+func TestSemaphoreAcquiredEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreAcquiredEventAttributes, ToSemaphoreAcquiredEventAttributes)
+}
+
+func TestSemaphoreReleasedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreReleasedEventAttributes, ToSemaphoreReleasedEventAttributes)
+}
+
+func TestSemaphoreAcquireFailedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreAcquireFailedEventAttributes, ToSemaphoreAcquireFailedEventAttributes,
+		testutils.WithCustomFuncs(
+			func(e *types.SemaphoreAcquireFailedCause, c fuzz.Continue) {
+				*e = types.SemaphoreAcquireFailedCause(c.Intn(2)) // 0-1: NotFound, TimedOut
+			},
+		),
+	)
 }

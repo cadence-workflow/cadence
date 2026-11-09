@@ -576,6 +576,7 @@ func createTransferTasks(
 			task.Version,
 			task.OriginalTaskList,
 			int32(task.OriginalTaskListKind),
+			task.SemaphoreName,
 			taskBlob,
 			taskEncoding,
 			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp
@@ -683,6 +684,88 @@ func resetSignalInfoMap(signalInfos map[int64]*persistence.SignalInfo) map[int64
 	}
 
 	return sMap
+}
+
+func resetSemaphoreInfos(
+	batch gocql.Batch,
+	shardID int,
+	domainID string,
+	workflowID string,
+	runID string,
+	semaphoreInfos map[int64]*persistence.SemaphoreInfo,
+	timeStamp time.Time,
+) error {
+	batch.Query(templateResetSemaphoreInfoQuery,
+		resetSemaphoreInfoMap(semaphoreInfos),
+		timeStamp,
+		shardID,
+		rowTypeExecution,
+		domainID,
+		workflowID,
+		runID,
+		defaultVisibilityTimestamp,
+		rowTypeExecutionTaskID)
+	return nil
+}
+
+func resetSemaphoreInfoMap(semaphoreInfos map[int64]*persistence.SemaphoreInfo) map[int64]map[string]interface{} {
+	sMap := make(map[int64]map[string]interface{})
+	for _, s := range semaphoreInfos {
+		sInfo := make(map[string]interface{})
+		sInfo["version"] = s.Version
+		sInfo["initiated_id"] = s.InitiatedID
+		sInfo["semaphore_name"] = s.SemaphoreName
+		sInfo["owner_id"] = s.OwnerID
+		sInfo["token_id"] = s.TokenID
+		sInfo["acquire_deadline"] = s.AcquireDeadline
+		sMap[s.InitiatedID] = sInfo
+	}
+
+	return sMap
+}
+
+func updateSemaphoreInfos(
+	batch gocql.Batch,
+	shardID int,
+	domainID string,
+	workflowID string,
+	runID string,
+	semaphoreInfos map[int64]*persistence.SemaphoreInfo,
+	deleteInfos []int64,
+	timeStamp time.Time,
+) error {
+	for _, c := range semaphoreInfos {
+		batch.Query(templateUpdateSemaphoreInfoQuery,
+			c.InitiatedID,
+			c.Version,
+			c.InitiatedID,
+			c.SemaphoreName,
+			c.OwnerID,
+			c.TokenID,
+			c.AcquireDeadline,
+			timeStamp,
+			shardID,
+			rowTypeExecution,
+			domainID,
+			workflowID,
+			runID,
+			defaultVisibilityTimestamp,
+			rowTypeExecutionTaskID)
+	}
+
+	// deleteInfos are the initiatedIDs for SemaphoreInfo being deleted
+	for _, deleteInfo := range deleteInfos {
+		batch.Query(templateDeleteSemaphoreInfoQuery,
+			deleteInfo,
+			shardID,
+			rowTypeExecution,
+			domainID,
+			workflowID,
+			runID,
+			defaultVisibilityTimestamp,
+			rowTypeExecutionTaskID)
+	}
+	return nil
 }
 
 func updateSignalInfos(
@@ -964,8 +1047,14 @@ func updateTimerInfos(
 	runID string,
 	timerInfos map[string]*persistence.TimerInfo,
 	deleteInfos []string,
+	rewriteInfos map[string]*persistence.TimerInfo,
+	sentinelWriteEnabled bool,
 	timeStamp time.Time,
 ) error {
+	if rewriteInfos != nil {
+		return resetTimerInfos(batch, shardID, domainID, workflowID, runID, rewriteInfos, timeStamp)
+	}
+
 	for _, timerInfo := range timerInfos {
 		batch.Query(templateUpdateTimerInfoQuery,
 			timerInfo.TimerID,
@@ -984,16 +1073,34 @@ func updateTimerInfos(
 			rowTypeExecutionTaskID)
 	}
 
+	if len(deleteInfos) == 0 {
+		return nil
+	}
+
 	for _, deleteInfo := range deleteInfos {
-		batch.Query(templateDeleteTimerInfoQuery,
-			deleteInfo,
-			shardID,
-			rowTypeExecution,
-			domainID,
-			workflowID,
-			runID,
-			defaultVisibilityTimestamp,
-			rowTypeExecutionTaskID)
+		if sentinelWriteEnabled {
+			batch.Query(templateSentinelTimerInfoQuery,
+				deleteInfo,
+				timerSentinelTimerID,
+				timeStamp,
+				shardID,
+				rowTypeExecution,
+				domainID,
+				workflowID,
+				runID,
+				defaultVisibilityTimestamp,
+				rowTypeExecutionTaskID)
+		} else {
+			batch.Query(templateDeleteTimerInfoQuery,
+				deleteInfo,
+				shardID,
+				rowTypeExecution,
+				domainID,
+				workflowID,
+				runID,
+				defaultVisibilityTimestamp,
+				rowTypeExecutionTaskID)
+		}
 	}
 	return nil
 }
@@ -1090,10 +1197,12 @@ func resetActivityInfoMap(activityInfos map[int64]*persistence.InternalActivityI
 		aInfo["timer_task_status"] = a.TimerTaskStatus
 		aInfo["attempt"] = a.Attempt
 		aInfo["task_list"] = a.TaskList
+		aInfo["task_list_kind"] = int32(a.TaskListKind)
 		aInfo["started_identity"] = a.StartedIdentity
 		aInfo["has_retry_policy"] = a.HasRetryPolicy
 		aInfo["init_interval"] = int32(a.InitialInterval.Seconds())
 		aInfo["backoff_coefficient"] = a.BackoffCoefficient
+		aInfo["jitter_coefficient"] = a.JitterCoefficient
 		aInfo["max_interval"] = int32(a.MaximumInterval.Seconds())
 		aInfo["expiration_time"] = a.ExpirationTime
 		aInfo["max_attempts"] = a.MaximumAttempts
@@ -1118,8 +1227,14 @@ func updateActivityInfos(
 	runID string,
 	activityInfos map[int64]*persistence.InternalActivityInfo,
 	deleteInfos []int64,
+	rewriteInfos map[int64]*persistence.InternalActivityInfo,
+	sentinelWriteEnabled bool,
 	timeStamp time.Time,
 ) error {
+	if rewriteInfos != nil {
+		return resetActivityInfos(batch, shardID, domainID, workflowID, runID, rewriteInfos, timeStamp)
+	}
+
 	for _, a := range activityInfos {
 		batch.Query(templateUpdateActivityInfoQuery,
 			a.ScheduleID,
@@ -1149,6 +1264,7 @@ func updateActivityInfos(
 			a.HasRetryPolicy,
 			int32(a.InitialInterval.Seconds()),
 			a.BackoffCoefficient,
+			a.JitterCoefficient,
 			int32(a.MaximumInterval.Seconds()),
 			a.ExpirationTime,
 			a.MaximumAttempts,
@@ -1169,16 +1285,34 @@ func updateActivityInfos(
 			rowTypeExecutionTaskID)
 	}
 
+	if len(deleteInfos) == 0 {
+		return nil
+	}
+
 	for _, deleteInfo := range deleteInfos {
-		batch.Query(templateDeleteActivityInfoQuery,
-			deleteInfo,
-			shardID,
-			rowTypeExecution,
-			domainID,
-			workflowID,
-			runID,
-			defaultVisibilityTimestamp,
-			rowTypeExecutionTaskID)
+		if sentinelWriteEnabled {
+			batch.Query(templateSentinelActivityInfoQuery,
+				deleteInfo,
+				activitySentinelScheduleID,
+				timeStamp,
+				shardID,
+				rowTypeExecution,
+				domainID,
+				workflowID,
+				runID,
+				defaultVisibilityTimestamp,
+				rowTypeExecutionTaskID)
+		} else {
+			batch.Query(templateDeleteActivityInfoQuery,
+				deleteInfo,
+				shardID,
+				rowTypeExecution,
+				domainID,
+				workflowID,
+				runID,
+				defaultVisibilityTimestamp,
+				rowTypeExecutionTaskID)
+		}
 	}
 	return nil
 }
@@ -1218,11 +1352,11 @@ func createWorkflowExecutionWithMergeMaps(
 		return fmt.Errorf("should only support WorkflowExecutionMapsWriteModeCreate")
 	}
 
-	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, nil, timeStamp)
+	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, nil, nil, false, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, nil, timeStamp)
+	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, nil, nil, false, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1236,6 +1370,10 @@ func createWorkflowExecutionWithMergeMaps(
 		return err
 	}
 	err = updateSignalInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalInfos, nil, timeStamp)
+	if err != nil {
+		return err
+	}
+	err = updateSemaphoreInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SemaphoreInfos, nil, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1287,6 +1425,10 @@ func resetWorkflowExecutionAndMapsAndEventBuffer(
 		return err
 	}
 	err = resetSignalInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalInfos, timeStamp)
+	if err != nil {
+		return err
+	}
+	err = resetSemaphoreInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SemaphoreInfos, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1346,6 +1488,7 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 	domainID string,
 	workflowID string,
 	execution *nosqlplugin.WorkflowExecutionRequest,
+	sentinelWriteEnabled bool,
 	timeStamp time.Time,
 ) error {
 	err := updateWorkflowExecution(batch, shardID, domainID, workflowID, execution, timeStamp)
@@ -1371,11 +1514,11 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 
 	// In certain cases, some of the execution update cycles update particular columns asynchronously before reaching the final cycle.
 	// Each of these functions are updating a non-frozen column type in Cassandra table.
-	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete, timeStamp)
+	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete, execution.RewriteActivityInfos, sentinelWriteEnabled, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, timeStamp)
+	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, execution.RewriteTimerInfos, sentinelWriteEnabled, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1389,6 +1532,10 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 		return err
 	}
 	err = updateSignalInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalInfos, execution.SignalInfoKeysToDelete, timeStamp)
+	if err != nil {
+		return err
+	}
+	err = updateSemaphoreInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SemaphoreInfos, execution.SemaphoreInfoKeysToDelete, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1459,6 +1606,7 @@ func updateWorkflowExecution(
 		execution.HasRetryPolicy,
 		int32(execution.InitialInterval.Seconds()),
 		execution.BackoffCoefficient,
+		execution.JitterCoefficient,
 		int32(execution.MaximumInterval.Seconds()),
 		execution.ExpirationTime,
 		execution.MaximumAttempts,
@@ -1561,6 +1709,7 @@ func createWorkflowExecution(
 		execution.HasRetryPolicy,
 		int32(execution.InitialInterval.Seconds()),
 		execution.BackoffCoefficient,
+		execution.JitterCoefficient,
 		int32(execution.MaximumInterval.Seconds()),
 		execution.ExpirationTime,
 		execution.MaximumAttempts,

@@ -258,6 +258,11 @@ func Duration(duration time.Duration) Tag {
 	return newDurationTag("duration", duration)
 }
 
+// LagDuration returns tag for how far behind something is in time
+func LagDuration(lag time.Duration) Tag {
+	return newDurationTag("lag-duration", lag)
+}
+
 // domain related
 
 // WorkflowDomainID returns tag for WorkflowDomainID
@@ -1248,4 +1253,26 @@ func CacheID(cacheID string) Tag {
 
 func DomainAuditOperationType(operationType fmt.Stringer) Tag {
 	return newStringTag("domain-audit-operation-type", operationType.String())
+}
+
+// distributed semaphore
+
+// SemaphoreName returns a tag for the semaphore a bucket belongs to
+func SemaphoreName(name string) Tag {
+	return newStringTag("semaphore-name", name)
+}
+
+// SemaphoreBucket returns a tag for the bucket number within a semaphore
+func SemaphoreBucket(bucket int) Tag {
+	return newInt("semaphore-bucket", bucket)
+}
+
+// SemaphoreTokenID returns a tag for a token of a semaphore
+func SemaphoreTokenID(tokenID int) Tag {
+	return newInt("semaphore-token-id", tokenID)
+}
+
+// SemaphoreGrantedTokenID returns a tag for the token Matching granted, when it is logged next to another token
+func SemaphoreGrantedTokenID(tokenID int) Tag {
+	return newInt("semaphore-granted-token-id", tokenID)
 }

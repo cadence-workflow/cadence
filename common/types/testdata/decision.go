@@ -40,6 +40,8 @@ var (
 		&Decision_StartChildWorkflowExecution,
 		&Decision_StartTimer,
 		&Decision_UpsertWorkflowSearchAttributes,
+		&Decision_AcquireSemaphore,
+		&Decision_ReleaseSemaphore,
 	}
 
 	Decision_CancelTimer = types.Decision{
@@ -93,6 +95,14 @@ var (
 	Decision_UpsertWorkflowSearchAttributes = types.Decision{
 		DecisionType: types.DecisionTypeUpsertWorkflowSearchAttributes.Ptr(),
 		UpsertWorkflowSearchAttributesDecisionAttributes: &UpsertWorkflowSearchAttributesDecisionAttributes,
+	}
+	Decision_AcquireSemaphore = types.Decision{
+		DecisionType:                       types.DecisionTypeAcquireSemaphore.Ptr(),
+		AcquireSemaphoreDecisionAttributes: &AcquireSemaphoreDecisionAttributes,
+	}
+	Decision_ReleaseSemaphore = types.Decision{
+		DecisionType:                       types.DecisionTypeReleaseSemaphore.Ptr(),
+		ReleaseSemaphoreDecisionAttributes: &ReleaseSemaphoreDecisionAttributes,
 	}
 
 	CancelTimerDecisionAttributes = types.CancelTimerDecisionAttributes{
@@ -188,5 +198,12 @@ var (
 	}
 	UpsertWorkflowSearchAttributesDecisionAttributes = types.UpsertWorkflowSearchAttributesDecisionAttributes{
 		SearchAttributes: &SearchAttributes,
+	}
+	AcquireSemaphoreDecisionAttributes = types.AcquireSemaphoreDecisionAttributes{
+		SemaphoreName:      "semaphore-name",
+		WaitTimeoutSeconds: common.Int32Ptr(Duration1),
+	}
+	ReleaseSemaphoreDecisionAttributes = types.ReleaseSemaphoreDecisionAttributes{
+		InitiatedEventID: EventID1,
 	}
 )

@@ -97,6 +97,20 @@ func (mr *MockClientMockRecorder) IsNotFoundError(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsNotFoundError", reflect.TypeOf((*MockClient)(nil).IsNotFoundError), arg0)
 }
 
+// IsSchemaElementExistsError mocks base method.
+func (m *MockClient) IsSchemaElementExistsError(arg0 error) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSchemaElementExistsError", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSchemaElementExistsError indicates an expected call of IsSchemaElementExistsError.
+func (mr *MockClientMockRecorder) IsSchemaElementExistsError(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSchemaElementExistsError", reflect.TypeOf((*MockClient)(nil).IsSchemaElementExistsError), arg0)
+}
+
 // IsThrottlingError mocks base method.
 func (m *MockClient) IsThrottlingError(arg0 error) bool {
 	m.ctrl.T.Helper()
@@ -595,6 +609,20 @@ func (m *MockIter) Scan(arg0 ...any) bool {
 func (mr *MockIterMockRecorder) Scan(arg0 ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Scan", reflect.TypeOf((*MockIter)(nil).Scan), arg0...)
+}
+
+// Warnings mocks base method.
+func (m *MockIter) Warnings() []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Warnings")
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// Warnings indicates an expected call of Warnings.
+func (mr *MockIterMockRecorder) Warnings() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Warnings", reflect.TypeOf((*MockIter)(nil).Warnings))
 }
 
 // MockUUID is a mock of UUID interface.

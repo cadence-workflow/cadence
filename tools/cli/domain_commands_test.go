@@ -23,12 +23,15 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
@@ -247,7 +250,7 @@ func (s *cliAppSuite) TestDomainRegister() {
 		{
 			"when domain_data_entry value has no equals sign, it should return a format error",
 			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'noequals'",
-			"Invalid domain data",
+			"must be in key=value format",
 			nil,
 		},
 		{
@@ -316,7 +319,7 @@ func (s *cliAppSuite) TestDomainRegister() {
 		{
 			"when domain_data_entry is repeated with a duplicate key, it should return an error",
 			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'k1=v1' --domain_data_entry 'k1=v2'",
-			"Invalid domain data",
+			`key "k1" specified more than once`,
 			nil,
 		},
 	}
@@ -573,12 +576,8 @@ func (s *cliAppSuite) TestDomainUpdate() {
 		{
 			"when domain_data_entry is repeated on update with a duplicate key, it should return an error",
 			"cadence --do test-domain domain update --domain_data_entry 'k1=v1' --domain_data_entry 'k1=v2'",
-			"Invalid domain data",
-			func() {
-				s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), &types.DescribeDomainRequest{
-					Name: common.StringPtr("test-domain"),
-				}).Return(describeResponse, nil)
-			},
+			`key "k1" specified more than once`,
+			nil,
 		},
 	}
 
@@ -1063,6 +1062,47 @@ func TestDescribeDomain_ActiveActiveOutput(t *testing.T) {
 			for _, not := range tt.notContain {
 				assert.NotContains(t, out, not)
 			}
+		})
+	}
+}
+
+func TestFailoverDomain_SkipDestinationCheckFlag(t *testing.T) {
+	tests := []struct {
+		name     string
+		command  string
+		wantSkip bool
+	}{
+		{
+			name:     "flag unset sends SkipDestinationClusterCheck=false",
+			command:  "cadence --do test-domain domain failover --active_cluster cluster1",
+			wantSkip: false,
+		},
+		{
+			name:     "flag set sends SkipDestinationClusterCheck=true",
+			command:  "cadence --do test-domain domain failover --active_cluster cluster1 --skip_destination_check",
+			wantSkip: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			serverFrontendClient := frontend.NewMockClient(ctrl)
+			app := NewCliApp(&clientFactoryMock{serverFrontendClient: serverFrontendClient})
+
+			var got *types.FailoverDomainRequest
+			serverFrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, req *types.FailoverDomainRequest, _ ...yarpc.CallOption) (*types.FailoverDomainResponse, error) {
+					got = req
+					return &types.FailoverDomainResponse{}, nil
+				}).Times(1)
+
+			err := clitest.RunCommandLine(t, app, tt.command)
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Equal(t, "test-domain", got.DomainName)
+			assert.Equal(t, common.StringPtr("cluster1"), got.DomainActiveClusterName)
+			assert.Equal(t, tt.wantSkip, got.SkipDestinationClusterCheck)
 		})
 	}
 }

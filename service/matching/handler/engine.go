@@ -57,6 +57,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/event"
+	"github.com/uber/cadence/service/matching/semaphore"
 	"github.com/uber/cadence/service/matching/tasklist"
 )
 
@@ -91,6 +92,10 @@ type (
 	matchingEngineImpl struct {
 		taskListCreationLock           sync.Mutex
 		taskListRegistry               tasklist.TaskListRegistry
+		semaphoreRegistry              semaphore.SemaphoreRegistry
+		semaphoreTokenManager          persistence.SemaphoreTokenManager
+		semaphoreMetadataManager       persistence.SemaphoreMetadataManager
+		semaphoreTaskManager           persistence.SemaphoreTaskManager
 		shutdownCompletion             *sync.WaitGroup
 		shutdown                       chan struct{}
 		taskManager                    persistence.TaskManager
@@ -115,6 +120,7 @@ type (
 		ShardDistributorMatchingConfig clientcommon.Config
 		drainObserver                  clientcommon.DrainSignalObserver
 		percentageOnboarded            membership.PercentageOnboarded
+		taskListDifferentiator         *membership.TaskListDifferentiator
 	}
 )
 
@@ -126,11 +132,28 @@ var (
 	_stickyPollerUnavailableError = &types.StickyWorkerUnavailableError{Message: "sticky worker is unavailable, please use non-sticky task list."}
 )
 
+// semaphoreManagerStartTimeout bounds a bucket's startup scan as a whole. Each query underneath
+// already has the Cassandra client's own timeout, so this is the backstop for a scan that keeps
+// paging.
+//
+// Not the caller's context: a client with a short deadline would abort the scan, and the next
+// request would start over from the first page, so a busy bucket under impatient callers might
+// never finish loading. Acquire honours the caller's deadline on its own while it waits for
+// startup, so keeping the two apart costs the caller nothing.
+const semaphoreManagerStartTimeout = 30 * time.Second
+
+// ErrSemaphoreDisabled means the domain has distributed semaphores turned off. A BadRequestError
+// so handleErr treats it as terminal: no retry will flip the flag.
+var ErrSemaphoreDisabled = &types.BadRequestError{Message: "distributed semaphore is not enabled for this domain"}
+
 var _ Engine = (*matchingEngineImpl)(nil) // Asserts that interface is indeed implemented
 
 // NewEngine creates an instance of matching engine
 func NewEngine(
 	taskManager persistence.TaskManager,
+	semaphoreTokenManager persistence.SemaphoreTokenManager,
+	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
+	semaphoreTaskManager persistence.SemaphoreTaskManager,
 	clusterMetadata cluster.Metadata,
 	historyService history.Client,
 	matchingClient matching.Client,
@@ -145,14 +168,19 @@ func NewEngine(
 	timeSource clock.TimeSource,
 	shardDistributorClient executorclient.Client,
 	ShardDistributorMatchingConfig clientcommon.Config,
+	taskListDifferentiator *membership.TaskListDifferentiator,
 	drainObserver clientcommon.DrainSignalObserver,
 	percentageOnboarded membership.PercentageOnboarded,
 ) Engine {
 	e := &matchingEngineImpl{
-		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient),
+		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient, taskListDifferentiator.ShardCount()),
+		semaphoreRegistry:              semaphore.NewSemaphoreRegistry(),
 		shutdown:                       make(chan struct{}),
 		shutdownCompletion:             &sync.WaitGroup{},
 		taskManager:                    taskManager,
+		semaphoreTokenManager:          semaphoreTokenManager,
+		semaphoreMetadataManager:       semaphoreMetadataManager,
+		semaphoreTaskManager:           semaphoreTaskManager,
 		clusterMetadata:                clusterMetadata,
 		historyService:                 historyService,
 		tokenSerializer:                common.NewJSONTaskTokenSerializer(),
@@ -171,6 +199,7 @@ func NewEngine(
 		ShardDistributorMatchingConfig: ShardDistributorMatchingConfig,
 		drainObserver:                  drainObserver,
 		percentageOnboarded:            percentageOnboarded,
+		taskListDifferentiator:         taskListDifferentiator,
 	}
 
 	e.setupExecutor(shardDistributorClient)
@@ -192,6 +221,10 @@ func (e *matchingEngineImpl) Stop() {
 	for _, l := range e.taskListRegistry.AllManagers() {
 		l.Stop()
 	}
+	// Same for semaphore buckets, outside the lock.
+	for _, mgr := range e.semaphoreRegistry.AllManagers() {
+		mgr.Stop()
+	}
 	e.unregisterDomainFailoverCallback()
 	e.shutdownCompletion.Wait()
 }
@@ -204,9 +237,10 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 		e.executor = executorclient.NewNoopExecutor[tasklist.ShardProcessor]()
 
 		taskListFactory := &tasklist.ShardProcessorFactory{
-			TaskListsRegistry: e.taskListRegistry,
-			ReportTTL:         _defaultSDReportTTL,
-			TimeSource:        e.timeSource,
+			TaskListsRegistry:      e.taskListRegistry,
+			ReportTTL:              _defaultSDReportTTL,
+			TimeSource:             e.timeSource,
+			TaskListDifferentiator: e.taskListDifferentiator,
 		}
 		e.taskListsFactory = taskListFactory
 		return
@@ -215,9 +249,10 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 	cfg, reportTTL := e.getValidatedShardDistributorConfig()
 
 	taskListFactory := &tasklist.ShardProcessorFactory{
-		TaskListsRegistry: e.taskListRegistry,
-		ReportTTL:         reportTTL,
-		TimeSource:        e.timeSource,
+		TaskListsRegistry:      e.taskListRegistry,
+		ReportTTL:              reportTTL,
+		TimeSource:             e.timeSource,
+		TaskListDifferentiator: e.taskListDifferentiator,
 	}
 	e.taskListsFactory = taskListFactory
 
@@ -294,7 +329,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	// The first check is an optimization so almost all requests will have a task list manager
 	// and return avoiding the write lock
 	result, ok := e.taskListRegistry.ManagerByTaskListIdentifier(*taskList)
-	excludedFromShardDistributor := e.isExcludedFromShardDistributor(taskList.GetName())
+	excludedFromShardDistributor := e.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskList.GetName())
 
 	// Task lists excluded from the ShardDistributor (short-lived task lists with UUIDs) bypass
 	// the executor/shard-processor entirely and always use local hash-ring assignment.
@@ -302,7 +337,8 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		return result, nil
 	}
 	if !excludedFromShardDistributor {
-		sp, _ := e.executor.GetShardProcess(ctx, taskList.GetName())
+		shardID := e.taskListDifferentiator.ShardID(taskList.GetName())
+		sp, _ := e.executor.GetShardProcess(ctx, shardID)
 		if sp != nil && ok {
 			return result, nil
 		}
@@ -371,6 +407,152 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		EventName: "TaskListManager Started",
 		Host:      e.config.HostName,
 	})
+	return mgr, nil
+}
+
+// AcquireSemaphore claims a token slot in one semaphore bucket for one owner.
+func (e *matchingEngineImpl) AcquireSemaphore(
+	hCtx *handlerContext,
+	request *types.AcquireSemaphoreRequest,
+) (*types.AcquireSemaphoreResponse, error) {
+	domainID := request.GetDomainUUID()
+	semaphoreName := request.GetSemaphoreName()
+	bucket := int(request.GetBucket())
+	ownerID := request.GetOwnerID()
+
+	owner, err := semaphore.ParseRequestOwner(ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	e.emitInfoOrDebugLog(
+		domainID,
+		"Received AcquireSemaphore",
+		tag.WorkflowID(owner.WorkflowID),
+		tag.WorkflowRunID(owner.RunID),
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowScheduleID(owner.HoldID),
+	)
+
+	identifier, err := semaphore.NewIdentifier(domainID, semaphoreName, bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	// Checked on every acquire, so turning the flag off takes effect on loaded buckets too.
+	domainName, err := e.domainCache.GetDomainName(domainID)
+	if err != nil {
+		return nil, err
+	}
+	if !e.config.EnableDistributedSemaphore(domainName) {
+		return nil, ErrSemaphoreDisabled
+	}
+
+	semMgr, err := e.getOrCreateSemaphoreManager(identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := semMgr.Acquire(hCtx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.AcquireSemaphoreResponse{
+		Outcome: resp.Outcome,
+		TokenID: int32(resp.TokenID),
+	}, nil
+}
+
+// ReleaseSemaphore frees the token slot one owner holds in one semaphore bucket. An owner that
+// holds nothing is released too, so a repeated release succeeds.
+func (e *matchingEngineImpl) ReleaseSemaphore(
+	hCtx *handlerContext,
+	request *types.ReleaseSemaphoreRequest,
+) (*types.ReleaseSemaphoreResponse, error) {
+	domainID := request.GetDomainUUID()
+	semaphoreName := request.GetSemaphoreName()
+	bucket := int(request.GetBucket())
+	ownerID := request.GetOwnerID()
+
+	owner, err := semaphore.ParseRequestOwner(ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	e.emitInfoOrDebugLog(
+		domainID,
+		"Received ReleaseSemaphore",
+		tag.WorkflowID(owner.WorkflowID),
+		tag.WorkflowRunID(owner.RunID),
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowScheduleID(owner.HoldID),
+	)
+
+	identifier, err := semaphore.NewIdentifier(domainID, semaphoreName, bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	semMgr, err := e.getOrCreateSemaphoreManager(identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := semMgr.Release(hCtx, ownerID); err != nil {
+		return nil, err
+	}
+	return &types.ReleaseSemaphoreResponse{}, nil
+}
+
+// getOrCreateSemaphoreManager returns this host's manager for one bucket, building it the first
+// time the bucket is asked for. The manager may still be loading when another request started it;
+// Acquire waits for that under the caller's own deadline.
+func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier) (semaphore.Manager, error) {
+	// Fast path: almost every request finds a manager already loaded, and skips the domain
+	// lookup and the ring check below.
+	mgr, ok := e.semaphoreRegistry.ManagerByIdentifier(id)
+	if !ok {
+		// SemaphoreIdleTime is keyed by domain name. Resolved outside create, which holds the registry lock.
+		domainName, err := e.domainCache.GetDomainName(id.DomainID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := e.errIfSemaphoreOwnershipLost(id); err != nil {
+			return nil, err
+		}
+
+		// One manager per bucket, whoever gets here first. It is registered before it starts, so
+		// a request arriving mid-scan reuses this one rather than scanning the same bucket again.
+		mgr, err = e.semaphoreRegistry.GetOrCreate(id, func() (semaphore.Manager, error) {
+			return semaphore.NewManager(semaphore.ManagerParams{
+				ID:         id,
+				Tokens:     e.semaphoreTokenManager,
+				Metadata:   e.semaphoreMetadataManager,
+				Tasks:      e.semaphoreTaskManager,
+				Logger:     e.logger,
+				Cfg:        e.config,
+				DomainName: domainName,
+				OnStopFn:   e.unregisterSemaphoreManager,
+				TimeSource: e.timeSource,
+			})
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Always call Start, even on a manager found in the registry: if the request that registered
+	// it never started it, nothing else will, and the bucket would stay stuck. Start is free when
+	// the manager is already running or loading.
+	startCtx, cancel := context.WithTimeout(context.Background(), semaphoreManagerStartTimeout)
+	defer cancel()
+	if err := mgr.Start(startCtx); err != nil {
+		e.logger.Error("Semaphore manager failed to start",
+			append(id.LogTags(), tag.LifeCycleStartFailed, tag.Error(err))...)
+		return nil, err
+	}
 	return mgr, nil
 }
 
@@ -1229,6 +1411,21 @@ func (e *matchingEngineImpl) unloadTaskList(tlMgr tasklist.Manager) {
 	}
 }
 
+// unregisterSemaphoreManager is what a manager calls as it stops, so a stopped bucket is not
+// handed to the next request. Often the second call for that manager, since unloadSemaphoreManager
+// unregisters before stopping; Unregister does nothing the second time, and leaves a replacement
+// alone.
+func (e *matchingEngineImpl) unregisterSemaphoreManager(semMgr semaphore.Manager) {
+	e.semaphoreRegistry.Unregister(semMgr)
+}
+
+func (e *matchingEngineImpl) unloadSemaphoreManager(semMgr semaphore.Manager) {
+	unregistered := e.semaphoreRegistry.Unregister(semMgr)
+	if unregistered {
+		semMgr.Stop()
+	}
+}
+
 // Populate the decision task response based on context and scheduled/started events.
 func (e *matchingEngineImpl) createPollForDecisionTaskResponse(
 	task *tasklist.InternalTask,
@@ -1489,10 +1686,12 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 
 	// Task lists excluded from the ShardDistributor bypass the executor entirely and rely on
 	// the local hash-ring for ownership, so skip the SD-based ownership check for them.
-	if !e.isExcludedFromShardDistributor(taskList.GetName()) {
-		// We have a shard-processor shared by all the task lists with the same name.
+	if !e.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskList.GetName()) {
+		// We have a shard-processor shared by all the task lists with the same name, or, when task
+		// lists are sharded by hash, by all the task lists whose names hash to the same shard.
 		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
-		sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
+		shardID := e.taskListDifferentiator.ShardID(taskList.GetName())
+		sp, err := e.executor.GetShardProcess(ctx, shardID)
 		if err != nil {
 			if errors.Is(err, executorclient.ErrShardProcessNotFound) {
 				// The shard is not assigned to this host – treat it as an ownership loss,
@@ -1527,6 +1726,36 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 	return nil
 }
 
+// errIfSemaphoreOwnershipLost reports an error unless the ring puts this bucket on this host.
+//
+// Two hosts serving one bucket is safe -- neither holds a lease, and the conditional write
+// decides every grant -- but it is wasteful, because each one keeps a free-set that the other
+// keeps invalidating. Routing every bucket to one host keeps both caches worth having.
+func (e *matchingEngineImpl) errIfSemaphoreOwnershipLost(id semaphore.Identifier) error {
+	self, err := e.membershipResolver.WhoAmI()
+	if err != nil {
+		return fmt.Errorf("failed to look up self in membership: %w", err)
+	}
+
+	if e.isShuttingDown() {
+		e.logger.Warn("Rejecting a semaphore request because the engine is shutting down",
+			id.LogTags()...)
+		// No host to name: this one is going away and the ring has not settled on the next.
+		return cadence_errors.NewSemaphoreNotOwnedByHostError("not known", self.Identity(), id.String())
+	}
+
+	owner, err := e.membershipResolver.Lookup(service.Matching, id.RingKey())
+	if err != nil {
+		return fmt.Errorf("failed to look up the owner of semaphore bucket %v: %w", id, err)
+	}
+	if owner.Identity() != self.Identity() {
+		e.logger.Warn("Rejecting a semaphore request because this host does not own the bucket",
+			append(id.LogTags(), tag.Dynamic("owned-by", owner.Identity()))...)
+		return cadence_errors.NewSemaphoreNotOwnedByHostError(owner.Identity(), self.Identity(), id.String())
+	}
+	return nil
+}
+
 func (e *matchingEngineImpl) isShuttingDown() bool {
 	select {
 	case <-e.shutdown:
@@ -1534,10 +1763,6 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 	default:
 		return false
 	}
-}
-
-func (e *matchingEngineImpl) isExcludedFromShardDistributor(taskListName string) bool {
-	return membership.TaskListExcludedFromShardDistributor(taskListName, uint64(e.percentageOnboarded.Value()), e.config.ExcludeShortLivedTaskListsFromShardManager())
 }
 
 func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {

@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
+	"github.com/uber/cadence/service/matching/semaphore"
 )
 
 type (
@@ -119,6 +120,22 @@ func (h *handlerImpl) newHandlerContext(
 		ctx,
 		domainName,
 		taskList,
+		h.metricsClient,
+		scope,
+		h.logger,
+	)
+}
+
+func (h *handlerImpl) newSemaphoreHandlerContext(
+	ctx context.Context,
+	domainName string,
+	id semaphore.Identifier,
+	scope metrics.ScopeIdx,
+) *handlerContext {
+	return newSemaphoreHandlerContext(
+		ctx,
+		domainName,
+		id,
 		h.metricsClient,
 		scope,
 		h.logger,
@@ -502,6 +519,74 @@ func (h *handlerImpl) RefreshTaskListPartitionConfig(
 	h.userRateLimiter.Allow(quotas.Info{Domain: domainName})
 
 	response, err := h.engine.RefreshTaskListPartitionConfig(hCtx, request)
+	return response, hCtx.handleErr(err)
+}
+
+// AcquireSemaphore claims a token slot in one semaphore bucket for one owner.
+func (h *handlerImpl) AcquireSemaphore(
+	ctx context.Context,
+	request *types.AcquireSemaphoreRequest,
+) (resp *types.AcquireSemaphoreResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
+
+	domainName := h.domainName(request.DomainUUID)
+	id := semaphore.Identifier{
+		DomainID:      request.DomainUUID,
+		SemaphoreName: request.SemaphoreName,
+		Bucket:        int(request.Bucket),
+	}
+	hCtx := h.newSemaphoreHandlerContext(ctx, domainName, id, metrics.MatchingAcquireSemaphoreScope)
+
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
+
+	if ok := h.userRateLimiter.Allow(quotas.Info{Domain: domainName}); !ok {
+		return nil, hCtx.handleErr(errMatchingHostThrottle)
+	}
+
+	response, err := h.engine.AcquireSemaphore(hCtx, request)
+	if err != nil && hCtx.Err() != nil {
+		// The caller's deadline passed or it cancelled: counted, not logged as a failure.
+		hCtx.scope.IncCounter(metrics.CadenceErrSemaphoreContextTimeoutCounter)
+		return nil, &types.InternalServiceError{Message: hCtx.Err().Error()}
+	}
+	return response, hCtx.handleErr(err)
+}
+
+// ReleaseSemaphore frees the token slot one owner holds in one semaphore bucket.
+func (h *handlerImpl) ReleaseSemaphore(
+	ctx context.Context,
+	request *types.ReleaseSemaphoreRequest,
+) (resp *types.ReleaseSemaphoreResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
+
+	domainName := h.domainName(request.DomainUUID)
+	id := semaphore.Identifier{
+		DomainID:      request.DomainUUID,
+		SemaphoreName: request.SemaphoreName,
+		Bucket:        int(request.Bucket),
+	}
+	hCtx := h.newSemaphoreHandlerContext(ctx, domainName, id, metrics.MatchingReleaseSemaphoreScope)
+
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
+
+	if ok := h.userRateLimiter.Allow(quotas.Info{Domain: domainName}); !ok {
+		return nil, hCtx.handleErr(errMatchingHostThrottle)
+	}
+
+	response, err := h.engine.ReleaseSemaphore(hCtx, request)
+	if err != nil && hCtx.Err() != nil {
+		// The caller's deadline passed or it cancelled: counted, not logged as a failure.
+		hCtx.scope.IncCounter(metrics.CadenceErrSemaphoreContextTimeoutCounter)
+		return nil, &types.InternalServiceError{Message: hCtx.Err().Error()}
+	}
 	return response, hCtx.handleErr(err)
 }
 

@@ -1,25 +1,3 @@
-// The MIT License (MIT)
-
-// Copyright (c) 2017-2020 Uber Technologies Inc.
-
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
 package failure
 
 import (
@@ -35,23 +13,11 @@ import (
 )
 
 const (
-	testDomain = "test-domain"
+	testDomain                = "test-domain"
+	largeHistoryFailedEventID = int64(200001)
 )
 
 func Test__Check(t *testing.T) {
-	metadata := FailureIssuesMetadata{
-		Identity: "localhost",
-	}
-	metadataInBytes, err := json.Marshal(metadata)
-	require.NoError(t, err)
-	actMetadata := FailureIssuesMetadata{
-		Identity:            "localhost",
-		ActivityType:        "test-activity",
-		ActivityScheduledID: 1,
-		ActivityStartedID:   2,
-	}
-	actMetadataInBytes, err := json.Marshal(actMetadata)
-	require.NoError(t, err)
 	testCases := []struct {
 		name           string
 		testData       *types.GetWorkflowExecutionHistoryResponse
@@ -66,25 +32,25 @@ func Test__Check(t *testing.T) {
 					IssueID:       0,
 					InvariantType: ActivityFailed.String(),
 					Reason:        GenericError.String(),
-					Metadata:      actMetadataInBytes,
+					Metadata:      activityFailureMetadataInBytes(t, 3),
 				},
 				{
 					IssueID:       1,
 					InvariantType: ActivityFailed.String(),
 					Reason:        PanicError.String(),
-					Metadata:      actMetadataInBytes,
+					Metadata:      activityFailureMetadataInBytes(t, 4),
 				},
 				{
 					IssueID:       2,
 					InvariantType: ActivityFailed.String(),
 					Reason:        CustomError.String(),
-					Metadata:      actMetadataInBytes,
+					Metadata:      activityFailureMetadataInBytes(t, 5),
 				},
 				{
 					IssueID:       3,
 					InvariantType: WorkflowFailed.String(),
 					Reason:        TimeoutError.String(),
-					Metadata:      metadataInBytes,
+					Metadata:      wfFailureMetadataInBytes(t, 11),
 				},
 			},
 			err: nil,
@@ -97,13 +63,26 @@ func Test__Check(t *testing.T) {
 					IssueID:       0,
 					InvariantType: ActivityFailed.String(),
 					Reason:        ActivityOutputBlobSizeLimit.String(),
-					Metadata:      actMetadataInBytes,
+					Metadata:      activityFailureMetadataInBytes(t, 3),
 				},
 				{
 					IssueID:       1,
 					InvariantType: DecisionCausedFailure.String(),
 					Reason:        DecisionBlobSizeLimit.String(),
-					Metadata:      metadataInBytes,
+					Metadata:      wfFailureMetadataInBytes(t, 11),
+				},
+			},
+			err: nil,
+		},
+		{
+			name:     "workflow history size limit exceeded",
+			testData: historySizeLimitExceededHistory(),
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: WorkflowFailed.String(),
+					Reason:        HistorySizeExceedsLimit.String(),
+					Metadata:      wfFailureMetadataInBytes(t, largeHistoryFailedEventID),
 				},
 			},
 			err: nil,
@@ -118,6 +97,29 @@ func Test__Check(t *testing.T) {
 		require.Equal(t, tc.err, err)
 		require.Equal(t, len(tc.expectedResult), len(result))
 		require.ElementsMatch(t, tc.expectedResult, result)
+	}
+}
+
+func historySizeLimitExceededHistory() *types.GetWorkflowExecutionHistoryResponse {
+	return &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					ID: 10,
+					DecisionTaskCompletedEventAttributes: &types.DecisionTaskCompletedEventAttributes{
+						Identity: "localhost",
+					},
+				},
+				{
+					ID: largeHistoryFailedEventID,
+					WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{
+						Reason:                       common.StringPtr(common.FailureReasonHistorySizeExceedsLimit),
+						Details:                      []byte("Workflow history size / count exceeds limit."),
+						DecisionTaskCompletedEventID: 10,
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -140,6 +142,7 @@ func failedWfHistory() *types.GetWorkflowExecutionHistoryResponse {
 					},
 				},
 				{
+					ID: 3,
 					ActivityTaskFailedEventAttributes: &types.ActivityTaskFailedEventAttributes{
 						Reason:           common.StringPtr("cadenceInternal:Generic"),
 						Details:          []byte("test-activity-failure"),
@@ -149,6 +152,7 @@ func failedWfHistory() *types.GetWorkflowExecutionHistoryResponse {
 					},
 				},
 				{
+					ID: 4,
 					ActivityTaskFailedEventAttributes: &types.ActivityTaskFailedEventAttributes{
 						Reason:           common.StringPtr("cadenceInternal:Panic"),
 						Details:          []byte("test-activity-failure"),
@@ -158,6 +162,7 @@ func failedWfHistory() *types.GetWorkflowExecutionHistoryResponse {
 					},
 				},
 				{
+					ID: 5,
 					ActivityTaskFailedEventAttributes: &types.ActivityTaskFailedEventAttributes{
 						Reason:           common.StringPtr("custom error"),
 						Details:          []byte("test-activity-failure"),
@@ -173,6 +178,7 @@ func failedWfHistory() *types.GetWorkflowExecutionHistoryResponse {
 					},
 				},
 				{
+					ID: 11,
 					WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{
 						Reason:                       common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
 						Details:                      []byte("test-activity-failure"),
@@ -203,6 +209,7 @@ func blobSizeLimitExceededHistory() *types.GetWorkflowExecutionHistoryResponse {
 					},
 				},
 				{
+					ID: 3,
 					ActivityTaskFailedEventAttributes: &types.ActivityTaskFailedEventAttributes{
 						Reason:           common.StringPtr("COMPLETE_RESULT_EXCEEDS_LIMIT"),
 						Details:          []byte("test-activity-failure"),
@@ -218,6 +225,7 @@ func blobSizeLimitExceededHistory() *types.GetWorkflowExecutionHistoryResponse {
 					},
 				},
 				{
+					ID: 11,
 					WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{
 						Reason:                       common.StringPtr("DECISION_BLOB_SIZE_EXCEEDS_LIMIT"),
 						Details:                      []byte("test-wf-failure"),
@@ -229,12 +237,27 @@ func blobSizeLimitExceededHistory() *types.GetWorkflowExecutionHistoryResponse {
 	}
 }
 
-func Test__RootCause(t *testing.T) {
-	metadata := FailureIssuesMetadata{
-		Identity: "localhost",
-	}
-	metadataInBytes, err := json.Marshal(metadata)
+func wfFailureMetadataInBytes(t *testing.T, eventID int64) []byte {
+	data, err := json.Marshal(FailureIssuesMetadata{EventID: eventID, Identity: "localhost"})
 	require.NoError(t, err)
+	return data
+}
+
+func activityFailureMetadataInBytes(t *testing.T, eventID int64) []byte {
+	data, err := json.Marshal(FailureIssuesMetadata{
+		EventID:             eventID,
+		Identity:            "localhost",
+		ActivityType:        "test-activity",
+		ActivityScheduledID: 1,
+		ActivityStartedID:   2,
+	})
+	require.NoError(t, err)
+	return data
+}
+
+func Test__RootCause(t *testing.T) {
+	metadataInBytes := wfFailureMetadataInBytes(t, 11)
+	largeHistoryMetadataInBytes := wfFailureMetadataInBytes(t, largeHistoryFailedEventID)
 	testCases := []struct {
 		name           string
 		input          []invariant.InvariantCheckResult
@@ -286,6 +309,22 @@ func Test__RootCause(t *testing.T) {
 				IssueID:   0,
 				RootCause: invariant.RootCauseTypeServiceSidePanic,
 				Metadata:  metadataInBytes,
+			}},
+			err: nil,
+		},
+		{
+			name: "workflow history size limit exceeded",
+			input: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: WorkflowFailed.String(),
+					Reason:        HistorySizeExceedsLimit.String(),
+					Metadata:      largeHistoryMetadataInBytes,
+				}},
+			expectedResult: []invariant.InvariantRootCauseResult{{
+				IssueID:   0,
+				RootCause: invariant.RootCauseTypeHistorySizeExceedsLimit,
+				Metadata:  largeHistoryMetadataInBytes,
 			}},
 			err: nil,
 		},

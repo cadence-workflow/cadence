@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,SemaphoreMetadataStore,SemaphoreTaskStore,SemaphoreTokenStore,HistoryDLQTaskStore
+//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,SemaphoreMetadataStore,SemaphoreTaskStore,SemaphoreTokenStore,HistoryDLQTaskStore,AsyncWorkflowQueueStore
 //go:generate mockgen -package $GOPACKAGE -destination visibility_store_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence VisibilityStore
 
 type (
@@ -119,7 +119,6 @@ type (
 	SemaphoreTokenStore interface {
 		Closeable
 		GetName() string
-		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest, updatedTime time.Time) error
 		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest, updatedTime time.Time) (*GrantSemaphoreTokenResponse, error)
 		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest, updatedTime time.Time) (bool, error)
 		GetSemaphoreOwnershipByToken(ctx context.Context, request *GetSemaphoreOwnershipByTokenRequest) (*SemaphoreOwnership, error)
@@ -152,6 +151,20 @@ type (
 		GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) (InternalGetHistoryDLQAckLevelsResponse, error)
 		UpdateHistoryDLQAckLevel(ctx context.Context, request InternalUpdateHistoryDLQAckLevelRequest) error
 		CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request InternalHistoryDLQAckLevel) error
+	}
+
+	// AsyncWorkflowQueueStore is the persistence backend of the per-shard async workflow queue.
+	AsyncWorkflowQueueStore interface {
+		Closeable
+		GetName() string
+		EnqueueAsyncWorkflowMessage(ctx context.Context, request *InternalEnqueueAsyncWorkflowMessageRequest) error
+		ReadAsyncWorkflowMessages(ctx context.Context, request *ReadAsyncWorkflowMessagesRequest) (*ReadAsyncWorkflowMessagesResponse, error)
+		GetAsyncWorkflowAckLevels(ctx context.Context, request *GetAsyncWorkflowAckLevelsRequest) (*GetAsyncWorkflowAckLevelsResponse, error)
+		UpdateAsyncWorkflowAckLevel(ctx context.Context, request *InternalUpdateAsyncWorkflowAckLevelRequest) error
+		RangeDeleteAsyncWorkflowMessages(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesRequest) error
+		EnqueueAsyncWorkflowMessageToDLQ(ctx context.Context, request *InternalEnqueueAsyncWorkflowMessageToDLQRequest) error
+		ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *ReadAsyncWorkflowMessagesFromDLQRequest) (*ReadAsyncWorkflowMessagesFromDLQResponse, error)
+		RangeDeleteAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesFromDLQRequest) error
 	}
 
 	// ExecutionStore is used to manage workflow executions for Persistence layer
@@ -462,6 +475,7 @@ type (
 		HasRetryPolicy     bool
 		InitialInterval    time.Duration
 		BackoffCoefficient float64
+		JitterCoefficient  float64
 		MaximumInterval    time.Duration
 		ExpirationTime     time.Time
 		MaximumAttempts    int32
@@ -492,6 +506,7 @@ type (
 		ChildExecutionInfos map[int64]*InternalChildExecutionInfo
 		RequestCancelInfos  map[int64]*RequestCancelInfo
 		SignalInfos         map[int64]*SignalInfo
+		SemaphoreInfos      map[int64]*SemaphoreInfo
 		SignalRequestedIDs  map[string]struct{}
 		BufferedEvents      []*DataBlob
 
@@ -531,6 +546,7 @@ type (
 		HasRetryPolicy           bool
 		InitialInterval          time.Duration
 		BackoffCoefficient       float64
+		JitterCoefficient        float64
 		MaximumInterval          time.Duration
 		ExpirationTime           time.Time
 		MaximumAttempts          int32
@@ -607,8 +623,11 @@ type (
 
 		UpsertActivityInfos       []*InternalActivityInfo
 		DeleteActivityInfos       []int64
+		RewriteActivityInfos      []*InternalActivityInfo
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		RewriteTimerInfos         []*TimerInfo
+		SentinelWriteEnabled      bool
 		WorkflowTimerTasks        []HistoryTaskKey
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64
@@ -616,6 +635,8 @@ type (
 		DeleteRequestCancelInfos  []int64
 		UpsertSignalInfos         []*SignalInfo
 		DeleteSignalInfos         []int64
+		UpsertSemaphoreInfos      []*SemaphoreInfo
+		DeleteSemaphoreInfos      []int64
 		UpsertSignalRequestedIDs  []string
 		DeleteSignalRequestedIDs  []string
 		NewBufferedEvents         *DataBlob
@@ -644,6 +665,7 @@ type (
 		ChildExecutionInfos []*InternalChildExecutionInfo
 		RequestCancelInfos  []*RequestCancelInfo
 		SignalInfos         []*SignalInfo
+		SemaphoreInfos      []*SemaphoreInfo
 		SignalRequestedIDs  []string
 
 		TasksByCategory map[HistoryTaskCategory][]Task
@@ -1084,6 +1106,24 @@ type (
 		// TaskBlob is the serialized task (including its granular task type),
 		// produced by the task serializer for TaskCategory.
 		TaskBlob *DataBlob
+	}
+
+	// InternalEnqueueAsyncWorkflowMessageRequest is EnqueueAsyncWorkflowMessageRequest stamped with the write time.
+	InternalEnqueueAsyncWorkflowMessageRequest struct {
+		*EnqueueAsyncWorkflowMessageRequest
+		CurrentTimeStamp time.Time
+	}
+
+	// InternalUpdateAsyncWorkflowAckLevelRequest is UpdateAsyncWorkflowAckLevelRequest stamped with the write time.
+	InternalUpdateAsyncWorkflowAckLevelRequest struct {
+		*UpdateAsyncWorkflowAckLevelRequest
+		CurrentTimeStamp time.Time
+	}
+
+	// InternalEnqueueAsyncWorkflowMessageToDLQRequest is EnqueueAsyncWorkflowMessageToDLQRequest stamped with the write time.
+	InternalEnqueueAsyncWorkflowMessageToDLQRequest struct {
+		*EnqueueAsyncWorkflowMessageToDLQRequest
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalHistoryDLQTask is a single row from the history_task_dlq table.

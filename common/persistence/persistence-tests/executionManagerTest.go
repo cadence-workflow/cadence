@@ -42,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	p "github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -1513,6 +1514,7 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 				HasRetryPolicy:              true,
 				InitialInterval:             rand.Int31(),
 				BackoffCoefficient:          7.78,
+				JitterCoefficient:           0.15,
 				MaximumInterval:             rand.Int31(),
 				ExpirationTime:              time.Now(),
 				MaximumAttempts:             rand.Int31(),
@@ -1580,6 +1582,7 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.HasRetryPolicy, info.HasRetryPolicy)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.InitialInterval, info.InitialInterval)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.BackoffCoefficient, info.BackoffCoefficient)
+	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.JitterCoefficient, info.JitterCoefficient)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.MaximumAttempts, info.MaximumAttempts)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.MaximumInterval, info.MaximumInterval)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.ExpirationSeconds, info.ExpirationSeconds)
@@ -1678,6 +1681,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	updatedInfo.SignalCount = 9
 	updatedInfo.InitialInterval = math.MaxInt32
 	updatedInfo.BackoffCoefficient = 4.45
+	updatedInfo.JitterCoefficient = 0.25
 	updatedInfo.MaximumInterval = math.MaxInt32
 	updatedInfo.MaximumAttempts = math.MaxInt32
 	updatedInfo.ExpirationSeconds = math.MaxInt32
@@ -1740,6 +1744,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.EqualValues(updatedStats.HistorySize, state1.ExecutionStats.HistorySize)
 	s.Equal(updatedInfo.InitialInterval, info1.InitialInterval)
 	s.Equal(updatedInfo.BackoffCoefficient, info1.BackoffCoefficient)
+	s.Equal(updatedInfo.JitterCoefficient, info1.JitterCoefficient)
 	s.Equal(updatedInfo.MaximumInterval, info1.MaximumInterval)
 	s.Equal(updatedInfo.MaximumAttempts, info1.MaximumAttempts)
 	s.Equal(updatedInfo.ExpirationSeconds, info1.ExpirationSeconds)
@@ -1792,6 +1797,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.EqualValues(updatedStats.HistorySize, state2.ExecutionStats.HistorySize)
 	s.Equal(updatedInfo.InitialInterval, info2.InitialInterval)
 	s.Equal(updatedInfo.BackoffCoefficient, info2.BackoffCoefficient)
+	s.Equal(updatedInfo.JitterCoefficient, info2.JitterCoefficient)
 	s.Equal(updatedInfo.MaximumInterval, info2.MaximumInterval)
 	s.Equal(updatedInfo.MaximumAttempts, info2.MaximumAttempts)
 	s.Equal(updatedInfo.ExpirationSeconds, info2.ExpirationSeconds)
@@ -1807,7 +1813,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.assertChecksumsEqual(testWorkflowChecksum, state2.Checksum)
 	s.T().Logf("Workflow execution last updated: %v", info2.LastUpdatedTimestamp)
 
-	err5 := s.UpdateWorkflowExecutionWithRangeID(ctx, failedUpdateInfo, failedUpdateStats, versionHistories, []int64{int64(5)}, nil, int64(12345), int64(5), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	err5 := s.UpdateWorkflowExecutionWithRangeID(ctx, failedUpdateInfo, failedUpdateStats, versionHistories, []int64{int64(5)}, nil, int64(12345), int64(5), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	s.Error(err5, "expected non nil error.")
 	s.IsType(&p.ShardOwnershipLostError{}, err5)
 
@@ -1841,6 +1847,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.EqualValues(updatedStats.HistorySize, state3.ExecutionStats.HistorySize)
 	s.Equal(updatedInfo.InitialInterval, info3.InitialInterval)
 	s.Equal(updatedInfo.BackoffCoefficient, info3.BackoffCoefficient)
+	s.Equal(updatedInfo.JitterCoefficient, info3.JitterCoefficient)
 	s.Equal(updatedInfo.MaximumInterval, info3.MaximumInterval)
 	s.Equal(updatedInfo.MaximumAttempts, info3.MaximumAttempts)
 	s.Equal(updatedInfo.ExpirationSeconds, info3.ExpirationSeconds)
@@ -1858,7 +1865,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.T().Logf("Workflow execution last updated: %v\n", info3.LastUpdatedTimestamp)
 
 	// update with incorrect rangeID and condition(next_event_id)
-	err7 := s.UpdateWorkflowExecutionWithRangeID(ctx, failedUpdateInfo, failedUpdateStats, versionHistories, []int64{int64(5)}, nil, int64(12345), int64(3), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	err7 := s.UpdateWorkflowExecutionWithRangeID(ctx, failedUpdateInfo, failedUpdateStats, versionHistories, []int64{int64(5)}, nil, int64(12345), int64(3), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	s.Error(err7, "expected non nil error.")
 	s.IsType(&p.ShardOwnershipLostError{}, err7)
 
@@ -1890,6 +1897,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.EqualValues(updatedStats.HistorySize, state4.ExecutionStats.HistorySize)
 	s.Equal(updatedInfo.InitialInterval, info4.InitialInterval)
 	s.Equal(updatedInfo.BackoffCoefficient, info4.BackoffCoefficient)
+	s.Equal(updatedInfo.JitterCoefficient, info4.JitterCoefficient)
 	s.Equal(updatedInfo.MaximumInterval, info4.MaximumInterval)
 	s.Equal(updatedInfo.MaximumAttempts, info4.MaximumAttempts)
 	s.Equal(updatedInfo.ExpirationSeconds, info4.ExpirationSeconds)
@@ -2839,6 +2847,33 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 			TargetWorkflowID: targetWorkflowID,
 			TargetRunID:      targetRunID,
 			TaskList:         tasklist,
+		}, &p.AcquireSemaphoreTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
+			TaskData: p.TaskData{
+				VisibilityTimestamp: now,
+				TaskID:              currentTransferID + 10009,
+				Version:             999,
+			},
+			InitiatedID: scheduleID,
+			TaskList:    tasklist,
+		}, &p.ReleaseSemaphoreTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
+			TaskData: p.TaskData{
+				VisibilityTimestamp: now,
+				TaskID:              currentTransferID + 10010,
+				Version:             1110,
+			},
+			InitiatedID:   scheduleID,
+			SemaphoreName: "semaphore",
+			TaskList:      tasklist,
 		},
 	}
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
@@ -2890,6 +2925,13 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 	s.Equal(tasklist, txTasks[7].GetTaskList())
 	s.Equal(tasklist, txTasks[7].GetOriginalTaskList())
 	s.Equal(types.TaskListKindNormal, txTasks[7].GetOriginalTaskListKind())
+	s.Equal(p.TransferTaskTypeAcquireSemaphore, txTasks[8].GetTaskType())
+	s.Equal(tasklist, txTasks[8].GetTaskList())
+	s.Equal(scheduleID, txTasks[8].(*p.AcquireSemaphoreTask).InitiatedID)
+	s.Equal(p.TransferTaskTypeReleaseSemaphore, txTasks[9].GetTaskType())
+	s.Equal(tasklist, txTasks[9].GetTaskList())
+	s.Equal(scheduleID, txTasks[9].(*p.ReleaseSemaphoreTask).InitiatedID)
+	s.Equal("semaphore", txTasks[9].(*p.ReleaseSemaphoreTask).SemaphoreName)
 
 	for idx := range txTasks {
 		// TODO: add a check similar to validateCrossClusterTasks
@@ -3455,6 +3497,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateActivities() {
 		MaximumInterval:          math.MaxInt32,
 		MaximumAttempts:          math.MaxInt32,
 		BackoffCoefficient:       5.55,
+		JitterCoefficient:        0.35,
 		ExpirationTime:           time.UnixMilli(1755030646003).UTC(),
 		NonRetriableErrors:       []string{"accessDenied", "badRequest"},
 		LastFailureReason:        "some random error",
@@ -3754,6 +3797,91 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateSignalInfo() {
 	s.NoError(err2)
 	s.NotNil(state, "expected valid state.")
 	s.Equal(0, len(state.SignalInfos))
+}
+
+// TestWorkflowMutableStateSemaphoreInfo test
+func (s *ExecutionManagerSuite) TestWorkflowMutableStateSemaphoreInfo() {
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	domainID := uuid.New()
+	runID := uuid.New()
+	workflowExecution := types.WorkflowExecution{
+		WorkflowID: "test-workflow-mutable-semaphore-info-test",
+		RunID:      runID,
+	}
+
+	task0, err0 := s.CreateWorkflowExecution(ctx, domainID, workflowExecution, "taskList", "wType", 20, 13, nil, 3, 0, 2, nil, nil)
+	s.NoError(err0)
+	s.NotNil(task0, "Expected non empty task identifier.")
+
+	state0, err1 := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
+	s.NoError(err1)
+	info0 := state0.ExecutionInfo
+	s.NotNil(info0, "Valid Workflow info expected.")
+
+	updatedInfo := copyWorkflowExecutionInfo(info0)
+	updatedStats := copyExecutionStats(state0.ExecutionStats)
+	updatedInfo.NextEventID = int64(5)
+	updatedInfo.LastProcessedEvent = int64(2)
+	semaphoreInfo := &p.SemaphoreInfo{
+		Version:       123,
+		InitiatedID:   2,
+		SemaphoreName: "my semaphore",
+		OwnerID: semaphore.Owner{
+			WorkflowID: workflowExecution.WorkflowID,
+			RunID:      runID,
+			HoldID:     2,
+		}.String(),
+		// A waiting acquire holds no token yet.
+		TokenID:         0,
+		AcquireDeadline: time.Unix(1700000000, 0).UTC(),
+	}
+	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
+		{
+			EventID: updatedInfo.LastProcessedEvent,
+			Version: constants.EmptyVersion,
+		},
+	})
+	versionHistories := p.NewVersionHistories(versionHistory)
+	err2 := s.UpsertSemaphoreInfoState(ctx, updatedInfo, updatedStats, versionHistories, int64(3), []*p.SemaphoreInfo{semaphoreInfo})
+	s.NoError(err2)
+
+	state, err1 := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
+	s.NoError(err1)
+	s.NotNil(state, "expected valid state.")
+	s.Equal(1, len(state.SemaphoreInfos))
+	si, ok := state.SemaphoreInfos[semaphoreInfo.InitiatedID]
+	s.True(ok)
+	s.NotNil(si)
+	// The store does not promise a location, so normalize before comparing whole structs.
+	si.AcquireDeadline = si.AcquireDeadline.UTC()
+	s.Equal(semaphoreInfo, si)
+
+	// A hold starts with no token and gets one later, written as a second upsert under the
+	// same initiated id. That must replace the first record rather than add a second hold.
+	granted := *semaphoreInfo
+	granted.Version = 124
+	granted.TokenID = 7
+	err2 = s.UpsertSemaphoreInfoState(ctx, updatedInfo, updatedStats, versionHistories, int64(5), []*p.SemaphoreInfo{&granted})
+	s.NoError(err2)
+
+	state, err1 = s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
+	s.NoError(err1)
+	s.Equal(1, len(state.SemaphoreInfos))
+	si, ok = state.SemaphoreInfos[semaphoreInfo.InitiatedID]
+	s.True(ok)
+	s.NotNil(si)
+	si.AcquireDeadline = si.AcquireDeadline.UTC()
+	s.Equal(&granted, si)
+
+	err2 = s.DeleteSemaphoreState(ctx, updatedInfo, updatedStats, versionHistories, int64(5), semaphoreInfo.InitiatedID)
+	s.NoError(err2)
+
+	state, err2 = s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
+	s.NoError(err2)
+	s.NotNil(state, "expected valid state.")
+	s.Equal(0, len(state.SemaphoreInfos))
 }
 
 // TestWorkflowMutableStateSignalRequested test
@@ -6045,6 +6173,7 @@ func (s *ExecutionManagerSuite) TestWorkflowTimerTaskTracking() {
 	// Verify that FetchWorkflowTimerTasksForCleanup runs without error, which exercises
 	// the SelectWorkflowTimerTasks path on the tracking map.
 	_, err = s.ExecutionManager.FetchWorkflowTimerTasksForCleanup(ctx, &p.FetchWorkflowTimerTasksForCleanupRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowExecution.WorkflowID,
 		RunID:      workflowExecution.RunID,

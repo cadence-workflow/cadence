@@ -1,0 +1,358 @@
+// Copyright (c) 2017 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+package schema
+
+import (
+	"cmp"
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"time"
+
+	"github.com/pborman/uuid"
+
+	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/persistence"
+	persistenceClient "github.com/uber/cadence/common/persistence/client"
+	"github.com/uber/cadence/common/types"
+)
+
+// Backoff whenever we fail to connect to a DB
+const setupRetryInterval = 1 * time.Second
+
+type setupTask struct {
+	adminDB persistence.AdminDB
+	setupDB persistence.SetupDB
+}
+
+// schemaUpdateTask tracks a pending schema update and the SchemaDB it should be applied to.
+type schemaUpdateTask struct {
+	adminDB  persistence.AdminDB
+	schemaDB persistence.SchemaDB
+	update   *persistence.SchemaUpdate
+}
+
+// Update updates the schema for all DBs referenced in the specified config
+func Update(ctx context.Context, options Options) error {
+	options, err := withDefaults(options)
+	if err != nil {
+		return err
+	}
+	factory := newPersistenceFactory(options.ClusterName, options.Config, options.Logger)
+	defer factory.Close()
+
+	err = runUpdateSchema(ctx, factory, options)
+	if err != nil {
+		return err
+	}
+	if options.DefaultDomain != "" {
+		err = createDefaultDomain(ctx, factory, options.ClusterName, options.DefaultDomain)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// runUpdateSchema applies all pending schema updates for every AdminDB instance returned
+// by factory. It follows the steps below:
+//
+//  1. Within the configured connect timeout, construct a SetupDB for every AdminDB. Any errors
+//     are retried until the deadline.
+//  2. For each SetupDB, call IsSetup; if the result is false, call Setup.
+//  3. For each AdminDB that reports SupportsSchema() == true, create a SchemaDB, check
+//     the current schema version against the latest, and collect any updates that need
+//     to be applied.
+//  4. Sort the collected updates by (PluginName/DBType, Version) and apply them in that order.
+func runUpdateSchema(ctx context.Context, factory persistenceClient.Factory, opts Options) error {
+	adminDBs, err := factory.NewAdminDBs()
+	if err != nil {
+		return fmt.Errorf("get admin DBs: %w", err)
+	}
+
+	setupTasks, setupDBs, err := connectToDBs(ctx, opts, adminDBs)
+	defer closeSetupDBs(setupDBs)
+	if err != nil {
+		return err
+	}
+
+	if err = ensureSetup(ctx, opts.Logger, setupTasks, opts.SetupOptions); err != nil {
+		return err
+	}
+
+	schemaDBs, updates, err := collectSchemaUpdates(ctx, adminDBs)
+	defer closeSchemaDBs(schemaDBs)
+	if err != nil {
+		return err
+	}
+
+	return applyUpdates(ctx, opts.Logger, updates, opts.Resume)
+}
+
+// connectToDBs tries to create a SetupDB for every AdminDB within the configured
+// connect timeout, retrying on any error until the deadline is exceeded.
+func connectToDBs(ctx context.Context, opts Options, adminDBs []persistence.AdminDB) ([]setupTask, []persistence.SetupDB, error) {
+	tasks := make([]setupTask, 0, len(adminDBs))
+	setupDBs := make([]persistence.SetupDB, 0, len(adminDBs))
+	ctx, cancel := opts.Time.ContextWithTimeout(ctx, opts.ConnectTimeout)
+	defer cancel()
+	for _, adminDB := range adminDBs {
+		setupDB, err := retryUntilConnected(ctx, opts.Logger, adminDB, opts.Time)
+		if err != nil {
+			return tasks, setupDBs, err
+		}
+		tasks = append(tasks, setupTask{
+			adminDB: adminDB,
+			setupDB: setupDB,
+		})
+		setupDBs = append(setupDBs, setupDB)
+	}
+	return tasks, setupDBs, nil
+}
+
+func retryUntilConnected(ctx context.Context, logger log.Logger, adminDB persistence.AdminDB, timeSource clock.TimeSource) (persistence.SetupDB, error) {
+	var setupDB persistence.SetupDB
+	for setupDB == nil {
+		var err error
+		setupDB, err = adminDB.CreateSetupDB()
+		if err == nil && setupDB != nil {
+			return setupDB, nil
+		}
+		logger.Warn("Failed to connect to database",
+			tag.PersistencePluginName(adminDB.PluginName()),
+			tag.PersistenceDBType(string(adminDB.DBType())),
+			tag.PersistenceDBIdentifier(adminDB.Identifier()),
+			tag.Error(err))
+		if err = timeSource.SleepWithContext(ctx, setupRetryInterval); err != nil {
+			return nil, err
+		}
+	}
+	return setupDB, nil
+}
+
+// ensureSetup calls Setup on any SetupDB that reports IsSetup() == false.
+func ensureSetup(ctx context.Context, logger log.Logger, tasks []setupTask, setupOptions map[string]string) error {
+	for _, t := range tasks {
+		dbLogger := logger.WithTags(dbTags(t.adminDB)...)
+		isSetup, err := t.setupDB.IsSetup(ctx)
+		if err != nil {
+			return fmt.Errorf("checking setup status for %s: %w", describeDB(t.adminDB), err)
+		}
+		if isSetup {
+			dbLogger.Info("Database already set up")
+			continue
+		}
+		dbLogger.Info("Setting up database...")
+		if err = t.setupDB.Setup(ctx, setupOptions); err != nil {
+			return fmt.Errorf("setting up %s: %w", describeDB(t.adminDB), err)
+		}
+		dbLogger.Info("Database set up successfully")
+	}
+	return nil
+}
+
+// collectSchemaUpdates iterates over every AdminDB that supports schema management,
+// creates a SchemaDB, ensures versioning tables exist, and returns all pending updates.
+// The returned schemaDBs slice must be closed by the caller.
+func collectSchemaUpdates(ctx context.Context, adminDBs []persistence.AdminDB) ([]persistence.SchemaDB, []schemaUpdateTask, error) {
+	var schemaDBs []persistence.SchemaDB
+	var updates []schemaUpdateTask
+
+	for _, adminDB := range adminDBs {
+		if !adminDB.SupportsSchema() {
+			continue
+		}
+		adminDBID := describeDB(adminDB)
+
+		schemaDB, err := adminDB.CreateSchemaDB()
+		if err != nil {
+			return schemaDBs, nil, fmt.Errorf("creating schema DB for %s: %w", adminDBID, err)
+		}
+		schemaDBs = append(schemaDBs, schemaDB)
+
+		hasVersioning, err := schemaDB.HasSchemaVersioning(ctx)
+		if err != nil {
+			return schemaDBs, nil, fmt.Errorf("checking schema versioning for %s: %w", adminDBID, err)
+		}
+		if !hasVersioning {
+			if err := schemaDB.SetupVersioning(ctx); err != nil {
+				return schemaDBs, nil, fmt.Errorf("setting up schema versioning for %s: %w", adminDBID, err)
+			}
+			// Skip applying all the incremental updates, just apply one version that gets them to the latest
+			skipToLatest, err := schemaDB.LatestSchema().SkipToLatest()
+			if err != nil {
+				return schemaDBs, nil, fmt.Errorf("failed reading latest schema for %s: %w", adminDBID, err)
+			}
+			updates = append(updates, schemaUpdateTask{
+				adminDB:  adminDB,
+				schemaDB: schemaDB,
+				update:   skipToLatest,
+			})
+			continue
+		}
+
+		currentVersion, err := schemaDB.GetSchemaVersion(ctx)
+		if err != nil {
+			return schemaDBs, nil, fmt.Errorf("getting schema version for %s: %w", adminDBID, err)
+		}
+
+		latestSchema := schemaDB.LatestSchema()
+		if !currentVersion.IsBefore(latestSchema.LatestVersion()) {
+			// Already up to date, no action needed.
+			continue
+		}
+
+		allUpdates, err := latestSchema.AllUpdates()
+		if err != nil {
+			return schemaDBs, nil, fmt.Errorf("listing schema updates for %s: %w", adminDBID, err)
+		}
+
+		for _, u := range allUpdates {
+			if currentVersion.IsBefore(u.Version) {
+				updates = append(updates, schemaUpdateTask{
+					adminDB:  adminDB,
+					schemaDB: schemaDB,
+					update:   u,
+				})
+			}
+		}
+	}
+
+	return schemaDBs, updates, nil
+}
+
+func createDefaultDomain(ctx context.Context, factory persistenceClient.Factory, clusterName, domain string) error {
+	domains, err := factory.NewDomainManager()
+	if err != nil {
+		return err
+	}
+	defer domains.Close()
+	_, err = domains.CreateDomain(ctx, &persistence.CreateDomainRequest{
+		Info: &persistence.DomainInfo{
+			ID:          uuid.New(),
+			Name:        domain,
+			Status:      persistence.DomainStatusRegistered,
+			Description: "Example Domain",
+		},
+		Config: &persistence.DomainConfig{
+			Retention:                7,
+			HistoryArchivalStatus:    types.ArchivalStatusDisabled,
+			VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+		},
+		ReplicationConfig: &persistence.DomainReplicationConfig{
+			ActiveClusterName: clusterName,
+			Clusters:          []*persistence.ClusterReplicationConfig{{ClusterName: clusterName}},
+		},
+		FailoverVersion: constants.EmptyVersion,
+		IsGlobalDomain:  true,
+	})
+	if err != nil {
+		var domainAlreadyExistsError *types.DomainAlreadyExistsError
+		if errors.As(err, &domainAlreadyExistsError) {
+			return nil
+		}
+		return fmt.Errorf("failed to create domain: %w", err)
+	}
+	return nil
+}
+
+// applyUpdates applies updates in order. If resume is true, the first update applied to each AdminDB uses
+// SchemaUpdateModeResume, since only that update could have been partially applied by an interrupted attempt.
+func applyUpdates(ctx context.Context, logger log.Logger, updates []schemaUpdateTask, resume bool) error {
+	// Sort by (PluginName, DBType, Version) so DBs in the same plugin/type group are
+	// advanced together version-by-version.
+	slices.SortStableFunc(updates, func(a, b schemaUpdateTask) int {
+		if pluginCmp := cmp.Compare(a.adminDB.PluginName(), b.adminDB.PluginName()); pluginCmp != 0 {
+			return pluginCmp
+		}
+		if dbTypeCmp := cmp.Compare(string(a.adminDB.DBType()), string(b.adminDB.DBType())); dbTypeCmp != 0 {
+			return dbTypeCmp
+		}
+		if versionCmp := a.update.Version.Compare(b.update.Version); versionCmp != 0 {
+			return versionCmp
+		}
+		return cmp.Compare(a.adminDB.Identifier(), b.adminDB.Identifier())
+	})
+
+	updatedDBs := make(map[string]struct{})
+	for _, entry := range updates {
+		// If the user specified resume, we apply it only to the first update for each DB.
+		// We don't apply it more broadly than that to avoid supressing errors.
+		dbID := describeDB(entry.adminDB)
+		mode := persistence.SchemaUpdateModeStrict
+		if _, ok := updatedDBs[dbID]; !ok && resume {
+			mode = persistence.SchemaUpdateModeResume
+		}
+		updatedDBs[dbID] = struct{}{}
+
+		dbLogger := logger.WithTags(dbTags(entry.adminDB)...)
+		dbLogger.Info(
+			"Applying schema update...",
+			tag.SchemaUpdateVersion(entry.update.Version.String()),
+			tag.Mode(mode.String()),
+		)
+		if err := entry.schemaDB.UpdateSchema(ctx, entry.update, mode); err != nil {
+			var duplicateErr *persistence.DuplicateSchemaElementError
+			if errors.As(err, &duplicateErr) {
+				return fmt.Errorf("failed applying schema update v%s to %s (a previous update may have been interrupted; "+
+					"retry with resume enabled to skip already applied statements): %w", entry.update.Version, dbID, err)
+			}
+			return fmt.Errorf("failed applying schema update v%s to %s: %w", entry.update.Version, dbID, err)
+		}
+		dbLogger.Info(
+			"Applied schema update",
+			tag.SchemaUpdateVersion(entry.update.Version.String()),
+		)
+	}
+	return nil
+}
+
+func describeDB(db persistence.AdminDB) string {
+	return fmt.Sprintf("%s/%s/%s", db.PluginName(), db.DBType(), db.Identifier())
+}
+
+func dbTags(db persistence.AdminDB) []tag.Tag {
+	return []tag.Tag{
+		tag.PersistencePluginName(db.PluginName()),
+		tag.PersistenceDBType(string(db.DBType())),
+		tag.PersistenceDBIdentifier(db.Identifier()),
+	}
+}
+
+func closeSetupDBs(setupDBs []persistence.SetupDB) {
+	for _, setupDB := range setupDBs {
+		if setupDB != nil {
+			setupDB.Close()
+		}
+	}
+}
+
+func closeSchemaDBs(sdbs []persistence.SchemaDB) {
+	for _, sdb := range sdbs {
+		if sdb != nil {
+			sdb.Close()
+		}
+	}
+}

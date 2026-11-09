@@ -23,6 +23,9 @@
 package dynamicconfigfx
 
 import (
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -34,6 +37,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	openfeatureclientconfig "github.com/uber/cadence/common/dynamicconfig/openfeatureclient/config"
 	"github.com/uber/cadence/common/dynamicconfig/openfeatureprovider"
@@ -61,6 +65,153 @@ func TestModule(t *testing.T) {
 		fx.Invoke(func(c dynamicconfig.Client) {}),
 	)
 	app.RequireStart().RequireStop()
+}
+
+func TestNew_Client(t *testing.T) {
+	dir := t.TempDir()
+	validFile := filepath.Join(dir, "valid.yaml")
+	require.NoError(t, os.WriteFile(validFile, []byte("testGetBoolPropertyKey:\n- value: true\n"), 0644))
+	brokenFile := filepath.Join(dir, "broken.yaml")
+	require.NoError(t, os.WriteFile(brokenFile, []byte("testGetBoolPropertyKey:\n- value: true\n  constraints: {\n"), 0644))
+
+	tests := []struct {
+		name       string
+		cfg        config.Config
+		wantNop    bool
+		wantErrMsg string
+	}{
+		{
+			name:    "not configured falls back to NOP",
+			wantNop: true,
+		},
+		{
+			name:    "explicit NOP",
+			cfg:     config.Config{DynamicConfig: config.DynamicConfig{Client: dynamicconfig.NopClient}},
+			wantNop: true,
+		},
+		{
+			name: "file based",
+			cfg: config.Config{DynamicConfig: config.DynamicConfig{
+				Client:    dynamicconfig.FileBasedClient,
+				FileBased: dynamicconfig.FileBasedClientConfig{Filepath: validFile},
+			}},
+		},
+		{
+			name: "legacy file based",
+			cfg:  config.Config{DynamicConfigClient: dynamicconfig.FileBasedClientConfig{Filepath: validFile}},
+		},
+		{
+			name: "file based with broken yaml fails",
+			cfg: config.Config{DynamicConfig: config.DynamicConfig{
+				Client:    dynamicconfig.FileBasedClient,
+				FileBased: dynamicconfig.FileBasedClientConfig{Filepath: brokenFile},
+			}},
+			wantErrMsg: "failed to decode dynamic config file " + brokenFile,
+		},
+		{
+			name: "file based with missing file fails",
+			cfg: config.Config{DynamicConfig: config.DynamicConfig{
+				Client:    dynamicconfig.FileBasedClient,
+				FileBased: dynamicconfig.FileBasedClientConfig{Filepath: filepath.Join(dir, "missing.yaml")},
+			}},
+			wantErrMsg: "missing.yaml",
+		},
+		{
+			name:       "file based without filepath fails",
+			cfg:        config.Config{DynamicConfig: config.DynamicConfig{Client: dynamicconfig.FileBasedClient}},
+			wantErrMsg: "filepath is not set",
+		},
+		{
+			name:       "legacy file based with broken yaml fails",
+			cfg:        config.Config{DynamicConfigClient: dynamicconfig.FileBasedClientConfig{Filepath: brokenFile}},
+			wantErrMsg: "legacy file based dynamic config client",
+		},
+		{
+			name:       "config store without persistence fails",
+			cfg:        config.Config{DynamicConfig: config.DynamicConfig{Client: dynamicconfig.ConfigStoreClient}},
+			wantErrMsg: `initialising "configstore" dynamic config client`,
+		},
+		{
+			name:       "unknown client fails",
+			cfg:        config.Config{DynamicConfig: config.DynamicConfig{Client: "filebsaed"}},
+			wantErrMsg: `unknown dynamic config client "filebsaed"`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.cfg.ClusterGroupMetadata = &config.ClusterGroupMetadata{}
+			lc := fxtest.NewLifecycle(t)
+			res, err := New(Params{
+				Cfg:           tc.cfg,
+				Logger:        testlogger.New(t),
+				MetricsClient: metrics.NewNoopMetricsClient(),
+				RootDir:       dir,
+				Lifecycle:     lc,
+			})
+			if tc.wantErrMsg != "" {
+				require.ErrorContains(t, err, tc.wantErrMsg)
+				return
+			}
+			require.NoError(t, err)
+			lc.RequireStart().RequireStop()
+			if tc.wantNop {
+				require.IsType(t, dynamicconfig.NewNopClient(), res.Client)
+			} else {
+				require.NotEqual(t, reflect.TypeOf(dynamicconfig.NewNopClient()), reflect.TypeOf(res.Client))
+			}
+		})
+	}
+}
+
+func TestNew_OperationalConfigStore(t *testing.T) {
+	tests := []struct {
+		name        string
+		persistence config.Persistence
+		wantErr     bool
+	}{
+		{
+			name:        "no default store falls back to no-op",
+			persistence: config.Persistence{},
+		},
+		{
+			name: "default store without SQL or NoSQL falls back to no-op",
+			persistence: config.Persistence{
+				DefaultStore: "default",
+				DataStores:   map[string]config.DataStore{"default": {}},
+			},
+		},
+		{
+			name: "store initialization failure is returned",
+			persistence: config.Persistence{
+				DefaultStore: "default",
+				DataStores: map[string]config.DataStore{
+					"default": {SQL: &config.SQL{PluginName: "unknown-plugin"}},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := New(Params{
+				Cfg: config.Config{
+					ClusterGroupMetadata: &config.ClusterGroupMetadata{},
+					Persistence:          tc.persistence,
+				},
+				Logger:        testlogger.New(t),
+				MetricsClient: metrics.NewNoopMetricsClient(),
+				RootDir:       "../../../",
+				Lifecycle:     fxtest.NewLifecycle(t),
+			})
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.IsType(t, configstore.NewNopClient(), res.OperationalConfigStore)
+			require.NotNil(t, res.OperationalDynamicConfig)
+		})
+	}
 }
 
 type fxRoot struct {
@@ -111,12 +262,14 @@ func TestNew_OpenFeatureClient_SingletonAcrossCalls(t *testing.T) {
 
 	// Simulate two per-service fx.Apps sharing the same process.
 	lc1 := fxtest.NewLifecycle(t)
-	New(newParams(lc1))
+	_, err := New(newParams(lc1))
+	require.NoError(t, err)
 	lc1.RequireStart()
 	defer lc1.RequireStop()
 
 	lc2 := fxtest.NewLifecycle(t)
-	res2 := New(newParams(lc2))
+	res2, err := New(newParams(lc2))
+	require.NoError(t, err)
 	lc2.RequireStart()
 	defer lc2.RequireStop()
 

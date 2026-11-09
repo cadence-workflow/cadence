@@ -25,6 +25,7 @@ package tasklist
 import (
 	"sync"
 
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 )
 
@@ -32,21 +33,26 @@ type taskListRegistryImpl struct {
 	sync.RWMutex
 	taskLists map[Identifier]Manager
 
-	// task lists indexed by domain ID and task list name
-	// to quickly get all task lists for a domain or a task list name
+	// task lists indexed by domain ID, task list name and the shard the name hashes to
+	// to quickly get all task lists for a domain, a task list name or a shard
 	// they are always in sync with the taskLists map
 	taskListsByDomainID     map[string]map[Identifier]Manager
 	taskListsByTaskListName map[string]map[Identifier]Manager
+	taskListsByShard        map[string]map[Identifier]Manager
 
 	metricsClient metrics.Client
+	// shardCount is the number of shards task list names hash to in taskListsByShard.
+	shardCount int
 }
 
-func NewTaskListRegistry(metricsClient metrics.Client) TaskListRegistry {
+func NewTaskListRegistry(metricsClient metrics.Client, shardCount int) TaskListRegistry {
 	return &taskListRegistryImpl{
 		taskLists:               make(map[Identifier]Manager),
 		taskListsByDomainID:     make(map[string]map[Identifier]Manager),
 		taskListsByTaskListName: make(map[string]map[Identifier]Manager),
+		taskListsByShard:        make(map[string]map[Identifier]Manager),
 		metricsClient:           metricsClient,
+		shardCount:              shardCount,
 	}
 }
 
@@ -64,9 +70,14 @@ func (r *taskListRegistryImpl) Register(id Identifier, mgr Manager) {
 	if _, ok := r.taskListsByTaskListName[id.GetName()]; !ok {
 		r.taskListsByTaskListName[id.GetName()] = make(map[Identifier]Manager)
 	}
+	shardID := membership.TaskListNameToShard(id.GetName(), r.shardCount)
+	if _, ok := r.taskListsByShard[shardID]; !ok {
+		r.taskListsByShard[shardID] = make(map[Identifier]Manager)
+	}
 
 	r.taskListsByDomainID[id.GetDomainID()][id] = mgr
 	r.taskListsByTaskListName[id.GetName()][id] = mgr
+	r.taskListsByShard[shardID][id] = mgr
 	r.updateMetricsLocked()
 }
 
@@ -88,6 +99,12 @@ func (r *taskListRegistryImpl) Unregister(mgr Manager) bool {
 		delete(r.taskListsByTaskListName[id.GetName()], *id)
 		if len(r.taskListsByTaskListName[id.GetName()]) == 0 {
 			delete(r.taskListsByTaskListName, id.GetName())
+		}
+
+		shardID := membership.TaskListNameToShard(id.GetName(), r.shardCount)
+		delete(r.taskListsByShard[shardID], *id)
+		if len(r.taskListsByShard[shardID]) == 0 {
+			delete(r.taskListsByShard, shardID)
 		}
 
 		r.updateMetricsLocked()
@@ -133,6 +150,17 @@ func (r *taskListRegistryImpl) ManagersByTaskListName(name string) []Manager {
 
 	var res []Manager
 	for _, tlm := range r.taskListsByTaskListName[name] {
+		res = append(res, tlm)
+	}
+	return res
+}
+
+func (r *taskListRegistryImpl) ManagersByShard(shardID string) []Manager {
+	r.RLock()
+	defer r.RUnlock()
+
+	var res []Manager
+	for _, tlm := range r.taskListsByShard[shardID] {
 		res = append(res, tlm)
 	}
 	return res

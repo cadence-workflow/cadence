@@ -272,6 +272,12 @@ func TestThriftHandler(t *testing.T) {
 		assert.Equal(t, shared.CreateScheduleResponse{ScheduleId: common.StringPtr("")}, *resp)
 		assert.Equal(t, expectedErr, err)
 	})
+	t.Run("CreateSemaphore", func(t *testing.T) {
+		h.EXPECT().CreateSemaphore(ctx, &types.CreateSemaphoreRequest{}).Return(&types.CreateSemaphoreResponse{}, internalErr).Times(1)
+		resp, err := th.CreateSemaphore(ctx, &shared.CreateSemaphoreRequest{})
+		assert.Equal(t, shared.CreateSemaphoreResponse{}, *resp)
+		assert.Equal(t, expectedErr, err)
+	})
 	t.Run("DescribeSchedule", func(t *testing.T) {
 		h.EXPECT().DescribeSchedule(ctx, &types.DescribeScheduleRequest{}).Return(&types.DescribeScheduleResponse{}, internalErr).Times(1)
 		resp, err := th.DescribeSchedule(ctx, &shared.DescribeScheduleRequest{})

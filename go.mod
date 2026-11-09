@@ -1,8 +1,8 @@
 module github.com/uber/cadence
 
-go 1.24.0
+go 1.26.2
 
-toolchain go1.24.5
+toolchain go1.26.10
 
 require (
 	github.com/MicahParks/keyfunc/v2 v2.1.0
@@ -16,7 +16,7 @@ require (
 	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da
 	github.com/emirpasic/gods v1.18.1
 	github.com/fatih/color v1.15.0
-	github.com/go-sql-driver/mysql v1.9.3
+	github.com/go-sql-driver/mysql v1.10.1
 	github.com/gocql/gocql v0.0.0-20211015133455-b225f9b53fa1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -26,28 +26,27 @@ require (
 	github.com/hashicorp/go-version v1.2.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jmespath/go-jmespath v0.4.0
-	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee
+	github.com/jmoiron/sqlx v1.4.0
 	github.com/jonboulle/clockwork v0.5.0
-	github.com/lib/pq v1.2.0
+	github.com/lib/pq v1.10.9
 	github.com/m3db/prometheus_client_golang v1.12.8
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/olivere/elastic/v7 v7.0.21
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/otiai10/copy v1.1.1
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally v3.5.8+incompatible
-	github.com/uber/cadence-idl v0.0.0-20260818192101-d6d4d81fa739
+	github.com/uber/cadence-idl v0.0.0-20261104230047-1ceaffdb11a0
 	github.com/uber/ringpop-go v0.10.0
 	github.com/uber/tchannel-go v1.34.4
 	github.com/urfave/cli/v2 v2.27.4
 	github.com/valyala/fastjson v1.4.1
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
-	go.mongodb.org/mongo-driver v1.7.3
+	go.mongodb.org/mongo-driver v1.17.9
 	go.uber.org/atomic v1.11.0
 	go.uber.org/cadence v1.4.0-rc.3
 	go.uber.org/config v1.4.0
@@ -57,12 +56,12 @@ require (
 	go.uber.org/yarpc v1.88.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
-	golang.org/x/net v0.48.0
-	golang.org/x/sync v0.19.0
+	golang.org/x/net v0.58.0
+	golang.org/x/sync v0.22.0
 	golang.org/x/time v0.12.0
-	golang.org/x/tools v0.39.0
-	gonum.org/v1/gonum v0.16.0
-	google.golang.org/grpc v1.79.3
+	golang.org/x/tools v0.48.0
+	gonum.org/v1/gonum v0.17.0
+	google.golang.org/grpc v1.83.2
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -81,9 +80,10 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
+	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
@@ -93,15 +93,12 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	go.opentelemetry.io/otel v1.41.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.41.0 // indirect
-	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
 )
 
 require (
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
-	github.com/apache/thrift v0.17.0 // indirect
+	github.com/apache/thrift v0.25.0 // indirect
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -110,7 +107,6 @@ require (
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
-	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/go-zookeeper/zk v1.0.3 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/gogo/status v1.1.0 // indirect
@@ -126,7 +122,7 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/m3db/prometheus_client_model v0.2.1 // indirect
 	github.com/m3db/prometheus_common v0.34.6 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -146,28 +142,25 @@ require (
 	github.com/uber-common/bark v1.2.1 // indirect
 	github.com/uber-go/mapdecode v1.0.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
-	github.com/xdg-go/scram v1.1.1 // indirect
-	github.com/xdg-go/stringprep v1.0.3 // indirect
+	github.com/xdg-go/scram v1.1.2 // indirect
+	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/xdg/stringprep v1.0.0 // indirect
-	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
+	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/goleak v1.3.0
 	go.uber.org/net/metrics v1.4.0 // indirect
-	golang.org/x/crypto v0.46.0 // indirect
+	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/mod v0.30.0
-	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
+	golang.org/x/mod v0.38.0
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.5.1 // indirect
 )
-
-// ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version
-replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
 
 // DO NOT USE as it misses mysql/config store fix
 retract v1.2.3

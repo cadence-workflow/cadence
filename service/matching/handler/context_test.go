@@ -103,6 +103,10 @@ func TestHandleErrKnowErrors(t *testing.T) {
 			name: "TaskListNotOwnedByHostError",
 			err:  &cadence_errors.TaskListNotOwnedByHostError{},
 		},
+		{
+			name: "SemaphoreNotOwnedByHostError",
+			err:  &cadence_errors.SemaphoreNotOwnedByHostError{},
+		},
 	}
 
 	for _, tc := range testCases {

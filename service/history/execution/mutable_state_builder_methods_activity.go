@@ -317,6 +317,7 @@ func (e *mutableStateBuilder) ReplicateActivityTaskScheduledEvent(
 	if ai.HasRetryPolicy {
 		ai.InitialInterval = attributes.RetryPolicy.GetInitialIntervalInSeconds()
 		ai.BackoffCoefficient = attributes.RetryPolicy.GetBackoffCoefficient()
+		ai.JitterCoefficient = attributes.RetryPolicy.GetJitterCoefficient()
 		ai.MaximumInterval = attributes.RetryPolicy.GetMaximumIntervalInSeconds()
 		ai.MaximumAttempts = attributes.RetryPolicy.GetMaximumAttempts()
 		ai.NonRetriableErrors = attributes.RetryPolicy.NonRetriableErrorReasons
@@ -700,27 +701,29 @@ func (e *mutableStateBuilder) RetryActivity(
 		return false, nil
 	}
 
-	now := e.timeSource.Now()
-
 	backoffInterval := getBackoffInterval(
-		now,
-		ai.ExpirationTime,
 		ai.Attempt,
-		ai.MaximumAttempts,
 		ai.InitialInterval,
 		ai.MaximumInterval,
 		ai.BackoffCoefficient,
-		failureReason,
-		ai.NonRetriableErrors,
+		ai.JitterCoefficient,
 	)
+	if failureOptions.GetNextRetryIntervalSeconds() > 0 {
+		backoffInterval = time.Duration(failureOptions.GetNextRetryIntervalSeconds()) * time.Second
+	}
 	if backoffInterval == backoff.NoBackoff {
+		return false, nil
+	}
+	now := e.timeSource.Now()
+	nextScheduledTime := now.Add(backoffInterval)
+	if !shouldRetry(nextScheduledTime, ai.Attempt, ai.MaximumAttempts, ai.ExpirationTime, failureReason, ai.NonRetriableErrors, failureOptions.GetFailureCategory()) {
 		return false, nil
 	}
 
 	// a retry is needed, update activity info for next retry
 	ai.Version = e.GetCurrentVersion()
 	ai.Attempt++
-	ai.ScheduledTime = now.Add(backoffInterval) // update to next schedule time
+	ai.ScheduledTime = nextScheduledTime
 	ai.StartedID = constants.EmptyEventID
 	ai.RequestID = ""
 	ai.StartedTime = time.Time{}

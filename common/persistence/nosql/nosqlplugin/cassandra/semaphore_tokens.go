@@ -34,62 +34,27 @@ import (
 // Placeholders for key columns that do not apply to a given row type. Non-key columns
 // that do not apply are bound to gogocql.UnsetValue instead.
 //
-// The text values are PROVISIONAL: only freeSentinel is LWT-compared, so only its literal
-// must be one the owner_id encoding can never produce.
-// TODO: finalize the text sentinels with the owner_id encoding.
+// Both text values are owner_ids, sharing columns with live ones, so neither may ever equal a
+// real hold. Two things prevent it: the frontend rejects an empty workflow id, and emptyRunID
+// has 'f' in its version and variant nibbles, which uuid.New() cannot produce. The -1 and -2
+// only keep the two sentinels apart.
+//
+// They are literals rather than computed from the encoder because they are bytes already in
+// the database, and ownerNoneSentinel is part of a token row's primary key. Deriving them
+// would let a change to the encoding silently re-point this code at rows that do not exist.
 const (
 	emptyTokenID = -1 // token_id on owner rows (key); negative, never a real slot id
 
-	ownerNoneSentinel = "__NONE__" // owner_id on token rows (key)
-	freeSentinel      = "__FREE__" // holder of an unheld token row (LWT-compared)
+	ownerNoneSentinel = "0::30000000-0000-f000-f000-000000000000:-1" // owner_id on token rows (key)
+	freeSentinel      = "0::30000000-0000-f000-f000-000000000000:-2" // holder of an unheld token row (LWT-compared)
 )
 
-// InsertSemaphoreTokens seeds a bucket with free token rows for the given TokenIDs
-// via one conditional (LWT) batch of INSERT ... IF NOT EXISTS.
+// GrantSemaphoreToken marks a token as held by an owner with one atomic batch of two guarded writes:
+//   - set the token row's holder to the owner, only if the token is FREE or has no row yet
+//     (IF holder IN (FREE, null))
+//   - insert the owner row, only if it does not exist (IF NOT EXISTS)
 //
-// Callers must pass the bucket's FULL id set, which is fixed at semaphore creation
-// and never grows (to resize, create a new semaphore name). So this is only ever a
-// fresh insert (no rows exist, all applied) or a re-seed of the same set (every
-// IF NOT EXISTS fails, a deliberate no-op that never clobbers a held slot); the
-// applied flag is therefore ignored.
-//
-// Growing a bucket is unsupported: the batch is all-or-nothing, so a partial superset
-// would have its existing rows' guards reject the whole batch, silently dropping the
-// new ids.
-func (db *CDB) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.SemaphoreOwnershipRow) error {
-	if len(rows) == 0 {
-		return nil
-	}
-	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
-	for _, row := range rows {
-		batch.Query(templateSeedSemaphoreTokenQuery,
-			row.DomainID,
-			row.SemaphoreName,
-			row.Bucket,
-			persistence.SemaphoreRowTypeToken, // forward "token" row
-			row.TokenID,
-			ownerNoneSentinel,  // owner_id key = __NONE__
-			freeSentinel,       // holder = __FREE__, the slot is unheld
-			gogocql.UnsetValue, // held_token does not apply to a token row
-			row.UpdatedTime,
-		)
-	}
-	_, iter, err := db.session.MapExecuteBatchCAS(batch, make(map[string]interface{}))
-	if iter != nil {
-		_ = iter.Close()
-	}
-	return err
-}
-
-// GrantSemaphoreToken claims row.TokenID for row.OwnerID with one atomic batch of
-// two guarded writes: set the token row's holder to the owner only if it is free
-// (IF holder = FREE), and insert the owner row only if it is absent (IF NOT EXISTS).
-// The batch is all-or-nothing, so the grant applies only if both guards pass.
-//
-// The IF NOT EXISTS guard enforces one-token-per-hold: a same-owner_id double-grant
-// (racing hosts during a handoff, or a caller bug) cannot overwrite an existing hold.
-//
-// A grant that does not apply is not an error; the returned Outcome says why.
+// The token id is not checked against the bucket's range; the caller must pass one the bucket owns.
 func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreOwnershipRow) (nosqlplugin.SemaphoreGrantResult, error) {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	batch.Query(templateGrantSemaphoreTokenUpdateQuery,
@@ -101,7 +66,7 @@ func (db *CDB) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.Semapho
 		persistence.SemaphoreRowTypeToken,
 		row.TokenID,
 		ownerNoneSentinel, // token row's owner_id key
-		freeSentinel,      // IF holder = FREE
+		freeSentinel,      // the ? in IF holder IN (?, null); null is in the query and matches a token with no row
 	)
 	batch.Query(templateGrantSemaphoreOwnerInsertQuery,
 		row.DomainID,
@@ -276,6 +241,8 @@ func (db *CDB) SelectSemaphoreOwnershipsByBucket(ctx context.Context, filter *no
 		rows = append(rows, row)
 		row = &nosqlplugin.SemaphoreOwnershipRow{}
 
+		// Must match query.PageSize above: the token below points past the driver's whole
+		// page, so breaking earlier would skip rows.
 		if filter.PageSize > 0 && len(rows) >= filter.PageSize {
 			break
 		}
@@ -313,8 +280,8 @@ func scanSemaphoreOwnershipRow(query gocql.Query, row *nosqlplugin.SemaphoreOwne
 // values so they never leak past this package: an absent owner_id becomes "",
 // an unheld holder becomes "", and a not-applicable token id becomes 0.
 //
-// Columns bound to gogocql.UnsetValue on write (held_token on token rows, holder
-// on owner rows) already read back as the zero value, so they need no mapping.
+// Columns no write sets (held_token on token rows, holder on owner rows) already
+// read back as the zero value, so they need no mapping.
 func normalizeSemaphoreOwnershipRow(row *nosqlplugin.SemaphoreOwnershipRow) {
 	if row.OwnerID == ownerNoneSentinel {
 		row.OwnerID = ""

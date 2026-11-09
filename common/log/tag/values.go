@@ -85,6 +85,12 @@ var (
 	WorkflowActionExternalWorkflowSignalRequested = workflowAction("add-externalworkflow-signal-requested-event")
 	WorkflowActionExternalWorkflowSignalFailed    = workflowAction("add-externalworkflow-signal-failed-event")
 
+	// semaphore
+	WorkflowActionSemaphoreAcquireInitiated = workflowAction("add-semaphore-acquire-initiated-event")
+	WorkflowActionSemaphoreAcquired         = workflowAction("add-semaphore-acquired-event")
+	WorkflowActionSemaphoreAcquireFailed    = workflowAction("add-semaphore-acquire-failed-event")
+	WorkflowActionSemaphoreReleased         = workflowAction("add-semaphore-released-event")
+
 	WorkflowActionUnknown = workflowAction("add-unknown-event")
 )
 
@@ -249,6 +255,15 @@ var (
 	StoreOperationGetHistoryDLQTasks                  = storeOperation("get-history-dlq-tasks")
 	StoreOperationUpdateHistoryDLQAckLevel            = storeOperation("update-history-dlq-ack-level")
 	StoreOperationDeleteHistoryDLQTasks               = storeOperation("delete-history-dlq-tasks")
+
+	StoreOperationEnqueueAsyncWorkflowMessage             = storeOperation("enqueue-async-workflow-message")
+	StoreOperationReadAsyncWorkflowMessages               = storeOperation("read-async-workflow-messages")
+	StoreOperationGetAsyncWorkflowAckLevels               = storeOperation("get-async-workflow-ack-levels")
+	StoreOperationUpdateAsyncWorkflowAckLevel             = storeOperation("update-async-workflow-ack-level")
+	StoreOperationRangeDeleteAsyncWorkflowMessages        = storeOperation("range-delete-async-workflow-messages")
+	StoreOperationEnqueueAsyncWorkflowMessageToDLQ        = storeOperation("enqueue-async-workflow-message-to-dlq")
+	StoreOperationReadAsyncWorkflowMessagesFromDLQ        = storeOperation("read-async-workflow-messages-from-dlq")
+	StoreOperationRangeDeleteAsyncWorkflowMessagesFromDLQ = storeOperation("range-delete-async-workflow-messages-from-dlq")
 
 	StoreOperationCreateTasks           = storeOperation("create-tasks")
 	StoreOperationGetTasks              = storeOperation("get-tasks")
@@ -478,19 +493,22 @@ var (
 	MatchingClientOperationRespondQueryTaskCompleted      = clientOperation("matching-respond-query-task-completed")
 	MatchingClientOperationUpdateTaskListPartitionConfig  = clientOperation("matching-update-task-list-partition-config")
 	MatchingClientOperationRefreshTaskListPartitionConfig = clientOperation("matching-refresh-task-list-partition-config")
+	MatchingClientOperationAcquireSemaphore               = clientOperation("matching-acquire-semaphore")
+	MatchingClientOperationReleaseSemaphore               = clientOperation("matching-release-semaphore")
 )
 
 // Pre-defined values for TagIDType
 var (
-	IDTypeDomainName   = idType("domainName")
-	IDTypeIdentity     = idType("identity")
-	IDTypeWorkflowID   = idType("workflowID")
-	IDTypeSignalName   = idType("signalName")
-	IDTypeWorkflowType = idType("workflowType")
-	IDTypeRequestID    = idType("requestID")
-	IDTypeTaskListName = idType("taskListName")
-	IDTypeActivityID   = idType("activityID")
-	IDTypeActivityType = idType("activityType")
-	IDTypeMarkerName   = idType("markerName")
-	IDTypeTimerID      = idType("timerID")
+	IDTypeDomainName    = idType("domainName")
+	IDTypeIdentity      = idType("identity")
+	IDTypeWorkflowID    = idType("workflowID")
+	IDTypeSignalName    = idType("signalName")
+	IDTypeWorkflowType  = idType("workflowType")
+	IDTypeRequestID     = idType("requestID")
+	IDTypeTaskListName  = idType("taskListName")
+	IDTypeActivityID    = idType("activityID")
+	IDTypeActivityType  = idType("activityType")
+	IDTypeMarkerName    = idType("markerName")
+	IDTypeTimerID       = idType("timerID")
+	IDTypeSemaphoreName = idType("semaphoreName")
 )

@@ -7,12 +7,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIsMissingMappings(t *testing.T) {
+func TestGetMissingMappings(t *testing.T) {
 	tests := []struct {
 		name        string
 		current     map[string]any
 		expected    map[string]any
-		wantMissing bool
+		wantMissing []string
 	}{
 		{
 			name: "current is empty",
@@ -24,7 +24,7 @@ func TestIsMissingMappings(t *testing.T) {
 					"WorkflowID": map[string]any{"type": "keyword"},
 				},
 			},
-			wantMissing: true,
+			wantMissing: []string{"WorkflowID"},
 		},
 		{
 			name: "current is allowed to have values not present in expected",
@@ -39,7 +39,7 @@ func TestIsMissingMappings(t *testing.T) {
 					"WorkflowID": map[string]any{"type": "keyword"},
 				},
 			},
-			wantMissing: false,
+			wantMissing: nil,
 		},
 		{
 			name: "expected is not allowed to have values not present in current",
@@ -54,7 +54,7 @@ func TestIsMissingMappings(t *testing.T) {
 					"CloseTime":  map[string]any{"type": "long"},
 				},
 			},
-			wantMissing: true,
+			wantMissing: []string{"CloseTime"},
 		},
 		{
 			name: "current and expected are equal",
@@ -72,7 +72,7 @@ func TestIsMissingMappings(t *testing.T) {
 					"CloseTime":  map[string]any{"type": "long"},
 				},
 			},
-			wantMissing: false,
+			wantMissing: nil,
 		},
 		{
 			name: "there are differences in nested properties",
@@ -95,13 +95,59 @@ func TestIsMissingMappings(t *testing.T) {
 					},
 				},
 			},
-			wantMissing: true,
+			wantMissing: []string{"Attr.CustomBoolField"},
+		},
+		{
+			name: "missing parent is reported without descending into it",
+			current: map[string]any{
+				"properties": map[string]any{},
+			},
+			expected: map[string]any{
+				"properties": map[string]any{
+					"Attr": map[string]any{
+						"properties": map[string]any{
+							"CustomKeywordField": map[string]any{"type": "keyword"},
+						},
+					},
+				},
+			},
+			wantMissing: []string{"Attr"},
+		},
+		{
+			name: "results are sorted and deeply nested",
+			current: map[string]any{
+				"properties": map[string]any{
+					"Attr": map[string]any{
+						"properties": map[string]any{
+							"Nested": map[string]any{
+								"properties": map[string]any{},
+							},
+						},
+					},
+				},
+			},
+			expected: map[string]any{
+				"properties": map[string]any{
+					"WorkflowID": map[string]any{"type": "keyword"},
+					"Attr": map[string]any{
+						"properties": map[string]any{
+							"CustomBoolField": map[string]any{"type": "boolean"},
+							"Nested": map[string]any{
+								"properties": map[string]any{
+									"Deep": map[string]any{"type": "long"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantMissing: []string{"Attr.CustomBoolField", "Attr.Nested.Deep", "WorkflowID"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			missing, err := IsMissingMappings(tt.current, tt.expected)
+			missing, err := GetMissingMappings(tt.current, tt.expected)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantMissing, missing)
 		})

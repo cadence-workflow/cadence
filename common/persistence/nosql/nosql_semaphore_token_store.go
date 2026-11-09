@@ -52,30 +52,8 @@ func newNoSQLSemaphoreTokenStore(
 	}, nil
 }
 
-// SeedSemaphoreTokens seeds a bucket with free token rows for the requested slot ids.
-func (m *nosqlSemaphoreTokenStore) SeedSemaphoreTokens(
-	ctx context.Context,
-	request *persistence.SeedSemaphoreTokensRequest,
-	updatedTime time.Time,
-) error {
-	rows := make([]*nosqlplugin.SemaphoreOwnershipRow, 0, len(request.TokenIDs))
-	for _, tokenID := range request.TokenIDs {
-		rows = append(rows, &nosqlplugin.SemaphoreOwnershipRow{
-			DomainID:      request.DomainID,
-			SemaphoreName: request.SemaphoreName,
-			Bucket:        request.Bucket,
-			TokenID:       tokenID,
-			UpdatedTime:   updatedTime,
-		})
-	}
-	if err := m.db.InsertSemaphoreTokens(ctx, rows); err != nil {
-		return convertCommonErrors(m.db, "SeedSemaphoreTokens", err)
-	}
-	return nil
-}
-
-// GrantSemaphoreToken claims a free slot for an owner. A grant that does not
-// apply is control flow, not an error; the returned Outcome says why.
+// GrantSemaphoreToken claims a slot for an owner if it is free or has no row yet. A grant
+// that does not apply is control flow, not an error; the returned Outcome says why.
 func (m *nosqlSemaphoreTokenStore) GrantSemaphoreToken(
 	ctx context.Context,
 	request *persistence.GrantSemaphoreTokenRequest,

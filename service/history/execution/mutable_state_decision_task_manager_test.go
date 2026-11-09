@@ -23,6 +23,7 @@
 package execution
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -443,4 +444,163 @@ func TestReplicateDecisionTaskStartedEvent(t *testing.T) {
 		assert.ErrorContains(t, err, fmt.Sprintf("unable to find decision: %v", scheduleID))
 		require.Nil(t, result)
 	})
+}
+
+// Reproduces the decision heartbeat edge case:
+//  1. a timer fires while a decision is in flight, so TimerFired is buffered and persisted (timer info is already gone)
+//  2. that decision cancels the timer and heartbeats (ForceCreateNewDecisionTask with no decisions)
+//
+// Cancelling removes the TimerFired event from the in-memory buffer but not from the DB, so the heartbeat must still
+// flush so that the persisted buffered events are cleared. Due to caching of the mutable state, the timer fired event
+// will arbitrarily come back at a later time. This then breaks the client as there are two resolutions for the Timer.
+//
+// When the new decision is started in the same transaction (ReturnNewDecisionTask), the flush on close is skipped
+// because a decision is in flight, so the flush in the heartbeat is the only chance to clear the DB. Without a started
+// decision the flush on close hides the problem, so both variants are run.
+func TestAddDecisionTaskScheduledEventAsHeartbeat_PersistedBufferedEvents(t *testing.T) {
+	const (
+		scheduleID = int64(6)
+		startedID  = int64(7)
+	)
+
+	tests := []struct {
+		name              string
+		bufferedTimerIDs  []string // timers that fire while the decision is in flight, so their TimerFired events are buffered and persisted
+		cancelTimerIDs    []string // timers cancelled by the completing decision
+		wantClear         bool
+		wantTimerFired    []string // TimerFired events committed to history
+		wantTimerCanceled []string
+	}{
+		{
+			name:              "buffered timer fired is cancelled, DB buffer must be cleared",
+			bufferedTimerIDs:  []string{"t1"},
+			cancelTimerIDs:    []string{"t1"},
+			wantClear:         true,
+			wantTimerCanceled: []string{"t1"},
+		},
+		{
+			name:              "only one of two buffered timers cancelled, the other is flushed into history",
+			bufferedTimerIDs:  []string{"t1", "t2"},
+			cancelTimerIDs:    []string{"t1"},
+			wantClear:         true,
+			wantTimerFired:    []string{"t2"},
+			wantTimerCanceled: []string{"t1"},
+		},
+		{
+			name:             "buffered timer not cancelled is flushed into history",
+			bufferedTimerIDs: []string{"t1"},
+			wantClear:        true,
+			wantTimerFired:   []string{"t1"},
+		},
+		{
+			name: "nothing buffered in DB, nothing to clear",
+		},
+	}
+
+	// The bug occurred only when startNewDecision=true, run it with both
+	for _, startNewDecision := range []bool{true, false} {
+		for _, tc := range tests {
+			t.Run(fmt.Sprintf("%s/startNewDecision=%v", tc.name, startNewDecision), func(t *testing.T) {
+				mockShard := shard.NewTestContext(
+					t,
+					gomock.NewController(t),
+					&persistence.ShardInfo{ShardID: 0, RangeID: 1},
+					config.NewForTest(),
+				)
+				mockShard.Resource.DomainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
+				mockShard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestLocalDomainEntry, nil).AnyTimes()
+
+				// the timers are pending, must have been previously scheduled
+				timerInfos := make(map[string]*persistence.TimerInfo)
+				for i, timerID := range tc.bufferedTimerIDs {
+					timerInfos[timerID] = &persistence.TimerInfo{
+						Version:   commonconstants.EmptyVersion,
+						TimerID:   timerID,
+						StartedID: int64(i), // distinct TimerStarted event per timer,
+					}
+				}
+
+				msb := newMutableStateBuilder(mockShard, mockShard.GetLogger(), constants.TestLocalDomainEntry, constants.TestLocalDomainEntry.GetFailoverVersion())
+				msb.Load(context.Background(), &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:                    constants.TestDomainID,
+						WorkflowID:                  "wid",
+						RunID:                       constants.TestRunID,
+						TaskList:                    "tl",
+						State:                       persistence.WorkflowStateRunning,
+						CloseStatus:                 persistence.WorkflowCloseStatusNone,
+						NextEventID:                 startedID + 1,
+						LastProcessedEvent:          4,
+						DecisionStartToCloseTimeout: 10,
+						DecisionScheduleID:          scheduleID,
+						DecisionStartedID:           startedID,
+						DecisionTimeout:             10,
+					},
+					ExecutionStats: &persistence.ExecutionStats{},
+					VersionHistories: persistence.NewVersionHistories(persistence.NewVersionHistory(
+						[]byte("branch-token"),
+						[]*persistence.VersionHistoryItem{persistence.NewVersionHistoryItem(startedID, commonconstants.EmptyVersion)},
+					)),
+					TimerInfos: timerInfos,
+				})
+
+				// the timers fire while the decision is in flight, so the events are buffered and persisted
+				for _, timerID := range tc.bufferedTimerIDs {
+					_, err := msb.AddTimerFiredEvent(timerID)
+					require.NoError(t, err)
+				}
+				firstMutation, _, err := msb.CloseTransactionAsMutation(time.Now(), TransactionPolicyActive)
+				require.NoError(t, err)
+				require.Len(t, firstMutation.NewBufferedEvents, len(tc.bufferedTimerIDs))
+				require.Len(t, msb.bufferedEvents, len(tc.bufferedTimerIDs))
+				require.Equal(t, len(tc.bufferedTimerIDs) > 0, msb.hasBufferedEventsInDB)
+
+				// same sequence as RespondDecisionTaskCompleted with ForceCreateNewDecisionTask and a CancelTimer decision
+				completed, err := msb.AddDecisionTaskCompletedEvent(scheduleID, startedID, &types.RespondDecisionTaskCompletedRequest{Identity: "worker"}, commonconstants.DefaultHistoryMaxAutoResetPoints)
+				require.NoError(t, err)
+				for _, timerID := range tc.cancelTimerIDs {
+					_, err := msb.AddTimerCanceledEvent(completed.ID, &types.CancelTimerDecisionAttributes{TimerID: timerID}, "worker")
+					require.NoError(t, err)
+				}
+
+				newDecision, err := msb.AddDecisionTaskScheduledEventAsHeartbeat(startNewDecision, time.Now().UnixNano())
+				require.NoError(t, err)
+				if startNewDecision {
+					_, _, err = msb.AddDecisionTaskStartedEvent(newDecision.ScheduleID, "request-from-RespondDecisionTaskCompleted", &types.PollForDecisionTaskRequest{
+						TaskList: &types.TaskList{Name: newDecision.TaskList},
+						Identity: "worker",
+					})
+					require.NoError(t, err)
+				}
+
+				mutation, eventBatches, err := msb.CloseTransactionAsMutation(time.Now(), TransactionPolicyActive)
+				require.NoError(t, err)
+
+				assert.Equal(t, tc.wantClear, mutation.ClearBufferedEvents)
+				assert.Empty(t, mutation.NewBufferedEvents)
+				assert.False(t, msb.hasBufferedEventsInDB)
+				assert.False(t, msb.clearBufferedEvents)
+				assert.Empty(t, msb.bufferedEvents)
+
+				var gotFired, gotCanceled []string
+				var lastEventID int64
+				for _, batch := range eventBatches {
+					for _, event := range batch.Events {
+						if lastEventID != 0 {
+							assert.Equal(t, lastEventID+1, event.ID, "committed event IDs must be contiguous")
+						}
+						lastEventID = event.ID
+						switch event.GetEventType() {
+						case types.EventTypeTimerFired:
+							gotFired = append(gotFired, event.TimerFiredEventAttributes.TimerID)
+						case types.EventTypeTimerCanceled:
+							gotCanceled = append(gotCanceled, event.TimerCanceledEventAttributes.TimerID)
+						}
+					}
+				}
+				assert.ElementsMatch(t, tc.wantTimerFired, gotFired)
+				assert.ElementsMatch(t, tc.wantTimerCanceled, gotCanceled)
+			})
+		}
+	}
 }

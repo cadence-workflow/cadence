@@ -14,52 +14,62 @@ import (
 )
 
 func Test__Check(t *testing.T) {
-	atCapMetadata := ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+	atCapMetadata := TimeoutRiskIssuesMetadata{
 		EventID:             2,
 		ActivityID:          "101",
 		ActivityType:        "test-activity",
 		StartToCloseTimeout: 60 * time.Second,
-		WorkflowTimeout:     60 * time.Second,
+		ActivityStartToCloseAtWorkflowTimeoutCap: &ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+			WorkflowTimeout: 60 * time.Second,
+		},
 	}
 	atCapMetadataInBytes, err := json.Marshal(atCapMetadata)
 	require.NoError(t, err)
 
-	missingHeartbeatMetadata := ActivityMissingHeartbeatTimeoutMetadata{
+	missingHeartbeatMetadata := TimeoutRiskIssuesMetadata{
 		EventID:             2,
 		ActivityID:          "102",
 		ActivityType:        "test-activity",
 		StartToCloseTimeout: 900 * time.Second,
-		Threshold:           600 * time.Second,
+		ActivityMissingHeartbeatTimeout: &ActivityMissingHeartbeatTimeoutMetadata{
+			Threshold: 600 * time.Second,
+		},
 	}
 	missingHeartbeatMetadataInBytes, err := json.Marshal(missingHeartbeatMetadata)
 	require.NoError(t, err)
 
-	twoIssuesAtCapMetadata := ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+	twoIssuesAtCapMetadata := TimeoutRiskIssuesMetadata{
 		EventID:             2,
 		ActivityID:          "107",
 		ActivityType:        "test-activity",
 		StartToCloseTimeout: 1800 * time.Second,
-		WorkflowTimeout:     1800 * time.Second,
+		ActivityStartToCloseAtWorkflowTimeoutCap: &ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+			WorkflowTimeout: 1800 * time.Second,
+		},
 	}
 	twoIssuesAtCapMetadataInBytes, err := json.Marshal(twoIssuesAtCapMetadata)
 	require.NoError(t, err)
 
-	twoIssuesMissingHeartbeatMetadata := ActivityMissingHeartbeatTimeoutMetadata{
+	twoIssuesMissingHeartbeatMetadata := TimeoutRiskIssuesMetadata{
 		EventID:             2,
 		ActivityID:          "107",
 		ActivityType:        "test-activity",
 		StartToCloseTimeout: 1800 * time.Second,
-		Threshold:           600 * time.Second,
+		ActivityMissingHeartbeatTimeout: &ActivityMissingHeartbeatTimeoutMetadata{
+			Threshold: 600 * time.Second,
+		},
 	}
 	twoIssuesMissingHeartbeatMetadataInBytes, err := json.Marshal(twoIssuesMissingHeartbeatMetadata)
 	require.NoError(t, err)
 
-	secondActivityRiskyMetadata := ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+	secondActivityRiskyMetadata := TimeoutRiskIssuesMetadata{
 		EventID:             3,
 		ActivityID:          "108b",
 		ActivityType:        "test-activity",
 		StartToCloseTimeout: 60 * time.Second,
-		WorkflowTimeout:     60 * time.Second,
+		ActivityStartToCloseAtWorkflowTimeoutCap: &ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+			WorkflowTimeout: 60 * time.Second,
+		},
 	}
 	secondActivityRiskyMetadataInBytes, err := json.Marshal(secondActivityRiskyMetadata)
 	require.NoError(t, err)

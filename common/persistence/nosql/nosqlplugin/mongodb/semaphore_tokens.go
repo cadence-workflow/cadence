@@ -27,10 +27,6 @@ import (
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
-func (db *mdb) InsertSemaphoreTokens(ctx context.Context, rows []*nosqlplugin.SemaphoreOwnershipRow) error {
-	return fmt.Errorf("InsertSemaphoreTokens is not implemented")
-}
-
 func (db *mdb) GrantSemaphoreToken(ctx context.Context, row *nosqlplugin.SemaphoreOwnershipRow) (nosqlplugin.SemaphoreGrantResult, error) {
 	return nosqlplugin.SemaphoreGrantResult{}, fmt.Errorf("GrantSemaphoreToken is not implemented")
 }

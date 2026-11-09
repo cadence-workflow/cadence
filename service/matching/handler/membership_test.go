@@ -31,6 +31,7 @@ import (
 
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
@@ -41,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/isolationgroup"
@@ -53,6 +55,7 @@ import (
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
+	"github.com/uber/cadence/service/matching/semaphore"
 	"github.com/uber/cadence/service/matching/tasklist"
 )
 
@@ -110,15 +113,23 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			config := defaultTestConfig()
 			// Exclude all task lists from the ShardDistributor so that errIfShardOwnershipLost
 			// exercises the ringpop (hash-ring) ownership path that these test cases are actually
-			// testing. With the onboarding percentage at 0 (set when constructing the engine
-			// below), no task list name is below the percentage threshold, so every name is
-			// considered excluded regardless of whether it contains a UUID.
-			config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+			// testing. With the onboarding percentage at 0, no task list name is below the
+			// percentage threshold, so every name is considered excluded regardless of whether it
+			// contains a UUID.
 			pct := membership.NewMockPercentageOnboarded(ctrl)
 			pct.EXPECT().Value().Return(0).AnyTimes()
+			taskListDifferentiator := membership.NewTaskListDifferentiator(
+				dynamicproperties.GetBoolPropertyFn(true),
+				dynamicproperties.GetBoolPropertyFn(false),
+				pct,
+				commonConfig.DefaultNumMatchingShards,
+			)
 
 			matchingEngine := NewEngine(
 				taskManager,
+				persistence.NewMockSemaphoreTokenManager(ctrl),
+				persistence.NewMockSemaphoreMetadataManager(ctrl),
+				persistence.NewMockSemaphoreTaskManager(ctrl),
 				cluster.GetTestClusterMetadata(true),
 				mockHistoryClient,
 				mockMatchingClient,
@@ -133,6 +144,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				mockTimeSource,
 				mockShardDistributorExecutorClient,
 				defaultSDExecutorConfig(),
+				taskListDifferentiator,
 				nil,
 				pct,
 			).(*matchingEngineImpl)
@@ -198,7 +210,8 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
 		logger:             log.NewNoop(),
@@ -233,7 +246,8 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
 		logger:             log.NewNoop(),
@@ -243,8 +257,12 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 
 	// this should trigger the error case on a membership event
 	// unfortunately, this is purely for code-coverage, no checks are involved
+	//
+	// One event is handled by several passes, each of which looks up this host, so the signal
+	// fires once however many times WhoAmI is called.
+	var handled sync.Once
 	mockResolver.EXPECT().WhoAmI().DoAndReturn(func() (membership.HostInfo, error) {
-		membershipChangeHandledWG.Done()
+		handled.Do(membershipChangeHandledWG.Done)
 		return membership.HostInfo{}, errors.New("failure")
 	}).MinTimes(1)
 
@@ -287,7 +305,8 @@ func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
 		logger:             logger,
@@ -334,18 +353,17 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	engine := matchingEngineImpl{
-		shutdownCompletion:  &shutdownWG,
-		membershipResolver:  mockResolver,
-		taskListRegistry:    tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
-		metricsClient:       metrics.NewNoopMetricsClient(),
-		percentageOnboarded: pct,
-		config: &config.Config{
-			ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return true },
-		},
-		shutdown:    make(chan struct{}),
-		logger:      log.NewNoop(),
-		domainCache: mockDomainCache,
-		executor:    mockExecutor,
+		shutdownCompletion:     &shutdownWG,
+		membershipResolver:     mockResolver,
+		taskListRegistry:       tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
+		semaphoreRegistry:      semaphore.NewSemaphoreRegistry(),
+		metricsClient:          metrics.NewNoopMetricsClient(),
+		percentageOnboarded:    pct,
+		taskListDifferentiator: newTestTaskListDifferentiator(true, false),
+		shutdown:               make(chan struct{}),
+		logger:                 log.NewNoop(),
+		domainCache:            mockDomainCache,
+		executor:               mockExecutor,
 	}
 
 	// set this engine to be shutting down to trigger the tasklistGetTasklistByID guard
@@ -356,4 +374,106 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	assertErr := &cadence_errors.TaskListNotOwnedByHostError{}
 	assert.ErrorAs(t, err, &assertErr)
 	assert.Nil(t, res)
+}
+
+// Tests that a ring change unloads the buckets that moved and leaves the ones this host still
+// owns alone. Without this pass a bucket keeps running on the wrong host until the process
+// exits, since a manager has no idle timer to fall back on.
+func TestShutDownNonOwnedSemaphoreManagers(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mine := mustNewSemaphoreIdentifier(t, 0)
+	moved := mustNewSemaphoreIdentifier(t, 1)
+
+	resolver := membership.NewMockResolver(ctrl)
+	resolver.EXPECT().WhoAmI().Return(testSelfHost, nil).AnyTimes()
+	resolver.EXPECT().Lookup(service.Matching, gomock.Any()).DoAndReturn(
+		func(_ string, key string) (membership.HostInfo, error) {
+			if key == moved.RingKey() {
+				return testOtherHost, nil
+			}
+			return testSelfHost, nil
+		}).AnyTimes()
+
+	tokens := persistence.NewMockSemaphoreTokenManager(ctrl)
+	tokens.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
+
+	e := &matchingEngineImpl{
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
+		membershipResolver: resolver,
+		logger:             log.NewNoop(),
+	}
+
+	start := func(id semaphore.Identifier) semaphore.Manager {
+		mgr := newUnstartedSemaphoreManager(t, id, tokens)
+		require.NoError(t, mgr.Start(context.Background()))
+		registerSemaphoreManager(t, e, mgr)
+		return mgr
+	}
+	mineMgr := start(mine)
+	movedMgr := start(moved)
+
+	require.NoError(t, e.shutDownNonOwnedSemaphoreManagers())
+
+	remaining := e.semaphoreRegistry.AllManagers()
+	require.Len(t, remaining, 1)
+	assert.Same(t, mineMgr, remaining[0], "the bucket this host still owns stays loaded")
+
+	// Unregistering alone would leave it holding its free-set and answering grants.
+	_, err := movedMgr.Acquire(context.Background(), "owner-1")
+	assert.ErrorIs(t, err, semaphore.ErrNotReady, "the bucket that moved must be stopped too")
+}
+
+// Tests that a panic while unloading is contained and reported. It must not take the host down,
+// and it must not be swallowed either: the caller logs the error against the membership event
+// that triggered the unload, which is the only place that context exists.
+func TestShutDownNonOwnedSemaphoreManagersReportsAPanic(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	resolver := membership.NewMockResolver(ctrl)
+	resolver.EXPECT().WhoAmI().Return(testSelfHost, nil).AnyTimes()
+	resolver.EXPECT().Lookup(service.Matching, gomock.Any()).Return(testOtherHost, nil).AnyTimes()
+
+	mgr := semaphore.NewMockManager(ctrl)
+	mgr.EXPECT().Identifier().Return(mustNewSemaphoreIdentifier(t, 0)).AnyTimes()
+	mgr.EXPECT().Stop().Do(func() { panic("stop blew up") })
+
+	e := &matchingEngineImpl{
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
+		membershipResolver: resolver,
+		logger:             log.NewNoop(),
+	}
+	registerSemaphoreManager(t, e, mgr)
+
+	var err error
+	require.NotPanics(t, func() { err = e.shutDownNonOwnedSemaphoreManagers() })
+	assert.ErrorContains(t, err, "stop blew up")
+}
+
+// Tests that a failed ring lookup is reported rather than treated as a lost bucket. Unloading on
+// a lookup error would drop every bucket on this host whenever membership is briefly unreadable.
+func TestShutDownNonOwnedSemaphoreManagersSurfacesALookupFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	lookupErr := errors.New("ring unavailable")
+	resolver := membership.NewMockResolver(ctrl)
+	resolver.EXPECT().WhoAmI().Return(testSelfHost, nil).AnyTimes()
+	resolver.EXPECT().Lookup(service.Matching, gomock.Any()).Return(membership.HostInfo{}, lookupErr).AnyTimes()
+
+	tokens := persistence.NewMockSemaphoreTokenManager(ctrl)
+	tokens.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
+
+	e := &matchingEngineImpl{
+		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
+		membershipResolver: resolver,
+		logger:             log.NewNoop(),
+	}
+	mgr := newUnstartedSemaphoreManager(t, mustNewSemaphoreIdentifier(t, 0), tokens)
+	require.NoError(t, mgr.Start(context.Background()))
+	registerSemaphoreManager(t, e, mgr)
+
+	assert.ErrorIs(t, e.shutDownNonOwnedSemaphoreManagers(), lookupErr)
+	assert.Len(t, e.semaphoreRegistry.AllManagers(), 1, "a lookup failure must not unload anything")
 }

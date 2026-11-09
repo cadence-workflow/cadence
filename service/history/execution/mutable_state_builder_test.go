@@ -246,6 +246,8 @@ func (s *mutableStateSuite) TestShouldBufferEvent() {
 		types.EventTypeStartChildWorkflowExecutionInitiated:            true,
 		types.EventTypeSignalExternalWorkflowExecutionInitiated:        true,
 		types.EventTypeUpsertWorkflowSearchAttributes:                  true,
+		types.EventTypeSemaphoreAcquireInitiated:                       true,
+		types.EventTypeSemaphoreReleased:                               true,
 	}
 
 	// other events will not be assign event ID immediately
@@ -2332,10 +2334,11 @@ func TestIsCurrentWorkflowGuaranteed(t *testing.T) {
 func TestGetRetryBackoffDuration(t *testing.T) {
 
 	tests := []struct {
-		name            string
-		retryPolicy     *persistence.WorkflowExecutionInfo
-		errorReason     string
-		expectedBackoff time.Duration
+		name               string
+		retryPolicy        *persistence.WorkflowExecutionInfo
+		errorReason        string
+		expectedBackoff    time.Duration
+		expectedMinBackoff time.Duration
 	}{
 		{
 			name: "NoRetryPolicy",
@@ -2359,6 +2362,36 @@ func TestGetRetryBackoffDuration(t *testing.T) {
 			errorReason:     "some error reason",
 			expectedBackoff: 24 * time.Second,
 		},
+		{
+			name: "WithRetryPolicyAndJitter",
+			retryPolicy: &persistence.WorkflowExecutionInfo{
+				HasRetryPolicy:     true,
+				ExpirationTime:     time.Now().Add(time.Hour),
+				Attempt:            1,
+				MaximumAttempts:    5,
+				BackoffCoefficient: 2.0,
+				JitterCoefficient:  0.5,
+				InitialInterval:    12,
+				NonRetriableErrors: []string{"non-retriable-error"},
+			},
+			errorReason:        "some error reason",
+			expectedBackoff:    24 * time.Second,
+			expectedMinBackoff: 12 * time.Second,
+		},
+		{
+			name: "WithJitterRoundsUpToWholeSecond",
+			retryPolicy: &persistence.WorkflowExecutionInfo{
+				HasRetryPolicy:     true,
+				ExpirationTime:     time.Now().Add(time.Hour),
+				Attempt:            0,
+				MaximumAttempts:    5,
+				BackoffCoefficient: 2.0,
+				JitterCoefficient:  0.5,
+				InitialInterval:    1,
+			},
+			errorReason:     "some error reason",
+			expectedBackoff: time.Second,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2371,8 +2404,18 @@ func TestGetRetryBackoffDuration(t *testing.T) {
 			msb.executionInfo = tt.retryPolicy
 			msb.timeSource = clock.NewMockedTimeSourceAt(t1)
 
-			duration := msb.GetRetryBackoffDuration(tt.errorReason)
-			assert.Equal(t, tt.expectedBackoff, duration)
+			for i := 0; i < 100; i++ {
+				duration := msb.GetRetryBackoffDuration(tt.errorReason)
+				if tt.expectedMinBackoff != 0 {
+					assert.GreaterOrEqual(t, duration, tt.expectedMinBackoff)
+					assert.LessOrEqual(t, duration, tt.expectedBackoff)
+				} else {
+					assert.Equal(t, tt.expectedBackoff, duration)
+				}
+				if duration != backoff.NoBackoff {
+					assert.Zero(t, duration%time.Second, "workflow retry backoff must be whole seconds")
+				}
+			}
 		})
 	}
 }
@@ -3446,6 +3489,7 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 		shardContextExpectations func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache)
 		transactionPolicy        TransactionPolicy
 		expectedMutation         *persistence.WorkflowMutation
+		validateMutation         func(t *testing.T, mutation *persistence.WorkflowMutation)
 		expectedEvent            []*persistence.WorkflowEvents
 		expectedErr              error
 	}{
@@ -3505,6 +3549,110 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 				DeleteChildExecutionInfos: []int64{},
 				WorkflowRequests:          []*persistence.WorkflowRequest{},
 				Condition:                 0,
+			},
+			expectedEvent: nil,
+			expectedErr:   nil,
+		},
+		"CloseTransactionAsMutation populates rewrite maps with remaining pending infos when there are deletes": {
+			mutableStateSetup: func(ms *mutableStateBuilder) {
+				ms.executionInfo.DomainID = "some-domain-id"
+				ms.executionInfo.NextEventID = 10
+				ms.executionInfo.LastProcessedEvent = 5
+				ms.executionInfo.State = persistence.WorkflowStateRunning
+				ms.executionInfo.CloseStatus = persistence.WorkflowCloseStatusNone
+				ms.pendingActivityInfoIDs = map[int64]*persistence.ActivityInfo{
+					1: {ScheduleID: 1, ActivityID: "activity-1"},
+					2: {ScheduleID: 2, ActivityID: "activity-2"},
+				}
+				ms.pendingActivityIDToEventID = map[string]int64{
+					"activity-1": 1,
+					"activity-2": 2,
+				}
+				ms.pendingTimerInfoIDs = map[string]*persistence.TimerInfo{
+					"timer-1": {TimerID: "timer-1", StartedID: 3},
+					"timer-2": {TimerID: "timer-2", StartedID: 4},
+				}
+				ms.pendingTimerEventIDToID = map[int64]string{
+					3: "timer-1",
+					4: "timer-2",
+				}
+				ms.deleteActivityInfos = map[int64]struct{}{99: {}}
+				ms.deleteTimerInfos = map[string]struct{}{"old-timer": {}}
+			},
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GetConfig().Return(&config.Config{
+					NumberOfShards:                        2,
+					IsAdvancedVisConfigExist:              false,
+					MaxResponseSize:                       0,
+					MutableStateChecksumInvalidateBefore:  dynamicproperties.GetFloatPropertyFn(10),
+					MutableStateChecksumVerifyProbability: dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
+					HostName:                              "test-host",
+					EnableReplicationTaskGeneration:       func(string, string) bool { return true },
+					MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
+				}).AnyTimes()
+
+				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+				mockDomainCache.EXPECT().GetDomainByID("some-domain-id").Return(mockDomain, nil)
+			},
+			validateMutation: func(t *testing.T, mutation *persistence.WorkflowMutation) {
+				require.NotNil(t, mutation, "mutation should not be nil")
+				assert.Equal(t, []int64{99}, mutation.DeleteActivityInfos)
+				assert.Equal(t, []string{"old-timer"}, mutation.DeleteTimerInfos)
+
+				assert.Len(t, mutation.RewriteActivityInfos, 2)
+				activityIDs := make(map[int64]string)
+				for _, a := range mutation.RewriteActivityInfos {
+					activityIDs[a.ScheduleID] = a.ActivityID
+				}
+				assert.Equal(t, "activity-1", activityIDs[1])
+				assert.Equal(t, "activity-2", activityIDs[2])
+
+				assert.Len(t, mutation.RewriteTimerInfos, 2)
+				timerIDs := make(map[string]int64)
+				for _, ti := range mutation.RewriteTimerInfos {
+					timerIDs[ti.TimerID] = ti.StartedID
+				}
+				assert.Equal(t, int64(3), timerIDs["timer-1"])
+				assert.Equal(t, int64(4), timerIDs["timer-2"])
+			},
+			expectedEvent: nil,
+			expectedErr:   nil,
+		},
+		"CloseTransactionAsMutation sets empty rewrite maps when there are deletes but no pending infos": {
+			mutableStateSetup: func(ms *mutableStateBuilder) {
+				ms.executionInfo.DomainID = "some-domain-id"
+				ms.executionInfo.NextEventID = 10
+				ms.executionInfo.LastProcessedEvent = 5
+				ms.executionInfo.State = persistence.WorkflowStateRunning
+				ms.executionInfo.CloseStatus = persistence.WorkflowCloseStatusNone
+				ms.pendingActivityInfoIDs = map[int64]*persistence.ActivityInfo{}
+				ms.pendingActivityIDToEventID = map[string]int64{}
+				ms.pendingTimerInfoIDs = map[string]*persistence.TimerInfo{}
+				ms.pendingTimerEventIDToID = map[int64]string{}
+				ms.deleteActivityInfos = map[int64]struct{}{1: {}}
+				ms.deleteTimerInfos = map[string]struct{}{"timer-1": {}}
+			},
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GetConfig().Return(&config.Config{
+					NumberOfShards:                        2,
+					IsAdvancedVisConfigExist:              false,
+					MaxResponseSize:                       0,
+					MutableStateChecksumInvalidateBefore:  dynamicproperties.GetFloatPropertyFn(10),
+					MutableStateChecksumVerifyProbability: dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
+					HostName:                              "test-host",
+					EnableReplicationTaskGeneration:       func(string, string) bool { return true },
+					MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
+				}).AnyTimes()
+
+				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+				mockDomainCache.EXPECT().GetDomainByID("some-domain-id").Return(mockDomain, nil)
+			},
+			validateMutation: func(t *testing.T, mutation *persistence.WorkflowMutation) {
+				require.NotNil(t, mutation, "mutation should not be nil")
+				assert.Equal(t, []int64{1}, mutation.DeleteActivityInfos)
+				assert.Equal(t, []string{"timer-1"}, mutation.DeleteTimerInfos)
+				assert.Empty(t, mutation.RewriteActivityInfos, "rewrite activity infos should be empty")
+				assert.Empty(t, mutation.RewriteTimerInfos, "rewrite timer infos should be empty")
 			},
 			expectedEvent: nil,
 			expectedErr:   nil,
@@ -3621,11 +3769,13 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
 			mutation, workflowEvents, err := ms.CloseTransactionAsMutation(now, td.transactionPolicy)
-			if diff := cmp.Diff(td.expectedMutation, mutation, cmpopts.EquateEmpty()); diff != "" {
+			assert.Equal(t, td.expectedErr, err)
+			if td.validateMutation != nil {
+				td.validateMutation(t, mutation)
+			} else if diff := cmp.Diff(td.expectedMutation, mutation, cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf("mutation mismatch (-want +got):\n%s", diff)
 			}
 			assert.Equal(t, td.expectedEvent, workflowEvents)
-			assert.Equal(t, td.expectedErr, err)
 		})
 	}
 }

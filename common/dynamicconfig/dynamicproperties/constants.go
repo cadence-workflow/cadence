@@ -485,6 +485,12 @@ const (
 	// Default value: 1000 (see common.DefaultIDLengthErrorLimit)
 	// Allowed filters: DomainName
 	TimerIDMaxLength
+	// SemaphoreNameMaxLength is the length limit for semaphore name
+	// KeyName: limit.semaphoreNameLength
+	// Value type: Int
+	// Default value: 1000 (see common.DefaultIDLengthErrorLimit)
+	// Allowed filters: DomainName
+	SemaphoreNameMaxLength
 	// MaxIDLengthWarnLimit is the warn length limit for various IDs, including: Domain, TaskList, WorkflowID, ActivityID, TimerID, WorkflowType, ActivityType, SignalName, MarkerName, ErrorReason/FailureReason/CancelCause, Identity, RequestID
 	// KeyName: limit.maxIDWarnLength
 	// Value type: Int
@@ -1643,6 +1649,13 @@ const (
 	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
 
+	// HistoryTaskDLQProcessorHostConcurrency is the maximum number of shards that may process the History Task DLQ concurrently on one history host.
+	// KeyName: history.historyTaskDLQProcessorHostConcurrency
+	// Value type: Int
+	// Default value: 10
+	// Allowed filters: N/A
+	HistoryTaskDLQProcessorHostConcurrency
+
 	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
 	// KeyName: history.taskListNiceValue
 	// Value type: Int
@@ -1668,6 +1681,24 @@ const (
 	// Default value: 2
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
+
+	// RewriteSampleRate controls how often a full rewrite of activity and timer
+	// collections is triggered on transactions with deletes. A value of N means
+	// a 1-in-N chance per transaction (e.g., 100 = rewrite roughly every 100th
+	// transaction). 0 disables the optimization. 1 means rewrite every time.
+	// Only applies to backends listed in RewriteOptimizationBackends.
+	//
+	// When enabled, deletes write sentinel entries instead of issuing database
+	// deletes, and full rewrites compact them. A rate too high means sentinels
+	// accumulate, growing the collection. Larger collections increase read
+	// latency because sentinels must be filtered on every load, especially
+	// costly during shard movement or cache eviction when the full collection
+	// is read from the database.
+	//
+	// KeyName: history.rewriteSampleRate
+	// Value type: Int
+	// Default value: 0
+	RewriteSampleRate
 
 	// LastIntKey must be the last one in this const group
 	LastIntKey
@@ -2143,6 +2174,15 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableStickyQuery
+	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
+	// frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so
+	// tokens granted before it was turned off are still freed.
+	// Global domains also need HistoryTaskDLQMode enabled, or a hold still waiting at failover is never acquired.
+	// KeyName: system.enableDistributedSemaphore
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableDistributedSemaphore
 	// EnableFailoverManager indicates if failover manager is enabled
 	// KeyName: system.enableFailoverManager
 	// Value type: Bool
@@ -2303,6 +2343,39 @@ const (
 	// Allowed filters: DomainName
 	EnableStrongIdempotencySanityCheck
 
+	// EnableDeterministicChildWorkflowRequestID derives the request ID that starts a child workflow from its initiated event,
+	// so all clusters start the child with the same request ID. Enable it on a cluster only after all hosts of the cluster
+	// run a release with https://github.com/cadence-workflow/cadence/pull/8644, which checks which cluster closed a child run
+	// before adopting it. Roll back only to a release with that change. To roll back to a release without it, disable the
+	// flag on the cluster, wait until the children initiated while it was enabled have started, then roll back.
+	// KeyName: history.enableDeterministicChildWorkflowRequestID
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableDeterministicChildWorkflowRequestID
+
+	// EnableExistingChildWorkflowRunHandling lets a child start handle a run with the same workflow ID that the parent
+	// started before. When the first run of the chain of the run has the request ID of the start, the start adopts the
+	// run. When another cluster closed the run with the request ID of the start, the start adds the task that sends the
+	// completion of the run to the parent again, and adopts the run.
+	// KeyName: history.enableExistingChildWorkflowRunHandling
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableExistingChildWorkflowRunHandling
+
+	// EnableChildWorkflowStaleBranchReplacement lets a child start replace a run that was started by an initiated event
+	// that is not on the current branch of the parent. A running run is terminated and a new execution starts. After a
+	// closed run, a new execution starts whatever the workflow ID reuse policy. The stale run already did some or all of
+	// its work, so the new execution runs the child again. It applies only when EnableExistingChildWorkflowRunHandling is
+	// also enabled, and only to children started when EnableDeterministicChildWorkflowRequestID was enabled. Enable it
+	// only after all hosts run a release that drops child completions from other branches of the parent.
+	// KeyName: history.enableChildWorkflowStaleBranchReplacement
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableChildWorkflowStaleBranchReplacement
+
 	// MatchingEnableClientAutoConfig enables auto config for domain and tasklist on client (worker) side
 	// KeyName: matching.enableClientAutoConfig
 	// Value type: Bool
@@ -2356,13 +2429,13 @@ const (
 	// EnableTransferQueueV2 is to enable transfer queue v2
 	// KeyName: history.enableTransferQueueV2
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: ShardID
 	EnableTransferQueueV2
 	// EnableTimerQueueV2 is to enable timer queue v2
 	// KeyName: history.enableTimerQueueV2
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: ShardID
 	EnableTimerQueueV2
 	// EnableTransferQueueV2PendingTaskCountAlert is to enable transfer queue v2 pending task count alert
@@ -2399,6 +2472,19 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
+
+	// MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard
+	// manager. When disabled, each task list name is its own shard.
+	// Enabling it also requires matching's namespace in the shard distributor to be a fixed namespace with
+	// shardNum set to numMatchingShards.
+	// Only change it while matching.percentageOnboardedToShardManager is 0, because hosts that disagree on it
+	// route the same task list to different owners.
+	// Read from the primary database-backed operational dynamic config store.
+	// KeyName: matching.shardTaskListsByHashForShardManager
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingShardTaskListsByHashForShardManager
 
 	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
 	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
@@ -2739,6 +2825,9 @@ const (
 	// * "enabled" - tasks are written to the DLQ and processed by the HistoryTaskDLQProcessor.
 	// * "shadow" - tasks are written to the DLQ but never processed.
 	//
+	// Global domains that use distributed semaphores need "enabled": a standby acquire task that gives up
+	// while its hold is still waiting runs again after failover only if it was kept in the DLQ.
+	//
 	// KeyName: history.HistoryTaskDLQMode
 	// Value type: string ["disabled","shadow","enabled"]
 	// Default value: "disabled"
@@ -2746,22 +2835,22 @@ const (
 	HistoryTaskDLQMode
 
 	// TimerProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used.
-	// "disabled" (default): no cached reader, plain scheduledQueue is used.
+	// "disabled": no cached reader, plain scheduledQueue is used.
 	// "shadow": cached reader is created and prefetches, but all reads are forwarded to the base reader.
-	// "enabled": cached reader fully active.
+	// "enabled" (default): cached reader fully active.
 	// KeyName: history.timerProcessorCachedQueueReaderMode
 	// Value type: string enum: "disabled", "shadow", "enabled"
-	// Default value: "disabled"
+	// Default value: "enabled"
 	// Allowed filters: ShardID
 	TimerProcessorCachedQueueReaderMode
 
 	// TransferProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used.
-	// "disabled" (default): no cached reader, plain immediateQueue is used.
+	// "disabled": no cached reader, plain immediateQueue is used.
 	// "shadow": cached reader is created, but all reads are forwarded to the base reader.
-	// "enabled": cached reader fully active.
+	// "enabled" (default): cached reader fully active.
 	// KeyName: history.transferProcessorCachedQueueReaderMode
 	// Value type: string enum: "disabled", "shadow", "enabled"
-	// Default value: "disabled"
+	// Default value: "enabled"
 	// Allowed filters: ShardID
 	TransferProcessorCachedQueueReaderMode
 
@@ -2843,6 +2932,18 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: DomainName,TasklistName,TaskType
 	MaxTasklistIdleTime
+	// MatchingSemaphoreIdleTime is the max time a semaphore bucket being idle before it is unloaded
+	// KeyName: matching.semaphoreIdleTime
+	// Value type: Duration
+	// Default value: 5m (5*time.Minute)
+	// Allowed filters: DomainName
+	MatchingSemaphoreIdleTime
+	// MatchingSemaphoreUpdateAckInterval is how often a semaphore bucket saves its waiter queue's ack level
+	// KeyName: matching.semaphoreUpdateAckInterval
+	// Value type: Duration
+	// Default value: 1m (1*time.Minute)
+	// Allowed filters: DomainName
+	MatchingSemaphoreUpdateAckInterval
 	// MatchingShutdownDrainDuration is the duration of traffic drain during shutdown
 	// KeyName: matching.shutdownDrainDuration
 	// Value type: Duration
@@ -3172,6 +3273,18 @@ const (
 	// Default value: 30m (time.Minute*30)
 	// Allowed filters: DomainName
 	DecisionHeartbeatTimeout
+	// SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout. A value under one second is treated as unset and the built-in default is used
+	// KeyName: history.semaphoreAcquireDefaultWaitTimeout
+	// Value type: Duration
+	// Default value: 5m (time.Minute*5)
+	// Allowed filters: DomainName
+	SemaphoreAcquireDefaultWaitTimeout
+	// SemaphoreAcquireMaxWaitTimeout is the longest an acquire waits for a token. A longer wait timeout is lowered to it. A value under one second is treated as unset and the built-in default is used
+	// KeyName: history.semaphoreAcquireMaxWaitTimeout
+	// Value type: Duration
+	// Default value: 24h (time.Hour*24)
+	// Allowed filters: DomainName
+	SemaphoreAcquireMaxWaitTimeout
 	// NormalDecisionScheduleToStartTimeout is scheduleToStart timeout duration for normal (non-sticky) decision task
 	// KeyName: history.normalDecisionScheduleToStartTimeout
 	// Value type: Duration
@@ -3374,6 +3487,12 @@ const (
 	// Allowed filters: ShardID
 	HistoryTaskDLQProcessorInterval
 
+	// HistoryTaskDLQProcessorFailoverJitterMaxDelay is the maximum jitter delay before processing failover-triggered History Task DLQ partitions
+	// KeyName: history.historyTaskDLQProcessorFailoverJitterMaxDelay
+	// Value type: Duration
+	// Default value: 1m (1 * time.Minute)
+	HistoryTaskDLQProcessorFailoverJitterMaxDelay
+
 	// OperationalConfigStorePollInterval controls how often the operational
 	// dynamic config store re-reads its snapshot from the primary database.
 	// KeyName: system.operationalConfigStorePollInterval
@@ -3506,6 +3625,17 @@ const (
 	// Value type: []rpc.HeaderRule or an []interface{} containing `map[string]interface{}{"Add":bool,"Match":string}` values.
 	// Default value: forward all headers.  (this is a problematic value, and it will be changing as we reduce to a list of known values)
 	HeaderForwardingRules
+
+	// RewriteOptimizationBackends is the list of persistence backends that support
+	// the rewrite optimization (sentinel writes + probabilistic full rewrite).
+	// Currently only Cassandra is known to need this optimization (to avoid tombstones).
+	// Note: this value is read once at process startup and cached. Changes require a
+	// restart to take effect. Use the sample rate config as a live kill switch instead.
+	// KeyName: history.rewriteOptimizationBackends
+	// Value type: []string
+	// Default value: ["cassandra"]
+	// Allowed filters: N/A
+	RewriteOptimizationBackends
 
 	LastListKey
 )
@@ -3680,6 +3810,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "limit.timerIDLength",
 		Filters:      []Filter{DomainName},
 		Description:  "TimerIDMaxLength is the length limit for timerID",
+		DefaultValue: 1000,
+	},
+	SemaphoreNameMaxLength: {
+		KeyName:      "limit.semaphoreNameLength",
+		Filters:      []Filter{DomainName},
+		Description:  "SemaphoreNameMaxLength is the length limit for semaphore name",
 		DefaultValue: 1000,
 	},
 	MaxIDLengthWarnLimit: {
@@ -4614,6 +4750,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
 	},
+	HistoryTaskDLQProcessorHostConcurrency: {
+		KeyName:      "history.historyTaskDLQProcessorHostConcurrency",
+		Description:  "HistoryTaskDLQProcessorHostConcurrency is the maximum number of shards that may process the History Task DLQ concurrently on one history host. Evaluated once at history host startup; changing it requires a restart",
+		DefaultValue: 10,
+	},
 	HistoryTaskListNiceValue: {
 		KeyName:      "history.taskListNiceValue",
 		Description:  "HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list",
@@ -4630,6 +4771,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
+	},
+	RewriteSampleRate: {
+		KeyName:      "history.rewriteSampleRate",
+		Description:  "How often a full rewrite of activity and timer collections is triggered on transactions with deletes. N means 1-in-N chance (e.g. 100 = every ~100th transaction). 0 disables. Only applies to backends in RewriteOptimizationBackends. A rate too high causes sentinel accumulation, growing collections and increasing read latency on shard movement or cache eviction.",
+		DefaultValue: 0,
 	},
 }
 
@@ -5060,6 +5206,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableStickyQuery indicates if sticky query should be enabled per domain",
 		DefaultValue: true,
 	},
+	EnableDistributedSemaphore: {
+		KeyName:      "system.enableDistributedSemaphore",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so tokens granted before it was turned off are still freed. Global domains also need HistoryTaskDLQMode enabled",
+		DefaultValue: false,
+	},
 	EnableFailoverManager: {
 		KeyName:      "system.enableFailoverManager",
 		Description:  "EnableFailoverManager indicates if failover manager is enabled",
@@ -5188,6 +5340,24 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableStrongIdempotencySanityCheck enables sanity check for strong idempotency",
 		DefaultValue: false,
 	},
+	EnableDeterministicChildWorkflowRequestID: {
+		KeyName:      "history.enableDeterministicChildWorkflowRequestID",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableDeterministicChildWorkflowRequestID derives the request ID that starts a child workflow from its initiated event, so all clusters start the child with the same request ID",
+		DefaultValue: false,
+	},
+	EnableExistingChildWorkflowRunHandling: {
+		KeyName:      "history.enableExistingChildWorkflowRunHandling",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableExistingChildWorkflowRunHandling lets a child start adopt a run whose chain was started by the same request, and send the completion again for such a run closed by another cluster",
+		DefaultValue: false,
+	},
+	EnableChildWorkflowStaleBranchReplacement: {
+		KeyName:      "history.enableChildWorkflowStaleBranchReplacement",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableChildWorkflowStaleBranchReplacement lets a child start replace a run that was started by an initiated event of the parent that is not on the current branch of the parent: a running run is terminated, and after a closed run a new execution starts whatever the workflow ID reuse policy. It applies only when EnableExistingChildWorkflowRunHandling is also enabled",
+		DefaultValue: false,
+	},
 	MatchingEnableClientAutoConfig: {
 		KeyName:      "matching.enableClientAutoConfig",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
@@ -5239,13 +5409,13 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.enableTransferQueueV2",
 		Description:  "EnableTransferQueueV2 is to enable transfer queue v2",
 		Filters:      []Filter{ShardID},
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableTimerQueueV2: {
 		KeyName:      "history.enableTimerQueueV2",
 		Description:  "EnableTimerQueueV2 is to enable timer queue v2",
 		Filters:      []Filter{ShardID},
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableTransferQueueV2PendingTaskCountAlert: {
 		KeyName:      "history.enableTransferQueueV2PendingTaskCountAlert",
@@ -5275,6 +5445,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
 		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
 		DefaultValue: true,
+	},
+	MatchingShardTaskListsByHashForShardManager: {
+		KeyName:      "matching.shardTaskListsByHashForShardManager",
+		Description:  "MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard manager",
+		DefaultValue: false,
 	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
@@ -5555,20 +5730,20 @@ var StringKeys = map[StringKey]DynamicString{
 	},
 	HistoryTaskDLQMode: {
 		KeyName:      "history.historyTaskDLQMode",
-		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
+		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries. Global domains using distributed semaphores need it enabled.",
 		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 		Filters:      []Filter{DomainName},
 	},
 	TimerProcessorCachedQueueReaderMode: {
 		KeyName:      "history.timerProcessorCachedQueueReaderMode",
 		Description:  "TimerProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used: disabled/shadow/enabled",
-		DefaultValue: "disabled",
+		DefaultValue: "enabled",
 		Filters:      []Filter{ShardID},
 	},
 	TransferProcessorCachedQueueReaderMode: {
 		KeyName:      "history.transferProcessorCachedQueueReaderMode",
 		Description:  "TransferProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used: disabled/shadow/enabled",
-		DefaultValue: "disabled",
+		DefaultValue: "enabled",
 		Filters:      []Filter{ShardID},
 	},
 }
@@ -5662,6 +5837,18 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MaxTasklistIdleTime is the max time tasklist being idle",
 		DefaultValue: time.Minute * 5,
+	},
+	MatchingSemaphoreIdleTime: {
+		KeyName:      "matching.semaphoreIdleTime",
+		Filters:      []Filter{DomainName},
+		Description:  "MatchingSemaphoreIdleTime is the max time a semaphore bucket being idle before it is unloaded",
+		DefaultValue: time.Minute * 5,
+	},
+	MatchingSemaphoreUpdateAckInterval: {
+		KeyName:      "matching.semaphoreUpdateAckInterval",
+		Filters:      []Filter{DomainName},
+		Description:  "MatchingSemaphoreUpdateAckInterval is how often a semaphore bucket saves its waiter queue's ack level",
+		DefaultValue: time.Minute,
 	},
 	MatchingShutdownDrainDuration: {
 		KeyName:      "matching.shutdownDrainDuration",
@@ -5928,6 +6115,18 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Description:  "DecisionHeartbeatTimeout is for decision heartbeat",
 		DefaultValue: time.Minute * 30, // about 30m
 	},
+	SemaphoreAcquireDefaultWaitTimeout: {
+		KeyName:      "history.semaphoreAcquireDefaultWaitTimeout",
+		Filters:      []Filter{DomainName},
+		Description:  "SemaphoreAcquireDefaultWaitTimeout is how long an acquire waits for a token when the workflow does not set its own wait timeout. A value under one second is treated as unset and the built-in default is used",
+		DefaultValue: time.Minute * 5,
+	},
+	SemaphoreAcquireMaxWaitTimeout: {
+		KeyName:      "history.semaphoreAcquireMaxWaitTimeout",
+		Filters:      []Filter{DomainName},
+		Description:  "SemaphoreAcquireMaxWaitTimeout is the longest an acquire waits for a token. A longer wait timeout is lowered to it. A value under one second is treated as unset and the built-in default is used",
+		DefaultValue: time.Hour * 24,
+	},
 	NormalDecisionScheduleToStartTimeout: {
 		KeyName:      "history.normalDecisionScheduleToStartTimeout",
 		Filters:      []Filter{DomainName},
@@ -6116,6 +6315,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
 		DefaultValue: time.Minute * 30,
 	},
+	HistoryTaskDLQProcessorFailoverJitterMaxDelay: {
+		KeyName:      "history.historyTaskDLQProcessorFailoverJitterMaxDelay",
+		Description:  "HistoryTaskDLQProcessorFailoverJitterMaxDelay is the maximum jitter delay before processing failover-triggered History Task DLQ partitions",
+		DefaultValue: time.Minute,
+	},
 	OperationalConfigStorePollInterval: {
 		KeyName:      "system.operationalConfigStorePollInterval",
 		Description:  "How often the operational dynamic config store re-reads its snapshot from the primary database",
@@ -6197,6 +6401,11 @@ var ListKeys = map[ListKey]DynamicList{
 		KeyName:      "system.rateLimiterBypassCallerTypes",
 		Description:  "List of caller types that bypass rate limiters (both frontend and persistence)",
 		DefaultValue: []interface{}{},
+	},
+	RewriteOptimizationBackends: {
+		KeyName:      "history.rewriteOptimizationBackends",
+		Description:  "List of persistence backends that support the rewrite optimization (sentinel writes + probabilistic rewrite). Currently only Cassandra is known to need this (to avoid tombstones). Cached at startup; changes require restart. Use the sample rate config as a live kill switch.",
+		DefaultValue: []interface{}{"cassandra"},
 	},
 	DefaultIsolationGroupConfigStoreManagerGlobalMapping: {
 		KeyName: "system.defaultIsolationGroupConfigStoreManagerGlobalMapping",

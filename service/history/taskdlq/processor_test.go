@@ -25,6 +25,7 @@ package taskdlq
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -41,6 +43,83 @@ import (
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/shard"
 )
+
+func TestHostLimiter_BoundsConcurrentProcessingAcrossShards(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	limiter := NewHostLimiter(1)
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+
+	newProc := func(shardID int) *ProcessorImpl {
+		return NewProcessor(ProcessorParams{
+			ShardID:                shardID,
+			Manager:                mgr,
+			DomainName:             func(id string) (string, error) { return id, nil },
+			Reinjector:             reinjector,
+			PageSize:               10,
+			Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
+			FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(0),
+			DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+			Enabled:                dynamicproperties.GetBoolPropertyFn(true),
+			HostLimiter:            limiter,
+			TimeSource:             clock.NewMockedTimeSource(),
+			MetricsClient:          metrics.NewNoopMetricsClient(),
+			Logger:                 testlogger.New(t),
+		})
+	}
+	proc1 := newProc(1)
+	proc2 := newProc(2)
+
+	entered1 := make(chan struct{})
+	release1 := make(chan struct{})
+	var secondStarted atomic.Bool
+	done2 := make(chan struct{})
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:  1,
+		DomainID: "test-domain",
+	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+		close(entered1)
+		select {
+		case <-release1:
+		case <-ctx.Done():
+		}
+		return nil, nil
+	})
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:  2,
+		DomainID: "test-domain",
+	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+		secondStarted.Store(true)
+		close(done2)
+		return nil, nil
+	})
+
+	require.NoError(t, proc1.Start(context.Background()))
+	defer proc1.Stop(context.Background())
+	require.NoError(t, proc2.Start(context.Background()))
+	defer proc2.Stop(context.Background())
+
+	proc1.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+	select {
+	case <-entered1: // proc1 now holds the single host slot inside its DB call
+	case <-time.After(5 * time.Second):
+		t.Fatal("first shard's DLQ processing never started")
+	}
+
+	proc2.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+	time.Sleep(100 * time.Millisecond)
+	require.False(t, secondStarted.Load(), "second shard's DLQ query ran while the host slot was held")
+
+	close(release1)
+	select {
+	case <-done2:
+	case <-time.After(5 * time.Second):
+		t.Fatal("second shard's DLQ processing never ran after the slot freed")
+	}
+}
 
 const (
 	defaultTestProcessingInterval = 15 * time.Second
@@ -64,6 +143,7 @@ func newMockTimerTask(ctrl *gomock.Controller, ts time.Time, taskID int64) *pers
 type newProcessorParams struct {
 	ShardID           int
 	Manager           persistence.HistoryTaskDLQManager
+	DomainName        DomainNameFn
 	Reinjector        TaskReinjector
 	DomainMode        string
 	ProcessingEnabled bool
@@ -77,18 +157,24 @@ func newProcessor(
 	params newProcessorParams,
 ) *ProcessorImpl {
 	t.Helper()
+	domainName := params.DomainName
+	if domainName == nil {
+		domainName = func(id string) (string, error) { return id, nil }
+	}
 	return NewProcessor(ProcessorParams{
-		ShardID:       1,
-		Manager:       params.Manager,
-		Reinjector:    params.Reinjector,
-		PageSize:      10,
-		Interval:      dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
-		DomainMode:    dynamicproperties.GetStringPropertyFnFilteredByDomain(params.DomainMode),
-		Enabled:       dynamicproperties.GetBoolPropertyFn(params.ProcessingEnabled),
-		TimeSource:    params.TimeSource,
-		MetricsClient: metrics.NewNoopMetricsClient(),
-		Logger:        testlogger.New(t),
-		MaxReadLevel:  params.MaxReadLevel,
+		ShardID:                1,
+		Manager:                params.Manager,
+		DomainName:             domainName,
+		Reinjector:             params.Reinjector,
+		PageSize:               10,
+		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
+		FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(0),
+		DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(params.DomainMode),
+		Enabled:                dynamicproperties.GetBoolPropertyFn(params.ProcessingEnabled),
+		TimeSource:             params.TimeSource,
+		MetricsClient:          metrics.NewNoopMetricsClient(),
+		Logger:                 testlogger.New(t),
+		MaxReadLevel:           params.MaxReadLevel,
 	})
 }
 
@@ -104,6 +190,25 @@ func setupProcessor(t *testing.T, ctrl *gomock.Controller) (*ProcessorImpl, *per
 		TimeSource:        clock.NewMockedTimeSource(),
 	})
 	return proc, mgr, reinjector
+}
+
+func TestSweepIntervalIsJittered(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, _, _ := setupProcessor(t, ctrl)
+
+	base := defaultTestProcessingInterval
+	lo := time.Duration(float64(base) * (1 - sweepIntervalJitterCoefficient))
+	hi := time.Duration(float64(base) * (1 + sweepIntervalJitterCoefficient))
+	distinct := make(map[time.Duration]struct{})
+	for i := 0; i < 200; i++ {
+		d := proc.sweepInterval()
+		require.GreaterOrEqual(t, d, lo)
+		require.LessOrEqual(t, d, hi)
+		distinct[d] = struct{}{}
+	}
+	require.Greater(t, len(distinct), 1, "sweep interval should be jittered, got 200 identical values")
 }
 
 func baseAckLevel(shardID int) persistence.HistoryDLQAckLevel {
@@ -782,10 +887,10 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 		TimeSource:        ts,
 	})
 
-	proc.Start()
+	require.NoError(t, proc.Start(context.Background()))
 
 	ts.BlockUntil(1)
-	ts.Advance(defaultTestProcessingInterval)
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
 
 	select {
 	case <-inGetAckLevels:
@@ -795,7 +900,7 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 
 	stopDone := make(chan struct{})
 	go func() {
-		proc.Stop()
+		assert.NoError(t, proc.Stop(context.Background()))
 		close(stopDone)
 	}()
 	select {
@@ -803,6 +908,50 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 	case <-time.After(5 * time.Second):
 		t.Fatal("Stop() did not return promptly after context cancellation")
 	}
+}
+
+func TestStop_WhenLoopIsStuck_ReturnsContextError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ts := clock.NewMockedTimeSource()
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+
+	// A store call that ignores context cancellation and blocks until released,
+	// simulating a stuck processing loop.
+	inGetAckLevels := make(chan struct{}, 1)
+	release := make(chan struct{})
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).DoAndReturn(func(ctx context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+		select {
+		case inGetAckLevels <- struct{}{}:
+		default:
+		}
+		<-release
+		return nil, nil
+	}).AnyTimes()
+
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        ts,
+	})
+
+	require.NoError(t, proc.Start(context.Background()))
+	defer close(release)
+
+	ts.BlockUntil(1)
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
+	select {
+	case <-inGetAckLevels:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for GetAckLevels to be called")
+	}
+
+	stopCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, proc.Stop(stopCtx), context.Canceled)
 }
 
 // Documents a known limitation: if DeleteTasks fails and no new tasks arrive,
@@ -843,6 +992,46 @@ func TestProcessShard_WhenDeleteTasksFailsAndDLQBecomesEmpty_OrphanedRowsNotClea
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
 
+func TestStart_WhenParentContextCanceled_LoopExitsAndStopReturns(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ts := clock.NewMockedTimeSource()
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	// The loop must exit on parent cancellation before the first sweep ever fires,
+	// so no store call is expected.
+
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        ts,
+	})
+
+	parent, cancel := context.WithCancel(context.Background())
+	require.NoError(t, proc.Start(parent))
+	ts.BlockUntil(1) // loop is parked on its sweep timer
+	cancel()
+
+	// Advancing the timer after cancellation must not trigger a sweep: the loop
+	// is gone. Give it a moment to observe cancellation first.
+	loopDone := make(chan struct{})
+	go func() {
+		proc.wg.Wait()
+		close(loopDone)
+	}()
+	select {
+	case <-loopDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("processing loop did not exit after parent context cancellation")
+	}
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
+
+	// Stop still transitions cleanly and returns promptly.
+	require.NoError(t, proc.Stop(context.Background()))
+}
+
 func TestStartStop_ShouldBeIdempotent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -856,10 +1045,10 @@ func TestStartStop_ShouldBeIdempotent(t *testing.T) {
 		TimeSource:        clock.NewMockedTimeSource(),
 	})
 
-	proc.Start()
-	proc.Start() // second call must be a no-op
-	proc.Stop()
-	proc.Stop() // second call must be a no-op
+	require.NoError(t, proc.Start(context.Background()))
+	require.NoError(t, proc.Start(context.Background())) // second call must be a no-op
+	require.NoError(t, proc.Stop(context.Background()))
+	require.NoError(t, proc.Stop(context.Background())) // second call must be a no-op
 }
 
 func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
@@ -885,11 +1074,11 @@ func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
 		TimeSource:        ts,
 	})
 
-	proc.Start()
-	defer proc.Stop()
+	require.NoError(t, proc.Start(context.Background()))
+	defer proc.Stop(context.Background())
 
 	ts.BlockUntil(1)
-	ts.Advance(defaultTestProcessingInterval)
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
 
 	select {
 	case <-processed:
@@ -913,13 +1102,13 @@ func TestStart_WhenNotEnabled_SkipsProcessingButContinuesLoop(t *testing.T) {
 		TimeSource:        ts,
 	})
 
-	proc.Start()
-	defer proc.Stop()
+	require.NoError(t, proc.Start(context.Background()))
+	defer proc.Stop(context.Background())
 
 	// The loop always starts; wait for the first timer to be registered.
 	ts.BlockUntil(1)
 	// Advance past the interval — enabled() returns false, so GetAckLevels must not be called.
-	ts.Advance(defaultTestProcessingInterval)
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
 	// Wait for the timer to be reset, confirming the loop ran and continued.
 	ts.BlockUntil(1)
 	// ctrl.Finish() verifies GetAckLevels was called 0 times.
@@ -969,8 +1158,8 @@ func TestFailoverPartitions_DispatchesToProcessPartition(t *testing.T) {
 		ProcessingEnabled: true,
 		TimeSource:        clock.NewMockedTimeSource(),
 	})
-	proc.Start()
-	defer proc.Stop()
+	require.NoError(t, proc.Start(context.Background()))
+	defer proc.Stop(context.Background())
 
 	proc.FailoverPartitions([]Partition{{
 		DomainID:              "test-domain",
@@ -1078,12 +1267,12 @@ func TestFailoverPartitions_PreemptsInProgressSweep(t *testing.T) {
 		ProcessingEnabled: true,
 		TimeSource:        ts,
 	})
-	proc.Start()
-	defer proc.Stop()
+	require.NoError(t, proc.Start(context.Background()))
+	defer proc.Stop(context.Background())
 
 	// Kick off a periodic sweep and wait for it to block inside the shard-level query.
 	ts.BlockUntil(1)
-	ts.Advance(defaultTestProcessingInterval)
+	ts.Advance(time.Duration(float64(defaultTestProcessingInterval) * (1 + sweepIntervalJitterCoefficient)))
 	select {
 	case <-sweepStarted:
 	case <-time.After(5 * time.Second):
@@ -1125,8 +1314,8 @@ func TestFailoverPartitions_WhenNotEnabled_DoesNotProcess(t *testing.T) {
 		ProcessingEnabled: false,
 		TimeSource:        clock.NewMockedTimeSource(),
 	})
-	proc.Start()
-	defer proc.Stop()
+	require.NoError(t, proc.Start(context.Background()))
+	defer proc.Stop(context.Background())
 
 	proc.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
 
@@ -1136,4 +1325,171 @@ func TestFailoverPartitions_WhenNotEnabled_DoesNotProcess(t *testing.T) {
 		t.Fatal("ProcessPartition ran while the processor was disabled")
 	case <-time.After(200 * time.Millisecond):
 	}
+}
+
+func TestFailoverPartitions_JitterDelaysProcessing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+	ts := clock.NewMockedTimeSource()
+	proc := NewProcessor(ProcessorParams{
+		ShardID:                1,
+		Manager:                mgr,
+		DomainName:             func(id string) (string, error) { return id, nil },
+		Reinjector:             reinjector,
+		PageSize:               10,
+		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
+		FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(10 * time.Second),
+		DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		Enabled:                dynamicproperties.GetBoolPropertyFn(true),
+		TimeSource:             ts,
+		MetricsClient:          metrics.NewNoopMetricsClient(),
+		Logger:                 testlogger.New(t),
+	})
+
+	processed := make(chan struct{}, 1)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:  1,
+		DomainID: "test-domain",
+	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+		processed <- struct{}{}
+		return nil, nil
+	})
+
+	require.NoError(t, proc.Start(context.Background()))
+	defer proc.Stop(context.Background())
+	ts.BlockUntil(1) // the periodic sweep timer is armed
+
+	proc.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+
+	// The drain must arm a jitter timer before doing any DB work.
+	ts.BlockUntil(2)
+	select {
+	case <-processed:
+		t.Fatal("failover partition processed before the jitter delay elapsed")
+	default:
+	}
+
+	// Advancing past the maximum jitter window fires the jitter timer.
+	ts.Advance(10 * time.Second)
+	select {
+	case <-processed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("failover partition not processed after the jitter window elapsed")
+	}
+}
+
+func TestFailoverPartitions_ZeroJitterProcessesImmediately(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+	proc := NewProcessor(ProcessorParams{
+		ShardID:                1,
+		Manager:                mgr,
+		DomainName:             func(id string) (string, error) { return id, nil },
+		Reinjector:             reinjector,
+		PageSize:               10,
+		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
+		FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(0),
+		DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		Enabled:                dynamicproperties.GetBoolPropertyFn(true),
+		TimeSource:             clock.NewMockedTimeSource(),
+		MetricsClient:          metrics.NewNoopMetricsClient(),
+		Logger:                 testlogger.New(t),
+	})
+
+	processed := make(chan struct{}, 1)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:  1,
+		DomainID: "test-domain",
+	}).DoAndReturn(func(ctx context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+		processed <- struct{}{}
+		return nil, nil
+	})
+
+	require.NoError(t, proc.Start(context.Background()))
+	defer proc.Stop(context.Background())
+
+	proc.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+	select {
+	case <-processed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("failover partition not processed with zero jitter window")
+	}
+}
+
+// TestProcessPartition_ChecksDomainModeByDomainName verifies the domain mode filter is queried
+// by domain name, not domain ID.
+func TestProcessPartition_ChecksDomainModeByDomainName(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetDomainName("domain-id-1").Return("domain-name-1", nil)
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).Times(0)
+
+	var capturedDomain string
+	proc := NewProcessor(ProcessorParams{
+		ShardID:    1,
+		Manager:    mgr,
+		DomainName: mockDomainCache.GetDomainName,
+		Reinjector: NewMockTaskReinjector(ctrl),
+		PageSize:   10,
+		Interval:   dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
+		DomainMode: func(domain string) string {
+			capturedDomain = domain
+			return constants.HistoryTaskDLQModeDisabled
+		},
+		Enabled:       dynamicproperties.GetBoolPropertyFn(false),
+		TimeSource:    clock.NewMockedTimeSource(),
+		MetricsClient: metrics.NewNoopMetricsClient(),
+		Logger:        testlogger.New(t),
+	})
+
+	assert.NoError(t, proc.ProcessPartition(context.Background(), "domain-id-1", "scope", "name"))
+	assert.Equal(t, "domain-name-1", capturedDomain)
+}
+
+// TestProcessShard_ChecksDomainModeByDomainName verifies the domain mode filter is queried by
+// domain name, not domain ID, when reached via ProcessShard.
+func TestProcessShard_ChecksDomainModeByDomainName(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetDomainName("domain-id-2").Return("domain-name-2", nil)
+
+	al := baseAckLevel(1)
+	al.DomainID = "domain-id-2"
+
+	store := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	store.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	store.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Times(0)
+
+	var capturedDomain string
+	proc := NewProcessor(ProcessorParams{
+		ShardID:    1,
+		Manager:    store,
+		DomainName: mockDomainCache.GetDomainName,
+		Reinjector: NewMockTaskReinjector(ctrl),
+		PageSize:   10,
+		Interval:   dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
+		DomainMode: func(domain string) string {
+			capturedDomain = domain
+			return constants.HistoryTaskDLQModeDisabled
+		},
+		Enabled:       dynamicproperties.GetBoolPropertyFn(true),
+		TimeSource:    clock.NewMockedTimeSource(),
+		MetricsClient: metrics.NewNoopMetricsClient(),
+		Logger:        testlogger.New(t),
+	})
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
+	assert.Equal(t, "domain-name-2", capturedDomain)
 }

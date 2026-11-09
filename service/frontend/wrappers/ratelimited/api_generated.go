@@ -101,6 +101,22 @@ func (h *apiHandler) CreateSchedule(ctx context.Context, cp1 *types.CreateSchedu
 	return h.wrapped.CreateSchedule(ctx, cp1)
 }
 
+func (h *apiHandler) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest) (cp2 *types.CreateSemaphoreResponse, err error) {
+	if cp1 == nil {
+		err = validate.ErrRequestNotSet
+		return
+	}
+	if cp1.GetDomain() == "" {
+		err = validate.ErrDomainNotSet
+		return
+	}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: cp1.GetDomain()}); limitErr != nil {
+		err = limitErr
+		return
+	}
+	return h.wrapped.CreateSemaphore(ctx, cp1)
+}
+
 func (h *apiHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {
 	return h.wrapped.DeleteDomain(ctx, dp1)
 }
@@ -123,6 +139,22 @@ func (h *apiHandler) DeleteSchedule(ctx context.Context, dp1 *types.DeleteSchedu
 
 func (h *apiHandler) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDomainRequest) (err error) {
 	return h.wrapped.DeprecateDomain(ctx, dp1)
+}
+
+func (h *apiHandler) DescribeBatchOperation(ctx context.Context, dp1 *types.DescribeBatchOperationRequest) (dp2 *types.DescribeBatchOperationResponse, err error) {
+	if dp1 == nil {
+		err = validate.ErrRequestNotSet
+		return
+	}
+	if dp1.GetDomain() == "" {
+		err = validate.ErrDomainNotSet
+		return
+	}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: dp1.GetDomain()}); limitErr != nil {
+		err = limitErr
+		return
+	}
+	return h.wrapped.DescribeBatchOperation(ctx, dp1)
 }
 
 func (h *apiHandler) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest) (dp2 *types.DescribeDomainResponse, err error) {
@@ -267,6 +299,22 @@ func (h *apiHandler) ListArchivedWorkflowExecutions(ctx context.Context, lp1 *ty
 		return
 	}
 	return h.wrapped.ListArchivedWorkflowExecutions(ctx, lp1)
+}
+
+func (h *apiHandler) ListBatchOperations(ctx context.Context, lp1 *types.ListBatchOperationsRequest) (lp2 *types.ListBatchOperationsResponse, err error) {
+	if lp1 == nil {
+		err = validate.ErrRequestNotSet
+		return
+	}
+	if lp1.GetDomain() == "" {
+		err = validate.ErrDomainNotSet
+		return
+	}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: lp1.GetDomain()}); limitErr != nil {
+		err = limitErr
+		return
+	}
+	return h.wrapped.ListBatchOperations(ctx, lp1)
 }
 
 func (h *apiHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *types.ListClosedWorkflowExecutionsRequest) (lp2 *types.ListClosedWorkflowExecutionsResponse, err error) {
@@ -817,6 +865,22 @@ func (h *apiHandler) SignalWorkflowExecution(ctx context.Context, sp1 *types.Sig
 	return h.wrapped.SignalWorkflowExecution(ctx, sp1)
 }
 
+func (h *apiHandler) StartBatchOperation(ctx context.Context, sp1 *types.StartBatchOperationRequest) (sp2 *types.StartBatchOperationResponse, err error) {
+	if sp1 == nil {
+		err = validate.ErrRequestNotSet
+		return
+	}
+	if sp1.GetDomain() == "" {
+		err = validate.ErrDomainNotSet
+		return
+	}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: sp1.GetDomain()}); limitErr != nil {
+		err = limitErr
+		return
+	}
+	return h.wrapped.StartBatchOperation(ctx, sp1)
+}
+
 func (h *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.StartWorkflowExecutionRequest) (sp2 *types.StartWorkflowExecutionResponse, err error) {
 	if sp1 == nil {
 		err = validate.ErrRequestNotSet
@@ -849,6 +913,22 @@ func (h *apiHandler) StartWorkflowExecutionAsync(ctx context.Context, sp1 *types
 	return h.wrapped.StartWorkflowExecutionAsync(ctx, sp1)
 }
 
+func (h *apiHandler) StopBatchOperation(ctx context.Context, sp1 *types.StopBatchOperationRequest) (sp2 *types.StopBatchOperationResponse, err error) {
+	if sp1 == nil {
+		err = validate.ErrRequestNotSet
+		return
+	}
+	if sp1.GetDomain() == "" {
+		err = validate.ErrDomainNotSet
+		return
+	}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: sp1.GetDomain()}); limitErr != nil {
+		err = limitErr
+		return
+	}
+	return h.wrapped.StopBatchOperation(ctx, sp1)
+}
+
 func (h *apiHandler) TerminateWorkflowExecution(ctx context.Context, tp1 *types.TerminateWorkflowExecutionRequest) (err error) {
 	if tp1 == nil {
 		err = validate.ErrRequestNotSet
@@ -879,6 +959,22 @@ func (h *apiHandler) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseSche
 		return
 	}
 	return h.wrapped.UnpauseSchedule(ctx, up1)
+}
+
+func (h *apiHandler) UpdateBatchOperation(ctx context.Context, up1 *types.UpdateBatchOperationRequest) (up2 *types.UpdateBatchOperationResponse, err error) {
+	if up1 == nil {
+		err = validate.ErrRequestNotSet
+		return
+	}
+	if up1.GetDomain() == "" {
+		err = validate.ErrDomainNotSet
+		return
+	}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: up1.GetDomain()}); limitErr != nil {
+		err = limitErr
+		return
+	}
+	return h.wrapped.UpdateBatchOperation(ctx, up1)
 }
 
 func (h *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {

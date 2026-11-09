@@ -415,7 +415,7 @@ func (m *mutableStateDecisionTaskManagerImpl) AddDecisionTaskScheduledEventAsHea
 
 	// Flush any buffered events before creating the decision, otherwise it will result in invalid IDs for transient
 	// decision and will cause in timeout processing to not work for transient decisions
-	if m.msb.HasBufferedEvents() {
+	if m.msb.HasBufferedEvents() || m.msb.hasBufferedEventsInDB {
 		// if creating a decision and in the mean time events are flushed from buffered events
 		// than this decision cannot be a transient decision
 		m.msb.executionInfo.DecisionAttempt = 0

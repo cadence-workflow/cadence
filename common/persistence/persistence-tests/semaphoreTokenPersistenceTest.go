@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 )
 
 type (
@@ -53,8 +54,8 @@ func (s *SemaphoreTokenPersistenceSuite) TearDownSuite() {
 	s.TearDownWorkflowStore()
 }
 
-// TestGrantAndRelease seeds a bucket, then walks a slot through the grant/release
-// lifecycle, verifying the conditional writes and both index directions.
+// TestGrantAndRelease walks a slot through the grant/release lifecycle, from no row
+// to held to free and held again, verifying the conditional writes and both index directions.
 func (s *SemaphoreTokenPersistenceSuite) TestGrantAndRelease() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
@@ -70,22 +71,14 @@ func (s *SemaphoreTokenPersistenceSuite) TestGrantAndRelease() {
 	tokenID := 1
 	owner := "owner-" + uuid.NewString()
 
-	// seed a single free slot
-	s.NoError(manager.SeedSemaphoreTokens(ctx, &persistence.SeedSemaphoreTokensRequest{
-		DomainID:      domainID,
-		SemaphoreName: semaphoreName,
-		Bucket:        bucket,
-		TokenIDs:      []int{tokenID},
-	}))
-
-	// the slot starts free
-	byToken, err := manager.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
+	// token rows are not seeded, so a slot that has never been granted has no row
+	_, err = manager.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: tokenID,
 	})
-	s.NoError(err)
-	s.Equal("", byToken.Ownership.Holder)
+	var notExists *types.EntityNotExistsError
+	s.ErrorAs(err, &notExists)
 
-	// grant applies
+	// the first grant applies and creates the token row
 	grantResp, err := manager.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: tokenID, OwnerID: owner,
 	})
@@ -100,7 +93,7 @@ func (s *SemaphoreTokenPersistenceSuite) TestGrantAndRelease() {
 	s.Equal(persistence.SemaphoreGrantSlotTaken, grantAgain.Outcome)
 
 	// forward read shows the holder
-	byToken, err = manager.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
+	byToken, err := manager.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: tokenID,
 	})
 	s.NoError(err)
@@ -139,6 +132,19 @@ func (s *SemaphoreTokenPersistenceSuite) TestGrantAndRelease() {
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, OwnerID: owner,
 	})
 	s.Error(err)
+
+	// a released slot keeps its row as free, and can be granted again
+	nextOwner := "owner-" + uuid.NewString()
+	grantReleased, err := manager.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
+		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: tokenID, OwnerID: nextOwner,
+	})
+	s.NoError(err)
+	s.Equal(persistence.SemaphoreGrantApplied, grantReleased.Outcome)
+	byToken, err = manager.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
+		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: tokenID,
+	})
+	s.NoError(err)
+	s.Equal(nextOwner, byToken.Ownership.Holder)
 }
 
 // TestGrantSameOwnerDifferentTokenIsRejected verifies the IF NOT EXISTS owner
@@ -159,14 +165,6 @@ func (s *SemaphoreTokenPersistenceSuite) TestGrantSameOwnerDifferentTokenIsRejec
 	secondToken := 2
 	owner := "owner-" + uuid.NewString()
 
-	// seed two free slots
-	s.NoError(manager.SeedSemaphoreTokens(ctx, &persistence.SeedSemaphoreTokensRequest{
-		DomainID:      domainID,
-		SemaphoreName: semaphoreName,
-		Bucket:        bucket,
-		TokenIDs:      []int{firstToken, secondToken},
-	}))
-
 	// the owner claims the first token
 	grantResp, err := manager.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: firstToken, OwnerID: owner,
@@ -184,48 +182,12 @@ func (s *SemaphoreTokenPersistenceSuite) TestGrantSameOwnerDifferentTokenIsRejec
 	s.Equal(persistence.SemaphoreGrantAlreadyHeld, grantSecond.Outcome)
 	s.Equal(firstToken, grantSecond.HeldToken)
 
-	// the second slot was never claimed and is still free
-	byToken, err := manager.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
+	// the refused batch wrote nothing, so the second slot still has no row
+	_, err = manager.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
 		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: secondToken,
 	})
-	s.NoError(err)
-	s.Equal("", byToken.Ownership.Holder)
-}
-
-// TestSeedIsIdempotent verifies that re-seeding a bucket never clobbers a held slot.
-func (s *SemaphoreTokenPersistenceSuite) TestSeedIsIdempotent() {
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
-	defer cancel()
-
-	manager, err := s.PersistenceFactory.NewSemaphoreTokenManager()
-	s.NoError(err)
-	defer manager.Close()
-
-	domainID := uuid.NewString()
-	semaphoreName := "sem-" + uuid.NewString()
-	bucket := 0
-	tokenID := 1
-	owner := "owner-" + uuid.NewString()
-
-	seed := &persistence.SeedSemaphoreTokensRequest{
-		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenIDs: []int{tokenID},
-	}
-	s.NoError(manager.SeedSemaphoreTokens(ctx, seed))
-
-	grantResp, err := manager.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
-		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: tokenID, OwnerID: owner,
-	})
-	s.NoError(err)
-	s.Equal(persistence.SemaphoreGrantApplied, grantResp.Outcome)
-
-	// re-seed: must not reset the held slot back to free
-	s.NoError(manager.SeedSemaphoreTokens(ctx, seed))
-
-	byToken, err := manager.GetSemaphoreOwnershipByToken(ctx, &persistence.GetSemaphoreOwnershipByTokenRequest{
-		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: tokenID,
-	})
-	s.NoError(err)
-	s.Equal(owner, byToken.Ownership.Holder)
+	var notExists *types.EntityNotExistsError
+	s.ErrorAs(err, &notExists)
 }
 
 // TestScanSemaphoreBucket verifies a bucket scan returns both row types,
@@ -241,18 +203,9 @@ func (s *SemaphoreTokenPersistenceSuite) TestScanSemaphoreBucket() {
 	domainID := uuid.NewString()
 	semaphoreName := "sem-" + uuid.NewString()
 	bucket := 0
-	numTokens := 5
 
-	tokenIDs := make([]int, 0, numTokens)
-	for i := 1; i <= numTokens; i++ {
-		tokenIDs = append(tokenIDs, i)
-	}
-	s.NoError(manager.SeedSemaphoreTokens(ctx, &persistence.SeedSemaphoreTokensRequest{
-		DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenIDs: tokenIDs,
-	}))
-
-	// grant a couple, which adds reverse (owner) rows to the partition
-	numGranted := 2
+	// grant three slots, which writes a token row and an owner row for each
+	numGranted := 3
 	for i := 1; i <= numGranted; i++ {
 		grantResp, err := manager.GrantSemaphoreToken(ctx, &persistence.GrantSemaphoreTokenRequest{
 			DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket, TokenID: i, OwnerID: "owner-" + uuid.NewString(),
@@ -261,8 +214,9 @@ func (s *SemaphoreTokenPersistenceSuite) TestScanSemaphoreBucket() {
 		s.Equal(persistence.SemaphoreGrantApplied, grantResp.Outcome)
 	}
 
-	// scan the whole partition: numTokens token rows + numGranted owner rows
-	pageSize := 3
+	// scan the whole partition: only granted slots have token rows, so numGranted of each
+	// type. A page size of 2 makes the scan span several pages.
+	pageSize := 2
 	total := 0
 	byRowType := map[persistence.SemaphoreRowType]int{}
 	var nextPageToken []byte
@@ -285,9 +239,9 @@ func (s *SemaphoreTokenPersistenceSuite) TestScanSemaphoreBucket() {
 		}
 		nextPageToken = scanResp.NextPageToken
 	}
-	s.Equal(numTokens+numGranted, total)
+	s.Equal(2*numGranted, total)
 	// A scan is the only read that returns both types interleaved, so it is the only place
 	// the stored type column is what tells them apart.
-	s.Equal(numTokens, byRowType[persistence.SemaphoreRowTypeToken])
+	s.Equal(numGranted, byRowType[persistence.SemaphoreRowTypeToken])
 	s.Equal(numGranted, byRowType[persistence.SemaphoreRowTypeOwner])
 }

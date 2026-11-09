@@ -23,8 +23,8 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
-	"strings"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli/v2"
@@ -62,18 +62,13 @@ func AdminGetDynamicConfig(c *cli.Context) error {
 		return commoncli.Problem("Required flag not found", err)
 	}
 
-	filter := c.String(FlagDynamicConfigFilter)
-
 	ctx, cancel, err := newContext(c)
 	defer cancel()
 	if err != nil {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
 
-	parsedFilters, err := parseInputFilter(filter)
-	if err != nil {
-		return commoncli.Problem("Failed to parse input filter array", err)
-	}
+	parsedFilters := c.Generic(FlagDynamicConfigFilter).(*DynamicConfigFilterFlag).Get()
 
 	req := &types.GetDynamicConfigRequest{
 		ConfigName: configName,
@@ -111,47 +106,17 @@ func AdminUpdateDynamicConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found", err)
 	}
-	dcValuesRaw := c.StringSlice(FlagDynamicConfigValue)
 
-	// WORKAROUND: urfave/cli v2 StringSliceFlag splits on commas by default.
-	// This breaks JSON values. Try reassembling the split pieces.
-	var dcValues []string
-	if len(dcValuesRaw) > 1 && strings.HasPrefix(dcValuesRaw[0], "{") {
-		assembled := strings.Join(dcValuesRaw, ",")
-		var test interface{}
-		if json.Unmarshal([]byte(assembled), &test) == nil {
-			dcValues = []string{assembled}
-		} else {
-			dcValues = dcValuesRaw
-		}
-	} else {
-		dcValues = dcValuesRaw
+	// Get parsed values from flags
+	parsedValues, err := getDynamicConfigValues(c)
+	if err != nil {
+		return commoncli.Problem("Failed to get config values", err)
 	}
 
 	ctx, cancel, err := newContext(c)
 	defer cancel()
 	if err != nil {
 		return commoncli.Problem("Error in creating context: ", err)
-	}
-	var parsedValues []*types.DynamicConfigValue
-
-	if dcValues != nil {
-		parsedValues = make([]*types.DynamicConfigValue, 0, len(dcValues))
-
-		for _, valueString := range dcValues {
-			var parsedInputValue *cliValue
-			err := json.Unmarshal([]byte(valueString), &parsedInputValue)
-			if err != nil {
-				return commoncli.Problem("Unable to unmarshal value to inputValue", err)
-			}
-			parsedValue, err := convertFromInputValue(parsedInputValue)
-			if err != nil {
-				return commoncli.Problem("Unable to convert from inputValue to DynamicConfigValue", err)
-			}
-			parsedValues = append(parsedValues, parsedValue)
-		}
-	} else {
-		parsedValues = nil
 	}
 
 	req := &types.UpdateDynamicConfigRequest{
@@ -163,7 +128,7 @@ func AdminUpdateDynamicConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Failed to update dynamic config value", err)
 	}
-	fmt.Printf("Dynamic Config %q updated with %s \n", dcName, dcValues)
+	fmt.Printf("Dynamic Config %q updated successfully\n", dcName)
 	return nil
 }
 
@@ -178,7 +143,6 @@ func AdminRestoreDynamicConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found", err)
 	}
-	filter := c.String(FlagDynamicConfigFilter)
 
 	ctx, cancel, err := newContext(c)
 	defer cancel()
@@ -186,10 +150,7 @@ func AdminRestoreDynamicConfig(c *cli.Context) error {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
 
-	parsedFilters, err := parseInputFilter(filter)
-	if err != nil {
-		return commoncli.Problem("Failed to parse input filter", err)
-	}
+	parsedFilters := c.Generic(FlagDynamicConfigFilter).(*DynamicConfigFilterFlag).Get()
 
 	req := &types.RestoreDynamicConfigRequest{
 		ConfigName: dcName,
@@ -216,8 +177,10 @@ func AdminListDynamicConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
+
+	configName := c.String(FlagDynamicConfigName) // empty string means all config values
 	req := &types.ListDynamicConfigRequest{
-		ConfigName: "", // empty string means all config values
+		ConfigName: configName,
 	}
 
 	val, err := adminClient.ListDynamicConfig(ctx, req)
@@ -254,18 +217,13 @@ func AdminGetOperationalDynamicConfig(c *cli.Context) error {
 		return commoncli.Problem("Required flag not found", err)
 	}
 
-	filter := c.String(FlagDynamicConfigFilter)
-
 	ctx, cancel, err := newContext(c)
 	defer cancel()
 	if err != nil {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
 
-	parsedFilters, err := parseInputFilter(filter)
-	if err != nil {
-		return commoncli.Problem("Failed to parse input filter array", err)
-	}
+	parsedFilters := c.Generic(FlagDynamicConfigFilter).(*DynamicConfigFilterFlag).Get()
 
 	req := &types.GetOperationalDynamicConfigRequest{
 		ConfigName: configName,
@@ -309,47 +267,17 @@ func AdminUpdateOperationalDynamicConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found", err)
 	}
-	dcValuesRaw := c.StringSlice(FlagDynamicConfigValue)
 
-	// WORKAROUND: urfave/cli v2 StringSliceFlag splits on commas by default.
-	// This breaks JSON values. Try reassembling the split pieces.
-	var dcValues []string
-	if len(dcValuesRaw) > 1 && strings.HasPrefix(dcValuesRaw[0], "{") {
-		assembled := strings.Join(dcValuesRaw, ",")
-		var test interface{}
-		if json.Unmarshal([]byte(assembled), &test) == nil {
-			dcValues = []string{assembled}
-		} else {
-			dcValues = dcValuesRaw
-		}
-	} else {
-		dcValues = dcValuesRaw
+	// Get parsed values from flags
+	parsedValues, err := getDynamicConfigValues(c)
+	if err != nil {
+		return commoncli.Problem("Failed to get config values", err)
 	}
 
 	ctx, cancel, err := newContext(c)
 	defer cancel()
 	if err != nil {
 		return commoncli.Problem("Error in creating context: ", err)
-	}
-	var parsedValues []*types.DynamicConfigValue
-
-	if dcValues != nil {
-		parsedValues = make([]*types.DynamicConfigValue, 0, len(dcValues))
-
-		for _, valueString := range dcValues {
-			var parsedInputValue *cliValue
-			err := json.Unmarshal([]byte(valueString), &parsedInputValue)
-			if err != nil {
-				return commoncli.Problem("Unable to unmarshal value to inputValue", err)
-			}
-			parsedValue, err := convertFromInputValue(parsedInputValue)
-			if err != nil {
-				return commoncli.Problem("Unable to convert from inputValue to DynamicConfigValue", err)
-			}
-			parsedValues = append(parsedValues, parsedValue)
-		}
-	} else {
-		parsedValues = nil
 	}
 
 	req := &types.UpdateOperationalDynamicConfigRequest{
@@ -361,7 +289,7 @@ func AdminUpdateOperationalDynamicConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Failed to update operational dynamic config value", err)
 	}
-	fmt.Printf("Operational Dynamic Config %q updated with %s \n", dcName, dcValues)
+	fmt.Printf("Operational Dynamic Config %q updated successfully\n", dcName)
 	return nil
 }
 
@@ -377,18 +305,13 @@ func AdminRestoreOperationalDynamicConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found", err)
 	}
-	filter := c.String(FlagDynamicConfigFilter)
-
 	ctx, cancel, err := newContext(c)
 	defer cancel()
 	if err != nil {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
 
-	parsedFilters, err := parseInputFilter(filter)
-	if err != nil {
-		return commoncli.Problem("Failed to parse input filter", err)
-	}
+	parsedFilters := c.Generic(FlagDynamicConfigFilter).(*DynamicConfigFilterFlag).Get()
 
 	req := &types.RestoreOperationalDynamicConfigRequest{
 		ConfigName: dcName,
@@ -416,8 +339,10 @@ func AdminListOperationalDynamicConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
+
+	configName := c.String(FlagDynamicConfigName) // empty string means all config values
 	req := &types.ListOperationalDynamicConfigRequest{
-		ConfigName: "", // empty string means all config values
+		ConfigName: configName,
 	}
 
 	val, err := adminClient.ListOperationalDynamicConfig(ctx, req)
@@ -535,7 +460,10 @@ func convertFromInputValue(inputValue *cliValue) (*types.DynamicConfigValue, err
 	}
 
 	dcFilters := make([]*types.DynamicConfigFilter, 0, len(inputValue.Filters))
-	for _, inputFilter := range inputValue.Filters {
+	for i, inputFilter := range inputValue.Filters {
+		if inputFilter == nil {
+			return nil, fmt.Errorf("null filter at index %d", i)
+		}
 		dcFilter, err := convertFromInputFilter(inputFilter)
 		if err != nil {
 			return nil, err
@@ -589,4 +517,60 @@ func parseInputFilter(inputFilter string) ([]*types.DynamicConfigFilter, error) 
 	}
 
 	return parsedFilters, nil
+}
+
+// getDynamicConfigValues retrieves dynamic config values from either --value flag or --value-file flag
+func getDynamicConfigValues(c *cli.Context) ([]*types.DynamicConfigValue, error) {
+	// Get values from --value flag
+	valueFlag := c.Generic(FlagDynamicConfigValue).(*DynamicConfigValuesFlag)
+	flagValues := valueFlag.Get()
+	hasValueFlag := len(flagValues) > 0
+
+	// Get values from --value-file flag
+	valueFile := c.String(FlagDynamicConfigValueFile)
+	hasValueFile := valueFile != ""
+
+	// Ensure exactly one source is provided (mutually exclusive)
+	if hasValueFlag && hasValueFile {
+		return nil, fmt.Errorf("--%s and --%s are mutually exclusive, use only one", FlagDynamicConfigValue, FlagDynamicConfigValueFile)
+	}
+
+	if !hasValueFlag && !hasValueFile {
+		return nil, fmt.Errorf("must provide either --%s or --%s", FlagDynamicConfigValue, FlagDynamicConfigValueFile)
+	}
+
+	// Return values from --value flag
+	if hasValueFlag {
+		return flagValues, nil
+	}
+
+	// Return values from --value-file flag
+	fileData, err := os.ReadFile(valueFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file %q: %w", valueFile, err)
+	}
+
+	var fileValues []*cliValue
+	if err := json.Unmarshal(fileData, &fileValues); err != nil {
+		return nil, fmt.Errorf("invalid JSON array in file %q: %w", valueFile, err)
+	}
+
+	// Reject empty array - would delete all config values
+	if len(fileValues) == 0 {
+		return nil, fmt.Errorf("file %q contains no config values (empty array would delete all values for this config)", valueFile)
+	}
+
+	var allValues []*types.DynamicConfigValue
+	for i, cliVal := range fileValues {
+		if cliVal == nil {
+			return nil, fmt.Errorf("file %q contains null element at index %d", valueFile, i)
+		}
+		dcVal, err := convertFromInputValue(cliVal)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert value from file: %w", err)
+		}
+		allValues = append(allValues, dcVal)
+	}
+
+	return allValues, nil
 }

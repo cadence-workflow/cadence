@@ -273,21 +273,55 @@ func TestDeleteIndex(t *testing.T) {
 }
 
 func TestGetMappings(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" || !strings.HasPrefix(r.URL.Path, "/testIndex/_mapping") {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"testIndex":{"mappings":{"_doc":{"properties":{"title":{"type":"text"}}}}}}`))
-	})
+	tests := []struct {
+		name     string
+		body     string
+		expected map[string]any
+	}{
+		{
+			name: "unwraps the index, mappings and doc type levels",
+			body: `{"testIndex":{"mappings":{"_doc":{"dynamic":"false","properties":{"title":{"type":"text"}}}}}}`,
+			expected: map[string]any{
+				"dynamic":    "false",
+				"properties": map[string]any{"title": map[string]any{"type": "text"}},
+			},
+		},
+		{
+			name:     "returns nil when the mapping type is not _doc",
+			body:     `{"testIndex":{"mappings":{"cadence-visibility":{"properties":{"title":{"type":"text"}}}}}}`,
+			expected: nil,
+		},
+		{
+			name:     "returns nil when the mappings are missing",
+			body:     `{"testIndex":{}}`,
+			expected: nil,
+		},
+		{
+			name:     "returns nil when the index is absent",
+			body:     `{"other-index":{"mappings":{"_doc":{"properties":{"title":{"type":"text"}}}}}}`,
+			expected: nil,
+		},
+	}
 
-	elasticV6, testServer := getMockClient(t, handler)
-	defer testServer.Close()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "GET" || !strings.HasPrefix(r.URL.Path, "/testIndex/_mapping") {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(tt.body))
+			})
 
-	mappings, err := elasticV6.GetMappings(context.Background(), "testIndex")
-	assert.NoError(t, err)
-	assert.Contains(t, mappings, "testIndex")
+			elasticV6, testServer := getMockClient(t, handler)
+			defer testServer.Close()
+
+			mappings, err := elasticV6.GetMappings(context.Background(), "testIndex")
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, mappings)
+		})
+	}
 }
 
 func TestMappingsFromTemplate(t *testing.T) {

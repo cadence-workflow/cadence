@@ -13,6 +13,10 @@ import (
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
 
+func (g matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest, p1 ...yarpc.CallOption) (ap2 *types.AcquireSemaphoreResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
 	err = g.c.AddActivityTask(ctx, thrift.FromMatchingAddActivityTaskRequest(ap1), p1...)
 	if err != nil {
@@ -65,6 +69,10 @@ func (g matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQu
 }
 
 func (g matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
+func (g matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
 	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 

@@ -45,6 +45,7 @@ services:
       - "DYNAMIC_CONFIG_FILE_PATH=dynamicconfig/development.yaml"
       - "FRONTEND_PPROF_PORT=7936"
       - "LOG_LEVEL=debug"
+      - "ENABLE_METRICS_MIGRATION=true"
     depends_on:
       cassandra:
         condition: service_healthy

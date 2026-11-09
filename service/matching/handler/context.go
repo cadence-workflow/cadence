@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/matching/semaphore"
 )
 
 type handlerContext struct {
@@ -52,6 +53,21 @@ func newHandlerContext(
 		Context: ctx,
 		scope:   common.NewPerTaskListScope(domainName, taskList.GetName(), taskList.GetKind(), metricsClient, metricsScope).Tagged(metrics.GetContextTags(ctx)...),
 		logger:  logger.WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(taskList.GetName())),
+	}
+}
+
+func newSemaphoreHandlerContext(
+	ctx context.Context,
+	domainName string,
+	id semaphore.Identifier,
+	metricsClient metrics.Client,
+	metricsScope metrics.ScopeIdx,
+	logger log.Logger,
+) *handlerContext {
+	return &handlerContext{
+		Context: ctx,
+		scope:   common.NewPerSemaphoreScope(domainName, id.SemaphoreName, metricsClient, metricsScope).Tagged(metrics.GetContextTags(ctx)...),
+		logger:  logger.WithTags(append(id.LogTags(), tag.WorkflowDomainName(domainName))...),
 	}
 }
 
@@ -111,6 +127,9 @@ func (reqCtx *handlerContext) handleErr(err error) error {
 		return err
 	case errors.As(err, new(*cadence_errors.TaskListNotOwnedByHostError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrTaskListNotOwnedByHostPerTaskListCounter)
+		return err
+	case errors.As(err, new(*cadence_errors.SemaphoreNotOwnedByHostError)):
+		reqCtx.scope.IncCounter(metrics.CadenceErrSemaphoreNotOwnedByHostCounter)
 		return err
 	default:
 		reqCtx.scope.IncCounter(metrics.CadenceFailuresPerTaskList)

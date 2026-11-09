@@ -200,6 +200,11 @@ func (i *fakeIter) PageState() []byte {
 	return i.pageState
 }
 
+// Warnings is fake implementation of gocql.Iter.Warnings
+func (i *fakeIter) Warnings() []string {
+	return nil
+}
+
 // Close is fake implementation of gocql.Iter.Close
 func (i *fakeIter) Close() error {
 	i.closed = true
@@ -1244,6 +1249,7 @@ func TestTransferTasks(t *testing.T) {
 						ScheduleID:              3,
 						OriginalTaskList:        "original_tasklist_2",
 						OriginalTaskListKind:    types.TaskListKindEphemeral,
+						SemaphoreName:           "semaphore_2",
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("tr2"),
@@ -1257,14 +1263,14 @@ func TestTransferTasks(t *testing.T) {
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 2023-12-12T22:08:41Z, ` +
 					`task_id: 355, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
 					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
-					`target_child_workflow_only: true, task_list: tasklist_1, type: 0, schedule_id: 14, record_visibility: false, version: 1, original_task_list: original_tasklist_1, original_task_list_kind: 2}, ` +
+					`target_child_workflow_only: true, task_list: tasklist_1, type: 0, schedule_id: 14, record_visibility: false, version: 1, original_task_list: original_tasklist_1, original_task_list_kind: 2, semaphore_name: }, ` +
 					`[116 114 49], thriftrw, 946684800000, 355, 2025-01-06T15:00:00Z)`,
 				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, transfer, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 2, 10000000-3000-f000-f000-000000000000, 20000000-3000-f000-f000-000000000000, 30000000-3000-f000-f000-000000000000, ` +
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_2, visibility_ts: 2023-12-12T22:09:41Z, ` +
 					`task_id: 220, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
 					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
-					`target_child_workflow_only: true, task_list: tasklist_2, type: 0, schedule_id: 3, record_visibility: false, version: 1, original_task_list: original_tasklist_2, original_task_list_kind: 2}, ` +
+					`target_child_workflow_only: true, task_list: tasklist_2, type: 0, schedule_id: 3, record_visibility: false, version: 1, original_task_list: original_tasklist_2, original_task_list_kind: 2, semaphore_name: semaphore_2}, ` +
 					`[116 114 50], thriftrw, 946684800000, 220, 2025-01-06T15:00:00Z)`,
 			},
 		},
@@ -1879,18 +1885,77 @@ func TestUpdateTimerInfos(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc        string
-		shardID     int
-		domainID    string
-		workflowID  string
-		runID       string
-		timerInfos  map[string]*persistence.TimerInfo
-		deleteInfos []string
+		desc                 string
+		shardID              int
+		domainID             string
+		workflowID           string
+		runID                string
+		timerInfos           map[string]*persistence.TimerInfo
+		deleteInfos          []string
+		rewriteInfos         map[string]*persistence.TimerInfo
+		sentinelWriteEnabled bool
 		// expectations
 		wantQueries []string
 	}{
 		{
-			desc:       "update and delete timer infos",
+			desc:       "update and delete timer infos with sentinel",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
+			runID:      "runid1",
+			timerInfos: map[string]*persistence.TimerInfo{
+				"timer1": {
+					TimerID:    "timer1",
+					Version:    1,
+					StartedID:  2,
+					ExpiryTime: ts.UTC(),
+					TaskStatus: 1,
+				},
+			},
+			deleteInfos:          []string{"timer2"},
+			sentinelWriteEnabled: true,
+			wantQueries: []string{
+				`UPDATE executions SET timer_map[ timer1 ] = {` +
+					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
+					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+				`UPDATE executions SET timer_map[ timer2 ] = {timer_id: } ` +
+					`, last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
+		{
+			desc:       "update and delete timer infos without sentinel",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
+			runID:      "runid1",
+			timerInfos: map[string]*persistence.TimerInfo{
+				"timer1": {
+					TimerID:    "timer1",
+					Version:    1,
+					StartedID:  2,
+					ExpiryTime: ts.UTC(),
+					TaskStatus: 1,
+				},
+			},
+			deleteInfos:          []string{"timer2"},
+			sentinelWriteEnabled: false,
+			wantQueries: []string{
+				`UPDATE executions SET timer_map[ timer1 ] = {` +
+					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
+					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+				`DELETE timer_map[ timer2 ] FROM executions WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
+		{
+			desc:       "rewrite replaces full map skipping upserts and deletes",
 			shardID:    1000,
 			domainID:   "domain1",
 			workflowID: "workflow1",
@@ -1905,13 +1970,20 @@ func TestUpdateTimerInfos(t *testing.T) {
 				},
 			},
 			deleteInfos: []string{"timer2"},
+			rewriteInfos: map[string]*persistence.TimerInfo{
+				"timer1": {
+					TimerID:    "timer1",
+					Version:    1,
+					StartedID:  2,
+					ExpiryTime: ts.UTC(),
+					TaskStatus: 1,
+				},
+			},
+			sentinelWriteEnabled: true,
 			wantQueries: []string{
-				`UPDATE executions SET timer_map[ timer1 ] = {` +
-					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
-					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
-					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
-					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
-				`DELETE timer_map[ timer2 ] FROM executions WHERE ` +
+				`UPDATE executions SET timer_map = map[` +
+					`timer1:map[expiry_time:2023-12-19 22:08:41 +0000 UTC started_id:2 task_id:1 timer_id:timer1 version:1]` +
+					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 			},
@@ -1922,7 +1994,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, FixedTime)
+			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, tc.rewriteInfos, tc.sentinelWriteEnabled, FixedTime)
 			if err != nil {
 				t.Fatalf("updateTimerInfos() error = %v", err)
 			}
@@ -2004,6 +2076,7 @@ func TestResetActivityInfos(t *testing.T) {
 					TaskList:               "tasklist1",
 					HasRetryPolicy:         true,
 					LastFailureReason:      "another retry reason",
+					TaskListKind:           types.TaskListKindSticky,
 				},
 			},
 			wantQueries: []string{
@@ -2011,24 +2084,24 @@ func TestResetActivityInfos(t *testing.T) {
 					`1:map[` +
 					`activity_id:activity1 attempt:3 backoff_coefficient:0 cancel_request_id:0 cancel_requested:false ` +
 					`details:[] event_data_encoding:thriftrw expiration_time:0001-01-01 00:00:00 +0000 UTC has_retry_policy:true ` +
-					`heart_beat_timeout:60 init_interval:0 last_failure_category:0 last_failure_details:[] last_failure_reason:retry reason ` +
+					`heart_beat_timeout:60 init_interval:0 jitter_coefficient:0 last_failure_category:0 last_failure_details:[] last_failure_reason:retry reason ` +
 					`last_hb_updated_time:0001-01-01 00:00:00 +0000 UTC last_retry_interval_seconds:0 last_worker_identity: max_attempts:5 max_interval:0 ` +
 					`non_retriable_errors:[] request_id: schedule_id:1 schedule_to_close_timeout:120 schedule_to_start_timeout:60 ` +
 					`scheduled_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
 					`scheduled_event_batch_id:0 scheduled_time:2023-12-19 22:08:41 +0000 UTC start_to_close_timeout:180 ` +
 					`started_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
-					`started_id:2 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 timer_task_status:0 version:1` +
+					`started_id:2 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 task_list_kind:0 timer_task_status:0 version:1` +
 					`] ` +
 					`2:map[` +
 					`activity_id:activity2 attempt:1 backoff_coefficient:0 cancel_request_id:0 cancel_requested:false ` +
 					`details:[] event_data_encoding:thriftrw expiration_time:0001-01-01 00:00:00 +0000 UTC has_retry_policy:true ` +
-					`heart_beat_timeout:60 init_interval:0 last_failure_category:0 last_failure_details:[] last_failure_reason:another retry reason ` +
+					`heart_beat_timeout:60 init_interval:0 jitter_coefficient:0 last_failure_category:0 last_failure_details:[] last_failure_reason:another retry reason ` +
 					`last_hb_updated_time:0001-01-01 00:00:00 +0000 UTC last_retry_interval_seconds:0 last_worker_identity: max_attempts:5 max_interval:0 ` +
 					`non_retriable_errors:[] request_id: schedule_id:2 schedule_to_close_timeout:120 schedule_to_start_timeout:60 ` +
 					`scheduled_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
 					`scheduled_event_batch_id:0 scheduled_time:2023-12-19 22:08:41 +0000 UTC start_to_close_timeout:180 ` +
 					`started_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
-					`started_id:3 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 timer_task_status:0 version:1` +
+					`started_id:3 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 task_list_kind:1 timer_task_status:0 version:1` +
 					`]` +
 					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
@@ -2060,18 +2133,20 @@ func TestUpdateActivityInfos(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc          string
-		shardID       int
-		domainID      string
-		workflowID    string
-		runID         string
-		activityInfos map[int64]*persistence.InternalActivityInfo
-		deleteInfos   []int64
+		desc                 string
+		shardID              int
+		domainID             string
+		workflowID           string
+		runID                string
+		activityInfos        map[int64]*persistence.InternalActivityInfo
+		deleteInfos          []int64
+		rewriteInfos         map[int64]*persistence.InternalActivityInfo
+		sentinelWriteEnabled bool
 		// expectations
 		wantQueries []string
 	}{
 		{
-			desc:       "update and delete activity infos",
+			desc:       "update and delete activity infos with sentinel",
 			shardID:    1000,
 			domainID:   "domain1",
 			workflowID: "workflow1",
@@ -2103,7 +2178,8 @@ func TestUpdateActivityInfos(t *testing.T) {
 					LastFailureReason:      "retry reason",
 				},
 			},
-			deleteInfos: []int64{2},
+			deleteInfos:          []int64{2},
+			sentinelWriteEnabled: true,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
 					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
@@ -2114,14 +2190,149 @@ func TestUpdateActivityInfos(t *testing.T) {
 					`details: [], schedule_to_start_timeout: 60, schedule_to_close_timeout: 120, start_to_close_timeout: 180, ` +
 					`heart_beat_timeout: 60, cancel_requested: false, cancel_request_id: 0, last_hb_updated_time: 0001-01-01T00:00:00Z, ` +
 					`timer_task_status: 0, attempt: 3, task_list: tasklist1, task_list_kind: 2, started_identity: , has_retry_policy: true, ` +
-					`init_interval: 0, backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, ` +
+					`init_interval: 0, backoff_coefficient: 0, jitter_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, ` +
 					`max_attempts: 5, non_retriable_errors: [], last_failure_reason: retry reason, last_worker_identity: , ` +
 					`last_failure_details: [], last_failure_category: 0, last_retry_interval_seconds: 0, event_data_encoding: thriftrw` +
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
-				`DELETE activity_map[ 2 ] FROM executions ` +
-					`WHERE shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+				`UPDATE executions SET activity_map[ 2 ] = {schedule_id: -1} ` +
+					`, last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
+		{
+			desc:       "update and delete activity infos without sentinel",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
+			runID:      "runid1",
+			activityInfos: map[int64]*persistence.InternalActivityInfo{
+				1: {
+					Version: 1,
+					ScheduledEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-scheduled-event-data"),
+					},
+					ScheduledTime: ts.UTC(),
+					ScheduleID:    1,
+					StartedID:     2,
+					StartedEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-started-event-data"),
+					},
+					ActivityID:             "activity1",
+					ScheduleToStartTimeout: 1 * time.Minute,
+					ScheduleToCloseTimeout: 2 * time.Minute,
+					StartToCloseTimeout:    3 * time.Minute,
+					HeartbeatTimeout:       1 * time.Minute,
+					Attempt:                3,
+					MaximumAttempts:        5,
+					TaskList:               "tasklist1",
+					TaskListKind:           types.TaskListKindEphemeral,
+					HasRetryPolicy:         true,
+					LastFailureReason:      "retry reason",
+				},
+			},
+			deleteInfos:          []int64{2},
+			sentinelWriteEnabled: false,
+			wantQueries: []string{
+				`UPDATE executions SET activity_map[ 1 ] = {` +
+					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
+					`scheduled_event: [116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97], ` +
+					`scheduled_time: 2023-12-19T22:08:41Z, started_id: 2, ` +
+					`started_event: [116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97], ` +
+					`started_time: 0001-01-01T00:00:00Z, activity_id: activity1, request_id: , ` +
+					`details: [], schedule_to_start_timeout: 60, schedule_to_close_timeout: 120, start_to_close_timeout: 180, ` +
+					`heart_beat_timeout: 60, cancel_requested: false, cancel_request_id: 0, last_hb_updated_time: 0001-01-01T00:00:00Z, ` +
+					`timer_task_status: 0, attempt: 3, task_list: tasklist1, task_list_kind: 2, started_identity: , has_retry_policy: true, ` +
+					`init_interval: 0, backoff_coefficient: 0, jitter_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, ` +
+					`max_attempts: 5, non_retriable_errors: [], last_failure_reason: retry reason, last_worker_identity: , ` +
+					`last_failure_details: [], last_failure_category: 0, last_retry_interval_seconds: 0, event_data_encoding: thriftrw` +
+					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+				`DELETE activity_map[ 2 ] FROM executions WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
+		{
+			desc:       "rewrite replaces full map skipping upserts and deletes",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
+			runID:      "runid1",
+			activityInfos: map[int64]*persistence.InternalActivityInfo{
+				1: {
+					Version: 1,
+					ScheduledEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-scheduled-event-data"),
+					},
+					ScheduledTime: ts.UTC(),
+					ScheduleID:    1,
+					StartedID:     2,
+					StartedEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-started-event-data"),
+					},
+					ActivityID:             "activity1",
+					ScheduleToStartTimeout: 1 * time.Minute,
+					ScheduleToCloseTimeout: 2 * time.Minute,
+					StartToCloseTimeout:    3 * time.Minute,
+					HeartbeatTimeout:       1 * time.Minute,
+					Attempt:                3,
+					MaximumAttempts:        5,
+					TaskList:               "tasklist1",
+					HasRetryPolicy:         true,
+					LastFailureReason:      "retry reason",
+				},
+			},
+			deleteInfos: []int64{2},
+			rewriteInfos: map[int64]*persistence.InternalActivityInfo{
+				1: {
+					Version: 1,
+					ScheduledEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-scheduled-event-data"),
+					},
+					ScheduledTime: ts.UTC(),
+					ScheduleID:    1,
+					StartedID:     2,
+					StartedEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-started-event-data"),
+					},
+					ActivityID:             "activity1",
+					ScheduleToStartTimeout: 1 * time.Minute,
+					ScheduleToCloseTimeout: 2 * time.Minute,
+					StartToCloseTimeout:    3 * time.Minute,
+					HeartbeatTimeout:       1 * time.Minute,
+					Attempt:                3,
+					MaximumAttempts:        5,
+					TaskList:               "tasklist1",
+					HasRetryPolicy:         true,
+					LastFailureReason:      "retry reason",
+				},
+			},
+			sentinelWriteEnabled: true,
+			wantQueries: []string{
+				`UPDATE executions SET activity_map = map[` +
+					`1:map[` +
+					`activity_id:activity1 attempt:3 backoff_coefficient:0 cancel_request_id:0 cancel_requested:false ` +
+					`details:[] event_data_encoding:thriftrw expiration_time:0001-01-01 00:00:00 +0000 UTC has_retry_policy:true ` +
+					`heart_beat_timeout:60 init_interval:0 jitter_coefficient:0 last_failure_category:0 last_failure_details:[] last_failure_reason:retry reason ` +
+					`last_hb_updated_time:0001-01-01 00:00:00 +0000 UTC last_retry_interval_seconds:0 last_worker_identity: max_attempts:5 max_interval:0 ` +
+					`non_retriable_errors:[] request_id: schedule_id:1 schedule_to_close_timeout:120 schedule_to_start_timeout:60 ` +
+					`scheduled_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
+					`scheduled_event_batch_id:0 scheduled_time:2023-12-19 22:08:41 +0000 UTC start_to_close_timeout:180 ` +
+					`started_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
+					`started_id:2 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 task_list_kind:0 timer_task_status:0 version:1` +
+					`]` +
+					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 			},
 		},
@@ -2131,7 +2342,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, FixedTime)
+			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, tc.rewriteInfos, tc.sentinelWriteEnabled, FixedTime)
 			if err != nil {
 				t.Fatalf("updateActivityInfos() error = %v", err)
 			}
@@ -2292,6 +2503,59 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 			// - 1 for signal requested IDs
 			wantQueries: 7,
 		},
+		{
+			desc:       "sentinel flags have no effect on create (no deletes)",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
+			execution: &nosqlplugin.WorkflowExecutionRequest{
+				EventBufferWriteMode: nosqlplugin.EventBufferWriteModeNone,
+				MapsWriteMode:        nosqlplugin.WorkflowExecutionMapsWriteModeCreate,
+				InternalWorkflowExecutionInfo: persistence.InternalWorkflowExecutionInfo{
+					CompletionEvent: &persistence.DataBlob{},
+					AutoResetPoints: &persistence.DataBlob{},
+				},
+				VersionHistories:     &persistence.DataBlob{},
+				Checksums:            &checksum.Checksum{},
+				SentinelWriteEnabled: true,
+				ActivityInfos: map[int64]*persistence.InternalActivityInfo{
+					1: {
+						Version: 1,
+						ScheduledEvent: &persistence.DataBlob{
+							Encoding: constants.EncodingTypeThriftRW,
+							Data:     []byte("thrift-encoded-scheduled-event-data"),
+						},
+						ScheduledTime: ts.UTC(),
+						ScheduleID:    1,
+						StartedID:     2,
+						StartedEvent: &persistence.DataBlob{
+							Encoding: constants.EncodingTypeThriftRW,
+							Data:     []byte("thrift-encoded-started-event-data"),
+						},
+						ActivityID:             "activity1",
+						ScheduleToStartTimeout: 1 * time.Minute,
+						ScheduleToCloseTimeout: 2 * time.Minute,
+						StartToCloseTimeout:    3 * time.Minute,
+						HeartbeatTimeout:       1 * time.Minute,
+						Attempt:                3,
+						MaximumAttempts:        5,
+						TaskList:               "tasklist1",
+						HasRetryPolicy:         true,
+						LastFailureReason:      "retry reason",
+					},
+				},
+				TimerInfos: map[string]*persistence.TimerInfo{
+					"timer1": {
+						Version:    1,
+						TimerID:    "timer1",
+						StartedID:  2,
+						ExpiryTime: ts,
+						TaskStatus: 1,
+					},
+				},
+			},
+			wantQueries: 3,
+		},
 	}
 
 	for _, tc := range tests {
@@ -2374,7 +2638,7 @@ func TestResetWorkflowExecutionAndMapsAndEventBuffer(t *testing.T) {
 				VersionHistories: &persistence.DataBlob{},
 				Checksums:        &checksum.Checksum{},
 			},
-			// expecting 8 queries:
+			// expecting 9 queries:
 			// - 1 for execution record
 			// - 1 for deletion of buffered events
 			// - 1 for activity info map reset
@@ -2382,8 +2646,9 @@ func TestResetWorkflowExecutionAndMapsAndEventBuffer(t *testing.T) {
 			// - 1 for child execution info map reset
 			// - 1 for request cancel info map reset
 			// - 1 for signal info map reset
+			// - 1 for semaphore info map reset
 			// - 1 for signal requested IDs reset
-			wantQueries: 8,
+			wantQueries: 9,
 		},
 	}
 
@@ -2541,13 +2806,38 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 			// - 1 for signal requested IDs update
 			wantQueries: 8,
 		},
+		{
+			desc:       "ok with sentinel deletes",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
+			execution: &nosqlplugin.WorkflowExecutionRequest{
+				EventBufferWriteMode: nosqlplugin.EventBufferWriteModeClear,
+				MapsWriteMode:        nosqlplugin.WorkflowExecutionMapsWriteModeUpdate,
+				InternalWorkflowExecutionInfo: persistence.InternalWorkflowExecutionInfo{
+					CompletionEvent: &persistence.DataBlob{},
+					AutoResetPoints: &persistence.DataBlob{},
+				},
+				VersionHistories:         &persistence.DataBlob{},
+				Checksums:                &checksum.Checksum{},
+				ActivityInfoKeysToDelete: []int64{10, 20},
+				SentinelWriteEnabled:     true,
+				TimerInfoKeysToDelete:    []string{"t1", "t2"},
+			},
+			// expecting 6 queries:
+			// - 1 for execution record
+			// - 1 for deletion of buffered events
+			// - 2 for activity sentinel writes (one per deleted activity)
+			// - 2 for timer sentinel writes (one per deleted timer)
+			wantQueries: 6,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
+			err := updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, false, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)
@@ -2619,7 +2909,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 					`decision_scheduled_timestamp: -6795364578871345152, decision_original_scheduled_timestamp: -6795364578871345152, ` +
 					`cancel_requested: false, cancel_request_id: , sticky_task_list: , sticky_schedule_to_start_timeout: 0,client_library_version: , ` +
 					`client_feature_version: , client_impl: , auto_reset_points: [], auto_reset_points_encoding: , attempt: 0, has_retry_policy: false, ` +
-					`init_interval: 0, backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, max_attempts: 0, ` +
+					`init_interval: 0, backoff_coefficient: 0, jitter_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, max_attempts: 0, ` +
 					`non_retriable_errors: [], event_store_version: 2, branch_token: [], cron_schedule: , cron_overlap_policy: 0, expiration_seconds: 0, search_attributes: map[], ` +
 					`memo: map[], partition_config: map[], active_cluster_selection_policy: [], active_cluster_selection_policy_encoding: ` +
 					`}, next_event_id = 0 , version_histories = [] , version_histories_encoding =  , checksum = {version: 0, flavor: 0, value: [] }, workflow_last_write_version = 0 , workflow_state = 0 , last_updated_time = 2025-01-06T15:00:00Z ` +
@@ -2706,7 +2996,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					`decision_timestamp: -6795364578871345152, decision_scheduled_timestamp: -6795364578871345152, decision_original_scheduled_timestamp: -6795364578871345152, ` +
 					`cancel_requested: false, cancel_request_id: , sticky_task_list: , sticky_schedule_to_start_timeout: 0,client_library_version: , client_feature_version: , ` +
 					`client_impl: , auto_reset_points: [], auto_reset_points_encoding: , attempt: 0, has_retry_policy: false, init_interval: 0, ` +
-					`backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, max_attempts: 0, non_retriable_errors: [], ` +
+					`backoff_coefficient: 0, jitter_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, max_attempts: 0, non_retriable_errors: [], ` +
 					`event_store_version: 2, branch_token: [], cron_schedule: , cron_overlap_policy: 1, expiration_seconds: 0, search_attributes: map[], memo: map[], partition_config: map[], ` +
 					`active_cluster_selection_policy: [116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 97 99 116 105 118 101 45 99 108 117 115 116 101 114 45 115 101 108 101 99 116 105 111 110 45 112 111 108 105 99 121 45 100 97 116 97], active_cluster_selection_policy_encoding: thriftrw` +
 					`}, 0, 946684800000, -10, [], , {version: 0, flavor: 0, value: [] }, 0, 0, 2025-01-06T15:00:00Z) IF NOT EXISTS `,
@@ -3067,6 +3357,49 @@ func trimColumnsPart(s *string) {
 	re := regexp.MustCompile(`, columns: \(.*\)`)
 	trimmed := re.ReplaceAllString(*s, "")
 	*s = trimmed
+}
+
+func TestResetActivityInfoMap_TaskListKind(t *testing.T) {
+	tests := []struct {
+		desc         string
+		taskListKind types.TaskListKind
+		wantValue    int32
+	}{
+		{
+			desc:         "normal task list kind",
+			taskListKind: types.TaskListKindNormal,
+			wantValue:    0,
+		},
+		{
+			desc:         "sticky task list kind",
+			taskListKind: types.TaskListKindSticky,
+			wantValue:    1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			infos := map[int64]*persistence.InternalActivityInfo{
+				1: {
+					ScheduleID: 1,
+					ScheduledEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("data"),
+					},
+					StartedEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("data"),
+					},
+					TaskList:     "tasklist1",
+					TaskListKind: tc.taskListKind,
+				},
+			}
+
+			result, err := resetActivityInfoMap(infos)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantValue, result[1]["task_list_kind"])
+		})
+	}
 }
 
 func TestFromDataBlobForCassandra(t *testing.T) {

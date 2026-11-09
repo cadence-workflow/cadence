@@ -9,6 +9,7 @@ import (
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/elasticsearch/client"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -21,6 +22,7 @@ const (
 
 type admin struct {
 	client client.Client
+	logger log.Logger
 	cfg    *config.ElasticSearchConfig
 }
 
@@ -29,7 +31,7 @@ func NewAdminDB(config *config.ElasticSearchConfig, logger log.Logger) (persiste
 	if err != nil {
 		return nil, err
 	}
-	return &admin{client: client.Client, cfg: config}, nil
+	return &admin{client: client.Client, logger: logger, cfg: config}, nil
 }
 
 func (a *admin) PluginName() string {
@@ -60,6 +62,7 @@ func (a *admin) CreateSetupDB() (persistence.SetupDB, error) {
 
 	return &setupDB{
 		client:       a.client,
+		logger:       a.logger,
 		indexName:    indexName,
 		templateName: visibilityTemplateName,
 	}, nil
@@ -75,6 +78,7 @@ func (a *admin) CreateSchemaDB() (persistence.SchemaDB, error) {
 
 type setupDB struct {
 	client       client.Client
+	logger       log.Logger
 	indexName    string
 	templateName string
 }
@@ -96,9 +100,17 @@ func (s *setupDB) IsSetup(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("getting template mappings: %w", err)
 	}
 
-	missing, err := IsMissingMappings(currentMappings, latestMappings)
-
-	return !missing, err
+	missing, err := GetMissingMappings(currentMappings, latestMappings)
+	if err != nil {
+		return false, fmt.Errorf("comparing mappings: %w", err)
+	}
+	if len(missing) > 0 {
+		s.logger.Warn("Visibility index is missing mappings",
+			tag.Dynamic("index", s.indexName),
+			tag.Dynamic("missing-mappings", strings.Join(missing, ", ")))
+		return false, nil
+	}
+	return true, nil
 }
 
 func (s *setupDB) Setup(ctx context.Context, _ map[string]string) error {

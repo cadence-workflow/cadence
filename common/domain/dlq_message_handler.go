@@ -47,13 +47,14 @@ type (
 	}
 
 	dlqMessageHandlerImpl struct {
-		replicationHandler ReplicationTaskExecutor
-		replicationQueue   ReplicationQueue
-		logger             log.Logger
-		metricsClient      metrics.Client
-		timeSrc            clock.TimeSource
-		done               chan struct{}
-		status             int32
+		replicationHandler          ReplicationTaskExecutor
+		semaphoreReplicationHandler SemaphoreReplicationTaskExecutor
+		replicationQueue            ReplicationQueue
+		logger                      log.Logger
+		metricsClient               metrics.Client
+		timeSrc                     clock.TimeSource
+		done                        chan struct{}
+		status                      int32
 
 		mu        sync.Mutex
 		lastCount int64
@@ -63,19 +64,21 @@ type (
 // NewDLQMessageHandler returns a DLQTaskHandler instance
 func NewDLQMessageHandler(
 	replicationHandler ReplicationTaskExecutor,
+	semaphoreReplicationHandler SemaphoreReplicationTaskExecutor,
 	replicationQueue ReplicationQueue,
 	logger log.Logger,
 	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
 ) DLQMessageHandler {
 	return &dlqMessageHandlerImpl{
-		replicationHandler: replicationHandler,
-		replicationQueue:   replicationQueue,
-		logger:             logger,
-		metricsClient:      metricsClient,
-		timeSrc:            timeSource,
-		done:               make(chan struct{}),
-		lastCount:          -1,
+		replicationHandler:          replicationHandler,
+		semaphoreReplicationHandler: semaphoreReplicationHandler,
+		replicationQueue:            replicationQueue,
+		logger:                      logger,
+		metricsClient:               metricsClient,
+		timeSrc:                     timeSource,
+		done:                        make(chan struct{}),
+		lastCount:                   -1,
 	}
 }
 
@@ -186,15 +189,17 @@ func (d *dlqMessageHandlerImpl) Merge(
 
 	var ackedMessageID int64
 	for _, message := range messages {
-		domainTask := message.GetDomainTaskAttributes()
-		if domainTask == nil {
-			return nil, &types.InternalServiceError{Message: "Encounter non domain replication task in domain replication queue."}
+		switch message.GetTaskType() {
+		case types.ReplicationTaskTypeSemaphoreMetadata:
+			err = d.semaphoreReplicationHandler.Execute(message.GetSemaphoreMetadataTaskAttributes())
+		default:
+			domainTask := message.GetDomainTaskAttributes()
+			if domainTask == nil {
+				return nil, &types.InternalServiceError{Message: "Encounter non domain replication task in domain replication queue."}
+			}
+			err = d.replicationHandler.Execute(domainTask)
 		}
-
-		// TODO:
-		if err := d.replicationHandler.Execute(
-			domainTask,
-		); err != nil {
+		if err != nil {
 			return nil, err
 		}
 		ackedMessageID = message.SourceTaskID

@@ -1,25 +1,3 @@
-// The MIT License (MIT)
-
-// Copyright (c) 2017-2020 Uber Technologies Inc.
-
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
 package failure
 
 import (
@@ -54,7 +32,18 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					IssueID:       issueID,
 					InvariantType: DecisionCausedFailure.String(),
 					Reason:        DecisionBlobSizeLimit.String(),
-					Metadata:      invariant.MarshalData(FailureIssuesMetadata{Identity: identity}),
+					Metadata:      invariant.MarshalData(FailureIssuesMetadata{EventID: event.ID, Identity: identity}),
+				})
+				issueID++
+			} else if *reason == common.FailureReasonHistorySizeExceedsLimit {
+				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
+					InvariantType: WorkflowFailed.String(),
+					Reason:        HistorySizeExceedsLimit.String(),
+					Metadata: invariant.MarshalData(FailureIssuesMetadata{
+						EventID:  event.ID,
+						Identity: identity,
+					}),
 				})
 				issueID++
 			} else {
@@ -62,7 +51,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					IssueID:       issueID,
 					InvariantType: WorkflowFailed.String(),
 					Reason:        ErrorTypeFromReason(*reason).String(),
-					Metadata:      invariant.MarshalData(FailureIssuesMetadata{Identity: identity}),
+					Metadata:      invariant.MarshalData(FailureIssuesMetadata{EventID: event.ID, Identity: identity}),
 				})
 				issueID++
 			}
@@ -78,6 +67,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					InvariantType: ActivityFailed.String(),
 					Reason:        HeartBeatBlobSizeLimit.String(),
 					Metadata: invariant.MarshalData(FailureIssuesMetadata{
+						EventID:             event.ID,
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
@@ -91,6 +81,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					InvariantType: ActivityFailed.String(),
 					Reason:        ActivityOutputBlobSizeLimit.String(),
 					Metadata: invariant.MarshalData(FailureIssuesMetadata{
+						EventID:             event.ID,
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
@@ -104,6 +95,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					InvariantType: ActivityFailed.String(),
 					Reason:        ErrorTypeFromReason(*reason).String(),
 					Metadata: invariant.MarshalData(FailureIssuesMetadata{
+						EventID:             event.ID,
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
@@ -169,6 +161,12 @@ func (f *failure) RootCause(ctx context.Context, params invariant.InvariantRootC
 			result = append(result, invariant.InvariantRootCauseResult{
 				IssueID:   issue.IssueID,
 				RootCause: invariant.RootCauseTypeServiceSideCustomError,
+				Metadata:  issue.Metadata,
+			})
+		case HistorySizeExceedsLimit.String():
+			result = append(result, invariant.InvariantRootCauseResult{
+				IssueID:   issue.IssueID,
+				RootCause: invariant.RootCauseTypeHistorySizeExceedsLimit,
 				Metadata:  issue.Metadata,
 			})
 		}

@@ -154,6 +154,7 @@ type (
 		RetryMaximumAttempts                 int32
 		RetryExpiration                      time.Duration
 		RetryBackoffCoefficient              float64
+		RetryJitterCoefficient               float64
 		RetryExpirationTimestamp             time.Time
 		RetryNonRetryableErrors              []string
 		HasRetryPolicy                       bool
@@ -210,6 +211,7 @@ type (
 		RetryMaximumAttempts          int32
 		RetryExpirationTimestamp      time.Time
 		RetryBackoffCoefficient       float64
+		RetryJitterCoefficient        float64
 		RetryNonRetryableErrors       []string
 		RetryLastFailureReason        string
 		RetryLastWorkerIdentity       string
@@ -308,6 +310,7 @@ type (
 		VisibilityTimestamp     time.Time
 		OriginalTaskList        string
 		OriginalTaskListKind    types.TaskListKind
+		SemaphoreName           string
 	}
 
 	// CrossClusterTaskInfo blob in a serialization agnostic format

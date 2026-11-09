@@ -14,8 +14,6 @@ jobs:
       matrix:
         scenario:
           - default
-          - queuev2
-          - queuev2_scheduled_cache_enabled
           - queuev2_split
     continue-on-error: ${{ matrix.experimental == true }}
 
@@ -28,7 +26,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.5'
+          go-version: '1.26.10'
 
       - name: Run simulation
         uses: nick-fields/retry@v3

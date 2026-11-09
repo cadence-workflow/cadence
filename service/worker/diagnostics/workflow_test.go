@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/testsuite"
@@ -41,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/antipatterns"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
@@ -68,7 +70,7 @@ func (s *diagnosticsWorkflowTestSuite) SetupTest() {
 		svcClient:     publicClient,
 		clientBean:    mockResource.ClientBean,
 		metricsClient: mockResource.GetMetricsClient(),
-		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant()},
+		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant(), timeoutrisk.NewInvariant(), antipatterns.NewInvariant()},
 	}
 
 	s.T().Cleanup(func() {
@@ -92,20 +94,24 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 		WorkflowID: "123",
 		RunID:      "abc",
 	}
-	workflowTimeoutData := timeout.ExecutionTimeoutMetadata{
-		ExecutionTime:     110 * time.Second,
+	workflowTimeoutData := timeout.TimeoutIssuesMetadata{
+		EventID:           1,
 		ConfiguredTimeout: 110 * time.Second,
-		LastOngoingEvent: &types.HistoryEvent{
-			ID:        1,
-			Timestamp: common.Int64Ptr(testTimeStamp),
-			WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
-				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
+		ExecutionTimeout: &timeout.ExecutionTimeoutMetadata{
+			ExecutionTime: 110 * time.Second,
+			LastOngoingEvent: &types.HistoryEvent{
+				ID:        1,
+				Timestamp: common.Int64Ptr(testTimeStamp),
+				WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
+				},
 			},
 		},
 	}
 	workflowTimeoutDataInBytes, err := json.Marshal(workflowTimeoutData)
 	s.NoError(err)
 	actMetadata := failure.FailureIssuesMetadata{
+		EventID:             3,
 		Identity:            "localhost",
 		ActivityScheduledID: 1,
 		ActivityStartedID:   2,
@@ -131,13 +137,11 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 			IssueID:       1,
 			InvariantType: timeout.TimeoutTypeExecution.String(),
 			Reason:        "START_TO_CLOSE",
-			Metadata: &timeout.TimeoutIssuesMetadata{
-				ExecutionTimeout: &workflowTimeoutData,
-			},
+			Metadata:      &workflowTimeoutData,
 		},
 	}
 	taskListBacklog := int64(10)
-	pollersMetadataInBytes, err := json.Marshal(timeout.PollersMetadata{TaskListName: "test", TaskListBacklog: taskListBacklog})
+	pollersMetadataInBytes, err := json.Marshal(timeout.PollersMetadata{TaskListName: "test", CurrentTaskListBacklog: taskListBacklog})
 	s.NoError(err)
 	blobSizeMetadataInBytes, err := json.Marshal(failure.FailureRootcauseMetadata{
 		BlobSizeMetadata: &failure.BlobSizeMetadata{
@@ -175,7 +179,7 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 			IssueID:       1,
 			RootCauseType: invariant.RootCauseTypePollersStatus.String(),
 			Metadata: &timeout.TimeoutRootcauseMetadata{
-				PollersMetadata: &timeout.PollersMetadata{TaskListName: "test", TaskListBacklog: taskListBacklog},
+				PollersMetadata: &timeout.PollersMetadata{TaskListName: "test", CurrentTaskListBacklog: taskListBacklog},
 			},
 		}}
 	s.workflowEnv.OnActivity(identifyIssuesActivity, mock.Anything, mock.Anything).Return(issues, nil)
@@ -237,37 +241,47 @@ func (s *diagnosticsWorkflowTestSuite) queryDiagnostics() DiagnosticsStarterWork
 }
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutIssues() {
-	workflowTimeoutData := timeout.ExecutionTimeoutMetadata{
-		ExecutionTime:     110 * time.Second,
+	workflowTimeoutData := timeout.TimeoutIssuesMetadata{
+		EventID:           1,
 		ConfiguredTimeout: 110 * time.Second,
-		LastOngoingEvent: &types.HistoryEvent{
-			ID:        1,
-			Timestamp: common.Int64Ptr(testTimeStamp),
-			WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
-				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
+		ExecutionTimeout: &timeout.ExecutionTimeoutMetadata{
+			ExecutionTime: 110 * time.Second,
+			LastOngoingEvent: &types.HistoryEvent{
+				ID:        1,
+				Timestamp: common.Int64Ptr(testTimeStamp),
+				WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
+				},
 			},
 		},
 	}
 	workflowTimeoutDataInBytes, err := json.Marshal(workflowTimeoutData)
 	s.NoError(err)
-	childWorkflowTimeoutData := timeout.ChildWfTimeoutMetadata{
-		ExecutionTime:     110 * time.Second,
+	childWorkflowTimeoutData := timeout.TimeoutIssuesMetadata{
+		EventID:           2,
 		ConfiguredTimeout: 110 * time.Second,
+		ChildWfTimeout: &timeout.ChildWfTimeoutMetadata{
+			ExecutionTime: 110 * time.Second,
+		},
 	}
 	childWorkflowTimeoutDataInBytes, err := json.Marshal(childWorkflowTimeoutData)
 	s.NoError(err)
-	activityTimeoutData := timeout.ActivityTimeoutMetadata{
-		TimeoutType:       types.TimeoutTypeStartToClose.Ptr(),
+	activityTimeoutData := timeout.TimeoutIssuesMetadata{
+		EventID:           3,
 		ConfiguredTimeout: 5 * time.Second,
-		TimeElapsed:       5 * time.Second,
-		HeartBeatTimeout:  0,
+		ActivityTimeout: &timeout.ActivityTimeoutMetadata{
+			TimeoutType:      types.TimeoutTypeStartToClose.Ptr(),
+			TimeElapsed:      5 * time.Second,
+			HeartBeatTimeout: 0,
+		},
 	}
 	activityTimeoutDataInBytes, err := json.Marshal(activityTimeoutData)
 	s.NoError(err)
-	descTimeoutData := timeout.DecisionTimeoutMetadata{
+	descTimeoutData := timeout.TimeoutIssuesMetadata{
+		EventID:           4,
 		ConfiguredTimeout: 5 * time.Second,
 	}
-	descTimeoutDataInBytes, err := json.Marshal(activityTimeoutData)
+	descTimeoutDataInBytes, err := json.Marshal(descTimeoutData)
 	s.NoError(err)
 	issues := []invariant.InvariantCheckResult{
 		{
@@ -300,33 +314,25 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutIssues() {
 			IssueID:       1,
 			InvariantType: timeout.TimeoutTypeExecution.String(),
 			Reason:        "START_TO_CLOSE",
-			Metadata: &timeout.TimeoutIssuesMetadata{
-				ExecutionTimeout: &workflowTimeoutData,
-			},
+			Metadata:      &workflowTimeoutData,
 		},
 		{
 			IssueID:       2,
 			InvariantType: timeout.TimeoutTypeActivity.String(),
 			Reason:        "START_TO_CLOSE",
-			Metadata: &timeout.TimeoutIssuesMetadata{
-				ActivityTimeout: &activityTimeoutData,
-			},
+			Metadata:      &activityTimeoutData,
 		},
 		{
 			IssueID:       3,
 			InvariantType: timeout.TimeoutTypeDecision.String(),
 			Reason:        "START_TO_CLOSE",
-			Metadata: &timeout.TimeoutIssuesMetadata{
-				DecisionTimeout: &descTimeoutData,
-			},
+			Metadata:      &descTimeoutData,
 		},
 		{
 			IssueID:       4,
 			InvariantType: timeout.TimeoutTypeChildWorkflow.String(),
 			Reason:        "START_TO_CLOSE",
-			Metadata: &timeout.TimeoutIssuesMetadata{
-				ChildWfTimeout: &childWorkflowTimeoutData,
-			},
+			Metadata:      &childWorkflowTimeoutData,
 		},
 	}
 	result, err := retrieveTimeoutIssues(issues)
@@ -336,7 +342,7 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutIssues() {
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRootCause() {
 	taskListBacklog := int64(10)
-	pollersMetadataInBytes, err := json.Marshal(timeout.PollersMetadata{TaskListBacklog: taskListBacklog})
+	pollersMetadataInBytes, err := json.Marshal(timeout.PollersMetadata{CurrentTaskListBacklog: taskListBacklog})
 	s.NoError(err)
 	heartBeatingMetadataInBytes, err := json.Marshal(timeout.HeartbeatingMetadata{TimeElapsed: 5 * time.Second})
 	s.NoError(err)
@@ -357,7 +363,7 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRootCause() {
 			IssueID:       1,
 			RootCauseType: invariant.RootCauseTypePollersStatus.String(),
 			Metadata: &timeout.TimeoutRootcauseMetadata{
-				PollersMetadata: &timeout.PollersMetadata{TaskListBacklog: taskListBacklog},
+				PollersMetadata: &timeout.PollersMetadata{CurrentTaskListBacklog: taskListBacklog},
 			},
 		},
 		{
@@ -375,6 +381,7 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRootCause() {
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureIssues() {
 	actMetadata := failure.FailureIssuesMetadata{
+		EventID:             3,
 		Identity:            "localhost",
 		ActivityScheduledID: 1,
 		ActivityStartedID:   2,
@@ -442,6 +449,23 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureRootCause() {
 	s.ElementsMatch(failureRootCause, result)
 }
 
+func TestRetrieveFailureRootCauseHistorySizeExceedsLimit(t *testing.T) {
+	result, err := retrieveFailureRootCause([]invariant.InvariantRootCauseResult{
+		{
+			IssueID:   1,
+			RootCause: invariant.RootCauseTypeHistorySizeExceedsLimit,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []*failureRootCauseResult{
+		{
+			IssueID:       1,
+			RootCauseType: invariant.RootCauseTypeHistorySizeExceedsLimit.String(),
+		},
+	}, result)
+}
+
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveRetryIssues() {
 	retryMetadata := retry.RetryMetadata{
 		RetryPolicy: &types.RetryPolicy{
@@ -485,21 +509,25 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveRetryIssues() {
 }
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
-	atCapMetadata := timeoutrisk.ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+	atCapMetadata := timeoutrisk.TimeoutRiskIssuesMetadata{
 		EventID:             2,
 		ActivityID:          "101",
 		ActivityType:        "test-activity",
 		StartToCloseTimeout: 60 * time.Second,
-		WorkflowTimeout:     60 * time.Second,
+		ActivityStartToCloseAtWorkflowTimeoutCap: &timeoutrisk.ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+			WorkflowTimeout: 60 * time.Second,
+		},
 	}
 	atCapMetadataInBytes, err := json.Marshal(atCapMetadata)
 	s.NoError(err)
-	missingHeartbeatMetadata := timeoutrisk.ActivityMissingHeartbeatTimeoutMetadata{
+	missingHeartbeatMetadata := timeoutrisk.TimeoutRiskIssuesMetadata{
 		EventID:             3,
 		ActivityID:          "102",
 		ActivityType:        "test-activity",
 		StartToCloseTimeout: 900 * time.Second,
-		Threshold:           600 * time.Second,
+		ActivityMissingHeartbeatTimeout: &timeoutrisk.ActivityMissingHeartbeatTimeoutMetadata{
+			Threshold: 600 * time.Second,
+		},
 	}
 	missingHeartbeatMetadataInBytes, err := json.Marshal(missingHeartbeatMetadata)
 	s.NoError(err)
@@ -522,20 +550,72 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRiskIssues() {
 			IssueID:       0,
 			InvariantType: timeoutrisk.ActivityStartToCloseAtWorkflowTimeoutCap.String(),
 			Reason:        timeoutrisk.StartToCloseAtWorkflowTimeoutCap.String(),
-			Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
-				ActivityStartToCloseAtWorkflowTimeoutCap: &atCapMetadata,
-			},
+			Metadata:      &atCapMetadata,
 		},
 		{
 			IssueID:       1,
 			InvariantType: timeoutrisk.ActivityMissingHeartbeatTimeout.String(),
 			Reason:        timeoutrisk.MissingHeartbeatTimeoutForLongActivity.String(),
-			Metadata: &timeoutrisk.TimeoutRiskIssuesMetadata{
-				ActivityMissingHeartbeatTimeout: &missingHeartbeatMetadata,
-			},
+			Metadata:      &missingHeartbeatMetadata,
 		},
 	}
 	result, err := retrieveTimeoutRiskIssues(issues)
 	s.NoError(err)
 	s.ElementsMatch(timeoutRiskIssues, result)
+}
+
+func (s *diagnosticsWorkflowTestSuite) Test__retrieveAntipatternsIssues() {
+	burstMetadata := antipatterns.AntipatternIssuesMetadata{
+		EventID: 2,
+		ActivityScheduleBurst: &antipatterns.ActivityScheduleBurstMetadata{
+			LastEventID:     51,
+			EventCount:      50,
+			WindowStart:     time.Unix(0, 1700000000000000000).UTC(),
+			WindowEnd:       time.Unix(0, 1700000004900000000).UTC(),
+			WindowInSeconds: 10,
+			Threshold:       50,
+		},
+	}
+	burstMetadataInBytes, err := json.Marshal(burstMetadata)
+	s.NoError(err)
+	canMetadata := antipatterns.AntipatternIssuesMetadata{
+		EventID: 60,
+		ContinueAsNewInCronWorkflow: &antipatterns.ContinueAsNewInCronWorkflowMetadata{
+			StartedEventID: 1,
+			CronSchedule:   "*/5 * * * *",
+		},
+	}
+	canMetadataInBytes, err := json.Marshal(canMetadata)
+	s.NoError(err)
+	issues := []invariant.InvariantCheckResult{
+		{
+			IssueID:       0,
+			InvariantType: antipatterns.ActivityScheduleBurst.String(),
+			Reason:        antipatterns.ActivityScheduleBurstDetected.String(),
+			Metadata:      burstMetadataInBytes,
+		},
+		{
+			IssueID:       1,
+			InvariantType: antipatterns.ContinueAsNewInCronWorkflow.String(),
+			Reason:        antipatterns.ContinueAsNewInitiatedByDeciderInCronWorkflow.String(),
+			Metadata:      canMetadataInBytes,
+		},
+	}
+	antipatternsIssues := []*antipatternsIssuesResult{
+		{
+			IssueID:       0,
+			InvariantType: antipatterns.ActivityScheduleBurst.String(),
+			Reason:        antipatterns.ActivityScheduleBurstDetected.String(),
+			Metadata:      &burstMetadata,
+		},
+		{
+			IssueID:       1,
+			InvariantType: antipatterns.ContinueAsNewInCronWorkflow.String(),
+			Reason:        antipatterns.ContinueAsNewInitiatedByDeciderInCronWorkflow.String(),
+			Metadata:      &canMetadata,
+		},
+	}
+	result, err := retrieveAntipatternsIssues(issues)
+	s.NoError(err)
+	s.ElementsMatch(antipatternsIssues, result)
 }

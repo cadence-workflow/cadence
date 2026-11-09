@@ -81,5 +81,5 @@ func TestTimerQueueFactory_IsQueueV2Enabled(t *testing.T) {
 	factory := &timerQueueFactory{}
 
 	enabled := factory.isQueueV2Enabled(mockShard)
-	assert.False(t, enabled)
+	assert.True(t, enabled)
 }

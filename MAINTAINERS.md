@@ -11,6 +11,7 @@
 ## Maintainers
 - Abhishek Jha (https://github.com/abhishekj720)
 - Adhitya Mamallan (https://github.com/adhityamamallan)
+- Andreas Holt (https://github.com/AndreasHolt)
 - Assem Hafez (https://github.com/Assem-Hafez)
 - Bowen Xiao (https://github.com/bowenxia)
 - Chris Warren (https://github.com/c-warren)

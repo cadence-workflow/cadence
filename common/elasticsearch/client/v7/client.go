@@ -217,7 +217,17 @@ func (c *ElasticV7) GetMappings(ctx context.Context, indexName string) (map[stri
 	if err != nil {
 		return nil, err
 	}
-	return res, nil
+	// The ES v7 API structure:
+	//   {"<index>": {"mappings": {"dynamic": ..., "properties": {...}}}}
+	index, ok := res[indexName].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	mappings, ok := index["mappings"].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	return mappings, nil
 }
 
 func (c *ElasticV7) PutMappings(ctx context.Context, indexName string, mappings map[string]any) error {
@@ -236,7 +246,11 @@ func (c *ElasticV7) MappingsFromTemplate(template []byte) (map[string]any, error
 	if err := json.Unmarshal(template, &schemaJSON); err != nil {
 		return nil, err
 	}
-	return schemaJSON["mappings"].(map[string]any), nil
+	mappings, ok := schemaJSON["mappings"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("mappings not found in template")
+	}
+	return mappings, nil
 }
 
 func (c *ElasticV7) LatestTemplate() []byte {

@@ -56,3 +56,9 @@ message TaskListNotOwnedByHostError {
   string my_identity = 2;
   string task_list_name = 3;
 }
+
+message SemaphoreNotOwnedByHostError {
+  string owned_by_identity = 1;
+  string my_identity = 2;
+  string bucket_id = 3;
+}

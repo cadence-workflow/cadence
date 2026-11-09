@@ -23,6 +23,7 @@ package persistence
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/uber/cadence/common"
@@ -36,12 +37,13 @@ import (
 type (
 	// executionManagerImpl implements ExecutionManager based on ExecutionStore, statsComputer and PayloadSerializer
 	executionManagerImpl struct {
-		serializer    PayloadSerializer
-		persistence   ExecutionStore
-		statsComputer statsComputer
-		logger        log.Logger
-		timeSrc       clock.TimeSource
-		dc            *DynamicConfiguration
+		serializer       PayloadSerializer
+		persistence      ExecutionStore
+		statsComputer    statsComputer
+		logger           log.Logger
+		timeSrc          clock.TimeSource
+		dc               *DynamicConfiguration
+		rewriteSupported bool
 	}
 )
 
@@ -55,17 +57,42 @@ func NewExecutionManagerImpl(
 	dc *DynamicConfiguration,
 ) ExecutionManager {
 	return &executionManagerImpl{
-		serializer:    serializer,
-		persistence:   persistence,
-		statsComputer: statsComputer{},
-		logger:        logger,
-		timeSrc:       clock.NewRealTimeSource(),
-		dc:            dc,
+		serializer:       serializer,
+		persistence:      persistence,
+		statsComputer:    statsComputer{},
+		logger:           logger,
+		timeSrc:          clock.NewRealTimeSource(),
+		dc:               dc,
+		rewriteSupported: isRewriteSupported(persistence, dc),
 	}
 }
 
 func (m *executionManagerImpl) GetName() string {
 	return m.persistence.GetName()
+}
+
+// isRewriteSupported is evaluated once at construction and cached. Runtime changes to
+// RewriteOptimizationBackends require a process restart to take effect. The sample rate
+// config remains dynamic, so setting it to 0 disables the feature without a restart.
+func isRewriteSupported(store ExecutionStore, dc *DynamicConfiguration) bool {
+	if store == nil || dc == nil || dc.RewriteOptimizationBackends == nil {
+		return false
+	}
+	name := store.GetName()
+	for _, b := range dc.RewriteOptimizationBackends() {
+		if s, ok := b.(string); ok && s == name {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldRewrite returns true with a 1-in-rate probability, used to
+// probabilistically trigger a full rewrite that compacts sentinel
+// entries accumulated from previous deletes. Returns false when
+// rate <= 0 (disabled).
+func shouldRewrite(rate int) bool {
+	return rate > 0 && rand.Intn(rate) == 0
 }
 
 // The below three APIs are related to serialization/deserialization
@@ -90,6 +117,7 @@ func (m *executionManagerImpl) GetWorkflowExecution(
 			TimerInfos:         response.State.TimerInfos,
 			RequestCancelInfos: response.State.RequestCancelInfos,
 			SignalInfos:        response.State.SignalInfos,
+			SemaphoreInfos:     response.State.SemaphoreInfos,
 			SignalRequestedIDs: response.State.SignalRequestedIDs,
 			ReplicationState:   response.State.ReplicationState, // TODO: remove this after all 2DC workflows complete
 			Checksum:           response.State.Checksum,
@@ -197,6 +225,7 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		HasRetryPolicy:                     info.HasRetryPolicy,
 		InitialInterval:                    int32(info.InitialInterval.Seconds()),
 		BackoffCoefficient:                 info.BackoffCoefficient,
+		JitterCoefficient:                  info.JitterCoefficient,
 		MaximumInterval:                    int32(info.MaximumInterval.Seconds()),
 		ExpirationTime:                     info.ExpirationTime,
 		MaximumAttempts:                    info.MaximumAttempts,
@@ -322,6 +351,7 @@ func (m *executionManagerImpl) DeserializeActivityInfos(
 			HasRetryPolicy:                          v.HasRetryPolicy,
 			InitialInterval:                         int32(v.InitialInterval.Seconds()),
 			BackoffCoefficient:                      v.BackoffCoefficient,
+			JitterCoefficient:                       v.JitterCoefficient,
 			MaximumInterval:                         int32(v.MaximumInterval.Seconds()),
 			ExpirationTime:                          v.ExpirationTime,
 			MaximumAttempts:                         v.MaximumAttempts,
@@ -455,6 +485,7 @@ func (m *executionManagerImpl) SerializeUpsertActivityInfos(
 			HasRetryPolicy:                          v.HasRetryPolicy,
 			InitialInterval:                         common.SecondsToDuration(int64(v.InitialInterval)),
 			BackoffCoefficient:                      v.BackoffCoefficient,
+			JitterCoefficient:                       v.JitterCoefficient,
 			MaximumInterval:                         common.SecondsToDuration(int64(v.MaximumInterval)),
 			ExpirationTime:                          v.ExpirationTime,
 			MaximumAttempts:                         v.MaximumAttempts,
@@ -543,6 +574,7 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		HasRetryPolicy:                     info.HasRetryPolicy,
 		InitialInterval:                    common.SecondsToDuration(int64(info.InitialInterval)),
 		BackoffCoefficient:                 info.BackoffCoefficient,
+		JitterCoefficient:                  info.JitterCoefficient,
 		MaximumInterval:                    common.SecondsToDuration(int64(info.MaximumInterval)),
 		ExpirationTime:                     info.ExpirationTime,
 		MaximumAttempts:                    info.MaximumAttempts,
@@ -710,6 +742,41 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 	if err != nil {
 		return nil, err
 	}
+	var serializedRewriteActivityInfos []*InternalActivityInfo
+	var rewriteTimerInfos []*TimerInfo
+	var rate int
+	if m.rewriteSupported && m.dc != nil {
+		if m.dc.RewriteSampleRate != nil {
+			rate = m.dc.RewriteSampleRate()
+		}
+	}
+	if len(input.DeleteActivityInfos) > 0 && shouldRewrite(rate) {
+		serializedRewriteActivityInfos, err = m.SerializeUpsertActivityInfos(input.RewriteActivityInfos, encoding)
+		if err != nil {
+			return nil, err
+		}
+		if serializedRewriteActivityInfos == nil {
+			serializedRewriteActivityInfos = []*InternalActivityInfo{}
+		}
+		m.logger.Debug("activity rewrite triggered",
+			tag.WorkflowDomainID(input.ExecutionInfo.DomainID),
+			tag.WorkflowID(input.ExecutionInfo.WorkflowID),
+			tag.WorkflowRunID(input.ExecutionInfo.RunID),
+			tag.Counter(len(serializedRewriteActivityInfos)),
+		)
+	}
+	if len(input.DeleteTimerInfos) > 0 && shouldRewrite(rate) {
+		rewriteTimerInfos = input.RewriteTimerInfos
+		if rewriteTimerInfos == nil {
+			rewriteTimerInfos = []*TimerInfo{}
+		}
+		m.logger.Debug("timer rewrite triggered",
+			tag.WorkflowDomainID(input.ExecutionInfo.DomainID),
+			tag.WorkflowID(input.ExecutionInfo.WorkflowID),
+			tag.WorkflowRunID(input.ExecutionInfo.RunID),
+			tag.Counter(len(rewriteTimerInfos)),
+		)
+	}
 	serializedUpsertChildExecutionInfos, err := m.SerializeUpsertChildExecutionInfos(input.UpsertChildExecutionInfos, encoding)
 	if err != nil {
 		return nil, err
@@ -743,8 +810,11 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 
 		UpsertActivityInfos:       serializedUpsertActivityInfos,
 		DeleteActivityInfos:       input.DeleteActivityInfos,
+		RewriteActivityInfos:      serializedRewriteActivityInfos,
 		UpsertTimerInfos:          input.UpsertTimerInfos,
 		DeleteTimerInfos:          input.DeleteTimerInfos,
+		RewriteTimerInfos:         rewriteTimerInfos,
+		SentinelWriteEnabled:      rate > 0,
 		WorkflowTimerTasks:        m.syncTimerTaskTrackingKeys(input.TasksByCategory),
 		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
 		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,
@@ -752,6 +822,8 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		DeleteRequestCancelInfos:  input.DeleteRequestCancelInfos,
 		UpsertSignalInfos:         input.UpsertSignalInfos,
 		DeleteSignalInfos:         input.DeleteSignalInfos,
+		UpsertSemaphoreInfos:      input.UpsertSemaphoreInfos,
+		DeleteSemaphoreInfos:      input.DeleteSemaphoreInfos,
 		UpsertSignalRequestedIDs:  input.UpsertSignalRequestedIDs,
 		DeleteSignalRequestedIDs:  input.DeleteSignalRequestedIDs,
 		NewBufferedEvents:         serializedNewBufferedEvents,
@@ -819,6 +891,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 		ChildExecutionInfos: serializedChildExecutionInfos,
 		RequestCancelInfos:  input.RequestCancelInfos,
 		SignalInfos:         input.SignalInfos,
+		SemaphoreInfos:      input.SemaphoreInfos,
 		SignalRequestedIDs:  input.SignalRequestedIDs,
 
 		TasksByCategory: input.TasksByCategory,

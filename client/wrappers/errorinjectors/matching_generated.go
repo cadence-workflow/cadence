@@ -40,6 +40,26 @@ func NewMatchingClient(client _sourceMatching.Client, errorRate float64, logger 
 	}
 }
 
+func (c *matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest, p1 ...yarpc.CallOption) (ap2 *types.AcquireSemaphoreResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		ap2, err = c.client.AcquireSemaphore(ctx, ap1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgMatchingInjectedFakeErr,
+			tag.MatchingClientOperationAcquireSemaphore,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -230,6 +250,26 @@ func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1
 	if fakeErr != nil {
 		c.logger.Error(msgMatchingInjectedFakeErr,
 			tag.MatchingClientOperationRefreshTaskListPartitionConfig,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		rp2, err = c.client.ReleaseSemaphore(ctx, rp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgMatchingInjectedFakeErr,
+			tag.MatchingClientOperationReleaseSemaphore,
 			tag.Error(fakeErr),
 			tag.Bool(forwardCall),
 			tag.ClientError(err),

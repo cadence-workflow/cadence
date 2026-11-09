@@ -217,7 +217,7 @@ func (wh *WorkflowHandler) DiagnoseWorkflowExecution(ctx context.Context, reques
 	}
 
 	wfExecution := request.GetWorkflowExecution()
-	diagnosticWorkflowDomain := "cadence-system"
+	diagnosticWorkflowDomain := constants.SystemLocalDomainName
 	diagnosticWorkflowID := fmt.Sprintf("%s-%s", request.GetDomain(), wfExecution.GetRunID())
 
 	diagnosticWorkflowInput := diagnostics.DiagnosticsStarterWorkflowInput{
@@ -1948,8 +1948,6 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 	lastFirstEventID := constants.FirstEventID
 	var nextEventID int64
 	var isWorkflowRunning bool
-	var workflowCloseStatus string
-	var workflowCloseTime *time.Time
 
 	// process the token for paging
 	queryNextEventID := constants.EndEventID
@@ -1981,7 +1979,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 			}
 
 			vh := persistence.NewVersionHistoryItemFromInternalType(token.VersionHistoryItem)
-			token.BranchToken, _, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, workflowCloseStatus, err =
+			token.BranchToken, _, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, _, err =
 				queryHistory(domainID, execution, queryNextEventID, token.BranchToken, vh)
 			if err != nil {
 				return nil, err
@@ -1994,7 +1992,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 		if !isCloseEventOnly {
 			queryNextEventID = constants.FirstEventID
 		}
-		token.BranchToken, runID, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, workflowCloseStatus, err =
+		token.BranchToken, runID, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, _, err =
 			queryHistory(domainID, execution, queryNextEventID, nil, nil)
 		if err != nil {
 			return nil, err
@@ -2101,17 +2099,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 		return nil, err
 	}
 
-	// Extract close time from history events for closed workflows
-	if !isWorkflowRunning && len(history.Events) > 0 {
-		// Get the last event (close event) timestamp
-		lastEvent := history.Events[len(history.Events)-1]
-		if lastEvent.Timestamp != nil {
-			t := time.Unix(0, *lastEvent.Timestamp)
-			workflowCloseTime = &t
-		}
-	}
-
-	wh.emitGetWorkflowExecutionHistoryMetrics(domainName, domainID, execution.GetWorkflowID(), workflowCloseStatus, workflowCloseTime)
+	wh.emitWorkflowQueryAgeDays(domainName, history.Events)
 
 	return &types.GetWorkflowExecutionHistoryResponse{
 		History:       history,
@@ -3301,34 +3289,72 @@ func (wh *WorkflowHandler) emitDescribeWorkflowExecutionMetrics(domain string, r
 
 	scope = scope.Tagged(metrics.WorkflowCloseStatusTag(status))
 	scope.IncCounter(metrics.DescribeWorkflowStatusCount)
+
+	info := response.WorkflowExecutionInfo
+	if info != nil && info.CloseStatus != nil && info.CloseTime != nil {
+		wh.emitWorkflowAgeDays(metrics.FrontendDescribeWorkflowExecutionStatusScope, domain, *info.CloseTime, *info.CloseStatus)
+	}
 }
 
-func (wh *WorkflowHandler) emitGetWorkflowExecutionHistoryMetrics(domainName, domainID, workflowID, workflowCloseStatus string, closeTime *time.Time) {
-	domainEntry, err := wh.GetDomainCache().GetDomainByID(domainID)
-	if err != nil {
-		wh.GetLogger().Warn("Failed to get domain entry for metrics", tag.WorkflowDomainName(domainName), tag.Error(err))
+func (wh *WorkflowHandler) emitWorkflowQueryAgeDays(domainName string, events []*types.HistoryEvent) {
+	if len(events) == 0 {
 		return
 	}
 
-	retentionDays := domainEntry.GetRetentionDays(workflowID)
-
-	scope := wh.GetMetricsClient().Scope(
-		metrics.FrontendGetWorkflowExecutionHistoryScope,
-		metrics.DomainTag(domainName),
-		metrics.WorkflowCloseStatusTag(workflowCloseStatus),
-	)
-
-	// For closed workflows with close time, calculate days remaining until retention expires
-	// For running workflows emitting the retention days value
-	metricValue := float64(retentionDays)
-	if closeTime != nil {
-		// (closeTime + retentionDays) - now = days remaining
-		retentionExpiry := closeTime.Add(time.Duration(retentionDays) * 24 * time.Hour)
-		daysRemaining := time.Until(retentionExpiry).Hours() / 24
-		metricValue = daysRemaining
+	lastEvent := events[len(events)-1]
+	if !isWorkflowCloseEvent(lastEvent) || lastEvent.Timestamp == nil {
+		return
 	}
 
-	scope.UpdateGauge(metrics.WorkflowExecutionHistoryAccess, metricValue)
+	wh.emitWorkflowAgeDays(metrics.FrontendGetWorkflowExecutionHistoryScope, domainName, *lastEvent.Timestamp, eventTypeToCloseStatus(lastEvent.GetEventType()))
+}
+
+func (wh *WorkflowHandler) emitWorkflowAgeDays(scopeIdx metrics.ScopeIdx, domainName string, closeTimeNanos int64, closeStatus types.WorkflowExecutionCloseStatus) {
+	closeTime := time.Unix(0, closeTimeNanos)
+	ageDays := time.Since(closeTime).Hours() / 24
+
+	// Collapse close statuses to "success" or "failure" to limit tag cardinality.
+	statusTag := "failure"
+	switch closeStatus {
+	case types.WorkflowExecutionCloseStatusCompleted, types.WorkflowExecutionCloseStatusContinuedAsNew:
+		statusTag = "success"
+	}
+
+	scope := wh.GetMetricsClient().Scope(scopeIdx, metrics.DomainTag(domainName), metrics.WorkflowCloseStatusTag(statusTag))
+	scope.RecordHistogramValue(metrics.WorkflowQueryAgeDays, ageDays)
+}
+
+func eventTypeToCloseStatus(eventType types.EventType) types.WorkflowExecutionCloseStatus {
+	switch eventType {
+	case types.EventTypeWorkflowExecutionCompleted:
+		return types.WorkflowExecutionCloseStatusCompleted
+	case types.EventTypeWorkflowExecutionFailed:
+		return types.WorkflowExecutionCloseStatusFailed
+	case types.EventTypeWorkflowExecutionTimedOut:
+		return types.WorkflowExecutionCloseStatusTimedOut
+	case types.EventTypeWorkflowExecutionCanceled:
+		return types.WorkflowExecutionCloseStatusCanceled
+	case types.EventTypeWorkflowExecutionTerminated:
+		return types.WorkflowExecutionCloseStatusTerminated
+	case types.EventTypeWorkflowExecutionContinuedAsNew:
+		return types.WorkflowExecutionCloseStatusContinuedAsNew
+	default:
+		return types.WorkflowExecutionCloseStatusFailed
+	}
+}
+
+func isWorkflowCloseEvent(event *types.HistoryEvent) bool {
+	switch event.GetEventType() {
+	case types.EventTypeWorkflowExecutionCompleted,
+		types.EventTypeWorkflowExecutionFailed,
+		types.EventTypeWorkflowExecutionTimedOut,
+		types.EventTypeWorkflowExecutionCanceled,
+		types.EventTypeWorkflowExecutionTerminated,
+		types.EventTypeWorkflowExecutionContinuedAsNew:
+		return true
+	default:
+		return false
+	}
 }
 
 // Some error types are introduced later that some clients might not support

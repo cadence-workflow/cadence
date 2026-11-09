@@ -37,7 +37,9 @@ const (
 	// EnvKeyEnvironment is the environment variable key for environment
 	EnvKeyEnvironment = "CADENCE_ENVIRONMENT"
 	// EnvKeyAvailabilityZone is the environment variable key for AZ
-	EnvKeyAvailabilityZone = "CADENCE_AVAILABILTY_ZONE"
+	EnvKeyAvailabilityZone = "CADENCE_AVAILABILITY_ZONE"
+	// EnvKeyAvailabilityZoneLegacy preserves the old misspelling for backward compatibility.
+	EnvKeyAvailabilityZoneLegacy = "CADENCE_AVAILABILTY_ZONE"
 )
 
 const (

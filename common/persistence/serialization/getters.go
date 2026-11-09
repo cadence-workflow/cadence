@@ -404,6 +404,14 @@ func (w *WorkflowExecutionInfo) GetRetryBackoffCoefficient() (o float64) {
 	return
 }
 
+// GetRetryJitterCoefficient internal sql blob getter
+func (w *WorkflowExecutionInfo) GetRetryJitterCoefficient() (o float64) {
+	if w != nil {
+		return w.RetryJitterCoefficient
+	}
+	return
+}
+
 // GetParentWorkflowID internal sql blob getter
 func (w *WorkflowExecutionInfo) GetParentWorkflowID() (o string) {
 	if w != nil {
@@ -1162,6 +1170,14 @@ func (a *ActivityInfo) GetRetryBackoffCoefficient() (o float64) {
 	return
 }
 
+// GetRetryJitterCoefficient internal sql blob getter
+func (a *ActivityInfo) GetRetryJitterCoefficient() (o float64) {
+	if a != nil {
+		return a.RetryJitterCoefficient
+	}
+	return
+}
+
 // GetRetryNonRetryableErrors internal sql blob getter
 func (a *ActivityInfo) GetRetryNonRetryableErrors() (o []string) {
 	if a != nil {
@@ -1586,6 +1602,14 @@ func (t *TransferTaskInfo) GetOriginalTaskList() (o string) {
 func (t *TransferTaskInfo) GetOriginalTaskListKind() (o types.TaskListKind) {
 	if t != nil {
 		return t.OriginalTaskListKind
+	}
+	return
+}
+
+// GetSemaphoreName internal sql blob getter
+func (t *TransferTaskInfo) GetSemaphoreName() (o string) {
+	if t != nil {
+		return t.SemaphoreName
 	}
 	return
 }

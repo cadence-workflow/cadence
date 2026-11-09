@@ -428,3 +428,49 @@ func TestMatchingRefreshTaskListPartitionConfigRequestFuzz(t *testing.T) {
 func TestMatchingRefreshTaskListPartitionConfigResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromMatchingRefreshTaskListPartitionConfigResponse, ToMatchingRefreshTaskListPartitionConfigResponse)
 }
+
+func TestMatchingAcquireSemaphoreRequest(t *testing.T) {
+	for _, item := range []*types.AcquireSemaphoreRequest{nil, {}, &testdata.MatchingAcquireSemaphoreRequest} {
+		assert.Equal(t, item, ToMatchingAcquireSemaphoreRequest(FromMatchingAcquireSemaphoreRequest(item)))
+	}
+}
+
+func TestMatchingAcquireSemaphoreResponse(t *testing.T) {
+	for _, item := range []*types.AcquireSemaphoreResponse{nil, {}, &testdata.MatchingAcquireSemaphoreResponse} {
+		assert.Equal(t, item, ToMatchingAcquireSemaphoreResponse(FromMatchingAcquireSemaphoreResponse(item)))
+	}
+}
+
+func TestMatchingReleaseSemaphoreRequest(t *testing.T) {
+	for _, item := range []*types.ReleaseSemaphoreRequest{nil, {}, &testdata.MatchingReleaseSemaphoreRequest} {
+		assert.Equal(t, item, ToMatchingReleaseSemaphoreRequest(FromMatchingReleaseSemaphoreRequest(item)))
+	}
+}
+
+func TestMatchingReleaseSemaphoreResponse(t *testing.T) {
+	for _, item := range []*types.ReleaseSemaphoreResponse{nil, {}} {
+		assert.Equal(t, item, ToMatchingReleaseSemaphoreResponse(FromMatchingReleaseSemaphoreResponse(item)))
+	}
+}
+
+func SemaphoreAcquireOutcomeFuzzer(e *types.SemaphoreAcquireOutcome, c fuzz.Continue) {
+	*e = types.SemaphoreAcquireOutcome(c.Intn(3)) // 0-2: Invalid, Acquired, NoSlot
+}
+
+func TestMatchingAcquireSemaphoreRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingAcquireSemaphoreRequest, ToMatchingAcquireSemaphoreRequest)
+}
+
+func TestMatchingAcquireSemaphoreResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingAcquireSemaphoreResponse, ToMatchingAcquireSemaphoreResponse,
+		testutils.WithCustomFuncs(SemaphoreAcquireOutcomeFuzzer),
+	)
+}
+
+func TestMatchingReleaseSemaphoreRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingReleaseSemaphoreRequest, ToMatchingReleaseSemaphoreRequest)
+}
+
+func TestMatchingReleaseSemaphoreResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingReleaseSemaphoreResponse, ToMatchingReleaseSemaphoreResponse)
+}

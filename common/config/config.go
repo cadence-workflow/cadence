@@ -1,23 +1,3 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
 package config
 
 import (
@@ -37,17 +17,15 @@ import (
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	openfeatureclientconfig "github.com/uber/cadence/common/dynamicconfig/openfeatureclient/config"
 	"github.com/uber/cadence/common/metrics"
-	ringpopprovider "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 	"github.com/uber/cadence/common/service"
 )
 
 type (
 	// Config contains the configuration for a set of cadence services
 	Config struct {
-		// Ringpop is the ringpop related configuration
-		Ringpop ringpopprovider.Config `yaml:"ringpop"`
-		// Membership is used to configure peer provider plugin
-		Membership Membership `yaml:"membership"`
+		// Deprecated: Ringpop config is now loaded via ringpopfx from config.Provider.
+		// This field exists only for backward compatibility with existing YAML files.
+		Ringpop interface{} `yaml:"ringpop" json:"-"`
 		// Persistence contains the configuration for cadence datastores
 		Persistence Persistence `yaml:"persistence"`
 		// Log is the logging config
@@ -91,6 +69,14 @@ type (
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
 		ShardDistributorMatchingConfig clientcommon.Config `yaml:"shard-distributor-matching"`
 
+		// NumMatchingShards is the number of shards matching hashes task list names into when
+		// matching.shardTaskListsByHashForShardManager is enabled. It must equal the shardNum of
+		// matching's namespace in the shard distributor, and every service must use the same value.
+		//
+		// Changing it moves almost every task list to a different shard, so only change it while
+		// matching.percentageOnboardedToShardManager is 0. Defaults to DefaultNumMatchingShards.
+		NumMatchingShards int `yaml:"numMatchingShards"`
+
 		// Deprecated: Archival config is now loaded via archiverfx from config.Provider.
 		// This field exists only for backward compatibility with existing YAML files.
 		// The actual archival configuration is decoded separately by archiverfx.New.
@@ -110,14 +96,6 @@ type (
 		// Counters controls counter metric emission during migration.
 		Counters metrics.CounterMigration `yaml:"counter-migration"`
 	}
-
-	// Membership holds peer provider configuration.
-	Membership struct {
-		Provider PeerProvider `yaml:"provider"`
-	}
-
-	// PeerProvider is provider config. Contents depends on plugin in use
-	PeerProvider map[string]*yaml.Node
 
 	HeaderRule struct {
 		Add   bool // if false, matching headers are removed if previously matched.
@@ -443,6 +421,18 @@ type (
 		// 4) "selected-apis-forwarding-v2" will forward all of "selected-apis-forwarding", and also activity responses
 		// and heartbeats, but not other worker APIs.
 		//
+		// 5) "selected-apis-forwarding-v3" forwards everything "-v2" does, plus the two async start APIs
+		// (StartWorkflowExecutionAsync, SignalWithStartWorkflowExecutionAsync). Those requests are forwarded to the active
+		// cluster when accepted rather than enqueued locally and forwarded when the async consumer processes them.
+		// "all-domain-apis-forwarding(-v2)" already forwards the async APIs on accept unless allDomainApisForwardingTargetCluster
+		// is set and does not match the active cluster. "all-domain-apis-forwarding-v3" differs from "-v2" only on that
+		// fallback path, where it uses the "-v3" selected list.
+		// Trade-off: a request forwarded on accept fails while the active region is unreachable. A request enqueued locally
+		// is drained once the active region is reachable again.
+		// Rollout: a frontend binary that predates the "-v3" names panics at startup on an unknown policy, so switch
+		// the config to "-v3" only after every frontend runs a binary that knows it, and revert the config before
+		// rolling the binary back.
+		//
 		// "selected-apis-forwarding(-v2)" and "all-domain-apis-forwarding" can work with EnableDomainNotActiveAutoForwarding dynamicconfig to select certain domains using the policy.
 		//
 		// Usage recommendation: when enabling XDC(global domain) feature, either "all-domain-apis-forwarding" or "selected-apis-forwarding(-v2)" should be used to ensure seamless domain failover(high availability)
@@ -540,6 +530,10 @@ const (
 	S3storeConfig   = "s3store"
 )
 
+// DefaultNumMatchingShards is used when [Config.NumMatchingShards] is unset. To use a different count,
+// set the field. Changing the default changes the count in every cluster that leaves it unset.
+const DefaultNumMatchingShards = 8192
+
 func (n *NoSQL) ConvertToShardedNoSQLConfig() *ShardedNoSQL {
 	connections := make(map[string]DBShardConnection)
 	connections[NonShardedStoreName] = DBShardConnection{
@@ -564,6 +558,9 @@ func (c *Config) validate() error {
 	}
 	if err := c.ClusterGroupMetadata.Validate(); err != nil {
 		return err
+	}
+	if c.NumMatchingShards < 0 {
+		return fmt.Errorf("numMatchingShards must not be negative, got %d", c.NumMatchingShards)
 	}
 
 	return c.Authorization.Validate()
@@ -595,6 +592,10 @@ func (c *Config) fillDefaults() {
 	if c.ClusterGroupMetadata.ClusterRedirectionPolicy == nil && c.DCRedirectionPolicy != nil {
 		log.Println("[WARN] dcRedirectionPolicy config is deprecated. Please replace it with clusterRedirectionPolicy.")
 		c.ClusterGroupMetadata.ClusterRedirectionPolicy = c.DCRedirectionPolicy
+	}
+
+	if c.NumMatchingShards == 0 {
+		c.NumMatchingShards = DefaultNumMatchingShards
 	}
 }
 

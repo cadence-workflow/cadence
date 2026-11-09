@@ -170,11 +170,6 @@ func newDiscoveryProvider(
 	logger log.Logger,
 ) (discovery.DiscoverProvider, error) {
 
-	if cfg.DiscoveryProvider != nil {
-		// custom discovery provider takes first precedence
-		return cfg.DiscoveryProvider, nil
-	}
-
 	switch cfg.BootstrapMode {
 	case config.BootstrapModeHosts:
 		return statichosts.New(cfg.BootstrapHosts...), nil
@@ -185,5 +180,5 @@ func newDiscoveryProvider(
 	case config.BootstrapModeDNSSRV:
 		return newDNSSRVProvider(cfg.BootstrapHosts, net.DefaultResolver, logger), nil
 	}
-	return nil, fmt.Errorf("unknown bootstrap mode %q", cfg.BootstrapMode)
+	return nil, fmt.Errorf("unknown bootstrap mode %d", cfg.BootstrapMode)
 }

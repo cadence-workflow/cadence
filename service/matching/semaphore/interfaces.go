@@ -1,0 +1,43 @@
+package semaphore
+
+import "context"
+
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go -self_package github.com/uber/cadence/service/matching/semaphore
+
+type (
+	// Manager hands out the tokens of one semaphore bucket. A manager has to be started
+	// before it can serve, and stopped once it is done serving: Acquire waits on startup, or
+	// until its own context deadline.
+	Manager interface {
+		// Start claims the bucket and loads its tokens; the manager stops if another host claims it
+		// later. Only the first call loads, and later calls return at once. Returns ErrNotReady once
+		// stopped.
+		Start(ctx context.Context) error
+		// Stop shuts the manager down; later acquires get ErrNotReady. Safe to call more than once.
+		// The manager also stops itself when idle, when its load fails, or when it loses its claim.
+		Stop()
+		// Acquire answers Acquired or NoSlot.
+		Acquire(ctx context.Context, ownerID string) (AcquireResult, error)
+		// Release frees the token ownerID holds. An owner that holds nothing is released too, so a
+		// repeated release succeeds.
+		Release(ctx context.Context, ownerID string) error
+		// Identifier names the bucket this manager serves.
+		Identifier() Identifier
+	}
+
+	// SemaphoreRegistry tracks the managers this host is serving, keyed by identifier. It only
+	// tracks them: starting and stopping belongs to whoever creates them.
+	SemaphoreRegistry interface {
+		// GetOrCreate returns the manager held or builds one with create for the given identifier.
+		// A bucket never ends up with two managers. create runs under the registry lock, so it must not call back
+		// in and must be quick.
+		GetOrCreate(id Identifier, create func() (Manager, error)) (Manager, error)
+		// Unregister drops mgr and reports whether it was the manager actually held.
+		Unregister(mgr Manager) bool
+		// ManagerByIdentifier returns the manager held for id, if there is one. It may still
+		// be starting: Acquire is what waits for that.
+		ManagerByIdentifier(id Identifier) (Manager, bool)
+		// AllManagers returns a snapshot of what is registered.
+		AllManagers() []Manager
+	}
+)

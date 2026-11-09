@@ -1407,8 +1407,7 @@ func (s *IntegrationSuite) TestActivityFailure() {
 			},
 		},
 		{
-			// TODO: Subsequent changes will make these fields useful
-			name: "with options: store in history",
+			name: "with options: fail activity",
 			failer: &activityFailer{
 				reason:  common.StringPtr("bugs :("),
 				details: []byte("buggy details"),
@@ -1416,6 +1415,14 @@ func (s *IntegrationSuite) TestActivityFailure() {
 					FailureCategory:          types.FailureCategoryFatal.Ptr(),
 					NextRetryIntervalSeconds: common.Int32Ptr(10),
 				},
+			},
+			// Retry forever! Unless someone happens to have a fatal failure...
+			retryPolicy: &types.RetryPolicy{
+				MaximumAttempts:             10000,
+				MaximumIntervalInSeconds:    1,
+				InitialIntervalInSeconds:    1,
+				BackoffCoefficient:          1,
+				ExpirationIntervalInSeconds: 1000000,
 			},
 			fn: func(runID string, poller *TaskPoller) {
 				// Run the one activity
@@ -1438,8 +1445,7 @@ func (s *IntegrationSuite) TestActivityFailure() {
 			},
 		},
 		{
-			// TODO: Subsequent changes will make these fields useful
-			name: "with options by id: store in history",
+			name: "with options by id: fail activity",
 			failer: &activityFailer{
 				reason:  common.StringPtr("bugs :("),
 				details: []byte("buggy details"),
@@ -1448,6 +1454,14 @@ func (s *IntegrationSuite) TestActivityFailure() {
 					NextRetryIntervalSeconds: common.Int32Ptr(10),
 				},
 				byID: true,
+			},
+			// Retry forever! Unless someone happens to have a fatal failure...
+			retryPolicy: &types.RetryPolicy{
+				MaximumAttempts:             10000,
+				MaximumIntervalInSeconds:    1,
+				InitialIntervalInSeconds:    1,
+				BackoffCoefficient:          1,
+				ExpirationIntervalInSeconds: 1000000,
 			},
 			fn: func(runID string, poller *TaskPoller) {
 				// Run the one activity

@@ -26,9 +26,13 @@ import (
 	"fmt"
 	"sync"
 
+	"golang.org/x/sync/errgroup"
+
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/matching/semaphore"
 	"github.com/uber/cadence/service/matching/tasklist"
 )
 
@@ -65,6 +69,12 @@ func (e *matchingEngineImpl) runMembershipChangeLoop() {
 			err := e.shutDownNonOwnedTasklists()
 			if err != nil {
 				e.logger.Error("Error while trying to determine if tasklists have been shutdown",
+					tag.Error(err),
+					tag.MembershipChangeEvent(event),
+				)
+			}
+			if err := e.shutDownNonOwnedSemaphoreManagers(); err != nil {
+				e.logger.Error("Error while trying to unload semaphore buckets this host no longer owns",
 					tag.Error(err),
 					tag.MembershipChangeEvent(event),
 				)
@@ -137,5 +147,50 @@ func (e *matchingEngineImpl) getNonOwnedTasklistsLocked() ([]tasklist.Manager, e
 	e.logger.Info("Got list of non-owned-tasklists",
 		tag.Dynamic("tasklist-debug-info", toShutDown),
 	)
+	return toShutDown, nil
+}
+
+// shutDownNonOwnedSemaphoreManagers unloads the buckets the ring has moved to another host.
+func (e *matchingEngineImpl) shutDownNonOwnedSemaphoreManagers() error {
+	noLongerOwned, err := e.getNonOwnedSemaphoreManagers()
+	if err != nil {
+		return err
+	}
+
+	// Unloading stops the manager, which can take a while, so the buckets go in parallel. A
+	// panic in one becomes that goroutine's error rather than taking the host down, and reaches
+	// the caller, which logs it against the membership event that triggered this.
+	g := &errgroup.Group{}
+	for _, sem := range noLongerOwned {
+		g.Go(func() (retErr error) {
+			defer func() { log.CapturePanic(recover(), e.logger, &retErr) }()
+
+			e.logger.Info("Unloading a semaphore bucket that is no longer owned by this host",
+				sem.Identifier().LogTags()...,
+			)
+			e.unloadSemaphoreManager(sem)
+			return nil
+		})
+	}
+	return g.Wait()
+}
+
+func (e *matchingEngineImpl) getNonOwnedSemaphoreManagers() ([]semaphore.Manager, error) {
+	self, err := e.membershipResolver.WhoAmI()
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup self im membership: %w", err)
+	}
+
+	var toShutDown []semaphore.Manager
+	for _, mgr := range e.semaphoreRegistry.AllManagers() {
+		id := mgr.Identifier()
+		owner, err := e.membershipResolver.Lookup(service.Matching, id.RingKey())
+		if err != nil {
+			return nil, fmt.Errorf("failed to look up the owner of semaphore bucket %v: %w", id, err)
+		}
+		if owner.Identity() != self.Identity() {
+			toShutDown = append(toShutDown, mgr)
+		}
+	}
 	return toShutDown, nil
 }

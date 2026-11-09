@@ -995,7 +995,7 @@ func TestWorkflowSizeChecker_failWorkflowSizeExceedsLimit(t *testing.T) {
 			}
 			if tc.expectFail {
 				mutableState.EXPECT().AddFailWorkflowEvent(testEventID, &types.FailWorkflowExecutionDecisionAttributes{
-					Reason:  common.StringPtr(common.FailureReasonSizeExceedsLimit),
+					Reason:  common.StringPtr(common.FailureReasonHistorySizeExceedsLimit),
 					Details: []byte("Workflow history size / count exceeds limit."),
 				}).Return(nil, nil).Times(1)
 			}
@@ -1019,6 +1019,159 @@ func TestWorkflowSizeChecker_failWorkflowSizeExceedsLimit(t *testing.T) {
 				tc.assertLogsAndMetrics(t, logs, metricsScope)
 			}
 			assert.Equal(t, tc.expectFail, failed)
+		})
+	}
+}
+
+func TestValidateContinueAsNewWorkflowExecutionAttributes_ActiveClusterSelectionPolicy(t *testing.T) {
+	currentPolicy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
+	}
+	decisionPolicy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region0"},
+	}
+
+	tests := map[string]struct {
+		currentPolicy  *types.ActiveClusterSelectionPolicy
+		decisionPolicy *types.ActiveClusterSelectionPolicy
+		expectedPolicy *types.ActiveClusterSelectionPolicy
+	}{
+		"non active-active execution, decision carries no policy": {
+			currentPolicy:  nil,
+			decisionPolicy: nil,
+			expectedPolicy: nil,
+		},
+		"decision carries no policy - inherits the current execution's policy": {
+			currentPolicy:  currentPolicy,
+			decisionPolicy: nil,
+			expectedPolicy: currentPolicy,
+		},
+		"decision carries a policy - it is kept": {
+			currentPolicy:  currentPolicy,
+			decisionPolicy: decisionPolicy,
+			expectedPolicy: decisionPolicy,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			domainCache := cache.NewMockDomainCache(ctrl)
+			domainCache.EXPECT().GetDomainName("domain-id").Return("domain", nil)
+			v := newAttrValidator(domainCache, metrics.NewNoopMetricsClient(), config.NewForTest(), log.NewNoop())
+
+			executionInfo := &persistence.WorkflowExecutionInfo{
+				DomainID:                     "domain-id",
+				WorkflowTypeName:             "workflow-type",
+				TaskList:                     "task-list",
+				WorkflowTimeout:              60,
+				DecisionStartToCloseTimeout:  10,
+				ActiveClusterSelectionPolicy: tc.currentPolicy,
+			}
+			attributes := &types.ContinueAsNewWorkflowExecutionDecisionAttributes{
+				ActiveClusterSelectionPolicy: tc.decisionPolicy,
+			}
+
+			err := v.validateContinueAsNewWorkflowExecutionAttributes(attributes, executionInfo, metrics.HistoryRespondDecisionTaskCompletedScope, "domain")
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedPolicy, attributes.ActiveClusterSelectionPolicy)
+		})
+	}
+}
+
+func TestValidateAcquireSemaphoreAttributes(t *testing.T) {
+	tests := []struct {
+		name          string
+		nameMaxLength int
+		attributes    *types.AcquireSemaphoreDecisionAttributes
+		wantErr       error
+	}{
+		{
+			name:    "attributes not set",
+			wantErr: &types.BadRequestError{Message: "AcquireSemaphoreDecisionAttributes is not set on decision."},
+		},
+		{
+			name:       "semaphore name not set",
+			attributes: &types.AcquireSemaphoreDecisionAttributes{},
+			wantErr:    &types.BadRequestError{Message: "SemaphoreName is not set on decision."},
+		},
+		{
+			name:          "semaphore name over the length limit",
+			nameMaxLength: len("my-semaphore") - 1,
+			attributes:    &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
+			wantErr:       &types.BadRequestError{Message: "SemaphoreName exceeds length limit."},
+		},
+		{
+			name:          "semaphore name at the length limit",
+			nameMaxLength: len("my-semaphore"),
+			attributes:    &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
+		},
+		{
+			name:       "negative wait timeout",
+			attributes: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(-1)},
+			wantErr:    &types.BadRequestError{Message: "Invalid WaitTimeoutSeconds: -1"},
+		},
+		{
+			name:       "wait timeout not set",
+			attributes: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore"},
+		},
+		{
+			name:       "zero wait timeout",
+			attributes: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(0)},
+		},
+		{
+			name:       "positive wait timeout",
+			attributes: &types.AcquireSemaphoreDecisionAttributes{SemaphoreName: "my-semaphore", WaitTimeoutSeconds: common.Int32Ptr(30)},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.NewForTest()
+			if tc.nameMaxLength != 0 {
+				cfg.SemaphoreNameMaxLength = func(string) int { return tc.nameMaxLength }
+			}
+			v := newAttrValidator(cache.NewMockDomainCache(gomock.NewController(t)), metrics.NewNoopMetricsClient(), cfg, log.NewNoop())
+
+			err := v.validateAcquireSemaphoreAttributes(tc.attributes, metrics.HistoryRespondDecisionTaskCompletedScope, "domain")
+			assert.Equal(t, tc.wantErr, err)
+		})
+	}
+}
+
+func TestValidateReleaseSemaphoreAttributes(t *testing.T) {
+	tests := []struct {
+		name       string
+		attributes *types.ReleaseSemaphoreDecisionAttributes
+		wantErr    error
+	}{
+		{
+			name:    "attributes not set",
+			wantErr: &types.BadRequestError{Message: "ReleaseSemaphoreDecisionAttributes is not set on decision."},
+		},
+		{
+			name:       "initiated event id not set",
+			attributes: &types.ReleaseSemaphoreDecisionAttributes{},
+			wantErr:    &types.BadRequestError{Message: "Invalid InitiatedEventID: 0"},
+		},
+		{
+			name:       "negative initiated event id",
+			attributes: &types.ReleaseSemaphoreDecisionAttributes{InitiatedEventID: -1},
+			wantErr:    &types.BadRequestError{Message: "Invalid InitiatedEventID: -1"},
+		},
+		{
+			name:       "positive initiated event id",
+			attributes: &types.ReleaseSemaphoreDecisionAttributes{InitiatedEventID: 5},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			v := newAttrValidator(cache.NewMockDomainCache(gomock.NewController(t)), metrics.NewNoopMetricsClient(), config.NewForTest(), log.NewNoop())
+
+			err := v.validateReleaseSemaphoreAttributes(tc.attributes)
+			assert.Equal(t, tc.wantErr, err)
 		})
 	}
 }

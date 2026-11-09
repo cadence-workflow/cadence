@@ -125,16 +125,27 @@ const (
 
 // Common service base metrics
 const (
-	RestartCount         = "restarts"
-	NumGoRoutinesGauge   = "num_goroutines"
-	GoMaxProcsGauge      = "gomaxprocs"
-	MemoryAllocatedGauge = "memory_allocated"
-	MemoryHeapGauge      = "memory_heap"
-	MemoryHeapIdleGauge  = "memory_heapidle"
-	MemoryHeapInuseGauge = "memory_heapinuse"
-	MemoryStackGauge     = "memory_stack"
-	NumGCCounter         = "memory_num_gc"
-	GcPauseMsTimer       = "memory_gc_pause_ms"
+	RestartCount            = "restarts"
+	NumGoRoutinesGauge      = "num_goroutines"
+	GoMaxProcsGauge         = "gomaxprocs"
+	MemoryAllocatedGauge    = "memory_allocated"
+	MemoryTotalAllocGauge   = "memory_total_alloc"
+	MemoryHeapGauge         = "memory_heap"
+	MemoryHeapIdleGauge     = "memory_heapidle"
+	MemoryHeapInuseGauge    = "memory_heapinuse"
+	MemoryHeapSysGauge      = "memory_heapsys"
+	MemoryHeapReleasedGauge = "memory_heapreleased"
+	MemoryHeapObjectsGauge  = "memory_heapobjects"
+	MemoryStackGauge        = "memory_stack"
+	MemoryStackSysGauge     = "memory_stacksys"
+	MemoryMallocsGauge      = "memory_mallocs"
+	MemoryFreesGauge        = "memory_frees"
+	MemoryNextGCGauge       = "memory_next_gc"
+	MemoryGCCPUFracGauge    = "memory_gc_cpu_frac"
+	NumGCCounter            = "memory_num_gc"
+	GcPauseMsTimer          = "memory_gc_pause_ms"
+	GcCPUTotalGauge         = "memory_gc_cpu_total"
+	CPUTotalGauge           = "memory_cpu_total"
 )
 
 // ServiceMetrics are types for common service base metrics
@@ -144,15 +155,26 @@ var ServiceMetrics = map[MetricName]MetricType{
 
 // GoRuntimeMetrics represent the runtime stats from go runtime
 var GoRuntimeMetrics = map[MetricName]MetricType{
-	NumGoRoutinesGauge:   Gauge,
-	GoMaxProcsGauge:      Gauge,
-	MemoryAllocatedGauge: Gauge,
-	MemoryHeapGauge:      Gauge,
-	MemoryHeapIdleGauge:  Gauge,
-	MemoryHeapInuseGauge: Gauge,
-	MemoryStackGauge:     Gauge,
-	NumGCCounter:         Counter,
-	GcPauseMsTimer:       Timer,
+	NumGoRoutinesGauge:      Gauge,
+	GoMaxProcsGauge:         Gauge,
+	MemoryAllocatedGauge:    Gauge,
+	MemoryTotalAllocGauge:   Gauge,
+	MemoryHeapGauge:         Gauge,
+	MemoryHeapIdleGauge:     Gauge,
+	MemoryHeapInuseGauge:    Gauge,
+	MemoryHeapSysGauge:      Gauge,
+	MemoryHeapReleasedGauge: Gauge,
+	MemoryHeapObjectsGauge:  Gauge,
+	MemoryStackGauge:        Gauge,
+	MemoryStackSysGauge:     Gauge,
+	MemoryMallocsGauge:      Gauge,
+	MemoryFreesGauge:        Gauge,
+	MemoryNextGCGauge:       Gauge,
+	MemoryGCCPUFracGauge:    Gauge,
+	NumGCCounter:            Counter,
+	GcPauseMsTimer:          Timer,
+	GcCPUTotalGauge:         Gauge,
+	CPUTotalGauge:           Gauge,
 }
 
 // Scopes enum
@@ -465,6 +487,10 @@ const (
 	MatchingClientUpdateTaskListPartitionConfigScope
 	// MatchingClientRefreshTaskListPartitionConfigScope tracks RPC calls to matching service
 	MatchingClientRefreshTaskListPartitionConfigScope
+	// MatchingClientAcquireSemaphoreScope tracks RPC calls to matching service
+	MatchingClientAcquireSemaphoreScope
+	// MatchingClientReleaseSemaphoreScope tracks RPC calls to matching service
+	MatchingClientReleaseSemaphoreScope
 
 	// FrontendClientDeleteDomainScope tracks RPC calls to frontend service
 	FrontendClientDeleteDomainScope
@@ -972,6 +998,22 @@ const (
 	PersistenceUpdateHistoryDLQAckLevelScope
 	// PersistenceDeleteHistoryDLQTasksScope tracks DeleteTasks calls to the persistence layer
 	PersistenceDeleteHistoryDLQTasksScope
+	// PersistenceEnqueueAsyncWorkflowMessageScope tracks EnqueueAsyncWorkflowMessage calls to the persistence layer
+	PersistenceEnqueueAsyncWorkflowMessageScope
+	// PersistenceReadAsyncWorkflowMessagesScope tracks ReadAsyncWorkflowMessages calls to the persistence layer
+	PersistenceReadAsyncWorkflowMessagesScope
+	// PersistenceGetAsyncWorkflowAckLevelsScope tracks GetAsyncWorkflowAckLevels calls to the persistence layer
+	PersistenceGetAsyncWorkflowAckLevelsScope
+	// PersistenceUpdateAsyncWorkflowAckLevelScope tracks UpdateAsyncWorkflowAckLevel calls to the persistence layer
+	PersistenceUpdateAsyncWorkflowAckLevelScope
+	// PersistenceRangeDeleteAsyncWorkflowMessagesScope tracks RangeDeleteAsyncWorkflowMessages calls to the persistence layer
+	PersistenceRangeDeleteAsyncWorkflowMessagesScope
+	// PersistenceEnqueueAsyncWorkflowMessageToDLQScope tracks EnqueueAsyncWorkflowMessageToDLQ calls to the persistence layer
+	PersistenceEnqueueAsyncWorkflowMessageToDLQScope
+	// PersistenceReadAsyncWorkflowMessagesFromDLQScope tracks ReadAsyncWorkflowMessagesFromDLQ calls to the persistence layer
+	PersistenceReadAsyncWorkflowMessagesFromDLQScope
+	// PersistenceRangeDeleteAsyncWorkflowMessagesFromDLQScope tracks RangeDeleteAsyncWorkflowMessagesFromDLQ calls to the persistence layer
+	PersistenceRangeDeleteAsyncWorkflowMessagesFromDLQScope
 
 	NumCommonScopes
 )
@@ -1179,6 +1221,18 @@ const (
 	FrontendBackfillScheduleScope
 	// FrontendListSchedulesScope is the metric scope for frontend.ListSchedules
 	FrontendListSchedulesScope
+	// FrontendCreateSemaphoreScope is the metric scope for frontend.CreateSemaphore
+	FrontendCreateSemaphoreScope
+	// FrontendStartBatchOperationScope is the metric scope for frontend.StartBatchOperation
+	FrontendStartBatchOperationScope
+	// FrontendDescribeBatchOperationScope is the metric scope for frontend.DescribeBatchOperation
+	FrontendDescribeBatchOperationScope
+	// FrontendListBatchOperationsScope is the metric scope for frontend.ListBatchOperations
+	FrontendListBatchOperationsScope
+	// FrontendStopBatchOperationScope is the metric scope for frontend.StopBatchOperation
+	FrontendStopBatchOperationScope
+	// FrontendUpdateBatchOperationScope is the metric scope for frontend.UpdateBatchOperation
+	FrontendUpdateBatchOperationScope
 
 	NumFrontendScopes
 )
@@ -1305,6 +1359,10 @@ const (
 	TransferActiveTaskRecordChildExecutionCompletedScope
 	// TransferActiveTaskApplyParentClosePolicyScope is the scope used for apply parent close policy task processing by transfer queue processor
 	TransferActiveTaskApplyParentClosePolicyScope
+	// TransferActiveTaskAcquireSemaphoreScope is the scope used for acquire semaphore task processing by transfer queue processor
+	TransferActiveTaskAcquireSemaphoreScope
+	// TransferActiveTaskReleaseSemaphoreScope is the scope used for release semaphore task processing by transfer queue processor
+	TransferActiveTaskReleaseSemaphoreScope
 	// TransferStandbyTaskResetWorkflowScope is the scope used for record workflow started task processing by transfer queue processor
 	TransferStandbyTaskResetWorkflowScope
 	// TransferStandbyTaskActivityScope is the scope used for activity task processing by transfer queue processor
@@ -1329,6 +1387,10 @@ const (
 	TransferStandbyTaskRecordChildExecutionCompletedScope
 	// TransferActiveTaskApplyParentClosePolicyScope is the scope used for apply parent close policy task processing by transfer queue processor
 	TransferStandbyTaskApplyParentClosePolicyScope
+	// TransferStandbyTaskAcquireSemaphoreScope is the scope used for acquire semaphore task processing by transfer queue processor
+	TransferStandbyTaskAcquireSemaphoreScope
+	// TransferStandbyTaskReleaseSemaphoreScope is the scope used for release semaphore task processing by transfer queue processor
+	TransferStandbyTaskReleaseSemaphoreScope
 	// TimerQueueProcessorScope is the scope used by all metric emitted by timer queue processor
 	TimerQueueProcessorScope
 	// TimerQueueProcessorV2Scope is the scope used by all metric emitted by timer queue processor
@@ -1349,6 +1411,8 @@ const (
 	TimerActiveTaskActivityRetryTimerScope
 	// TimerActiveTaskWorkflowBackoffTimerScope is the scope used by metric emitted by timer queue processor for processing retry task.
 	TimerActiveTaskWorkflowBackoffTimerScope
+	// TimerActiveTaskSemaphoreAcquireTimeoutScope is the scope used by metric emitted by timer queue processor for processing semaphore acquire timeouts
+	TimerActiveTaskSemaphoreAcquireTimeoutScope
 	// TimerActiveTaskDeleteHistoryEventScope is the scope used by metric emitted by timer queue processor for processing history event cleanup
 	TimerActiveTaskDeleteHistoryEventScope
 	// TimerStandbyTaskActivityTimeoutScope is the scope used by metric emitted by timer queue processor for processing activity timeouts
@@ -1365,6 +1429,8 @@ const (
 	TimerStandbyTaskDeleteHistoryEventScope
 	// TimerStandbyTaskWorkflowBackoffTimerScope is the scope used by metric emitted by timer queue processor for processing retry task.
 	TimerStandbyTaskWorkflowBackoffTimerScope
+	// TimerStandbyTaskSemaphoreAcquireTimeoutScope is the scope used by metric emitted by timer queue processor for processing semaphore acquire timeouts
+	TimerStandbyTaskSemaphoreAcquireTimeoutScope
 	// CrossClusterQueueProcessorScope is the scope used by all metric emitted by cross cluster queue processor in the source cluster
 	CrossClusterQueueProcessorScope
 	// CrossClusterTaskProcessorScope is the scope used by all metric emitted by cross cluster task processor in the target cluster
@@ -1506,6 +1572,10 @@ const (
 	MatchingUpdateTaskListPartitionConfigScope
 	// MatchingRefreshTaskListPartitionConfigScope tracks RefreshTaskListPartitionConfig API calls received by service
 	MatchingRefreshTaskListPartitionConfigScope
+	// MatchingAcquireSemaphoreScope tracks AcquireSemaphore API calls received by service
+	MatchingAcquireSemaphoreScope
+	// MatchingReleaseSemaphoreScope tracks ReleaseSemaphore API calls received by service
+	MatchingReleaseSemaphoreScope
 
 	NumMatchingScopes
 )
@@ -1728,6 +1798,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingClientGetTaskListsByDomainScope:           {operation: "MatchingClientGetTaskListsByDomain", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientUpdateTaskListPartitionConfigScope:  {operation: "MatchingClientUpdateTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientRefreshTaskListPartitionConfigScope: {operation: "MatchingClientRefreshTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
+		MatchingClientAcquireSemaphoreScope:               {operation: "MatchingClientAcquireSemaphore", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
+		MatchingClientReleaseSemaphoreScope:               {operation: "MatchingClientReleaseSemaphore", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 
 		FrontendClientDeleteDomainScope:                          {operation: "FrontendClientDeleteDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientDeprecateDomainScope:                       {operation: "FrontendClientDeprecateDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
@@ -1973,12 +2045,20 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		ActiveClusterManager:                   {operation: "ActiveClusterManager"},
 		ActiveClusterManagerWorkflowCacheScope: {operation: "ActiveClusterManagerWorkflowCache"},
 
-		PersistenceCreateHistoryDLQTaskScope:                {operation: "CreateHistoryDLQTask"},
-		PersistenceCreateHistoryDLQAckLevelIfNotExistsScope: {operation: "CreateHistoryDLQAckLevelIfNotExists"},
-		PersistenceGetHistoryDLQAckLevelsScope:              {operation: "GetHistoryDLQAckLevels"},
-		PersistenceGetHistoryDLQTasksScope:                  {operation: "GetHistoryDLQTasks"},
-		PersistenceUpdateHistoryDLQAckLevelScope:            {operation: "UpdateHistoryDLQAckLevel"},
-		PersistenceDeleteHistoryDLQTasksScope:               {operation: "DeleteHistoryDLQTasks"},
+		PersistenceCreateHistoryDLQTaskScope:                    {operation: "CreateHistoryDLQTask"},
+		PersistenceCreateHistoryDLQAckLevelIfNotExistsScope:     {operation: "CreateHistoryDLQAckLevelIfNotExists"},
+		PersistenceGetHistoryDLQAckLevelsScope:                  {operation: "GetHistoryDLQAckLevels"},
+		PersistenceGetHistoryDLQTasksScope:                      {operation: "GetHistoryDLQTasks"},
+		PersistenceUpdateHistoryDLQAckLevelScope:                {operation: "UpdateHistoryDLQAckLevel"},
+		PersistenceDeleteHistoryDLQTasksScope:                   {operation: "DeleteHistoryDLQTasks"},
+		PersistenceEnqueueAsyncWorkflowMessageScope:             {operation: "EnqueueAsyncWorkflowMessage"},
+		PersistenceReadAsyncWorkflowMessagesScope:               {operation: "ReadAsyncWorkflowMessages"},
+		PersistenceGetAsyncWorkflowAckLevelsScope:               {operation: "GetAsyncWorkflowAckLevels"},
+		PersistenceUpdateAsyncWorkflowAckLevelScope:             {operation: "UpdateAsyncWorkflowAckLevel"},
+		PersistenceRangeDeleteAsyncWorkflowMessagesScope:        {operation: "RangeDeleteAsyncWorkflowMessages"},
+		PersistenceEnqueueAsyncWorkflowMessageToDLQScope:        {operation: "EnqueueAsyncWorkflowMessageToDLQ"},
+		PersistenceReadAsyncWorkflowMessagesFromDLQScope:        {operation: "ReadAsyncWorkflowMessagesFromDLQ"},
+		PersistenceRangeDeleteAsyncWorkflowMessagesFromDLQScope: {operation: "RangeDeleteAsyncWorkflowMessagesFromDLQ"},
 	},
 	// Frontend Scope Names
 	Frontend: {
@@ -2079,6 +2159,12 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendUnpauseScheduleScope:                       {operation: "UnpauseSchedule"},
 		FrontendBackfillScheduleScope:                      {operation: "BackfillSchedule"},
 		FrontendListSchedulesScope:                         {operation: "ListSchedules"},
+		FrontendCreateSemaphoreScope:                       {operation: "CreateSemaphore"},
+		FrontendStartBatchOperationScope:                   {operation: "StartBatchOperation"},
+		FrontendDescribeBatchOperationScope:                {operation: "DescribeBatchOperation"},
+		FrontendListBatchOperationsScope:                   {operation: "ListBatchOperations"},
+		FrontendStopBatchOperationScope:                    {operation: "StopBatchOperation"},
+		FrontendUpdateBatchOperationScope:                  {operation: "UpdateBatchOperation"},
 		FrontendGetSearchAttributesScope:                   {operation: "GetSearchAttributes"},
 		FrontendGetClusterInfoScope:                        {operation: "GetClusterInfo"},
 	},
@@ -2147,6 +2233,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TransferActiveTaskRecordWorkflowClosedScope:                     {operation: "TransferActiveTaskRecordWorkflowClosed"},
 		TransferActiveTaskRecordChildExecutionCompletedScope:            {operation: "TransferActiveTaskRecordChildExecutionCompleted"},
 		TransferActiveTaskApplyParentClosePolicyScope:                   {operation: "TransferActiveTaskApplyParentClosePolicy"},
+		TransferActiveTaskAcquireSemaphoreScope:                         {operation: "TransferActiveTaskAcquireSemaphore"},
+		TransferActiveTaskReleaseSemaphoreScope:                         {operation: "TransferActiveTaskReleaseSemaphore"},
 		TransferStandbyTaskActivityScope:                                {operation: "TransferStandbyTaskActivity"},
 		TransferStandbyTaskDecisionScope:                                {operation: "TransferStandbyTaskDecision"},
 		TransferStandbyTaskCloseExecutionScope:                          {operation: "TransferStandbyTaskCloseExecution"},
@@ -2159,6 +2247,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TransferStandbyTaskRecordWorkflowClosedScope:                    {operation: "TransferStandbyTaskRecordWorkflowClosed"},
 		TransferStandbyTaskRecordChildExecutionCompletedScope:           {operation: "TransferStandbyTaskRecordChildExecutionCompleted"},
 		TransferStandbyTaskApplyParentClosePolicyScope:                  {operation: "TransferStandbyTaskApplyParentClosePolicy"},
+		TransferStandbyTaskAcquireSemaphoreScope:                        {operation: "TransferStandbyTaskAcquireSemaphore"},
+		TransferStandbyTaskReleaseSemaphoreScope:                        {operation: "TransferStandbyTaskReleaseSemaphore"},
 		TimerQueueProcessorScope:                                        {operation: "TimerQueueProcessor"},
 		TimerQueueProcessorV2Scope:                                      {operation: "TimerQueueProcessorV2"},
 		TimerActiveQueueProcessorScope:                                  {operation: "TimerActiveQueueProcessor"},
@@ -2169,6 +2259,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TimerActiveTaskWorkflowTimeoutScope:                             {operation: "TimerActiveTaskWorkflowTimeout"},
 		TimerActiveTaskActivityRetryTimerScope:                          {operation: "TimerActiveTaskActivityRetryTimer"},
 		TimerActiveTaskWorkflowBackoffTimerScope:                        {operation: "TimerActiveTaskWorkflowBackoffTimer"},
+		TimerActiveTaskSemaphoreAcquireTimeoutScope:                     {operation: "TimerActiveTaskSemaphoreAcquireTimeout"},
 		TimerActiveTaskDeleteHistoryEventScope:                          {operation: "TimerActiveTaskDeleteHistoryEvent"},
 		TimerStandbyTaskActivityTimeoutScope:                            {operation: "TimerStandbyTaskActivityTimeout"},
 		TimerStandbyTaskDecisionTimeoutScope:                            {operation: "TimerStandbyTaskDecisionTimeout"},
@@ -2176,6 +2267,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TimerStandbyTaskWorkflowTimeoutScope:                            {operation: "TimerStandbyTaskWorkflowTimeout"},
 		TimerStandbyTaskActivityRetryTimerScope:                         {operation: "TimerStandbyTaskActivityRetryTimer"},
 		TimerStandbyTaskWorkflowBackoffTimerScope:                       {operation: "TimerStandbyTaskWorkflowBackoffTimer"},
+		TimerStandbyTaskSemaphoreAcquireTimeoutScope:                    {operation: "TimerStandbyTaskSemaphoreAcquireTimeout"},
 		TimerStandbyTaskDeleteHistoryEventScope:                         {operation: "TimerStandbyTaskDeleteHistoryEvent"},
 		CrossClusterQueueProcessorScope:                                 {operation: "CrossClusterQueueProcessor"},
 		CrossClusterTaskProcessorScope:                                  {operation: "CrossClusterTaskProcessor"},
@@ -2245,6 +2337,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingGetTaskListsByDomainScope:           {operation: "GetTaskListsByDomain"},
 		MatchingUpdateTaskListPartitionConfigScope:  {operation: "UpdateTaskListPartitionConfig"},
 		MatchingRefreshTaskListPartitionConfigScope: {operation: "RefreshTaskListPartitionConfig"},
+		MatchingAcquireSemaphoreScope:               {operation: "AcquireSemaphore"},
+		MatchingReleaseSemaphoreScope:               {operation: "ReleaseSemaphore"},
 	},
 	// Worker Scope Names
 	Worker: {
@@ -2313,6 +2407,7 @@ const (
 	CadenceErrActivityTypeExceededWarnLimit
 	CadenceErrMarkerNameExceededWarnLimit
 	CadenceErrTimerIDExceededWarnLimit
+	CadenceErrSemaphoreNameExceededWarnLimit
 	PersistenceRequests
 	PersistenceFailures
 	PersistenceLatency
@@ -2516,6 +2611,10 @@ const (
 	CadenceErrReadOnlyPartitionPerTaskListCounter
 	CadenceErrTaskListNotOwnedByHostPerTaskListCounter
 
+	// common metrics that are emitted per semaphore
+	CadenceErrSemaphoreNotOwnedByHostCounter
+	CadenceErrSemaphoreContextTimeoutCounter
+
 	CadenceShardSuccessGauge
 	CadenceShardFailureGauge
 
@@ -2594,8 +2693,8 @@ const (
 
 	RingResolverError
 
-	// WorkflowExecutionHistoryAccess tracks the access to the workflow history
-	WorkflowExecutionHistoryAccess
+	// WorkflowQueryAgeDays records the age in days of queried closed workflow executions as a histogram.
+	WorkflowQueryAgeDays
 
 	// Budget manager metrics
 	BudgetManagerCapacityBytes
@@ -2709,6 +2808,8 @@ const (
 	DecisionTypeContinueAsNewCounter
 	DecisionTypeSignalExternalWorkflowCounter
 	DecisionTypeUpsertWorkflowSearchAttributesCounter
+	DecisionTypeAcquireSemaphoreCounter
+	DecisionTypeReleaseSemaphoreCounter
 	EmptyCompletionDecisionsCounter
 	MultipleCompletionDecisionsCounter
 	FailedDecisionsCounter
@@ -2725,6 +2826,11 @@ const (
 	AutoResetPointsLimitExceededCounter
 	AutoResetPointCorruptionCounter
 	ConcurrencyUpdateFailureCounter
+	ChildWorkflowCompletionOtherBranchCounter
+	ChildWorkflowStaleBranchReplacedCounter
+	ChildWorkflowStaleBranchNewExecutionCounter
+	ChildWorkflowChainAdoptedCounter
+	ChildWorkflowCompletionRequestedCounter
 	CadenceErrEventAlreadyStartedCounter
 	CadenceErrShardOwnershipLostCounter
 	HeartbeatTimeoutCounter
@@ -3001,7 +3107,6 @@ const (
 	CachedQueuePrefetchGapDetectedCounter
 	CachedQueuePrefetchLatency
 	CachedQueuePrefetchLatencyHistogram
-	CachedQueuePrefetchWindowSpanHistogram
 
 	TaskRequestsPerTaskList
 	TaskLatencyPerTaskListHistogram
@@ -3291,6 +3396,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CadenceErrActivityTypeExceededWarnLimit:                      {metricName: "cadence_errors_activity_type_exceeded_warn_limit", metricType: Counter},
 		CadenceErrMarkerNameExceededWarnLimit:                        {metricName: "cadence_errors_marker_name_exceeded_warn_limit", metricType: Counter},
 		CadenceErrTimerIDExceededWarnLimit:                           {metricName: "cadence_errors_timer_id_exceeded_warn_limit", metricType: Counter},
+		CadenceErrSemaphoreNameExceededWarnLimit:                     {metricName: "cadence_errors_semaphore_name_exceeded_warn_limit", metricType: Counter},
 		PersistenceRequests:                                          {metricName: "persistence_requests", metricType: Counter},
 		PersistenceFailures:                                          {metricName: "persistence_errors", metricType: Counter},
 		PersistenceLatency:                                           {metricName: "persistence_latency", metricType: Timer},
@@ -3518,6 +3624,12 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CadenceErrTaskListNotOwnedByHostPerTaskListCounter: {
 			metricName: "cadence_errors_task_list_not_owned_by_host_per_tl", metricRollupName: "cadence_errors_task_list_not_owned_by_host_rollup", metricType: Counter,
 		},
+		CadenceErrSemaphoreNotOwnedByHostCounter: {
+			metricName: "cadence_errors_semaphore_not_owned_by_host", metricType: Counter,
+		},
+		CadenceErrSemaphoreContextTimeoutCounter: {
+			metricName: "cadence_errors_semaphore_context_timeout", metricType: Counter,
+		},
 		CadenceShardSuccessGauge:             {metricName: "cadence_shard_success", metricType: Gauge},
 		CadenceShardFailureGauge:             {metricName: "cadence_shard_failure", metricType: Gauge},
 		DomainReplicationQueueSizeGauge:      {metricName: "domain_replication_queue_size", metricType: Gauge},
@@ -3585,7 +3697,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		RingResolverError: {metricName: "ring_resolver_error", metricType: Counter},
 
-		WorkflowExecutionHistoryAccess: {metricName: "workflow_execution_history_access", metricType: Gauge},
+		WorkflowQueryAgeDays: {metricName: "workflow_query_age_days", metricType: Histogram, buckets: WorkflowAgeDaysBuckets},
 
 		// Budget manager metrics
 		BudgetManagerCapacityBytes:    {metricName: "budget_manager_capacity_bytes", metricType: Gauge},
@@ -3704,6 +3816,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		DecisionTypeContinueAsNewCounter:                              {metricName: "continue_as_new_decision", metricType: Counter},
 		DecisionTypeSignalExternalWorkflowCounter:                     {metricName: "signal_external_workflow_decision", metricType: Counter},
 		DecisionTypeUpsertWorkflowSearchAttributesCounter:             {metricName: "upsert_workflow_search_attributes_decision", metricType: Counter},
+		DecisionTypeAcquireSemaphoreCounter:                           {metricName: "acquire_semaphore_decision", metricType: Counter},
+		DecisionTypeReleaseSemaphoreCounter:                           {metricName: "release_semaphore_decision", metricType: Counter},
 		DecisionTypeChildWorkflowCounter:                              {metricName: "child_workflow_decision", metricType: Counter},
 		EmptyCompletionDecisionsCounter:                               {metricName: "empty_completion_decisions", metricType: Counter},
 		MultipleCompletionDecisionsCounter:                            {metricName: "multiple_completion_decisions", metricType: Counter},
@@ -3721,6 +3835,11 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		AutoResetPointsLimitExceededCounter:                           {metricName: "auto_reset_points_exceed_limit", metricType: Counter},
 		AutoResetPointCorruptionCounter:                               {metricName: "auto_reset_point_corruption", metricType: Counter},
 		ConcurrencyUpdateFailureCounter:                               {metricName: "concurrency_update_failure", metricType: Counter},
+		ChildWorkflowCompletionOtherBranchCounter:                     {metricName: "child_workflow_completion_other_branch", metricType: Counter},
+		ChildWorkflowStaleBranchReplacedCounter:                       {metricName: "child_workflow_stale_branch_replaced", metricType: Counter},
+		ChildWorkflowStaleBranchNewExecutionCounter:                   {metricName: "child_workflow_stale_branch_new_execution", metricType: Counter},
+		ChildWorkflowChainAdoptedCounter:                              {metricName: "child_workflow_chain_adopted", metricType: Counter},
+		ChildWorkflowCompletionRequestedCounter:                       {metricName: "child_workflow_completion_requested", metricType: Counter},
 		CadenceErrShardOwnershipLostCounter:                           {metricName: "cadence_errors_shard_ownership_lost", metricType: Counter},
 		CadenceErrEventAlreadyStartedCounter:                          {metricName: "cadence_errors_event_already_started", metricType: Counter},
 		HeartbeatTimeoutCounter:                                       {metricName: "heartbeat_timeout", metricType: Counter},
@@ -3993,7 +4112,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CachedQueuePrefetchGapDetectedCounter:                         {metricName: "cached_queue_prefetch_gap_detected", metricType: Counter},
 		CachedQueuePrefetchLatency:                                    {metricName: "cached_queue_prefetch_latency", metricType: Timer},
 		CachedQueuePrefetchLatencyHistogram:                           {metricName: "cached_queue_prefetch_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
-		CachedQueuePrefetchWindowSpanHistogram:                        {metricName: "cached_queue_prefetch_window_span_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 	},
 	Matching: {
 		PollSuccessPerTaskListCounter:                                    {metricName: "poll_success_per_tl", metricRollupName: "poll_success"},
@@ -4341,6 +4459,9 @@ var ResponsePayloadSizeBuckets = append(
 	tally.ValueBuckets{0},                                 // need an explicit 0 or zero is reported as 1
 	tally.MustMakeExponentialValueBuckets(1024, 2, 20)..., // 1kB..1GB
 )
+
+// WorkflowAgeDaysBuckets contains day-granularity buckets (0 through 31) for tracking queried workflow age
+var WorkflowAgeDaysBuckets = tally.MustMakeLinearValueBuckets(0, 1, 32)
 
 // ExponentialDurationBuckets is a set of exponential duration buckets
 var ExponentialDurationBuckets = func() tally.DurationBuckets {

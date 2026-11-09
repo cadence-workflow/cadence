@@ -315,9 +315,6 @@ func (b *stateBuilderImpl) ApplyEvents(
 			if _, err := b.mutableState.ReplicateStartChildWorkflowExecutionInitiatedEvent(
 				firstEvent.ID,
 				event,
-				// create a new request ID which is used by transfer queue processor
-				// if domain is failed over at this point
-				uuid.New(),
 			); err != nil {
 				return nil, err
 			}
@@ -440,6 +437,34 @@ func (b *stateBuilderImpl) ApplyEvents(
 
 		case types.EventTypeUpsertWorkflowSearchAttributes:
 			if err := b.mutableState.ReplicateUpsertWorkflowSearchAttributesEvent(
+				event,
+			); err != nil {
+				return nil, err
+			}
+
+		case types.EventTypeSemaphoreAcquireInitiated:
+			if _, err := b.mutableState.ReplicateSemaphoreAcquireInitiatedEvent(
+				event,
+			); err != nil {
+				return nil, err
+			}
+
+		case types.EventTypeSemaphoreAcquired:
+			if err := b.mutableState.ReplicateSemaphoreAcquiredEvent(
+				event,
+			); err != nil {
+				return nil, err
+			}
+
+		case types.EventTypeSemaphoreReleased:
+			if err := b.mutableState.ReplicateSemaphoreReleasedEvent(
+				event,
+			); err != nil {
+				return nil, err
+			}
+
+		case types.EventTypeSemaphoreAcquireFailed:
+			if err := b.mutableState.ReplicateSemaphoreAcquireFailedEvent(
 				event,
 			); err != nil {
 				return nil, err

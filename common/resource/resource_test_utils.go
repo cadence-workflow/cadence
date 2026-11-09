@@ -99,14 +99,17 @@ type (
 
 		// persistence clients
 
-		MetadataMgr     *mocks.MetadataManager
-		DomainAuditMgr  *persistence.MockDomainAuditManager
-		TaskMgr         *mocks.TaskManager
-		VisibilityMgr   *mocks.VisibilityManager
-		ShardMgr        *mocks.ShardManager
-		HistoryMgr      *mocks.HistoryV2Manager
-		ExecutionMgr    *mocks.ExecutionManager
-		PersistenceBean *persistenceClient.MockBean
+		MetadataMgr          *mocks.MetadataManager
+		DomainAuditMgr       *persistence.MockDomainAuditManager
+		SemaphoreMetadataMgr *persistence.MockSemaphoreMetadataManager
+		SemaphoreTokenMgr    *persistence.MockSemaphoreTokenManager
+		SemaphoreTaskMgr     *persistence.MockSemaphoreTaskManager
+		TaskMgr              *mocks.TaskManager
+		VisibilityMgr        *mocks.VisibilityManager
+		ShardMgr             *mocks.ShardManager
+		HistoryMgr           *mocks.HistoryV2Manager
+		ExecutionMgr         *mocks.ExecutionManager
+		PersistenceBean      *persistenceClient.MockBean
 
 		HistoryTaskDLQMgr *persistence.MockHistoryTaskDLQManager
 
@@ -156,6 +159,9 @@ func NewTest(
 
 	metadataMgr := &mocks.MetadataManager{}
 	domainAuditMgr := persistence.NewMockDomainAuditManager(controller)
+	semaphoreMetadataMgr := persistence.NewMockSemaphoreMetadataManager(controller)
+	semaphoreTokenMgr := persistence.NewMockSemaphoreTokenManager(controller)
+	semaphoreTaskMgr := persistence.NewMockSemaphoreTaskManager(controller)
 	taskMgr := &mocks.TaskManager{}
 	visibilityMgr := &mocks.VisibilityManager{}
 	shardMgr := &mocks.ShardManager{}
@@ -167,6 +173,9 @@ func NewTest(
 	persistenceBean := persistenceClient.NewMockBean(controller)
 	persistenceBean.EXPECT().GetDomainManager().Return(metadataMgr).AnyTimes()
 	persistenceBean.EXPECT().GetDomainAuditManager().Return(domainAuditMgr).AnyTimes()
+	persistenceBean.EXPECT().GetSemaphoreMetadataManager().Return(semaphoreMetadataMgr).AnyTimes()
+	persistenceBean.EXPECT().GetSemaphoreTokenManager().Return(semaphoreTokenMgr).AnyTimes()
+	persistenceBean.EXPECT().GetSemaphoreTaskManager().Return(semaphoreTaskMgr).AnyTimes()
 	persistenceBean.EXPECT().GetTaskManager().Return(taskMgr).AnyTimes()
 	persistenceBean.EXPECT().GetVisibilityManager().Return(visibilityMgr).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
@@ -223,16 +232,19 @@ func NewTest(
 
 		// persistence clients
 
-		MetadataMgr:       metadataMgr,
-		DomainAuditMgr:    domainAuditMgr,
-		TaskMgr:           taskMgr,
-		VisibilityMgr:     visibilityMgr,
-		ShardMgr:          shardMgr,
-		HistoryMgr:        historyMgr,
-		ExecutionMgr:      executionMgr,
-		PersistenceBean:   persistenceBean,
-		HistoryTaskDLQMgr: historyTaskDLQMgr,
-		IsolationGroups:   isolationGroupMock,
+		MetadataMgr:          metadataMgr,
+		DomainAuditMgr:       domainAuditMgr,
+		SemaphoreMetadataMgr: semaphoreMetadataMgr,
+		SemaphoreTokenMgr:    semaphoreTokenMgr,
+		SemaphoreTaskMgr:     semaphoreTaskMgr,
+		TaskMgr:              taskMgr,
+		VisibilityMgr:        visibilityMgr,
+		ShardMgr:             shardMgr,
+		HistoryMgr:           historyMgr,
+		ExecutionMgr:         executionMgr,
+		PersistenceBean:      persistenceBean,
+		HistoryTaskDLQMgr:    historyTaskDLQMgr,
+		IsolationGroups:      isolationGroupMock,
 
 		// logger
 
@@ -419,6 +431,21 @@ func (s *Test) GetDomainManager() persistence.DomainManager {
 // GetDomainAuditManager for testing
 func (s *Test) GetDomainAuditManager() persistence.DomainAuditManager {
 	return s.DomainAuditMgr
+}
+
+// GetSemaphoreMetadataManager for testing
+func (s *Test) GetSemaphoreMetadataManager() persistence.SemaphoreMetadataManager {
+	return s.SemaphoreMetadataMgr
+}
+
+// GetSemaphoreTokenManager for testing
+func (s *Test) GetSemaphoreTokenManager() persistence.SemaphoreTokenManager {
+	return s.SemaphoreTokenMgr
+}
+
+// GetSemaphoreTaskManager for testing
+func (s *Test) GetSemaphoreTaskManager() persistence.SemaphoreTaskManager {
+	return s.SemaphoreTaskMgr
 }
 
 // GetTaskManager for testing

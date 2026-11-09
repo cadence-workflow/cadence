@@ -43,12 +43,14 @@ func (t *timeoutRisk) Check(ctx context.Context, params invariant.InvariantCheck
 				IssueID:       issueID,
 				InvariantType: ActivityStartToCloseAtWorkflowTimeoutCap.String(),
 				Reason:        StartToCloseAtWorkflowTimeoutCap.String(),
-				Metadata: invariant.MarshalData(ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+				Metadata: invariant.MarshalData(TimeoutRiskIssuesMetadata{
 					EventID:             event.ID,
 					ActivityID:          activityID,
 					ActivityType:        activityType,
 					StartToCloseTimeout: time.Duration(attr.GetStartToCloseTimeoutSeconds()) * time.Second,
-					WorkflowTimeout:     time.Duration(workflowTimeoutSeconds) * time.Second,
+					ActivityStartToCloseAtWorkflowTimeoutCap: &ActivityStartToCloseAtWorkflowTimeoutCapMetadata{
+						WorkflowTimeout: time.Duration(workflowTimeoutSeconds) * time.Second,
+					},
 				}),
 			})
 			issueID++
@@ -59,12 +61,14 @@ func (t *timeoutRisk) Check(ctx context.Context, params invariant.InvariantCheck
 				IssueID:       issueID,
 				InvariantType: ActivityMissingHeartbeatTimeout.String(),
 				Reason:        MissingHeartbeatTimeoutForLongActivity.String(),
-				Metadata: invariant.MarshalData(ActivityMissingHeartbeatTimeoutMetadata{
+				Metadata: invariant.MarshalData(TimeoutRiskIssuesMetadata{
 					EventID:             event.ID,
 					ActivityID:          activityID,
 					ActivityType:        activityType,
 					StartToCloseTimeout: time.Duration(attr.GetStartToCloseTimeoutSeconds()) * time.Second,
-					Threshold:           time.Duration(longRunningActivityThresholdSeconds) * time.Second,
+					ActivityMissingHeartbeatTimeout: &ActivityMissingHeartbeatTimeoutMetadata{
+						Threshold: time.Duration(longRunningActivityThresholdSeconds) * time.Second,
+					},
 				}),
 			})
 			issueID++

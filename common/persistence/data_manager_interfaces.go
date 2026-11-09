@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Generate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,SemaphoreTaskManager,SemaphoreTokenManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,SemaphoreMetadataManager,SemaphoreTaskManager,SemaphoreTokenManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager,AsyncWorkflowQueueManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -29,6 +29,7 @@
 //go:generate gowrap gen -g -p . -i TaskManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/task_generated.go
 //go:generate gowrap gen -g -p . -i ShardManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/shard_generated.go
 //go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/historytaskdlq_generated.go
+//go:generate gowrap gen -g -p . -i AsyncWorkflowQueueManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/asyncworkflowqueue_generated.go
 
 // Generate error injector wrappers.
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/configstore_generated.go
@@ -39,6 +40,7 @@
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/domain_generated.go
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/queue_generated.go
 //go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/historytaskdlq_generated.go
+//go:generate gowrap gen -g -p . -i AsyncWorkflowQueueManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/asyncworkflowqueue_generated.go
 
 // Generate metered wrappers.
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/configstore_generated.go
@@ -47,6 +49,7 @@
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/history_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/historytaskdlq_generated.go
+//go:generate gowrap gen -g -p . -i AsyncWorkflowQueueManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/asyncworkflowqueue_generated.go
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/queue_generated.go
 
 // execution metered wrapper is special
@@ -180,6 +183,17 @@ const (
 	SemaphoreRowTypeOwner
 )
 
+// AsyncWorkflowRequestType is the `request_type` of an async workflow queue message.
+type AsyncWorkflowRequestType int
+
+// Async workflow request types
+const (
+	// AsyncWorkflowRequestTypeStartWorkflow is a StartWorkflowExecutionAsync request
+	AsyncWorkflowRequestTypeStartWorkflow AsyncWorkflowRequestType = 0
+	// AsyncWorkflowRequestTypeSignalWithStartWorkflow is a SignalWithStartWorkflowExecutionAsync request
+	AsyncWorkflowRequestTypeSignalWithStartWorkflow AsyncWorkflowRequestType = 1
+)
+
 // Workflow execution states
 const (
 	WorkflowStateCreated = iota
@@ -242,6 +256,7 @@ const (
 	HistoryTaskCategoryIDTransfer    = 1
 	HistoryTaskCategoryIDTimer       = 2
 	HistoryTaskCategoryIDReplication = 3
+	HistoryTaskCategoryIDVisibility  = 4
 )
 
 var (
@@ -260,6 +275,11 @@ var (
 		categoryID:   HistoryTaskCategoryIDReplication,
 		categoryName: "replication",
 	}
+	HistoryTaskCategoryVisibility = HistoryTaskCategory{
+		categoryType: HistoryTaskCategoryTypeImmediate,
+		categoryID:   HistoryTaskCategoryIDVisibility,
+		categoryName: "visibility",
+	}
 )
 
 // HistoryTaskCategoryFromID converts a stored category ID back to the corresponding HistoryTaskCategory.
@@ -271,6 +291,8 @@ func HistoryTaskCategoryFromID(id int) (HistoryTaskCategory, error) {
 		return HistoryTaskCategoryTimer, nil
 	case HistoryTaskCategoryIDReplication:
 		return HistoryTaskCategoryReplication, nil
+	case HistoryTaskCategoryIDVisibility:
+		return HistoryTaskCategoryVisibility, nil
 	default:
 		return HistoryTaskCategory{}, fmt.Errorf("unknown task category ID: %d", id)
 	}
@@ -290,6 +312,8 @@ const (
 	TransferTaskTypeRecordWorkflowClosed
 	TransferTaskTypeRecordChildExecutionCompleted
 	TransferTaskTypeApplyParentClosePolicy // Deprecated: this is related to cross-cluster tasks
+	TransferTaskTypeAcquireSemaphore
+	TransferTaskTypeReleaseSemaphore
 )
 
 // Types of replication tasks
@@ -308,6 +332,7 @@ const (
 	TaskTypeDeleteHistoryEvent
 	TaskTypeActivityRetryTimer
 	TaskTypeWorkflowBackoffTimer
+	TaskTypeSemaphoreAcquireTimeout
 )
 
 // WorkflowRequestType is the type of workflow request
@@ -473,6 +498,7 @@ type (
 		HasRetryPolicy     bool
 		InitialInterval    int32
 		BackoffCoefficient float64
+		JitterCoefficient  float64
 		MaximumInterval    int32
 		ExpirationTime     time.Time
 		MaximumAttempts    int32
@@ -540,6 +566,7 @@ type (
 		RecordVisibility        bool
 		OriginalTaskList        string
 		OriginalTaskListKind    types.TaskListKind
+		SemaphoreName           string
 	}
 
 	// CrossClusterTaskInfo describes a cross-cluster task
@@ -656,6 +683,7 @@ type (
 		ChildExecutionInfos map[int64]*ChildExecutionInfo
 		RequestCancelInfos  map[int64]*RequestCancelInfo
 		SignalInfos         map[int64]*SignalInfo
+		SemaphoreInfos      map[int64]*SemaphoreInfo
 		SignalRequestedIDs  map[string]struct{}
 		ExecutionInfo       *WorkflowExecutionInfo
 		ExecutionStats      *ExecutionStats
@@ -695,6 +723,7 @@ type (
 		HasRetryPolicy           bool
 		InitialInterval          int32
 		BackoffCoefficient       float64
+		JitterCoefficient        float64
 		MaximumInterval          int32
 		ExpirationTime           time.Time
 		MaximumAttempts          int32
@@ -751,6 +780,19 @@ type (
 		SignalName            string
 		Input                 []byte
 		Control               []byte
+	}
+
+	// SemaphoreInfo is one hold a run has on a semaphore: a token it asked for, or holds.
+	SemaphoreInfo struct {
+		Version       int64
+		InitiatedID   int64
+		SemaphoreName string
+		OwnerID       string
+		// TokenID is the granted slot. Token ids start at 1, so a non-positive
+		// value means no token yet: the acquire is still waiting.
+		TokenID int
+		// AcquireDeadline is when a waiting acquire gives up.
+		AcquireDeadline time.Time
 	}
 
 	// CreateShardRequest is used to create a shard in executions table
@@ -938,14 +980,18 @@ type (
 
 		UpsertActivityInfos       []*ActivityInfo
 		DeleteActivityInfos       []int64
+		RewriteActivityInfos      []*ActivityInfo
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		RewriteTimerInfos         []*TimerInfo
 		UpsertChildExecutionInfos []*ChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
 		DeleteRequestCancelInfos  []int64
 		UpsertSignalInfos         []*SignalInfo
 		DeleteSignalInfos         []int64
+		UpsertSemaphoreInfos      []*SemaphoreInfo
+		DeleteSemaphoreInfos      []int64
 		UpsertSignalRequestedIDs  []string
 		DeleteSignalRequestedIDs  []string
 		NewBufferedEvents         []*types.HistoryEvent
@@ -970,6 +1016,7 @@ type (
 		ChildExecutionInfos []*ChildExecutionInfo
 		RequestCancelInfos  []*RequestCancelInfo
 		SignalInfos         []*SignalInfo
+		SemaphoreInfos      []*SemaphoreInfo
 		SignalRequestedIDs  []string
 
 		TasksByCategory map[HistoryTaskCategory][]Task
@@ -1499,17 +1546,8 @@ type (
 		UpdatedTime   time.Time
 	}
 
-	// SeedSemaphoreTokensRequest seeds a bucket with free token rows for the
-	// given slot ids (idempotent; never clobbers an already-held slot).
-	SeedSemaphoreTokensRequest struct {
-		DomainID      string
-		SemaphoreName string
-		Bucket        int
-		TokenIDs      []int
-	}
-
 	// GrantSemaphoreTokenRequest claims a slot for an owner via a conditional
-	// batch (grant only if the slot is currently free).
+	// batch (grant only if the slot is free or has never been granted).
 	GrantSemaphoreTokenRequest struct {
 		DomainID      string
 		SemaphoreName string
@@ -2098,17 +2136,23 @@ type (
 	SemaphoreTokenManager interface {
 		Closeable
 		GetName() string
-		// SeedSemaphoreTokens seeds a bucket with free token rows. Callers must
-		// supply the bucket's full, immutable id set: a fresh bucket is fully
-		// seeded, and re-seeding the same set is an idempotent no-op that never
-		// clobbers a held slot. Growing an existing bucket's id set is unsupported
-		// (to resize, create a new semaphore name).
-		SeedSemaphoreTokens(ctx context.Context, request *SeedSemaphoreTokensRequest) error
-		// GrantSemaphoreToken claims a slot for an owner if it is currently free.
+		// GrantSemaphoreToken gives a token to an owner with one atomic write that:
+		//   - sets the token row's holder to the owner, only if the token is free or has no row yet
+		//     (a token's first grant creates its row)
+		//   - adds the owner row, only if the owner holds no token yet
+		//
+		// A refused grant is not an error. The returned Outcome is one of:
+		//   - SemaphoreGrantApplied: the owner now holds the token
+		//   - SemaphoreGrantAlreadyHeld: the owner already holds a token, named by HeldToken
+		//   - SemaphoreGrantSlotTaken: another owner holds the token
+		//
+		// The caller must pass a token id the bucket owns. A missing row is created, not refused,
+		// so a token id outside the bucket's range is not caught here.
 		GrantSemaphoreToken(ctx context.Context, request *GrantSemaphoreTokenRequest) (*GrantSemaphoreTokenResponse, error)
 		// ReleaseSemaphoreToken frees a slot if it is still held by the owner.
 		ReleaseSemaphoreToken(ctx context.Context, request *ReleaseSemaphoreTokenRequest) (*ReleaseSemaphoreTokenResponse, error)
-		// GetSemaphoreOwnershipByToken reads a slot's forward row (holder) by token id.
+		// GetSemaphoreOwnershipByToken reads a slot's forward row (holder) by token id. A
+		// slot that has never been granted has no row, and returns EntityNotExistsError.
 		GetSemaphoreOwnershipByToken(ctx context.Context, request *GetSemaphoreOwnershipByTokenRequest) (*GetSemaphoreOwnershipByTokenResponse, error)
 		// GetSemaphoreOwnershipByOwner reads a hold's reverse row (held token) by owner id.
 		GetSemaphoreOwnershipByOwner(ctx context.Context, request *GetSemaphoreOwnershipByOwnerRequest) (*GetSemaphoreOwnershipByOwnerResponse, error)
@@ -2146,6 +2190,22 @@ type (
 		UpdateHistoryDLQAckLevel(ctx context.Context, request HistoryDLQUpdateAckLevelRequest) error
 		// DeleteHistoryDLQTasks removes tasks up to and including the given key from a DLQ partition.
 		DeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
+	}
+
+	// AsyncWorkflowQueueManager manages the per-history-shard FIFO queue of async workflow requests
+	// (StartWorkflowExecutionAsync / SignalWithStartWorkflowExecutionAsync). It has no shard-ownership
+	// fence: enqueue and ack-level updates are unconditional writes, and message ids are minted by the caller.
+	AsyncWorkflowQueueManager interface {
+		Closeable
+		GetName() string
+		EnqueueAsyncWorkflowMessage(ctx context.Context, request *EnqueueAsyncWorkflowMessageRequest) error
+		ReadAsyncWorkflowMessages(ctx context.Context, request *ReadAsyncWorkflowMessagesRequest) (*ReadAsyncWorkflowMessagesResponse, error)
+		GetAsyncWorkflowAckLevels(ctx context.Context, request *GetAsyncWorkflowAckLevelsRequest) (*GetAsyncWorkflowAckLevelsResponse, error)
+		UpdateAsyncWorkflowAckLevel(ctx context.Context, request *UpdateAsyncWorkflowAckLevelRequest) error
+		RangeDeleteAsyncWorkflowMessages(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesRequest) error
+		EnqueueAsyncWorkflowMessageToDLQ(ctx context.Context, request *EnqueueAsyncWorkflowMessageToDLQRequest) error
+		ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *ReadAsyncWorkflowMessagesFromDLQRequest) (*ReadAsyncWorkflowMessagesFromDLQResponse, error)
+		RangeDeleteAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesFromDLQRequest) error
 	}
 
 	// CreateHistoryDLQTaskRequest adds a task to the History Task Dead Letter Queue.
@@ -2230,6 +2290,103 @@ type (
 		ClusterAttributeName  string
 		TaskCategory          HistoryTaskCategory
 		ExclusiveMaxTaskKey   HistoryTaskKey
+	}
+
+	// AsyncWorkflowMessage is one row of async_workflow_queue (type=0).
+	AsyncWorkflowMessage struct {
+		ShardID         int
+		SourceCluster   string
+		MessageID       int64
+		DomainName      string
+		WorkflowID      string
+		RequestID       string
+		RequestType     AsyncWorkflowRequestType
+		Payload         []byte
+		PayloadEncoding constants.EncodingType
+		CreatedTime     time.Time
+	}
+
+	// AsyncWorkflowDLQMessage is one row of async_workflow_queue_dlq; the key is the source message's.
+	AsyncWorkflowDLQMessage struct {
+		AsyncWorkflowMessage
+		Reason string
+	}
+
+	// EnqueueAsyncWorkflowMessageRequest appends a message to the (shard, source cluster) queue.
+	EnqueueAsyncWorkflowMessageRequest struct {
+		ShardID         int
+		SourceCluster   string
+		MessageID       int64 // minted by the caller (shard task id); strictly increasing per (shard, source_cluster)
+		DomainName      string
+		WorkflowID      string
+		RequestID       string
+		RequestType     AsyncWorkflowRequestType
+		Payload         []byte
+		PayloadEncoding constants.EncodingType
+	}
+
+	// ReadAsyncWorkflowMessagesRequest reads up to PageSize rows with MessageID > ExclusiveMinMessageID, ascending.
+	ReadAsyncWorkflowMessagesRequest struct {
+		ShardID               int
+		SourceCluster         string
+		ExclusiveMinMessageID int64
+		PageSize              int
+	}
+
+	// ReadAsyncWorkflowMessagesResponse is the result of ReadAsyncWorkflowMessages.
+	ReadAsyncWorkflowMessagesResponse struct {
+		Messages []*AsyncWorkflowMessage
+	}
+
+	// GetAsyncWorkflowAckLevelsRequest asks for every source cluster's ack level on a shard.
+	GetAsyncWorkflowAckLevelsRequest struct {
+		ShardID int
+	}
+
+	// GetAsyncWorkflowAckLevelsResponse is the result of GetAsyncWorkflowAckLevels.
+	// AckLevels: source cluster -> highest acked message id (inclusive). Absent key = nothing acked yet.
+	GetAsyncWorkflowAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	// UpdateAsyncWorkflowAckLevelRequest is an unconditional upsert of the (shard, source_cluster) control row.
+	UpdateAsyncWorkflowAckLevelRequest struct {
+		ShardID       int
+		SourceCluster string
+		AckLevel      int64
+	}
+
+	// RangeDeleteAsyncWorkflowMessagesRequest deletes rows with MessageID <= InclusiveMaxMessageID.
+	RangeDeleteAsyncWorkflowMessagesRequest struct {
+		ShardID               int
+		SourceCluster         string
+		InclusiveMaxMessageID int64
+	}
+
+	// EnqueueAsyncWorkflowMessageToDLQRequest moves a message that cannot be processed to the DLQ.
+	EnqueueAsyncWorkflowMessageToDLQRequest struct {
+		Message *AsyncWorkflowMessage // ShardID/SourceCluster/MessageID are the source message's key; a retry overwrites
+		Reason  string
+	}
+
+	// ReadAsyncWorkflowMessagesFromDLQRequest reads up to PageSize DLQ rows with MessageID > ExclusiveMinMessageID, ascending.
+	ReadAsyncWorkflowMessagesFromDLQRequest struct {
+		ShardID               int
+		SourceCluster         string
+		ExclusiveMinMessageID int64
+		PageSize              int
+	}
+
+	// ReadAsyncWorkflowMessagesFromDLQResponse is the result of ReadAsyncWorkflowMessagesFromDLQ.
+	ReadAsyncWorkflowMessagesFromDLQResponse struct {
+		Messages []*AsyncWorkflowDLQMessage
+	}
+
+	// RangeDeleteAsyncWorkflowMessagesFromDLQRequest deletes DLQ rows with MessageID <= InclusiveMaxMessageID.
+	RangeDeleteAsyncWorkflowMessagesFromDLQRequest struct {
+		ShardID               int
+		SourceCluster         string
+		InclusiveMaxMessageID int64
 	}
 
 	EnqueueMessageRequest struct {
@@ -2518,6 +2675,21 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 			TargetChildWorkflowOnly: t.TargetChildWorkflowOnly,
 			TaskList:                t.TaskList,
 		}, nil
+	case TransferTaskTypeAcquireSemaphore:
+		return &AcquireSemaphoreTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			InitiatedID:        t.ScheduleID,
+			TaskList:           t.TaskList,
+		}, nil
+	case TransferTaskTypeReleaseSemaphore:
+		return &ReleaseSemaphoreTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			InitiatedID:        t.ScheduleID,
+			SemaphoreName:      t.SemaphoreName,
+			TaskList:           t.TaskList,
+		}, nil
 	default:
 		return nil, fmt.Errorf("unknown task type: %d", t.TaskType)
 	}
@@ -2675,6 +2847,13 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TimeoutType:        t.TimeoutType,
+			TaskList:           t.TaskList,
+		}, nil
+	case TaskTypeSemaphoreAcquireTimeout:
+		return &SemaphoreAcquireTimeoutTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			EventID:            t.EventID,
 			TaskList:           t.TaskList,
 		}, nil
 	default:
@@ -3126,6 +3305,12 @@ func (e *WorkflowExecutionInfo) CopyPartitionConfig() map[string]string {
 		partitionConfig[k] = v
 	}
 	return partitionConfig
+}
+
+// HasToken reports whether the hold has been granted. Token ids start at 1, so a
+// non-positive TokenID means the acquire is still waiting.
+func (s *SemaphoreInfo) HasToken() bool {
+	return s.TokenID > 0
 }
 
 func (p *TaskListPartitionConfig) ToInternalType() *types.TaskListPartitionConfig {

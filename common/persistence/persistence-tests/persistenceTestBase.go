@@ -48,6 +48,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/client"
+	"github.com/uber/cadence/common/persistence/schema"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 )
@@ -238,41 +239,17 @@ func (s *TestBase) Setup() {
 }
 
 func (s *TestBase) SetupPersistence() {
-	for _, adminDB := range s.AdminDBs {
-		s.SetupDB(adminDB)
+	options := schema.Options{
+		ClusterName:  s.ClusterMetadata.GetCurrentClusterName(),
+		Config:       &s.PersistenceConfig,
+		SetupOptions: DBSetupOptions,
+		Logger:       s.Logger,
 	}
-}
-
-func (s *TestBase) SetupDB(adminDB persistence.AdminDB) {
-	setup, err := adminDB.CreateSetupDB()
-	if err != nil {
-		s.fatalOnError("Failed to connect to DB", err)
-		return
-	}
-	defer setup.Close()
-	alreadySetup, err := setup.IsSetup(s.T().Context())
-	if err != nil {
-		s.fatalOnError(fmt.Sprintf("Failed to check for DB for: %s/%s", adminDB.PluginName(), adminDB.Identifier()), err)
-	}
-	// We might have multiple AdminDBs pointing to the same physical DB, that's probably not okay but not fatal yet
-	if !alreadySetup {
-		err = setup.Setup(s.T().Context(), DBSetupOptions)
-		s.fatalOnError("Failed to setup DB", err)
-	}
-	// If the AdminDB supports schema management we need to install it
-	// This is likely to fail if multiple AdminDBs point as the same DB, as the versions are global in the keyspace/DB.
-	if adminDB.SupportsSchema() {
-		schemaDB, err := adminDB.CreateSchemaDB()
-		s.fatalOnError("Failed to get schemaDB", err)
-		defer schemaDB.Close()
-
-		err = schemaDB.SetupVersioning(s.T().Context())
-		s.fatalOnError("Failed to setup schema versioning", err)
-		latest, err := schemaDB.LatestSchema().SkipToLatest()
-		s.fatalOnError("Failed to get latest schema", err)
-		err = schemaDB.UpdateSchema(s.T().Context(), latest)
-		s.fatalOnError("Failed to force apply schema", err)
-	}
+	err := schema.Update(s.T().Context(), options)
+	s.fatalOnError("Schema update failed", err)
+	// Not necessary but can't hurt and it's good to exercise this
+	err = schema.Verify(s.T().Context(), options)
+	s.fatalOnError("Schema verify failed", err)
 }
 
 func (s *TestBase) fatalOnError(msg string, err error) {
@@ -661,6 +638,8 @@ func (s *TestBase) UpdateWorkflowExecution(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -736,6 +715,8 @@ func (s *TestBase) UpsertChildExecutionsState(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -766,6 +747,8 @@ func (s *TestBase) UpsertRequestCancelState(
 		nil,
 		nil,
 		upsertCancelInfos,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -806,6 +789,8 @@ func (s *TestBase) UpsertSignalInfoState(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -827,6 +812,8 @@ func (s *TestBase) UpsertSignalsRequestedState(
 		nil,
 		s.ShardInfo.RangeID,
 		condition,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -874,6 +861,8 @@ func (s *TestBase) DeleteChildExecutionsState(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -904,6 +893,8 @@ func (s *TestBase) DeleteCancelState(
 		nil,
 		nil,
 		[]int64{deleteCancelInfo},
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -942,6 +933,82 @@ func (s *TestBase) DeleteSignalState(
 		[]int64{deleteSignalInfo},
 		nil,
 		nil,
+		nil,
+		nil,
+	)
+}
+
+// UpsertSemaphoreInfoState is a utility method to update mutable state of workflow execution
+func (s *TestBase) UpsertSemaphoreInfoState(
+	ctx context.Context,
+	updatedInfo *persistence.WorkflowExecutionInfo,
+	updatedStats *persistence.ExecutionStats,
+	updatedVersionHistories *persistence.VersionHistories,
+	condition int64,
+	upsertSemaphoreInfos []*persistence.SemaphoreInfo,
+) error {
+
+	return s.UpdateWorkflowExecutionWithRangeID(
+		ctx,
+		updatedInfo,
+		updatedStats,
+		updatedVersionHistories,
+		nil,
+		nil,
+		s.ShardInfo.RangeID,
+		condition,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		upsertSemaphoreInfos,
+		nil,
+		nil,
+		nil,
+	)
+}
+
+// DeleteSemaphoreState is a utility method to delete mutable state of workflow execution
+func (s *TestBase) DeleteSemaphoreState(
+	ctx context.Context,
+	updatedInfo *persistence.WorkflowExecutionInfo,
+	updatedStats *persistence.ExecutionStats,
+	updatedVersionHistories *persistence.VersionHistories,
+	condition int64,
+	deleteSemaphoreInfo int64,
+) error {
+
+	return s.UpdateWorkflowExecutionWithRangeID(
+		ctx,
+		updatedInfo,
+		updatedStats,
+		updatedVersionHistories,
+		nil,
+		nil,
+		s.ShardInfo.RangeID,
+		condition,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		[]int64{deleteSemaphoreInfo},
+		nil,
+		nil,
 	)
 }
 
@@ -963,6 +1030,8 @@ func (s *TestBase) DeleteSignalsRequestedState(
 		nil,
 		s.ShardInfo.RangeID,
 		condition,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -1012,6 +1081,8 @@ func (s *TestBase) UpdateWorklowStateAndReplication(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -1036,6 +1107,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithRangeID(
 	deleteCancelInfos []int64,
 	upsertSignalInfos []*persistence.SignalInfo,
 	deleteSignalInfos []int64,
+	upsertSemaphoreInfos []*persistence.SemaphoreInfo,
+	deleteSemaphoreInfos []int64,
 	upsertSignalRequestedIDs []string,
 	deleteSignalRequestedIDs []string,
 ) error {
@@ -1060,6 +1133,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithRangeID(
 		deleteCancelInfos,
 		upsertSignalInfos,
 		deleteSignalInfos,
+		upsertSemaphoreInfos,
+		deleteSemaphoreInfos,
 		upsertSignalRequestedIDs,
 		deleteSignalRequestedIDs,
 	)
@@ -1087,6 +1162,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 	deleteCancelInfos []int64,
 	upsertSignalInfos []*persistence.SignalInfo,
 	deleteSignalInfos []int64,
+	upsertSemaphoreInfos []*persistence.SemaphoreInfo,
+	deleteSemaphoreInfos []int64,
 	upsertSignalRequestedIDs []string,
 	deleteSignalRequestedIDs []string,
 ) error {
@@ -1106,7 +1183,9 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 			*persistence.SignalExecutionTask,
 			*persistence.RecordWorkflowStartedTask,
 			*persistence.ResetWorkflowTask,
-			*persistence.UpsertWorkflowSearchAttributesTask:
+			*persistence.UpsertWorkflowSearchAttributesTask,
+			*persistence.AcquireSemaphoreTask,
+			*persistence.ReleaseSemaphoreTask:
 			transferTasks = append(transferTasks, t)
 		case *persistence.HistoryReplicationTask, *persistence.SyncActivityTask:
 			replicationTasks = append(replicationTasks, t)
@@ -1161,6 +1240,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 			DeleteRequestCancelInfos:  deleteCancelInfos,
 			UpsertSignalInfos:         upsertSignalInfos,
 			DeleteSignalInfos:         deleteSignalInfos,
+			UpsertSemaphoreInfos:      upsertSemaphoreInfos,
+			DeleteSemaphoreInfos:      deleteSemaphoreInfos,
 			UpsertSignalRequestedIDs:  upsertSignalRequestedIDs,
 			DeleteSignalRequestedIDs:  deleteSignalRequestedIDs,
 

@@ -78,6 +78,7 @@ CREATE TYPE workflow_execution (
   has_retry_policy                 boolean,-- If there is a retry policy
   init_interval                    int,    -- initial retry interval, in seconds
   backoff_coefficient              double,
+  jitter_coefficient               double,
   max_interval                     int,    -- max retry interval in seconds
   expiration_time                  timestamp, -- retry expiration time
   max_attempts                     int,    -- max number of attempts including initial non-retry attempt
@@ -136,6 +137,7 @@ CREATE TYPE transfer_task (
   record_visibility          boolean,      -- indicates whether or not to create a visibility record
   original_task_list         text,         -- the original task list of the task if the task is a sticky decision task
   original_task_list_kind    int,          -- enum TaskListKind {Normal, Sticky, Ephemeral},
+  semaphore_name             text,
 );
 
 CREATE TYPE replication_task (
@@ -198,6 +200,7 @@ CREATE TYPE activity_info (
   has_retry_policy          boolean,-- If there is a retry policy
   init_interval             int,    -- initial retry interval, in seconds
   backoff_coefficient       double,
+  jitter_coefficient        double,
   max_interval              int,    -- max retry interval in seconds
   expiration_time           timestamp, -- retry expiration time
   max_attempts              int,    -- max number of attempts including initial non-retry attempt
@@ -258,6 +261,16 @@ CREATE TYPE signal_info (
   signal_name               text,
   input                     blob,
   control                   blob,
+);
+
+-- Semaphore hold in progress mutable state
+CREATE TYPE semaphore_info (
+  version                   bigint,
+  initiated_id              bigint,
+  semaphore_name            text,
+  owner_id                  text,
+  token_id                  int,
+  acquire_deadline          timestamp,
 );
 
 -- Activity or workflow task in a task list
@@ -391,6 +404,7 @@ CREATE TABLE executions (
   child_executions_map           map<bigint, frozen<child_execution_info>>,
   request_cancel_map             map<bigint, frozen<request_cancel_info>>,
   signal_map                     map<bigint, frozen<signal_info>>,
+  semaphore_map                  map<bigint, frozen<semaphore_info>>,
   signal_requested               set<uuid>,
   buffered_events_list           list<frozen<serialized_event_batch>>,
   replication_state              frozen<replication_state>, -- Replication information part of mutable state
@@ -632,31 +646,24 @@ CREATE TABLE semaphore_metadata (
     'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
 };
 
--- Distributed semaphore: per-token ownership with an inline reverse index.
+-- Distributed semaphore token ownership, with the reverse index inline.
 --
--- Each bucket (domain_id, semaphore_name, bucket) is one Cassandra partition, written by its single
--- owning Matching host. `type` splits the partition into two row kinds that reuse the same four
--- columns (token_id / owner_id / holder / held_token) for opposite roles:
+-- One partition per bucket (domain_id, semaphore_name, bucket), written by the single Matching
+-- host that owns it. `type` gives the partition two row shapes over the same columns: a token
+-- row keyed by token_id ("who holds this slot?") and an owner row keyed by owner_id ("which
+-- slot does this hold own?"). A key column that does not apply to a shape carries a sentinel,
+-- since a key cannot be null; the other columns are simply left unset.
 --
---   token row (type = token): forward index keyed by token_id — "who holds this slot?"
---       token_id = slot id in [1, size] (the key); holder = holder's owner_id, or FREE (LWT-guarded).
---       owner_id, held_token = unused sentinels (OWNER_NONE, TOKEN_NONE).
---
---   owner row (type = owner): reverse index keyed by owner_id — "which slot does this hold own?"
---       owner_id = hold identity, length-prefixed workflow_id:run_id:hold_id (the key); held_token = its token_id.
---       token_id, holder = unused sentinels (TOKEN_NONE, OWNER_NONE).
---
--- Grant and release write the paired token row and owner row in ONE atomic batch on the partition,
--- so the forward and reverse views can never diverge.
+-- Grant and release write both rows in one atomic batch, so the two cannot diverge.
 CREATE TABLE semaphore_tokens (
     domain_id       uuid,
     semaphore_name  text,
     bucket          int,        -- static bucket = f(owner_id)
-    type            int,        -- rowKind {token, owner}: forward row vs reverse-index row
+    type            int,        -- rowType {token, owner}: forward row vs reverse-index row
     token_id        int,        -- token row: slot id [1,size]; owner row: TOKEN_NONE sentinel
     owner_id        text,       -- owner row: the holder's identity; token row: OWNER_NONE sentinel
-    holder          text,       -- token row: current holder or FREE (LWT-guarded); owner row: OWNER_NONE sentinel
-    held_token      int,        -- owner row: the token this owner holds; token row: TOKEN_NONE sentinel
+    holder          text,       -- token row: current holder or FREE (LWT-guarded); owner row: unset
+    held_token      int,        -- owner row: the token this owner holds; token row: unset
     updated_time    timestamp,
     PRIMARY KEY ((domain_id, semaphore_name, bucket), type, token_id, owner_id)
 ) WITH compaction = {

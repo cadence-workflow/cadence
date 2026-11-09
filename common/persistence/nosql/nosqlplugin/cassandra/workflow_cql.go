@@ -73,6 +73,7 @@ const (
 		`has_retry_policy: ?, ` +
 		`init_interval: ?, ` +
 		`backoff_coefficient: ?, ` +
+		`jitter_coefficient: ?, ` +
 		`max_interval: ?, ` +
 		`expiration_time: ?, ` +
 		`max_attempts: ?, ` +
@@ -106,7 +107,8 @@ const (
 		`record_visibility: ?, ` +
 		`version: ?, ` +
 		`original_task_list: ?, ` +
-		`original_task_list_kind: ?` +
+		`original_task_list_kind: ?, ` +
+		`semaphore_name: ?` +
 		`}`
 
 	templateCrossClusterTaskType = templateTransferTaskType
@@ -169,6 +171,7 @@ const (
 		`has_retry_policy: ?, ` +
 		`init_interval: ?, ` +
 		`backoff_coefficient: ?, ` +
+		`jitter_coefficient: ?, ` +
 		`max_interval: ?, ` +
 		`expiration_time: ?, ` +
 		`max_attempts: ?, ` +
@@ -221,6 +224,15 @@ const (
 		`signal_name: ?, ` +
 		`input: ?, ` +
 		`control: ?` +
+		`}`
+
+	templateSemaphoreInfoType = `{` +
+		`version: ?, ` +
+		`initiated_id: ?, ` +
+		`semaphore_name: ?, ` +
+		`owner_id: ?, ` +
+		`token_id: ?, ` +
+		`acquire_deadline: ?` +
 		`}`
 
 	templateChecksumType = `{` +
@@ -314,7 +326,7 @@ const (
 
 	// TODO: remove replication_state after all 2DC workflows complete
 	templateGetWorkflowExecutionQuery = `SELECT execution, replication_state, activity_map, timer_map, ` +
-		`child_executions_map, request_cancel_map, signal_map, signal_requested, buffered_events_list, ` +
+		`child_executions_map, request_cancel_map, signal_map, semaphore_map, signal_requested, buffered_events_list, ` +
 		`buffered_replication_tasks_map, version_histories, version_histories_encoding, checksum, ` +
 		`next_event_id ` +
 		`FROM executions ` +
@@ -385,6 +397,17 @@ const (
 		`and visibility_ts = ? ` +
 		`and task_id = ? `
 
+	templateSentinelActivityInfoQuery = `UPDATE executions ` +
+		`SET activity_map[ ? ] = {schedule_id: ?} ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
 	templateResetActivityInfoQuery = `UPDATE executions ` +
 		`SET activity_map = ? ` +
 		`, last_updated_time = ? ` +
@@ -398,6 +421,17 @@ const (
 
 	templateUpdateTimerInfoQuery = `UPDATE executions ` +
 		`SET timer_map[ ? ] = ` + templateTimerInfoType + ` ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateSentinelTimerInfoQuery = `UPDATE executions ` +
+		`SET timer_map[ ? ] = {timer_id: ?} ` +
 		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
@@ -475,6 +509,28 @@ const (
 
 	templateResetSignalInfoQuery = `UPDATE executions ` +
 		`SET signal_map = ? ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateUpdateSemaphoreInfoQuery = `UPDATE executions ` +
+		`SET semaphore_map[ ? ] = ` + templateSemaphoreInfoType + ` ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateResetSemaphoreInfoQuery = `UPDATE executions ` +
+		`SET semaphore_map = ? ` +
 		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
@@ -569,6 +625,16 @@ const (
 		`and task_id = ? `
 
 	templateDeleteSignalInfoQuery = `DELETE signal_map[ ? ] ` +
+		`FROM executions ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateDeleteSemaphoreInfoQuery = `DELETE semaphore_map[ ? ] ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +

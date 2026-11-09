@@ -149,7 +149,7 @@ func TestAdminUpdateDynamicConfig(t *testing.T) {
 			setupMocks: func(td *cliTestData) {
 				// empty since arguments are missing
 			},
-			errContains: "Required flag not found",
+			errContains: "empty value not allowed",
 		},
 		{
 			name:    "calling with required arguments",

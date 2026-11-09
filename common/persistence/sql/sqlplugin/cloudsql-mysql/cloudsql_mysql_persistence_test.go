@@ -57,6 +57,12 @@ func TestCloudSQLMySQLShardPersistenceSuite(t *testing.T) {
 	suite.Run(t, s)
 }
 
+func TestCloudSQLMySQLAdminPersistenceSuite(t *testing.T) {
+	s := new(pt.AdminPersistenceSuite)
+	s.TestBase = CloudMySQLTestBase(t)
+	suite.Run(t, s)
+}
+
 type ExecutionManagerSuite struct {
 	pt.ExecutionManagerSuite
 }
@@ -67,6 +73,10 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionWithWorkflowRequestsD
 
 func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsDedup() {
 	s.T().Skip("skip the test until we store workflow_request in mysql")
+}
+
+func (s *ExecutionManagerSuite) TestWorkflowMutableStateSemaphoreInfo() {
+	s.T().Skip("skip the test until we store semaphore_info in mysql")
 }
 
 func TestCloudSQLMySQLExecutionManagerSuite(t *testing.T) {

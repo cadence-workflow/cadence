@@ -180,7 +180,7 @@ func (s *SizeLimitIntegrationSuite) TestTerminateWorkflowCausedBySizeLimit() {
 	lastEvent := history.Events[len(history.Events)-1]
 	s.Equal(types.EventTypeWorkflowExecutionFailed, lastEvent.GetEventType())
 	failedEventAttributes := lastEvent.WorkflowExecutionFailedEventAttributes
-	s.Equal(common.FailureReasonSizeExceedsLimit, failedEventAttributes.GetReason())
+	s.Equal(common.FailureReasonHistorySizeExceedsLimit, failedEventAttributes.GetReason())
 
 	// verify visibility is correctly processed from open to close
 	isCloseCorrect := false
