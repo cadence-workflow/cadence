@@ -51,8 +51,7 @@ func TestBatchOperationCLI_StartTerminate(t *testing.T) {
 		FlagListQuery: "TaskList = 'buggy'",
 		FlagReason:    "cleanup",
 	})
-	bc := &batchOperationsCLIImpl{batchClient: mockBatchClient, frontendClient: mockFrontendClient}
-	err := bc.StartTerminate(c)
+	err := StartBatchTerminate(c)
 	assert.NoError(t, err)
 }
 
@@ -79,8 +78,7 @@ func TestBatchOperationCLI_StartSignal(t *testing.T) {
 		FlagSignalName: "approval",
 		FlagInput:      "yes",
 	})
-	bc := &batchOperationsCLIImpl{batchClient: mockBatchClient, frontendClient: mockFrontendClient}
-	err := bc.StartSignal(c)
+	err := StartBatchSignal(c)
 	assert.NoError(t, err)
 }
 
@@ -94,8 +92,7 @@ func TestBatchOperationCLI_StartSignal_MissingSignalName(t *testing.T) {
 		FlagListQuery: "UserID = 5",
 		FlagReason:    "approve",
 	})
-	bc := &batchOperationsCLIImpl{batchClient: mockBatchClient, frontendClient: mockFrontendClient}
-	err := bc.StartSignal(c)
+	err := StartBatchSignal(c)
 	assert.Error(t, err)
 }
 
@@ -122,8 +119,7 @@ func TestBatchOperationCLI_StartReplicate(t *testing.T) {
 		FlagSourceCluster: "cluster-a",
 		FlagTargetCluster: "cluster-b",
 	})
-	bc := &batchOperationsCLIImpl{batchClient: mockBatchClient, frontendClient: mockFrontendClient}
-	err := bc.StartReplicate(c)
+	err := StartBatchReplicate(c)
 	assert.NoError(t, err)
 }
 
@@ -146,7 +142,6 @@ func TestBatchOperationCLI_StartTerminate_UsesProvidedBatchID(t *testing.T) {
 		FlagReason:    "cleanup",
 		FlagBatchID:   "my-batch-id",
 	})
-	bc := &batchOperationsCLIImpl{batchClient: mockBatchClient, frontendClient: mockFrontendClient}
-	err := bc.StartTerminate(c)
+	err := StartBatchTerminate(c)
 	assert.NoError(t, err)
 }
