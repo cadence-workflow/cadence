@@ -1,0 +1,61 @@
+# Test the replacement of running child workflows from a stale branch of the parent.
+#
+# The test needs cluster1 to fail the decision of the parent with FAILOVER_CLOSE_DECISION. The new events move
+# the event IDs of the parent, so the initiated events from cluster0 are not on the current branch of cluster1.
+# For this, the parent holds its decision task with a local activity on the worker of cluster0 only, so that
+# cluster1 sees the decision in flight through replication when the failover occurs.
+# On cluster1 the local activity completes at once, so cluster1 starts the children again soon after the failover.
+# Replication of shard 1 (shard of stale-branch-running-parent) waits 20s per batch, see the dynamic config.
+# The children are on shards 0 and 3, so they replicate to cluster1 without delay.
+# 1. At ~50s cluster0 completes the decision with the initiated events (N) and starts the children.
+#    They run for ~45s.
+# 2. At 55s the domain fails over to cluster1. At ~65s cluster1 still sees the decision of the parent in flight
+#    and fails it with FAILOVER_CLOSE_DECISION. The new events move the event IDs of the parent.
+# 3. At ~70s cluster1 writes the initiated events (N') and starts the children again. The running runs were started
+#    from the initiated events N, which are not on the current branch, so the child start terminates them
+#    and starts a new execution.
+#
+# Without the stale branch replacement, the child start fails with already started, and the parent fails.
+# To check that the path ran: curl -s localhost:8002/metrics | grep child_workflow_stale_branch_replaced
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+primaryCluster: "cluster0"
+
+domains:
+  test-domain:
+    activeClusterName: cluster0
+
+operations:
+  - op: start_workflow
+    at: 0s
+    workflowType: child-workflow-loop
+    workflowID: stale-branch-running-parent
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 400s
+    childWorkflowID: stale-branch-running-child
+    childWorkflowCount: 4
+    childWorkflowDuration: 45s
+    childWorkflowTimeout: 300s
+    decisionHoldDuration: 50s
+    decisionHoldCluster: cluster0
+
+  - op: change_active_clusters
+    at: 55s
+    domain: test-domain
+    newActiveCluster: cluster1
+
+  # the simulator has a go test timeout of 240s that includes the setup, so the validation must be earlier.
+  # The parent closes at ~120s.
+  - op: validate
+    at: 180s
+    workflowID: stale-branch-running-parent
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: completed

@@ -106,6 +106,8 @@ func TestReplicationSimulation(t *testing.T) {
 			err = validateWorkflowReplication(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidatePendingActivity:
 			err = validatePendingActivity(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationWaitForHistoryEvent:
+			err = waitForHistoryEvent(t, op, simCfg)
 		default:
 			require.Failf(t, "unknown operation type", "operation type: %s", op.Type)
 		}
@@ -143,10 +145,15 @@ func startWorkflow(
 	}
 
 	input := mustJSON(t, &simTypes.WorkflowInput{
-		Duration:             op.WorkflowDuration,
-		ActivityCount:        op.ActivityCount,
-		ChildWorkflowID:      op.ChildWorkflowID,
-		ChildWorkflowTimeout: op.ChildWorkflowTimeout,
+		Duration:              op.WorkflowDuration,
+		ActivityCount:         op.ActivityCount,
+		ChildWorkflowID:       op.ChildWorkflowID,
+		ChildWorkflowTimeout:  op.ChildWorkflowTimeout,
+		ChildWorkflowCount:    op.ChildWorkflowCount,
+		ChildWorkflowDuration: op.ChildWorkflowDuration,
+		ChildWorkflowType:     op.ChildWorkflowType,
+		DecisionHoldDuration:  op.DecisionHoldDuration,
+		DecisionHoldCluster:   op.DecisionHoldCluster,
 	})
 	workflowIDReusePolicy := types.WorkflowIDReusePolicyAllowDuplicate.Ptr()
 	if op.WorkflowIDReusePolicy != nil {
@@ -665,6 +672,44 @@ func lastDecisionTaskWorker(history []types.HistoryEvent) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("failed to find lastDecisionTaskWorker because there's no DecisionTaskCompleted event found in history")
+}
+
+// waitForHistoryEvent waits until the history of the workflow on the cluster has at least eventCount events of
+// eventType, so the next operation runs as soon as the events are replicated to the cluster.
+func waitForHistoryEvent(
+	t *testing.T,
+	op *simTypes.Operation,
+	simCfg *simTypes.ReplicationSimulationConfig,
+) error {
+	t.Helper()
+
+	if op.EventType == "" || op.EventCount <= 0 || op.Timeout <= 0 {
+		return fmt.Errorf("wait_for_history_event op for workflow %s requires eventType, eventCount and timeout", op.WorkflowID)
+	}
+
+	simTypes.Logf(t, "Waiting for %d %s events of workflow: %s on domain: %s on cluster: %s", op.EventCount, op.EventType, op.WorkflowID, op.Domain, op.Cluster)
+
+	deadline := time.Now().Add(op.Timeout)
+	for {
+		// the workflow is not on the cluster until its first events are replicated, so an error is retried
+		history, err := getAllHistory(t, simCfg, op.Cluster, op.Domain, op.WorkflowID, "")
+		if err == nil {
+			count := 0
+			for _, event := range history {
+				if event.GetEventType().String() == op.EventType {
+					count++
+				}
+			}
+			if count >= op.EventCount {
+				simTypes.Logf(t, "Found %d %s events of workflow: %s on cluster: %s", count, op.EventType, op.WorkflowID, op.Cluster)
+				return nil
+			}
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("workflow %s on cluster %s does not have %d %s events after %v, last error: %v", op.WorkflowID, op.Cluster, op.EventCount, op.EventType, op.Timeout, err)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 func waitForOpTime(t *testing.T, op *simTypes.Operation, startTime time.Time) {

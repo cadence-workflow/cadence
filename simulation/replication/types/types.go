@@ -36,10 +36,15 @@ const (
 type OperationFunction func(t *testing.T, op *Operation, simCfg *ReplicationSimulationConfig) error
 
 type WorkflowInput struct {
-	Duration             time.Duration
-	ActivityCount        int
-	ChildWorkflowID      string
-	ChildWorkflowTimeout time.Duration
+	Duration              time.Duration
+	ActivityCount         int
+	ChildWorkflowID       string
+	ChildWorkflowTimeout  time.Duration
+	ChildWorkflowCount    int
+	ChildWorkflowDuration time.Duration
+	ChildWorkflowType     string
+	DecisionHoldDuration  time.Duration
+	DecisionHoldCluster   string
 }
 
 type WorkflowOutput struct {
