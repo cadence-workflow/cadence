@@ -453,7 +453,7 @@ func (e *matchingEngineImpl) AcquireSemaphore(
 		return nil, err
 	}
 
-	resp, err := semMgr.Acquire(hCtx, ownerID)
+	resp, err := semMgr.Acquire(hCtx, ownerID, request.GetAcquireDeadline())
 	if err != nil {
 		return nil, err
 	}

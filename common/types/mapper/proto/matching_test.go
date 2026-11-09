@@ -470,7 +470,9 @@ func SemaphoreAcquireOutcomeFuzzer(e *types.SemaphoreAcquireOutcome, c fuzz.Cont
 }
 
 func TestMatchingAcquireSemaphoreRequestFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromMatchingAcquireSemaphoreRequest, ToMatchingAcquireSemaphoreRequest)
+	testutils.RunMapperFuzzTest(t, FromMatchingAcquireSemaphoreRequest, ToMatchingAcquireSemaphoreRequest,
+		testutils.WithCustomFuncs(batchTimeFuzzer),
+	)
 }
 
 func TestMatchingAcquireSemaphoreResponseFuzz(t *testing.T) {

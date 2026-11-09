@@ -396,7 +396,7 @@ func (m *semaphoreManagerImpl) currentCache() *bucketCache {
 
 // Acquire is the entry point: it asks for a token on behalf of ownerID, and queues a waiter when
 // this host cannot find one.
-func (m *semaphoreManagerImpl) Acquire(ctx context.Context, ownerID string) (AcquireResult, error) {
+func (m *semaphoreManagerImpl) Acquire(ctx context.Context, ownerID string, acquireDeadline *time.Time) (AcquireResult, error) {
 	m.liveness.MarkAlive()
 	if err := m.awaitStartup(ctx); err != nil {
 		return AcquireResult{}, err
@@ -409,23 +409,29 @@ func (m *semaphoreManagerImpl) Acquire(ctx context.Context, ownerID string) (Acq
 	if tokenID != emptyTokenID {
 		return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: tokenID}, nil
 	}
-	// TODO: Once enqueue writes a waiter, answer QUEUED here, since NO_SLOT means nothing is
-	// queued. Before enqueuing, refresh the free tokens and retry the grant once: a stale cache
-	// can answer NO_SLOT while tokens are free, and a waiter queued on that answer may never be
-	// woken.
-	if err := m.enqueue(ctx, ownerID); err != nil {
+	if err := m.enqueue(ctx, ownerID, acquireDeadline); err != nil {
 		return AcquireResult{}, err
 	}
-	return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeNoSlot}, nil
+	return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeQueued}, nil
 }
 
-// enqueue records ownerID as a waiter on this bucket, to be granted a token when one frees.
-// Acquire calls it when a grant finds the bucket full.
-//
-// TODO: Not built yet, so it queues nothing. It will write a waiter row to semaphore_tasks under
-// the bucket's range_id, with a TTL taken from the acquire deadline, and a background reader will
-// grant waiters in order as tokens are released.
-func (m *semaphoreManagerImpl) enqueue(ctx context.Context, ownerID string) error {
+// enqueue writes ownerID as a waiter and signals the reader to read it.
+func (m *semaphoreManagerImpl) enqueue(ctx context.Context, ownerID string, acquireDeadline *time.Time) error {
+	owner, err := ParseRequestOwner(ownerID)
+	if err != nil {
+		return err
+	}
+	err = m.taskWriter.appendTask(ctx, &persistence.SemaphoreTask{
+		WorkflowID:      owner.WorkflowID,
+		RunID:           owner.RunID,
+		HoldID:          owner.HoldID,
+		AcquireDeadline: acquireDeadline,
+		CreatedTime:     m.timeSource.Now(),
+	})
+	if err != nil {
+		return err
+	}
+	m.taskReader.signal()
 	return nil
 }
 

@@ -767,10 +767,11 @@ func FromMatchingAcquireSemaphoreRequest(t *types.AcquireSemaphoreRequest) *matc
 		return nil
 	}
 	return &matchingv1.AcquireSemaphoreRequest{
-		DomainId:      t.DomainUUID,
-		SemaphoreName: t.SemaphoreName,
-		Bucket:        t.Bucket,
-		OwnerId:       t.OwnerID,
+		DomainId:        t.DomainUUID,
+		SemaphoreName:   t.SemaphoreName,
+		Bucket:          t.Bucket,
+		OwnerId:         t.OwnerID,
+		AcquireDeadline: timeToTimestamp(t.AcquireDeadline),
 	}
 }
 
@@ -779,10 +780,11 @@ func ToMatchingAcquireSemaphoreRequest(t *matchingv1.AcquireSemaphoreRequest) *t
 		return nil
 	}
 	return &types.AcquireSemaphoreRequest{
-		DomainUUID:    t.DomainId,
-		SemaphoreName: t.SemaphoreName,
-		Bucket:        t.Bucket,
-		OwnerID:       t.OwnerId,
+		DomainUUID:      t.DomainId,
+		SemaphoreName:   t.SemaphoreName,
+		Bucket:          t.Bucket,
+		OwnerID:         t.OwnerId,
+		AcquireDeadline: timestampToTime(t.AcquireDeadline),
 	}
 }
 

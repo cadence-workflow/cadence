@@ -20,6 +20,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
+	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 )
@@ -474,7 +475,7 @@ func TestManagerLifecycle(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 		defer cancel()
-		_, err := mgr.Acquire(ctx, "caller")
+		_, err := mgr.Acquire(ctx, "caller", nil)
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 
@@ -494,7 +495,7 @@ func TestManagerLifecycle(t *testing.T) {
 		releaseScanAndWaitForStart := startWithBlockedScan(m, mgr)
 		mockClock.Advance(2 * testIdleTTL)
 		require.NoError(t, releaseScanAndWaitForStart())
-		_, err := mgr.Acquire(context.Background(), "caller")
+		_, err := mgr.Acquire(context.Background(), "caller", nil)
 		require.NoError(t, err)
 
 		mockClock.Advance(testIdleTTL / 2)
@@ -572,7 +573,7 @@ func TestManagerLifecycle(t *testing.T) {
 				case <-time.After(time.Second):
 					t.Fatal("a bucket that lost its claim was not stopped")
 				}
-				_, err := mgr.Acquire(context.Background(), "owner-a")
+				_, err := mgr.Acquire(context.Background(), "owner-a", nil)
 				assert.ErrorIs(t, err, ErrNotReady)
 			})
 		}
@@ -621,14 +622,26 @@ func TestNewSemaphoreConfigUpdateAckInterval(t *testing.T) {
 }
 
 func TestAcquire(t *testing.T) {
+	owner := commonsemaphore.Owner{WorkflowID: "wf", RunID: "run", HoldID: 7}
+	deadline := time.Unix(1767258000, 0)
 	tests := []struct {
 		name string
 		// managerStopped stops the manager before Acquire.
 		managerStopped bool
-		// mockSetup expects Acquire's database calls. Nil expects none. The mock fails the test on
+		// bucketFull starts the manager with the bucket's only token held by another owner.
+		bucketFull bool
+		// ownerID is who acquires. Empty means owner.
+		ownerID  string
+		deadline *time.Time
+		// mockSetup expects Acquire's token writes. Nil expects none. The mock fails the test on
 		// any other call.
 		mockSetup func(m *persistence.MockSemaphoreTokenManager)
-		want      AcquireResult
+		// wantWaiter is the waiter Acquire writes, without its task id and created time. Nil
+		// expects no write.
+		wantWaiter *persistence.SemaphoreTask
+		// writeErr is what the waiter write returns.
+		writeErr error
+		want     AcquireResult
 		// assertErr checks the error. Nil expects no error.
 		assertErr func(t *testing.T, err error)
 	}{
@@ -655,26 +668,95 @@ func TestAcquire(t *testing.T) {
 			},
 			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, assert.AnError) },
 		},
+		{
+			name:       "bucket is full: waiter is written, Queued",
+			bucketFull: true,
+			deadline:   &deadline,
+			wantWaiter: &persistence.SemaphoreTask{WorkflowID: "wf", RunID: "run", HoldID: 7, AcquireDeadline: &deadline},
+			want:       AcquireResult{Outcome: types.SemaphoreAcquireOutcomeQueued},
+		},
+		{
+			name:       "bucket is full, no deadline: waiter is written without one",
+			bucketFull: true,
+			wantWaiter: &persistence.SemaphoreTask{WorkflowID: "wf", RunID: "run", HoldID: 7},
+			want:       AcquireResult{Outcome: types.SemaphoreAcquireOutcomeQueued},
+		},
+		{
+			name:       "bucket is full, waiter write fails: error",
+			bucketFull: true,
+			wantWaiter: &persistence.SemaphoreTask{WorkflowID: "wf", RunID: "run", HoldID: 7},
+			writeErr:   assert.AnError,
+			assertErr:  func(t *testing.T, err error) { assert.ErrorIs(t, err, assert.AnError) },
+		},
+		{
+			name:       "bucket is full, owner id cannot be decoded: bad request, nothing written",
+			bucketFull: true,
+			ownerID:    "caller",
+			assertErr:  func(t *testing.T, err error) { assert.ErrorAs(t, err, new(*types.BadRequestError)) },
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			m := persistence.NewMockSemaphoreTokenManager(gomock.NewController(t))
-			mgr := startManager(t, m, 1, nil)
+			var rows []*persistence.SemaphoreOwnership
+			if tc.bucketFull {
+				rows = []*persistence.SemaphoreOwnership{tokenRow(1, "other-owner"), ownerRow("other-owner", 1)}
+			}
+			expectScan(t, m, [][]*persistence.SemaphoreOwnership{rows})
+			tasks := claimingTasks(t)
+			p := testManagerParams(t, m, 1)
+			p.Tasks = tasks
+			// read is sent to when the reader reads, which it does after a waiter write since enqueue
+			// signals it.
+			read := make(chan struct{}, 1)
+			if tc.wantWaiter != nil {
+				waiter := *tc.wantWaiter
+				waiter.TaskID = 1
+				waiter.CreatedTime = p.TimeSource.Now()
+				tasks.EXPECT().CreateSemaphoreTasks(gomock.Any(), &persistence.CreateSemaphoreTasksRequest{
+					DomainID:      testBucketID.DomainID,
+					SemaphoreName: testBucketID.SemaphoreName,
+					Bucket:        testBucketID.Bucket,
+					RangeID:       1,
+					Tasks:         []*persistence.SemaphoreTask{&waiter},
+				}).Return(&persistence.CreateSemaphoreTasksResponse{}, tc.writeErr)
+				tasks.EXPECT().GetSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+					func(context.Context, *persistence.GetSemaphoreTasksRequest) (*persistence.GetSemaphoreTasksResponse, error) {
+						select {
+						case read <- struct{}{}:
+						default:
+						}
+						return &persistence.GetSemaphoreTasksResponse{}, nil
+					})
+			}
+			mgr := newManagerFromParams(t, p)
+			require.NoError(t, mgr.Start(context.Background()))
 			if tc.managerStopped {
 				mgr.Stop()
 			}
 			if tc.mockSetup != nil {
 				tc.mockSetup(m)
 			}
+			ownerID := tc.ownerID
+			if ownerID == "" {
+				ownerID = owner.String()
+			}
 
-			got, err := mgr.Acquire(context.Background(), "caller")
+			got, err := mgr.Acquire(context.Background(), ownerID, tc.deadline)
 			if tc.assertErr != nil {
 				tc.assertErr(t, err)
 			} else {
 				require.NoError(t, err)
 			}
 			assert.Equal(t, tc.want, got)
+			if err == nil && tc.wantWaiter != nil {
+				select {
+				case <-read:
+				case <-time.After(time.Second):
+					t.Fatal("the reader was not signaled after the waiter was written")
+				}
+			}
 		})
 	}
 }
@@ -1107,8 +1189,19 @@ func TestRelease(t *testing.T) {
 // at a time and the cache stays correct.
 func TestManager_ConcurrentCalls(t *testing.T) {
 	const tokens, owners = 3, 10
-	m := persistence.NewMockSemaphoreTokenManager(gomock.NewController(t))
-	mgr := startManager(t, m, tokens, nil)
+	ctrl := gomock.NewController(t)
+	m := persistence.NewMockSemaphoreTokenManager(ctrl)
+	expectScan(t, m, [][]*persistence.SemaphoreOwnership{nil})
+	// Owners that find no free token are queued.
+	tasks := claimingTasks(t)
+	tasks.EXPECT().CreateSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.CreateSemaphoreTasksResponse{}, nil)
+	tasks.EXPECT().GetSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.GetSemaphoreTasksResponse{}, nil)
+	p := testManagerParams(t, m, tokens)
+	p.Tasks = tasks
+	mgr := newManagerFromParams(t, p)
+	require.NoError(t, mgr.Start(context.Background()))
 
 	// write fails the test if another write is running. A real write takes milliseconds; without
 	// the pause, two unlocked writes rarely overlap and the test misses them.
@@ -1135,12 +1228,12 @@ func TestManager_ConcurrentCalls(t *testing.T) {
 		wg.Add(1)
 		go func(ownerID string) {
 			defer wg.Done()
-			got, err := mgr.Acquire(context.Background(), ownerID)
+			got, err := mgr.Acquire(context.Background(), ownerID, nil)
 			if !assert.NoError(t, err) || got.Outcome != types.SemaphoreAcquireOutcomeAcquired {
 				return
 			}
 			assert.NoError(t, mgr.Release(context.Background(), ownerID))
-		}(fmt.Sprintf("owner-%d", i))
+		}(commonsemaphore.Owner{WorkflowID: fmt.Sprintf("wf-%d", i), RunID: "run", HoldID: 1}.String())
 	}
 	wg.Wait()
 
