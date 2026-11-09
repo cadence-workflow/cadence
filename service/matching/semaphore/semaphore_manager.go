@@ -617,14 +617,6 @@ func (m *semaphoreManagerImpl) releaseOwnerRowTokenLocked(ctx context.Context, c
 		return nil
 	}
 	tokenID := row.HeldToken
-	if !cache.tokenRange.Contains(tokenID) {
-		// The cache has no entry for tokenID, so marking it after the release would panic.
-		m.logger.Error("Semaphore owner row names a token this bucket does not own",
-			tag.Dynamic("token-id", tokenID),
-			tag.Dynamic("first-token", cache.tokenRange.First),
-			tag.Dynamic("last-token", cache.tokenRange.Last()))
-		return &types.InternalServiceError{Message: fmt.Sprintf("owner %v holds token %d, which is outside the range of bucket %v", ownerID, tokenID, m.id)}
-	}
 	applied, err := m.tryReleaseTokenLocked(ctx, cache, tokenID, ownerID)
 	if err != nil {
 		return err
@@ -642,6 +634,15 @@ func (m *semaphoreManagerImpl) releaseOwnerRowTokenLocked(ctx context.Context, c
 
 // tryReleaseTokenLocked releases ownerID's tokenID.  The caller holds the bucket lock.
 func (m *semaphoreManagerImpl) tryReleaseTokenLocked(ctx context.Context, cache *bucketCache, tokenID int, ownerID string) (applied bool, err error) {
+	if !cache.tokenRange.Contains(tokenID) {
+		// The cache has no entry for tokenID, so marking it after the release would panic.
+		m.logger.Error("Semaphore release got a token this bucket does not own",
+			tag.Dynamic("token-id", tokenID),
+			tag.Dynamic("first-token", cache.tokenRange.First),
+			tag.Dynamic("last-token", cache.tokenRange.Last()))
+		return false, &types.InternalServiceError{Message: fmt.Sprintf("token %d of owner %v is outside the range of bucket %v", tokenID, ownerID, m.id)}
+	}
+
 	applied, err = m.bucketDB.releaseToken(ctx, tokenID, ownerID)
 	if err != nil {
 		// The write may have landed, so the token may be free. If it did not land, the next grant

@@ -206,7 +206,8 @@ func TestPickFreeToken(t *testing.T) {
 	assert.False(t, ok, "no free token is left")
 	assertCacheConsistent(t, c)
 
-	// In a range not starting at 1, it returns token ids, not positions.
+	// pickFreeToken returns the bucket's first token id plus the position. This guards against
+	// accidentally returning position+1, which gives the right token id only in bucket 0.
 	c, _ = newBucketCache(commonsemaphore.TokenRange{First: 11, Count: 3}, nil)
 	setTokenEntry(t, c, 12, heldByA)
 	seen = map[int]bool{}

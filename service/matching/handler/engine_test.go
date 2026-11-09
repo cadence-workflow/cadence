@@ -2046,8 +2046,9 @@ func registerSemaphoreManager(t *testing.T, e *matchingEngineImpl, mgr semaphore
 	require.Same(t, mgr, got, "the bucket was already held by another manager")
 }
 
-// expectBucketLoadOnce expects exactly one bucket load, returning tokens free slots.
-func expectBucketLoadOnce(m *persistence.MockSemaphoreTokenManager, tokens int) {
+// expectBucketLoadAllFree expects exactly one bucket load, returning token rows 1 to tokens with
+// no holder and no owner rows, so every token is free.
+func expectBucketLoadAllFree(m *persistence.MockSemaphoreTokenManager, tokens int) {
 	rows := make([]*persistence.SemaphoreOwnership, 0, tokens)
 	for i := 1; i <= tokens; i++ {
 		rows = append(rows, &persistence.SemaphoreOwnership{
@@ -2075,7 +2076,7 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 	t.Run("second request reuses the manager already built", func(t *testing.T) {
 		// A bucket is built once, so the second request costs no scan.
 		e, m := newEngineWithSemaphores(t, testSelfHost)
-		expectBucketLoadOnce(m, 3)
+		expectBucketLoadAllFree(m, 3)
 		id := mustNewSemaphoreIdentifier(t, 0)
 
 		first, err := e.getOrCreateSemaphoreManager(id)
@@ -2090,7 +2091,7 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		e, m := newEngineWithSemaphores(t, testSelfHost)
 		id := mustNewSemaphoreIdentifier(t, 0)
 		// fails if the request does not start the manager
-		expectBucketLoadOnce(m, 2)
+		expectBucketLoadAllFree(m, 2)
 
 		unstarted := newUnstartedSemaphoreManager(t, id, m)
 		registerSemaphoreManager(t, e, unstarted)
@@ -2146,7 +2147,7 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "a manager that cannot start must not stay registered")
 
 		// The next request builds a fresh one, so a passing outage is recoverable.
-		expectBucketLoadOnce(m, 2)
+		expectBucketLoadAllFree(m, 2)
 		retry, err := e.getOrCreateSemaphoreManager(id)
 		require.NoError(t, err)
 		assert.NotNil(t, retry)
@@ -2214,7 +2215,7 @@ func TestUnloadSemaphoreManager(t *testing.T) {
 	// Unloading takes a manager out of the registry and stops it, so the next request builds a
 	// fresh one instead of finding the retired manager.
 	e, m := newEngineWithSemaphores(t, testSelfHost)
-	expectBucketLoadOnce(m, 2)
+	expectBucketLoadAllFree(m, 2)
 	id := mustNewSemaphoreIdentifier(t, 0)
 
 	mgr, err := e.getOrCreateSemaphoreManager(id)
@@ -2226,7 +2227,7 @@ func TestUnloadSemaphoreManager(t *testing.T) {
 	_, err = mgr.Acquire(context.Background(), "owner-1")
 	assert.ErrorIs(t, err, semaphore.ErrNotReady, "an unloaded manager must stop serving")
 
-	expectBucketLoadOnce(m, 2)
+	expectBucketLoadAllFree(m, 2)
 	fresh, err := e.getOrCreateSemaphoreManager(id)
 	require.NoError(t, err)
 	assert.NotSame(t, mgr, fresh)
@@ -2263,7 +2264,7 @@ func TestStopSemaphoreManagers(t *testing.T) {
 func TestAcquireSemaphore(t *testing.T) {
 	t.Run("a free slot is granted and named in the response", func(t *testing.T) {
 		e, m := newEngineWithSemaphores(t, testSelfHost)
-		expectBucketLoadOnce(m, 3)
+		expectBucketLoadAllFree(m, 3)
 		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
 			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
 
@@ -2318,7 +2319,7 @@ func TestAcquireSemaphore(t *testing.T) {
 	t.Run("turning the flag off refuses acquires on a bucket that is already loaded", func(t *testing.T) {
 		// The flag used to be checked only when a bucket loaded.
 		e, m := newEngineWithSemaphores(t, testSelfHost)
-		expectBucketLoadOnce(m, 2)
+		expectBucketLoadAllFree(m, 2)
 		_, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
 		require.NoError(t, err)
 		e.config.EnableDistributedSemaphore = func(string) bool { return false }
@@ -2383,10 +2384,10 @@ func newReleaseSemaphoreRequest(bucket int32, ownerID string) *types.ReleaseSema
 }
 
 func TestReleaseSemaphore(t *testing.T) {
-	t.Run("the request reaches the bucket's manager and its error is returned", func(t *testing.T) {
-		// The bucket's cache has no token for the owner, so the manager reads the owner row.
+	t.Run("an error reading the owner row is returned", func(t *testing.T) {
+		// Every token is free, so no token is cached for the owner and Release reads the owner row.
 		e, m := newEngineWithSemaphores(t, testSelfHost)
-		expectBucketLoadOnce(m, 2)
+		expectBucketLoadAllFree(m, 2)
 		m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), gomock.Any()).Times(1).Return(nil, assert.AnError)
 
 		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, testSemaphoreOwnerID))
@@ -2405,7 +2406,7 @@ func TestReleaseSemaphore(t *testing.T) {
 		// Tokens granted before the flag was turned off must still be released.
 		e, m := newEngineWithSemaphores(t, testSelfHost)
 		e.config.EnableDistributedSemaphore = func(string) bool { return false }
-		expectBucketLoadOnce(m, 2)
+		expectBucketLoadAllFree(m, 2)
 		// The owner holds nothing, so the release succeeds.
 		m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), gomock.Any()).Times(1).Return(
 			nil, &types.EntityNotExistsError{Message: "not found"})

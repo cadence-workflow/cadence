@@ -1051,7 +1051,7 @@ func TestRelease(t *testing.T) {
 			assertErr:        func(t *testing.T, err error) { assert.ErrorIs(t, err, readErr) },
 		},
 		{
-			name:         "owner row names token 3, outside the bucket: error, no release",
+			name:         "owner row names token 3, outside the bucket's range of 1 to 2: error, no release write",
 			cacheEntries: map[int]tokenEntry{1: free, 2: free},
 			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
 				expectGetOwnerRow(m).Return(ownerRowNaming(3), nil)
@@ -1059,7 +1059,7 @@ func TestRelease(t *testing.T) {
 			wantCacheEntries: map[int]tokenEntry{1: free, 2: free},
 			assertErr: func(t *testing.T, err error) {
 				assert.IsType(t, &types.InternalServiceError{}, err)
-				assert.ErrorContains(t, err, "outside the range")
+				assert.ErrorContains(t, err, "token 3 of owner caller is outside the range")
 			},
 		},
 		{
