@@ -35,7 +35,6 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/tokenbucket"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -105,7 +104,7 @@ func TestVisibilityManagerSampledCalls(t *testing.T) {
 				MetricClient: metrics.NewNoopMetricsClient(),
 				Logger:       testlogger.New(t),
 				TimeSource:   clock.NewMockedTimeSource(),
-				RateLimiterFactoryFunc: rateLimiterStubFunc(map[string]tokenbucket.PriorityTokenBucket{
+				RateLimiterFactoryFunc: rateLimiterStubFunc(map[string]PriorityRateLimiter{
 					testDomain: &tokenBucketFactoryStub{tokens: map[int]int{tc.priority: 1}},
 				}),
 			})
@@ -220,7 +219,7 @@ func TestVisibilityManagerListOperations(t *testing.T) {
 				MetricClient: metrics.NewNoopMetricsClient(),
 				Logger:       testlogger.New(t),
 				TimeSource:   clock.NewMockedTimeSource(),
-				RateLimiterFactoryFunc: rateLimiterStubFunc(map[string]tokenbucket.PriorityTokenBucket{
+				RateLimiterFactoryFunc: rateLimiterStubFunc(map[string]PriorityRateLimiter{
 					testDomain: &tokenBucketFactoryStub{tokens: map[int]int{tc.priority: 1}},
 				}),
 			})
@@ -236,17 +235,17 @@ func TestVisibilityManagerListOperations(t *testing.T) {
 	}
 }
 
-func rateLimiterStubFunc(domainData map[string]tokenbucket.PriorityTokenBucket) RateLimiterFactoryFunc {
+func rateLimiterStubFunc(domainData map[string]PriorityRateLimiter) RateLimiterFactoryFunc {
 	return func(timeSource clock.TimeSource, numOfPriority int, qpsConfig dynamicproperties.IntPropertyFnWithDomainFilter) RateLimiterFactory {
 		return rateLimiterStub{domainData}
 	}
 }
 
 type rateLimiterStub struct {
-	data map[string]tokenbucket.PriorityTokenBucket
+	data map[string]PriorityRateLimiter
 }
 
-func (r rateLimiterStub) GetRateLimiter(domain string) tokenbucket.PriorityTokenBucket {
+func (r rateLimiterStub) GetRateLimiter(domain string) PriorityRateLimiter {
 	return r.data[domain]
 }
 
