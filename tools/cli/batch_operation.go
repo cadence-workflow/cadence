@@ -66,24 +66,16 @@ func newBatchOperationCommands() []*cli.Command {
 func newBatchStartCommands() []*cli.Command {
 	return []*cli.Command{
 		{
-			Name:  "terminate",
-			Usage: "Terminate all workflows matching the query",
-			Flags: batchStartCommonFlags,
-			Action: func(c *cli.Context) error {
-				return withBatchOperationsClient(c, func(bc *batchOperationsCLIImpl) error {
-					return bc.StartTerminate(c)
-				})
-			},
+			Name:   "terminate",
+			Usage:  "Terminate all workflows matching the query",
+			Flags:  batchStartCommonFlags,
+			Action: StartBatchTerminate,
 		},
 		{
-			Name:  "cancel",
-			Usage: "Request cancellation of all workflows matching the query",
-			Flags: batchStartCommonFlags,
-			Action: func(c *cli.Context) error {
-				return withBatchOperationsClient(c, func(bc *batchOperationsCLIImpl) error {
-					return bc.StartCancel(c)
-				})
-			},
+			Name:   "cancel",
+			Usage:  "Request cancellation of all workflows matching the query",
+			Flags:  batchStartCommonFlags,
+			Action: StartBatchCancel,
 		},
 		{
 			Name:  "signal",
@@ -100,11 +92,7 @@ func newBatchStartCommands() []*cli.Command {
 					Usage:   "Optional input of signal",
 				},
 			),
-			Action: func(c *cli.Context) error {
-				return withBatchOperationsClient(c, func(bc *batchOperationsCLIImpl) error {
-					return bc.StartSignal(c)
-				})
-			},
+			Action: StartBatchSignal,
 		},
 		{
 			Name:  "replicate",
@@ -121,21 +109,13 @@ func newBatchStartCommands() []*cli.Command {
 					Usage:   "Required: target cluster to replicate to",
 				},
 			),
-			Action: func(c *cli.Context) error {
-				return withBatchOperationsClient(c, func(bc *batchOperationsCLIImpl) error {
-					return bc.StartReplicate(c)
-				})
-			},
+			Action: StartBatchReplicate,
 		},
 		{
-			Name:  "refresh",
-			Usage: "Refresh workflow tasks for all workflows matching the query",
-			Flags: batchStartCommonFlags,
-			Action: func(c *cli.Context) error {
-				return withBatchOperationsClient(c, func(bc *batchOperationsCLIImpl) error {
-					return bc.StartRefresh(c)
-				})
-			},
+			Name:   "refresh",
+			Usage:  "Refresh workflow tasks for all workflows matching the query",
+			Flags:  batchStartCommonFlags,
+			Action: StartBatchRefresh,
 		},
 	}
 }
