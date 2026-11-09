@@ -2827,8 +2827,8 @@ type RecordChildExecutionCompletedRequest struct {
 	StartedId          int64                 `protobuf:"varint,6,opt,name=started_id,json=startedId,proto3" json:"started_id,omitempty"`
 	// first run of the chain of the completed child, so the parent accepts only the completion of the child run it started
 	FirstExecutionRunId string `protobuf:"bytes,7,opt,name=first_execution_run_id,json=firstExecutionRunId,proto3" json:"first_execution_run_id,omitempty"`
-	// version of the started event of the completed child, set only when the parent is in the same domain, so the parent
-	// can drop a completion from an initiated event that can not be on its current branch
+	// version of the started event of the first run of the chain of the completed child, set only when the parent is in
+	// the same domain, so the parent can drop a completion from an initiated event that can not be on its current branch
 	ChildStartVersion    *types.Int64Value `protobuf:"bytes,8,opt,name=child_start_version,json=childStartVersion,proto3" json:"child_start_version,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
