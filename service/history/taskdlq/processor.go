@@ -503,7 +503,7 @@ func (p *ProcessorImpl) do(ctx context.Context, op func(context.Context) error) 
 		}
 		last = op(ctx)
 		if isServiceBusy(last) {
-			p.metricsClient.IncCounter(metrics.HistoryTaskDLQProcessorScope, metrics.HistoryTaskDLQBusyRetriesCounter)
+			p.metricsClient.IncCounter(metrics.HistoryTaskDLQProcessorScope, metrics.HistoryTaskDLQBusyResponsesCounter)
 		}
 		return last
 	})

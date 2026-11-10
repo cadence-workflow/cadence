@@ -1689,13 +1689,18 @@ func TestProcessShard_RetriesServiceBusyWithBackoff(t *testing.T) {
 		t.Fatal("ProcessShard did not finish after the backoff timers fired")
 	}
 
-	var busyRetries float64
-	for _, c := range testScope.Snapshot().Counters() {
-		if c.Name() == "history_task_dlq_busy_retries" {
-			busyRetries += float64(c.Value())
+	assert.Equal(t, int64(2), busyResponses(testScope))
+}
+
+// busyResponses sums the busy-responses counter across every tag set in the scope.
+func busyResponses(scope tally.TestScope) int64 {
+	var n int64
+	for _, c := range scope.Snapshot().Counters() {
+		if c.Name() == "history_task_dlq_busy_responses" {
+			n += c.Value()
 		}
 	}
-	assert.Equal(t, float64(2), busyRetries)
+	return n
 }
 
 func TestProcessShard_ServiceBusyExhausted_ReturnsError(t *testing.T) {
@@ -1712,6 +1717,8 @@ func TestProcessShard_ServiceBusyExhausted_ReturnsError(t *testing.T) {
 		TimeSource:        ts,
 		HostBudget:        &countingBudget{},
 	})
+	testScope := tally.NewTestScope("", nil)
+	proc.metricsClient = metrics.NewClient(testScope, metrics.History, metrics.MigrationConfig{})
 
 	al := baseAckLevel(1)
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
@@ -1734,6 +1741,8 @@ func TestProcessShard_ServiceBusyExhausted_ReturnsError(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("ProcessShard did not finish after exhausting retries")
 	}
+	// Every busy response is counted, including the fifth one that is not retried.
+	assert.Equal(t, int64(5), busyResponses(testScope))
 }
 
 func TestProcessShard_NonBusyErrorIsNotRetried(t *testing.T) {

@@ -3098,8 +3098,9 @@ const (
 	HistoryTaskDLQReinjectFailuresCounter
 	// HistoryTaskDLQPageSizeBytes tracks the serialized byte size of each re-injected DLQ page
 	HistoryTaskDLQPageSizeBytes
-	// HistoryTaskDLQBusyRetriesCounter counts ServiceBusy responses the DLQ processor backed off from
-	HistoryTaskDLQBusyRetriesCounter
+	// HistoryTaskDLQBusyResponsesCounter counts ServiceBusy responses received by the DLQ processor,
+	// including the last one when retries run out
+	HistoryTaskDLQBusyResponsesCounter
 
 	NumHistoryMetrics
 )
@@ -3755,7 +3756,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		HistoryTaskDLQReinjectFailuresCounter: {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
 		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
-		HistoryTaskDLQBusyRetriesCounter:      {metricName: "history_task_dlq_busy_retries", metricType: Counter},
+		HistoryTaskDLQBusyResponsesCounter:    {metricName: "history_task_dlq_busy_responses", metricType: Counter},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},
