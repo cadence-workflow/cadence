@@ -34,3 +34,41 @@ func NewAuthorizer(authorization config.Authorization, logger log.Logger, domain
 		return NewNopAuthorizer()
 	}
 }
+
+// NewAuthenticator creates an Authorizer that only validates caller credentials,
+// matching however the configured authorizer identifies callers.
+//
+// Prefer NewAuthorizerAndAuthenticator when the deployment needs both.
+func NewAuthenticator(authorization config.Authorization, logger log.Logger) (Authorizer, error) {
+	switch true {
+	case authorization.OAuthAuthorizer.Enable:
+		return NewOAuthAuthenticator(authorization.OAuthAuthorizer, logger)
+	default:
+		return NewNopAuthorizer()
+	}
+}
+
+// NewAuthorizerAndAuthenticator creates an authorizer and a matching authenticator.
+// For OAuth, both share one token validator and verification key set. This avoids
+// duplicate JWKS fetches and potentially different keys from separate initialization.
+// Use this constructor when both implementations are needed.
+func NewAuthorizerAndAuthenticator(
+	authorization config.Authorization,
+	logger log.Logger,
+	domainCache cache.DomainCache,
+) (Authorizer, Authorizer, error) {
+	switch true {
+	case authorization.OAuthAuthorizer.Enable:
+		return NewOAuthAuthorizerAndAuthenticator(authorization.OAuthAuthorizer, logger, domainCache)
+	default:
+		authorizer, err := NewNopAuthorizer()
+		if err != nil {
+			return nil, nil, err
+		}
+		authenticator, err := NewNopAuthorizer()
+		if err != nil {
+			return nil, nil, err
+		}
+		return authorizer, authenticator, nil
+	}
+}
