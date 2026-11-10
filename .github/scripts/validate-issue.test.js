@@ -219,8 +219,8 @@ describe("evaluateIssue", () => {
     const result = evaluateIssue({
       title: "Matching stalls",
       body: bugBody.replace(
-        "Server crashes\n### Logs",
-        "Server crashes\nThe server logs this warning periodically:\nretrying task list\n### Logs",
+        "### Actual Behavior\nServer crashes\n",
+        "### Actual Behavior\nThe server logs this warning periodically:\nretrying task list\n",
       ),
       labels: [{ name: "kind/bug" }],
       authorAssociation: "NONE",
