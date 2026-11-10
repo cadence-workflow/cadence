@@ -5,10 +5,13 @@
 - Jan Kisel (https://github.com/dkrotx)
 - Shijie Sheng (https://github.com/shijiesheng)
 - Zijian Chen (https://github.com/Shaddoll)
+- Taylan Isikdemir (https://github.com/taylanisikdemir)
+- Mitch O'Dea (https://github.com/instamitch)
 
 ## Maintainers
 - Abhishek Jha (https://github.com/abhishekj720)
 - Adhitya Mamallan (https://github.com/adhityamamallan)
+- Andreas Holt (https://github.com/AndreasHolt)
 - Assem Hafez (https://github.com/Assem-Hafez)
 - Bowen Xiao (https://github.com/bowenxia)
 - Chris Warren (https://github.com/c-warren)

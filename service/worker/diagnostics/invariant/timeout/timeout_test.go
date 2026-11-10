@@ -1,25 +1,3 @@
-// The MIT License (MIT)
-
-// Copyright (c) 2017-2020 Uber Technologies Inc.
-
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
 package timeout
 
 import (
@@ -39,19 +17,16 @@ import (
 )
 
 const (
-	workflowTimeoutSecond = int32(110)
-	taskTimeoutSecond     = int32(50)
-	testTimeStamp         = int64(2547596872371000000)
-	timeUnit              = time.Second
-	testTasklist          = "test-tasklist"
-	testDomain            = "test-domain"
-	testTaskListBacklog   = int64(10)
+	workflowTimeoutSecond      = int32(110)
+	taskTimeoutSecond          = int32(50)
+	testTimeStamp              = int64(2547596872371000000)
+	timeUnit                   = time.Second
+	testTasklist               = "test-tasklist"
+	testDomain                 = "test-domain"
+	testCurrentTaskListBacklog = int64(10)
 )
 
 func Test__Check(t *testing.T) {
-	decisionTimeoutMetadata := DecisionTimeoutMetadata{ConfiguredTimeout: 50 * time.Second}
-	decisionTimeoutMetadataInBytes, err := json.Marshal(decisionTimeoutMetadata)
-	require.NoError(t, err)
 	testCases := []struct {
 		name           string
 		testData       *types.GetWorkflowExecutionHistoryResponse
@@ -111,13 +86,13 @@ func Test__Check(t *testing.T) {
 					IssueID:       0,
 					InvariantType: TimeoutTypeDecision.String(),
 					Reason:        "START_TO_CLOSE",
-					Metadata:      decisionTimeoutMetadataInBytes,
+					Metadata:      decisionTimeoutDataInBytes(t, 2),
 				},
 				{
 					IssueID:       1,
 					InvariantType: TimeoutTypeDecision.String(),
 					Reason:        "workflow reset - New run ID: new run ID",
-					Metadata:      decisionTimeoutMetadataInBytes,
+					Metadata:      decisionTimeoutDataInBytes(t, 4),
 				},
 			},
 			err: nil,
@@ -261,28 +236,30 @@ func decisionTimeoutHistory() *types.GetWorkflowExecutionHistoryResponse {
 		History: &types.History{
 			Events: []*types.HistoryEvent{
 				{
-					ID: 13,
+					ID: 1,
 					DecisionTaskScheduledEventAttributes: &types.DecisionTaskScheduledEventAttributes{
 						StartToCloseTimeoutSeconds: common.Int32Ptr(taskTimeoutSecond),
 					},
 				},
 				{
+					ID: 2,
 					DecisionTaskTimedOutEventAttributes: &types.DecisionTaskTimedOutEventAttributes{
-						ScheduledEventID: 13,
+						ScheduledEventID: 1,
 						StartedEventID:   14,
 						Cause:            types.DecisionTaskTimedOutCauseTimeout.Ptr(),
 						TimeoutType:      types.TimeoutTypeStartToClose.Ptr(),
 					},
 				},
 				{
-					ID: 23,
+					ID: 3,
 					DecisionTaskScheduledEventAttributes: &types.DecisionTaskScheduledEventAttributes{
 						StartToCloseTimeoutSeconds: common.Int32Ptr(taskTimeoutSecond),
 					},
 				},
 				{
+					ID: 4,
 					DecisionTaskTimedOutEventAttributes: &types.DecisionTaskTimedOutEventAttributes{
-						ScheduledEventID: 23,
+						ScheduledEventID: 3,
 						Cause:            types.DecisionTaskTimedOutCauseReset.Ptr(),
 						Reason:           "workflow reset",
 						NewRunID:         "new run ID",
@@ -293,24 +270,34 @@ func decisionTimeoutHistory() *types.GetWorkflowExecutionHistoryResponse {
 	}
 }
 
+func decisionTimeoutDataInBytes(t *testing.T, eventID int64) []byte {
+	data := TimeoutIssuesMetadata{EventID: eventID, ConfiguredTimeout: 50 * time.Second}
+	dataInBytes, err := json.Marshal(data)
+	require.NoError(t, err)
+	return dataInBytes
+}
+
 func wfTimeoutDataInBytes(t *testing.T) []byte {
-	data := ExecutionTimeoutMetadata{
-		ExecutionTime:     110 * time.Second,
+	data := TimeoutIssuesMetadata{
+		EventID:           2,
 		ConfiguredTimeout: 110 * time.Second,
-		LastOngoingEvent: &types.HistoryEvent{
-			ID:        1,
-			Timestamp: common.Int64Ptr(testTimeStamp),
-			WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
-				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
-				TaskList: &types.TaskList{
-					Name: testTasklist,
-					Kind: nil,
+		ExecutionTimeout: &ExecutionTimeoutMetadata{
+			ExecutionTime: 110 * time.Second,
+			LastOngoingEvent: &types.HistoryEvent{
+				ID:        1,
+				Timestamp: common.Int64Ptr(testTimeStamp),
+				WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
+					TaskList: &types.TaskList{
+						Name: testTasklist,
+						Kind: nil,
+					},
 				},
 			},
-		},
-		Tasklist: &types.TaskList{
-			Name: testTasklist,
-			Kind: nil,
+			Tasklist: &types.TaskList{
+				Name: testTasklist,
+				Kind: nil,
+			},
 		},
 	}
 	dataInBytes, err := json.Marshal(data)
@@ -318,36 +305,50 @@ func wfTimeoutDataInBytes(t *testing.T) []byte {
 	return dataInBytes
 }
 
-func activityScheduleToStartTimeoutData() ActivityTimeoutMetadata {
-	return ActivityTimeoutMetadata{
-		TimeoutType:       types.TimeoutTypeScheduleToStart.Ptr(),
+func activityScheduleToStartTimeoutData() TimeoutIssuesMetadata {
+	return TimeoutIssuesMetadata{
+		EventID:           2,
 		ConfiguredTimeout: 50 * time.Second,
-		TimeElapsed:       50 * time.Second,
-		RetryPolicy:       nil,
-		HeartBeatTimeout:  0,
-		Tasklist: &types.TaskList{
-			Name: testTasklist,
-			Kind: nil,
+		ActivityTimeout: &ActivityTimeoutMetadata{
+			TimeoutType:      types.TimeoutTypeScheduleToStart.Ptr(),
+			TimeElapsed:      50 * time.Second,
+			RetryPolicy:      nil,
+			HeartBeatTimeout: 0,
+			Tasklist: &types.TaskList{
+				Name: testTasklist,
+				Kind: nil,
+			},
 		},
 	}
 }
 
-func activityStartToCloseTimeoutData() ActivityTimeoutMetadata {
-	return ActivityTimeoutMetadata{
-		TimeoutType:       types.TimeoutTypeStartToClose.Ptr(),
+func activityStartToCloseTimeoutData() TimeoutIssuesMetadata {
+	return TimeoutIssuesMetadata{
+		EventID:           5,
 		ConfiguredTimeout: 50 * time.Second,
-		TimeElapsed:       50 * time.Second,
-		RetryPolicy:       nil,
-		HeartBeatTimeout:  0,
-		Tasklist: &types.TaskList{
-			Name: testTasklist,
-			Kind: nil,
+		ActivityTimeout: &ActivityTimeoutMetadata{
+			TimeoutType:      types.TimeoutTypeStartToClose.Ptr(),
+			TimeElapsed:      50 * time.Second,
+			RetryPolicy:      nil,
+			HeartBeatTimeout: 0,
+			Tasklist: &types.TaskList{
+				Name: testTasklist,
+				Kind: nil,
+			},
 		},
 	}
 }
 
 func activityScheduleToStartTimeoutDataInBytes(t *testing.T) []byte {
 	data := activityScheduleToStartTimeoutData()
+	dataInBytes, err := json.Marshal(data)
+	require.NoError(t, err)
+	return dataInBytes
+}
+
+func activityScheduleToCloseTimeoutDataInBytes(t *testing.T) []byte {
+	data := activityScheduleToStartTimeoutData()
+	data.ActivityTimeout.TimeoutType = types.TimeoutTypeScheduleToClose.Ptr()
 	dataInBytes, err := json.Marshal(data)
 	require.NoError(t, err)
 	return dataInBytes
@@ -362,8 +363,8 @@ func activityStartToCloseTimeoutDataInBytes(t *testing.T) []byte {
 
 func activityHeartBeatTimeoutDataInBytes(t *testing.T) []byte {
 	actTimeoutData := activityStartToCloseTimeoutData()
-	actTimeoutData.TimeoutType = types.TimeoutTypeHeartbeat.Ptr()
-	actTimeoutData.HeartBeatTimeout = 50 * time.Second
+	actTimeoutData.ActivityTimeout.TimeoutType = types.TimeoutTypeHeartbeat.Ptr()
+	actTimeoutData.ActivityTimeout.HeartBeatTimeout = 50 * time.Second
 	actHeartBeatTimeoutDataInBytes, err := json.Marshal(actTimeoutData)
 	require.NoError(t, err)
 	return actHeartBeatTimeoutDataInBytes
@@ -371,9 +372,9 @@ func activityHeartBeatTimeoutDataInBytes(t *testing.T) []byte {
 
 func activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t *testing.T) []byte {
 	actTimeoutData := activityStartToCloseTimeoutData()
-	actTimeoutData.TimeoutType = types.TimeoutTypeHeartbeat.Ptr()
-	actTimeoutData.HeartBeatTimeout = 50 * time.Second
-	actTimeoutData.RetryPolicy = &types.RetryPolicy{
+	actTimeoutData.ActivityTimeout.TimeoutType = types.TimeoutTypeHeartbeat.Ptr()
+	actTimeoutData.ActivityTimeout.HeartBeatTimeout = 50 * time.Second
+	actTimeoutData.ActivityTimeout.RetryPolicy = &types.RetryPolicy{
 		MaximumAttempts: 3,
 	}
 	actHeartBeatTimeoutDataInBytes, err := json.Marshal(actTimeoutData)
@@ -382,12 +383,15 @@ func activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t *testing.T) []byte {
 }
 
 func childWfTimeoutDataInBytes(t *testing.T) []byte {
-	data := ChildWfTimeoutMetadata{
-		ExecutionTime:     110 * time.Second,
+	data := TimeoutIssuesMetadata{
+		EventID:           3,
 		ConfiguredTimeout: 110 * time.Second,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: "123",
-			RunID:      "abc",
+		ChildWfTimeout: &ChildWfTimeoutMetadata{
+			ExecutionTime: 110 * time.Second,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: "123",
+				RunID:      "abc",
+			},
 		},
 	}
 	dataInBytes, err := json.Marshal(data)
@@ -397,11 +401,11 @@ func childWfTimeoutDataInBytes(t *testing.T) []byte {
 
 func Test__RootCause(t *testing.T) {
 	actStartToCloseTimeoutData := activityStartToCloseTimeoutData()
-	pollersMetadataInBytes, err := json.Marshal(PollersMetadata{TaskListName: testTasklist, TaskListBacklog: testTaskListBacklog})
+	pollersMetadataInBytes, err := json.Marshal(PollersMetadata{TaskListName: testTasklist, CurrentTaskListBacklog: testCurrentTaskListBacklog})
 	require.NoError(t, err)
-	heartBeatingMetadataInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.TimeElapsed})
+	heartBeatingMetadataInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.ActivityTimeout.TimeElapsed})
 	require.NoError(t, err)
-	heartBeatingMetadataWithRetryPolicyInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.TimeElapsed, RetryPolicy: &types.RetryPolicy{MaximumAttempts: 3}})
+	heartBeatingMetadataWithRetryPolicyInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.ActivityTimeout.TimeElapsed, RetryPolicy: &types.RetryPolicy{MaximumAttempts: 3}})
 	require.NoError(t, err)
 	testCases := []struct {
 		name           string
@@ -424,7 +428,7 @@ func Test__RootCause(t *testing.T) {
 				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
 					Pollers: nil,
 					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
+						BacklogCountHint: common.Int64Ptr(testCurrentTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -455,7 +459,7 @@ func Test__RootCause(t *testing.T) {
 						},
 					},
 					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
+						BacklogCountHint: common.Int64Ptr(testCurrentTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -478,24 +482,8 @@ func Test__RootCause(t *testing.T) {
 					Metadata:      activityStartToCloseTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *publicservicetest.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
-					Pollers: []*shared.PollerInfo{
-						{
-							Identity: common.StringPtr("dca24-xy"),
-						},
-					},
-					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
-					},
-				}, nil)
-			},
+			clientExpects: func(client *publicservicetest.MockClient) {},
 			expectedResult: []invariant.InvariantRootCauseResult{
-				{
-					IssueID:   0,
-					RootCause: invariant.RootCauseTypePollersStatus,
-					Metadata:  pollersMetadataInBytes,
-				},
 				{
 					IssueID:   0,
 					RootCause: invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy,
@@ -522,7 +510,7 @@ func Test__RootCause(t *testing.T) {
 						},
 					},
 					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
+						BacklogCountHint: common.Int64Ptr(testCurrentTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -536,13 +524,13 @@ func Test__RootCause(t *testing.T) {
 			err: nil,
 		},
 		{
-			name: "activity timeout and heart beating enabled with retry policy",
+			name: "activity schedule to close timeout with pollers",
 			input: []invariant.InvariantCheckResult{
 				{
 					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
-					Reason:        "START_TO_CLOSE",
-					Metadata:      activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t),
+					Reason:        "SCHEDULE_TO_CLOSE",
+					Metadata:      activityScheduleToCloseTimeoutDataInBytes(t),
 				},
 			},
 			clientExpects: func(client *publicservicetest.MockClient) {
@@ -553,16 +541,36 @@ func Test__RootCause(t *testing.T) {
 						},
 					},
 					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
+						BacklogCountHint: common.Int64Ptr(testCurrentTaskListBacklog),
 					},
 				}, nil)
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
 					IssueID:   0,
-					RootCause: invariant.RootCauseTypePollersStatus,
+					RootCause: invariant.RootCauseTypeScheduleToCloseTimeoutPollersStatus,
 					Metadata:  pollersMetadataInBytes,
 				},
+				{
+					IssueID:   0,
+					RootCause: invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy,
+					Metadata:  heartBeatingMetadataInBytes,
+				},
+			},
+			err: nil,
+		},
+		{
+			name: "activity timeout and heart beating enabled with retry policy",
+			input: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: TimeoutTypeActivity.String(),
+					Reason:        "HEARTBEAT",
+					Metadata:      activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t),
+				},
+			},
+			clientExpects: func(client *publicservicetest.MockClient) {},
+			expectedResult: []invariant.InvariantRootCauseResult{
 				{
 					IssueID:   0,
 					RootCause: invariant.RootCauseTypeHeartBeatingEnabledMissingHeartbeat,
@@ -577,28 +585,12 @@ func Test__RootCause(t *testing.T) {
 				{
 					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
-					Reason:        "START_TO_CLOSE",
+					Reason:        "HEARTBEAT",
 					Metadata:      activityHeartBeatTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *publicservicetest.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
-					Pollers: []*shared.PollerInfo{
-						{
-							Identity: common.StringPtr("dca24-xy"),
-						},
-					},
-					TaskListStatus: &shared.TaskListStatus{
-						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
-					},
-				}, nil)
-			},
+			clientExpects: func(client *publicservicetest.MockClient) {},
 			expectedResult: []invariant.InvariantRootCauseResult{
-				{
-					IssueID:   0,
-					RootCause: invariant.RootCauseTypePollersStatus,
-					Metadata:  pollersMetadataInBytes,
-				},
 				{
 					IssueID:   0,
 					RootCause: invariant.RootCauseTypeHeartBeatingEnabledWithoutRetryPolicy,

@@ -95,7 +95,7 @@ func TestInsertDomainAuditLog(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
@@ -447,7 +447,7 @@ func TestSelectDomainAuditLogs(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 

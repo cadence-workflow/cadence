@@ -54,6 +54,21 @@ func (mr *MockFactoryMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockFactory)(nil).Close))
 }
 
+// NewAdminDBs mocks base method.
+func (m *MockFactory) NewAdminDBs() ([]persistence.AdminDB, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewAdminDBs")
+	ret0, _ := ret[0].([]persistence.AdminDB)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewAdminDBs indicates an expected call of NewAdminDBs.
+func (mr *MockFactoryMockRecorder) NewAdminDBs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAdminDBs", reflect.TypeOf((*MockFactory)(nil).NewAdminDBs))
+}
+
 // NewConfigStoreManager mocks base method.
 func (m *MockFactory) NewConfigStoreManager() (persistence.ConfigStoreManager, error) {
 	m.ctrl.T.Helper()
@@ -159,6 +174,51 @@ func (mr *MockFactoryMockRecorder) NewHistoryTaskDLQManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewHistoryTaskDLQManager", reflect.TypeOf((*MockFactory)(nil).NewHistoryTaskDLQManager))
 }
 
+// NewSemaphoreMetadataManager mocks base method.
+func (m *MockFactory) NewSemaphoreMetadataManager() (persistence.SemaphoreMetadataManager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewSemaphoreMetadataManager")
+	ret0, _ := ret[0].(persistence.SemaphoreMetadataManager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSemaphoreMetadataManager indicates an expected call of NewSemaphoreMetadataManager.
+func (mr *MockFactoryMockRecorder) NewSemaphoreMetadataManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSemaphoreMetadataManager", reflect.TypeOf((*MockFactory)(nil).NewSemaphoreMetadataManager))
+}
+
+// NewSemaphoreTaskManager mocks base method.
+func (m *MockFactory) NewSemaphoreTaskManager() (persistence.SemaphoreTaskManager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewSemaphoreTaskManager")
+	ret0, _ := ret[0].(persistence.SemaphoreTaskManager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSemaphoreTaskManager indicates an expected call of NewSemaphoreTaskManager.
+func (mr *MockFactoryMockRecorder) NewSemaphoreTaskManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSemaphoreTaskManager", reflect.TypeOf((*MockFactory)(nil).NewSemaphoreTaskManager))
+}
+
+// NewSemaphoreTokenManager mocks base method.
+func (m *MockFactory) NewSemaphoreTokenManager() (persistence.SemaphoreTokenManager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewSemaphoreTokenManager")
+	ret0, _ := ret[0].(persistence.SemaphoreTokenManager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSemaphoreTokenManager indicates an expected call of NewSemaphoreTokenManager.
+func (mr *MockFactoryMockRecorder) NewSemaphoreTokenManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSemaphoreTokenManager", reflect.TypeOf((*MockFactory)(nil).NewSemaphoreTokenManager))
+}
+
 // NewShardManager mocks base method.
 func (m *MockFactory) NewShardManager() (persistence.ShardManager, error) {
 	m.ctrl.T.Helper()
@@ -238,6 +298,21 @@ func (m *MockDataStoreFactory) Close() {
 func (mr *MockDataStoreFactoryMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDataStoreFactory)(nil).Close))
+}
+
+// NewAdminDBs mocks base method.
+func (m *MockDataStoreFactory) NewAdminDBs(pType persistence.DBType) ([]persistence.AdminDB, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewAdminDBs", pType)
+	ret0, _ := ret[0].([]persistence.AdminDB)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewAdminDBs indicates an expected call of NewAdminDBs.
+func (mr *MockDataStoreFactoryMockRecorder) NewAdminDBs(pType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAdminDBs", reflect.TypeOf((*MockDataStoreFactory)(nil).NewAdminDBs), pType)
 }
 
 // NewConfigStore mocks base method.
@@ -343,6 +418,51 @@ func (m *MockDataStoreFactory) NewQueue(queueType persistence.QueueType) (persis
 func (mr *MockDataStoreFactoryMockRecorder) NewQueue(queueType any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewQueue", reflect.TypeOf((*MockDataStoreFactory)(nil).NewQueue), queueType)
+}
+
+// NewSemaphoreMetadataStore mocks base method.
+func (m *MockDataStoreFactory) NewSemaphoreMetadataStore() (persistence.SemaphoreMetadataStore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewSemaphoreMetadataStore")
+	ret0, _ := ret[0].(persistence.SemaphoreMetadataStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSemaphoreMetadataStore indicates an expected call of NewSemaphoreMetadataStore.
+func (mr *MockDataStoreFactoryMockRecorder) NewSemaphoreMetadataStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSemaphoreMetadataStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewSemaphoreMetadataStore))
+}
+
+// NewSemaphoreTaskStore mocks base method.
+func (m *MockDataStoreFactory) NewSemaphoreTaskStore() (persistence.SemaphoreTaskStore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewSemaphoreTaskStore")
+	ret0, _ := ret[0].(persistence.SemaphoreTaskStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSemaphoreTaskStore indicates an expected call of NewSemaphoreTaskStore.
+func (mr *MockDataStoreFactoryMockRecorder) NewSemaphoreTaskStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSemaphoreTaskStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewSemaphoreTaskStore))
+}
+
+// NewSemaphoreTokenStore mocks base method.
+func (m *MockDataStoreFactory) NewSemaphoreTokenStore() (persistence.SemaphoreTokenStore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewSemaphoreTokenStore")
+	ret0, _ := ret[0].(persistence.SemaphoreTokenStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSemaphoreTokenStore indicates an expected call of NewSemaphoreTokenStore.
+func (mr *MockDataStoreFactoryMockRecorder) NewSemaphoreTokenStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSemaphoreTokenStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewSemaphoreTokenStore))
 }
 
 // NewShardStore mocks base method.

@@ -167,6 +167,7 @@ func TestGettersForInfos(t *testing.T) {
 			VisibilityTimestamp:     taskInfoCreateTime,
 			OriginalTaskList:        "originalTaskList",
 			OriginalTaskListKind:    types.TaskListKindEphemeral,
+			SemaphoreName:           "semaphoreName",
 		},
 		&TimerTaskInfo{
 			DomainID:        taskDomainID,
@@ -273,6 +274,7 @@ func TestGettersForInfos(t *testing.T) {
 			RetryMaximumAttempts:     7,
 			RetryExpirationTimestamp: activeInfoRetryExpirationTime,
 			RetryBackoffCoefficient:  8,
+			RetryJitterCoefficient:   0.5,
 			RetryNonRetryableErrors:  []string{"error1", "error2"},
 			RetryLastWorkerIdentity:  "retryLastWorkerIdentity",
 			RetryLastFailureReason:   "retryLastFailureReason",

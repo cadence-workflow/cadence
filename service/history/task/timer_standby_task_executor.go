@@ -125,13 +125,24 @@ func (t *timerStandbyTaskExecutor) Execute(task Task) (ExecuteResponse, error) {
 		defer cancel()
 		return executeResponse, t.executeWorkflowTimeoutTask(ctx, timerTask)
 	case *persistence.ActivityRetryTimerTask:
-		// retry backoff timer should not get created on passive cluster
-		// TODO: add error logs
+		t.logger.Warn("Activity retry timer task on standby cluster will be dropped",
+			tag.WorkflowDomainID(timerTask.DomainID),
+			tag.WorkflowID(timerTask.WorkflowID),
+			tag.WorkflowRunID(timerTask.RunID),
+			tag.WorkflowScheduleID(timerTask.EventID),
+			tag.ScheduleAttempt(timerTask.Attempt),
+			tag.TaskVisibilityTimestamp(timerTask.VisibilityTimestamp.UnixNano()),
+		)
+		scope.IncCounter(metrics.TaskDiscarded)
 		return executeResponse, nil
 	case *persistence.WorkflowBackoffTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
 		return executeResponse, t.executeWorkflowBackoffTimerTask(ctx, timerTask)
+	case *persistence.SemaphoreAcquireTimeoutTask:
+		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
+		defer cancel()
+		return executeResponse, t.executeSemaphoreAcquireTimeoutTask(ctx, timerTask)
 	case *persistence.DeleteHistoryEventTask:
 		// special timeout for delete history event
 		deleteHistoryEventContext, deleteHistoryEventCancel := context.WithTimeout(t.ctx, time.Duration(t.config.DeleteHistoryEventContextTimeout())*time.Second)
@@ -418,6 +429,46 @@ func (t *timerStandbyTaskExecutor) executeWorkflowTimeoutTask(
 		ctx,
 		timerTask,
 		0,
+		actionFn,
+		getStandbyPostActionFn(
+			t.logger,
+			timerTask,
+			t.getCurrentTime,
+			t.config.StandbyTaskMissingEventsResendDelay(),
+			t.config.StandbyTaskMissingEventsDiscardDelay(),
+			t.fetchHistoryFromRemote,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
+		),
+	)
+}
+
+func (t *timerStandbyTaskExecutor) executeSemaphoreAcquireTimeoutTask(
+	ctx context.Context,
+	timerTask *persistence.SemaphoreAcquireTimeoutTask,
+) error {
+
+	actionFn := func(ctx context.Context, wfContext execution.Context, mutableState execution.MutableState) (interface{}, error) {
+
+		semaphoreInfo, ok := mutableState.GetSemaphoreInfo(timerTask.EventID)
+		if !ok {
+			return nil, nil
+		}
+		ok, err := verifyTaskVersion(t.shard, t.logger, timerTask.DomainID, semaphoreInfo.Version, timerTask.Version, timerTask)
+		if err != nil || !ok {
+			return nil, err
+		}
+		// The active side recorded the grant before this timer ran, so the grant wins and there is nothing to wait for.
+		if semaphoreInfo.HasToken() {
+			return nil, nil
+		}
+
+		return getHistoryResendInfo(mutableState)
+	}
+
+	return t.processTimer(
+		ctx,
+		timerTask,
+		timerTask.EventID,
 		actionFn,
 		getStandbyPostActionFn(
 			t.logger,

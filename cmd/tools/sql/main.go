@@ -26,8 +26,11 @@ import (
 	"github.com/uber/cadence/tools/common/commoncli"
 	"github.com/uber/cadence/tools/sql"
 
+	_ "github.com/ncruces/go-sqlite3/driver"                              // needed to register the sqlite3 database/sql driver
+	_ "github.com/ncruces/go-sqlite3/embed"                               // needed to embed the sqlite3 WASM binary
 	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"    // needed to load mysql plugin
 	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/postgres" // needed to load postgres plugin
+	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"   // needed to load sqlite plugin
 )
 
 func main() {

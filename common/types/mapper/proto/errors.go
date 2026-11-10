@@ -56,6 +56,8 @@ func FromError(err error) error {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromTaskListNotOwnedByHostError); ok {
 		return typedErr
+	} else if ok, typedErr = errorutils.ConvertError(err, fromSemaphoreNotOwnedByHostError); ok {
+		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromCurrentBranchChangedError); ok {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromRetryTaskV2Error); ok {
@@ -151,6 +153,14 @@ func ToError(err error) error {
 					OwnedByIdentity: details.OwnedByIdentity,
 					MyIdentity:      details.MyIdentity,
 					TasklistName:    details.TaskListName,
+				}
+			}
+		case *sharedv1.SemaphoreNotOwnedByHostError:
+			if details != nil {
+				return &cadence_errors.SemaphoreNotOwnedByHostError{
+					OwnedByIdentity: details.OwnedByIdentity,
+					MyIdentity:      details.MyIdentity,
+					BucketID:        details.BucketId,
 				}
 			}
 		case *sharedv1.CurrentBranchChangedError:
@@ -311,6 +321,14 @@ func fromTaskListNotOwnedByHostError(e *cadence_errors.TaskListNotOwnedByHostErr
 		OwnedByIdentity: e.OwnedByIdentity,
 		MyIdentity:      e.MyIdentity,
 		TaskListName:    e.TasklistName,
+	}))
+}
+
+func fromSemaphoreNotOwnedByHostError(e *cadence_errors.SemaphoreNotOwnedByHostError) error {
+	return protobuf.NewError(yarpcerrors.CodeAborted, e.Error(), protobuf.WithErrorDetails(&sharedv1.SemaphoreNotOwnedByHostError{
+		OwnedByIdentity: e.OwnedByIdentity,
+		MyIdentity:      e.MyIdentity,
+		BucketId:        e.BucketID,
 	}))
 }
 

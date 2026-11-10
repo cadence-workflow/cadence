@@ -1,136 +1,137 @@
 {
-  "aliases": {},
   "index_patterns": [
     "cadence-visibility-*"
   ],
-  "mappings": {
-    "dynamic": "false",
-    "properties": {
-      "Attr": {
-        "properties": {
-          "BinaryChecksums": {
-            "type": "keyword"
-          },
-          "CadenceChangeVersion": {
-            "type": "keyword"
-          },
-          "CustomBoolField": {
-            "type": "boolean"
-          },
-          "CustomDatetimeField": {
-            "type": "date"
-          },
-          "CustomDomain": {
-            "type": "keyword"
-          },
-          "CustomDoubleField": {
-            "type": "double"
-          },
-          "CustomIntField": {
-            "type": "long"
-          },
-          "CustomKeywordField": {
-            "type": "keyword"
-          },
-          "CustomStringField": {
-            "type": "text"
-          },
-          "Operator": {
-            "type": "keyword"
-          },
-          "Passed": {
-            "type": "boolean"
-          },
-          "RolloutID": {
-            "type": "keyword"
-          },
-          "addon": {
-            "type": "keyword"
-          },
-          "addon-type": {
-            "type": "keyword"
-          },
-          "environment": {
-            "type": "keyword"
-          },
-          "project": {
-            "type": "keyword"
-          },
-          "service": {
-            "type": "keyword"
-          },
-          "user": {
-            "type": "keyword"
+  "template": {
+    "aliases": {},
+    "mappings": {
+      "dynamic": "false",
+      "properties": {
+        "Attr": {
+          "properties": {
+            "BinaryChecksums": {
+              "type": "keyword"
+            },
+            "CadenceChangeVersion": {
+              "type": "keyword"
+            },
+            "CustomBoolField": {
+              "type": "boolean"
+            },
+            "CustomDatetimeField": {
+              "type": "date"
+            },
+            "CustomDomain": {
+              "type": "keyword"
+            },
+            "CustomDoubleField": {
+              "type": "double"
+            },
+            "CustomIntField": {
+              "type": "long"
+            },
+            "CustomKeywordField": {
+              "type": "keyword"
+            },
+            "CustomStringField": {
+              "type": "text"
+            },
+            "Operator": {
+              "type": "keyword"
+            },
+            "Passed": {
+              "type": "boolean"
+            },
+            "RolloutID": {
+              "type": "keyword"
+            },
+            "addon": {
+              "type": "keyword"
+            },
+            "addon-type": {
+              "type": "keyword"
+            },
+            "environment": {
+              "type": "keyword"
+            },
+            "project": {
+              "type": "keyword"
+            },
+            "service": {
+              "type": "keyword"
+            },
+            "user": {
+              "type": "keyword"
+            }
           }
+        },
+        "CloseStatus": {
+          "type": "integer"
+        },
+        "CloseTime": {
+          "type": "long"
+        },
+        "DomainID": {
+          "type": "keyword"
+        },
+        "ExecutionTime": {
+          "type": "long"
+        },
+        "HistoryLength": {
+          "type": "integer"
+        },
+        "IsCron": {
+          "type": "boolean"
+        },
+        "KafkaKey": {
+          "type": "keyword"
+        },
+        "NumClusters": {
+          "type": "integer"
+        },
+        "RunID": {
+          "type": "keyword"
+        },
+        "ShardID": {
+          "type": "long"
+        },
+        "CronSchedule": {
+          "type": "keyword"
+        },
+        "ExecutionStatus": {
+          "type": "integer"
+        },
+        "ScheduledExecutionTime": {
+          "type": "long"
+        },
+        "StartTime": {
+          "type": "long"
+        },
+        "TaskList": {
+          "type": "keyword"
+        },
+        "ClusterAttributeScope": {
+          "type": "keyword"
+        },
+        "ClusterAttributeName": {
+          "type": "keyword"
+        },
+        "UpdateTime": {
+          "type": "long"
+        },
+        "WorkflowID": {
+          "type": "keyword"
+        },
+        "WorkflowType": {
+          "type": "keyword"
         }
-      },
-      "CloseStatus": {
-        "type": "integer"
-      },
-      "CloseTime": {
-        "type": "long"
-      },
-      "DomainID": {
-        "type": "keyword"
-      },
-      "ExecutionTime": {
-        "type": "long"
-      },
-      "HistoryLength": {
-        "type": "integer"
-      },
-      "IsCron": {
-        "type": "boolean"
-      },
-      "KafkaKey": {
-        "type": "keyword"
-      },
-      "NumClusters": {
-        "type": "integer"
-      },
-      "RunID": {
-        "type": "keyword"
-      },
-      "ShardID": {
-        "type": "long"
-      },
-      "CronSchedule": {
-        "type": "keyword"
-      },
-      "ExecutionStatus": {
-        "type": "integer"
-      },
-      "ScheduledExecutionTime": {
-        "type": "long"
-      },
-      "StartTime": {
-        "type": "long"
-      },
-      "TaskList": {
-        "type": "keyword"
-      },
-      "ClusterAttributeScope": {
-        "type": "keyword"
-      },
-      "ClusterAttributeName": {
-        "type": "keyword"
-      },
-      "UpdateTime": {
-        "type": "long"
-      },
-      "WorkflowID": {
-        "type": "keyword"
-      },
-      "WorkflowType": {
-        "type": "keyword"
       }
-    }
-  },
-  "order": 0,
-  "settings": {
-    "index": {
-      "number_of_replicas": "0",
-      "number_of_shards": "5"
+    },
+    "settings": {
+      "index": {
+        "number_of_replicas": "0",
+        "number_of_shards": "5"
+      }
     }
   }
 }

@@ -1,0 +1,109 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulations can be run via ./simulation/replication/run.sh --scenario activityretryfailover
+#
+# Reproduces the lost-activity-retry-across-failover bug:
+#   Given an activity with a retry policy starts, runs, and then fails with a retriable error
+#     in the active cluster (RetryActivity writes an ActivityRetryTimerTask into that cluster's
+#     timer queue, scheduled for now + backoff),
+#   When the domain fails over to the other cluster before the retry backoff elapses,
+#   Then the retry is never dispatched in either cluster:
+#     - the old active cluster's standby timer executor silently acks the retry timer task
+#       (service/history/task/timer_standby_task_executor.go ActivityRetryTimerTask no-op branch)
+#     - the new active cluster applied the SyncActivity for the bumped attempt but never
+#       generates a retry timer (service/history/ndc/activity_replicator.go creates only
+#       activity timeout timers)
+#
+# Timing is load-bearing. The new active cluster must have fully retired its own
+# ActivityTaskScheduled transfer task BEFORE the failover, or the queue-processor restart
+# during failover replays that task as active and re-dispatches the activity, masking the
+# bug (production incidents don't have this rescue because the schedule transfer task was
+# processed hours earlier). Retiring the task requires all of:
+#   1. The standby transfer executor acks it, which only happens when it observes the
+#      activity STARTED (transfer_standby_task_executor.go). It re-evaluates a pending task
+#      on a hardcoded ~30s backoff (service/history/task/task.go), so attempt 0 runs for
+#      60s to guarantee a re-evaluation lands inside the started window.
+#   2. Both the active and standby queue processors advance their queue states past the
+#      task before the failover — the poll and update-ack intervals are lowered in this
+#      scenario's dynamic config so this happens within seconds rather than minutes.
+#
+# The assertions below encode the EXPECTED (post-fix) behavior: the new active cluster
+# dispatches the retry after failover and the workflow completes there. This scenario
+# therefore FAILS on master today, demonstrating the bug. Once the fix lands it passes
+# unchanged — at that point add "activityretryfailover" to the scenario matrix in
+# .github/workflows/replication-simulation.yml to make it a regression test. It is
+# intentionally NOT in the CI matrix until then.
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+domains:
+  test-domain:
+    activeClusterName: cluster0
+
+operations:
+  # The workflow schedules one activity with retry policy InitialInterval=45s,
+  # BackoffCoefficient=1. Attempt 0 starts ~t+1s, runs for 60s, and fails with a
+  # retriable error ~t+61s (recorded in cluster0 while it is still active), which
+  # schedules the retry for ~t+106s. Any attempt >= 1 succeeds immediately.
+  - op: start_workflow
+    at: 0s
+    workflowType: activity-retry-failover-workflow
+    workflowID: activity-retry-failover-workflow1
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 300s
+    workflowDuration: 60s
+
+  # Fail over cluster0 -> cluster1 after the failure is recorded (~t+61s) but well
+  # before the retry backoff expires (~t+106s). cluster0's ActivityRetryTimerTask will
+  # fire while cluster0 is standby.
+  - op: change_active_clusters
+    at: 70s
+    domain: test-domain
+    newActiveCluster: cluster1
+    # failoverTimeoutSec unset means force failover
+
+  # Sanity check (passes both pre- and post-fix): the SyncActivity for the bumped
+  # attempt has been applied in cluster1 before the retry timer would fire (~t+106s):
+  # cluster1's view of the activity is SCHEDULED at attempt 1. If this fails with
+  # attempt 0, or finds 0 pending activities (workflow already completed), the setup
+  # raced — see the timing notes at the top of this file.
+  - op: validate_pending_activity
+    at: 85s
+    workflowID: activity-retry-failover-workflow1
+    cluster: cluster1
+    domain: test-domain
+    want:
+      pendingActivityState: scheduled
+      pendingActivityAttempt: 1
+
+  # The bug assertion: by t+150s the retry (scheduled ~t+106s) must have been dispatched
+  # by the new active cluster. On master this FAILS: the pending activity is still
+  # stuck in SCHEDULED state at attempt 1 with its scheduled time long past, because
+  # no cluster holds a retry timer task for it anymore.
+  - op: validate_pending_activity
+    at: 150s
+    workflowID: activity-retry-failover-workflow1
+    cluster: cluster1
+    domain: test-domain
+    want:
+      activityDispatched: true
+
+  # Post-fix end state: attempt 1 succeeds shortly after ~t+106s and the workflow
+  # completes in cluster1.
+  - op: validate
+    at: 155s
+    workflowID: activity-retry-failover-workflow1
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster1

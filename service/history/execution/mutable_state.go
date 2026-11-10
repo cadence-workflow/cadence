@@ -90,11 +90,15 @@ type (
 		AddRequestCancelActivityTaskFailedEvent(int64, string, string) (*types.HistoryEvent, error)
 		AddRequestCancelExternalWorkflowExecutionFailedEvent(int64, int64, string, string, string, types.CancelExternalWorkflowExecutionFailedCause) (*types.HistoryEvent, error)
 		AddRequestCancelExternalWorkflowExecutionInitiatedEvent(int64, string, *types.RequestCancelExternalWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.RequestCancelInfo, error)
+		AddSemaphoreAcquireInitiatedEvent(int64, string, int32) (*types.HistoryEvent, *persistence.SemaphoreInfo, error)
+		AddSemaphoreAcquiredEvent(int64, int32) (*types.HistoryEvent, error)
+		AddSemaphoreAcquireFailedEvent(int64, types.SemaphoreAcquireFailedCause) (*types.HistoryEvent, error)
+		AddSemaphoreReleasedEvent(int64, int64) (*types.HistoryEvent, error)
 		AddSignalExternalWorkflowExecutionFailedEvent(int64, int64, string, string, string, []uint8, types.SignalExternalWorkflowExecutionFailedCause) (*types.HistoryEvent, error)
 		AddSignalExternalWorkflowExecutionInitiatedEvent(int64, string, *types.SignalExternalWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.SignalInfo, error)
 		AddSignalRequested(requestID string)
 		AddStartChildWorkflowExecutionFailedEvent(int64, types.ChildWorkflowExecutionFailedCause, *types.StartChildWorkflowExecutionInitiatedEventAttributes) (*types.HistoryEvent, error)
-		AddStartChildWorkflowExecutionInitiatedEvent(int64, string, *types.StartChildWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.ChildExecutionInfo, error)
+		AddStartChildWorkflowExecutionInitiatedEvent(int64, *types.StartChildWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.ChildExecutionInfo, error)
 		AddTimeoutWorkflowEvent(int64) (*types.HistoryEvent, error)
 		AddTimerCanceledEvent(int64, *types.CancelTimerDecisionAttributes, string) (*types.HistoryEvent, error)
 		AddTimerFiredEvent(string) (*types.HistoryEvent, error)
@@ -115,6 +119,7 @@ type (
 		DeleteDecision()
 		DeleteUserTimer(timerID string) error
 		DeleteActivity(scheduleEventID int64) error
+		DeleteSemaphoreInfo(initiatedEventID int64) error
 		DeleteSignalRequested(requestID string)
 		FailDecision(bool)
 		FlushBufferedEvents() error
@@ -143,10 +148,13 @@ type (
 		GetPendingTimerInfos() map[string]*persistence.TimerInfo
 		GetPendingChildExecutionInfos() map[int64]*persistence.ChildExecutionInfo
 		GetPendingRequestCancelExternalInfos() map[int64]*persistence.RequestCancelInfo
+		GetPendingSemaphoreInfos() map[int64]*persistence.SemaphoreInfo
 		GetPendingSignalExternalInfos() map[int64]*persistence.SignalInfo
 		GetRequestCancelInfo(int64) (*persistence.RequestCancelInfo, bool)
 		GetRetryBackoffDuration(errReason string) time.Duration
 		GetCronBackoffDuration(context.Context) (time.Duration, error)
+		GetSemaphoreInfo(int64) (*persistence.SemaphoreInfo, bool)
+		GetSemaphoreInfoByName(string) (*persistence.SemaphoreInfo, bool)
 		GetSignalInfo(int64) (*persistence.SignalInfo, bool)
 		GetStartVersion() (int64, error)
 		GetUserTimerInfoByEventID(int64) (*persistence.TimerInfo, bool)
@@ -192,10 +200,14 @@ type (
 		ReplicateExternalWorkflowExecutionSignaled(*types.HistoryEvent) error
 		ReplicateRequestCancelExternalWorkflowExecutionFailedEvent(*types.HistoryEvent) error
 		ReplicateRequestCancelExternalWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent, string) (*persistence.RequestCancelInfo, error)
+		ReplicateSemaphoreAcquireInitiatedEvent(*types.HistoryEvent) (*persistence.SemaphoreInfo, error)
+		ReplicateSemaphoreAcquiredEvent(*types.HistoryEvent) error
+		ReplicateSemaphoreAcquireFailedEvent(*types.HistoryEvent) error
+		ReplicateSemaphoreReleasedEvent(*types.HistoryEvent) error
 		ReplicateSignalExternalWorkflowExecutionFailedEvent(*types.HistoryEvent) error
 		ReplicateSignalExternalWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent, string) (*persistence.SignalInfo, error)
 		ReplicateStartChildWorkflowExecutionFailedEvent(*types.HistoryEvent) error
-		ReplicateStartChildWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent, string) (*persistence.ChildExecutionInfo, error)
+		ReplicateStartChildWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent) (*persistence.ChildExecutionInfo, error)
 		ReplicateTimerCanceledEvent(*types.HistoryEvent) error
 		ReplicateTimerFiredEvent(*types.HistoryEvent) error
 		ReplicateTimerStartedEvent(*types.HistoryEvent) (*persistence.TimerInfo, error)
@@ -220,6 +232,7 @@ type (
 		UpdateUserTimer(*persistence.TimerInfo) error
 		UpdateCurrentVersion(version int64, forceUpdate bool) error
 		UpdateWorkflowStateCloseStatus(state int, closeStatus int) error
+		UpsertSemaphoreInfo(*persistence.SemaphoreInfo)
 
 		AddTransferTasks(transferTasks ...persistence.Task)
 		AddTimerTasks(timerTasks ...persistence.Task)

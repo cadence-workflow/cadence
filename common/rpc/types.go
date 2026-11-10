@@ -35,6 +35,8 @@ type Factory interface {
 	GetMaxMessageSize() int
 	Start(PeerLister) error
 	GetTChannel() tchannel.Channel
+	GetGRPCPort() uint16
+	GetTChannelPort() uint16
 	Stop() error
 }
 

@@ -1,6 +1,4 @@
-- persistence:
-    dbname: integration_active
-  clustergroupmetadata:
+- clustergroupmetadata:
     failoverVersionIncrement: 10
     primaryClusterName: "active"
     currentClusterName: "active"
@@ -68,9 +66,7 @@
   dynamicclientconfig:
     filepath: "../testdata/dynamicconfig/integration_test.yaml"
     pollInterval: "10s"
-- persistence:
-    dbname: integration_standby
-  clustergroupmetadata:
+- clustergroupmetadata:
     failoverVersionIncrement: 10
     primaryClusterName: "active"
     currentClusterName: "standby"

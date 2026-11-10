@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
@@ -40,7 +41,6 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -48,9 +48,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/client"
-	"github.com/uber/cadence/common/persistence/nosql"
-	"github.com/uber/cadence/common/persistence/persistence-tests/testcluster"
-	"github.com/uber/cadence/common/persistence/sql"
+	"github.com/uber/cadence/common/persistence/schema"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 )
@@ -61,29 +59,20 @@ type (
 		GenerateTransferTaskID() (int64, error)
 	}
 
-	// TestBaseOptions options to configure workflow test base.
-	TestBaseOptions struct {
-		DBPluginName    string
-		DBName          string
-		DBUsername      string
-		DBPassword      string
-		DBHost          string
-		DBPort          int              `yaml:"-"`
-		StoreType       string           `yaml:"-"`
-		SchemaDir       string           `yaml:"-"`
-		ClusterMetadata cluster.Metadata `yaml:"-"`
-		ProtoVersion    int              `yaml:"-"`
-		Replicas        int              `yaml:"-"`
-		MaxConns        int              `yaml:"-"`
-	}
+	// DataStoreProvider returns a DataStore that can be used within tests. Its configuration should be a combination
+	// of environmental variables or randomly generated data. Each returned DataStore should have a unique DB/keyspace
+	// to ensure isolation when a plugin is used across different tests or within the same test.
+	DataStoreProvider = func() (config.DataStore, error)
 
 	// TestBase wraps the base setup needed to create workflows over persistence layer.
 	TestBase struct {
 		*suite.Suite
+		PersistenceConfig         config.Persistence
 		Controller                *gomock.Controller
 		ShardMgr                  persistence.ShardManager
 		PersistenceFactory        client.Factory
 		ExecutionManager          persistence.ExecutionManager
+		AdminDBs                  []persistence.AdminDB
 		TaskMgr                   persistence.TaskManager
 		HistoryV2Mgr              persistence.HistoryManager
 		DomainManager             persistence.DomainManager
@@ -91,8 +80,6 @@ type (
 		ShardInfo                 *persistence.ShardInfo
 		TaskIDGenerator           TransferTaskIDGenerator
 		ClusterMetadata           cluster.Metadata
-		DefaultTestCluster        testcluster.PersistenceTestCluster
-		VisibilityTestCluster     testcluster.PersistenceTestCluster
 		Logger                    log.Logger
 		PayloadSerializer         persistence.PayloadSerializer
 		ConfigStoreManager        persistence.ConfigStoreManager
@@ -101,10 +88,9 @@ type (
 
 	// TestBaseParams defines the input of TestBase
 	TestBaseParams struct {
-		DefaultTestCluster    testcluster.PersistenceTestCluster
-		VisibilityTestCluster testcluster.PersistenceTestCluster
-		ClusterMetadata       cluster.Metadata
-		DynamicConfiguration  persistence.DynamicConfiguration
+		PersistenceConfig    config.Persistence
+		ClusterMetadata      *cluster.Metadata
+		DynamicConfiguration *persistence.DynamicConfiguration
 	}
 
 	// TestTransferTaskIDGenerator helper
@@ -117,105 +103,54 @@ const (
 	defaultScheduleToStartTimeout = 111
 )
 
-// NewTestBaseFromParams returns a customized test base from given input
-func NewTestBaseFromParams(t *testing.T, params TestBaseParams) *TestBase {
+// DBSetupOptions is the common set of options passed to SetupDB.Setup
+// It's a hacky way to propagate settings that aren't present in the persistence config but are needed to create
+// the appropriate databases or keyspaces
+var DBSetupOptions = map[string]string{
+	"replication_factor": "1",
+}
+
+// SimplePersistenceConfig creates a persistence config matching the "standard" production configuration without
+// advanced visibility. A separate datastore is created for both default execution and visibility
+func SimplePersistenceConfig(t *testing.T, datastore DataStoreProvider) config.Persistence {
+	defaultStore, err := datastore()
+	require.NoError(t, err, "failed to create default store config")
+	visibilityStore, err := datastore()
+	require.NoError(t, err, "failed to create visibility store config")
+
+	return config.Persistence{
+		DefaultStore:    "test",
+		VisibilityStore: "test-visibility",
+		DataStores: map[string]config.DataStore{
+			"test":            defaultStore,
+			"test-visibility": visibilityStore,
+		},
+	}
+}
+
+// NewTestBase returns a customized test base from given input
+func NewTestBase(t *testing.T, params TestBaseParams) *TestBase {
+	var metadata cluster.Metadata
+	if params.ClusterMetadata != nil {
+		metadata = *params.ClusterMetadata
+	} else {
+		metadata = cluster.GetTestClusterMetadata(false)
+	}
+	var dc persistence.DynamicConfiguration
+	if params.DynamicConfiguration != nil {
+		dc = *params.DynamicConfiguration
+	} else {
+		dc = *persistence.NewDefaultDynamicConfiguration()
+	}
 	res := &TestBase{
-		Suite:                 &suite.Suite{},
-		DefaultTestCluster:    params.DefaultTestCluster,
-		VisibilityTestCluster: params.VisibilityTestCluster,
-		ClusterMetadata:       params.ClusterMetadata,
-		PayloadSerializer:     persistence.NewPayloadSerializer(),
-		DynamicConfiguration:  params.DynamicConfiguration,
+		Suite:                &suite.Suite{},
+		PersistenceConfig:    params.PersistenceConfig,
+		ClusterMetadata:      metadata,
+		PayloadSerializer:    persistence.NewPayloadSerializer(),
+		DynamicConfiguration: dc,
 	}
 	res.SetT(t)
 	return res
-}
-
-// NewTestBaseWithNoSQL returns a persistence test base backed by nosql datastore
-func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
-	if options.DBName == "" {
-		options.DBName = "test_" + GenerateRandomDBName(10)
-	}
-	testCluster := nosql.NewTestCluster(t, nosql.TestClusterParams{
-		PluginName:   options.DBPluginName,
-		KeySpace:     options.DBName,
-		Username:     options.DBUsername,
-		Password:     options.DBPassword,
-		Host:         options.DBHost,
-		Port:         options.DBPort,
-		ProtoVersion: options.ProtoVersion,
-		Replicas:     options.Replicas,
-		MaxConns:     options.MaxConns,
-	})
-	metadata := options.ClusterMetadata
-	if metadata.GetCurrentClusterName() == "" {
-		metadata = cluster.GetTestClusterMetadata(false)
-	}
-	dc := persistence.DynamicConfiguration{
-		EnableSQLAsyncTransaction:                dynamicproperties.GetBoolPropertyFn(false),
-		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
-		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
-		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
-		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
-		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
-		DomainAuditLogTTL:                        func(domainID string) time.Duration { return time.Hour * 24 * 365 }, // 1 year default
-		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
-		EnableWorkflowTimerTaskCleanup:           dynamicproperties.GetBoolPropertyFn(true),
-	}
-	params := TestBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		ClusterMetadata:       metadata,
-		DynamicConfiguration:  dc,
-	}
-	return NewTestBaseFromParams(t, params)
-}
-
-// NewTestBaseWithSQL returns a new persistence test base backed by SQL
-func NewTestBaseWithSQL(t *testing.T, options *TestBaseOptions) *TestBase {
-	if options.DBName == "" {
-		options.DBName = "test_" + GenerateRandomDBName(10)
-	}
-	testCluster, err := sql.NewTestCluster(options.DBPluginName, options.DBName, options.DBUsername, options.DBPassword, options.DBHost, options.DBPort, options.SchemaDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	metadata := options.ClusterMetadata
-	if metadata.GetCurrentClusterName() == "" {
-		metadata = cluster.GetTestClusterMetadata(false)
-	}
-	dc := persistence.DynamicConfiguration{
-		EnableSQLAsyncTransaction:                dynamicproperties.GetBoolPropertyFn(false),
-		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
-		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
-		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
-		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
-		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
-		DomainAuditLogTTL:                        func(domainID string) time.Duration { return time.Hour * 24 * 365 }, // 1 year default
-		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
-		EnableWorkflowTimerTaskCleanup:           dynamicproperties.GetBoolPropertyFn(false),
-	}
-	params := TestBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		ClusterMetadata:       metadata,
-		DynamicConfiguration:  dc,
-	}
-	return NewTestBaseFromParams(t, params)
-}
-
-// Config returns the persistence configuration for this test
-func (s *TestBase) Config() config.Persistence {
-	cfg := s.DefaultTestCluster.Config()
-	if s.DefaultTestCluster == s.VisibilityTestCluster {
-		return cfg
-	}
-	vCfg := s.VisibilityTestCluster.Config()
-	cfg.VisibilityStore = "visibility_ " + vCfg.VisibilityStore
-	cfg.DataStores[cfg.VisibilityStore] = vCfg.DataStores[vCfg.VisibilityStore]
-	return cfg
 }
 
 // Setup sets up the test base, must be called as part of SetupSuite
@@ -227,12 +162,14 @@ func (s *TestBase) Setup() {
 	s.Controller = gomock.NewController(s.T())
 	s.Logger = testlogger.New(s.T())
 
-	s.DefaultTestCluster.SetupTestDatabase()
-
-	cfg := s.DefaultTestCluster.Config()
+	cfg := s.PersistenceConfig
 	scope := tally.NewTestScope(service.History, make(map[string]string))
 	metricsClient := metrics.NewClient(scope, service.GetMetricsServiceIdx(service.History, s.Logger), metrics.MigrationConfig{})
 	factory := client.NewFactory(&cfg, nil, clusterName, metricsClient, s.Logger, &s.DynamicConfiguration)
+	s.AdminDBs, err = factory.NewAdminDBs()
+	s.fatalOnError("NewAdminDBs ", err)
+
+	s.SetupPersistence()
 
 	s.TaskMgr, err = factory.NewTaskManager()
 	s.fatalOnError("NewTaskManager", err)
@@ -299,6 +236,20 @@ func (s *TestBase) Setup() {
 	queue, err := factory.NewDomainReplicationQueueManager()
 	s.fatalOnError("Create DomainReplicationQueue", err)
 	s.DomainReplicationQueueMgr = queue
+}
+
+func (s *TestBase) SetupPersistence() {
+	options := schema.Options{
+		ClusterName:  s.ClusterMetadata.GetCurrentClusterName(),
+		Config:       &s.PersistenceConfig,
+		SetupOptions: DBSetupOptions,
+		Logger:       s.Logger,
+	}
+	err := schema.Update(s.T().Context(), options)
+	s.fatalOnError("Schema update failed", err)
+	// Not necessary but can't hurt and it's good to exercise this
+	err = schema.Verify(s.T().Context(), options)
+	s.fatalOnError("Schema verify failed", err)
 }
 
 func (s *TestBase) fatalOnError(msg string, err error) {
@@ -687,6 +638,8 @@ func (s *TestBase) UpdateWorkflowExecution(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -762,6 +715,8 @@ func (s *TestBase) UpsertChildExecutionsState(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -792,6 +747,8 @@ func (s *TestBase) UpsertRequestCancelState(
 		nil,
 		nil,
 		upsertCancelInfos,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -832,6 +789,8 @@ func (s *TestBase) UpsertSignalInfoState(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -853,6 +812,8 @@ func (s *TestBase) UpsertSignalsRequestedState(
 		nil,
 		s.ShardInfo.RangeID,
 		condition,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -900,6 +861,8 @@ func (s *TestBase) DeleteChildExecutionsState(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -930,6 +893,8 @@ func (s *TestBase) DeleteCancelState(
 		nil,
 		nil,
 		[]int64{deleteCancelInfo},
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -968,6 +933,82 @@ func (s *TestBase) DeleteSignalState(
 		[]int64{deleteSignalInfo},
 		nil,
 		nil,
+		nil,
+		nil,
+	)
+}
+
+// UpsertSemaphoreInfoState is a utility method to update mutable state of workflow execution
+func (s *TestBase) UpsertSemaphoreInfoState(
+	ctx context.Context,
+	updatedInfo *persistence.WorkflowExecutionInfo,
+	updatedStats *persistence.ExecutionStats,
+	updatedVersionHistories *persistence.VersionHistories,
+	condition int64,
+	upsertSemaphoreInfos []*persistence.SemaphoreInfo,
+) error {
+
+	return s.UpdateWorkflowExecutionWithRangeID(
+		ctx,
+		updatedInfo,
+		updatedStats,
+		updatedVersionHistories,
+		nil,
+		nil,
+		s.ShardInfo.RangeID,
+		condition,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		upsertSemaphoreInfos,
+		nil,
+		nil,
+		nil,
+	)
+}
+
+// DeleteSemaphoreState is a utility method to delete mutable state of workflow execution
+func (s *TestBase) DeleteSemaphoreState(
+	ctx context.Context,
+	updatedInfo *persistence.WorkflowExecutionInfo,
+	updatedStats *persistence.ExecutionStats,
+	updatedVersionHistories *persistence.VersionHistories,
+	condition int64,
+	deleteSemaphoreInfo int64,
+) error {
+
+	return s.UpdateWorkflowExecutionWithRangeID(
+		ctx,
+		updatedInfo,
+		updatedStats,
+		updatedVersionHistories,
+		nil,
+		nil,
+		s.ShardInfo.RangeID,
+		condition,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		[]int64{deleteSemaphoreInfo},
+		nil,
+		nil,
 	)
 }
 
@@ -989,6 +1030,8 @@ func (s *TestBase) DeleteSignalsRequestedState(
 		nil,
 		s.ShardInfo.RangeID,
 		condition,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -1038,6 +1081,8 @@ func (s *TestBase) UpdateWorklowStateAndReplication(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -1062,6 +1107,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithRangeID(
 	deleteCancelInfos []int64,
 	upsertSignalInfos []*persistence.SignalInfo,
 	deleteSignalInfos []int64,
+	upsertSemaphoreInfos []*persistence.SemaphoreInfo,
+	deleteSemaphoreInfos []int64,
 	upsertSignalRequestedIDs []string,
 	deleteSignalRequestedIDs []string,
 ) error {
@@ -1086,6 +1133,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithRangeID(
 		deleteCancelInfos,
 		upsertSignalInfos,
 		deleteSignalInfos,
+		upsertSemaphoreInfos,
+		deleteSemaphoreInfos,
 		upsertSignalRequestedIDs,
 		deleteSignalRequestedIDs,
 	)
@@ -1113,6 +1162,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 	deleteCancelInfos []int64,
 	upsertSignalInfos []*persistence.SignalInfo,
 	deleteSignalInfos []int64,
+	upsertSemaphoreInfos []*persistence.SemaphoreInfo,
+	deleteSemaphoreInfos []int64,
 	upsertSignalRequestedIDs []string,
 	deleteSignalRequestedIDs []string,
 ) error {
@@ -1132,7 +1183,9 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 			*persistence.SignalExecutionTask,
 			*persistence.RecordWorkflowStartedTask,
 			*persistence.ResetWorkflowTask,
-			*persistence.UpsertWorkflowSearchAttributesTask:
+			*persistence.UpsertWorkflowSearchAttributesTask,
+			*persistence.AcquireSemaphoreTask,
+			*persistence.ReleaseSemaphoreTask:
 			transferTasks = append(transferTasks, t)
 		case *persistence.HistoryReplicationTask, *persistence.SyncActivityTask:
 			replicationTasks = append(replicationTasks, t)
@@ -1187,6 +1240,8 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 			DeleteRequestCancelInfos:  deleteCancelInfos,
 			UpsertSignalInfos:         upsertSignalInfos,
 			DeleteSignalInfos:         deleteSignalInfos,
+			UpsertSemaphoreInfos:      upsertSemaphoreInfos,
+			DeleteSemaphoreInfos:      deleteSemaphoreInfos,
 			UpsertSignalRequestedIDs:  upsertSignalRequestedIDs,
 			DeleteSignalRequestedIDs:  deleteSignalRequestedIDs,
 
@@ -1882,7 +1937,17 @@ func (s *TestBase) CompleteTask(ctx context.Context, domainID, taskList string, 
 func (s *TestBase) TearDownWorkflowStore() {
 	s.PersistenceFactory.Close()
 
-	s.DefaultTestCluster.TearDownTestDatabase()
+	for _, adminDB := range s.AdminDBs {
+		setup, err := adminDB.CreateSetupDB()
+		if err != nil {
+			s.Logger.Warn("Failed to connect to DB", tag.Error(err))
+			continue
+		}
+		err = setup.Teardown(s.T().Context())
+		if err != nil {
+			s.Logger.Warn("Failed to tear down DB", tag.Error(err))
+		}
+	}
 }
 
 // GetNextSequenceNumber generates a unique sequence number for can be used for transfer queue taskId
@@ -2147,16 +2212,17 @@ func (g *TestTransferTaskIDGenerator) GenerateTransferTaskIDs(number int) ([]int
 	return result, nil
 }
 
+var counter atomic.Int32
+
 // GenerateRandomDBName helper
-func GenerateRandomDBName(n int) string {
-	rand.Seed(time.Now().UnixNano())
+func GenerateRandomDBName() string {
 	letterRunes := []rune("workflow")
-	b := make([]rune, n)
+	b := make([]rune, 10)
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
-	ts := time.Now().Unix()
-	return fmt.Sprintf("%v_%v", ts, string(b))
+	ts := counter.Add(1)
+	return fmt.Sprintf("test_%v_%v", ts, string(b))
 }
 
 func pickRandomEncoding() constants.EncodingType {

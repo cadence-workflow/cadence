@@ -91,6 +91,23 @@ func (h *apiHandler) CreateSchedule(ctx context.Context, cp1 *types.CreateSchedu
 	}
 	return cp2, err
 }
+func (h *apiHandler) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest) (cp2 *types.CreateSemaphoreResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("CreateSemaphore")}
+	tags = append(tags, toCreateSemaphoreRequestTags(cp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendCreateSemaphoreScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(cp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	swStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	logger := h.logger.WithTags(tags...)
+
+	cp2, err = h.handler.CreateSemaphore(ctx, cp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return cp2, err
+}
 func (h *apiHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("DeleteDomain")}
@@ -139,6 +156,23 @@ func (h *apiHandler) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDo
 		return h.handleErr(err, scope, logger)
 	}
 	return err
+}
+func (h *apiHandler) DescribeBatchOperation(ctx context.Context, dp1 *types.DescribeBatchOperationRequest) (dp2 *types.DescribeBatchOperationResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("DescribeBatchOperation")}
+	tags = append(tags, toDescribeBatchOperationRequestTags(dp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendDescribeBatchOperationScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(dp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	swStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	logger := h.logger.WithTags(tags...)
+
+	dp2, err = h.handler.DescribeBatchOperation(ctx, dp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return dp2, err
 }
 func (h *apiHandler) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest) (dp2 *types.DescribeDomainResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
@@ -197,7 +231,7 @@ func (h *apiHandler) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTa
 
 	dp2, err = h.handler.DescribeTaskList(ctx, dp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return dp2, err
 }
@@ -338,6 +372,23 @@ func (h *apiHandler) ListArchivedWorkflowExecutions(ctx context.Context, lp1 *ty
 	}
 	return lp2, err
 }
+func (h *apiHandler) ListBatchOperations(ctx context.Context, lp1 *types.ListBatchOperationsRequest) (lp2 *types.ListBatchOperationsResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("ListBatchOperations")}
+	tags = append(tags, toListBatchOperationsRequestTags(lp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendListBatchOperationsScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	swStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	logger := h.logger.WithTags(tags...)
+
+	lp2, err = h.handler.ListBatchOperations(ctx, lp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return lp2, err
+}
 func (h *apiHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *types.ListClosedWorkflowExecutionsRequest) (lp2 *types.ListClosedWorkflowExecutionsResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("ListClosedWorkflowExecutions")}
@@ -445,7 +496,7 @@ func (h *apiHandler) ListTaskListPartitions(ctx context.Context, lp1 *types.List
 
 	lp2, err = h.handler.ListTaskListPartitions(ctx, lp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return lp2, err
 }
@@ -507,7 +558,7 @@ func (h *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollFor
 
 	pp2, err = h.handler.PollForActivityTask(ctx, pp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return pp2, err
 }
@@ -535,7 +586,7 @@ func (h *apiHandler) PollForDecisionTask(ctx context.Context, pp1 *types.PollFor
 
 	pp2, err = h.handler.PollForDecisionTask(ctx, pp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return pp2, err
 }
@@ -941,7 +992,7 @@ func (h *apiHandler) SignalWithStartWorkflowExecution(ctx context.Context, sp1 *
 
 	sp2, err = h.handler.SignalWithStartWorkflowExecution(ctx, sp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return sp2, err
 }
@@ -969,7 +1020,7 @@ func (h *apiHandler) SignalWithStartWorkflowExecutionAsync(ctx context.Context, 
 
 	sp2, err = h.handler.SignalWithStartWorkflowExecutionAsync(ctx, sp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return sp2, err
 }
@@ -990,6 +1041,23 @@ func (h *apiHandler) SignalWorkflowExecution(ctx context.Context, sp1 *types.Sig
 		return h.handleErr(err, scope, logger)
 	}
 	return err
+}
+func (h *apiHandler) StartBatchOperation(ctx context.Context, sp1 *types.StartBatchOperationRequest) (sp2 *types.StartBatchOperationResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("StartBatchOperation")}
+	tags = append(tags, toStartBatchOperationRequestTags(sp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendStartBatchOperationScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	swStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	logger := h.logger.WithTags(tags...)
+
+	sp2, err = h.handler.StartBatchOperation(ctx, sp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return sp2, err
 }
 func (h *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.StartWorkflowExecutionRequest) (sp2 *types.StartWorkflowExecutionResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
@@ -1015,7 +1083,7 @@ func (h *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.Star
 
 	sp2, err = h.handler.StartWorkflowExecution(ctx, sp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return sp2, err
 }
@@ -1042,6 +1110,23 @@ func (h *apiHandler) StartWorkflowExecutionAsync(ctx context.Context, sp1 *types
 	logger := h.logger.WithTags(tags...)
 
 	sp2, err = h.handler.StartWorkflowExecutionAsync(ctx, sp1)
+	if err != nil {
+		return nil, h.handleErr(err, scopePerDomain, logger)
+	}
+	return sp2, err
+}
+func (h *apiHandler) StopBatchOperation(ctx context.Context, sp1 *types.StopBatchOperationRequest) (sp2 *types.StopBatchOperationResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("StopBatchOperation")}
+	tags = append(tags, toStopBatchOperationRequestTags(sp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendStopBatchOperationScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	swStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	logger := h.logger.WithTags(tags...)
+
+	sp2, err = h.handler.StopBatchOperation(ctx, sp1)
 	if err != nil {
 		return nil, h.handleErr(err, scope, logger)
 	}
@@ -1076,6 +1161,23 @@ func (h *apiHandler) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseSche
 	logger := h.logger.WithTags(tags...)
 
 	up2, err = h.handler.UnpauseSchedule(ctx, up1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return up2, err
+}
+func (h *apiHandler) UpdateBatchOperation(ctx context.Context, up1 *types.UpdateBatchOperationRequest) (up2 *types.UpdateBatchOperationResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("UpdateBatchOperation")}
+	tags = append(tags, toUpdateBatchOperationRequestTags(up1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendUpdateBatchOperationScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(up1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	swStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	logger := h.logger.WithTags(tags...)
+
+	up2, err = h.handler.UpdateBatchOperation(ctx, up1)
 	if err != nil {
 		return nil, h.handleErr(err, scope, logger)
 	}

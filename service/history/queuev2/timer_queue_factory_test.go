@@ -53,7 +53,7 @@ func TestTimerQueueFactory_CreateQueuev2(t *testing.T) {
 			processor := factory.createQueuev2(mockShard, execution.NewMockCache(ctrl), invariant.NewMockInvariant(ctrl))
 
 			assert.NotNil(t, processor)
-			_, isCached := processor.(*cachedScheduledQueue)
+			_, isCached := processor.(*cachedQueue)
 			assert.Equal(t, tc.wantCached, isCached, "mode=%q", tc.mode)
 		})
 	}
@@ -81,5 +81,5 @@ func TestTimerQueueFactory_IsQueueV2Enabled(t *testing.T) {
 	factory := &timerQueueFactory{}
 
 	enabled := factory.isQueueV2Enabled(mockShard)
-	assert.False(t, enabled)
+	assert.True(t, enabled)
 }

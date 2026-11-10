@@ -37,6 +37,9 @@ import (
 	"github.com/uber/cadence/schema/sqlite"
 	"github.com/uber/cadence/tools/common/schema"
 	"github.com/uber/cadence/tools/sql"
+
+	_ "github.com/ncruces/go-sqlite3/driver" // register sqlite3 driver for tests
+	_ "github.com/ncruces/go-sqlite3/embed"  // embed sqlite db for tests
 )
 
 // Test_SetupSchema test that setup schema works for all database sqlite schemas

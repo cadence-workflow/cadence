@@ -34,18 +34,24 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
+	schemaes "github.com/uber/cadence/schema/elasticsearch"
 )
 
 type (
 	// ElasticV6 implements Client
 	ElasticV6 struct {
-		client *elastic.Client
-		logger log.Logger
+		client  *elastic.Client
+		logger  log.Logger
+		pingURL string
 	}
 	convertlogger func(msg string, tags ...tag.Tag)
 )
 
 var _ elastic.Logger = (convertlogger)(nil)
+
+// docTypeName is the mapping type used by the v6 visibility index template. Mapping types were
+// removed in ES 7, but v6 still requires one when reading and writing mappings.
+const docTypeName = "_doc"
 
 func (c convertlogger) Printf(format string, v ...interface{}) {
 	c(fmt.Sprintf(format, v...))
@@ -90,19 +96,10 @@ func NewV6Client(
 	}
 
 	return &ElasticV6{
-		client: client,
-		logger: logger,
+		client:  client,
+		logger:  logger,
+		pingURL: connectConfig.URL.String(),
 	}, nil
-}
-
-func (c *ElasticV6) PutMapping(ctx context.Context, index, body string) error {
-	_, err := c.client.PutMapping().Index(index).Type("_doc").BodyString(body).Do(ctx)
-	return err
-}
-
-func (c *ElasticV6) CreateIndex(ctx context.Context, index string) error {
-	_, err := c.client.CreateIndex(index).Do(ctx)
-	return err
 }
 
 func (c *ElasticV6) Count(ctx context.Context, index, query string) (int64, error) {
@@ -201,4 +198,95 @@ func (c *ElasticV6) Search(ctx context.Context, index, body string) (*client.Res
 	}
 
 	return result, nil
+}
+
+// Admin schema management methods
+
+func (c *ElasticV6) IsHealthy(ctx context.Context) error {
+	_, _, err := c.client.Ping(c.pingURL).Do(ctx)
+	return err
+}
+
+func (c *ElasticV6) PutIndexTemplate(ctx context.Context, templateName string, template []byte) error {
+	resp, err := c.client.IndexPutTemplate(templateName).BodyString(string(template)).Do(ctx)
+	if err != nil {
+		return err
+	}
+	if !resp.Acknowledged {
+		return fmt.Errorf("put index template %q not acknowledged", templateName)
+	}
+	return nil
+}
+
+func (c *ElasticV6) CreateIndex(ctx context.Context, index string) error {
+	_, err := c.client.CreateIndex(index).Do(ctx)
+	return err
+}
+
+func (c *ElasticV6) HasIndex(ctx context.Context, indexName string) (bool, error) {
+	return c.client.IndexExists(indexName).Do(ctx)
+}
+
+func (c *ElasticV6) DeleteIndex(ctx context.Context, indexName string) error {
+	resp, err := c.client.DeleteIndex(indexName).Do(ctx)
+	if err != nil {
+		return err
+	}
+	if !resp.Acknowledged {
+		return fmt.Errorf("delete index %q not acknowledged", indexName)
+	}
+	return nil
+}
+
+func (c *ElasticV6) GetMappings(ctx context.Context, indexName string) (map[string]any, error) {
+	res, err := c.client.GetMapping().Index(indexName).Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// The ES v6 API structure:
+	//   {"<index>": {"mappings": {"_doc": {"dynamic": ..., "properties": {...}}}}}
+	index, ok := res[indexName].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	mappings, ok := index["mappings"].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	docType, ok := mappings[docTypeName].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	return docType, nil
+}
+
+func (c *ElasticV6) PutMappings(ctx context.Context, indexName string, mappings map[string]any) error {
+	resp, err := c.client.PutMapping().Index(indexName).Type(docTypeName).BodyJson(mappings).Do(ctx)
+	if err != nil {
+		return err
+	}
+	if !resp.Acknowledged {
+		return fmt.Errorf("put mapping %q not acknowledged", indexName)
+	}
+	return nil
+}
+
+func (c *ElasticV6) MappingsFromTemplate(template []byte) (map[string]any, error) {
+	var schemaJSON map[string]interface{}
+	if err := json.Unmarshal(template, &schemaJSON); err != nil {
+		return nil, err
+	}
+	m, ok := schemaJSON["mappings"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("mappings not found in template")
+	}
+	docType, ok := m[docTypeName].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("mapping type %q not found in template", docTypeName)
+	}
+	return docType, nil
+}
+
+func (c *ElasticV6) LatestTemplate() []byte {
+	return schemaes.IndexTemplateV6
 }

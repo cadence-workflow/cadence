@@ -11,6 +11,7 @@ import (
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/membership"
 )
 
 type ShardProcessorParams struct {
@@ -18,6 +19,9 @@ type ShardProcessorParams struct {
 	TaskListsRegistry TaskListRegistry
 	ReportTTL         time.Duration
 	TimeSource        clock.TimeSource
+	// TaskListDifferentiator decides whether ShardID is a hashed shard or the name of a single task
+	// list, and which task lists the hash ring owns instead of the shard distributor.
+	TaskListDifferentiator *membership.TaskListDifferentiator
 }
 
 type shardProcessorImpl struct {
@@ -29,6 +33,8 @@ type shardProcessorImpl struct {
 	reportTime        time.Time
 	reportTTL         time.Duration
 	timeSource        clock.TimeSource
+
+	taskListDifferentiator *membership.TaskListDifferentiator
 }
 
 func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
@@ -36,6 +42,7 @@ func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	shardprocessor := &shardProcessorImpl{
 		shardID:           params.ShardID,
 		taskListsRegistry: params.TaskListsRegistry,
@@ -43,6 +50,8 @@ func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
 		reportTime:        params.TimeSource.Now(),
 		reportTTL:         params.ReportTTL,
 		timeSource:        params.TimeSource,
+
+		taskListDifferentiator: params.TaskListDifferentiator,
 	}
 	shardprocessor.SetShardStatus(smtypes.ShardStatusREADY)
 	shardprocessor.shardReport = executorclient.ShardReport{
@@ -62,10 +71,16 @@ func (sp *shardProcessorImpl) Start(ctx context.Context) error {
 
 // Stop is stopping the tasklist when a shard is not assigned to this executor anymore.
 func (sp *shardProcessorImpl) Stop() {
-	toShutDown := sp.taskListsRegistry.ManagersByTaskListName(sp.shardID)
-	for _, tlMgr := range toShutDown {
-		tlMgr.Stop()
+	// A shard can hold many task lists, and stopping one is IO heavy, so they stop in parallel.
+	var wg sync.WaitGroup
+	for _, tlMgr := range sp.ownedManagers() {
+		wg.Add(1)
+		go func(tlMgr Manager) {
+			defer wg.Done()
+			tlMgr.Stop()
+		}(tlMgr)
 	}
+	wg.Wait()
 }
 
 func (sp *shardProcessorImpl) GetShardReport() executorclient.ShardReport {
@@ -84,6 +99,9 @@ func (sp *shardProcessorImpl) GetShardReport() executorclient.ShardReport {
 }
 
 func (sp *shardProcessorImpl) SetShardStatus(status smtypes.ShardStatus) {
+	if sp.taskListDifferentiator.ShardsByHash() && status == smtypes.ShardStatusDONE {
+		return
+	}
 	sp.Status.Store(int32(status))
 }
 
@@ -91,14 +109,36 @@ func (sp *shardProcessorImpl) getShardLoad() float64 {
 	var load float64
 
 	// We assign a shard only based on the task list name
-	// so task lists of different task type (decisions/activities), of different kind (normal, sticky, ephemeral) or partitions
+	// so task lists of different task type (decisions/activities) or of different kind (normal, sticky, ephemeral)
 	// will be assigned all to the same matching instance (executor)
 	// we need to sum the rps for each of the tasklist to calculate the load.
-	for _, tlMgr := range sp.taskListsRegistry.ManagersByTaskListName(sp.shardID) {
+	for _, tlMgr := range sp.ownedManagers() {
 		qps := tlMgr.QueriesPerSecond()
 		load = load + qps
 	}
 	return load
+}
+
+// ownedManagers returns the managers of the task lists this shard owns. With hashed shards, shardID
+// is a shard number. Otherwise it is the name of a single task list.
+func (sp *shardProcessorImpl) ownedManagers() []Manager {
+	if sp.taskListDifferentiator.ShardsByHash() {
+		var owned []Manager
+		for _, tlMgr := range sp.taskListsRegistry.ManagersByShard(sp.shardID) {
+			if sp.ownsTaskList(tlMgr) {
+				owned = append(owned, tlMgr)
+			}
+		}
+		return owned
+	}
+
+	return sp.taskListsRegistry.ManagersByTaskListName(sp.shardID)
+}
+
+// ownsTaskList is false for task lists the hash ring owns, such as short-lived ones.
+func (sp *shardProcessorImpl) ownsTaskList(tlMgr Manager) bool {
+	taskListName := tlMgr.TaskListID().GetName()
+	return !sp.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskListName)
 }
 
 func validateSPParams(params ShardProcessorParams) error {
@@ -107,6 +147,9 @@ func validateSPParams(params ShardProcessorParams) error {
 	}
 	if params.TaskListsRegistry == nil {
 		return errors.New("TaskListsRegistry must be specified")
+	}
+	if params.TaskListDifferentiator == nil {
+		return errors.New("TaskListDifferentiator must be specified")
 	}
 	if params.TimeSource == nil {
 		return errors.New("TimeSource must be specified")

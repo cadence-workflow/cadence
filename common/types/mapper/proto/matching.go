@@ -737,3 +737,105 @@ func ToLoadBalancerHints(t *matchingv1.LoadBalancerHints) *types.LoadBalancerHin
 		RatePerSecond: t.RatePerSecond,
 	}
 }
+
+func FromSemaphoreAcquireOutcome(t types.SemaphoreAcquireOutcome) matchingv1.SemaphoreAcquireOutcome {
+	switch t {
+	case types.SemaphoreAcquireOutcomeAcquired:
+		return matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_ACQUIRED
+	case types.SemaphoreAcquireOutcomeNoSlot:
+		return matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_NO_SLOT
+	}
+	return matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_INVALID
+}
+
+func ToSemaphoreAcquireOutcome(t matchingv1.SemaphoreAcquireOutcome) types.SemaphoreAcquireOutcome {
+	switch t {
+	case matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_ACQUIRED:
+		return types.SemaphoreAcquireOutcomeAcquired
+	case matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_NO_SLOT:
+		return types.SemaphoreAcquireOutcomeNoSlot
+	}
+	return types.SemaphoreAcquireOutcomeInvalid
+}
+
+func FromMatchingAcquireSemaphoreRequest(t *types.AcquireSemaphoreRequest) *matchingv1.AcquireSemaphoreRequest {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.AcquireSemaphoreRequest{
+		DomainId:      t.DomainUUID,
+		SemaphoreName: t.SemaphoreName,
+		Bucket:        t.Bucket,
+		OwnerId:       t.OwnerID,
+	}
+}
+
+func ToMatchingAcquireSemaphoreRequest(t *matchingv1.AcquireSemaphoreRequest) *types.AcquireSemaphoreRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.AcquireSemaphoreRequest{
+		DomainUUID:    t.DomainId,
+		SemaphoreName: t.SemaphoreName,
+		Bucket:        t.Bucket,
+		OwnerID:       t.OwnerId,
+	}
+}
+
+func FromMatchingAcquireSemaphoreResponse(t *types.AcquireSemaphoreResponse) *matchingv1.AcquireSemaphoreResponse {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.AcquireSemaphoreResponse{
+		Outcome: FromSemaphoreAcquireOutcome(t.Outcome),
+		TokenId: t.TokenID,
+	}
+}
+
+func ToMatchingAcquireSemaphoreResponse(t *matchingv1.AcquireSemaphoreResponse) *types.AcquireSemaphoreResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.AcquireSemaphoreResponse{
+		Outcome: ToSemaphoreAcquireOutcome(t.Outcome),
+		TokenID: t.TokenId,
+	}
+}
+
+func FromMatchingReleaseSemaphoreRequest(t *types.ReleaseSemaphoreRequest) *matchingv1.ReleaseSemaphoreRequest {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.ReleaseSemaphoreRequest{
+		DomainId:      t.DomainUUID,
+		SemaphoreName: t.SemaphoreName,
+		Bucket:        t.Bucket,
+		OwnerId:       t.OwnerID,
+	}
+}
+
+func ToMatchingReleaseSemaphoreRequest(t *matchingv1.ReleaseSemaphoreRequest) *types.ReleaseSemaphoreRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ReleaseSemaphoreRequest{
+		DomainUUID:    t.DomainId,
+		SemaphoreName: t.SemaphoreName,
+		Bucket:        t.Bucket,
+		OwnerID:       t.OwnerId,
+	}
+}
+
+func FromMatchingReleaseSemaphoreResponse(t *types.ReleaseSemaphoreResponse) *matchingv1.ReleaseSemaphoreResponse {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.ReleaseSemaphoreResponse{}
+}
+
+func ToMatchingReleaseSemaphoreResponse(t *matchingv1.ReleaseSemaphoreResponse) *types.ReleaseSemaphoreResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ReleaseSemaphoreResponse{}
+}

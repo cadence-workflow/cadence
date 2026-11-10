@@ -4,11 +4,12 @@ ARG TARGET=server
 ARG GOPROXY
 
 # Build Cadence binaries
-FROM golang:1.24.5-alpine3.21 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 
 ARG RELEASE_VERSION
 
-RUN apk add --update --no-cache ca-certificates make git curl mercurial unzip bash
+RUN apk add --no-cache ca-certificates make git curl mercurial unzip bash && \
+    apk upgrade --no-cache zlib
 
 WORKDIR /cadence
 
@@ -31,16 +32,19 @@ ENV CADENCE_RELEASE_VERSION=$RELEASE_VERSION
 
 # don't do anything fancy, just build.  must be run separately, before building things.
 RUN make .just-build
-RUN CGO_ENABLED=0 make cadence-cassandra-tool cadence-sql-tool cadence cadence-server cadence-bench cadence-canary
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH make cadence-cassandra-tool cadence-sql-tool cadence cadence-server cadence-bench cadence-canary
 
 
 # Download dockerize
-FROM alpine:3.24 AS dockerize
+FROM --platform=$BUILDPLATFORM alpine:3.24 AS dockerize
 
 # appears to require `docker buildx` or an explicit `--platform` at build time
 ARG TARGETARCH
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl && \
+    apk upgrade --no-cache zlib
 
 ENV DOCKERIZE_VERSION=v0.9.3
 RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-$TARGETARCH-$DOCKERIZE_VERSION.tar.gz \
@@ -53,7 +57,8 @@ RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSI
 # Alpine base image
 FROM alpine:3.24 AS alpine
 
-RUN apk add --update --no-cache ca-certificates tzdata bash curl
+RUN apk add --update --no-cache ca-certificates tzdata bash curl && \
+    apk upgrade --no-cache zlib
 
 # set up nsswitch.conf for Go's "netgo" implementation
 # https://github.com/gliderlabs/docker-alpine/issues/367#issuecomment-424546457
@@ -111,24 +116,9 @@ CMD /start-cadence.sh
 # All-in-one Cadence server (~450mb)
 FROM cadence-server AS cadence-auto-setup
 
-USER root
-
-RUN apk add --update --no-cache ca-certificates py3-pip mysql-client \
-    gcc musl-dev python3-dev libev-dev
-RUN pip3 install --break-system-packages setuptools wheel
-RUN pip3 install --break-system-packages cqlsh==6.2.2 && \
-    cqlsh --version
-
-COPY --chown=cadence:cadence docker/start.sh /start.sh
-COPY --chown=cadence:cadence docker/domain /etc/cadence/domain
-
-# Set execute permission for owner only (cadence user)
-RUN chmod 0700 /start.sh
-
-# Switch back to non-root user
-USER cadence
-
-CMD /start.sh
+ENV CADENCE_AUTO_SETUP=true
+# In case we're using Cassandra
+ENV CADENCE_SETUP_OPTION_REPLICATION_FACTOR=1
 
 # Cadence CLI
 FROM alpine-nonroot AS cadence-cli

@@ -167,6 +167,7 @@ var (
 		MaximumAttempts:             3,
 		NonRetriableErrorReasons:    []string{"a", "b"},
 		ExpirationIntervalInSeconds: 4,
+		JitterCoefficient:           0.1,
 	}
 	Header = types.Header{
 		Fields: map[string][]byte{

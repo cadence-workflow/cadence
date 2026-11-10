@@ -37,9 +37,11 @@ const (
 	emitUsageLogsActivity      = "emitUsageLogs"
 	queryDiagnosticsReport     = "query-diagnostics-report"
 
-	issueTypeTimeouts = "Timeout"
-	issueTypeFailures = "Failure"
-	issueTypeRetry    = "Retry"
+	issueTypeTimeouts     = "Timeout"
+	issueTypeFailures     = "Failure"
+	issueTypeRetry        = "Retry"
+	issueTypeTimeoutRisks = "TimeoutRisk"
+	issueTypeAntipatterns = "Antipatterns"
 )
 
 type DiagnosticsStarterWorkflowInput struct {
@@ -125,6 +127,12 @@ func getIssueType(result DiagnosticsWorkflowResult) string {
 	}
 	if result.Retries != nil {
 		issueType = fmt.Sprintf("%s-%s", issueType, issueTypeRetry)
+	}
+	if result.TimeoutRisks != nil {
+		issueType = fmt.Sprintf("%s-%s", issueType, issueTypeTimeoutRisks)
+	}
+	if result.Antipatterns != nil {
+		issueType = fmt.Sprintf("%s-%s", issueType, issueTypeAntipatterns)
 	}
 	return issueType
 }

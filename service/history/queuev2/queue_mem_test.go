@@ -582,6 +582,130 @@ func TestInMemQueue_RTrimBySize_NilsTail(t *testing.T) {
 	}
 }
 
+func TestInMemQueue_LTrimBySize(t *testing.T) {
+	tests := []struct {
+		name        string
+		tasks       []persistence.Task
+		maxSize     int
+		wantLen     int
+		wantTaskIDs []int64
+		wantKey     persistence.HistoryTaskKey
+		wantTrimmed bool
+	}{
+		{
+			name: "queue larger than maxSize - drops oldest, keeps newest",
+			tasks: []persistence.Task{
+				newTestTask(time.Unix(10, 0), 1),
+				newTestTask(time.Unix(20, 0), 2),
+				newTestTask(time.Unix(30, 0), 3),
+				newTestTask(time.Unix(40, 0), 4),
+			},
+			maxSize:     2,
+			wantLen:     2,
+			wantTaskIDs: []int64{3, 4},
+			wantKey:     newTestTask(time.Unix(30, 0), 3).GetTaskKey(),
+			wantTrimmed: true,
+		},
+		{
+			name: "queue smaller than maxSize - no-op",
+			tasks: []persistence.Task{
+				newTestTask(time.Unix(10, 0), 1),
+				newTestTask(time.Unix(20, 0), 2),
+			},
+			maxSize:     5,
+			wantLen:     2,
+			wantTaskIDs: []int64{1, 2},
+			wantKey:     persistence.MinimumHistoryTaskKey,
+			wantTrimmed: false,
+		},
+		{
+			name: "queue exactly maxSize - no-op",
+			tasks: []persistence.Task{
+				newTestTask(time.Unix(10, 0), 1),
+				newTestTask(time.Unix(20, 0), 2),
+			},
+			maxSize:     2,
+			wantLen:     2,
+			wantTaskIDs: []int64{1, 2},
+			wantKey:     persistence.MinimumHistoryTaskKey,
+			wantTrimmed: false,
+		},
+		{
+			name:        "empty queue returns MinimumHistoryTaskKey",
+			tasks:       nil,
+			maxSize:     5,
+			wantLen:     0,
+			wantTaskIDs: nil,
+			wantKey:     persistence.MinimumHistoryTaskKey,
+			wantTrimmed: false,
+		},
+		{
+			name: "maxSize 0 empties queue",
+			tasks: []persistence.Task{
+				newTestTask(time.Unix(10, 0), 1),
+				newTestTask(time.Unix(20, 0), 2),
+			},
+			maxSize:     0,
+			wantLen:     0,
+			wantTaskIDs: nil,
+			wantKey:     persistence.MinimumHistoryTaskKey,
+			wantTrimmed: true,
+		},
+		{
+			name: "negative maxSize empties queue",
+			tasks: []persistence.Task{
+				newTestTask(time.Unix(10, 0), 1),
+			},
+			maxSize:     -1,
+			wantLen:     0,
+			wantTaskIDs: nil,
+			wantKey:     persistence.MinimumHistoryTaskKey,
+			wantTrimmed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := newInMemQueue()
+			q.PutTasks(tt.tasks)
+
+			gotKey, gotTrimmed := q.LTrimBySize(tt.maxSize)
+
+			assert.Equal(t, tt.wantLen, q.Len())
+			var gotIDs []int64
+			for _, task := range q.tasks {
+				gotIDs = append(gotIDs, task.GetTaskID())
+			}
+			assert.Equal(t, tt.wantTaskIDs, gotIDs)
+			assert.Equal(t, 0, tt.wantKey.Compare(gotKey), "expected key %v, got %v", tt.wantKey, gotKey)
+			assert.Equal(t, tt.wantTrimmed, gotTrimmed, "trimmed flag")
+		})
+	}
+}
+
+// TestInMemQueue_LTrimBySize_NilsHead verifies that LTrimBySize nils out the
+// dropped head elements of the backing array so removed Task interface values
+// are eligible for GC.
+func TestInMemQueue_LTrimBySize_NilsHead(t *testing.T) {
+	q := newInMemQueue()
+	q.PutTasks([]persistence.Task{
+		newTestTask(time.Unix(1, 0), 1),
+		newTestTask(time.Unix(2, 0), 2),
+		newTestTask(time.Unix(3, 0), 3),
+	})
+	full := q.tasks
+
+	_, trimmed := q.LTrimBySize(1)
+	assert.True(t, trimmed)
+	assert.Equal(t, 1, q.Len())
+
+	// The dropped head slots of the original backing array must be nil so the GC can
+	// collect the Task interface values they held.
+	for i := 0; i < 2; i++ {
+		assert.Nil(t, full[i], "backing array slot %d should be nil after LTrimBySize", i)
+	}
+}
+
 func TestInMemQueue_PutTasks_AppendFastPath(t *testing.T) {
 	q := newInMemQueue()
 	// Insert tasks in ascending order — all should use fast path.

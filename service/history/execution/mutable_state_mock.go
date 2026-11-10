@@ -533,6 +533,67 @@ func (mr *MockMutableStateMockRecorder) AddRequestCancelExternalWorkflowExecutio
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddRequestCancelExternalWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).AddRequestCancelExternalWorkflowExecutionInitiatedEvent), arg0, arg1, arg2)
 }
 
+// AddSemaphoreAcquireFailedEvent mocks base method.
+func (m *MockMutableState) AddSemaphoreAcquireFailedEvent(arg0 int64, arg1 types.SemaphoreAcquireFailedCause) (*types.HistoryEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddSemaphoreAcquireFailedEvent", arg0, arg1)
+	ret0, _ := ret[0].(*types.HistoryEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddSemaphoreAcquireFailedEvent indicates an expected call of AddSemaphoreAcquireFailedEvent.
+func (mr *MockMutableStateMockRecorder) AddSemaphoreAcquireFailedEvent(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreAcquireFailedEvent", reflect.TypeOf((*MockMutableState)(nil).AddSemaphoreAcquireFailedEvent), arg0, arg1)
+}
+
+// AddSemaphoreAcquireInitiatedEvent mocks base method.
+func (m *MockMutableState) AddSemaphoreAcquireInitiatedEvent(arg0 int64, arg1 string, arg2 int32) (*types.HistoryEvent, *persistence.SemaphoreInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddSemaphoreAcquireInitiatedEvent", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*types.HistoryEvent)
+	ret1, _ := ret[1].(*persistence.SemaphoreInfo)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AddSemaphoreAcquireInitiatedEvent indicates an expected call of AddSemaphoreAcquireInitiatedEvent.
+func (mr *MockMutableStateMockRecorder) AddSemaphoreAcquireInitiatedEvent(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreAcquireInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).AddSemaphoreAcquireInitiatedEvent), arg0, arg1, arg2)
+}
+
+// AddSemaphoreAcquiredEvent mocks base method.
+func (m *MockMutableState) AddSemaphoreAcquiredEvent(arg0 int64, arg1 int32) (*types.HistoryEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddSemaphoreAcquiredEvent", arg0, arg1)
+	ret0, _ := ret[0].(*types.HistoryEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddSemaphoreAcquiredEvent indicates an expected call of AddSemaphoreAcquiredEvent.
+func (mr *MockMutableStateMockRecorder) AddSemaphoreAcquiredEvent(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreAcquiredEvent", reflect.TypeOf((*MockMutableState)(nil).AddSemaphoreAcquiredEvent), arg0, arg1)
+}
+
+// AddSemaphoreReleasedEvent mocks base method.
+func (m *MockMutableState) AddSemaphoreReleasedEvent(arg0, arg1 int64) (*types.HistoryEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddSemaphoreReleasedEvent", arg0, arg1)
+	ret0, _ := ret[0].(*types.HistoryEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddSemaphoreReleasedEvent indicates an expected call of AddSemaphoreReleasedEvent.
+func (mr *MockMutableStateMockRecorder) AddSemaphoreReleasedEvent(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreReleasedEvent", reflect.TypeOf((*MockMutableState)(nil).AddSemaphoreReleasedEvent), arg0, arg1)
+}
+
 // AddSignalExternalWorkflowExecutionFailedEvent mocks base method.
 func (m *MockMutableState) AddSignalExternalWorkflowExecutionFailedEvent(arg0, arg1 int64, arg2, arg3, arg4 string, arg5 []uint8, arg6 types.SignalExternalWorkflowExecutionFailedCause) (*types.HistoryEvent, error) {
 	m.ctrl.T.Helper()
@@ -592,9 +653,9 @@ func (mr *MockMutableStateMockRecorder) AddStartChildWorkflowExecutionFailedEven
 }
 
 // AddStartChildWorkflowExecutionInitiatedEvent mocks base method.
-func (m *MockMutableState) AddStartChildWorkflowExecutionInitiatedEvent(arg0 int64, arg1 string, arg2 *types.StartChildWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.ChildExecutionInfo, error) {
+func (m *MockMutableState) AddStartChildWorkflowExecutionInitiatedEvent(arg0 int64, arg1 *types.StartChildWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.ChildExecutionInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddStartChildWorkflowExecutionInitiatedEvent", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "AddStartChildWorkflowExecutionInitiatedEvent", arg0, arg1)
 	ret0, _ := ret[0].(*types.HistoryEvent)
 	ret1, _ := ret[1].(*persistence.ChildExecutionInfo)
 	ret2, _ := ret[2].(error)
@@ -602,9 +663,9 @@ func (m *MockMutableState) AddStartChildWorkflowExecutionInitiatedEvent(arg0 int
 }
 
 // AddStartChildWorkflowExecutionInitiatedEvent indicates an expected call of AddStartChildWorkflowExecutionInitiatedEvent.
-func (mr *MockMutableStateMockRecorder) AddStartChildWorkflowExecutionInitiatedEvent(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockMutableStateMockRecorder) AddStartChildWorkflowExecutionInitiatedEvent(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddStartChildWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).AddStartChildWorkflowExecutionInitiatedEvent), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddStartChildWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).AddStartChildWorkflowExecutionInitiatedEvent), arg0, arg1)
 }
 
 // AddTimeoutWorkflowEvent mocks base method.
@@ -943,6 +1004,20 @@ func (m *MockMutableState) DeleteDecision() {
 func (mr *MockMutableStateMockRecorder) DeleteDecision() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDecision", reflect.TypeOf((*MockMutableState)(nil).DeleteDecision))
+}
+
+// DeleteSemaphoreInfo mocks base method.
+func (m *MockMutableState) DeleteSemaphoreInfo(initiatedEventID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteSemaphoreInfo", initiatedEventID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteSemaphoreInfo indicates an expected call of DeleteSemaphoreInfo.
+func (mr *MockMutableStateMockRecorder) DeleteSemaphoreInfo(initiatedEventID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSemaphoreInfo", reflect.TypeOf((*MockMutableState)(nil).DeleteSemaphoreInfo), initiatedEventID)
 }
 
 // DeleteSignalRequested mocks base method.
@@ -1369,6 +1444,20 @@ func (mr *MockMutableStateMockRecorder) GetPendingRequestCancelExternalInfos() *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingRequestCancelExternalInfos", reflect.TypeOf((*MockMutableState)(nil).GetPendingRequestCancelExternalInfos))
 }
 
+// GetPendingSemaphoreInfos mocks base method.
+func (m *MockMutableState) GetPendingSemaphoreInfos() map[int64]*persistence.SemaphoreInfo {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPendingSemaphoreInfos")
+	ret0, _ := ret[0].(map[int64]*persistence.SemaphoreInfo)
+	return ret0
+}
+
+// GetPendingSemaphoreInfos indicates an expected call of GetPendingSemaphoreInfos.
+func (mr *MockMutableStateMockRecorder) GetPendingSemaphoreInfos() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingSemaphoreInfos", reflect.TypeOf((*MockMutableState)(nil).GetPendingSemaphoreInfos))
+}
+
 // GetPendingSignalExternalInfos mocks base method.
 func (m *MockMutableState) GetPendingSignalExternalInfos() map[int64]*persistence.SignalInfo {
 	m.ctrl.T.Helper()
@@ -1452,6 +1541,36 @@ func (m *MockMutableState) GetRetryBackoffDuration(errReason string) time.Durati
 func (mr *MockMutableStateMockRecorder) GetRetryBackoffDuration(errReason any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRetryBackoffDuration", reflect.TypeOf((*MockMutableState)(nil).GetRetryBackoffDuration), errReason)
+}
+
+// GetSemaphoreInfo mocks base method.
+func (m *MockMutableState) GetSemaphoreInfo(arg0 int64) (*persistence.SemaphoreInfo, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreInfo", arg0)
+	ret0, _ := ret[0].(*persistence.SemaphoreInfo)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// GetSemaphoreInfo indicates an expected call of GetSemaphoreInfo.
+func (mr *MockMutableStateMockRecorder) GetSemaphoreInfo(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreInfo", reflect.TypeOf((*MockMutableState)(nil).GetSemaphoreInfo), arg0)
+}
+
+// GetSemaphoreInfoByName mocks base method.
+func (m *MockMutableState) GetSemaphoreInfoByName(arg0 string) (*persistence.SemaphoreInfo, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreInfoByName", arg0)
+	ret0, _ := ret[0].(*persistence.SemaphoreInfo)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// GetSemaphoreInfoByName indicates an expected call of GetSemaphoreInfoByName.
+func (mr *MockMutableStateMockRecorder) GetSemaphoreInfoByName(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreInfoByName", reflect.TypeOf((*MockMutableState)(nil).GetSemaphoreInfoByName), arg0)
 }
 
 // GetSignalInfo mocks base method.
@@ -2121,6 +2240,63 @@ func (mr *MockMutableStateMockRecorder) ReplicateRequestCancelExternalWorkflowEx
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateRequestCancelExternalWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateRequestCancelExternalWorkflowExecutionInitiatedEvent), arg0, arg1, arg2)
 }
 
+// ReplicateSemaphoreAcquireFailedEvent mocks base method.
+func (m *MockMutableState) ReplicateSemaphoreAcquireFailedEvent(arg0 *types.HistoryEvent) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplicateSemaphoreAcquireFailedEvent", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReplicateSemaphoreAcquireFailedEvent indicates an expected call of ReplicateSemaphoreAcquireFailedEvent.
+func (mr *MockMutableStateMockRecorder) ReplicateSemaphoreAcquireFailedEvent(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateSemaphoreAcquireFailedEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateSemaphoreAcquireFailedEvent), arg0)
+}
+
+// ReplicateSemaphoreAcquireInitiatedEvent mocks base method.
+func (m *MockMutableState) ReplicateSemaphoreAcquireInitiatedEvent(arg0 *types.HistoryEvent) (*persistence.SemaphoreInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplicateSemaphoreAcquireInitiatedEvent", arg0)
+	ret0, _ := ret[0].(*persistence.SemaphoreInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReplicateSemaphoreAcquireInitiatedEvent indicates an expected call of ReplicateSemaphoreAcquireInitiatedEvent.
+func (mr *MockMutableStateMockRecorder) ReplicateSemaphoreAcquireInitiatedEvent(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateSemaphoreAcquireInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateSemaphoreAcquireInitiatedEvent), arg0)
+}
+
+// ReplicateSemaphoreAcquiredEvent mocks base method.
+func (m *MockMutableState) ReplicateSemaphoreAcquiredEvent(arg0 *types.HistoryEvent) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplicateSemaphoreAcquiredEvent", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReplicateSemaphoreAcquiredEvent indicates an expected call of ReplicateSemaphoreAcquiredEvent.
+func (mr *MockMutableStateMockRecorder) ReplicateSemaphoreAcquiredEvent(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateSemaphoreAcquiredEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateSemaphoreAcquiredEvent), arg0)
+}
+
+// ReplicateSemaphoreReleasedEvent mocks base method.
+func (m *MockMutableState) ReplicateSemaphoreReleasedEvent(arg0 *types.HistoryEvent) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplicateSemaphoreReleasedEvent", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReplicateSemaphoreReleasedEvent indicates an expected call of ReplicateSemaphoreReleasedEvent.
+func (mr *MockMutableStateMockRecorder) ReplicateSemaphoreReleasedEvent(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateSemaphoreReleasedEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateSemaphoreReleasedEvent), arg0)
+}
+
 // ReplicateSignalExternalWorkflowExecutionFailedEvent mocks base method.
 func (m *MockMutableState) ReplicateSignalExternalWorkflowExecutionFailedEvent(arg0 *types.HistoryEvent) error {
 	m.ctrl.T.Helper()
@@ -2165,18 +2341,18 @@ func (mr *MockMutableStateMockRecorder) ReplicateStartChildWorkflowExecutionFail
 }
 
 // ReplicateStartChildWorkflowExecutionInitiatedEvent mocks base method.
-func (m *MockMutableState) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0 int64, arg1 *types.HistoryEvent, arg2 string) (*persistence.ChildExecutionInfo, error) {
+func (m *MockMutableState) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0 int64, arg1 *types.HistoryEvent) (*persistence.ChildExecutionInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReplicateStartChildWorkflowExecutionInitiatedEvent", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ReplicateStartChildWorkflowExecutionInitiatedEvent", arg0, arg1)
 	ret0, _ := ret[0].(*persistence.ChildExecutionInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReplicateStartChildWorkflowExecutionInitiatedEvent indicates an expected call of ReplicateStartChildWorkflowExecutionInitiatedEvent.
-func (mr *MockMutableStateMockRecorder) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockMutableStateMockRecorder) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateStartChildWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateStartChildWorkflowExecutionInitiatedEvent), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateStartChildWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateStartChildWorkflowExecutionInitiatedEvent), arg0, arg1)
 }
 
 // ReplicateTimerCanceledEvent mocks base method.
@@ -2586,4 +2762,16 @@ func (m *MockMutableState) UpdateWorkflowStateCloseStatus(state, closeStatus int
 func (mr *MockMutableStateMockRecorder) UpdateWorkflowStateCloseStatus(state, closeStatus any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkflowStateCloseStatus", reflect.TypeOf((*MockMutableState)(nil).UpdateWorkflowStateCloseStatus), state, closeStatus)
+}
+
+// UpsertSemaphoreInfo mocks base method.
+func (m *MockMutableState) UpsertSemaphoreInfo(arg0 *persistence.SemaphoreInfo) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpsertSemaphoreInfo", arg0)
+}
+
+// UpsertSemaphoreInfo indicates an expected call of UpsertSemaphoreInfo.
+func (mr *MockMutableStateMockRecorder) UpsertSemaphoreInfo(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertSemaphoreInfo", reflect.TypeOf((*MockMutableState)(nil).UpsertSemaphoreInfo), arg0)
 }

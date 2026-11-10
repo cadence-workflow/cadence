@@ -1,0 +1,27 @@
+# This file is used as dynamicconfig override for "activityretryfailover" replication simulation scenario configured via simulation/replication/testdata/replication_simulation_activityretryfailover.yaml
+system.writeVisibilityStoreName:
+  - value: "db"
+system.readVisibilityStoreName:
+  - value: "db"
+history.replicatorTaskBatchSize:
+  - value: 25
+    constraints: {}
+frontend.failoverCoolDown:
+  - value: 5s
+history.ReplicationTaskProcessorStartWait: # repl task processor sleeps this much before processing received messages (registered default is 0)
+  - value: 10ms
+# The four overrides below make the queue processors read tasks and advance their queue
+# states within seconds instead of minutes. This is required so that the new active
+# cluster's ActivityTaskScheduled transfer task is fully retired (acked by the standby
+# executor once it observes the activity STARTED, and passed by both processors' ack
+# levels) BEFORE the scenario's failover. Otherwise the queue-processor restart during
+# failover replays that task as active and re-dispatches the activity, masking the
+# lost-retry-timer bug this scenario exists to demonstrate.
+history.transferProcessorMaxPollInterval: # default is 1m
+  - value: 5s
+history.transferProcessorUpdateAckInterval: # default is 30s
+  - value: 5s
+history.timerProcessorMaxPollInterval: # default is 5m
+  - value: 5s
+history.timerProcessorUpdateAckInterval: # default is 30s
+  - value: 5s

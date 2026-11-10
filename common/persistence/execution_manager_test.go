@@ -67,7 +67,7 @@ func TestExecutionManager_ProxyStoreMethods(t *testing.T) {
 		{
 			method: "GetName",
 			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().GetName().Return("test").Times(1)
+				mockedStore.EXPECT().GetName().Return("test").AnyTimes()
 			},
 		},
 		{
@@ -141,9 +141,8 @@ func TestExecutionManager_ProxyStoreMethods(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockedStore := NewMockExecutionStore(ctrl)
 			tc.prepareMocks(mockedStore)
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			mockedStore.EXPECT().GetName().Return("").AnyTimes()
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, NewDefaultDynamicConfiguration())
 			v := reflect.ValueOf(manager)
 			method := v.MethodByName(tc.method)
 			methodType := method.Type()
@@ -177,9 +176,8 @@ func TestExecutionManager_GetWorkflowExecution(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 	request := &GetWorkflowExecutionRequest{
 		DomainID: testDomainID,
@@ -269,9 +267,8 @@ func TestExecutionManager_GetWorkflowExecution_NoWorkflow(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 	request := &GetWorkflowExecutionRequest{
 		DomainID: "testDomain",
@@ -294,9 +291,8 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 	expectedInfo := sampleInternalWorkflowMutation()
 
@@ -351,6 +347,180 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 		TaskCountByCategory: map[HistoryTaskCategory]int{},
 	}
 	assert.Equal(t, stats, res.MutableStateUpdateSessionStats)
+}
+
+func TestSerializeWorkflowMutation_RewriteProbability(t *testing.T) {
+	tests := []struct {
+		name                  string
+		storeName             string
+		rate                  int
+		rewriteActivityInfos  []*ActivityInfo
+		rewriteTimerInfos     []*TimerInfo
+		deleteActivityInfos   []int64
+		deleteTimerInfos      []string
+		expectRewriteActivity bool
+		expectRewriteTimer    bool
+	}{
+		{
+			name:      "cassandra with rate 1 triggers rewrite and preserves deletes",
+			storeName: "cassandra",
+			rate:      1,
+			rewriteActivityInfos: []*ActivityInfo{
+				{Version: 1, ScheduleID: 10, ScheduledEvent: activityScheduledEvent(), StartedEvent: activityStartedEvent()},
+			},
+			rewriteTimerInfos:     []*TimerInfo{{TimerID: "t1"}},
+			deleteActivityInfos:   []int64{5},
+			deleteTimerInfos:      []string{"t2"},
+			expectRewriteActivity: true,
+			expectRewriteTimer:    true,
+		},
+		{
+			name:      "cassandra with rate 0 disables rewrite",
+			storeName: "cassandra",
+			rate:      0,
+			rewriteActivityInfos: []*ActivityInfo{
+				{Version: 1, ScheduleID: 10, ScheduledEvent: activityScheduledEvent(), StartedEvent: activityStartedEvent()},
+			},
+			rewriteTimerInfos:     []*TimerInfo{{TimerID: "t1"}},
+			deleteActivityInfos:   []int64{5},
+			deleteTimerInfos:      []string{"t2"},
+			expectRewriteActivity: false,
+			expectRewriteTimer:    false,
+		},
+		{
+			name:                  "cassandra with no deletes skips rewrite even with rate 1",
+			storeName:             "cassandra",
+			rate:                  1,
+			rewriteActivityInfos:  nil,
+			rewriteTimerInfos:     nil,
+			deleteActivityInfos:   nil,
+			deleteTimerInfos:      nil,
+			expectRewriteActivity: false,
+			expectRewriteTimer:    false,
+		},
+		{
+			name:                  "cassandra with all activities deleted triggers rewrite with empty collection",
+			storeName:             "cassandra",
+			rate:                  1,
+			rewriteActivityInfos:  []*ActivityInfo{},
+			rewriteTimerInfos:     []*TimerInfo{},
+			deleteActivityInfos:   []int64{5},
+			deleteTimerInfos:      []string{"t2"},
+			expectRewriteActivity: true,
+			expectRewriteTimer:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockedStore := NewMockExecutionStore(ctrl)
+			mockedSerializer := NewMockPayloadSerializer(ctrl)
+
+			mockedStore.EXPECT().GetName().Return(tc.storeName).AnyTimes()
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+				SerializationEncoding:       dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+				RewriteSampleRate:           dynamicproperties.GetIntPropertyFn(tc.rate),
+				RewriteOptimizationBackends: dynamicproperties.GetListPropertyFn([]interface{}{"cassandra"}),
+			})
+
+			mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+			mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).AnyTimes()
+			mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).AnyTimes()
+			mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
+
+			mockedStore.EXPECT().UpdateWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, req *InternalUpdateWorkflowExecutionRequest) error {
+					mut := req.UpdateWorkflowMutation
+					if tc.expectRewriteActivity {
+						assert.NotNil(t, mut.RewriteActivityInfos, "rewrite activity infos should be set")
+					} else {
+						assert.Nil(t, mut.RewriteActivityInfos, "rewrite activity infos should be nil")
+					}
+					if tc.expectRewriteTimer {
+						assert.NotNil(t, mut.RewriteTimerInfos, "rewrite timer infos should be set")
+					} else {
+						assert.Nil(t, mut.RewriteTimerInfos, "rewrite timer infos should be nil")
+					}
+					assert.Equal(t, tc.deleteActivityInfos, mut.DeleteActivityInfos, "deletes should always be preserved")
+					assert.Equal(t, tc.deleteTimerInfos, mut.DeleteTimerInfos, "deletes should always be preserved")
+					return nil
+				}).Times(1)
+
+			mutation := sampleWorkflowMutation()
+			mutation.RewriteActivityInfos = tc.rewriteActivityInfos
+			mutation.RewriteTimerInfos = tc.rewriteTimerInfos
+			mutation.DeleteActivityInfos = tc.deleteActivityInfos
+			mutation.DeleteTimerInfos = tc.deleteTimerInfos
+
+			_, err := manager.UpdateWorkflowExecution(context.Background(), &UpdateWorkflowExecutionRequest{
+				RangeID:                1,
+				Mode:                   UpdateWorkflowModeBypassCurrent,
+				UpdateWorkflowMutation: *mutation,
+				Encoding:               constants.EncodingTypeThriftRW,
+			})
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func FuzzRewriteSkippedForUnsupportedBackend(f *testing.F) {
+	f.Add("mysql")
+	f.Add("postgres")
+	f.Add("dynamodb")
+	f.Add("mongodb")
+	f.Add("Cassandra")
+	f.Add("CASSANDRA")
+	f.Add("cassandra ")
+	f.Add("")
+
+	f.Fuzz(func(t *testing.T, storeName string) {
+		if storeName == "cassandra" {
+			t.Skip("cassandra is the supported backend")
+		}
+
+		ctrl := gomock.NewController(t)
+		mockedStore := NewMockExecutionStore(ctrl)
+		mockedSerializer := NewMockPayloadSerializer(ctrl)
+
+		mockedStore.EXPECT().GetName().Return(storeName).AnyTimes()
+		manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+			SerializationEncoding:       dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			RewriteSampleRate:           dynamicproperties.GetIntPropertyFn(1),
+			RewriteOptimizationBackends: dynamicproperties.GetListPropertyFn([]interface{}{"cassandra"}),
+		})
+
+		mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+		mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).AnyTimes()
+		mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).AnyTimes()
+		mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
+
+		mockedStore.EXPECT().UpdateWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, req *InternalUpdateWorkflowExecutionRequest) error {
+				mut := req.UpdateWorkflowMutation
+				assert.Nil(t, mut.RewriteActivityInfos, "unsupported backend %q must not trigger activity rewrite", storeName)
+				assert.Nil(t, mut.RewriteTimerInfos, "unsupported backend %q must not trigger timer rewrite", storeName)
+				assert.Equal(t, []int64{5}, mut.DeleteActivityInfos, "deletes must be preserved")
+				assert.Equal(t, []string{"t2"}, mut.DeleteTimerInfos, "deletes must be preserved")
+				return nil
+			}).Times(1)
+
+		mutation := sampleWorkflowMutation()
+		mutation.RewriteActivityInfos = []*ActivityInfo{
+			{Version: 1, ScheduleID: 10, ScheduledEvent: activityScheduledEvent(), StartedEvent: activityStartedEvent()},
+		}
+		mutation.RewriteTimerInfos = []*TimerInfo{{TimerID: "t1"}}
+		mutation.DeleteActivityInfos = []int64{5}
+		mutation.DeleteTimerInfos = []string{"t2"}
+
+		_, err := manager.UpdateWorkflowExecution(context.Background(), &UpdateWorkflowExecutionRequest{
+			RangeID:                1,
+			Mode:                   UpdateWorkflowModeBypassCurrent,
+			UpdateWorkflowMutation: *mutation,
+			Encoding:               constants.EncodingTypeThriftRW,
+		})
+		assert.NoError(t, err)
+	})
 }
 
 func TestSerializeWorkflowSnapshot(t *testing.T) {
@@ -500,9 +670,7 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 
 			mockedSerializer := NewMockPayloadSerializer(ctrl)
 			tc.prepareMocks(mockedSerializer)
-			manager := NewExecutionManagerImpl(nil, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			}).(*executionManagerImpl)
+			manager := NewExecutionManagerImpl(nil, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration()).(*executionManagerImpl)
 			res, err := manager.SerializeWorkflowSnapshot(tc.input, constants.EncodingTypeThriftRW)
 			tc.checkRes(t, res, err)
 		})
@@ -546,9 +714,7 @@ func TestDeserializeBufferedEvents(t *testing.T) {
 
 			tc.prepareMocks(mockedSerializer)
 
-			manager := NewExecutionManagerImpl(nil, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			}).(*executionManagerImpl)
+			manager := NewExecutionManagerImpl(nil, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration()).(*executionManagerImpl)
 
 			events := []*DataBlob{
 				sampleEventData(),
@@ -564,9 +730,8 @@ func TestDeserializeBufferedEvents(t *testing.T) {
 func TestPutReplicationTaskToDLQ(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), NewPayloadSerializer(), &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), NewPayloadSerializer(), NewDefaultDynamicConfiguration())
 
 	now := time.Now().UTC()
 
@@ -598,9 +763,8 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 func TestGetReplicationTasksFromDLQ(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), NewPayloadSerializer(), &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), NewPayloadSerializer(), NewDefaultDynamicConfiguration())
 
 	request := &GetReplicationTasksFromDLQRequest{
 		SourceClusterName: "test-cluster",
@@ -639,9 +803,8 @@ func TestGetReplicationTasksFromDLQ_WithBlob(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 	request := &GetReplicationTasksFromDLQRequest{
 		SourceClusterName: "test-cluster",
@@ -686,9 +849,8 @@ func TestGetReplicationTasksFromDLQ_CorruptBlob(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 	request := &GetReplicationTasksFromDLQRequest{
 		SourceClusterName: "test-cluster",
@@ -970,9 +1132,8 @@ func TestListConcreteExecutions(t *testing.T) {
 
 			tc.prepareMocks(mockedStore, mockedSerializer)
 
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			mockedStore.EXPECT().GetName().Return("").AnyTimes()
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 			res, err := manager.ListConcreteExecutions(context.Background(), request)
 
@@ -1087,9 +1248,8 @@ func TestCreateWorkflowExecution(t *testing.T) {
 				WorkflowRequestMode:      CreateWorkflowRequestModeReplicated,
 			}
 
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			mockedStore.EXPECT().GetName().Return("").AnyTimes()
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 			res, err := manager.CreateWorkflowExecution(context.Background(), request)
 
@@ -1255,9 +1415,8 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 
 			tc.prepareMocks(mockedStore, mockedSerializer)
 
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			mockedStore.EXPECT().GetName().Return("").AnyTimes()
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 			res, err := manager.ConflictResolveWorkflowExecution(context.Background(), tc.request)
 
@@ -1269,9 +1428,8 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 func TestCreateFailoverMarkerTasks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, NewDefaultDynamicConfiguration())
 
 	req := &CreateFailoverMarkersRequest{
 		Markers: []*FailoverMarkerTask{{
@@ -1362,9 +1520,8 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockedStore := NewMockExecutionStore(ctrl)
 			mockedSerializer := NewMockPayloadSerializer(ctrl)
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			mockedStore.EXPECT().GetName().Return("").AnyTimes()
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 			test.prepareMocks(mockedStore, mockedSerializer)
 
@@ -1415,9 +1572,8 @@ func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockedStore := NewMockExecutionStore(ctrl)
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-			})
+			mockedStore.EXPECT().GetName().Return("").AnyTimes()
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, NewDefaultDynamicConfiguration())
 
 			test.prepareMocks(mockedStore)
 
@@ -1777,11 +1933,11 @@ func TestUpdateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	longLivedTS := time.Now().Add(48 * time.Hour)
 	shortLivedID := int64(888)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(true),
-		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(minTTL),
-	})
+	dc := NewDefaultDynamicConfiguration()
+	dc.EnableWorkflowTimerTaskCleanup = dynamicproperties.GetBoolPropertyFn(true)
+	dc.WorkflowTimerTaskCleanupMinTTL = dynamicproperties.GetDurationPropertyFn(minTTL)
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, dc)
 
 	mutation := sampleWorkflowMutation()
 	mutation.TasksByCategory = map[HistoryTaskCategory][]Task{
@@ -1840,11 +1996,11 @@ func TestCreateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	longLivedTS := time.Now().Add(24 * time.Hour)
 	shortLivedID := int64(777)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(true),
-		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(minTTL),
-	})
+	dc := NewDefaultDynamicConfiguration()
+	dc.EnableWorkflowTimerTaskCleanup = dynamicproperties.GetBoolPropertyFn(true)
+	dc.WorkflowTimerTaskCleanupMinTTL = dynamicproperties.GetDurationPropertyFn(minTTL)
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, dc)
 
 	snapshot := sampleWorkflowSnapshot()
 	snapshot.TasksByCategory = map[HistoryTaskCategory][]Task{
@@ -1897,10 +2053,9 @@ func TestUpdateWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(false),
-	})
+	// EnableWorkflowTimerTaskCleanup is false by default
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 	mutation := sampleWorkflowMutation()
 	mutation.TasksByCategory = map[HistoryTaskCategory][]Task{
@@ -1939,10 +2094,9 @@ func TestCreateWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(false),
-	})
+	// EnableWorkflowTimerTaskCleanup is false by default
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 	snapshot := sampleWorkflowSnapshot()
 	snapshot.TasksByCategory = map[HistoryTaskCategory][]Task{
@@ -1988,11 +2142,11 @@ func TestConflictResolveWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	shortLivedID := int64(444)
 	visTS := time.Now().Add(48 * time.Hour)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(true),
-		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(minTTL),
-	})
+	dc := NewDefaultDynamicConfiguration()
+	dc.EnableWorkflowTimerTaskCleanup = dynamicproperties.GetBoolPropertyFn(true)
+	dc.WorkflowTimerTaskCleanupMinTTL = dynamicproperties.GetDurationPropertyFn(minTTL)
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, dc)
 
 	makeTimerTask := func(taskID int64) Task {
 		return &WorkflowTimeoutTask{
@@ -2064,10 +2218,8 @@ func TestConflictResolveWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T)
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(false),
-	})
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 	makeTimerTask := func(taskID int64) Task {
 		return &WorkflowTimeoutTask{
@@ -2115,10 +2267,10 @@ func TestFetchWorkflowTimerTasksForCleanup_FiltersCorrectly(t *testing.T) {
 	pastID := int64(3)
 	pastTS := time.Now().Add(-5 * time.Minute) // already fired, should be excluded
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(minTTL),
-	})
+	dc := NewDefaultDynamicConfiguration()
+	dc.WorkflowTimerTaskCleanupMinTTL = dynamicproperties.GetDurationPropertyFn(minTTL)
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, dc)
 
 	shardID := 0
 	mockedStore.EXPECT().SelectWorkflowTimerTasks(gomock.Any(), &SelectWorkflowTimerTasksRequest{
@@ -2149,10 +2301,10 @@ func TestFetchWorkflowTimerTasksForCleanup_EmptyMap(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(time.Hour),
-	})
+	dc := NewDefaultDynamicConfiguration()
+	dc.WorkflowTimerTaskCleanupMinTTL = dynamicproperties.GetDurationPropertyFn(time.Hour)
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, dc)
 
 	shardID := 0
 	mockedStore.EXPECT().SelectWorkflowTimerTasks(gomock.Any(), &SelectWorkflowTimerTasksRequest{
@@ -2180,9 +2332,8 @@ func TestCompleteHistoryTasks(t *testing.T) {
 	taskID := int64(1)
 	visTS := time.Now().Add(48 * time.Hour)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
+	mockedStore.EXPECT().GetName().Return("").AnyTimes()
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, NewDefaultDynamicConfiguration())
 
 	shardID := 0
 	mockedStore.EXPECT().CompleteHistoryTask(gomock.Any(), gomock.Cond(func(req *CompleteHistoryTaskRequest) bool {

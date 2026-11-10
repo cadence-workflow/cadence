@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"math/rand"
 	"runtime/debug"
 	"slices"
@@ -67,6 +68,8 @@ var (
 	ErrMissingActivityInfo = &types.InternalServiceError{Message: "unable to get activity info"}
 	// ErrMissingChildWorkflowInfo indicates missing child workflow info
 	ErrMissingChildWorkflowInfo = &types.InternalServiceError{Message: "unable to get child workflow info"}
+	// ErrMissingSemaphoreInfo indicates missing semaphore hold info
+	ErrMissingSemaphoreInfo = &types.InternalServiceError{Message: "unable to get semaphore info"}
 	// ErrMissingWorkflowStartEvent indicates missing workflow start event
 	ErrMissingWorkflowStartEvent = &types.InternalServiceError{Message: "unable to get workflow start event"}
 	// ErrMissingWorkflowCompletionEvent indicates missing workflow completion event
@@ -107,6 +110,10 @@ type (
 		pendingSignalInfoIDs map[int64]*persistence.SignalInfo // Initiated Event ID -> SignalInfo
 		updateSignalInfos    map[int64]*persistence.SignalInfo // Modified SignalInfo since last update
 		deleteSignalInfos    map[int64]struct{}                // Deleted SignalInfos since last update
+
+		pendingSemaphoreInfoIDs map[int64]*persistence.SemaphoreInfo // Initiated Event ID -> SemaphoreInfo
+		updateSemaphoreInfos    map[int64]*persistence.SemaphoreInfo // Modified SemaphoreInfo since last update
+		deleteSemaphoreInfos    map[int64]struct{}                   // Deleted SemaphoreInfos since last update
 
 		pendingSignalRequestedIDs map[string]struct{} // Set of signaled requestIds
 		updateSignalRequestedIDs  map[string]struct{} // Set of signaled requestIds since last update
@@ -215,6 +222,10 @@ func newMutableStateBuilder(
 		pendingSignalInfoIDs: make(map[int64]*persistence.SignalInfo),
 		deleteSignalInfos:    make(map[int64]struct{}),
 
+		updateSemaphoreInfos:    make(map[int64]*persistence.SemaphoreInfo),
+		pendingSemaphoreInfoIDs: make(map[int64]*persistence.SemaphoreInfo),
+		deleteSemaphoreInfos:    make(map[int64]struct{}),
+
 		updateSignalRequestedIDs:  make(map[string]struct{}),
 		pendingSignalRequestedIDs: make(map[string]struct{}),
 		deleteSignalRequestedIDs:  make(map[string]struct{}),
@@ -316,6 +327,7 @@ func (e *mutableStateBuilder) CopyToPersistence() *persistence.WorkflowMutableSt
 	state.ChildExecutionInfos = e.pendingChildExecutionInfoIDs
 	state.RequestCancelInfos = e.pendingRequestCancelInfoIDs
 	state.SignalInfos = e.pendingSignalInfoIDs
+	state.SemaphoreInfos = e.pendingSemaphoreInfoIDs
 	state.SignalRequestedIDs = e.pendingSignalRequestedIDs
 	state.ExecutionInfo = e.executionInfo
 	state.BufferedEvents = e.bufferedEvents
@@ -343,6 +355,7 @@ func (e *mutableStateBuilder) Load(
 	e.pendingChildExecutionInfoIDs = state.ChildExecutionInfos
 	e.pendingRequestCancelInfoIDs = state.RequestCancelInfos
 	e.pendingSignalInfoIDs = state.SignalInfos
+	e.pendingSemaphoreInfoIDs = state.SemaphoreInfos
 	e.pendingSignalRequestedIDs = state.SignalRequestedIDs
 	e.executionInfo = state.ExecutionInfo
 	e.bufferedEvents = e.reorderAndFilterDuplicateEvents(state.BufferedEvents, "load")
@@ -887,7 +900,12 @@ func (e *mutableStateBuilder) shouldBufferEvent(
 		types.EventTypeMarkerRecorded,
 		types.EventTypeStartChildWorkflowExecutionInitiated,
 		types.EventTypeSignalExternalWorkflowExecutionInitiated,
-		types.EventTypeUpsertWorkflowSearchAttributes:
+		types.EventTypeUpsertWorkflowSearchAttributes,
+		types.EventTypeSemaphoreAcquireInitiated,
+		// SemaphoreReleased is an exception. It also comes from auto-release when the run
+		// closes, not only from a decision. Not buffering is still right there: events after
+		// the close event are dropped, and a buffered event would land after it.
+		types.EventTypeSemaphoreReleased:
 		// do not buffer event if event is directly generated from a corresponding decision
 
 		// sanity check there is no decision on the fly
@@ -926,17 +944,23 @@ func (e *mutableStateBuilder) GetRetryBackoffDuration(
 		return backoff.NoBackoff
 	}
 
-	return getBackoffInterval(
-		e.timeSource.Now(),
-		info.ExpirationTime,
+	backoffInterval := getBackoffInterval(
 		info.Attempt,
-		info.MaximumAttempts,
 		info.InitialInterval,
 		info.MaximumInterval,
 		info.BackoffCoefficient,
-		errReason,
-		info.NonRetriableErrors,
+		info.JitterCoefficient,
 	)
+	if backoffInterval == backoff.NoBackoff {
+		return backoff.NoBackoff
+	}
+	// Round up so a sub-second jittered interval doesn't become an immediate retry
+	backoffInterval = time.Duration(math.Ceil(backoffInterval.Seconds())) * time.Second
+	nextScheduledTime := e.timeSource.Now().Add(backoffInterval)
+	if shouldRetry(nextScheduledTime, info.Attempt, info.MaximumAttempts, info.ExpirationTime, errReason, info.NonRetriableErrors, types.FailureCategoryStandard) {
+		return backoffInterval
+	}
+	return backoff.NoBackoff
 }
 
 func (e *mutableStateBuilder) GetCronBackoffDuration(
@@ -1464,6 +1488,8 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		DeleteRequestCancelInfos:  slices.Collect(maps.Keys(e.deleteRequestCancelInfos)),
 		UpsertSignalInfos:         slices.Collect(maps.Values(e.updateSignalInfos)),
 		DeleteSignalInfos:         slices.Collect(maps.Keys(e.deleteSignalInfos)),
+		UpsertSemaphoreInfos:      slices.Collect(maps.Values(e.updateSemaphoreInfos)),
+		DeleteSemaphoreInfos:      slices.Collect(maps.Keys(e.deleteSemaphoreInfos)),
 		UpsertSignalRequestedIDs:  slices.Collect(maps.Keys(e.updateSignalRequestedIDs)),
 		DeleteSignalRequestedIDs:  slices.Collect(maps.Keys(e.deleteSignalRequestedIDs)),
 		NewBufferedEvents:         e.updateBufferedEvents,
@@ -1479,6 +1505,13 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 
 		Condition: e.nextEventIDInDB,
 		Checksum:  checksum,
+	}
+
+	if len(workflowMutation.DeleteActivityInfos) > 0 {
+		workflowMutation.RewriteActivityInfos = slices.Collect(maps.Values(e.pendingActivityInfoIDs))
+	}
+	if len(workflowMutation.DeleteTimerInfos) > 0 {
+		workflowMutation.RewriteTimerInfos = slices.Collect(maps.Values(e.pendingTimerInfoIDs))
 	}
 
 	e.checksum = checksum
@@ -1548,6 +1581,7 @@ func (e *mutableStateBuilder) CloseTransactionAsSnapshot(
 		ChildExecutionInfos: slices.Collect(maps.Values(e.pendingChildExecutionInfoIDs)),
 		RequestCancelInfos:  slices.Collect(maps.Values(e.pendingRequestCancelInfoIDs)),
 		SignalInfos:         slices.Collect(maps.Values(e.pendingSignalInfoIDs)),
+		SemaphoreInfos:      slices.Collect(maps.Values(e.pendingSemaphoreInfoIDs)),
 		SignalRequestedIDs:  slices.Collect(maps.Keys(e.pendingSignalRequestedIDs)),
 
 		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
@@ -1653,6 +1687,8 @@ func (e *mutableStateBuilder) cleanupTransaction() error {
 
 	e.updateSignalInfos = make(map[int64]*persistence.SignalInfo)
 	e.deleteSignalInfos = make(map[int64]struct{})
+	e.updateSemaphoreInfos = make(map[int64]*persistence.SemaphoreInfo)
+	e.deleteSemaphoreInfos = make(map[int64]struct{})
 
 	e.updateSignalRequestedIDs = make(map[string]struct{})
 	e.deleteSignalRequestedIDs = make(map[string]struct{})

@@ -181,7 +181,7 @@ func (c *workflowSizeChecker) failWorkflowSizeExceedsLimit() (bool, error) {
 		)
 
 		attributes := &types.FailWorkflowExecutionDecisionAttributes{
-			Reason:  common.StringPtr(common.FailureReasonSizeExceedsLimit),
+			Reason:  common.StringPtr(common.FailureReasonHistorySizeExceedsLimit),
 			Details: []byte("Workflow history size / count exceeds limit."),
 		}
 
@@ -654,6 +654,52 @@ func (v *attrValidator) validateUpsertWorkflowSearchAttributes(
 	return v.searchAttributesValidator.ValidateSearchAttributes(attributes.GetSearchAttributes(), domainName)
 }
 
+func (v *attrValidator) validateAcquireSemaphoreAttributes(
+	attributes *types.AcquireSemaphoreDecisionAttributes,
+	metricsScope metrics.ScopeIdx,
+	domain string,
+) error {
+
+	if attributes == nil {
+		return &types.BadRequestError{Message: "AcquireSemaphoreDecisionAttributes is not set on decision."}
+	}
+	if attributes.GetSemaphoreName() == "" {
+		return &types.BadRequestError{Message: "SemaphoreName is not set on decision."}
+	}
+	if !common.IsValidIDLength(
+		attributes.GetSemaphoreName(),
+		v.metricsClient.Scope(metricsScope),
+		v.config.MaxIDLengthWarnLimit(),
+		v.config.SemaphoreNameMaxLength(domain),
+		metrics.CadenceErrSemaphoreNameExceededWarnLimit,
+		domain,
+		v.logger,
+		tag.IDTypeSemaphoreName) {
+		return &types.BadRequestError{Message: "SemaphoreName exceeds length limit."}
+	}
+	if attributes.GetWaitTimeoutSeconds() < 0 {
+		return &types.BadRequestError{
+			Message: fmt.Sprintf("Invalid WaitTimeoutSeconds: %v", attributes.GetWaitTimeoutSeconds()),
+		}
+	}
+	return nil
+}
+
+func (v *attrValidator) validateReleaseSemaphoreAttributes(
+	attributes *types.ReleaseSemaphoreDecisionAttributes,
+) error {
+
+	if attributes == nil {
+		return &types.BadRequestError{Message: "ReleaseSemaphoreDecisionAttributes is not set on decision."}
+	}
+	if attributes.GetInitiatedEventID() <= 0 {
+		return &types.BadRequestError{
+			Message: fmt.Sprintf("Invalid InitiatedEventID: %v", attributes.GetInitiatedEventID()),
+		}
+	}
+	return nil
+}
+
 func (v *attrValidator) validateContinueAsNewWorkflowExecutionAttributes(
 	attributes *types.ContinueAsNewWorkflowExecutionDecisionAttributes,
 	executionInfo *persistence.WorkflowExecutionInfo,
@@ -697,6 +743,12 @@ func (v *attrValidator) validateContinueAsNewWorkflowExecutionAttributes(
 	// Inherit decision task timeout from previous execution if not provided on decision
 	if attributes.GetTaskStartToCloseTimeoutSeconds() <= 0 {
 		attributes.TaskStartToCloseTimeoutSeconds = common.Int32Ptr(executionInfo.DecisionStartToCloseTimeout)
+	}
+
+	// Inherit active cluster selection policy from previous execution if not provided on decision,
+	// otherwise the new run would be resolved against the domain-level default cluster
+	if attributes.ActiveClusterSelectionPolicy == nil {
+		attributes.ActiveClusterSelectionPolicy = executionInfo.ActiveClusterSelectionPolicy
 	}
 
 	// Check next run decision task delay

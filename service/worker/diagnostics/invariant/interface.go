@@ -57,7 +57,8 @@ type RootCause string
 
 const (
 	RootCauseTypeMissingPollers                        RootCause = "There are no pollers for the tasklist"
-	RootCauseTypePollersStatus                         RootCause = "There are pollers for the tasklist. Check backlog status"
+	RootCauseTypePollersStatus                         RootCause = "There are pollers for the tasklist but the task was not picked up. Check historical backlog metrics"
+	RootCauseTypeScheduleToCloseTimeoutPollersStatus   RootCause = "There are pollers for the tasklist. The task may not have been picked up or ran too long. Check historical backlog metrics and execution logs"
 	RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy       RootCause = "Heartbeat timeout and retry policy are not configured"
 	RootCauseTypeHeartBeatingNotEnabledWithRetryPolicy RootCause = "Heartbeat timeout not enabled for activity but there is a retry policy configured"
 	RootCauseTypeHeartBeatingEnabledWithoutRetryPolicy RootCause = "Heartbeat timeout enabled for activity but there is no retry policy configured"
@@ -66,6 +67,7 @@ const (
 	RootCauseTypeServiceSidePanic                      RootCause = "There is a panic in the activity/workflow that is causing a failure"
 	RootCauseTypeServiceSideCustomError                RootCause = "Customised error returned by the activity/workflow"
 	RootCauseTypeBlobSizeLimit                         RootCause = "Workflow has exceeded the blob size limits configured for the domain"
+	RootCauseTypeHistorySizeExceedsLimit               RootCause = "Workflow history has exceeded the size or event count limit configured for the domain"
 )
 
 func (r RootCause) String() string {

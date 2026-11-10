@@ -116,7 +116,7 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	ans, err := readSchemaDir(fsys, "0.30", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.31", "v0.32", "v0.33", "v0.34", "v0.35", "v0.36", "v0.37", "v0.38", "v0.39", "v0.40", "v0.41", "v0.42", "v0.43", "v0.44", "v0.45", "v0.46", "v0.47", "v0.48", "v0.49"}, ans)
+	s.Equal([]string{"v0.31", "v0.32", "v0.33", "v0.34", "v0.35", "v0.36", "v0.37", "v0.38", "v0.39", "v0.40", "v0.41", "v0.42", "v0.43", "v0.44", "v0.45", "v0.46", "v0.47", "v0.48", "v0.49", "v0.50", "v0.51", "v0.52", "v0.53", "v0.54", "v0.55"}, ans)
 
 	fsys, err = fs.Sub(cassandra.SchemaFS, "visibility/versioned")
 	s.NoError(err)
@@ -140,15 +140,15 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	// SQLite
 	fsys, err = fs.Sub(sqlite.SchemaFS, "cadence/versioned")
 	s.NoError(err)
-	ans, err = readSchemaDir(fsys, "0.1", "")
+	ans, err = readSchemaDir(fsys, "0.0", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.2", "v0.3"}, ans)
+	s.Equal([]string{"v0.1"}, ans)
 
 	fsys, err = fs.Sub(sqlite.SchemaFS, "visibility/versioned")
 	s.NoError(err)
-	ans, err = readSchemaDir(fsys, "0.1", "")
+	ans, err = readSchemaDir(fsys, "0.0", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.2"}, ans)
+	s.Equal([]string{"v0.1"}, ans)
 
 	// Postgres
 	fsys, err = fs.Sub(postgres.SchemaFS, "cadence/versioned")

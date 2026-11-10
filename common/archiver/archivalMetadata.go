@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -83,7 +82,7 @@ func NewArchivalMetadata(
 	historyReadEnabled bool,
 	visibilityStatus string,
 	visibilityReadEnabled bool,
-	domainDefaults *config.ArchivalDomainDefaults,
+	domainDefaults *ArchivalDomainDefaults,
 ) ArchivalMetadata {
 	historyConfig := NewArchivalConfig(
 		historyStatus,

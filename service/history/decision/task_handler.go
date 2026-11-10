@@ -23,6 +23,7 @@ package decision
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pborman/uuid"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -200,6 +202,12 @@ func (handler *taskHandlerImpl) handleDecision(
 
 	case types.DecisionTypeUpsertWorkflowSearchAttributes:
 		return handler.handleDecisionUpsertWorkflowSearchAttributes(ctx, decision.UpsertWorkflowSearchAttributesDecisionAttributes)
+
+	case types.DecisionTypeAcquireSemaphore:
+		return handler.handleDecisionAcquireSemaphore(ctx, decision.AcquireSemaphoreDecisionAttributes)
+
+	case types.DecisionTypeReleaseSemaphore:
+		return handler.handleDecisionReleaseSemaphore(ctx, decision.ReleaseSemaphoreDecisionAttributes)
 
 	default:
 		return &types.BadRequestError{Message: fmt.Sprintf("Unknown decision type: %v", decision.GetDecisionType())}
@@ -920,9 +928,8 @@ func (handler *taskHandlerImpl) handleDecisionStartChildWorkflow(
 		}
 	}
 
-	requestID := uuid.New()
 	_, _, err = handler.mutableState.AddStartChildWorkflowExecutionInitiatedEvent(
-		handler.decisionTaskCompletedID, requestID, attr,
+		handler.decisionTaskCompletedID, attr,
 	)
 	return err
 }
@@ -1029,6 +1036,122 @@ func (handler *taskHandlerImpl) handleDecisionUpsertWorkflowSearchAttributes(
 		handler.decisionTaskCompletedID, attr,
 	)
 	return err
+}
+
+func (handler *taskHandlerImpl) handleDecisionAcquireSemaphore(
+	ctx context.Context,
+	attr *types.AcquireSemaphoreDecisionAttributes,
+) error {
+
+	handler.metricsClient.IncCounter(
+		metrics.HistoryRespondDecisionTaskCompletedScope,
+		metrics.DecisionTypeAcquireSemaphoreCounter,
+	)
+
+	// If semaphores are off for this domain, reject the request without recording anything.
+	// The decision task times out and is retried, and succeeds once the flag is turned on.
+	domainName := handler.domainEntry.GetInfo().Name
+	if !handler.config.EnableDistributedSemaphore(domainName) {
+		return &types.BadRequestError{Message: fmt.Sprintf(
+			"Semaphores are not enabled for domain %q. Set dynamic config system.enableDistributedSemaphore=true for this domain to enable them.",
+			domainName,
+		)}
+	}
+
+	if err := handler.validateDecisionAttr(
+		func() error {
+			return handler.attrValidator.validateAcquireSemaphoreAttributes(
+				attr,
+				metrics.HistoryRespondDecisionTaskCompletedScope,
+				domainName,
+			)
+		},
+		types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes,
+	); err != nil || handler.stopProcessing {
+		return err
+	}
+
+	_, _, err := handler.mutableState.AddSemaphoreAcquireInitiatedEvent(
+		handler.decisionTaskCompletedID,
+		attr.GetSemaphoreName(),
+		handler.acquireWaitTimeoutSeconds(attr, domainName),
+	)
+	switch err.(type) {
+	case nil:
+		return nil
+	case *types.BadRequestError:
+		// A run holds or waits for at most one semaphore at a time, so a second acquire fails the
+		// decision. Clients are expected to refuse it first.
+		return handler.handlerFailDecision(
+			types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes,
+			fmt.Sprintf("Run already holds or is waiting for a semaphore, so it cannot acquire semaphore %q.", attr.GetSemaphoreName()),
+		)
+	default:
+		return err
+	}
+}
+
+func (handler *taskHandlerImpl) handleDecisionReleaseSemaphore(
+	ctx context.Context,
+	attr *types.ReleaseSemaphoreDecisionAttributes,
+) error {
+
+	handler.metricsClient.IncCounter(
+		metrics.HistoryRespondDecisionTaskCompletedScope,
+		metrics.DecisionTypeReleaseSemaphoreCounter,
+	)
+
+	if err := handler.validateDecisionAttr(
+		func() error {
+			return handler.attrValidator.validateReleaseSemaphoreAttributes(attr)
+		},
+		types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes,
+	); err != nil || handler.stopProcessing {
+		return err
+	}
+
+	_, err := handler.mutableState.AddSemaphoreReleasedEvent(
+		handler.decisionTaskCompletedID,
+		attr.GetInitiatedEventID(),
+	)
+	switch err.(type) {
+	case nil:
+		return nil
+	case *types.BadRequestError:
+		// A duplicate release, or one with no matching hold, fails the decision.
+		// Clients are expected to skip duplicates first.
+		return handler.handlerFailDecision(
+			types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes,
+			fmt.Sprintf("Run has no semaphore hold started by event %d.", attr.GetInitiatedEventID()),
+		)
+	default:
+		return err
+	}
+}
+
+// acquireWaitTimeoutSeconds returns the decision's wait timeout, or the domain default if unset,
+// lowered to the domain max. A configured value under one second, such as "0" set to mean no limit,
+// would time out every acquire at once, so the key's built-in default is used instead.
+func (handler *taskHandlerImpl) acquireWaitTimeoutSeconds(
+	attr *types.AcquireSemaphoreDecisionAttributes,
+	domainName string,
+) int32 {
+
+	timeout := time.Duration(attr.GetWaitTimeoutSeconds()) * time.Second
+	if timeout == 0 {
+		timeout = handler.config.SemaphoreAcquireDefaultWaitTimeout(domainName)
+		if timeout < time.Second {
+			timeout = dynamicproperties.SemaphoreAcquireDefaultWaitTimeout.DefaultDuration()
+		}
+	}
+	maxTimeout := handler.config.SemaphoreAcquireMaxWaitTimeout(domainName)
+	if maxTimeout < time.Second {
+		maxTimeout = dynamicproperties.SemaphoreAcquireMaxWaitTimeout.DefaultDuration()
+	}
+	if timeout > maxTimeout {
+		timeout = maxTimeout
+	}
+	return int32(timeout.Seconds())
 }
 
 func convertSearchAttributesToByteArray(fields map[string][]byte) []byte {

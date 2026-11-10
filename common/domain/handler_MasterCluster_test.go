@@ -37,7 +37,6 @@ import (
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -46,6 +45,9 @@ import (
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
+
+	_ "github.com/ncruces/go-sqlite3/driver" // register sqlite3 driver for tests
+	_ "github.com/ncruces/go-sqlite3/embed"  // embed sqlite db for tests
 )
 
 type (
@@ -77,9 +79,11 @@ func TestDomainHandlerGlobalDomainEnabledPrimaryClusterSuite(t *testing.T) {
 }
 
 func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) setupTestBase(t *testing.T) {
-	sqliteTestBaseOptions := sqlite.GetTestClusterOption()
-	sqliteTestBaseOptions.ClusterMetadata = cluster.GetTestClusterMetadata(true)
-	s.TestBase = persistencetests.NewTestBaseWithSQL(t, sqliteTestBaseOptions)
+	metadata := cluster.GetTestClusterMetadata(true)
+	s.TestBase = persistencetests.NewTestBase(t, persistencetests.TestBaseParams{
+		PersistenceConfig: persistencetests.SimplePersistenceConfig(t, sqlite.GetTestConfig),
+		ClusterMetadata:   &metadata,
+	})
 	s.Setup()
 }
 
@@ -105,7 +109,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) SetupTest() {
 		false,
 		"",
 		false,
-		&config.ArchivalDomainDefaults{},
+		&archiver.ArchivalDomainDefaults{},
 	)
 	s.mockArchiverProvider = &provider.MockArchiverProvider{}
 	domainConfig := Config{

@@ -48,9 +48,7 @@ func setUpMocksForDomainAuditManager(t *testing.T) (*domainAuditManagerImpl, *Mo
 		timeSrc:     clock.NewMockedTimeSourceAt(testTimeNow),
 		serializer:  NewPayloadSerializer(),
 		logger:      log.NewNoop(),
-		dc: &DynamicConfiguration{
-			DomainAuditLogTTL: func(domainID string) time.Duration { return time.Hour * 24 * 365 },
-		},
+		dc:          NewDefaultDynamicConfiguration(),
 	}
 
 	return m, mockStore

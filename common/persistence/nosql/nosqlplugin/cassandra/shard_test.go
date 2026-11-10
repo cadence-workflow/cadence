@@ -111,7 +111,7 @@ func TestInsertShard(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.InsertShard(context.Background(), tc.row)
@@ -264,7 +264,7 @@ func TestSelectShard(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotRangeID, gotShardInfo, err := db.SelectShard(context.Background(), tc.shardID, tc.cluster)
@@ -365,7 +365,7 @@ func TestUpdateRangeID(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.UpdateRangeID(context.Background(), tc.shardID, tc.rangeID, tc.prevRangeID)
@@ -481,7 +481,7 @@ func TestUpdateShard(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			dc := &persistence.DynamicConfiguration{}
+			dc := persistence.NewDefaultDynamicConfiguration()
 			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.UpdateShard(context.Background(), tc.row, tc.prevRangeID)

@@ -29,16 +29,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 )
 
 func TestTaskSerializerThriftRW(t *testing.T) {
-	dc := &persistence.DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	}
-	parser, err := NewParser(dc)
+	parser, err := NewParser(persistence.NewDefaultDynamicConfiguration())
 	require.NoError(t, err)
 	taskSerializer := NewTaskSerializer(parser)
 
@@ -196,6 +191,33 @@ func TestTaskSerializerThriftRW(t *testing.T) {
 			},
 		},
 		{
+			category: persistence.HistoryTaskCategoryTransfer,
+			task: &persistence.AcquireSemaphoreTask{
+				WorkflowIdentifier: workflowIdentifier,
+				TaskData: persistence.TaskData{
+					Version:             10,
+					TaskID:              10,
+					VisibilityTimestamp: time.Unix(10, 10),
+				},
+				InitiatedID: 5,
+				TaskList:    "tl",
+			},
+		},
+		{
+			category: persistence.HistoryTaskCategoryTransfer,
+			task: &persistence.ReleaseSemaphoreTask{
+				WorkflowIdentifier: workflowIdentifier,
+				TaskData: persistence.TaskData{
+					Version:             10,
+					TaskID:              10,
+					VisibilityTimestamp: time.Unix(10, 10),
+				},
+				InitiatedID:   5,
+				SemaphoreName: "sem",
+				TaskList:      "tl",
+			},
+		},
+		{
 			category: persistence.HistoryTaskCategoryTimer,
 			task: &persistence.DecisionTimeoutTask{
 				WorkflowIdentifier: workflowIdentifier,
@@ -280,6 +302,19 @@ func TestTaskSerializerThriftRW(t *testing.T) {
 					VisibilityTimestamp: time.Unix(17, 17),
 				},
 				TimeoutType: 17,
+			},
+		},
+		{
+			category: persistence.HistoryTaskCategoryTimer,
+			task: &persistence.SemaphoreAcquireTimeoutTask{
+				WorkflowIdentifier: workflowIdentifier,
+				TaskData: persistence.TaskData{
+					Version:             17,
+					TaskID:              17,
+					VisibilityTimestamp: time.Unix(17, 17),
+				},
+				EventID:  17,
+				TaskList: "17",
 			},
 		},
 		{

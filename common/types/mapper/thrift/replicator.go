@@ -153,6 +153,32 @@ func ToFailoverMarkerAttributes(t *replicator.FailoverMarkerAttributes) *types.F
 	}
 }
 
+// FromSemaphoreMetadataTaskAttributes converts internal SemaphoreMetadataTaskAttributes type to thrift
+func FromSemaphoreMetadataTaskAttributes(t *types.SemaphoreMetadataTaskAttributes) *replicator.SemaphoreMetadataTaskAttributes {
+	if t == nil {
+		return nil
+	}
+	return &replicator.SemaphoreMetadataTaskAttributes{
+		DomainId:       &t.DomainID,
+		SemaphoreName:  &t.SemaphoreName,
+		Capacity:       &t.Capacity,
+		BucketCapacity: &t.BucketCapacity,
+	}
+}
+
+// ToSemaphoreMetadataTaskAttributes converts thrift SemaphoreMetadataTaskAttributes type to internal
+func ToSemaphoreMetadataTaskAttributes(t *replicator.SemaphoreMetadataTaskAttributes) *types.SemaphoreMetadataTaskAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreMetadataTaskAttributes{
+		DomainID:       t.GetDomainId(),
+		SemaphoreName:  t.GetSemaphoreName(),
+		Capacity:       t.GetCapacity(),
+		BucketCapacity: t.GetBucketCapacity(),
+	}
+}
+
 // FromFailoverMarkers converts internal FailoverMarkers type to thrift
 func FromFailoverMarkers(t *types.FailoverMarkers) *replicator.FailoverMarkers {
 	if t == nil {
@@ -493,14 +519,15 @@ func FromReplicationTask(t *types.ReplicationTask) *replicator.ReplicationTask {
 		return nil
 	}
 	return &replicator.ReplicationTask{
-		TaskType:                      FromReplicationTaskType(t.TaskType),
-		SourceTaskId:                  &t.SourceTaskID,
-		DomainTaskAttributes:          FromDomainTaskAttributes(t.DomainTaskAttributes),
-		SyncShardStatusTaskAttributes: FromSyncShardStatusTaskAttributes(t.SyncShardStatusTaskAttributes),
-		SyncActivityTaskAttributes:    FromSyncActivityTaskAttributes(t.SyncActivityTaskAttributes),
-		HistoryTaskV2Attributes:       FromHistoryTaskV2Attributes(t.HistoryTaskV2Attributes),
-		FailoverMarkerAttributes:      FromFailoverMarkerAttributes(t.FailoverMarkerAttributes),
-		CreationTime:                  t.CreationTime,
+		TaskType:                        FromReplicationTaskType(t.TaskType),
+		SourceTaskId:                    &t.SourceTaskID,
+		DomainTaskAttributes:            FromDomainTaskAttributes(t.DomainTaskAttributes),
+		SyncShardStatusTaskAttributes:   FromSyncShardStatusTaskAttributes(t.SyncShardStatusTaskAttributes),
+		SyncActivityTaskAttributes:      FromSyncActivityTaskAttributes(t.SyncActivityTaskAttributes),
+		HistoryTaskV2Attributes:         FromHistoryTaskV2Attributes(t.HistoryTaskV2Attributes),
+		FailoverMarkerAttributes:        FromFailoverMarkerAttributes(t.FailoverMarkerAttributes),
+		CreationTime:                    t.CreationTime,
+		SemaphoreMetadataTaskAttributes: FromSemaphoreMetadataTaskAttributes(t.SemaphoreMetadataTaskAttributes),
 	}
 }
 
@@ -510,14 +537,15 @@ func ToReplicationTask(t *replicator.ReplicationTask) *types.ReplicationTask {
 		return nil
 	}
 	return &types.ReplicationTask{
-		TaskType:                      ToReplicationTaskType(t.TaskType),
-		SourceTaskID:                  t.GetSourceTaskId(),
-		DomainTaskAttributes:          ToDomainTaskAttributes(t.DomainTaskAttributes),
-		SyncShardStatusTaskAttributes: ToSyncShardStatusTaskAttributes(t.SyncShardStatusTaskAttributes),
-		SyncActivityTaskAttributes:    ToSyncActivityTaskAttributes(t.SyncActivityTaskAttributes),
-		HistoryTaskV2Attributes:       ToHistoryTaskV2Attributes(t.HistoryTaskV2Attributes),
-		FailoverMarkerAttributes:      ToFailoverMarkerAttributes(t.FailoverMarkerAttributes),
-		CreationTime:                  t.CreationTime,
+		TaskType:                        ToReplicationTaskType(t.TaskType),
+		SourceTaskID:                    t.GetSourceTaskId(),
+		DomainTaskAttributes:            ToDomainTaskAttributes(t.DomainTaskAttributes),
+		SyncShardStatusTaskAttributes:   ToSyncShardStatusTaskAttributes(t.SyncShardStatusTaskAttributes),
+		SyncActivityTaskAttributes:      ToSyncActivityTaskAttributes(t.SyncActivityTaskAttributes),
+		HistoryTaskV2Attributes:         ToHistoryTaskV2Attributes(t.HistoryTaskV2Attributes),
+		FailoverMarkerAttributes:        ToFailoverMarkerAttributes(t.FailoverMarkerAttributes),
+		CreationTime:                    t.CreationTime,
+		SemaphoreMetadataTaskAttributes: ToSemaphoreMetadataTaskAttributes(t.SemaphoreMetadataTaskAttributes),
 	}
 }
 
@@ -584,6 +612,9 @@ func FromReplicationTaskType(t *types.ReplicationTaskType) *replicator.Replicati
 	case types.ReplicationTaskTypeFailoverMarker:
 		v := replicator.ReplicationTaskTypeFailoverMarker
 		return &v
+	case types.ReplicationTaskTypeSemaphoreMetadata:
+		v := replicator.ReplicationTaskTypeSemaphoreMetadata
+		return &v
 	}
 	panic("unexpected enum value")
 }
@@ -614,6 +645,9 @@ func ToReplicationTaskType(t *replicator.ReplicationTaskType) *types.Replication
 		return &v
 	case replicator.ReplicationTaskTypeFailoverMarker:
 		v := types.ReplicationTaskTypeFailoverMarker
+		return &v
+	case replicator.ReplicationTaskTypeSemaphoreMetadata:
+		v := types.ReplicationTaskTypeSemaphoreMetadata
 		return &v
 	}
 	panic("unexpected enum value")

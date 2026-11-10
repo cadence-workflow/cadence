@@ -116,9 +116,8 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					Return(err)
 			},
 			expectedResp: nil,
-			expectedError: &persistence.ShardOwnershipLostError{
-				ShardID: 123,
-				Msg:     "Unknown error occurred during operation",
+			expectedError: &persistence.ConditionFailedError{
+				Msg: "Unknown error occurred during operation",
 			},
 		},
 		{
@@ -329,9 +328,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			controller := gomock.NewController(t)
 			mockDB := nosqlplugin.NewMockDB(controller)
 			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
-			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{
-				EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-			})
+			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, persistence.NewDefaultDynamicConfiguration())
 
 			tc.setupMock(mockDB, 1)
 
@@ -1009,6 +1006,30 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			expectedError: nil,
 		},
 		{
+			name:    "success with multiple markers",
+			rangeID: 123,
+			markers: []*persistence.FailoverMarkerTask{
+				{
+					TaskData: persistence.TaskData{},
+					DomainID: "testDomainID1",
+				},
+				{
+					TaskData: persistence.TaskData{},
+					DomainID: "testDomainID2",
+				},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
+					Data:     []byte("1"),
+					Encoding: commonconstants.EncodingTypeThriftRW,
+				}, nil).Times(2)
+				mockDB.EXPECT().
+					InsertReplicationTask(ctx, gomock.Len(2), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 123}).
+					Return(nil)
+			},
+			expectedError: nil,
+		},
+		{
 			name:    "serialization error",
 			rangeID: 123,
 			markers: []*persistence.FailoverMarkerTask{
@@ -1105,9 +1126,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 	t.Run("when tasks span multiple workflows it should prepare them by category with per-task owners", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
-		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{
-			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-		})
+		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 
 		now := time.Unix(0, 12345)
 
@@ -1161,9 +1180,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 	t.Run("when the request has no tasks it should not error", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
-		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{
-			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-		})
+		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 		mockDB.EXPECT().
 			InsertHistoryTasks(ctx, gomock.Len(0), gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 1}).
 			Return(nil)
@@ -1176,9 +1193,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 	t.Run("when a category other than transfer or timer is provided it should return a BadRequestError without writing", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
-		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{
-			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-		})
+		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 		// InsertHistoryTasks must never be called for an unsupported category.
 
 		err := store.CreateHistoryTasks(ctx, &persistence.CreateHistoryTasksRequest{
@@ -1195,9 +1210,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 	t.Run("when InsertHistoryTasks returns a shard condition failure it should return a ShardOwnershipLostError", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
-		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{
-			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-		})
+		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 		mockDB.EXPECT().
 			InsertHistoryTasks(ctx, gomock.Any(), gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 7}).
 			Return(&nosqlplugin.ShardOperationConditionFailure{RangeID: 8, Details: "boom"})
@@ -1217,9 +1230,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 	t.Run("when InsertHistoryTasks returns a non-condition error it should return that error unchanged", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
-		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{
-			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-		})
+		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 		genericErr := errors.New("some generic db error")
 		mockDB.EXPECT().
 			InsertHistoryTasks(ctx, gomock.Any(), gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 7}).
@@ -1309,9 +1320,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 
 	mockDB := nosqlplugin.NewMockDB(gomockController)
 	mockTaskSerializer := serialization.NewMockTaskSerializer(gomockController)
-	store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{
-		EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
-	})
+	store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, persistence.NewDefaultDynamicConfiguration())
 
 	tests := []struct {
 		name          string
@@ -2023,9 +2032,11 @@ func TestGetHistoryTasks(t *testing.T) {
 
 			mockDB := nosqlplugin.NewMockDB(controller)
 			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
-			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{ReadNoSQLHistoryTaskFromDataBlob: func(...dynamicproperties.FilterOption) bool {
+			dc := persistence.NewDefaultDynamicConfiguration()
+			dc.ReadNoSQLHistoryTaskFromDataBlob = func(...dynamicproperties.FilterOption) bool {
 				return tc.readNoSQLHistoryTaskFromDataBlob
-			}})
+			}
+			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), mockTaskSerializer, dc)
 
 			tc.setupMock(mockDB, mockTaskSerializer)
 
@@ -2142,7 +2153,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			defer controller.Finish()
 
 			mockDB := nosqlplugin.NewMockDB(controller)
-			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, &persistence.DynamicConfiguration{})
+			store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
 
 			tc.setupMock(mockDB)
 
@@ -2199,4 +2210,96 @@ func TestGetWorkflowExecution_usesRequestShardID(t *testing.T) {
 
 	_, err := store.GetWorkflowExecution(ctx, req)
 	require.NoError(t, err)
+}
+
+func TestConvertWorkflowConditionFailure(t *testing.T) {
+	tests := []struct {
+		name      string
+		operation string
+		failure   *nosqlplugin.WorkflowOperationConditionFailure
+		want      error
+	}{
+		{
+			name:      "unknown failure is not a shard ownership loss on create",
+			operation: "create",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{UnknownConditionFailureDetails: common.StringPtr("details")},
+			want:      &persistence.ConditionFailedError{Msg: "details"},
+		},
+		{
+			name:      "unknown failure is not a shard ownership loss on update",
+			operation: "update",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{UnknownConditionFailureDetails: common.StringPtr("details")},
+			want:      &persistence.ConditionFailedError{Msg: "details"},
+		},
+		{
+			name:      "range id mismatch on create",
+			operation: "create",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{ShardRangeIDNotMatch: common.Int64Ptr(456)},
+			want: &persistence.ShardOwnershipLostError{
+				ShardID: 7,
+				Msg:     "Failed to create workflow execution. Request RangeID: 123, Actual RangeID: 456",
+			},
+		},
+		{
+			name:      "range id mismatch on update",
+			operation: "update",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{ShardRangeIDNotMatch: common.Int64Ptr(456)},
+			want: &persistence.ShardOwnershipLostError{
+				ShardID: 7,
+				Msg:     "Failed to update workflow execution. Request RangeID: 123, Actual RangeID: 456",
+			},
+		},
+		{
+			name:      "current workflow condition failed",
+			operation: "create",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{CurrentWorkflowConditionFailInfo: common.StringPtr("info")},
+			want:      &persistence.CurrentWorkflowConditionFailedError{Msg: "info"},
+		},
+		{
+			name:      "workflow already exists",
+			operation: "create",
+			failure: &nosqlplugin.WorkflowOperationConditionFailure{
+				WorkflowExecutionAlreadyExists: &nosqlplugin.WorkflowExecutionAlreadyExists{
+					RunID:            "run",
+					CreateRequestID:  "req",
+					State:            1,
+					CloseStatus:      2,
+					LastWriteVersion: 3,
+					OtherInfo:        "other",
+				},
+			},
+			want: &persistence.WorkflowExecutionAlreadyStartedError{
+				Msg:              "other",
+				StartRequestID:   "req",
+				RunID:            "run",
+				State:            1,
+				CloseStatus:      2,
+				LastWriteVersion: 3,
+			},
+		},
+		{
+			name:      "duplicate request",
+			operation: "update",
+			failure: &nosqlplugin.WorkflowOperationConditionFailure{
+				DuplicateRequest: &nosqlplugin.DuplicateRequest{RequestType: persistence.WorkflowRequestTypeSignal, RunID: "run"},
+			},
+			want: &persistence.DuplicateRequestError{RequestType: persistence.WorkflowRequestTypeSignal, RunID: "run"},
+		},
+		{
+			name:      "empty failure is a bug",
+			operation: "create",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{},
+			want:      fmt.Errorf("unsupported conditionFailureReason error"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			store := newTestNosqlExecutionStore(nosqlplugin.NewMockDB(ctrl), log.NewNoop())
+
+			got := store.convertWorkflowConditionFailure(tc.operation, 7, 123, tc.failure)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }

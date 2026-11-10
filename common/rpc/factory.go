@@ -1,23 +1,3 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
 package rpc
 
 import (
@@ -27,6 +7,7 @@ import (
 	"net"
 	nethttp "net/http"
 	"sync"
+	"time"
 
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/transport/grpc"
@@ -34,6 +15,7 @@ import (
 	"go.uber.org/yarpc/transport/tchannel"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -43,6 +25,7 @@ import (
 const (
 	defaultGRPCSizeLimit = 4 * 1024 * 1024
 	factoryComponentName = "rpc-factory"
+	peerUpdateInterval   = 30 * time.Second
 )
 
 var (
@@ -55,6 +38,8 @@ type FactoryImpl struct {
 	startOnce      sync.Once
 	stopOnce       sync.Once
 	maxMessageSize int
+	grpcPort       uint16
+	tchannelPort   uint16
 	channel        tchannel.Channel
 	dispatcher     *yarpc.Dispatcher
 	outbounds      *Outbounds
@@ -64,6 +49,7 @@ type FactoryImpl struct {
 	ctx            context.Context
 	cancelFn       context.CancelFunc
 	peerLister     PeerLister
+	timeSource     clock.TimeSource
 }
 
 // NewFactory builds a new rpc.Factory
@@ -156,6 +142,8 @@ func NewFactory(logger log.Logger, p Params) Factory {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &FactoryImpl{
 		maxMessageSize: p.GRPCMaxMsgSize,
+		grpcPort:       p.GRPCPort,
+		tchannelPort:   p.TChannelPort,
 		dispatcher:     dispatcher,
 		channel:        ch.Channel(),
 		outbounds:      outbounds,
@@ -163,6 +151,7 @@ func NewFactory(logger log.Logger, p Params) Factory {
 		logger:         logger,
 		ctx:            ctx,
 		cancelFn:       cancel,
+		timeSource:     clock.NewRealTimeSource(),
 	}
 }
 
@@ -174,6 +163,14 @@ func (d *FactoryImpl) GetDispatcher() *yarpc.Dispatcher {
 // GetTChannel GetChannel returns Tchannel Channel used by Ringpop
 func (d *FactoryImpl) GetTChannel() tchannel.Channel {
 	return d.channel
+}
+
+func (d *FactoryImpl) GetGRPCPort() uint16 {
+	return d.grpcPort
+}
+
+func (d *FactoryImpl) GetTChannelPort() uint16 {
+	return d.tchannelPort
 }
 
 func (d *FactoryImpl) GetMaxMessageSize() int {
@@ -222,22 +219,31 @@ func (d *FactoryImpl) Stop() error {
 func (d *FactoryImpl) listenMembershipChanges(svc string, ch chan *membership.ChangedEvent) {
 	defer d.wg.Done()
 
+	updateTicker := d.timeSource.NewTicker(peerUpdateInterval)
+	defer updateTicker.Stop()
+
 	for {
 		select {
 		case <-ch:
 			d.logger.Debug("rpc factory received membership changed event", tag.Service(svc))
-			members, err := d.peerLister.Members(svc)
-			if err != nil {
-				d.logger.Error("rpc factory failed to get members from membership resolver", tag.Error(err), tag.Service(svc))
-				continue
-			}
-
-			d.outbounds.UpdatePeers(svc, members)
+			d.updatePeers(svc)
+		case <-updateTicker.Chan():
+			d.updatePeers(svc)
 		case <-d.ctx.Done():
 			d.logger.Info("rpc factory stopped so listenMembershipChanges returning", tag.Service(svc))
 			return
 		}
 	}
+}
+
+func (d *FactoryImpl) updatePeers(svc string) {
+	members, err := d.peerLister.Members(svc)
+	if err != nil {
+		d.logger.Error("rpc factory failed to get members from membership resolver", tag.Error(err), tag.Service(svc))
+		return
+	}
+
+	d.outbounds.UpdatePeers(svc, members)
 }
 
 func createDialer(transport *grpc.Transport, tlsConfig *tls.Config) *grpc.Dialer {

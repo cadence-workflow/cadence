@@ -207,7 +207,7 @@ func (s *ShardPersistenceSuite) TestUpdateShard() {
 	s.Equal(updatedInfo.ReplicationDLQAckLevel, info1.ReplicationDLQAckLevel)
 	s.Equal(updatedStolenSinceRenew, info1.StolenSinceRenew)
 
-	if s.DynamicConfiguration.ReadNoSQLShardFromDataBlob() || s.ShardMgr.GetName() != "shardedNosql" {
+	if s.DynamicConfiguration.ReadNoSQLShardFromDataBlob() || s.ShardMgr.GetName() != "cassandra" {
 		s.Equal(updatedInfo.QueueStates, info1.QueueStates)
 	}
 
@@ -236,7 +236,7 @@ func (s *ShardPersistenceSuite) TestUpdateShard() {
 	s.Equal(updatedInfo.ReplicationDLQAckLevel, info2.ReplicationDLQAckLevel)
 	s.Equal(updatedStolenSinceRenew, info2.StolenSinceRenew)
 
-	if s.DynamicConfiguration.ReadNoSQLShardFromDataBlob() || s.ShardMgr.GetName() != "shardedNosql" {
+	if s.DynamicConfiguration.ReadNoSQLShardFromDataBlob() || s.ShardMgr.GetName() != "cassandra" {
 		s.Equal(updatedInfo.QueueStates, info2.QueueStates)
 	}
 }
@@ -379,7 +379,7 @@ func (s *ShardPersistenceSuite) TestCreateGetUpdateGetShard() {
 	resp.TimerAckLevel = shardInfo.TimerAckLevel
 	resp.UpdatedAt = shardInfo.UpdatedAt
 	resp.ClusterTimerAckLevel = shardInfo.ClusterTimerAckLevel
-	if !s.DynamicConfiguration.ReadNoSQLHistoryTaskFromDataBlob() && s.ShardMgr.GetName() == "shardedNosql" {
+	if !s.DynamicConfiguration.ReadNoSQLHistoryTaskFromDataBlob() && s.ShardMgr.GetName() == "cassandra" {
 		resp.QueueStates = shardInfo.QueueStates
 	}
 	s.Equal(shardInfo, resp)

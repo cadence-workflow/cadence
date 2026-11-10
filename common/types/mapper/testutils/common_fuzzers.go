@@ -32,7 +32,7 @@ func WithCommonEnumFuzzers() FuzzOption {
 			*e = types.PendingDecisionState(c.Intn(2)) // 0-1
 		},
 		func(e *types.QueryTaskCompletedType, c fuzz.Continue) {
-			*e = types.QueryTaskCompletedType(c.Intn(3)) // 0-2
+			*e = types.QueryTaskCompletedType(c.Intn(2)) // 0-1: Completed, Failed
 		},
 		func(e *types.QueryResultType, c fuzz.Continue) {
 			*e = types.QueryResultType(c.Intn(2)) // 0-1: Answered, Failed

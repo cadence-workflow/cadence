@@ -31,6 +31,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -430,6 +431,8 @@ func TestMembershipChangeTriggersRefresh(t *testing.T) {
 	wm := NewWorkerManager(&BootstrapParams{
 		Logger:             testlogger.New(t),
 		MetricsClient:      metrics.NewNoopMetricsClient(),
+		ZapLogger:          zap.NewNop(),
+		MetricsScope:       tally.NoopScope,
 		DomainCache:        mockDomainCache,
 		MembershipResolver: mockResolver,
 		HostInfo:           selfHost,

@@ -45,6 +45,15 @@ type (
 		GetDomainAuditManager() persistence.DomainAuditManager
 		SetDomainAuditManager(persistence.DomainAuditManager)
 
+		GetSemaphoreMetadataManager() persistence.SemaphoreMetadataManager
+		SetSemaphoreMetadataManager(persistence.SemaphoreMetadataManager)
+
+		GetSemaphoreTokenManager() persistence.SemaphoreTokenManager
+		SetSemaphoreTokenManager(persistence.SemaphoreTokenManager)
+
+		GetSemaphoreTaskManager() persistence.SemaphoreTaskManager
+		SetSemaphoreTaskManager(persistence.SemaphoreTaskManager)
+
 		GetTaskManager() persistence.TaskManager
 		SetTaskManager(persistence.TaskManager)
 
@@ -74,6 +83,9 @@ type (
 	BeanImpl struct {
 		domainManager                 persistence.DomainManager
 		domainAuditManager            persistence.DomainAuditManager
+		semaphoreMetadataManager      persistence.SemaphoreMetadataManager
+		semaphoreTokenManager         persistence.SemaphoreTokenManager
+		semaphoreTaskManager          persistence.SemaphoreTaskManager
 		taskManager                   persistence.TaskManager
 		visibilityManager             persistence.VisibilityManager
 		domainReplicationQueueManager persistence.QueueManager
@@ -117,6 +129,21 @@ func NewBeanFromFactory(
 	}
 
 	domainAuditMgr, err := factory.NewDomainAuditManager()
+	if err != nil {
+		return nil, err
+	}
+
+	semaphoreMetadataMgr, err := factory.NewSemaphoreMetadataManager()
+	if err != nil {
+		return nil, err
+	}
+
+	semaphoreTokenMgr, err := factory.NewSemaphoreTokenManager()
+	if err != nil {
+		return nil, err
+	}
+
+	semaphoreTaskMgr, err := factory.NewSemaphoreTaskManager()
 	if err != nil {
 		return nil, err
 	}
@@ -167,6 +194,9 @@ func NewBeanFromFactory(
 	bean := NewBean(
 		metadataMgr,
 		domainAuditMgr,
+		semaphoreMetadataMgr,
+		semaphoreTokenMgr,
+		semaphoreTaskMgr,
 		taskMgr,
 		visibilityMgr,
 		domainReplicationQueue,
@@ -185,6 +215,9 @@ func NewBeanFromFactory(
 func NewBean(
 	domainManager persistence.DomainManager,
 	domainAuditManager persistence.DomainAuditManager,
+	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
+	semaphoreTokenManager persistence.SemaphoreTokenManager,
+	semaphoreTaskManager persistence.SemaphoreTaskManager,
 	taskManager persistence.TaskManager,
 	visibilityManager persistence.VisibilityManager,
 	domainReplicationQueueManager persistence.QueueManager,
@@ -197,6 +230,9 @@ func NewBean(
 	return &BeanImpl{
 		domainManager:                 domainManager,
 		domainAuditManager:            domainAuditManager,
+		semaphoreMetadataManager:      semaphoreMetadataManager,
+		semaphoreTokenManager:         semaphoreTokenManager,
+		semaphoreTaskManager:          semaphoreTaskManager,
 		taskManager:                   taskManager,
 		visibilityManager:             visibilityManager,
 		domainReplicationQueueManager: domainReplicationQueueManager,
@@ -246,6 +282,66 @@ func (s *BeanImpl) SetDomainAuditManager(
 	defer s.Unlock()
 
 	s.domainAuditManager = domainAuditManager
+}
+
+// GetSemaphoreMetadataManager get SemaphoreMetadataManager
+func (s *BeanImpl) GetSemaphoreMetadataManager() persistence.SemaphoreMetadataManager {
+
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.semaphoreMetadataManager
+}
+
+// SetSemaphoreMetadataManager set SemaphoreMetadataManager
+func (s *BeanImpl) SetSemaphoreMetadataManager(
+	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
+) {
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.semaphoreMetadataManager = semaphoreMetadataManager
+}
+
+// GetSemaphoreTokenManager get SemaphoreTokenManager
+func (s *BeanImpl) GetSemaphoreTokenManager() persistence.SemaphoreTokenManager {
+
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.semaphoreTokenManager
+}
+
+// SetSemaphoreTokenManager set SemaphoreTokenManager
+func (s *BeanImpl) SetSemaphoreTokenManager(
+	semaphoreTokenManager persistence.SemaphoreTokenManager,
+) {
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.semaphoreTokenManager = semaphoreTokenManager
+}
+
+// GetSemaphoreTaskManager get SemaphoreTaskManager
+func (s *BeanImpl) GetSemaphoreTaskManager() persistence.SemaphoreTaskManager {
+
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.semaphoreTaskManager
+}
+
+// SetSemaphoreTaskManager set SemaphoreTaskManager
+func (s *BeanImpl) SetSemaphoreTaskManager(
+	semaphoreTaskManager persistence.SemaphoreTaskManager,
+) {
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.semaphoreTaskManager = semaphoreTaskManager
 }
 
 // GetTaskManager get TaskManager
@@ -417,6 +513,15 @@ func (s *BeanImpl) Close() {
 	s.domainManager.Close()
 	if s.domainAuditManager != nil {
 		s.domainAuditManager.Close()
+	}
+	if s.semaphoreMetadataManager != nil {
+		s.semaphoreMetadataManager.Close()
+	}
+	if s.semaphoreTokenManager != nil {
+		s.semaphoreTokenManager.Close()
+	}
+	if s.semaphoreTaskManager != nil {
+		s.semaphoreTaskManager.Close()
 	}
 	s.taskManager.Close()
 	if s.visibilityManager != nil {

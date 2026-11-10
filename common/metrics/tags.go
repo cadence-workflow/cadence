@@ -44,6 +44,7 @@ const (
 	taskList                  = "tasklist"
 	taskListType              = "tasklistType"
 	taskListRootPartition     = "tasklist_root_partition"
+	semaphoreName             = "semaphore"
 	workflowType              = "workflowType"
 	activityType              = "activityType"
 	decisionType              = "decisionType"
@@ -73,6 +74,7 @@ const (
 	isRetry                   = "is_retry"
 	queryConsistencyLevel     = "query_consistency_level"
 	budgetManagerName         = "budget_manager_name"
+	routingPath               = "routing_path"
 
 	// limiter-side tags
 	globalRatelimitKey            = "global_ratelimit_key"
@@ -195,6 +197,14 @@ func ActiveClusterTag(value string) Tag {
 // IsActiveActiveDomainTag returns a new is active active domain tag.
 func IsActiveActiveDomainTag(value bool) Tag {
 	return simpleMetric{key: isActiveActiveDomain, value: strconv.FormatBool(value)}
+}
+
+// SemaphoreNameTag returns a new semaphore tag.
+func SemaphoreNameTag(value string) Tag {
+	if len(value) == 0 {
+		value = unknownValue
+	}
+	return simpleMetric{key: semaphoreName, value: sanitizer.Value(value)}
 }
 
 // TaskListTag returns a new task list tag.
@@ -392,6 +402,11 @@ func Range(value string) Tag {
 	return metricWithUnknown("range", value)
 }
 
+// StatusTag returns a new status tag.
+func StatusTag(value string) Tag {
+	return metricWithUnknown("status", value)
+}
+
 // DecisionTag returns a new decision tag
 func DecisionTag(decision string) Tag {
 	return metricWithUnknown("decision", decision)
@@ -410,6 +425,11 @@ func OverlapPolicyTag(value string) Tag {
 // TriggerSourceTag returns a new trigger_source tag for scheduler metrics.
 func TriggerSourceTag(value string) Tag {
 	return metricWithUnknown(triggerSource, value)
+}
+
+// RoutingPathTag returns a tag identifying the backend selected for routing.
+func RoutingPathTag(value string) Tag {
+	return metricWithUnknown(routingPath, value)
 }
 
 // QueryConsistencyLevelTag returns a new query consistency level tag.

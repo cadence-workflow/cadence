@@ -46,6 +46,10 @@ import (
 	test "github.com/uber/cadence/common/testing"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/host"
+
+	_ "github.com/ncruces/go-sqlite3/driver"                                   // register sqlite3 driver for tests
+	_ "github.com/ncruces/go-sqlite3/embed"                                    // embed sqlite db for tests
+	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra" // register cassandra plugin for tests
 )
 
 var (
@@ -66,11 +70,10 @@ func TestNDCIntegrationTestSuite(t *testing.T) {
 	}
 	clusterConfigs[0].WorkerConfig = &host.WorkerConfig{}
 	clusterConfigs[1].WorkerConfig = &host.WorkerConfig{}
-	testCluster := host.NewPersistenceTestCluster(t, clusterConfigs[0])
+	testCluster := host.NewTestPersistenceConfig(t)
 	params := NDCIntegrationTestSuiteParams{
-		ClusterConfigs:        clusterConfigs,
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
+		ClusterConfigs:    clusterConfigs,
+		PersistenceConfig: testCluster,
 	}
 	s := NewNDCIntegrationTestSuite(params)
 	suite.Run(t, s)
@@ -97,20 +100,13 @@ func (s *NDCIntegrationTestSuite) SetupSuite() {
 	s.clusterConfigs[0].MockAdminClient = s.mockAdminClient
 
 	clusterMetadata := host.NewClusterMetadata(s.T(), s.clusterConfigs[0])
-	dc := persistence.DynamicConfiguration{
-		EnableSQLAsyncTransaction:                dynamicproperties.GetBoolPropertyFn(false),
-		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
-		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
-		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
-		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
-		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
-	}
+	dc := *persistence.NewDefaultDynamicConfiguration()
+	dc.EnableCassandraAllConsistencyLevelDelete = dynamicproperties.GetBoolPropertyFn(true)
+	dc.EnableHistoryTaskDualWriteMode = dynamicproperties.GetBoolPropertyFn(true)
 	params := pt.TestBaseParams{
-		DefaultTestCluster:    s.defaultTestCluster,
-		VisibilityTestCluster: s.VisibilityTestCluster,
-		ClusterMetadata:       clusterMetadata,
-		DynamicConfiguration:  dc,
+		PersistenceConfig:    s.persistenceConfig,
+		ClusterMetadata:      &clusterMetadata,
+		DynamicConfiguration: &dc,
 	}
 	cluster, err := host.NewCluster(s.T(), s.clusterConfigs[0], s.logger.WithTags(tag.ClusterName(clusterName[0])), params)
 	s.Require().NoError(err)

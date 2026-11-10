@@ -110,6 +110,7 @@ const (
 	FlagPrefix                         = "prefix"
 	FlagDeprecated                     = "deprecated"
 	FlagForce                          = "force"
+	FlagSkipDestinationCheck           = "skip_destination_check"
 	FlagPageID                         = "page_id"
 	FlagPageSize                       = "pagesize"
 	FlagLimit                          = "limit"
@@ -234,6 +235,7 @@ const (
 	FlagDynamicConfigName              = "name"
 	FlagDynamicConfigFilter            = "filter"
 	FlagDynamicConfigValue             = "value"
+	FlagDynamicConfigValueFile         = "value-file"
 	FlagTransport                      = "transport"
 	FlagFormat                         = "format"
 	FlagJSON                           = "json"
@@ -415,12 +417,12 @@ func getFlagsForStart() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name: FlagHeaderValue,
-			Usage: "Optional info to propogate via workflow context, in JSON format. If there are multiple JSON, concatenate them and separate by space. " +
+			Usage: "Optional info to propagate via workflow context, in JSON format. If there are multiple JSON, concatenate them and separate by space. " +
 				"The order must be same as " + FlagHeaderKey,
 		},
 		&cli.StringFlag{
 			Name: FlagHeaderFile,
-			Usage: "Optional info to propogate via workflow context, from JSON format file. If there are multiple JSON, concatenate them and separate by space or newline. " +
+			Usage: "Optional info to propagate via workflow context, from JSON format file. If there are multiple JSON, concatenate them and separate by space or newline. " +
 				"The order must be same as " + FlagHeaderKey,
 		},
 		&cli.StringFlag{

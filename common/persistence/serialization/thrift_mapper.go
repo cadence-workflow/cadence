@@ -264,6 +264,7 @@ func workflowExecutionInfoToThrift(info *WorkflowExecutionInfo) *sqlblobs.Workfl
 		RetryMaximumAttempts:                    &info.RetryMaximumAttempts,
 		RetryExpirationSeconds:                  durationToSecondsInt32Ptr(info.RetryExpiration),
 		RetryBackoffCoefficient:                 &info.RetryBackoffCoefficient,
+		RetryJitterCoefficient:                  &info.RetryJitterCoefficient,
 		RetryExpirationTimeNanos:                timeToUnixNanoPtr(info.RetryExpirationTimestamp),
 		RetryNonRetryableErrors:                 info.RetryNonRetryableErrors,
 		HasRetryPolicy:                          &info.HasRetryPolicy,
@@ -338,6 +339,7 @@ func workflowExecutionInfoFromThrift(info *sqlblobs.WorkflowExecutionInfo) *Work
 		RetryMaximumAttempts:                 info.GetRetryMaximumAttempts(),
 		RetryExpiration:                      common.SecondsToDuration(int64(info.GetRetryExpirationSeconds())),
 		RetryBackoffCoefficient:              info.GetRetryBackoffCoefficient(),
+		RetryJitterCoefficient:               info.GetRetryJitterCoefficient(),
 		RetryExpirationTimestamp:             timeFromUnixNano(info.GetRetryExpirationTimeNanos()),
 		RetryNonRetryableErrors:              info.RetryNonRetryableErrors,
 		HasRetryPolicy:                       info.GetHasRetryPolicy(),
@@ -399,6 +401,7 @@ func activityInfoToThrift(info *ActivityInfo) *sqlblobs.ActivityInfo {
 		RetryMaximumAttempts:          &info.RetryMaximumAttempts,
 		RetryExpirationTimeNanos:      timeToUnixNanoPtr(info.RetryExpirationTimestamp),
 		RetryBackoffCoefficient:       &info.RetryBackoffCoefficient,
+		RetryJitterCoefficient:        &info.RetryJitterCoefficient,
 		RetryNonRetryableErrors:       info.RetryNonRetryableErrors,
 		RetryLastFailureReason:        &info.RetryLastFailureReason,
 		RetryLastWorkerIdentity:       &info.RetryLastWorkerIdentity,
@@ -443,6 +446,7 @@ func activityInfoFromThrift(info *sqlblobs.ActivityInfo) *ActivityInfo {
 		RetryMaximumAttempts:          info.GetRetryMaximumAttempts(),
 		RetryExpirationTimestamp:      timeFromUnixNano(info.GetRetryExpirationTimeNanos()),
 		RetryBackoffCoefficient:       info.GetRetryBackoffCoefficient(),
+		RetryJitterCoefficient:        info.GetRetryJitterCoefficient(),
 		RetryNonRetryableErrors:       info.RetryNonRetryableErrors,
 		RetryLastFailureReason:        info.GetRetryLastFailureReason(),
 		RetryLastWorkerIdentity:       info.GetRetryLastWorkerIdentity(),
@@ -702,6 +706,7 @@ func transferTaskInfoToThrift(info *TransferTaskInfo) *sqlblobs.TransferTaskInfo
 		VisibilityTimestampNanos: timeToUnixNanoPtr(info.VisibilityTimestamp),
 		OriginalTaskList:         &info.OriginalTaskList,
 		OriginalTaskListKind:     thrift.FromTaskListKind(&info.OriginalTaskListKind),
+		SemaphoreName:            &info.SemaphoreName,
 	}
 	if len(info.TargetDomainIDs) > 0 {
 		thriftTaskInfo.TargetDomainIDs = [][]byte{}
@@ -732,6 +737,7 @@ func transferTaskInfoFromThrift(info *sqlblobs.TransferTaskInfo) *TransferTaskIn
 		VisibilityTimestamp:     timeFromUnixNano(info.GetVisibilityTimestampNanos()),
 		OriginalTaskList:        info.GetOriginalTaskList(),
 		OriginalTaskListKind:    taskListKindFromThrift(info.OriginalTaskListKind),
+		SemaphoreName:           info.GetSemaphoreName(),
 	}
 	if len(info.GetTargetDomainIDs()) > 0 {
 		transferTaskInfo.TargetDomainIDs = []UUID{}

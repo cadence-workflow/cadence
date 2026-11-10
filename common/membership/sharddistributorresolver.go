@@ -31,17 +31,22 @@ import (
 
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
+)
+
+const (
+	routingPathHashRing         = "hash_ring"
+	routingPathShardDistributor = "shard_distributor"
 )
 
 type shardDistributorResolver struct {
-	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn
-	percentageOnboarded        PercentageOnboarded
-	spectator                  spectatorclient.Spectator
-	ring                       SingleProvider
-	logger                     log.Logger
+	taskListDifferentiator *TaskListDifferentiator
+	spectator              spectatorclient.Spectator
+	ring                   SingleProvider
+	logger                 log.Logger
+	metricsScope           metrics.Scope
 }
 
 func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) {
@@ -50,17 +55,17 @@ func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) 
 
 func NewShardDistributorResolver(
 	spectator spectatorclient.Spectator,
-	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn,
-	percentageOnboarded PercentageOnboarded,
+	taskListDifferentiator *TaskListDifferentiator,
 	ring SingleProvider,
 	logger log.Logger,
+	metricsScope metrics.Scope,
 ) SingleProvider {
 	return &shardDistributorResolver{
-		spectator:                  spectator,
-		excludeShortLivedTaskLists: excludeShortLivedTaskLists,
-		percentageOnboarded:        percentageOnboarded,
-		ring:                       ring,
-		logger:                     logger,
+		spectator:              spectator,
+		taskListDifferentiator: taskListDifferentiator,
+		ring:                   ring,
+		logger:                 logger,
+		metricsScope:           metricsScope,
 	}
 }
 
@@ -75,17 +80,21 @@ func (s shardDistributorResolver) Stop() {
 }
 
 func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
-	excludeTaskList := TaskListExcludedFromShardDistributor(key, uint64(s.percentageOnboarded.Value()), s.excludeShortLivedTaskLists())
-	if excludeTaskList {
+	if s.taskListDifferentiator.TaskListExcludedFromShardDistributor(key) {
+		s.emitRoutingPathMetric(routingPathHashRing)
 		return s.ring.Lookup(key)
 	}
 
 	if s.spectator == nil {
 		s.logger.Warn("No shard distributor client, defaulting to hash ring")
+		s.emitRoutingPathMetric(routingPathHashRing)
 		return s.ring.Lookup(key)
 	}
 
-	return s.lookUpInShardDistributor(key)
+	s.emitRoutingPathMetric(routingPathShardDistributor)
+
+	shardID := s.taskListDifferentiator.ShardID(key)
+	return s.lookUpInShardDistributor(shardID)
 }
 
 // LookupN delegates to the underlying hash ring; the shard distributor does
@@ -154,4 +163,8 @@ func (s shardDistributorResolver) lookUpInShardDistributor(key string) (HostInfo
 
 	hostInfo := NewDetailedHostInfo(address, owner.ExecutorID, portMap)
 	return hostInfo, nil
+}
+
+func (s shardDistributorResolver) emitRoutingPathMetric(path string) {
+	s.metricsScope.Tagged(metrics.RoutingPathTag(path)).IncCounter(metrics.ShardDistributorResolverLookups)
 }

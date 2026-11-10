@@ -348,6 +348,8 @@ func (s *Service) startSchedulerWorkerManager() *scheduler.WorkerManager {
 		FrontendClient:     s.GetClientBean().GetFrontendClient(),
 		MetricsClient:      s.GetMetricsClient(),
 		Logger:             s.GetLogger(),
+		ZapLogger:          s.GetZapLogger(),
+		MetricsScope:       s.GetMetricsScope(),
 		DomainCache:        s.GetDomainCache(),
 		MembershipResolver: s.GetMembershipResolver(),
 		HostInfo:           s.GetHostInfo(),
@@ -404,6 +406,10 @@ func (s *Service) startReplicator() {
 		s.Resource.GetLogger(),
 		s.config.EnableDomainAuditLogging,
 	)
+	semaphoreReplicationTaskExecutor := domain.NewSemaphoreReplicationTaskExecutor(
+		s.Resource.GetSemaphoreMetadataManager(),
+		s.Resource.GetLogger(),
+	)
 	msgReplicator := replicator.NewReplicator(
 		s.GetClusterMetadata(),
 		s.GetClientBean(),
@@ -413,6 +419,7 @@ func (s *Service) startReplicator() {
 		s.GetMembershipResolver(),
 		s.GetDomainReplicationQueue(),
 		domainReplicationTaskExecutor,
+		semaphoreReplicationTaskExecutor,
 		s.config.DomainReplicationMaxRetryDuration(),
 	)
 	if err := msgReplicator.Start(); err != nil {

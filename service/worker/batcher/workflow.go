@@ -90,6 +90,26 @@ const (
 // AllBatchTypes is the batch types we supported
 var AllBatchTypes = []string{BatchTypeTerminate, BatchTypeCancel, BatchTypeSignal, BatchTypeReplicate, BatchTypeRefresh}
 
+// BatchTypeFromOperation maps a typed BatchOperation's discriminator onto the
+// legacy BatchType string this package switches on. Returns "" for a nil
+// operation or one with no (or an unrecognized) OperationType.
+func BatchTypeFromOperation(op *types.BatchOperation) string {
+	switch op.GetOperationType() {
+	case types.BatchOperationTypeTerminate:
+		return BatchTypeTerminate
+	case types.BatchOperationTypeCancel:
+		return BatchTypeCancel
+	case types.BatchOperationTypeSignal:
+		return BatchTypeSignal
+	case types.BatchOperationTypeReplicate:
+		return BatchTypeReplicate
+	case types.BatchOperationTypeRefresh:
+		return BatchTypeRefresh
+	default:
+		return ""
+	}
+}
+
 var (
 	BatchActivityRetryPolicy = cadence.RetryPolicy{
 		InitialInterval:          10 * time.Second,
@@ -118,7 +138,7 @@ func init() {
 // TODO: remove once no v1 executions remain.
 func BatchWorkflow(ctx workflow.Context, batchParams BatchParams) (HeartBeatDetails, error) {
 	batchParams = setDefaultParams(batchParams)
-	err := validateParams(batchParams)
+	err := ValidateParams(batchParams)
 	if err != nil {
 		return HeartBeatDetails{}, err
 	}

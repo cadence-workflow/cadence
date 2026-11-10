@@ -23,13 +23,16 @@ package flag
 import (
 	goflag "flag"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 )
 
 type (
-	StringMap   map[string]string
-	StringSlice []string
+	StringMap map[string]string
+	// RepeatedStringMap represents values for a CLI argument where key value pairs are populated by repeating the
+	// option. This has to be a distinct type because the parsing behavior is defined as a receiver method on the type
+	RepeatedStringMap map[string]string
 )
 
 // Set resets the map before parsing. This is intentional: StringMap is used as
@@ -78,56 +81,130 @@ func (m *StringMap) Value() map[string]string {
 	return *m
 }
 
-func (s *StringSlice) Set(value string) error {
-	*s = append(*s, value)
+func (m *RepeatedStringMap) Set(value string) error {
+	if m == nil {
+		return fmt.Errorf("RepeatedStringMap is nil")
+	}
+	kv := strings.SplitN(value, "=", 2)
+	if len(kv) != 2 {
+		return fmt.Errorf("value %q must be in key=value format", value)
+	}
+	if _, dup := (*m)[kv[0]]; dup {
+		return fmt.Errorf("key %q specified more than once", kv[0])
+	}
+	(*m)[kv[0]] = kv[1]
 	return nil
 }
 
-func (s *StringSlice) String() string {
-	if s == nil {
+func (m *RepeatedStringMap) String() string {
+	if m == nil || len(*m) == 0 {
 		return ""
 	}
-	return strings.Join(*s, "\n")
+	pairs := make([]string, 0, len(*m))
+	for k, v := range *m {
+		pairs = append(pairs, k+"="+v)
+	}
+	sort.Strings(pairs) // deterministic output
+	return strings.Join(pairs, ",")
 }
 
-func (s *StringSlice) Value() []string {
-	if s == nil {
+func (m *RepeatedStringMap) Value() map[string]string {
+	if m == nil {
 		return nil
 	}
-	return []string(*s)
+	return *m
 }
 
-// RepeatedStringFlag is a cli.Flag for repeatable string values that does NOT
-// split on commas. Each Apply creates a fresh StringSlice to prevent cross-run
-// accumulation when the flag is defined as a package-level var.
-type RepeatedStringFlag struct {
+// RepeatedStringMapFlag is a cli.Flag for key/value pairs by repeating the option rather than parsing a single value
+// into key/value pairs. For example, "--setup-option replication_factor=1 --setup-option cluster=dca" yields
+// map[string]string{"replication_factor": "1", "cluster": "dca"}. The flag can also be seeded from environment
+// variables with a common prefix, e.g. CADENCE_SETUP_OPTION_<KEY>=<VALUE>. See EnvVarPrefix.
+// The only parsing logic is that the value is split on the first `=`, and may contain any other characters after that.
+// Each Apply creates a fresh RepeatedStringMap to prevent cross-run accumulation when the flag is defined as a
+// package-level var.
+type RepeatedStringMapFlag struct {
 	Name  string
 	Usage string
+	// EnvVarPrefix, when non-empty, identifies a family of environment variables
+	// that seed the flag's value. Every variable named "<EnvVarPrefix>_<KEY>" is
+	// turned into a "<key>=<value>" entry, where only the key is lowercased.
+	// For example, with prefix CADENCE_SETUP_OPTION the variable
+	// CADENCE_SETUP_OPTION_REPLICATION_FACTOR=1 yields "replication_factor=1".
+	// Values given on the command line are appended after the environment
+	// derived ones, so consumers see duplicate keys as a conflict.
+	EnvVarPrefix string
+
+	// envApplied records whether the most recent Apply seeded any values from
+	// the environment, so IsSet can report them as set.
+	envApplied bool
 }
 
-func (f *RepeatedStringFlag) String() string {
-	return fmt.Sprintf("--%s value\t%s", f.Name, f.Usage)
+func (f *RepeatedStringMapFlag) String() string {
+	s := fmt.Sprintf("--%s value\t%s", f.Name, f.Usage)
+	if f.EnvVarPrefix != "" {
+		s += fmt.Sprintf(" [$%s_<KEY>]", f.EnvVarPrefix)
+	}
+	return s
 }
 
-func (f *RepeatedStringFlag) Names() []string {
+func (f *RepeatedStringMapFlag) Names() []string {
 	return []string{f.Name}
 }
 
 // IsVisible makes the flag appear in --help output; urfave/cli hides any
 // flag that does not implement cli.VisibleFlag.
-func (f *RepeatedStringFlag) IsVisible() bool {
+func (f *RepeatedStringMapFlag) IsVisible() bool {
 	return true
 }
 
-// IsSet always returns false; c.IsSet() uses fs.Visit which is the
-// authoritative check for whether the flag appeared on the command line.
-func (f *RepeatedStringFlag) IsSet() bool {
-	return false
+// IsSet reports whether values were seeded from the environment. Values passed
+// on the command line are detected by c.IsSet() via fs.Visit, which is the
+// authoritative check for those.
+func (f *RepeatedStringMapFlag) IsSet() bool {
+	return f.envApplied
 }
 
-// Apply registers a fresh StringSlice with the flag set on every call,
+// Apply registers a fresh RepeatedStringMap with the flag set on every call,
 // preventing cross-run accumulation when the flag is a package-level var.
-func (f *RepeatedStringFlag) Apply(set *goflag.FlagSet) error {
-	set.Var(&StringSlice{}, f.Name, f.Usage)
+// When EnvVarPrefix is set, matching environment variables seed the slice.
+func (f *RepeatedStringMapFlag) Apply(set *goflag.FlagSet) error {
+	values, err := f.envValues()
+	if err != nil {
+		return fmt.Errorf("%s: %w", f.Name, err)
+	}
+	f.envApplied = len(values) > 0
+	result := RepeatedStringMap(values)
+	set.Var(&result, f.Name, f.Usage)
 	return nil
+}
+
+// envValues collects "<key>=<value>" entries derived from environment variables
+// matching EnvVarPrefix, sorted for deterministic ordering.
+func (f *RepeatedStringMapFlag) envValues() (map[string]string, error) {
+	if f.EnvVarPrefix == "" {
+		return map[string]string{}, nil
+	}
+	prefix := f.EnvVarPrefix + "_"
+	result := make(map[string]string)
+	for _, env := range os.Environ() {
+		name, value, found := strings.Cut(env, "=")
+		if !found {
+			continue
+		}
+		if name == f.EnvVarPrefix {
+			return nil, fmt.Errorf("environment variable %s must be named %s<KEY>", name, prefix)
+		}
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		key := strings.ToLower(strings.TrimPrefix(name, prefix))
+		if key == "" {
+			return nil, fmt.Errorf("environment variable %s must be named %s<KEY>", name, prefix)
+		}
+		if _, dup := result[key]; dup {
+			return nil, fmt.Errorf("duplicate variable: %s", name)
+		}
+		result[key] = value
+	}
+	return result, nil
 }

@@ -26,10 +26,12 @@ import "time"
 
 // ScheduleListEntry represents a single schedule in a list response.
 type ScheduleListEntry struct {
-	ScheduleID     string         `json:"scheduleId,omitempty"`
-	WorkflowType   *WorkflowType  `json:"workflowType,omitempty"`
-	State          *ScheduleState `json:"state,omitempty"`
-	CronExpression string         `json:"cronExpression,omitempty"`
+	ScheduleID       string            `json:"scheduleId,omitempty"`
+	WorkflowType     *WorkflowType     `json:"workflowType,omitempty"`
+	State            *ScheduleState    `json:"state,omitempty"`
+	CronExpression   string            `json:"cronExpression,omitempty"`
+	Memo             *Memo             `json:"-"` // Filtering PII
+	SearchAttributes *SearchAttributes `json:"-"` // Filtering PII
 }
 
 func (v *ScheduleListEntry) GetScheduleID() (o string) {
@@ -60,6 +62,20 @@ func (v *ScheduleListEntry) GetCronExpression() (o string) {
 	return
 }
 
+func (v *ScheduleListEntry) GetMemo() *Memo {
+	if v != nil {
+		return v.Memo
+	}
+	return nil
+}
+
+func (v *ScheduleListEntry) GetSearchAttributes() *SearchAttributes {
+	if v != nil {
+		return v.SearchAttributes
+	}
+	return nil
+}
+
 // CreateScheduleRequest is the request to create a new schedule.
 type CreateScheduleRequest struct {
 	Domain           string            `json:"domain,omitempty"`
@@ -69,6 +85,9 @@ type CreateScheduleRequest struct {
 	Policies         *SchedulePolicies `json:"policies,omitempty"`
 	Memo             *Memo             `json:"-"` // Filtering PII
 	SearchAttributes *SearchAttributes `json:"-"` // Filtering PII
+	// State, if set and Paused is true, creates the schedule in a paused state
+	// immediately instead of requiring a subsequent PauseSchedule call.
+	State *ScheduleState `json:"state,omitempty"`
 }
 
 func (v *CreateScheduleRequest) GetDomain() (o string) {
@@ -116,6 +135,13 @@ func (v *CreateScheduleRequest) GetMemo() *Memo {
 func (v *CreateScheduleRequest) GetSearchAttributes() *SearchAttributes {
 	if v != nil {
 		return v.SearchAttributes
+	}
+	return nil
+}
+
+func (v *CreateScheduleRequest) GetState() *ScheduleState {
+	if v != nil {
+		return v.State
 	}
 	return nil
 }

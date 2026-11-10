@@ -323,10 +323,12 @@ func FromScheduleListEntry(t *types.ScheduleListEntry) *apiv1.ScheduleListEntry 
 		return nil
 	}
 	return &apiv1.ScheduleListEntry{
-		ScheduleId:     t.ScheduleID,
-		WorkflowType:   FromWorkflowType(t.WorkflowType),
-		State:          FromScheduleState(t.State),
-		CronExpression: t.CronExpression,
+		ScheduleId:       t.ScheduleID,
+		WorkflowType:     FromWorkflowType(t.WorkflowType),
+		State:            FromScheduleState(t.State),
+		CronExpression:   t.CronExpression,
+		Memo:             FromMemo(t.Memo),
+		SearchAttributes: FromSearchAttributes(t.SearchAttributes),
 	}
 }
 
@@ -335,10 +337,12 @@ func ToScheduleListEntry(t *apiv1.ScheduleListEntry) *types.ScheduleListEntry {
 		return nil
 	}
 	return &types.ScheduleListEntry{
-		ScheduleID:     t.ScheduleId,
-		WorkflowType:   ToWorkflowType(t.WorkflowType),
-		State:          ToScheduleState(t.State),
-		CronExpression: t.CronExpression,
+		ScheduleID:       t.ScheduleId,
+		WorkflowType:     ToWorkflowType(t.WorkflowType),
+		State:            ToScheduleState(t.State),
+		CronExpression:   t.CronExpression,
+		Memo:             ToMemo(t.Memo),
+		SearchAttributes: ToSearchAttributes(t.SearchAttributes),
 	}
 }
 
@@ -378,6 +382,7 @@ func FromCreateScheduleRequest(t *types.CreateScheduleRequest) *apiv1.CreateSche
 		Policies:         FromSchedulePolicies(t.Policies),
 		Memo:             FromMemo(t.Memo),
 		SearchAttributes: FromSearchAttributes(t.SearchAttributes),
+		State:            FromScheduleState(t.State),
 	}
 }
 
@@ -393,6 +398,7 @@ func ToCreateScheduleRequest(t *apiv1.CreateScheduleRequest) *types.CreateSchedu
 		Policies:         ToSchedulePolicies(t.Policies),
 		Memo:             ToMemo(t.Memo),
 		SearchAttributes: ToSearchAttributes(t.SearchAttributes),
+		State:            ToScheduleState(t.State),
 	}
 }
 

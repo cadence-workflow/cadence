@@ -44,13 +44,12 @@ func TestSizeLimitIntegrationSuite(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := NewTestPersistenceConfig(t)
 
 	s := new(SizeLimitIntegrationSuite)
 	params := IntegrationBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		TestClusterConfig:     clusterConfig,
+		PersistenceConfig: testCluster,
+		TestClusterConfig: clusterConfig,
 	}
 	s.IntegrationBase = NewIntegrationBase(params)
 	suite.Run(t, s)
@@ -181,7 +180,7 @@ func (s *SizeLimitIntegrationSuite) TestTerminateWorkflowCausedBySizeLimit() {
 	lastEvent := history.Events[len(history.Events)-1]
 	s.Equal(types.EventTypeWorkflowExecutionFailed, lastEvent.GetEventType())
 	failedEventAttributes := lastEvent.WorkflowExecutionFailedEventAttributes
-	s.Equal(common.FailureReasonSizeExceedsLimit, failedEventAttributes.GetReason())
+	s.Equal(common.FailureReasonHistorySizeExceedsLimit, failedEventAttributes.GetReason())
 
 	// verify visibility is correctly processed from open to close
 	isCloseCorrect := false

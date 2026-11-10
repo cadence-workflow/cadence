@@ -119,6 +119,10 @@ func getOperationFromMethodName(op string) tag.Tag {
 		t = domainManagerTags(op)
 	case strings.HasPrefix(op, "HistoryManager"):
 		t = historyManagerTags(op)
+	case strings.HasPrefix(op, "HistoryTaskDLQManager"):
+		t = historyTaskDLQManagerTags(op)
+	case strings.HasPrefix(op, "AsyncWorkflowQueueManager"):
+		t = asyncWorkflowQueueManagerTags(op)
 	case strings.HasPrefix(op, "ShardManager"):
 		t = shardManagerTags(op)
 	case strings.HasPrefix(op, "ExecutionManager"):
@@ -184,6 +188,46 @@ func historyManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationReadRawHistoryBranch
 	case "HistoryManager.GetAllHistoryTreeBranches":
 		return &tag.StoreOperationGetAllHistoryTreeBranches
+	}
+	return nil
+}
+
+func historyTaskDLQManagerTags(op string) *tag.Tag {
+	switch op {
+	case "HistoryTaskDLQManager.CreateHistoryDLQTask":
+		return &tag.StoreOperationCreateHistoryDLQTask
+	case "HistoryTaskDLQManager.CreateHistoryDLQAckLevelIfNotExists":
+		return &tag.StoreOperationCreateHistoryDLQAckLevelIfNotExists
+	case "HistoryTaskDLQManager.GetHistoryDLQAckLevels":
+		return &tag.StoreOperationGetHistoryDLQAckLevels
+	case "HistoryTaskDLQManager.GetHistoryDLQTasks":
+		return &tag.StoreOperationGetHistoryDLQTasks
+	case "HistoryTaskDLQManager.UpdateHistoryDLQAckLevel":
+		return &tag.StoreOperationUpdateHistoryDLQAckLevel
+	case "HistoryTaskDLQManager.DeleteHistoryDLQTasks":
+		return &tag.StoreOperationDeleteHistoryDLQTasks
+	}
+	return nil
+}
+
+func asyncWorkflowQueueManagerTags(op string) *tag.Tag {
+	switch op {
+	case "AsyncWorkflowQueueManager.EnqueueAsyncWorkflowMessage":
+		return &tag.StoreOperationEnqueueAsyncWorkflowMessage
+	case "AsyncWorkflowQueueManager.ReadAsyncWorkflowMessages":
+		return &tag.StoreOperationReadAsyncWorkflowMessages
+	case "AsyncWorkflowQueueManager.GetAsyncWorkflowAckLevels":
+		return &tag.StoreOperationGetAsyncWorkflowAckLevels
+	case "AsyncWorkflowQueueManager.UpdateAsyncWorkflowAckLevel":
+		return &tag.StoreOperationUpdateAsyncWorkflowAckLevel
+	case "AsyncWorkflowQueueManager.RangeDeleteAsyncWorkflowMessages":
+		return &tag.StoreOperationRangeDeleteAsyncWorkflowMessages
+	case "AsyncWorkflowQueueManager.EnqueueAsyncWorkflowMessageToDLQ":
+		return &tag.StoreOperationEnqueueAsyncWorkflowMessageToDLQ
+	case "AsyncWorkflowQueueManager.ReadAsyncWorkflowMessagesFromDLQ":
+		return &tag.StoreOperationReadAsyncWorkflowMessagesFromDLQ
+	case "AsyncWorkflowQueueManager.RangeDeleteAsyncWorkflowMessagesFromDLQ":
+		return &tag.StoreOperationRangeDeleteAsyncWorkflowMessagesFromDLQ
 	}
 	return nil
 }

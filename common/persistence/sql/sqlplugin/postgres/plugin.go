@@ -31,11 +31,13 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	"github.com/uber/cadence/environment"
+	"github.com/uber/cadence/schema/postgres"
 )
 
 const (
@@ -68,6 +70,17 @@ func (d *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
 		return nil, err
 	}
 	return newDB(driver, cfg.NumShards), nil
+}
+
+func (d *plugin) GetSchema(dbType persistence.DBType) (persistence.Schema, error) {
+	switch dbType {
+	case persistence.DBTypeDefault:
+		return postgres.DefaultSchema, nil
+	case persistence.DBTypeVisibility:
+		return postgres.VisibilitySchema, nil
+	default:
+		return nil, fmt.Errorf("unknown db type: %v", dbType)
+	}
 }
 
 // CreateDBConnection creates a returns a reference to a logical connection to the
@@ -147,12 +160,8 @@ func registerTLSConfig(cfg *config.SQL) (sslParams url.Values, err error) {
 	return
 }
 
-const (
-	testSchemaDir = "schema/postgres"
-)
-
-// GetTestClusterOption return test options
-func GetTestClusterOption() (*pt.TestBaseOptions, error) {
+// GetTestConfig return test options
+func GetTestConfig() (config.DataStore, error) {
 	testUser := "postgres"
 	testPassword := "cadence"
 
@@ -170,15 +179,17 @@ func GetTestClusterOption() (*pt.TestBaseOptions, error) {
 	}
 	dbPort, err := environment.GetPostgresPort()
 	if err != nil {
-		return nil, err
+		return config.DataStore{}, err
 	}
 
-	return &pt.TestBaseOptions{
-		DBPluginName: PluginName,
-		DBUsername:   testUser,
-		DBPassword:   testPassword,
-		DBHost:       environment.GetPostgresAddress(),
-		DBPort:       dbPort,
-		SchemaDir:    testSchemaDir,
+	return config.DataStore{
+		SQL: &config.SQL{
+			PluginName:   PluginName,
+			User:         testUser,
+			Password:     testPassword,
+			ConnectAddr:  fmt.Sprintf("%s:%d", environment.GetPostgresAddress(), dbPort),
+			DatabaseName: pt.GenerateRandomDBName(),
+			NumShards:    4,
+		},
 	}, nil
 }

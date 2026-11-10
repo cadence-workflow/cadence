@@ -82,6 +82,7 @@ services:
       - "ES_SEEDS=opensearch"
       - "ES_VERSION=os2"
       - "KAFKA_SEEDS=kafka"
+      - "ENABLE_METRICS_MIGRATION=true"
     depends_on:
       cassandra:
         condition: service_healthy

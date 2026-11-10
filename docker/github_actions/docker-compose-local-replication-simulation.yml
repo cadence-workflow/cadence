@@ -47,10 +47,7 @@ services:
     build:
       context: ../../
       dockerfile: ./Dockerfile${DOCKERFILE_SUFFIX}
-      args:
-        TARGET: auto-setup
-    command:
-      - /start.sh
+      target: cadence-auto-setup
     ports:
       - "7933:7933" # frontend thrift
       - "7833:7833" # frontend grpc
@@ -93,10 +90,7 @@ services:
     build:
       context: ../../
       dockerfile: ./Dockerfile${DOCKERFILE_SUFFIX}
-      args:
-        TARGET: auto-setup
-    command:
-      - /start.sh
+      target: cadence-auto-setup
     ports: # cluster1 uses 8xxx host ports to avoid conflicts with cluster0
       - "8933:7933" # frontend thrift
       - "8833:7833" # frontend grpc

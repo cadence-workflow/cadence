@@ -44,33 +44,30 @@ import (
 	"github.com/uber/cadence/service/history/engine/engineimpl"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/matching/tasklist"
+
+	_ "github.com/ncruces/go-sqlite3/driver"                                   // register sqlite3 driver for tests
+	_ "github.com/ncruces/go-sqlite3/embed"                                    // embed sqlite db for tests
+	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra" // register cassandra plugin for tests
 )
 
 func TestIntegrationSuite(t *testing.T) {
 	flag.Parse()
 
 	configPath := "testdata/integration_test_cluster.yaml"
-	// TODO: remove this logic once we deprecate history queue v1
-	if os.Getenv("ENABLE_QUEUE_V2") == "true" {
-		configPath = "testdata/integration_queuev2_cluster.yaml"
-		if os.Getenv("ENABLE_QUEUE_V2_ALERT") == "true" {
-			configPath = "testdata/integration_queuev2_with_alert_cluster.yaml"
-		} else if os.Getenv("ENABLE_QUEUE_V2_CACHED_QUEUE_READER") == "true" {
-			configPath = "testdata/integration_queuev2_cached_reader_cluster.yaml"
-		}
+	if os.Getenv("ENABLE_QUEUE_V2_ALERT") == "true" {
+		configPath = "testdata/integration_queuev2_with_alert_cluster.yaml"
 	}
 	clusterConfig, err := GetTestClusterConfig(configPath)
 	if err != nil {
 		panic(err)
 	}
 
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := NewTestPersistenceConfig(t)
 
 	s := new(IntegrationSuite)
 	params := IntegrationBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		TestClusterConfig:     clusterConfig,
+		PersistenceConfig: testCluster,
+		TestClusterConfig: clusterConfig,
 	}
 	s.IntegrationBase = NewIntegrationBase(params)
 	suite.Run(t, s)

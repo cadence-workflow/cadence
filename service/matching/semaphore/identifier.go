@@ -1,0 +1,74 @@
+package semaphore
+
+import (
+	"fmt"
+
+	"github.com/uber/cadence/common/log/tag"
+	commonsemaphore "github.com/uber/cadence/common/semaphore"
+	"github.com/uber/cadence/common/types"
+)
+
+// Identifier names what one Manager serves: one bucket of one semaphore. A semaphore of `size`
+// tokens is split into ceil(size/bucket_size) buckets, and a bucket is one partition of
+// semaphore_tokens.
+//
+// Used directly as a map key, so every field must stay comparable. String() is for logs and
+// metrics.
+type Identifier struct {
+	DomainID      string
+	SemaphoreName string
+	Bucket        int
+}
+
+// NewIdentifier rejects the values persistence would reject anyway, so a misconfigured manager
+// fails here rather than on its first grant.
+func NewIdentifier(domainID, semaphoreName string, bucket int) (Identifier, error) {
+	id := Identifier{DomainID: domainID, SemaphoreName: semaphoreName, Bucket: bucket}
+	if err := id.validate(); err != nil {
+		return Identifier{}, &types.BadRequestError{Message: err.Error()}
+	}
+	return id, nil
+}
+
+// ParseRequestOwner decodes an owner_id from an RPC request, returning a BadRequestError if
+// it is malformed.
+func ParseRequestOwner(ownerID string) (commonsemaphore.Owner, error) {
+	owner, err := commonsemaphore.ParseOwner(ownerID)
+	if err != nil {
+		return commonsemaphore.Owner{}, &types.BadRequestError{Message: fmt.Sprintf("invalid owner id: %v", err)}
+	}
+	return owner, nil
+}
+
+func (id Identifier) validate() error {
+	if id.DomainID == "" {
+		return fmt.Errorf("domainID is required")
+	}
+	if id.SemaphoreName == "" {
+		return fmt.Errorf("semaphoreName is required")
+	}
+	if id.Bucket < 0 {
+		return fmt.Errorf("bucket must not be negative, got %d", id.Bucket)
+	}
+	return nil
+}
+
+func (id Identifier) String() string {
+	return fmt.Sprintf("%s/%s/%d", id.DomainID, id.SemaphoreName, id.Bucket)
+}
+
+// LogTags identifies the bucket in a log line. Three fields rather than one joined string, so
+// a query can select every bucket of one semaphore as readily as a single bucket.
+func (id Identifier) LogTags() []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainID(id.DomainID),
+		tag.SemaphoreName(id.SemaphoreName),
+		tag.SemaphoreBucket(id.Bucket),
+	}
+}
+
+// RingKey returns the key used to look up this bucket's Matching host on the membership ring.
+// Separate from String(), which is for logs, so changing the log format never moves a bucket.
+func (id Identifier) RingKey() string {
+	return commonsemaphore.RingKey(id.DomainID, id.SemaphoreName, id.Bucket)
+}

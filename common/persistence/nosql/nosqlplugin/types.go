@@ -53,14 +53,19 @@ type (
 		ChildWorkflowInfos map[int64]*persistence.InternalChildExecutionInfo
 		RequestCancelInfos map[int64]*persistence.RequestCancelInfo
 		SignalInfos        map[int64]*persistence.SignalInfo
+		SemaphoreInfos     map[int64]*persistence.SemaphoreInfo
 		SignalRequestedIDs []string // This map has no value, hence use array to store keys
 
 		// For WorkflowExecutionMapsWriteMode of update only
 		ActivityInfoKeysToDelete       []int64
 		TimerInfoKeysToDelete          []string
+		RewriteActivityInfos           map[int64]*persistence.InternalActivityInfo // non-nil triggers full activity_map rewrite
+		RewriteTimerInfos              map[string]*persistence.TimerInfo           // non-nil triggers full timer_map rewrite
+		SentinelWriteEnabled           bool                                        // write sentinel placeholders instead of deleting entries
 		ChildWorkflowInfoKeysToDelete  []int64
 		RequestCancelInfoKeysToDelete  []int64
 		SignalInfoKeysToDelete         []int64
+		SemaphoreInfoKeysToDelete      []int64
 		SignalRequestedIDsKeysToDelete []string
 
 		// EventBufferWriteMode controls how to write into the buffered event list
@@ -279,6 +284,107 @@ type (
 		MaxCreatedTime *time.Time
 		PageSize       int
 		NextPageToken  []byte
+	}
+
+	// SemaphoreMetadataRow defines the row struct for distributed semaphore metadata
+	SemaphoreMetadataRow struct {
+		DomainID      string
+		SemaphoreName string
+		Size          int
+		BucketSize    int
+		CreatedTime   time.Time
+	}
+
+	// SemaphoreMetadataFilter contains the filter criteria for listing semaphores in a domain
+	SemaphoreMetadataFilter struct {
+		DomainID      string
+		PageSize      int
+		NextPageToken []byte
+	}
+
+	// SemaphoreOwnershipRow defines a row of the semaphore_tokens table, in either
+	// of its two types: a forward "token" row or a reverse "owner" row.
+	SemaphoreOwnershipRow struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		// RowType is an output: reads fill it in from the stored `type` column, and
+		// writes ignore whatever it holds.
+		//
+		// Writes cannot honor it. Grant and release each write two rows in one batch,
+		// a token row and an owner row, so no single value on this struct could
+		// describe them. Seeding does write one row per struct, but honoring it there
+		// alone would leave a field that two of the three write paths still ignore.
+		// All three hardcode the `type` for each row they store.
+		RowType     persistence.SemaphoreRowType
+		TokenID     int
+		OwnerID     string
+		Holder      string
+		HeldToken   int
+		UpdatedTime time.Time
+	}
+
+	// SemaphoreGrantResult reports the outcome of a conditional grant batch.
+	SemaphoreGrantResult struct {
+		Outcome persistence.SemaphoreGrantOutcome
+		// HeldToken is set only when Outcome is persistence.SemaphoreGrantAlreadyHeld.
+		HeldToken int
+	}
+
+	// SemaphoreOwnershipFilter contains the filter criteria for scanning a bucket
+	// partition (both row types), paginated.
+	SemaphoreOwnershipFilter struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		PageSize      int
+		NextPageToken []byte
+	}
+
+	// SemaphoreTaskControlRow is the control row of a semaphore bucket (type=1, sentinel task_id).
+	// It carries the range_id single-writer fence and the ack_level cursor for the task queue.
+	SemaphoreTaskControlRow struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		RangeID       int64
+		AckLevel      int64
+		// CurrentTimeStamp is the write-time stamp (mirrors TaskListRow.CurrentTimeStamp).
+		CurrentTimeStamp time.Time
+		CreatedTime      time.Time
+	}
+
+	// SemaphoreTaskControlFilter identifies a single bucket's control row.
+	SemaphoreTaskControlFilter struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+	}
+
+	// SemaphoreTaskRow is one queued acquire waiting for a token (type=0). It maps the
+	// frozen<semaphore_task> UDT (workflow_id, run_id, hold_id) plus the top-level columns.
+	SemaphoreTaskRow struct {
+		DomainID      string
+		SemaphoreName string
+		Bucket        int
+		TaskID        int64
+
+		WorkflowID string
+		RunID      string
+		HoldID     int64
+		// AcquireDeadline is nil when the task has no deadline (never skipped, no expiry).
+		AcquireDeadline *time.Time
+		CreatedTime     time.Time
+	}
+
+	// SemaphoreTasksFilter bounds a task range read/delete/count within a bucket.
+	SemaphoreTasksFilter struct {
+		SemaphoreTaskControlFilter
+		// ExclusiveMinTaskID: task_id >
+		ExclusiveMinTaskID int64
+		// InclusiveMaxTaskID: task_id <= (unused for count)
+		InclusiveMaxTaskID int64
+		BatchSize          int
 	}
 
 	// HistoryDLQTaskRow defines the row struct for history task dead-letter queue entries.

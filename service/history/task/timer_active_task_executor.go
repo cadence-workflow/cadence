@@ -121,6 +121,10 @@ func (t *timerActiveTaskExecutor) Execute(task Task) (ExecuteResponse, error) {
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
 		return executeResponse, t.executeWorkflowBackoffTimerTask(ctx, timerTask)
+	case *persistence.SemaphoreAcquireTimeoutTask:
+		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
+		defer cancel()
+		return executeResponse, t.executeSemaphoreAcquireTimeoutTask(ctx, timerTask)
 	case *persistence.DeleteHistoryEventTask:
 		ctx, cancel := context.WithTimeout(t.ctx, time.Duration(t.config.DeleteHistoryEventContextTimeout())*time.Second)
 		defer cancel()
@@ -705,6 +709,14 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 	}
 	ok, err = verifyTaskVersion(t.shard, t.logger, task.DomainID, activityInfo.Version, task.Version, task)
 	if err != nil || !ok {
+		if err == nil {
+			t.logger.Debug("Activity retry timer task skipped: version mismatch",
+				tag.WorkflowID(task.WorkflowID),
+				tag.WorkflowRunID(task.RunID),
+				tag.WorkflowDomainID(task.DomainID),
+				tag.WorkflowScheduleID(scheduledID),
+			)
+		}
 		return err
 	}
 
@@ -872,6 +884,54 @@ func (t *timerActiveTaskExecutor) executeWorkflowTimeoutTask(
 		),
 		newMutableState,
 	)
+}
+
+// executeSemaphoreAcquireTimeoutTask records SemaphoreAcquireFailed(TIMED_OUT) for a hold still
+// waiting for its first grant at its deadline.
+func (t *timerActiveTaskExecutor) executeSemaphoreAcquireTimeoutTask(
+	ctx context.Context,
+	task *persistence.SemaphoreAcquireTimeoutTask,
+) (retError error) {
+
+	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
+		task.DomainID,
+		getWorkflowExecution(task),
+		taskGetExecutionContextTimeout,
+	)
+	if err != nil {
+		if err == context.DeadlineExceeded {
+			return errWorkflowBusy
+		}
+		return err
+	}
+	defer func() { release(retError) }()
+
+	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TimerQueueProcessorScope), t.logger, task.EventID)
+	if err != nil {
+		return err
+	}
+	if mutableState == nil || !mutableState.IsWorkflowExecutionRunning() {
+		return nil
+	}
+
+	// No hold means it was released or its acquire already ended.
+	semaphoreInfo, ok := mutableState.GetSemaphoreInfo(task.EventID)
+	if !ok {
+		return nil
+	}
+	ok, err = verifyTaskVersion(t.shard, t.logger, task.DomainID, semaphoreInfo.Version, task.Version, task)
+	if err != nil || !ok {
+		return err
+	}
+	// The grant was recorded before this timer ran, so the grant wins and the timeout does nothing.
+	if semaphoreInfo.HasToken() {
+		return nil
+	}
+
+	if _, err := mutableState.AddSemaphoreAcquireFailedEvent(task.EventID, types.SemaphoreAcquireFailedCauseTimedOut); err != nil {
+		return err
+	}
+	return t.updateWorkflowExecution(ctx, wfContext, mutableState, true)
 }
 
 func (t *timerActiveTaskExecutor) updateWorkflowExecution(

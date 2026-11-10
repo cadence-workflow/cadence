@@ -81,6 +81,21 @@ persistence:
                 maxConns: 20
                 maxIdleConns: 20
                 maxConnLifetime: "1h"
+        {{- else if eq $db "sqlite" }}
+        default:
+            sql:
+                pluginName: "sqlite"
+                databaseName: "{{ default .Env.DBNAME "/tmp/cadence.db" }}"
+                maxConns: 1
+                maxIdleConns: 1
+                maxConnLifetime: "128h"
+        visibility:
+            sql:
+                pluginName: "sqlite"
+                databaseName: "{{ default .Env.VISIBILITY_DBNAME "/tmp/cadence_visibility.db" }}"
+                maxConns: 1
+                maxIdleConns: 1
+                maxConnLifetime: "128h"
         {{- end }}
         {{- if eq $es "true" }}
         es-visibility:
@@ -356,3 +371,16 @@ shard-distributor-matching:
       heartbeat_interval: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_HEARTBEAT_INTERVAL "1s" }}
       ttl_shard: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_TTL_SHARD "5m" }}
       ttl_report: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_TTL_REPORT "1m" }}
+
+{{- $enableMetricsMigration := default .Env.ENABLE_METRICS_MIGRATION "false" | lower -}}
+{{- if eq $enableMetricsMigration "true" }}
+gauge-migration:
+  default: gauge
+  names: {}
+histograms:
+  default: histogram
+  names: {}
+counter-migration:
+  default: counter
+  names: {}
+{{- end }}

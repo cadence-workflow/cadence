@@ -30,6 +30,7 @@ services:
       - "CASSANDRA_SEEDS=cassandra"
       - "STATSD_ENDPOINT=statsd:8125"
       - "DYNAMIC_CONFIG_FILE_PATH=dynamicconfig/development.yaml"
+      - "ENABLE_METRICS_MIGRATION=true"
     depends_on:
       cassandra:
         condition: service_healthy

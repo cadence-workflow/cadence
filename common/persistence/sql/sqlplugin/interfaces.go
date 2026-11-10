@@ -46,6 +46,7 @@ type (
 	Plugin interface {
 		CreateDB(cfg *config.SQL) (DB, error)
 		CreateAdminDB(cfg *config.SQL) (AdminDB, error)
+		GetSchema(dbType persistence.DBType) (persistence.Schema, error)
 	}
 
 	// DomainRow represents a row in domain table
@@ -889,6 +890,7 @@ type (
 
 	// adminCRUD defines admin operations for CLI and test suites
 	adminCRUD interface {
+		HasSchemaVersionTables() (bool, error)
 		CreateSchemaVersionTables() error
 		ReadSchemaVersion(database string) (string, error)
 		UpdateSchemaVersion(database string, newVersion string, minCompatibleVersion string) error
@@ -896,10 +898,14 @@ type (
 		ListTables(database string) ([]string, error)
 		DropTable(table string) error
 		DropAllTables(database string) error
+		DatabaseExists(database string) (bool, error)
 		CreateDatabase(database string) error
 		DropDatabase(database string) error
 		// ExecSchemaOperationQuery allows passing in any query, but it must be schema operation (DDL)
 		ExecSchemaOperationQuery(ctx context.Context, stmt string, args ...interface{}) error
+		// IsSchemaElementExistsError returns true if the error indicates that a DDL statement failed because the
+		// element it creates (table, column, index, etc.) already exists
+		IsSchemaElementExistsError(err error) bool
 	}
 
 	// Tx defines the API for a SQL transaction

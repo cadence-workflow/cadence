@@ -33,6 +33,11 @@ type Interface interface {
 		Request *shared.CreateScheduleRequest,
 	) (*shared.CreateScheduleResponse, error)
 
+	CreateSemaphore(
+		ctx context.Context,
+		Request *shared.CreateSemaphoreRequest,
+	) (*shared.CreateSemaphoreResponse, error)
+
 	DeleteDomain(
 		ctx context.Context,
 		DeleteRequest *shared.DeleteDomainRequest,
@@ -336,6 +341,18 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 					NoWire: createschedule_NoWireHandler{impl},
 				},
 				Signature:    "CreateSchedule(Request *shared.CreateScheduleRequest) (*shared.CreateScheduleResponse)",
+				ThriftModule: cadence.ThriftModule,
+			},
+
+			thrift.Method{
+				Name: "CreateSemaphore",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.CreateSemaphore),
+					NoWire: createsemaphore_NoWireHandler{impl},
+				},
+				Signature:    "CreateSemaphore(Request *shared.CreateSemaphoreRequest) (*shared.CreateSemaphoreResponse)",
 				ThriftModule: cadence.ThriftModule,
 			},
 
@@ -965,7 +982,7 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 		},
 	}
 
-	procedures := make([]transport.Procedure, 0, 55)
+	procedures := make([]transport.Procedure, 0, 56)
 	procedures = append(procedures, thrift.BuildProcedures(service, opts...)...)
 	return procedures
 }
@@ -1047,6 +1064,36 @@ func (h handler) CreateSchedule(ctx context.Context, body wire.Value) (thrift.Re
 
 	hadError := appErr != nil
 	result, err := cadence.WorkflowService_CreateSchedule_Helper.WrapResponse(success, appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
+func (h handler) CreateSemaphore(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args cadence.WorkflowService_CreateSemaphore_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'WorkflowService' procedure 'CreateSemaphore': %w", err)
+	}
+
+	success, appErr := h.impl.CreateSemaphore(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_CreateSemaphore_Helper.WrapResponse(success, appErr)
 
 	var response thrift.Response
 	if err == nil {
@@ -2719,6 +2766,43 @@ func (h createschedule_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thr
 
 	hadError := appErr != nil
 	result, err := cadence.WorkflowService_CreateSchedule_Helper.WrapResponse(success, appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
+type createsemaphore_NoWireHandler struct{ impl Interface }
+
+func (h createsemaphore_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args cadence.WorkflowService_CreateSemaphore_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'WorkflowService' procedure 'CreateSemaphore': %w", err)
+	}
+
+	success, appErr := h.impl.CreateSemaphore(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_CreateSemaphore_Helper.WrapResponse(success, appErr)
 	response := thrift.NoWireResponse{ResponseWriter: rw}
 	if err == nil {
 		response.IsApplicationError = hadError

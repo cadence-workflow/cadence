@@ -23,49 +23,69 @@
 package archiverfx
 
 import (
+	"fmt"
+
+	uconfig "go.uber.org/config"
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 )
 
 // Module provides archival components for fx application.
 var Module = fx.Module("archiverfx",
-	fx.Provide(NewArchivalMetadata),
-	fx.Provide(NewArchiverProvider),
+	fx.Provide(New),
 )
 
-type archivalMetadataParams struct {
+// Params are the dependencies for creating archival components.
+type Params struct {
 	fx.In
 
+	Provider          uconfig.Provider
 	DynamicCollection *dynamicconfig.Collection
-	Config            config.Config
 }
 
-// NewArchivalMetadata creates an ArchivalMetadata instance via dependency injection.
-func NewArchivalMetadata(p archivalMetadataParams) archiver.ArchivalMetadata {
-	return archiver.NewArchivalMetadata(
+// Result contains the archival components provided by this module.
+type Result struct {
+	fx.Out
+
+	Metadata archiver.ArchivalMetadata
+	Provider provider.ArchiverProvider
+}
+
+// New creates archival components via dependency injection.
+func New(p Params) (Result, error) {
+	var archival Archival
+	if err := p.Provider.Get("archival").Populate(&archival); err != nil {
+		return Result{}, fmt.Errorf("failed to decode archival config: %w", err)
+	}
+
+	var domainDefaults archiver.ArchivalDomainDefaults
+	if err := p.Provider.Get("domainDefaults.archival").Populate(&domainDefaults); err != nil {
+		return Result{}, fmt.Errorf("failed to decode domain archival defaults: %w", err)
+	}
+
+	if err := archival.Validate(&domainDefaults); err != nil {
+		return Result{}, fmt.Errorf("archival config validation failed: %w", err)
+	}
+
+	metadata := archiver.NewArchivalMetadata(
 		p.DynamicCollection,
-		p.Config.Archival.History.Status,
-		p.Config.Archival.History.EnableRead,
-		p.Config.Archival.Visibility.Status,
-		p.Config.Archival.Visibility.EnableRead,
-		&p.Config.DomainDefaults.Archival,
+		archival.History.Status,
+		archival.History.EnableRead,
+		archival.Visibility.Status,
+		archival.Visibility.EnableRead,
+		&domainDefaults,
 	)
-}
 
-type archiverProviderParams struct {
-	fx.In
-
-	Config config.Config
-}
-
-// NewArchiverProvider creates an ArchiverProvider instance via dependency injection.
-func NewArchiverProvider(p archiverProviderParams) provider.ArchiverProvider {
-	return provider.NewArchiverProvider(
-		p.Config.Archival.History.Provider,
-		p.Config.Archival.Visibility.Provider,
+	archiverProvider := provider.NewArchiverProvider(
+		archival.History.Provider,
+		archival.Visibility.Provider,
 	)
+
+	return Result{
+		Metadata: metadata,
+		Provider: archiverProvider,
+	}, nil
 }

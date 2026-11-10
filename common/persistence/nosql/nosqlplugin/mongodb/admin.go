@@ -30,8 +30,6 @@ import (
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
-var _ nosqlplugin.AdminDB = (*mdb)(nil)
-
 const (
 	testSchemaDir = "schema/mongodb/"
 )

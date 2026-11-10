@@ -266,6 +266,58 @@ func (v *FailoverMarkerAttributes) ByteSize() uint64 {
 	return size
 }
 
+type SemaphoreMetadataTaskAttributes struct {
+	DomainID       string `json:"domainID,omitempty"`
+	SemaphoreName  string `json:"semaphoreName,omitempty"`
+	Capacity       int32  `json:"capacity,omitempty"`
+	BucketCapacity int32  `json:"bucketCapacity,omitempty"`
+}
+
+// GetDomainID is an internal getter
+func (v *SemaphoreMetadataTaskAttributes) GetDomainID() (o string) {
+	if v != nil {
+		return v.DomainID
+	}
+	return
+}
+
+// GetSemaphoreName is an internal getter
+func (v *SemaphoreMetadataTaskAttributes) GetSemaphoreName() (o string) {
+	if v != nil {
+		return v.SemaphoreName
+	}
+	return
+}
+
+// GetCapacity is an internal getter
+func (v *SemaphoreMetadataTaskAttributes) GetCapacity() (o int32) {
+	if v != nil {
+		return v.Capacity
+	}
+	return
+}
+
+// GetBucketCapacity is an internal getter
+func (v *SemaphoreMetadataTaskAttributes) GetBucketCapacity() (o int32) {
+	if v != nil {
+		return v.BucketCapacity
+	}
+	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *SemaphoreMetadataTaskAttributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.DomainID))
+	size += uint64(len(v.SemaphoreName))
+
+	return size
+}
+
 // FailoverMarkers is an internal type (TBD...)
 type FailoverMarkers struct {
 	FailoverMarkers []*FailoverMarkerAttributes `json:"failoverMarkers,omitempty"`
@@ -734,6 +786,8 @@ type ReplicationTask struct {
 	HistoryTaskV2Attributes       *HistoryTaskV2Attributes       `json:"historyTaskV2Attributes,omitempty"`
 	FailoverMarkerAttributes      *FailoverMarkerAttributes      `json:"failoverMarkerAttributes,omitempty"`
 	CreationTime                  *int64                         `json:"creationTime,omitempty"`
+	// SemaphoreMetadataTaskAttributes is set when TaskType is ReplicationTaskTypeSemaphoreMetadata.
+	SemaphoreMetadataTaskAttributes *SemaphoreMetadataTaskAttributes `json:"semaphoreMetadataTaskAttributes,omitempty"`
 }
 
 // GetTaskType is an internal getter (TBD...)
@@ -789,6 +843,14 @@ func (v *ReplicationTask) GetFailoverMarkerAttributes() (o *FailoverMarkerAttrib
 	return
 }
 
+// GetSemaphoreMetadataTaskAttributes is an internal getter
+func (v *ReplicationTask) GetSemaphoreMetadataTaskAttributes() (o *SemaphoreMetadataTaskAttributes) {
+	if v != nil && v.SemaphoreMetadataTaskAttributes != nil {
+		return v.SemaphoreMetadataTaskAttributes
+	}
+	return
+}
+
 // GetCreationTime is an internal getter (TBD...)
 func (v *ReplicationTask) GetCreationTime() (o int64) {
 	if v != nil && v.CreationTime != nil {
@@ -813,6 +875,7 @@ func (v *ReplicationTask) ByteSize() uint64 {
 	if v.CreationTime != nil {
 		size += uint64(unsafe.Sizeof(*v.CreationTime))
 	}
+	size += v.SemaphoreMetadataTaskAttributes.ByteSize()
 
 	return size
 }
@@ -928,6 +991,8 @@ func (e ReplicationTaskType) String() string {
 		return "HistoryV2"
 	case 6:
 		return "FailoverMarker"
+	case 7:
+		return "SemaphoreMetadata"
 	}
 	return fmt.Sprintf("ReplicationTaskType(%d)", w)
 }
@@ -955,6 +1020,9 @@ func (e *ReplicationTaskType) UnmarshalText(value []byte) error {
 		return nil
 	case "FAILOVERMARKER":
 		*e = ReplicationTaskTypeFailoverMarker
+		return nil
+	case "SEMAPHOREMETADATA":
+		*e = ReplicationTaskTypeSemaphoreMetadata
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -986,6 +1054,8 @@ const (
 	ReplicationTaskTypeHistoryV2
 	// ReplicationTaskTypeFailoverMarker is an option for ReplicationTaskType
 	ReplicationTaskTypeFailoverMarker
+	// ReplicationTaskTypeSemaphoreMetadata is an option for ReplicationTaskType
+	ReplicationTaskTypeSemaphoreMetadata
 )
 
 // ByteSize returns the approximate memory used in bytes

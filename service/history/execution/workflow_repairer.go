@@ -438,6 +438,7 @@ func (r *workflowRepairerImpl) logChecksumMismatchDetected(
 		tag.Dynamic("childIDs", slices.Collect(maps.Keys(mutableState.GetPendingChildExecutionInfos()))),
 		tag.Dynamic("signalIDs", slices.Collect(maps.Keys(mutableState.GetPendingSignalExternalInfos()))),
 		tag.Dynamic("cancelIDs", slices.Collect(maps.Keys(mutableState.GetPendingRequestCancelExternalInfos()))),
+		tag.Dynamic("semaphoreIDs", slices.Collect(maps.Keys(mutableState.GetPendingSemaphoreInfos()))),
 	)
 
 	r.logger.Warn("Mutable state corruption detected: checksum mismatch", logTags...)

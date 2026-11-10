@@ -56,16 +56,9 @@ func (s *DBVisibilityPersistenceSuite) SetupSuite() {
 	if testing.Verbose() {
 		log.SetOutput(os.Stdout)
 	}
-	// setup visibility manager
-	if s.VisibilityTestCluster != s.DefaultTestCluster {
-		s.VisibilityTestCluster.SetupTestDatabase()
-	}
-	clusterName := s.ClusterMetadata.GetCurrentClusterName()
-	vCfg := s.VisibilityTestCluster.Config()
-	visibilityFactory := client.NewFactory(&vCfg, nil, clusterName, nil, s.Logger, &s.DynamicConfiguration)
 	// SQL currently doesn't have support for visibility manager
 	var err error
-	s.VisibilityMgr, err = visibilityFactory.NewVisibilityManager(
+	s.VisibilityMgr, err = s.PersistenceFactory.NewVisibilityManager(
 		&client.Params{
 			PersistenceConfig: config.Persistence{
 				VisibilityStore: "something not empty",
@@ -78,9 +71,7 @@ func (s *DBVisibilityPersistenceSuite) SetupSuite() {
 			EnableDBVisibilitySampling:                  dynamicproperties.GetBoolPropertyFn(false),
 		},
 	)
-	if err != nil {
-		s.fatalOnError("NewVisibilityManager", err)
-	}
+	s.fatalOnError("NewVisibilityManager", err)
 }
 
 // SetupTest implementation

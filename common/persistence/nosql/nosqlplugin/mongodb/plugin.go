@@ -52,9 +52,14 @@ func (p *plugin) CreateDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.
 	return p.doCreateDB(cfg, logger)
 }
 
-// CreateAdminDB initialize the AdminDB object
-func (p *plugin) CreateAdminDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (nosqlplugin.AdminDB, error) {
-	return p.doCreateDB(cfg, logger)
+func (p *plugin) SetupDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (persistence.SetupDB, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (p *plugin) SchemaDB(dbType persistence.DBType, cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (persistence.SchemaDB, error) {
+	// TODO implement me
+	panic("implement me")
 }
 
 func (p *plugin) doCreateDB(cfg *config.NoSQL, logger log.Logger) (*mdb, error) {

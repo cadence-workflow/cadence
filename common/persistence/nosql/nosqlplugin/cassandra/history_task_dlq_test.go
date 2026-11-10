@@ -87,7 +87,7 @@ func TestInsertHistoryDLQAckLevelIfNotExistsRow(t *testing.T) {
 			tc.queryMockFn(query)
 			session := &fakeSession{query: query}
 			client := gocql.NewMockClient(ctrl)
-			db := NewCassandraDBFromSession(&config.NoSQL{}, session, testlogger.New(t), &persistence.DynamicConfiguration{}, DbWithClient(client))
+			db := NewCassandraDBFromSession(&config.NoSQL{}, session, testlogger.New(t), persistence.NewDefaultDynamicConfiguration(), DbWithClient(client))
 
 			err := db.InsertHistoryDLQAckLevelIfNotExistsRow(context.Background(), row)
 
@@ -151,7 +151,7 @@ func TestInsertOrUpdateHistoryDLQAckLevelRow(t *testing.T) {
 			tc.queryMockFn(query)
 			session := &fakeSession{query: query}
 			client := gocql.NewMockClient(ctrl)
-			db := NewCassandraDBFromSession(&config.NoSQL{}, session, testlogger.New(t), &persistence.DynamicConfiguration{}, DbWithClient(client))
+			db := NewCassandraDBFromSession(&config.NoSQL{}, session, testlogger.New(t), persistence.NewDefaultDynamicConfiguration(), DbWithClient(client))
 
 			err := db.InsertOrUpdateHistoryDLQAckLevelRow(context.Background(), row)
 

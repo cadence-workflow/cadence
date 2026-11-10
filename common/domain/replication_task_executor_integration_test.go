@@ -30,12 +30,16 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
+
+	_ "github.com/ncruces/go-sqlite3/driver" // register sqlite3 driver for tests
+	_ "github.com/ncruces/go-sqlite3/embed"  // embed sqlite db for tests
 )
 
 type (
@@ -56,8 +60,11 @@ func TestDomainReplicationTaskExecutorSuite(t *testing.T) {
 }
 
 func (s *domainReplicationTaskExecutorSuite) setupTestBase(t *testing.T) {
-	sqliteTestBaseOptions := sqlite.GetTestClusterOption()
-	s.TestBase = persistencetests.NewTestBaseWithSQL(t, sqliteTestBaseOptions)
+	metadata := cluster.GetTestClusterMetadata(true)
+	s.TestBase = persistencetests.NewTestBase(t, persistencetests.TestBaseParams{
+		PersistenceConfig: persistencetests.SimplePersistenceConfig(t, sqlite.GetTestConfig),
+		ClusterMetadata:   &metadata,
+	})
 	s.Setup()
 }
 

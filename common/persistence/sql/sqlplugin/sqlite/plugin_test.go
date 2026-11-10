@@ -31,6 +31,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/config"
+
+	_ "github.com/ncruces/go-sqlite3/driver" // register sqlite3 driver for tests
+	_ "github.com/ncruces/go-sqlite3/embed"  // embed sqlite db for tests
 )
 
 func TestPlugin_CreateDB(t *testing.T) {

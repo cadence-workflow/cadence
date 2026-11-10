@@ -26,7 +26,7 @@ func TestTaskListSuite(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := NewTestPersistenceConfig(t)
 	clusterConfig.FrontendDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
 		dynamicproperties.EnableTasklistIsolation:            false,
 		dynamicproperties.MatchingNumTasklistWritePartitions: 1,
@@ -46,9 +46,8 @@ func TestTaskListSuite(t *testing.T) {
 
 	s := new(TaskListIntegrationSuite)
 	params := IntegrationBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		TestClusterConfig:     clusterConfig,
+		PersistenceConfig: testCluster,
+		TestClusterConfig: clusterConfig,
 	}
 	s.IntegrationBase = NewIntegrationBase(params)
 	suite.Run(t, s)

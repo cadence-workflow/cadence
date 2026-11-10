@@ -23,6 +23,7 @@ package rpc
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -178,7 +179,7 @@ func TestDirectChooser_StartStop(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			defer goleak.VerifyNone(t)
+			defer verifyNoGoroutineLeaks(t)
 
 			logger := testlogger.New(t)
 			metricCl := metrics.NewNoopMetricsClient()
@@ -226,5 +227,26 @@ func TestDirectChooser_StartStop(t *testing.T) {
 
 			assert.NoError(t, chooser.Stop(), "stopping again should be no-op")
 		})
+	}
+}
+
+// verifyNoGoroutineLeaks polls for goroutine cleanup after a test.
+// This can be used when a test or package cancels underlying goroutines asynchronously,
+// without waiting for them to exit. e.g. yarpc's grpc peer transport
+// Instead of asserting once this will poll for up to 2 seconds for goroutine cleanup.
+func verifyNoGoroutineLeaks(t *testing.T) {
+	t.Helper()
+	var lastErr error
+	ok := false
+
+	for i := 0; i < 100; i++ {
+		if lastErr = goleak.Find(); lastErr == nil {
+			ok = true
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !ok {
+		t.Fatalf("goroutine leak detected: %v", lastErr)
 	}
 }

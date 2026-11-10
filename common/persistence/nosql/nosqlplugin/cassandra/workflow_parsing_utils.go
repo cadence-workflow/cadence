@@ -163,6 +163,8 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) (*persistence.Int
 			info.InitialInterval = common.SecondsToDuration(int64(v.(int)))
 		case "backoff_coefficient":
 			info.BackoffCoefficient = v.(float64)
+		case "jitter_coefficient":
+			info.JitterCoefficient = v.(float64)
 		case "max_interval":
 			info.MaximumInterval = common.SecondsToDuration(int64(v.(int)))
 		case "max_attempts":
@@ -313,6 +315,8 @@ func parseActivityInfo(
 			info.InitialInterval = common.SecondsToDuration(int64(v.(int)))
 		case "backoff_coefficient":
 			info.BackoffCoefficient = v.(float64)
+		case "jitter_coefficient":
+			info.JitterCoefficient = v.(float64)
 		case "max_interval":
 			info.MaximumInterval = common.SecondsToDuration(int64(v.(int)))
 		case "max_attempts":
@@ -431,6 +435,31 @@ func parseRequestCancelInfo(
 			info.InitiatedEventBatchID = v.(int64)
 		case "cancel_request_id":
 			info.CancelRequestID = v.(string)
+		}
+	}
+
+	return info
+}
+
+func parseSemaphoreInfo(
+	result map[string]interface{},
+) *persistence.SemaphoreInfo {
+
+	info := &persistence.SemaphoreInfo{}
+	for k, v := range result {
+		switch k {
+		case "version":
+			info.Version = v.(int64)
+		case "initiated_id":
+			info.InitiatedID = v.(int64)
+		case "semaphore_name":
+			info.SemaphoreName = v.(string)
+		case "owner_id":
+			info.OwnerID = v.(string)
+		case "token_id":
+			info.TokenID = v.(int)
+		case "acquire_deadline":
+			info.AcquireDeadline = v.(time.Time)
 		}
 	}
 
@@ -565,6 +594,8 @@ func parseTransferTaskInfo(
 			info.OriginalTaskList = v.(string)
 		case "original_task_list_kind":
 			info.OriginalTaskListKind = types.TaskListKind(int32(v.(int)))
+		case "semaphore_name":
+			info.SemaphoreName = v.(string)
 		}
 	}
 

@@ -35,11 +35,13 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	"github.com/uber/cadence/environment"
+	schemamysql "github.com/uber/cadence/schema/mysql"
 )
 
 const (
@@ -75,6 +77,17 @@ func (p *plugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
 // CreateAdminDB initialize the adminDb object
 func (p *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
 	return p.createDB(cfg)
+}
+
+func (p *plugin) GetSchema(dbType persistence.DBType) (persistence.Schema, error) {
+	switch dbType {
+	case persistence.DBTypeDefault:
+		return schemamysql.DefaultSchema, nil
+	case persistence.DBTypeVisibility:
+		return schemamysql.VisibilitySchema, nil
+	default:
+		return nil, fmt.Errorf("unknown db type: %v", dbType)
+	}
 }
 
 func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
@@ -235,23 +248,19 @@ func sanitizeAttr(inkey string, invalue string) (string, string) {
 	}
 }
 
-const (
-	testSchemaDir = "schema/mysql/v8"
-)
-
-// GetTestClusterOption return test options
-func GetTestClusterOption() (*pt.TestBaseOptions, error) {
+func GetTestConfig() (config.DataStore, error) {
 	port, err := environment.GetMySQLPort()
 	if err != nil {
-		return nil, err
+		return config.DataStore{}, err
 	}
-	return &pt.TestBaseOptions{
-		DBPluginName: PluginName,
-		DBUsername:   environment.GetMySQLUser(),
-		DBPassword:   environment.GetMySQLPassword(),
-		DBHost:       environment.GetMySQLAddress(),
-		DBPort:       port,
-		SchemaDir:    testSchemaDir,
-		StoreType:    config.StoreTypeSQL,
+	return config.DataStore{
+		SQL: &config.SQL{
+			PluginName:   PluginName,
+			User:         environment.GetMySQLUser(),
+			Password:     environment.GetMySQLPassword(),
+			ConnectAddr:  fmt.Sprintf("%s:%d", environment.GetMySQLAddress(), port),
+			DatabaseName: pt.GenerateRandomDBName(),
+			NumShards:    4,
+		},
 	}, nil
 }

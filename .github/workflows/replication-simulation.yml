@@ -25,6 +25,7 @@ jobs:
           - activeactive_regional_failover_start_same_wfid
           - activeactive_regional_failover_start_same_wfid_2
           - activepassive_to_activeactive
+          - activityretryfailover
           - budget_manager
           - clusterredirection
           - default
@@ -38,7 +39,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.5'
+          go-version: '1.26.10'
 
       - name: Run simulation
         uses: nick-fields/retry@v3

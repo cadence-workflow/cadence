@@ -293,7 +293,8 @@ func (v *SchedulePolicies) GetConcurrencyLimit() int32 {
 	return 0
 }
 
-// SchedulePauseInfo captures the state of a paused schedule (response-only, server-populated).
+// SchedulePauseInfo captures the state of a paused schedule. Reason and PausedBy may be
+// provided as input on CreateSchedule; PausedAt is always server-populated.
 type SchedulePauseInfo struct {
 	Reason   string    `json:"reason,omitempty"`
 	PausedAt time.Time `json:"pausedAt,omitempty"`

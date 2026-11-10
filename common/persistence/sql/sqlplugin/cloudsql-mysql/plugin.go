@@ -22,6 +22,7 @@ package cloudsqlmysql
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -30,17 +31,20 @@ import (
 
 	"cloud.google.com/go/cloudsqlconn"
 	cloudmysqldriver "cloud.google.com/go/cloudsqlconn/mysql/mysql"
+	"cloud.google.com/go/compute/metadata"
 	"github.com/iancoleman/strcase"
 	"github.com/jmoiron/sqlx"
 	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	mysqlplugin "github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 	"github.com/uber/cadence/environment"
+	schemamysql "github.com/uber/cadence/schema/mysql"
 )
 
 const (
@@ -58,6 +62,12 @@ const (
 	defaultIsolationLevel        = "'READ-COMMITTED'"
 	driverFormat                 = "cloudsql-mysql-%d"
 )
+
+// Attributes that are used for driver options and should not be included in the DSN
+var excludedDSNAttrs = map[string]bool{
+	"iamAuthN": true,
+	"ipType":   true,
+}
 
 var dsnAttrOverrides = map[string]string{
 	"parseTime":       "true",
@@ -83,6 +93,17 @@ func (p *plugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
 // CreateAdminDB initialize the adminDb object
 func (p *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
 	return createDB(cfg)
+}
+
+func (p *plugin) GetSchema(dbType persistence.DBType) (persistence.Schema, error) {
+	switch dbType {
+	case persistence.DBTypeDefault:
+		return schemamysql.DefaultSchema, nil
+	case persistence.DBTypeVisibility:
+		return schemamysql.VisibilitySchema, nil
+	default:
+		return nil, fmt.Errorf("unknown db type: %v", dbType)
+	}
 }
 
 // The CloudSQL driver has a different lifecycle compared to typical database/sql connectors:
@@ -163,8 +184,12 @@ func getDialOptions(cfg *config.SQL) (cloudsqlconn.DialOption, error) {
 }
 
 func createSingleDBConn(cfg *config.SQL, driverName string) (*sqlx.DB, error) {
+	dsn, err := buildDSN(cfg, driverName)
+	if err != nil {
+		return nil, err
+	}
 	// Can use either mysql or the DriverName, since the DSN also encodes the DriverName
-	db, err := sqlx.Connect(driverName, buildDSN(cfg, driverName))
+	db, err := sqlx.Connect(driverName, dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -183,9 +208,16 @@ func createSingleDBConn(cfg *config.SQL, driverName string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func buildDSN(cfg *config.SQL, driverName string) string {
+func buildDSN(cfg *config.SQL, driverName string) (string, error) {
 	attrs := buildDSNAttrs(cfg)
 	userAndPassword := cfg.User
+	if userAndPassword == "" {
+		serviceAccount, err := getServiceAccountUsername()
+		if err != nil {
+			return "", err
+		}
+		userAndPassword = serviceAccount
+	}
 	if cfg.Password != "" {
 		userAndPassword += ":" + cfg.Password
 	}
@@ -193,12 +225,37 @@ func buildDSN(cfg *config.SQL, driverName string) string {
 	if attrs != "" {
 		dsn = dsn + "?" + attrs
 	}
-	return dsn
+	return dsn, nil
+}
+
+// Indirection to allow tests to stub out the GCE metadata server.
+var (
+	onGCE           = metadata.OnGCE
+	getMetadataUser = metadata.EmailWithContext
+)
+
+func getServiceAccountUsername() (string, error) {
+	if !onGCE() {
+		return "", errors.New("missing User")
+	}
+	serviceAccountEmail, err := getMetadataUser(context.Background(), "default")
+	if err != nil {
+		return "", err
+	}
+	username, _, _ := strings.Cut(serviceAccountEmail, "@")
+	if username == "" {
+		return "", errors.New("missing User")
+	}
+	return username, nil
 }
 
 func buildDSNAttrs(cfg *config.SQL) string {
 	attrs := make(map[string]string, len(dsnAttrOverrides)+len(cfg.ConnectAttributes)+1)
 	for k, v := range cfg.ConnectAttributes {
+		// Skip attributes that are used for driver options
+		if excludedDSNAttrs[k] {
+			continue
+		}
 		k1, v1 := sanitizeAttr(k, v)
 		attrs[k1] = v1
 	}
@@ -247,18 +304,14 @@ func sanitizeAttr(inkey string, invalue string) (string, string) {
 	}
 }
 
-const (
-	testSchemaDir = "schema/mysql/v8"
-)
-
-// GetTestClusterOption return test options
-func GetTestClusterOption() (*pt.TestBaseOptions, error) {
-	return &pt.TestBaseOptions{
-		DBPluginName: PluginName,
-		DBUsername:   environment.GetMySQLUser(),
-		DBHost:       environment.GetMySQLAddress(),
-		DBPort:       -1,
-		SchemaDir:    testSchemaDir,
-		StoreType:    config.StoreTypeSQL,
+func GetTestConfig() (config.DataStore, error) {
+	return config.DataStore{
+		SQL: &config.SQL{
+			PluginName:   PluginName,
+			User:         environment.GetMySQLUser(),
+			ConnectAddr:  environment.GetMySQLAddress(),
+			DatabaseName: pt.GenerateRandomDBName(),
+			NumShards:    4,
+		},
 	}, nil
 }

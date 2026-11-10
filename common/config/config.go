@@ -1,23 +1,3 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
 package config
 
 import (
@@ -35,20 +15,17 @@ import (
 	"github.com/uber/cadence/common/config/yaml"
 	"github.com/uber/cadence/common/dynamicconfig"
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	openfeatureclientconfig "github.com/uber/cadence/common/dynamicconfig/openfeatureclient/config"
 	"github.com/uber/cadence/common/metrics"
-	ringpopprovider "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 	"github.com/uber/cadence/common/service"
 )
 
 type (
 	// Config contains the configuration for a set of cadence services
 	Config struct {
-		// Ringpop is the ringpop related configuration
-		Ringpop ringpopprovider.Config `yaml:"ringpop"`
-		// Membership is used to configure peer provider plugin
-		Membership Membership `yaml:"membership"`
+		// Deprecated: Ringpop config is now loaded via ringpopfx from config.Provider.
+		// This field exists only for backward compatibility with existing YAML files.
+		Ringpop interface{} `yaml:"ringpop" json:"-"`
 		// Persistence contains the configuration for cadence datastores
 		Persistence Persistence `yaml:"persistence"`
 		// Log is the logging config
@@ -63,8 +40,6 @@ type (
 		Services map[string]Service `yaml:"services"`
 		// Kafka is the config for connecting to kafka
 		Kafka KafkaConfig `yaml:"kafka"`
-		// Archival is the config for archival
-		Archival Archival `yaml:"archival"`
 		// PublicClient is config for sys worker service connecting to cadence frontend
 		PublicClient PublicClient `yaml:"publicClient"`
 		// DynamicConfigClient is the config for setting up the file based dynamic config client
@@ -75,8 +50,6 @@ type (
 		// DynamicConfig is the config for setting up all dynamic config clients
 		// Allows for changes in client without needing code change
 		DynamicConfig DynamicConfig `yaml:"dynamicconfig"`
-		// DomainDefaults is the default config for every domain
-		DomainDefaults DomainDefaults `yaml:"domainDefaults"`
 		// Blobstore is the config for setting up blobstore
 		Blobstore Blobstore `yaml:"blobstore"`
 		// Authorization is the config for setting up authorization
@@ -96,6 +69,24 @@ type (
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
 		ShardDistributorMatchingConfig clientcommon.Config `yaml:"shard-distributor-matching"`
 
+		// NumMatchingShards is the number of shards matching hashes task list names into when
+		// matching.shardTaskListsByHashForShardManager is enabled. It must equal the shardNum of
+		// matching's namespace in the shard distributor, and every service must use the same value.
+		//
+		// Changing it moves almost every task list to a different shard, so only change it while
+		// matching.percentageOnboardedToShardManager is 0. Defaults to DefaultNumMatchingShards.
+		NumMatchingShards int `yaml:"numMatchingShards"`
+
+		// Deprecated: Archival config is now loaded via archiverfx from config.Provider.
+		// This field exists only for backward compatibility with existing YAML files.
+		// The actual archival configuration is decoded separately by archiverfx.New.
+		Archival interface{} `yaml:"archival" json:"-"`
+
+		// Deprecated: Domain defaults config is now loaded via archiverfx from config.Provider.
+		// This field exists only for backward compatibility with existing YAML files.
+		// The actual domain defaults configuration is decoded separately by archiverfx.New.
+		DomainDefaults interface{} `yaml:"domainDefaults" json:"-"`
+
 		// Histograms controls timer vs histogram metric emission while they are being migrated.
 		//
 		// Timers will eventually be dropped, and this config will be validation-only (e.g. to error if any explicitly request timers).
@@ -105,14 +96,6 @@ type (
 		// Counters controls counter metric emission during migration.
 		Counters metrics.CounterMigration `yaml:"counter-migration"`
 	}
-
-	// Membership holds peer provider configuration.
-	Membership struct {
-		Provider PeerProvider `yaml:"provider"`
-	}
-
-	// PeerProvider is provider config. Contents depends on plugin in use
-	PeerProvider map[string]*yaml.Node
 
 	HeaderRule struct {
 		Add   bool // if false, matching headers are removed if previously matched.
@@ -213,12 +196,6 @@ type (
 		NumHistoryShards int `yaml:"numHistoryShards" validate:"nonzero"`
 		// DataStores contains the configuration for all datastores
 		DataStores map[string]DataStore `yaml:"datastores"`
-		// TODO: move dynamic config out of static config
-		// TransactionSizeLimit is the largest allowed transaction size
-		TransactionSizeLimit dynamicproperties.IntPropertyFn `yaml:"-" json:"-"`
-		// TODO: move dynamic config out of static config
-		// ErrorInjectionRate is the the rate for injecting random error
-		ErrorInjectionRate dynamicproperties.FloatPropertyFn `yaml:"-" json:"-"`
 		// HostName for emitting per-host metrics
 		HostName string `yaml:"-" json:"-"`
 	}
@@ -444,6 +421,18 @@ type (
 		// 4) "selected-apis-forwarding-v2" will forward all of "selected-apis-forwarding", and also activity responses
 		// and heartbeats, but not other worker APIs.
 		//
+		// 5) "selected-apis-forwarding-v3" forwards everything "-v2" does, plus the two async start APIs
+		// (StartWorkflowExecutionAsync, SignalWithStartWorkflowExecutionAsync). Those requests are forwarded to the active
+		// cluster when accepted rather than enqueued locally and forwarded when the async consumer processes them.
+		// "all-domain-apis-forwarding(-v2)" already forwards the async APIs on accept unless allDomainApisForwardingTargetCluster
+		// is set and does not match the active cluster. "all-domain-apis-forwarding-v3" differs from "-v2" only on that
+		// fallback path, where it uses the "-v3" selected list.
+		// Trade-off: a request forwarded on accept fails while the active region is unreachable. A request enqueued locally
+		// is drained once the active region is reachable again.
+		// Rollout: a frontend binary that predates the "-v3" names panics at startup on an unknown policy, so switch
+		// the config to "-v3" only after every frontend runs a binary that knows it, and revert the config before
+		// rolling the binary back.
+		//
 		// "selected-apis-forwarding(-v2)" and "all-domain-apis-forwarding" can work with EnableDomainNotActiveAutoForwarding dynamicconfig to select certain domains using the policy.
 		//
 		// Usage recommendation: when enabling XDC(global domain) feature, either "all-domain-apis-forwarding" or "selected-apis-forwarding(-v2)" should be used to ensure seamless domain failover(high availability)
@@ -502,75 +491,6 @@ type (
 		FlushBytes int `yaml:"flushBytes"`
 	}
 
-	// Archival contains the config for archival
-	Archival struct {
-		// History is the config for the history archival
-		History HistoryArchival `yaml:"history"`
-		// Visibility is the config for visibility archival
-		Visibility VisibilityArchival `yaml:"visibility"`
-	}
-
-	// HistoryArchival contains the config for history archival
-	HistoryArchival struct {
-		// Status is the status of history archival either: enabled, disabled, or paused
-		Status string `yaml:"status"`
-		// EnableRead whether history can be read from archival
-		EnableRead bool `yaml:"enableRead"`
-		// Provider contains the config for all history archivers
-		Provider HistoryArchiverProvider `yaml:"provider"`
-	}
-
-	// HistoryArchiverProvider contains the config for all history archivers.
-	//
-	// Because archivers support external plugins, so there is no fundamental structure expected,
-	// but a top-level key per named store plugin is required, and will be used to select the
-	// config for a plugin as it is initialized.
-	//
-	// Config keys and structures expected in the main default binary include:
-	//  - FilestoreConfig: [*FilestoreArchiver], used with provider scheme [github.com/uber/cadence/common/archiver/filestore.URIScheme]
-	//  - S3storeConfig: [*S3Archiver], used with provider scheme [github.com/uber/cadence/common/archiver/s3store.URIScheme]
-	//  - "gstorage" via [github.com/uber/cadence/common/archiver/gcloud.ConfigKey]: [github.com/uber/cadence/common/archiver/gcloud.Config], used with provider scheme "gs" [github.com/uber/cadence/common/archiver/gcloud.URIScheme]
-	//
-	// For handling hardcoded config, see yaml.ToNode.
-	HistoryArchiverProvider map[string]*yaml.Node
-
-	// VisibilityArchival contains the config for visibility archival
-	VisibilityArchival struct {
-		// Status is the status of visibility archival either: enabled, disabled, or paused
-		Status string `yaml:"status"`
-		// EnableRead whether visibility can be read from archival
-		EnableRead bool `yaml:"enableRead"`
-		// Provider contains the config for all visibility archivers
-		Provider VisibilityArchiverProvider `yaml:"provider"`
-	}
-
-	// VisibilityArchiverProvider contains the config for all visibility archivers.
-	//
-	// Because archivers support external plugins, so there is no fundamental structure expected,
-	// but a top-level key per named store plugin is required, and will be used to select the
-	// config for a plugin as it is initialized.
-	//
-	// Config keys and structures expected in the main default binary include:
-	//  - FilestoreConfig: [*FilestoreArchiver], used with provider scheme [github.com/uber/cadence/common/archiver/filestore.URIScheme]
-	//  - S3storeConfig: [*S3Archiver], used with provider scheme [github.com/uber/cadence/common/archiver/s3store.URIScheme]
-	//  - "gstorage" via [github.com/uber/cadence/common/archiver/gcloud.ConfigKey]: [github.com/uber/cadence/common/archiver/gcloud.Config], used with provider scheme "gs" [github.com/uber/cadence/common/archiver/gcloud.URIScheme]
-	//
-	// For handling hardcoded config, see yaml.ToNode.
-	VisibilityArchiverProvider map[string]*yaml.Node
-
-	// FilestoreArchiver contain the config for filestore archiver
-	FilestoreArchiver struct {
-		FileMode string `yaml:"fileMode"`
-		DirMode  string `yaml:"dirMode"`
-	}
-
-	// S3Archiver contains the config for S3 archiver
-	S3Archiver struct {
-		Region           string  `yaml:"region"`
-		Endpoint         *string `yaml:"endpoint"`
-		S3ForcePathStyle bool    `yaml:"s3ForcePathStyle"`
-	}
-
 	// PublicClient is config for connecting to cadence frontend
 	PublicClient struct {
 		// HostPort is the host port to connect on. Host can be DNS name
@@ -583,36 +503,6 @@ type (
 		Transport string `yaml:"transport"`
 		// interval to refresh DNS. Default to 10s
 		RefreshInterval time.Duration `yaml:"RefreshInterval"`
-	}
-
-	// DomainDefaults is the default config for each domain
-	DomainDefaults struct {
-		// Archival is the default archival config for each domain
-		Archival ArchivalDomainDefaults `yaml:"archival"`
-	}
-
-	// ArchivalDomainDefaults is the default archival config for each domain
-	ArchivalDomainDefaults struct {
-		// History is the domain default history archival config for each domain
-		History HistoryArchivalDomainDefaults `yaml:"history"`
-		// Visibility is the domain default visibility archival config for each domain
-		Visibility VisibilityArchivalDomainDefaults `yaml:"visibility"`
-	}
-
-	// HistoryArchivalDomainDefaults is the default history archival config for each domain
-	HistoryArchivalDomainDefaults struct {
-		// Status is the domain default status of history archival: enabled or disabled
-		Status string `yaml:"status"`
-		// URI is the domain default URI for history archiver
-		URI string `yaml:"URI"`
-	}
-
-	// VisibilityArchivalDomainDefaults is the default visibility archival config for each domain
-	VisibilityArchivalDomainDefaults struct {
-		// Status is the domain default status of visibility archival: enabled or disabled
-		Status string `yaml:"status"`
-		// URI is the domain default URI for visibility archiver
-		URI string `yaml:"URI"`
 	}
 
 	// ShardDistributorClient contains the config items for shard distributor
@@ -640,6 +530,10 @@ const (
 	S3storeConfig   = "s3store"
 )
 
+// DefaultNumMatchingShards is used when [Config.NumMatchingShards] is unset. To use a different count,
+// set the field. Changing the default changes the count in every cluster that leaves it unset.
+const DefaultNumMatchingShards = 8192
+
 func (n *NoSQL) ConvertToShardedNoSQLConfig() *ShardedNoSQL {
 	connections := make(map[string]DBShardConnection)
 	connections[NonShardedStoreName] = DBShardConnection{
@@ -665,8 +559,8 @@ func (c *Config) validate() error {
 	if err := c.ClusterGroupMetadata.Validate(); err != nil {
 		return err
 	}
-	if err := c.Archival.Validate(&c.DomainDefaults.Archival); err != nil {
-		return err
+	if c.NumMatchingShards < 0 {
+		return fmt.Errorf("numMatchingShards must not be negative, got %d", c.NumMatchingShards)
 	}
 
 	return c.Authorization.Validate()
@@ -699,6 +593,29 @@ func (c *Config) fillDefaults() {
 		log.Println("[WARN] dcRedirectionPolicy config is deprecated. Please replace it with clusterRedirectionPolicy.")
 		c.ClusterGroupMetadata.ClusterRedirectionPolicy = c.DCRedirectionPolicy
 	}
+
+	if c.NumMatchingShards == 0 {
+		c.NumMatchingShards = DefaultNumMatchingShards
+	}
+}
+
+func (s *SQL) SplitMultipleDatabases() []*SQL {
+	if !s.UseMultipleDatabases {
+		return []*SQL{s}
+	}
+	result := make([]*SQL, 0, len(s.MultipleDatabasesConfig))
+	for _, config := range s.MultipleDatabasesConfig {
+		baseCopy := *s
+		baseCopy.NumShards = 1
+		baseCopy.UseMultipleDatabases = false
+		baseCopy.MultipleDatabasesConfig = nil
+		baseCopy.DatabaseName = config.DatabaseName
+		baseCopy.ConnectAddr = config.ConnectAddr
+		baseCopy.User = config.User
+		baseCopy.Password = config.Password
+		result = append(result, &baseCopy)
+	}
+	return result
 }
 
 // String converts the config object into a string

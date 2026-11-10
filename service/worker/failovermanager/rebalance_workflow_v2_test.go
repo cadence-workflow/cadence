@@ -311,3 +311,25 @@ func TestRebalanceWorkflowV2_QueryReportsTotalDomains(t *testing.T) {
 	require.NoError(t, val.Get(&qr))
 	assert.Equal(t, len(prefs), qr.TotalDomains)
 }
+
+func TestRebalanceWorkflowV2_AlwaysSkipsTheDestinationClusterCheck(t *testing.T) {
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflowWithOptions(RebalanceWorkflowV2, workflow.RegisterOptions{Name: RebalanceWorkflowV2TypeName})
+	env.RegisterActivityWithOptions(FailoverActivityV2, activity.RegisterOptions{Name: failoverActivityV2Name})
+	env.RegisterActivityWithOptions(GetDomainsForRebalanceV2Activity, activity.RegisterOptions{Name: getDomainsForRebalanceV2ActivityName})
+
+	prefs := []DomainFailoverPreferences{{DomainName: "d1", TargetCluster: "cluster1"}}
+	env.OnActivity(getDomainsForRebalanceV2ActivityName, mock.Anything).Return(prefs, nil)
+	var gotParams FailoverActivityV2Params
+	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			gotParams = *args.Get(1).(*FailoverActivityV2Params)
+		}).
+		Return(&FailoverActivityV2Result{SuccessDomains: []DomainFailoverSuccess{{DomainName: "d1"}}}, nil)
+
+	env.ExecuteWorkflow(RebalanceWorkflowV2TypeName, &RebalanceV2Params{})
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.True(t, gotParams.SkipDestinationClusterCheck)
+}

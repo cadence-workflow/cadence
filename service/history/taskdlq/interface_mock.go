@@ -121,25 +121,29 @@ func (mr *MockProcessorMockRecorder) ProcessShard(ctx any) *gomock.Call {
 }
 
 // Start mocks base method.
-func (m *MockProcessor) Start() {
+func (m *MockProcessor) Start(arg0 context.Context) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
+	ret := m.ctrl.Call(m, "Start", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockProcessorMockRecorder) Start() *gomock.Call {
+func (mr *MockProcessorMockRecorder) Start(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockProcessor)(nil).Start))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockProcessor)(nil).Start), arg0)
 }
 
 // Stop mocks base method.
-func (m *MockProcessor) Stop() {
+func (m *MockProcessor) Stop(arg0 context.Context) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
+	ret := m.ctrl.Call(m, "Stop", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Stop indicates an expected call of Stop.
-func (mr *MockProcessorMockRecorder) Stop() *gomock.Call {
+func (mr *MockProcessorMockRecorder) Stop(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockProcessor)(nil).Stop))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockProcessor)(nil).Stop), arg0)
 }

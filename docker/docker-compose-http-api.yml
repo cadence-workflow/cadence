@@ -45,6 +45,7 @@ services:
       - "DYNAMIC_CONFIG_FILE_PATH=dynamicconfig/development.yaml"
       - "FRONTEND_HTTP_PORT=8800"
       - "FRONTEND_HTTP_PROCEDURES=uber.cadence.api.v1.WorkflowAPI::StartWorkflowExecution,uber.cadence.api.v1.WorkflowAPI::SignalWorkflowExecution,uber.cadence.api.v1.WorkflowAPI::QueryWorkflow,uber.cadence.api.v1.WorkflowAPI::DescribeWorkflowExecution,uber.cadence.api.v1.VisibilityAPI::ListWorkflowExecutions"
+      - "ENABLE_METRICS_MIGRATION=true"
     depends_on:
       cassandra:
         condition: service_healthy

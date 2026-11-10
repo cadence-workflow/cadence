@@ -44,6 +44,13 @@ const (
 	// https://sqlite.org/pragma.html#pragma_busy_timeout
 	pragmaBusyTimeoutAttrName = "_pragma.busy_timeout"
 	pragmaBusyTimeoutDefault  = "60000"
+
+	// Fixed-width nanosecond time format for correct lexicographic ordering.
+	// The driver default (RFC3339Nano) trims trailing fractional zeros, producing
+	// variable-width strings where e.g. "43.7Z" > "43.735Z" lexicographically
+	// (because 'Z' > '3'), breaking range queries on DATETIME columns.
+	timefmtAttrName   = "_timefmt"
+	timefmtFixedNanos = "2006-01-02T15:04:05.000000000Z07:00"
 )
 
 const (
@@ -92,6 +99,7 @@ func buildDSNAttrs(cfg *config.SQL) string {
 	}
 
 	defaultIfEmpty(sanitizedAttrs, pragmaBusyTimeoutAttrName, pragmaBusyTimeoutDefault)
+	defaultIfEmpty(sanitizedAttrs, timefmtAttrName, timefmtFixedNanos)
 	return joinDSNAttrs(sanitizedAttrs)
 }
 

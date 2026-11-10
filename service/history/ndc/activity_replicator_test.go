@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/mocks"
@@ -70,6 +71,209 @@ type (
 func TestActivityReplicatorSuite(t *testing.T) {
 	s := new(activityReplicatorSuite)
 	suite.Run(t, s)
+}
+
+func TestSyncActivity_RetryTimerTaskGeneration(t *testing.T) {
+	domainName := "some random domain name"
+	domainID := constants.TestDomainID
+	workflowID := "some random workflow ID"
+	version := int64(100)
+	scheduleID := int64(144)
+	scheduledTime := time.Now()
+	attempt := int32(10)
+
+	testCases := []struct {
+		name            string
+		startedID       int64
+		attempt         int32
+		localAttempt    int32
+		cancelRequested bool
+		wantRetryTimer  bool
+	}{
+		{
+			name:           "unstarted retry generates ActivityRetryTimerTask",
+			startedID:      commonconstants.EmptyEventID,
+			attempt:        attempt,
+			localAttempt:   attempt - 1,
+			wantRetryTimer: true,
+		},
+		{
+			name:           "started activity does not generate retry timer",
+			startedID:      scheduleID + 1,
+			attempt:        attempt,
+			localAttempt:   attempt - 1,
+			wantRetryTimer: false,
+		},
+		{
+			name:           "first attempt does not generate retry timer",
+			startedID:      commonconstants.EmptyEventID,
+			attempt:        0,
+			localAttempt:   0,
+			wantRetryTimer: false,
+		},
+		{
+			name:            "cancel-requested activity does not generate retry timer",
+			startedID:       commonconstants.EmptyEventID,
+			attempt:         attempt,
+			localAttempt:    attempt - 1,
+			cancelRequested: true,
+			wantRetryTimer:  false,
+		},
+		{
+			name:           "redelivered sync for already-applied attempt does not generate retry timer",
+			startedID:      commonconstants.EmptyEventID,
+			attempt:        attempt,
+			localAttempt:   attempt,
+			wantRetryTimer: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			mockMutableState := execution.NewMockMutableState(controller)
+			mockShard := shard.NewTestContext(
+				t,
+				controller,
+				&persistence.ShardInfo{
+					ShardID:          0,
+					RangeID:          1,
+					TransferAckLevel: 0,
+				},
+				config.NewForTest(),
+			)
+			defer mockShard.Finish(t)
+			mockDomainCache := mockShard.Resource.DomainCache
+			executionCache := execution.NewCache(mockShard)
+			mockEngine := engine.NewMockEngine(controller)
+			mockEngine.EXPECT().NotifyNewHistoryEvent(gomock.Any()).AnyTimes()
+			mockEngine.EXPECT().NotifyNewTransferTasks(gomock.Any()).AnyTimes()
+			mockEngine.EXPECT().NotifyNewTimerTasks(gomock.Any()).AnyTimes()
+			mockShard.SetEngine(mockEngine)
+			activityReplicator := NewActivityReplicator(
+				mockShard,
+				executionCache,
+				mockShard.GetLogger(),
+			)
+
+			runID := uuid.New()
+			versionHistoryItem := persistence.NewVersionHistoryItem(scheduleID, version)
+			versionHistory := persistence.NewVersionHistory([]byte{}, []*persistence.VersionHistoryItem{
+				versionHistoryItem,
+			})
+			versionHistories := persistence.NewVersionHistories(versionHistory)
+
+			key := definition.NewWorkflowIdentifier(domainID, workflowID, runID)
+			workflowContext := execution.NewMockContext(controller)
+			workflowContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(mockMutableState, nil).Times(1)
+			workflowContext.EXPECT().Lock(gomock.Any()).Return(nil)
+			workflowContext.EXPECT().Unlock().Times(1)
+			workflowContext.EXPECT().ByteSize().Return(uint64(1)).AnyTimes()
+			_, err := executionCache.PutIfNotExist(key, workflowContext)
+			require.NoError(t, err)
+
+			mockDomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()
+			mockDomainCache.EXPECT().GetDomainByID(domainID).Return(
+				cache.NewGlobalDomainCacheEntryForTest(
+					&persistence.DomainInfo{ID: domainID, Name: domainName},
+					&persistence.DomainConfig{Retention: 1},
+					&persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						Clusters: []*persistence.ClusterReplicationConfig{
+							{ClusterName: cluster.TestCurrentClusterName},
+							{ClusterName: cluster.TestAlternativeClusterName},
+						},
+					},
+					version,
+				), nil,
+			).AnyTimes()
+
+			request := &types.SyncActivityRequest{
+				DomainID:       domainID,
+				WorkflowID:     workflowID,
+				RunID:          runID,
+				Version:        version,
+				ScheduledID:    scheduleID,
+				ScheduledTime:  common.Int64Ptr(scheduledTime.UnixNano()),
+				StartedID:      tc.startedID,
+				Attempt:        tc.attempt,
+				VersionHistory: versionHistory.ToInternalType(),
+			}
+
+			activityInfo := &persistence.ActivityInfo{
+				Version:         version,
+				ScheduleID:      scheduleID,
+				Attempt:         tc.localAttempt,
+				StartedID:       commonconstants.EmptyEventID,
+				TaskList:        "some random task list",
+				CancelRequested: tc.cancelRequested,
+			}
+			mockMutableState.EXPECT().IsWorkflowExecutionRunning().Return(true).AnyTimes()
+			mockMutableState.EXPECT().GetNextEventID().Return(scheduleID + 10).AnyTimes()
+			mockMutableState.EXPECT().GetVersionHistories().Return(versionHistories).AnyTimes()
+			mockMutableState.EXPECT().GetWorkflowStateCloseStatus().Return(1, 0).AnyTimes()
+			mockMutableState.EXPECT().GetActivityInfo(scheduleID).Return(activityInfo, true).AnyTimes()
+			mockMutableState.EXPECT().GetPendingActivityInfos().Return(
+				map[int64]*persistence.ActivityInfo{activityInfo.ScheduleID: activityInfo},
+			).AnyTimes()
+			mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+				DomainID:   domainID,
+				WorkflowID: workflowID,
+				RunID:      runID,
+			}).AnyTimes()
+			mockMutableState.EXPECT().GetCurrentVersion().Return(version).AnyTimes()
+			mockMutableState.EXPECT().UpdateActivity(gomock.Any()).Return(nil).AnyTimes()
+			// simulate applying the request onto the local activity info, as the
+			// real ReplicateActivityInfo does for the fields the retry timer reads
+			mockMutableState.EXPECT().ReplicateActivityInfo(request, gomock.Any()).DoAndReturn(
+				func(req *types.SyncActivityRequest, reset bool) error {
+					activityInfo.Version = req.Version
+					activityInfo.Attempt = req.Attempt
+					activityInfo.StartedID = req.StartedID
+					activityInfo.ScheduledTime = time.Unix(0, req.GetScheduledTime())
+					return nil
+				},
+			).Times(1)
+
+			var addedTimerTasks []persistence.Task
+			mockMutableState.EXPECT().AddTimerTasks(gomock.Any()).Do(
+				func(tasks ...persistence.Task) {
+					addedTimerTasks = append(addedTimerTasks, tasks...)
+				},
+			).AnyTimes()
+
+			workflowContext.EXPECT().UpdateWorkflowExecutionWithNew(
+				gomock.Any(),
+				gomock.Any(),
+				persistence.UpdateWorkflowModeUpdateCurrent,
+				nil,
+				nil,
+				execution.TransactionPolicyPassive,
+				nil,
+				persistence.CreateWorkflowRequestModeReplicated,
+			).Return(nil).Times(1)
+
+			err = activityReplicator.SyncActivity(ctx.Background(), request)
+			require.NoError(t, err)
+
+			var retryTasks []*persistence.ActivityRetryTimerTask
+			for _, task := range addedTimerTasks {
+				if retryTask, ok := task.(*persistence.ActivityRetryTimerTask); ok {
+					retryTasks = append(retryTasks, retryTask)
+				}
+			}
+			if !tc.wantRetryTimer {
+				require.Empty(t, retryTasks)
+				return
+			}
+			require.Len(t, retryTasks, 1)
+			require.Equal(t, scheduleID, retryTasks[0].EventID)
+			require.Equal(t, int64(tc.attempt), retryTasks[0].Attempt)
+			require.Equal(t, version, retryTasks[0].Version)
+			require.True(t, retryTasks[0].VisibilityTimestamp.Equal(time.Unix(0, scheduledTime.UnixNano())))
+			require.Equal(t, activityInfo.TaskList, retryTasks[0].TaskList)
+		})
+	}
 }
 
 func (s *activityReplicatorSuite) SetupSuite() {

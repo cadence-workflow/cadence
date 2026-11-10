@@ -81,14 +81,15 @@ type Config struct {
 	EnableDomainAuditLogging dynamicproperties.BoolPropertyFn
 
 	// id length limits
-	MaxIDLengthWarnLimit  dynamicproperties.IntPropertyFn
-	DomainNameMaxLength   dynamicproperties.IntPropertyFnWithDomainFilter
-	IdentityMaxLength     dynamicproperties.IntPropertyFnWithDomainFilter
-	WorkflowIDMaxLength   dynamicproperties.IntPropertyFnWithDomainFilter
-	SignalNameMaxLength   dynamicproperties.IntPropertyFnWithDomainFilter
-	WorkflowTypeMaxLength dynamicproperties.IntPropertyFnWithDomainFilter
-	RequestIDMaxLength    dynamicproperties.IntPropertyFnWithDomainFilter
-	TaskListNameMaxLength dynamicproperties.IntPropertyFnWithDomainFilter
+	MaxIDLengthWarnLimit   dynamicproperties.IntPropertyFn
+	DomainNameMaxLength    dynamicproperties.IntPropertyFnWithDomainFilter
+	IdentityMaxLength      dynamicproperties.IntPropertyFnWithDomainFilter
+	WorkflowIDMaxLength    dynamicproperties.IntPropertyFnWithDomainFilter
+	SignalNameMaxLength    dynamicproperties.IntPropertyFnWithDomainFilter
+	WorkflowTypeMaxLength  dynamicproperties.IntPropertyFnWithDomainFilter
+	RequestIDMaxLength     dynamicproperties.IntPropertyFnWithDomainFilter
+	TaskListNameMaxLength  dynamicproperties.IntPropertyFnWithDomainFilter
+	SemaphoreNameMaxLength dynamicproperties.IntPropertyFnWithDomainFilter
 
 	// security protection settings
 	EnableAdminProtection         dynamicproperties.BoolPropertyFn
@@ -126,6 +127,13 @@ type Config struct {
 
 	// Emit signal related metrics with signal name tag. Be aware of cardinality.
 	EmitSignalNameMetricsTag dynamicproperties.BoolPropertyFnWithDomainFilter
+
+	// EnableScheduler mirrors the worker-side flag so the frontend can reject
+	// CreateSchedule early when no scheduler worker will run for the domain.
+	EnableScheduler dynamicproperties.BoolPropertyFnWithDomainFilter
+
+	// EnableDistributedSemaphore gates CreateSemaphore per domain.
+	EnableDistributedSemaphore dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// HostName for machine running the service
 	HostName string
@@ -178,6 +186,7 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		WorkflowTypeMaxLength:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowTypeMaxLength),
 		RequestIDMaxLength:                                dc.GetIntPropertyFilteredByDomain(dynamicproperties.RequestIDMaxLength),
 		TaskListNameMaxLength:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskListNameMaxLength),
+		SemaphoreNameMaxLength:                            dc.GetIntPropertyFilteredByDomain(dynamicproperties.SemaphoreNameMaxLength),
 		EnableAdminProtection:                             dc.GetBoolProperty(dynamicproperties.EnableAdminProtection),
 		AdminOperationToken:                               dc.GetStringProperty(dynamicproperties.AdminOperationToken),
 		DisableListVisibilityByFilter:                     dc.GetBoolPropertyFilteredByDomain(dynamicproperties.DisableListVisibilityByFilter),
@@ -206,6 +215,8 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		Lockdown:                                          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.Lockdown),
 		EnableTasklistIsolation:                           dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
 		EnableDomainAuditLogging:                          dc.GetBoolProperty(dynamicproperties.EnableDomainAuditLogging),
+		EnableScheduler:                                   dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler),
+		EnableDistributedSemaphore:                        dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDistributedSemaphore),
 		DomainConfig: domain.Config{
 			MaxBadBinaryCount:           dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxBadBinaries),
 			MinRetentionDays:            dc.GetIntProperty(dynamicproperties.MinRetentionDays),

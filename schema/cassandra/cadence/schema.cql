@@ -78,6 +78,7 @@ CREATE TYPE workflow_execution (
   has_retry_policy                 boolean,-- If there is a retry policy
   init_interval                    int,    -- initial retry interval, in seconds
   backoff_coefficient              double,
+  jitter_coefficient               double,
   max_interval                     int,    -- max retry interval in seconds
   expiration_time                  timestamp, -- retry expiration time
   max_attempts                     int,    -- max number of attempts including initial non-retry attempt
@@ -136,6 +137,7 @@ CREATE TYPE transfer_task (
   record_visibility          boolean,      -- indicates whether or not to create a visibility record
   original_task_list         text,         -- the original task list of the task if the task is a sticky decision task
   original_task_list_kind    int,          -- enum TaskListKind {Normal, Sticky, Ephemeral},
+  semaphore_name             text,
 );
 
 CREATE TYPE replication_task (
@@ -198,6 +200,7 @@ CREATE TYPE activity_info (
   has_retry_policy          boolean,-- If there is a retry policy
   init_interval             int,    -- initial retry interval, in seconds
   backoff_coefficient       double,
+  jitter_coefficient        double,
   max_interval              int,    -- max retry interval in seconds
   expiration_time           timestamp, -- retry expiration time
   max_attempts              int,    -- max number of attempts including initial non-retry attempt
@@ -258,6 +261,16 @@ CREATE TYPE signal_info (
   signal_name               text,
   input                     blob,
   control                   blob,
+);
+
+-- Semaphore hold in progress mutable state
+CREATE TYPE semaphore_info (
+  version                   bigint,
+  initiated_id              bigint,
+  semaphore_name            text,
+  owner_id                  text,
+  token_id                  int,
+  acquire_deadline          timestamp,
 );
 
 -- Activity or workflow task in a task list
@@ -359,6 +372,13 @@ CREATE TYPE checksum (
   value   blob, -- checksum bytes
 );
 
+-- A queued semaphore acquire waiting for a token in a bucket
+CREATE TYPE semaphore_task (
+    workflow_id  text,
+    run_id       uuid,
+    hold_id      bigint  -- identifies this hold
+);
+
 CREATE TABLE executions (
   shard_id                       int,
   type                           int, -- enum RowType { Shard, Execution, TransferTask, TimerTask, ReplicationTask, CrossClusterTask}
@@ -384,6 +404,7 @@ CREATE TABLE executions (
   child_executions_map           map<bigint, frozen<child_execution_info>>,
   request_cancel_map             map<bigint, frozen<request_cancel_info>>,
   signal_map                     map<bigint, frozen<signal_info>>,
+  semaphore_map                  map<bigint, frozen<semaphore_info>>,
   signal_requested               set<uuid>,
   buffered_events_list           list<frozen<serialized_event_batch>>,
   replication_state              frozen<replication_state>, -- Replication information part of mutable state
@@ -607,6 +628,65 @@ CREATE TABLE history_task_dlq_ack_level (
     ack_level_task_id         bigint,
     last_updated_at           timestamp,
     PRIMARY KEY ((shard_id), domain_id, cluster_attribute_scope, cluster_attribute_name, task_category)
+) WITH compaction = {
+    'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
+};
+
+-- Distributed semaphore metadata: capacity and configuration for a regional counting semaphore.
+-- Partitioned by domain_id so all semaphores in a domain list together; clustered by semaphore_name.
+-- Source of truth for size and bucket_size (which derive N = ceil(size / bucket_size)).
+CREATE TABLE semaphore_metadata (
+    domain_id         uuid,
+    semaphore_name    text,
+    size              int,       -- total capacity (max concurrent tokens)
+    bucket_size       int,       -- tokens per bucket (per-host budget); sets N = ceil(size / bucket_size)
+    created_time      timestamp,
+    PRIMARY KEY ((domain_id), semaphore_name)
+) WITH compaction = {
+    'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
+};
+
+-- Distributed semaphore token ownership, with the reverse index inline.
+--
+-- One partition per bucket (domain_id, semaphore_name, bucket), written by the single Matching
+-- host that owns it. `type` gives the partition two row shapes over the same columns: a token
+-- row keyed by token_id ("who holds this slot?") and an owner row keyed by owner_id ("which
+-- slot does this hold own?"). A key column that does not apply to a shape carries a sentinel,
+-- since a key cannot be null; the other columns are simply left unset.
+--
+-- Grant and release write both rows in one atomic batch, so the two cannot diverge.
+CREATE TABLE semaphore_tokens (
+    domain_id       uuid,
+    semaphore_name  text,
+    bucket          int,        -- static bucket = f(owner_id)
+    type            int,        -- rowType {token, owner}: forward row vs reverse-index row
+    token_id        int,        -- token row: slot id [1,size]; owner row: TOKEN_NONE sentinel
+    owner_id        text,       -- owner row: the holder's identity; token row: OWNER_NONE sentinel
+    holder          text,       -- token row: current holder or FREE (LWT-guarded); owner row: unset
+    held_token      int,        -- owner row: the token this owner holds; token row: unset
+    updated_time    timestamp,
+    PRIMARY KEY ((domain_id, semaphore_name, bucket), type, token_id, owner_id)
+) WITH compaction = {
+    'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
+};
+
+-- Distributed semaphore: per-bucket FIFO queue of ungranted acquires, ordered by task_id.
+-- Each bucket (domain_id, semaphore_name, bucket) is owned by a single Matching host that
+-- drains the head on each release, reusing the tasks range_id fence.
+CREATE TABLE semaphore_tasks (
+    domain_id         uuid,
+    semaphore_name    text,
+    bucket            int,                    -- static bucket = f(owner_id); one queue per bucket
+    type              int,                    -- rowType: 0 = waiter (queued acquire), 1 = control row (range_id fence)
+    task_id           bigint,
+    range_id          bigint,                 -- single-writer fence, carried on the control row
+    ack_level         bigint,                 -- control row: waiters with task_id <= this are granted/expired and
+                                              -- range-deleted; the reader reads above it, never scanning acked tombstones
+    task              frozen<semaphore_task>,
+    acquire_deadline  timestamp,              -- the time this waiter gives up if still not granted
+                                              -- No deadline means no skip and no TTL
+    created_time      timestamp,
+    PRIMARY KEY ((domain_id, semaphore_name, bucket), type, task_id)
 ) WITH compaction = {
     'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
 };

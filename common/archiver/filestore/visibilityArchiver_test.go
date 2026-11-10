@@ -35,7 +35,6 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/util"
@@ -480,7 +479,7 @@ func (s *visibilityArchiverSuite) TestArchiveAndQuery() {
 }
 
 func (s *visibilityArchiverSuite) newTestVisibilityArchiver() *visibilityArchiver {
-	config := &config.FilestoreArchiver{
+	config := &Config{
 		FileMode: testFileModeStr,
 		DirMode:  testDirModeStr,
 	}

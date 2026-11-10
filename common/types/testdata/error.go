@@ -123,6 +123,13 @@ var (
 		MyIdentity:      HostName2,
 		TasklistName:    TaskListName,
 	}
+	// SemaphoreNotOwnedByHostError is kept out of Errors: it only travels over gRPC, so thrift
+	// has no mapping for it.
+	SemaphoreNotOwnedByHostError = cadence_errors.SemaphoreNotOwnedByHostError{
+		OwnedByIdentity: HostName,
+		MyIdentity:      HostName2,
+		BucketID:        "domain-id/semaphore-name/3",
+	}
 )
 
 var Errors = []error{

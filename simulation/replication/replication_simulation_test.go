@@ -104,6 +104,8 @@ func TestReplicationSimulation(t *testing.T) {
 			err = signalWithStartWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationValidateWorkflowReplication:
 			err = validateWorkflowReplication(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationValidatePendingActivity:
+			err = validatePendingActivity(t, op, simCfg)
 		default:
 			require.Failf(t, "unknown operation type", "operation type: %s", op.Type)
 		}
@@ -555,6 +557,92 @@ func validateWorkflowReplication(
 
 	if !reflect.DeepEqual(sourceClusterWorkflowExecution, targetClusterWorkflowExecution) {
 		return fmt.Errorf("workflow execution info mismatch between source cluster %s and target cluster %s for workflow %s. \nSource: %+v\nTarget: %+v", op.SourceCluster, op.TargetCluster, op.WorkflowID, *sourceClusterWorkflowExecution, *targetClusterWorkflowExecution)
+	}
+
+	return nil
+}
+
+// validatePendingActivity validates the pending-activity state of a workflow via
+// DescribeWorkflowExecution on the given cluster. Like validate, it must return an
+// error rather than failing the test directly. Two validation modes are supported:
+//   - want.pendingActivityState (+ optional want.pendingActivityAttempt): the workflow
+//     must have exactly one pending activity in the given state (and attempt).
+//   - want.activityDispatched=true: no pending activity may be stuck in SCHEDULED
+//     state at attempt > 0 past its scheduled time. A violation means a recorded
+//     activity retry was never dispatched to a worker in this cluster.
+func validatePendingActivity(
+	t *testing.T,
+	op *simTypes.Operation,
+	simCfg *simTypes.ReplicationSimulationConfig,
+) error {
+	t.Helper()
+
+	if op.Want.PendingActivityState == "" && op.Want.ActivityDispatched == nil {
+		return fmt.Errorf("validate_pending_activity op for workflow %s requires want.pendingActivityState and/or want.activityDispatched", op.WorkflowID)
+	}
+	if op.Want.ActivityDispatched != nil && !*op.Want.ActivityDispatched {
+		return fmt.Errorf("validate_pending_activity op for workflow %s: activityDispatched only supports true", op.WorkflowID)
+	}
+
+	simTypes.Logf(t, "Validating pending activities of workflow: %s on domain: %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).DescribeWorkflowExecution(ctx,
+		&types.DescribeWorkflowExecutionRequest{
+			Domain: op.Domain,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: op.WorkflowID,
+			},
+		})
+	if err != nil {
+		return fmt.Errorf("failed to describe workflow %s: %w", op.WorkflowID, err)
+	}
+
+	pending := resp.GetPendingActivities()
+
+	if op.Want.PendingActivityState != "" {
+		var wantState types.PendingActivityState
+		switch op.Want.PendingActivityState {
+		case "scheduled":
+			wantState = types.PendingActivityStateScheduled
+		case "started":
+			wantState = types.PendingActivityStateStarted
+		default:
+			return fmt.Errorf("unsupported pendingActivityState %q in scenario config", op.Want.PendingActivityState)
+		}
+
+		if len(pending) != 1 {
+			return fmt.Errorf("expected exactly 1 pending activity for workflow %s on cluster %s, got %d", op.WorkflowID, op.Cluster, len(pending))
+		}
+		ai := pending[0]
+		if ai.GetState() != wantState {
+			return fmt.Errorf("pending activity %s of workflow %s on cluster %s is in state %s, expected %s", ai.ActivityID, op.WorkflowID, op.Cluster, ai.GetState(), wantState)
+		}
+		if op.Want.PendingActivityAttempt != nil && ai.Attempt != *op.Want.PendingActivityAttempt {
+			return fmt.Errorf("pending activity %s of workflow %s on cluster %s is at attempt %d, expected %d", ai.ActivityID, op.WorkflowID, op.Cluster, ai.Attempt, *op.Want.PendingActivityAttempt)
+		}
+		simTypes.Logf(t, "Validated pending activity of workflow %s on cluster %s: state %s, attempt %d", op.WorkflowID, op.Cluster, ai.GetState(), ai.Attempt)
+	}
+
+	if op.Want.ActivityDispatched != nil && *op.Want.ActivityDispatched {
+		now := time.Now()
+		for _, ai := range pending {
+			var scheduledTimestamp int64
+			if ai.ScheduledTimestamp != nil {
+				scheduledTimestamp = *ai.ScheduledTimestamp
+			}
+			if ai.GetState() == types.PendingActivityStateScheduled &&
+				ai.Attempt > 0 &&
+				scheduledTimestamp > 0 &&
+				time.Unix(0, scheduledTimestamp).Before(now) {
+				return fmt.Errorf(
+					"activity retry was never dispatched: workflow %s on cluster %s still has pending activity %s stuck in SCHEDULED state at attempt %d (retry was scheduled for %v, now %v). "+
+						"This is the lost-activity-retry-across-failover bug: the previously-active cluster's ActivityRetryTimerTask was silently dropped by its standby timer executor and the new active cluster never generated one",
+					op.WorkflowID, op.Cluster, ai.ActivityID, ai.Attempt, time.Unix(0, scheduledTimestamp), now)
+			}
+		}
+		simTypes.Logf(t, "Validated activity dispatch for workflow %s on cluster %s: no pending activity stuck in SCHEDULED past its retry time", op.WorkflowID, op.Cluster)
 	}
 
 	return nil

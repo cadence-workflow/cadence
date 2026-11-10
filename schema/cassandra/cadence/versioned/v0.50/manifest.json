@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.50",
+  "MinCompatibleVersion": "0.50",
+  "Description": "Add semaphore_metadata table",
+  "SchemaUpdateCqlFiles": [
+    "semaphore_metadata.cql"
+  ]
+}
