@@ -106,3 +106,24 @@ func TaskTypeFuzzer(e *int32, c fuzz.Continue) {
 func DomainStatusFuzzer(e *types.DomainStatus, c fuzz.Continue) {
 	*e = types.DomainStatus(c.Intn(3)) // 0-2: Registered, Deprecated, Deleted
 }
+
+func ArchivalStatusFuzzer(e *types.ArchivalStatus, c fuzz.Continue) {
+	*e = types.ArchivalStatus(c.Intn(2)) // 0-1: Disabled, Enabled
+}
+
+func FailureCategoryFuzzer(e *types.FailureCategory, c fuzz.Continue) {
+	*e = types.FailureCategory(c.Intn(3)) // 0-2: Standard, Poll, Fatal
+}
+
+// IsolationGroupConfigurationFuzzer keys the map by the partition name it holds,
+// which is the invariant ToIsolationGroupConfig rebuilds the map from.
+func IsolationGroupConfigurationFuzzer(cfg *types.IsolationGroupConfiguration, c fuzz.Continue) {
+	*cfg = types.IsolationGroupConfiguration{}
+	for i := c.Intn(4); i > 0; i-- {
+		name := c.RandString()
+		(*cfg)[name] = types.IsolationGroupPartition{
+			Name:  name,
+			State: types.IsolationGroupState(c.Intn(3)),
+		}
+	}
+}
