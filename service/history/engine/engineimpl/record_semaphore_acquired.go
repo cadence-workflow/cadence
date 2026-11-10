@@ -88,7 +88,9 @@ func (e *historyEngineImpl) RecordSemaphoreAcquired(
 			}
 			if semaphoreInfo.HasToken() {
 				if semaphoreInfo.TokenID == int(tokenID) {
-					// A repeated grant: already recorded.
+					// The hold already has this token: a repeated grant, or after a failover and failback, this
+					// region's grant has the same id as the token the other region granted. Either way there is
+					// nothing to record, and Matching keeps the token.
 					return &workflow.UpdateAction{Noop: true}, nil
 				}
 				// The hold has a token from another region. Tokens are per region but the owner id is not,

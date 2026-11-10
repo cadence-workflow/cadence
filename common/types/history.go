@@ -650,7 +650,6 @@ type RecordSemaphoreAcquiredRequest struct {
 	SemaphoreName string `json:"semaphoreName,omitempty"`
 }
 
-// GetDomainUUID is an internal getter (TBD...)
 func (v *RecordSemaphoreAcquiredRequest) GetDomainUUID() (o string) {
 	if v != nil {
 		return v.DomainUUID
@@ -658,7 +657,6 @@ func (v *RecordSemaphoreAcquiredRequest) GetDomainUUID() (o string) {
 	return
 }
 
-// GetInitiatedID is an internal getter (TBD...)
 func (v *RecordSemaphoreAcquiredRequest) GetInitiatedID() (o int64) {
 	if v != nil {
 		return v.InitiatedID
@@ -666,7 +664,6 @@ func (v *RecordSemaphoreAcquiredRequest) GetInitiatedID() (o int64) {
 	return
 }
 
-// GetTokenID is an internal getter (TBD...)
 func (v *RecordSemaphoreAcquiredRequest) GetTokenID() (o int32) {
 	if v != nil {
 		return v.TokenID
@@ -674,7 +671,6 @@ func (v *RecordSemaphoreAcquiredRequest) GetTokenID() (o int32) {
 	return
 }
 
-// GetSemaphoreName is an internal getter (TBD...)
 func (v *RecordSemaphoreAcquiredRequest) GetSemaphoreName() (o string) {
 	if v != nil {
 		return v.SemaphoreName
