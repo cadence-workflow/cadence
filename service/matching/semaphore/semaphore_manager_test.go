@@ -1199,6 +1199,17 @@ func TestGetTokenByOwner(t *testing.T) {
 			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, readErr) },
 		},
 		{
+			name:         "failure - not in cache, owner row token outside the bucket, returns an error",
+			cacheEntries: map[int]tokenEntry{1: free, 2: free},
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				expectGetOwnerRow(m).Return(ownerRowNaming(3), nil)
+			},
+			assertErr: func(t *testing.T, err error) {
+				assert.IsType(t, &types.InternalServiceError{}, err)
+				assert.ErrorContains(t, err, "owner caller's owner row names token 3, outside tokens 1 to 2")
+			},
+		},
+		{
 			name:           "failure - manager stopped, returns ErrNotReady",
 			cacheEntries:   map[int]tokenEntry{1: heldByCaller, 2: free},
 			managerStopped: true,

@@ -677,5 +677,8 @@ func (m *semaphoreManagerImpl) GetTokenByOwner(ctx context.Context, ownerID stri
 	if row == nil {
 		return 0, nil
 	}
+	if !cache.tokenRange.Contains(row.HeldToken) {
+		return 0, &types.InternalServiceError{Message: fmt.Sprintf("owner %v's owner row names token %d, outside tokens %d to %d of bucket %v", ownerID, row.HeldToken, cache.tokenRange.First, cache.tokenRange.Last(), m.id)}
+	}
 	return row.HeldToken, nil
 }
