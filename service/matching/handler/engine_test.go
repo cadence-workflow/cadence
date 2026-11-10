@@ -1921,16 +1921,8 @@ func TestShardDistributorOnboarded(t *testing.T) {
 }
 
 const (
-	testSemaphoreDomainID   = "domain-id-1"
-	testSemaphoreDomainName = "domain-1"
-	testSemaphoreName       = "sem-1"
-)
-
-// The test semaphore has testSemaphoreBuckets buckets of testSemaphoreBucketSize tokens, so
-// bucket b owns tokens b*testSemaphoreBucketSize+1 to (b+1)*testSemaphoreBucketSize.
-const (
-	testSemaphoreBucketSize = 2
-	testSemaphoreBuckets    = 3
+	testSemaphoreDomainID = "domain-id-1"
+	testSemaphoreName     = "sem-1"
 )
 
 var (
@@ -1950,8 +1942,8 @@ func newSemaphoreMetadata(t *testing.T) persistence.SemaphoreMetadataManager {
 	}).AnyTimes().Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{
 		DomainID:      testSemaphoreDomainID,
 		SemaphoreName: testSemaphoreName,
-		Size:          testSemaphoreBuckets * testSemaphoreBucketSize,
-		BucketSize:    testSemaphoreBucketSize,
+		Size:          6,
+		BucketSize:    2,
 	}}, nil)
 	return md
 }
@@ -1979,7 +1971,7 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 	ctrl := gomock.NewController(t)
 
 	domainCache := cache.NewMockDomainCache(ctrl)
-	domainCache.EXPECT().GetDomainName(testSemaphoreDomainID).Return(testSemaphoreDomainName, nil).AnyTimes()
+	domainCache.EXPECT().GetDomainName(testSemaphoreDomainID).Return(testDomain, nil).AnyTimes()
 
 	resolver := membership.NewMockResolver(ctrl)
 	resolver.EXPECT().WhoAmI().Return(testSelfHost, nil).AnyTimes()
@@ -2027,7 +2019,7 @@ func newUnstartedSemaphoreManager(t *testing.T, id semaphore.Identifier, tokens 
 			SemaphoreIdleTime:          func(string) time.Duration { return time.Minute },
 			SemaphoreUpdateAckInterval: func(string) time.Duration { return time.Minute },
 		},
-		DomainName: "test-domain",
+		DomainName: testDomain,
 		OnStopFn:   func(semaphore.Manager) {},
 		TimeSource: clock.NewMockedTimeSource(),
 	})
@@ -2046,52 +2038,28 @@ func registerSemaphoreManager(t *testing.T, e *matchingEngineImpl, mgr semaphore
 	require.Same(t, mgr, got, "the bucket was already held by another manager")
 }
 
-// expectBucketLoadAllFree expects exactly one bucket load, returning token rows 1 to tokens with
-// no holder and no owner rows, so every token is free.
-func expectBucketLoadAllFree(m *persistence.MockSemaphoreTokenManager, tokens int) {
-	rows := make([]*persistence.SemaphoreOwnership, 0, tokens)
-	for i := 1; i <= tokens; i++ {
-		rows = append(rows, &persistence.SemaphoreOwnership{
-			RowType:       persistence.SemaphoreRowTypeToken,
-			DomainID:      testSemaphoreDomainID,
-			SemaphoreName: testSemaphoreName,
-			TokenID:       i,
-		})
-	}
+// expectBucketLoad expects exactly one bucket load, returning rows. With no rows, every token is free.
+func expectBucketLoad(m *persistence.MockSemaphoreTokenManager, rows ...*persistence.SemaphoreOwnership) {
 	m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).
 		Return(&persistence.ScanSemaphoreBucketResponse{Ownerships: rows}, nil)
 }
 
-// newAcquireSemaphoreRequest returns a request for one bucket of the test semaphore.
-func newAcquireSemaphoreRequest(bucket int32, ownerID string) *types.AcquireSemaphoreRequest {
+// newAcquireSemaphoreRequest returns a request for bucket 0 of the test semaphore.
+func newAcquireSemaphoreRequest(ownerID string) *types.AcquireSemaphoreRequest {
 	return &types.AcquireSemaphoreRequest{
 		DomainUUID:    testSemaphoreDomainID,
 		SemaphoreName: testSemaphoreName,
-		Bucket:        bucket,
 		OwnerID:       ownerID,
 	}
 }
 
 func TestGetOrCreateSemaphoreManager(t *testing.T) {
-	t.Run("second request reuses the manager already built", func(t *testing.T) {
-		// A bucket is built once, so the second request costs no scan.
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		expectBucketLoadAllFree(m, 3)
-		id := mustNewSemaphoreIdentifier(t, 0)
-
-		first, err := e.getOrCreateSemaphoreManager(id)
-		require.NoError(t, err)
-		second, err := e.getOrCreateSemaphoreManager(id)
-		require.NoError(t, err)
-		assert.Same(t, first, second, "the second call must reuse the registered manager")
-	})
-
-	t.Run("a registered manager that was never started is started by the next request", func(t *testing.T) {
+	t.Run("registered manager never started: next request starts it", func(t *testing.T) {
 		// A request that panics after registering leaves the manager unstarted, and only the next request can start it.
 		e, m := newEngineWithSemaphores(t, testSelfHost)
 		id := mustNewSemaphoreIdentifier(t, 0)
 		// fails if the request does not start the manager
-		expectBucketLoadAllFree(m, 2)
+		expectBucketLoad(m)
 
 		unstarted := newUnstartedSemaphoreManager(t, id, m)
 		registerSemaphoreManager(t, e, unstarted)
@@ -2101,8 +2069,7 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		assert.Same(t, unstarted, got, "the registered manager is the one that gets started")
 	})
 
-	t.Run("bucket is owned by another host", func(t *testing.T) {
-		// The error names that host, so the caller can go there instead of retrying here.
+	t.Run("bucket owned by another host: error names the owner, nothing loaded", func(t *testing.T) {
 		e, m := newEngineWithSemaphores(t, testOtherHost)
 		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
 
@@ -2116,7 +2083,7 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "a bucket owned elsewhere must not be loaded here")
 	})
 
-	t.Run("matching engine is shutting down", func(t *testing.T) {
+	t.Run("engine shutting down: error names no owner, nothing loaded", func(t *testing.T) {
 		// No new buckets: loading one now would scan a partition this host is about to stop
 		// serving.
 		e, m := newEngineWithSemaphores(t, testSelfHost)
@@ -2132,9 +2099,9 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		assert.Equal(t, "not known", notOwned.OwnedByIdentity, "the next owner is not settled yet")
 	})
 
-	t.Run("manager that failed to start is not left registered", func(t *testing.T) {
-		// Its Acquire answers ErrNotReady with nothing to clear it, so leaving it in place
-		// would wedge the bucket until the host restarted.
+	t.Run("load fails: manager not left registered, next request retries", func(t *testing.T) {
+		// A failed load stops the manager, and Stop unregisters it. A stopped manager left in the
+		// registry would answer ErrNotReady to every later request until the host restarted.
 		e, m := newEngineWithSemaphores(t, testSelfHost)
 		id := mustNewSemaphoreIdentifier(t, 0)
 
@@ -2146,14 +2113,14 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		assert.Nil(t, mgr)
 		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "a manager that cannot start must not stay registered")
 
-		// The next request builds a fresh one, so a passing outage is recoverable.
-		expectBucketLoadAllFree(m, 2)
+		// So the next request builds a new manager and loads again.
+		expectBucketLoad(m)
 		retry, err := e.getOrCreateSemaphoreManager(id)
 		require.NoError(t, err)
 		assert.NotNil(t, retry)
 	})
 
-	t.Run("domain lookup fails", func(t *testing.T) {
+	t.Run("domain lookup fails: its error is returned", func(t *testing.T) {
 		// The failure comes back as itself. The name is only needed to read the flag, so
 		// failing to resolve it says nothing about the bucket.
 		ctrl := gomock.NewController(t)
@@ -2172,50 +2139,13 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		_, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
 		assert.ErrorIs(t, err, lookupErr)
 	})
-
-	t.Run("load runs outside the creation lock", func(t *testing.T) {
-		// One slow load must not block other buckets. The scan for the first is held open until
-		// a second has been built, which can only finish if the two are independent -- under a
-		// shared lock the second call would sit behind a scan that is itself waiting on it, and
-		// the test would hang.
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		slow := mustNewSemaphoreIdentifier(t, 0)
-		fast := mustNewSemaphoreIdentifier(t, 1)
-
-		slowScanStarted := make(chan struct{})
-		secondIsUp := make(chan struct{})
-		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(2).
-			DoAndReturn(func(_ context.Context, req *persistence.ScanSemaphoreBucketRequest) (*persistence.ScanSemaphoreBucketResponse, error) {
-				if req.Bucket == slow.Bucket {
-					close(slowScanStarted)
-					<-secondIsUp
-				}
-				return &persistence.ScanSemaphoreBucketResponse{}, nil
-			})
-
-		slowDone := make(chan error, 1)
-		go func() {
-			_, err := e.getOrCreateSemaphoreManager(slow)
-			slowDone <- err
-		}()
-		// Wait until the slow load is in flight, so the second creation really does overlap it
-		// rather than slipping in first and passing by luck.
-		<-slowScanStarted
-
-		second, err := e.getOrCreateSemaphoreManager(fast)
-		require.NoError(t, err)
-		require.NotNil(t, second)
-		close(secondIsUp)
-
-		require.NoError(t, <-slowDone)
-	})
 }
 
 func TestUnloadSemaphoreManager(t *testing.T) {
 	// Unloading takes a manager out of the registry and stops it, so the next request builds a
 	// fresh one instead of finding the retired manager.
 	e, m := newEngineWithSemaphores(t, testSelfHost)
-	expectBucketLoadAllFree(m, 2)
+	expectBucketLoad(m)
 	id := mustNewSemaphoreIdentifier(t, 0)
 
 	mgr, err := e.getOrCreateSemaphoreManager(id)
@@ -2227,7 +2157,7 @@ func TestUnloadSemaphoreManager(t *testing.T) {
 	_, err = mgr.Acquire(context.Background(), "owner-1")
 	assert.ErrorIs(t, err, semaphore.ErrNotReady, "an unloaded manager must stop serving")
 
-	expectBucketLoadAllFree(m, 2)
+	expectBucketLoad(m)
 	fresh, err := e.getOrCreateSemaphoreManager(id)
 	require.NoError(t, err)
 	assert.NotSame(t, mgr, fresh)
@@ -2262,158 +2192,263 @@ func TestStopSemaphoreManagers(t *testing.T) {
 }
 
 func TestAcquireSemaphore(t *testing.T) {
-	t.Run("a free slot is granted and named in the response", func(t *testing.T) {
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		expectBucketLoadAllFree(m, 3)
-		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
-			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
+	testCases := []struct {
+		name               string
+		req                *types.AcquireSemaphoreRequest
+		bucketLoaded       bool
+		semaphoresDisabled bool
+		mockSetup          func(*persistence.MockSemaphoreTokenManager)
+		wantErr            bool
+		assertErr          func(*testing.T, error)
+		want               *types.AcquireSemaphoreResponse
+	}{
+		{
+			name: "success - one token is free, acquired",
+			req:  newAcquireSemaphoreRequest(testSemaphoreOwnerID),
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				// Bucket 0 owns tokens 1 and 2, and another owner holds token 2.
+				expectBucketLoad(m, []*persistence.SemaphoreOwnership{
+					{RowType: persistence.SemaphoreRowTypeToken, TokenID: 1},
+					{RowType: persistence.SemaphoreRowTypeToken, TokenID: 2, Holder: "owner-2"},
+					{RowType: persistence.SemaphoreRowTypeOwner, OwnerID: "owner-2", HeldToken: 2},
+				}...)
+				m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(1).Return(
+					&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
+			},
+			want: &types.AcquireSemaphoreResponse{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 1},
+		},
+		{
+			name: "success - bucket is full, no slot",
+			req:  newAcquireSemaphoreRequest(testSemaphoreOwnerID),
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				// Bucket 0 owns tokens 1 and 2, and other owners hold both.
+				expectBucketLoad(m, []*persistence.SemaphoreOwnership{
+					{RowType: persistence.SemaphoreRowTypeToken, TokenID: 1, Holder: "owner-1"},
+					{RowType: persistence.SemaphoreRowTypeOwner, OwnerID: "owner-1", HeldToken: 1},
+					{RowType: persistence.SemaphoreRowTypeToken, TokenID: 2, Holder: "owner-2"},
+					{RowType: persistence.SemaphoreRowTypeOwner, OwnerID: "owner-2", HeldToken: 2},
+				}...)
+			},
+			want: &types.AcquireSemaphoreResponse{Outcome: types.SemaphoreAcquireOutcomeNoSlot},
+		},
+		{
+			name:               "failure - semaphores disabled for the domain, no store call",
+			req:                newAcquireSemaphoreRequest(testSemaphoreOwnerID),
+			semaphoresDisabled: true,
+			mockSetup:          func(*persistence.MockSemaphoreTokenManager) {},
+			wantErr:            true,
+			assertErr:          func(t *testing.T, err error) { assert.ErrorIs(t, err, ErrSemaphoreDisabled) },
+		},
+		{
+			name:               "failure - semaphores disabled after the bucket loaded, no grant",
+			req:                newAcquireSemaphoreRequest(testSemaphoreOwnerID),
+			bucketLoaded:       true,
+			semaphoresDisabled: true,
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				expectBucketLoad(m)
+			},
+			wantErr:   true,
+			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, ErrSemaphoreDisabled) },
+		},
+		{
+			name:      "failure - undecodable owner id, no store call",
+			req:       newAcquireSemaphoreRequest("not-an-owner-id"),
+			mockSetup: func(*persistence.MockSemaphoreTokenManager) {},
+			wantErr:   true,
+			assertErr: func(t *testing.T, err error) { assert.IsType(t, &types.BadRequestError{}, err) },
+		},
+	}
 
-		resp, err := e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
-		require.NoError(t, err)
-		assert.Equal(t, types.SemaphoreAcquireOutcomeAcquired, resp.Outcome)
-		assert.GreaterOrEqual(t, resp.TokenID, int32(1), "slot ids start at 1, so 0 would mean no slot")
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e, m := newEngineWithSemaphores(t, testSelfHost)
+			tc.mockSetup(m)
+			if tc.bucketLoaded {
+				_, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
+				require.NoError(t, err)
+			}
+			if tc.semaphoresDisabled {
+				e.config.EnableDistributedSemaphore = func(string) bool { return false }
+			}
 
-	t.Run("a full bucket answers no-slot rather than an error", func(t *testing.T) {
-		// Nothing is wrong: the caller asked and the answer is no. Reporting it as an error would
-		// make an ordinary saturated semaphore look like a fault.
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		// Bucket 0 owns tokens 1 and 2, and both are held.
-		var rows []*persistence.SemaphoreOwnership
-		for tokenID := 1; tokenID <= testSemaphoreBucketSize; tokenID++ {
-			owner := fmt.Sprintf("owner-%d", tokenID)
-			rows = append(rows,
-				&persistence.SemaphoreOwnership{RowType: persistence.SemaphoreRowTypeToken, TokenID: tokenID, Holder: owner},
-				&persistence.SemaphoreOwnership{RowType: persistence.SemaphoreRowTypeOwner, OwnerID: owner, HeldToken: tokenID},
-			)
-		}
-		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).
-			Return(&persistence.ScanSemaphoreBucketResponse{Ownerships: rows}, nil)
-
-		resp, err := e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
-		require.NoError(t, err)
-		assert.Equal(t, types.SemaphoreAcquireOutcomeNoSlot, resp.Outcome)
-		assert.Zero(t, resp.TokenID)
-	})
-
-	t.Run("an owner id that cannot be decoded is refused before any store call", func(t *testing.T) {
-		// Reconciliation reads the stored owner id to attribute a held slot to a workflow, so one
-		// it cannot decode names a hold nothing could ever recover.
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
-
-		_, err := e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, "not-an-owner-id"))
-		assert.IsType(t, &types.BadRequestError{}, err)
-	})
-
-	t.Run("a domain with semaphores disabled is refused before any manager is built", func(t *testing.T) {
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		e.config.EnableDistributedSemaphore = func(string) bool { return false }
-		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
-
-		_, err := e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
-		require.ErrorIs(t, err, ErrSemaphoreDisabled)
-		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "nothing may be registered for a disabled domain")
-	})
-
-	t.Run("turning the flag off refuses acquires on a bucket that is already loaded", func(t *testing.T) {
-		// The flag used to be checked only when a bucket loaded.
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		expectBucketLoadAllFree(m, 2)
-		_, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
-		require.NoError(t, err)
-		e.config.EnableDistributedSemaphore = func(string) bool { return false }
-		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(0)
-
-		_, err = e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
-		assert.ErrorIs(t, err, ErrSemaphoreDisabled)
-		assert.Len(t, e.semaphoreRegistry.AllManagers(), 1, "the bucket stays loaded; only acquires are refused")
-	})
-
-	t.Run("a request arriving while the bucket loads gives up at its own deadline", func(t *testing.T) {
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		scanning, finishScan := make(chan struct{}), make(chan struct{})
-		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-			func(context.Context, *persistence.ScanSemaphoreBucketRequest) (*persistence.ScanSemaphoreBucketResponse, error) {
-				close(scanning)
-				<-finishScan
-				return &persistence.ScanSemaphoreBucketResponse{}, nil
-			})
-		// Once the load finishes, the first request is granted a slot.
-		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(1).Return(
-			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
-
-		// The first request triggers the load and is held inside it.
-		firstDone := make(chan error, 1)
-		go func() {
-			_, err := e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
-			firstDone <- err
-		}()
-		<-scanning
-		defer func() {
-			close(finishScan)
-			assert.NoError(t, <-firstDone)
-		}()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-		defer cancel()
-		hCtx := &handlerContext{Context: ctx}
-
-		secondDone := make(chan error, 1)
-		go func() {
-			_, err := e.AcquireSemaphore(hCtx, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
-			secondDone <- err
-		}()
-		select {
-		case err := <-secondDone:
-			assert.ErrorIs(t, err, context.DeadlineExceeded)
-		case <-time.After(5 * time.Second):
-			t.Fatal("the second request waited on the load instead of its own deadline")
-		}
-	})
+			resp, err := e.AcquireSemaphore(&handlerContext{Context: context.Background()}, tc.req)
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.assertErr != nil {
+					tc.assertErr(t, err)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, resp)
+			}
+		})
+	}
 }
 
-// newReleaseSemaphoreRequest returns a release for one bucket of the test semaphore.
-func newReleaseSemaphoreRequest(bucket int32, ownerID string) *types.ReleaseSemaphoreRequest {
+// newReleaseSemaphoreRequest returns a release for bucket 0 of the test semaphore.
+func newReleaseSemaphoreRequest(ownerID string) *types.ReleaseSemaphoreRequest {
 	return &types.ReleaseSemaphoreRequest{
 		DomainUUID:    testSemaphoreDomainID,
 		SemaphoreName: testSemaphoreName,
-		Bucket:        bucket,
 		OwnerID:       ownerID,
 	}
 }
 
 func TestReleaseSemaphore(t *testing.T) {
-	t.Run("an error reading the owner row is returned", func(t *testing.T) {
-		// Every token is free, so no token is cached for the owner and Release reads the owner row.
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		expectBucketLoadAllFree(m, 2)
-		m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), gomock.Any()).Times(1).Return(nil, assert.AnError)
+	testCases := []struct {
+		name               string
+		req                *types.ReleaseSemaphoreRequest
+		semaphoresDisabled bool
+		mockSetup          func(*persistence.MockSemaphoreTokenManager)
+		wantErr            bool
+		assertErr          func(*testing.T, error)
+	}{
+		{
+			name:               "success - semaphores disabled for the domain, still releases",
+			req:                newReleaseSemaphoreRequest(testSemaphoreOwnerID),
+			semaphoresDisabled: true,
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				// The owner holds nothing, so the release succeeds.
+				expectBucketLoad(m)
+				m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), gomock.Any()).Times(1).Return(
+					nil, &types.EntityNotExistsError{Message: "not found"})
+			},
+		},
+		{
+			name: "failure - owner row read error is returned",
+			req:  newReleaseSemaphoreRequest(testSemaphoreOwnerID),
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				// Every token is free, so no token is cached for the owner and Release reads the owner row.
+				expectBucketLoad(m)
+				m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), gomock.Any()).Times(1).Return(nil, assert.AnError)
+			},
+			wantErr:   true,
+			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, assert.AnError) },
+		},
+		{
+			name:      "failure - undecodable owner id, no store call",
+			req:       newReleaseSemaphoreRequest("not-an-owner-id"),
+			mockSetup: func(*persistence.MockSemaphoreTokenManager) {},
+			wantErr:   true,
+			assertErr: func(t *testing.T, err error) { assert.IsType(t, &types.BadRequestError{}, err) },
+		},
+	}
 
-		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, testSemaphoreOwnerID))
-		assert.ErrorIs(t, err, assert.AnError)
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e, m := newEngineWithSemaphores(t, testSelfHost)
+			if tc.semaphoresDisabled {
+				e.config.EnableDistributedSemaphore = func(string) bool { return false }
+			}
+			tc.mockSetup(m)
 
-	t.Run("an owner id that cannot be decoded is refused before any store call", func(t *testing.T) {
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+			_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, tc.req)
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.assertErr != nil {
+					tc.assertErr(t, err)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
 
-		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, "not-an-owner-id"))
-		assert.IsType(t, &types.BadRequestError{}, err)
-	})
+// newGetSemaphoreTokenByOwnerRequest returns a token lookup for bucket 0 of the test semaphore.
+func newGetSemaphoreTokenByOwnerRequest(ownerID string) *types.GetSemaphoreTokenByOwnerRequest {
+	return &types.GetSemaphoreTokenByOwnerRequest{
+		DomainUUID:    testSemaphoreDomainID,
+		SemaphoreName: testSemaphoreName,
+		OwnerID:       ownerID,
+	}
+}
 
-	t.Run("a release still reaches the manager when the domain has semaphores disabled", func(t *testing.T) {
-		// Tokens granted before the flag was turned off must still be released.
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		e.config.EnableDistributedSemaphore = func(string) bool { return false }
-		expectBucketLoadAllFree(m, 2)
-		// The owner holds nothing, so the release succeeds.
-		m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), gomock.Any()).Times(1).Return(
-			nil, &types.EntityNotExistsError{Message: "not found"})
+func TestGetSemaphoreTokenByOwner(t *testing.T) {
+	notFound := &types.EntityNotExistsError{Message: "not found"}
 
-		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, testSemaphoreOwnerID))
-		assert.NoError(t, err)
-	})
+	testCases := []struct {
+		name               string
+		req                *types.GetSemaphoreTokenByOwnerRequest
+		semaphoresDisabled bool
+		mockSetup          func(*persistence.MockSemaphoreTokenManager)
+		wantErr            bool
+		assertErr          func(*testing.T, error)
+		want               *types.GetSemaphoreTokenByOwnerResponse
+	}{
+		{
+			name: "success - returns the owner's token",
+			req:  newGetSemaphoreTokenByOwnerRequest(testSemaphoreOwnerID),
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				// Bucket 0 owns tokens 1 and 2, and the owner holds token 2.
+				rows := []*persistence.SemaphoreOwnership{
+					{RowType: persistence.SemaphoreRowTypeToken, TokenID: 1},
+					{RowType: persistence.SemaphoreRowTypeToken, TokenID: 2, Holder: testSemaphoreOwnerID},
+					{RowType: persistence.SemaphoreRowTypeOwner, OwnerID: testSemaphoreOwnerID, HeldToken: 2},
+				}
+				expectBucketLoad(m, rows...)
+			},
+			want: &types.GetSemaphoreTokenByOwnerResponse{TokenID: 2},
+		},
+		{
+			name: "success - owner holds no token, returns 0",
+			req:  newGetSemaphoreTokenByOwnerRequest(testSemaphoreOwnerID),
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				expectBucketLoad(m)
+				m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), gomock.Any()).Times(1).Return(nil, notFound)
+			},
+			want: &types.GetSemaphoreTokenByOwnerResponse{},
+		},
+		{
+			name:               "success - semaphores disabled for the domain, still answers",
+			req:                newGetSemaphoreTokenByOwnerRequest(testSemaphoreOwnerID),
+			semaphoresDisabled: true,
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				expectBucketLoad(m)
+				m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), gomock.Any()).Times(1).Return(nil, notFound)
+			},
+			want: &types.GetSemaphoreTokenByOwnerResponse{},
+		},
+		{
+			name: "failure - owner row read error is returned",
+			req:  newGetSemaphoreTokenByOwnerRequest(testSemaphoreOwnerID),
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				// Every token is free, so no token is cached for the owner and it reads the owner row.
+				expectBucketLoad(m)
+				m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), gomock.Any()).Times(1).Return(nil, assert.AnError)
+			},
+			wantErr:   true,
+			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, assert.AnError) },
+		},
+		{
+			name:      "failure - undecodable owner id, no store call",
+			req:       newGetSemaphoreTokenByOwnerRequest("not-an-owner-id"),
+			mockSetup: func(*persistence.MockSemaphoreTokenManager) {},
+			wantErr:   true,
+			assertErr: func(t *testing.T, err error) { assert.IsType(t, &types.BadRequestError{}, err) },
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e, m := newEngineWithSemaphores(t, testSelfHost)
+			if tc.semaphoresDisabled {
+				e.config.EnableDistributedSemaphore = func(string) bool { return false }
+			}
+			tc.mockSetup(m)
+
+			resp, err := e.GetSemaphoreTokenByOwner(&handlerContext{Context: context.Background()}, tc.req)
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.assertErr != nil {
+					tc.assertErr(t, err)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, resp)
+			}
+		})
+	}
 }
 
 func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByHash bool) *membership.TaskListDifferentiator {

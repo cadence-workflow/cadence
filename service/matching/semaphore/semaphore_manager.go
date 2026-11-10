@@ -657,3 +657,25 @@ func (m *semaphoreManagerImpl) tryReleaseTokenLocked(ctx context.Context, cache 
 	cache.markTokenFree(tokenID)
 	return true, nil
 }
+
+// GetTokenByOwner returns the token ownerID holds, or 0 if none. It takes no lock, so a concurrent
+// grant or release can make the answer stale.
+func (m *semaphoreManagerImpl) GetTokenByOwner(ctx context.Context, ownerID string) (int, error) {
+	m.liveness.MarkAlive()
+	if err := m.awaitStartup(ctx); err != nil {
+		return 0, err
+	}
+
+	cache := m.currentCache()
+	if tokenID, ok := cache.lookupHeldToken(ownerID); ok {
+		return tokenID, nil
+	}
+	row, err := m.bucketDB.getOwnerRow(ctx, ownerID)
+	if err != nil {
+		return 0, err
+	}
+	if row == nil {
+		return 0, nil
+	}
+	return row.HeldToken, nil
+}

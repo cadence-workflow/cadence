@@ -52,4 +52,5 @@ type Client interface {
 	RefreshTaskListPartitionConfig(context.Context, *types.MatchingRefreshTaskListPartitionConfigRequest, ...yarpc.CallOption) (*types.MatchingRefreshTaskListPartitionConfigResponse, error)
 	AcquireSemaphore(context.Context, *types.AcquireSemaphoreRequest, ...yarpc.CallOption) (*types.AcquireSemaphoreResponse, error)
 	ReleaseSemaphore(context.Context, *types.ReleaseSemaphoreRequest, ...yarpc.CallOption) (*types.ReleaseSemaphoreResponse, error)
+	GetSemaphoreTokenByOwner(context.Context, *types.GetSemaphoreTokenByOwnerRequest, ...yarpc.CallOption) (*types.GetSemaphoreTokenByOwnerResponse, error)
 }

@@ -43,6 +43,10 @@ func (g matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.Matchin
 	return thrift.ToMatchingDescribeTaskListResponse(response), thrift.ToError(err)
 }
 
+func (g matchingClient) GetSemaphoreTokenByOwner(ctx context.Context, gp1 *types.GetSemaphoreTokenByOwnerRequest, p1 ...yarpc.CallOption) (gp2 *types.GetSemaphoreTokenByOwnerResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest, p1 ...yarpc.CallOption) (gp2 *types.GetTaskListsByDomainResponse, err error) {
 	response, err := g.c.GetTaskListsByDomain(ctx, thrift.FromMatchingGetTaskListsByDomainRequest(gp1), p1...)
 	return thrift.ToMatchingGetTaskListsByDomainResponse(response), thrift.ToError(err)

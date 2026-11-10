@@ -491,6 +491,8 @@ const (
 	MatchingClientAcquireSemaphoreScope
 	// MatchingClientReleaseSemaphoreScope tracks RPC calls to matching service
 	MatchingClientReleaseSemaphoreScope
+	// MatchingClientGetSemaphoreTokenByOwnerScope tracks RPC calls to matching service
+	MatchingClientGetSemaphoreTokenByOwnerScope
 
 	// FrontendClientDeleteDomainScope tracks RPC calls to frontend service
 	FrontendClientDeleteDomainScope
@@ -1576,6 +1578,8 @@ const (
 	MatchingAcquireSemaphoreScope
 	// MatchingReleaseSemaphoreScope tracks ReleaseSemaphore API calls received by service
 	MatchingReleaseSemaphoreScope
+	// MatchingGetSemaphoreTokenByOwnerScope tracks GetSemaphoreTokenByOwner API calls received by service
+	MatchingGetSemaphoreTokenByOwnerScope
 
 	NumMatchingScopes
 )
@@ -1800,6 +1804,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingClientRefreshTaskListPartitionConfigScope: {operation: "MatchingClientRefreshTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientAcquireSemaphoreScope:               {operation: "MatchingClientAcquireSemaphore", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientReleaseSemaphoreScope:               {operation: "MatchingClientReleaseSemaphore", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
+		MatchingClientGetSemaphoreTokenByOwnerScope:       {operation: "MatchingClientGetSemaphoreTokenByOwner", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 
 		FrontendClientDeleteDomainScope:                          {operation: "FrontendClientDeleteDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientDeprecateDomainScope:                       {operation: "FrontendClientDeprecateDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
@@ -2339,6 +2344,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingRefreshTaskListPartitionConfigScope: {operation: "RefreshTaskListPartitionConfig"},
 		MatchingAcquireSemaphoreScope:               {operation: "AcquireSemaphore"},
 		MatchingReleaseSemaphoreScope:               {operation: "ReleaseSemaphore"},
+		MatchingGetSemaphoreTokenByOwnerScope:       {operation: "GetSemaphoreTokenByOwner"},
 	},
 	// Worker Scope Names
 	Worker: {

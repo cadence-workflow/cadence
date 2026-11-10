@@ -2175,8 +2175,8 @@ const (
 	// Allowed filters: DomainName
 	EnableStickyQuery
 	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
-	// frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so
-	// tokens granted before it was turned off are still freed.
+	// frontend, the acquire decision on history, and acquires on matching. Releases and token lookups
+	// are not gated, so tokens granted before it was turned off are still freed and checked.
 	// Global domains also need HistoryTaskDLQMode enabled, or a hold still waiting at failover is never acquired.
 	// KeyName: system.enableDistributedSemaphore
 	// Value type: Bool
@@ -5209,7 +5209,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableDistributedSemaphore: {
 		KeyName:      "system.enableDistributedSemaphore",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and acquires on matching. Releases are not gated, so tokens granted before it was turned off are still freed. Global domains also need HistoryTaskDLQMode enabled",
+		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and acquires on matching. Releases and token lookups are not gated, so tokens granted before it was turned off are still freed and checked. Global domains also need HistoryTaskDLQMode enabled",
 		DefaultValue: false,
 	},
 	EnableFailoverManager: {

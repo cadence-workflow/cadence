@@ -839,3 +839,45 @@ func ToMatchingReleaseSemaphoreResponse(t *matchingv1.ReleaseSemaphoreResponse) 
 	}
 	return &types.ReleaseSemaphoreResponse{}
 }
+
+func FromMatchingGetSemaphoreTokenByOwnerRequest(t *types.GetSemaphoreTokenByOwnerRequest) *matchingv1.GetSemaphoreTokenByOwnerRequest {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.GetSemaphoreTokenByOwnerRequest{
+		DomainId:      t.DomainUUID,
+		SemaphoreName: t.SemaphoreName,
+		Bucket:        t.Bucket,
+		OwnerId:       t.OwnerID,
+	}
+}
+
+func ToMatchingGetSemaphoreTokenByOwnerRequest(t *matchingv1.GetSemaphoreTokenByOwnerRequest) *types.GetSemaphoreTokenByOwnerRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.GetSemaphoreTokenByOwnerRequest{
+		DomainUUID:    t.DomainId,
+		SemaphoreName: t.SemaphoreName,
+		Bucket:        t.Bucket,
+		OwnerID:       t.OwnerId,
+	}
+}
+
+func FromMatchingGetSemaphoreTokenByOwnerResponse(t *types.GetSemaphoreTokenByOwnerResponse) *matchingv1.GetSemaphoreTokenByOwnerResponse {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.GetSemaphoreTokenByOwnerResponse{
+		TokenId: t.TokenID,
+	}
+}
+
+func ToMatchingGetSemaphoreTokenByOwnerResponse(t *matchingv1.GetSemaphoreTokenByOwnerResponse) *types.GetSemaphoreTokenByOwnerResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.GetSemaphoreTokenByOwnerResponse{
+		TokenID: t.TokenId,
+	}
+}
