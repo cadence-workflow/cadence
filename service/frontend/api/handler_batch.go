@@ -202,7 +202,7 @@ func batchOperationStateFromCloseStatus(closeStatus *types.WorkflowExecutionClos
 	}
 }
 
-func batchOperationProgressFromPendingActivities(pendingActivities []*types.PendingActivityInfo) *types.BatchOperationProgress {
+func heartBeatDetailsFromPendingActivities(pendingActivities []*types.PendingActivityInfo) *batcher.HeartBeatDetails {
 	if len(pendingActivities) == 0 {
 		return nil
 	}
@@ -210,10 +210,27 @@ func batchOperationProgressFromPendingActivities(pendingActivities []*types.Pend
 	if err := json.Unmarshal(pendingActivities[0].HeartbeatDetails, &hbd); err != nil {
 		return nil
 	}
+	return &hbd
+}
+
+func batchOperationProgressFromHeartBeatDetails(hbd *batcher.HeartBeatDetails) *types.BatchOperationProgress {
+	if hbd == nil {
+		return nil
+	}
 	return &types.BatchOperationProgress{
 		TotalEstimate: hbd.TotalEstimate,
 		SuccessCount:  int64(hbd.SuccessCount),
 		ErrorCount:    int64(hbd.ErrorCount),
+	}
+}
+
+func batchOperationLimitsFromHeartBeatDetails(hbd *batcher.HeartBeatDetails) *types.BatchOperationLimits {
+	if hbd == nil {
+		return nil
+	}
+	return &types.BatchOperationLimits{
+		RPS:         int32(hbd.RPS),
+		Concurrency: int32(hbd.Concurrency),
 	}
 }
 
@@ -261,10 +278,13 @@ func (wh *WorkflowHandler) DescribeBatchOperation(
 		_ = json.Unmarshal(info.SearchAttributes.IndexedFields["Operator"], &startedBy)
 	}
 
+	hbd := heartBeatDetailsFromPendingActivities(resp.PendingActivities)
+
 	return &types.DescribeBatchOperationResponse{
 		Reason:    reason,
 		State:     batchOperationStateFromCloseStatus(info.CloseStatus),
-		Progress:  batchOperationProgressFromPendingActivities(resp.PendingActivities),
+		Progress:  batchOperationProgressFromHeartBeatDetails(hbd),
+		Limits:    batchOperationLimitsFromHeartBeatDetails(hbd),
 		StartedBy: startedBy,
 		StartTime: timePtrFromNanos(info.StartTime),
 		CloseTime: timePtrFromNanos(info.CloseTime),

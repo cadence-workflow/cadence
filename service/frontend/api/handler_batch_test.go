@@ -251,7 +251,7 @@ func TestDescribeBatchOperation(t *testing.T) {
 			mockFn: func(f *scheduleTestFixture) {
 				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
 				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
-				hbd, err := json.Marshal(batcher.HeartBeatDetails{TotalEstimate: 10, SuccessCount: 3, ErrorCount: 1})
+				hbd, err := json.Marshal(batcher.HeartBeatDetails{TotalEstimate: 10, SuccessCount: 3, ErrorCount: 1, RPS: 50, Concurrency: 5})
 				require.NoError(t, err)
 				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, req *types.HistoryDescribeWorkflowExecutionRequest, _ ...yarpc.CallOption) (*types.DescribeWorkflowExecutionResponse, error) {
@@ -275,6 +275,9 @@ func TestDescribeBatchOperation(t *testing.T) {
 				assert.Equal(t, int64(10), resp.Progress.TotalEstimate)
 				assert.Equal(t, int64(3), resp.Progress.SuccessCount)
 				assert.Equal(t, int64(1), resp.Progress.ErrorCount)
+				require.NotNil(t, resp.Limits)
+				assert.Equal(t, int32(50), resp.Limits.RPS)
+				assert.Equal(t, int32(5), resp.Limits.Concurrency)
 				assert.Nil(t, resp.StartTime)
 				assert.Nil(t, resp.CloseTime)
 			},
@@ -295,6 +298,7 @@ func TestDescribeBatchOperation(t *testing.T) {
 			validate: func(t *testing.T, resp *types.DescribeBatchOperationResponse) {
 				assert.Equal(t, types.BatchOperationStateCompleted, resp.State)
 				assert.Nil(t, resp.Progress)
+				assert.Nil(t, resp.Limits)
 			},
 		},
 		"terminated maps to stopped": {
