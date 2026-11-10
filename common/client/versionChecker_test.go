@@ -469,6 +469,13 @@ func TestGetFeatureFlagsFromHeader(t *testing.T) {
 			},
 		},
 		{
+			name:              "proto field name is also accepted",
+			featureFlagsValue: `{"workflow_execution_already_completed_error_enabled":true}`,
+			want: apiv1.FeatureFlags{
+				WorkflowExecutionAlreadyCompletedErrorEnabled: true,
+			},
+		},
+		{
 			name:              "invalid JSON returns empty",
 			featureFlagsValue: `{invalid}`,
 			want:              apiv1.FeatureFlags{},
@@ -476,6 +483,30 @@ func TestGetFeatureFlagsFromHeader(t *testing.T) {
 		{
 			name:              "empty JSON object",
 			featureFlagsValue: `{}`,
+			want:              apiv1.FeatureFlags{},
+		},
+		{
+			name:              "unknown flag from a newer client is ignored",
+			featureFlagsValue: `{"SomeFlagAddedLater":true}`,
+			want:              apiv1.FeatureFlags{},
+		},
+		{
+			name:              "unknown flag does not discard known flags",
+			featureFlagsValue: `{"WorkflowExecutionAlreadyCompletedErrorEnabled":true,"SomeFlagAddedLater":true}`,
+			want: apiv1.FeatureFlags{
+				WorkflowExecutionAlreadyCompletedErrorEnabled: true,
+			},
+		},
+		{
+			name:              "unknown flag with composite value does not discard known flags",
+			featureFlagsValue: `{"WorkflowExecutionAlreadyCompletedErrorEnabled":true,"SomeFlagAddedLater":{"nested":[1,"two",null]}}`,
+			want: apiv1.FeatureFlags{
+				WorkflowExecutionAlreadyCompletedErrorEnabled: true,
+			},
+		},
+		{
+			name:              "wrong type for known flag returns empty",
+			featureFlagsValue: `{"WorkflowExecutionAlreadyCompletedErrorEnabled":"true"}`,
 			want:              apiv1.FeatureFlags{},
 		},
 	}
