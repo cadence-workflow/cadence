@@ -1,11 +1,17 @@
-// Issue template validation used by .github/workflows/issue-validation.yml.
+"use strict";
+
 const fs = require("fs");
 const path = require("path");
 
-const TYPE_LABELS = ["kind/bug", "kind/feature", "kind/cleanup"];
-const BUG_LABEL = "kind/bug";
-const ENHANCEMENT_LABELS = ["kind/feature", "kind/cleanup"];
-const NEEDS_INFO_LABEL = "triage/needs-info";
+const LABELS = {
+  TYPE: ["kind/bug", "kind/feature", "kind/cleanup"],
+  BUG: "kind/bug",
+  ENHANCEMENT: ["kind/feature", "kind/cleanup"],
+  NEEDS_INFO: "triage/needs-info",
+  NEEDS_INFO_COLOR: "d876e3",
+  NEEDS_INFO_DESCRIPTION:
+    "Blocked pending more info from the reporter (repro, version, logs) before triage.",
+};
 
 const FALLBACK_BUG_REQUIRED = [
   "Description",
@@ -22,73 +28,29 @@ const FALLBACK_ENHANCEMENT_REQUIRED = [
   "Scope of the feature (server, specific client, all clients)",
 ];
 
-const HEADING_PATTERN = /^#{1,6}\s*(.+?)\s*$/;
-const BOLD_PATTERN = /^\*\*(.+?)\*\*$/;
-const FENCE_PATTERN = /^(`{3,}|~{3,})(.*)$/;
-
-const normalize = (title) =>
-  title
+function normalize(title) {
+  return title
     .toLowerCase()
     .replace(/[^\w\s]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
 
-const detectIssueType = (body) => {
-  if (!body) return null;
-  const normalizedBody = body.toLowerCase();
-
-  // Check for bug template sections
-  if (
-    normalizedBody.includes("steps to reproduce") ||
-    normalizedBody.includes("expected behavior") ||
-    normalizedBody.includes("actual behavior")
-  ) {
-    return "kind/bug";
-  }
-
-  // Check for feature template sections
-  if (
-    normalizedBody.includes("breaking change") ||
-    normalizedBody.includes("scope of the feature")
-  ) {
-    return "kind/feature";
-  }
-
-  return null;
-};
-
-const readTemplateHeadings = (fileName) => {
-  try {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "ISSUE_TEMPLATE",
-      fileName
-    );
-    const contents = fs.readFileSync(templatePath, "utf8");
-    const headings = [];
-    for (const line of contents.split(/\r?\n/)) {
-      const match = line.match(/^###\s+(.+?)\s*$/);
-      if (match?.[1]) {
-        headings.push(match[1].trim());
-      }
-    }
-    return headings.length > 0 ? headings : null;
-  } catch {
-    return null;
-  }
-};
+const HEADING_PATTERN = /^#{1,6}\s*(.+?)\s*$/;
+const BOLD_PATTERN = /^\*\*(.+?)\*\*$/;
+const FENCE_PATTERN = /^(`{3,}|~{3,})(.*)$/;
 
 // Boundaries are required template headings, or a bold line whose normalized
 // title is one of those headings, and only outside fenced code blocks.
-// Colon-only lines stay in the current section.
-const parseSections = (body, requiredSections = []) => {
+// Colon-only lines stay in the current section. When no required sections are
+// given, any heading or bold line outside a fence starts a section.
+function parseSections(body, requiredSections) {
   const sections = new Map();
-  if (!body) {
-    return sections;
-  }
+  if (!body) return sections;
 
-  const requiredSectionKeys = new Set(requiredSections.map(normalize));
+  const requiredSectionKeys = requiredSections
+    ? new Set(requiredSections.map(normalize))
+    : null;
   const lines = body.split(/\r?\n/);
   let currentKey = null;
   let buffer = [];
@@ -143,7 +105,7 @@ const parseSections = (body, requiredSections = []) => {
       const boldMatch = trimmed.match(BOLD_PATTERN);
       const title = headingMatch?.[1] || boldMatch?.[1];
       const key = title ? normalize(title) : null;
-      if (key && requiredSectionKeys.has(key)) {
+      if (key && (!requiredSectionKeys || requiredSectionKeys.has(key))) {
         flush();
         currentKey = key;
         continue;
@@ -157,123 +119,230 @@ const parseSections = (body, requiredSections = []) => {
 
   flush();
   return sections;
-};
+}
 
-const hasMeaningfulContent = (content) => {
-  if (!content) {
-    return false;
-  }
+function hasMeaningfulContent(content) {
+  if (!content) return false;
   const cleaned = content
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/[\s*-]+/g, " ")
     .trim()
     .toLowerCase();
-  if (!cleaned) {
-    return false;
-  }
+  if (!cleaned) return false;
   return !["n/a", "na", "none", "tbd", "todo"].includes(cleaned);
-};
+}
 
-const findMissingSections = (body, requiredSections) => {
+function findMissingSections(body, requiredSections) {
   const sections = parseSections(body, requiredSections);
   return requiredSections.filter((section) => {
     const content = sections.get(normalize(section));
     return !hasMeaningfulContent(content);
   });
-};
+}
 
-async function run(github, context) {
+function detectTemplate(body) {
+  if (!body) return null;
+  if (body.includes("<!-- template: bug_report -->")) return "bug_report";
+  if (body.includes("<!-- template: feature_request -->"))
+    return "feature_request";
+  return null;
+}
+
+function detectIssueType(body) {
+  if (!body) return null;
+  const normalizedBody = body.toLowerCase();
+
+  if (
+    normalizedBody.includes("steps to reproduce") ||
+    normalizedBody.includes("expected behavior") ||
+    normalizedBody.includes("actual behavior")
+  ) {
+    return LABELS.BUG;
+  }
+
+  if (
+    normalizedBody.includes("breaking change") ||
+    normalizedBody.includes("scope of the feature")
+  ) {
+    return "kind/feature";
+  }
+
+  return null;
+}
+
+function readTemplateHeadings(fileName) {
+  try {
+    const templatePath = path.join(
+      process.env.GITHUB_WORKSPACE || process.cwd(),
+      ".github",
+      "ISSUE_TEMPLATE",
+      fileName,
+    );
+    const contents = fs.readFileSync(templatePath, "utf8");
+    const headings = [];
+    for (const line of contents.split(/\r?\n/)) {
+      const match = line.match(/^###\s+(.+?)\s*$/);
+      if (match?.[1]) {
+        headings.push(match[1].trim());
+      }
+    }
+    return headings.length > 0 ? headings : null;
+  } catch {
+    return null;
+  }
+}
+
+function evaluateIssue({ title, body, labels, authorAssociation, templates }) {
+  const labelNames = (labels || [])
+    .map((label) => (typeof label === "string" ? label : label.name))
+    .filter(Boolean)
+    .map((label) => label.toLowerCase());
+
+  let hasTypeLabel = LABELS.TYPE.some((l) => labelNames.includes(l));
+  let isBug = labelNames.includes(LABELS.BUG);
+  let isEnhancement = LABELS.ENHANCEMENT.some((l) => labelNames.includes(l));
+
+  let typeToApply = null;
+  if (!hasTypeLabel) {
+    const detected = detectIssueType(body);
+    if (detected) {
+      typeToApply = detected;
+      hasTypeLabel = true;
+      isBug = detected === LABELS.BUG;
+      isEnhancement = !isBug;
+    }
+  }
+
+  const bugRequired =
+    templates?.bugHeadings && templates.bugHeadings.length > 0
+      ? templates.bugHeadings
+      : FALLBACK_BUG_REQUIRED;
+  const enhancementRequired =
+    templates?.featureHeadings && templates.featureHeadings.length > 0
+      ? templates.featureHeadings
+      : FALLBACK_ENHANCEMENT_REQUIRED;
+
+  const requiredSections = isBug
+    ? bugRequired
+    : isEnhancement
+      ? enhancementRequired
+      : [];
+
+  const missingSections = findMissingSections(body || "", requiredSections);
+
+  const missingLabel = !hasTypeLabel;
+  const needsInfo = missingLabel || missingSections.length > 0;
+
+  let comment = null;
+  if (needsInfo) {
+    const parts = [
+      "<!-- issue-template-check -->",
+      "Thanks for opening this issue. To help us triage it, please provide the missing details:",
+    ];
+
+    if (missingLabel) {
+      parts.push(`- Add one label from: ${LABELS.TYPE.join(", ")}`);
+    }
+
+    if (missingSections.length > 0) {
+      parts.push("Missing required sections:");
+      for (const section of missingSections) {
+        parts.push(`- ${section}`);
+      }
+    }
+
+    parts.push("Issue templates:");
+    parts.push("- Bug report: **bug_report.md**");
+    parts.push(
+      "- Feature request (use for features, improvements, or cleanup): **feature_request.md**",
+    );
+
+    comment = parts.join("\n");
+  }
+
+  return {
+    typeToApply,
+    addNeedsInfo: needsInfo && !labelNames.includes(LABELS.NEEDS_INFO),
+    removeNeedsInfo: !needsInfo && labelNames.includes(LABELS.NEEDS_INFO),
+    missingSections,
+    comment: needsInfo ? comment : null,
+    deleteComment: !needsInfo,
+  };
+}
+
+function formatComment(raw, owner, repo) {
+  return raw
+    .replace(
+      /\*\*bug_report\.md\*\*/,
+      `[bug_report.md](https://github.com/${owner}/${repo}/issues/new?template=bug_report.md)`,
+    )
+    .replace(
+      /\*\*feature_request\.md\*\*/,
+      `[feature_request.md](https://github.com/${owner}/${repo}/issues/new?template=feature_request.md)`,
+    );
+}
+
+async function run({ github, context }) {
   const issue = context.payload.issue;
   const issueNumber = issue.number;
   const owner = context.repo.owner;
   const repo = context.repo.repo;
 
-  const labelNames = (issue.labels || [])
-    .map((label) => (typeof label === "string" ? label : label.name))
-    .filter(Boolean)
-    .map((label) => label.toLowerCase());
+  const result = evaluateIssue({
+    title: issue.title,
+    body: issue.body,
+    labels: issue.labels,
+    authorAssociation: issue.author_association,
+    templates: {
+      bugHeadings: readTemplateHeadings("bug_report.md"),
+      featureHeadings: readTemplateHeadings("feature_request.md"),
+    },
+  });
 
-  let hasTypeLabel = TYPE_LABELS.some((label) => labelNames.includes(label));
-  let isBug = labelNames.includes(BUG_LABEL);
-  let isEnhancement = ENHANCEMENT_LABELS.some((label) =>
-    labelNames.includes(label)
-  );
-  let missingLabel = !hasTypeLabel;
-
-  // Detect issue type from template usage and auto-apply label
-  const detectedType = detectIssueType(issue.body);
-
-  if (missingLabel && detectedType) {
+  if (result.typeToApply) {
     await github.rest.issues.addLabels({
       owner,
       repo,
       issue_number: issueNumber,
-      labels: [detectedType],
+      labels: [result.typeToApply],
     });
-    // Refresh label check
-    labelNames.push(detectedType);
-    hasTypeLabel = TYPE_LABELS.some((label) => labelNames.includes(label));
-    isBug = labelNames.includes(BUG_LABEL);
-    isEnhancement = ENHANCEMENT_LABELS.some((label) =>
-      labelNames.includes(label)
-    );
-    missingLabel = !hasTypeLabel;
   }
 
-  const BUG_REQUIRED =
-    readTemplateHeadings("bug_report.md") || FALLBACK_BUG_REQUIRED;
-  const ENHANCEMENT_REQUIRED =
-    readTemplateHeadings("feature_request.md") || FALLBACK_ENHANCEMENT_REQUIRED;
+  const findBotComment = async () => {
+    const comments = await github.paginate(
+      github.rest.issues.listComments,
+      { owner, repo, issue_number: issueNumber, per_page: 100 },
+    );
+    return comments.find(
+      (c) =>
+        c.user?.type === "Bot" &&
+        c.body?.includes("<!-- issue-template-check -->"),
+    );
+  };
 
-  const requiredSections = isBug
-    ? BUG_REQUIRED
-    : isEnhancement
-      ? ENHANCEMENT_REQUIRED
-      : [];
-
-  const missingSections = findMissingSections(
-    issue.body || "",
-    requiredSections
-  );
-
-  const ensureNeedsInfoLabelExists = async () => {
+  if (result.addNeedsInfo) {
     try {
-      await github.rest.issues.getLabel({
-        owner,
-        repo,
-        name: NEEDS_INFO_LABEL,
-      });
+      await github.rest.issues.getLabel({ owner, repo, name: LABELS.NEEDS_INFO });
     } catch (error) {
-      if (error.status !== 404) {
-        throw error;
-      }
+      if (error.status !== 404) throw error;
       await github.rest.issues.createLabel({
         owner,
         repo,
-        name: NEEDS_INFO_LABEL,
-        color: "d876e3",
-        description:
-          "Blocked pending more info from the reporter (repro, version, logs) before triage.",
+        name: LABELS.NEEDS_INFO,
+        color: LABELS.NEEDS_INFO_COLOR,
+        description: LABELS.NEEDS_INFO_DESCRIPTION,
       });
     }
-  };
 
-  const findExistingBotComment = async () => {
-    const comments = await github.paginate(github.rest.issues.listComments, {
+    await github.rest.issues.addLabels({
       owner,
       repo,
       issue_number: issueNumber,
-      per_page: 100,
+      labels: [LABELS.NEEDS_INFO],
     });
-    return comments.find(
-      (comment) =>
-        comment.user?.type === "Bot" &&
-        comment.body?.includes("<!-- issue-template-check -->")
-    );
-  };
 
-  const updateOrCreateComment = async (body) => {
-    const existing = await findExistingBotComment();
+    const body = formatComment(result.comment, owner, repo);
+    const existing = await findBotComment();
     if (existing) {
       await github.rest.issues.updateComment({
         owner,
@@ -281,85 +350,47 @@ async function run(github, context) {
         comment_id: existing.id,
         body,
       });
-      return;
-    }
-    await github.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: issueNumber,
-      body,
-    });
-  };
-
-  const deleteExistingComment = async () => {
-    const existing = await findExistingBotComment();
-    if (!existing) {
-      return;
-    }
-    await github.rest.issues.deleteComment({
-      owner,
-      repo,
-      comment_id: existing.id,
-    });
-  };
-
-  if (missingLabel || missingSections.length > 0) {
-    await ensureNeedsInfoLabelExists();
-    if (!labelNames.includes(NEEDS_INFO_LABEL)) {
-      await github.rest.issues.addLabels({
+    } else {
+      await github.rest.issues.createComment({
         owner,
         repo,
         issue_number: issueNumber,
-        labels: [NEEDS_INFO_LABEL],
+        body,
       });
     }
-
-    const templateLines = [
-      "Issue templates:",
-      `- Bug report: https://github.com/${owner}/${repo}/issues/new?template=bug_report.md`,
-      `- Feature request (use for features, improvements, or cleanup): https://github.com/${owner}/${repo}/issues/new?template=feature_request.md`,
-    ].join("\n");
-
-    const missingLabelLine = missingLabel
-      ? `- Add one label from: ${TYPE_LABELS.join(", ")}`
-      : null;
-
-    const missingSectionsLines =
-      missingSections.length > 0
-        ? [
-            "Missing required sections:",
-            ...missingSections.map((section) => `- ${section}`),
-          ].join("\n")
-        : null;
-
-    const messageParts = [
-      "<!-- issue-template-check -->",
-      "Thanks for opening this issue. To help us triage it, please provide the missing details:",
-      missingLabelLine,
-      missingSectionsLines,
-      templateLines,
-    ].filter(Boolean);
-
-    await updateOrCreateComment(messageParts.join("\n"));
     return;
   }
 
-  if (labelNames.includes(NEEDS_INFO_LABEL)) {
+  if (result.removeNeedsInfo) {
     await github.rest.issues.removeLabel({
       owner,
       repo,
       issue_number: issueNumber,
-      name: NEEDS_INFO_LABEL,
+      name: LABELS.NEEDS_INFO,
     });
   }
 
-  await deleteExistingComment();
+  if (result.deleteComment) {
+    const existing = await findBotComment();
+    if (existing) {
+      await github.rest.issues.deleteComment({
+        owner,
+        repo,
+        comment_id: existing.id,
+      });
+    }
+  }
 }
 
 module.exports = {
-  run,
+  LABELS,
+  normalize,
   parseSections,
   findMissingSections,
-  normalize,
+  hasMeaningfulContent,
+  detectTemplate,
+  detectIssueType,
+  evaluateIssue,
   readTemplateHeadings,
+  run,
 };

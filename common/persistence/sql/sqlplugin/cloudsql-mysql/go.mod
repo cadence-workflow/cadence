@@ -1,8 +1,8 @@
 module github.com/uber/cadence/common/persistence/sql/sqlplugin/cloudsql-mysql
 
-go 1.25.0
+go 1.26.2
 
-toolchain go1.25.14
+toolchain go1.26.10
 
 // build against the current code in the "main" module, not a specific SHA.
 //
@@ -10,9 +10,6 @@ toolchain go1.25.14
 // are at the same SHA for consistency, but internally we can cheat by telling Go that it's at a
 // relative file path.
 replace github.com/uber/cadence => ../../../../..
-
-// tchannel-go depends on older version of thrift, yarpc brings up newer version
-replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.16.1
@@ -30,7 +27,7 @@ require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/VividCortex/mysqlerr v1.0.0 // indirect
-	github.com/apache/thrift v0.17.0 // indirect
+	github.com/apache/thrift v0.25.0 // indirect
 	github.com/aws/aws-sdk-go v1.54.12 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cactus/go-statsd-client/statsd v0.0.0-20191106001114-12b4e2b38748 // indirect
@@ -61,7 +58,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/m3db/prometheus_client_golang v1.12.8 // indirect
 	github.com/m3db/prometheus_client_model v0.2.1 // indirect
 	github.com/m3db/prometheus_common v0.34.6 // indirect
@@ -88,7 +85,7 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/uber-go/mapdecode v1.0.0 // indirect
 	github.com/uber-go/tally v3.5.8+incompatible // indirect
-	github.com/uber/cadence-idl v0.0.0-20261006184647-bfbf273b41b9 // indirect
+	github.com/uber/cadence-idl v0.0.0-20261104230047-1ceaffdb11a0 // indirect
 	github.com/uber/tchannel-go v1.34.4 // indirect
 	github.com/valyala/fastjson v1.4.1 // indirect
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2 // indirect

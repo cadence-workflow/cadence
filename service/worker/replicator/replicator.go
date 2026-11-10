@@ -38,16 +38,17 @@ import (
 type (
 	// Replicator is the processor for replication tasks
 	Replicator struct {
-		clusterMetadata               cluster.Metadata
-		domainReplicationTaskExecutor domain.ReplicationTaskExecutor
-		clientBean                    client.Bean
-		domainProcessors              []*domainReplicationProcessor
-		logger                        log.Logger
-		metricsClient                 metrics.Client
-		hostInfo                      membership.HostInfo
-		membershipResolver            membership.Resolver
-		domainReplicationQueue        domain.ReplicationQueue
-		replicationMaxRetry           time.Duration
+		clusterMetadata                  cluster.Metadata
+		domainReplicationTaskExecutor    domain.ReplicationTaskExecutor
+		semaphoreReplicationTaskExecutor domain.SemaphoreReplicationTaskExecutor
+		clientBean                       client.Bean
+		domainProcessors                 []*domainReplicationProcessor
+		logger                           log.Logger
+		metricsClient                    metrics.Client
+		hostInfo                         membership.HostInfo
+		membershipResolver               membership.Resolver
+		domainReplicationQueue           domain.ReplicationQueue
+		replicationMaxRetry              time.Duration
 	}
 )
 
@@ -61,20 +62,22 @@ func NewReplicator(
 	membership membership.Resolver,
 	domainReplicationQueue domain.ReplicationQueue,
 	domainReplicationTaskExecutor domain.ReplicationTaskExecutor,
+	semaphoreReplicationTaskExecutor domain.SemaphoreReplicationTaskExecutor,
 	replicationMaxRetry time.Duration,
 ) *Replicator {
 
 	logger = logger.WithTags(tag.ComponentReplicator)
 	return &Replicator{
-		hostInfo:                      hostInfo,
-		membershipResolver:            membership,
-		clusterMetadata:               clusterMetadata,
-		domainReplicationTaskExecutor: domainReplicationTaskExecutor,
-		clientBean:                    clientBean,
-		logger:                        logger,
-		metricsClient:                 metricsClient,
-		domainReplicationQueue:        domainReplicationQueue,
-		replicationMaxRetry:           replicationMaxRetry,
+		hostInfo:                         hostInfo,
+		membershipResolver:               membership,
+		clusterMetadata:                  clusterMetadata,
+		domainReplicationTaskExecutor:    domainReplicationTaskExecutor,
+		semaphoreReplicationTaskExecutor: semaphoreReplicationTaskExecutor,
+		clientBean:                       clientBean,
+		logger:                           logger,
+		metricsClient:                    metricsClient,
+		domainReplicationQueue:           domainReplicationQueue,
+		replicationMaxRetry:              replicationMaxRetry,
 	}
 }
 
@@ -93,6 +96,7 @@ func (r *Replicator) Start() error {
 			adminClient,
 			r.metricsClient,
 			r.domainReplicationTaskExecutor,
+			r.semaphoreReplicationTaskExecutor,
 			r.hostInfo,
 			r.membershipResolver,
 			r.domainReplicationQueue,

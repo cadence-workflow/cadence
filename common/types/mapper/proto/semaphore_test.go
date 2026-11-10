@@ -39,3 +39,7 @@ func TestCreateSemaphoreRequestFuzz(t *testing.T) {
 func TestCreateSemaphoreResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromCreateSemaphoreResponse, ToCreateSemaphoreResponse)
 }
+
+func TestSemaphoreMetadataTaskAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreMetadataTaskAttributes, ToSemaphoreMetadataTaskAttributes)
+}

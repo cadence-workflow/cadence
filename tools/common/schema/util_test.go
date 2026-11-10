@@ -34,7 +34,7 @@ const testdata = `
 ALTER TYPE domain_config ADD isolation_groups blob;
 ALTER TYPE domain_config ADD isolation_groups_encoding text;
 -- a comment
-ALTER TYPE domain_config2 ADD isolation_groups_encoding text;
+ALTER TYPE domain_config2 ADD isolation_groups_encoding text; -- trailing comment
 `
 
 type mockfile struct {

@@ -38,10 +38,10 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/history"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	commonerrors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
@@ -211,7 +211,7 @@ func TestGetTaskListsByDomain(t *testing.T) {
 			}
 			tc.mockSetup(mockDomainCache, mockTaskListManagers, mockStickyManagers)
 
-			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient())
+			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 			engine := &matchingEngineImpl{
 				domainCache:      mockDomainCache,
 				taskListRegistry: taskListRegistry,
@@ -394,17 +394,15 @@ func TestCancelOutstandingPoll(t *testing.T) {
 			mockManager := newMockManagerWithTaskListID(mockCtrl, tasklistID)
 			executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockCtrl, mockManager, executor)
-			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient())
+			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 			pct := membership.NewMockPercentageOnboarded(mockCtrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
-				taskListRegistry:    taskListRegistry,
-				executor:            executor,
-				metricsClient:       metrics.NewNoopMetricsClient(),
-				percentageOnboarded: pct,
-				config: &config.Config{
-					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
-				},
+				taskListRegistry:       taskListRegistry,
+				executor:               executor,
+				metricsClient:          metrics.NewNoopMetricsClient(),
+				percentageOnboarded:    pct,
+				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
 			hCtx := &handlerContext{Context: context.Background()}
@@ -431,15 +429,13 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		pct.EXPECT().Value().Return(100).AnyTimes()
 
 		engine := &matchingEngineImpl{
-			executor:            executor,
-			membershipResolver:  resolver,
-			metricsClient:       metrics.NewNoopMetricsClient(),
-			percentageOnboarded: pct,
-			config: &config.Config{
-				ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
-			},
-			shutdown: make(chan struct{}),
-			logger:   log.NewNoop(),
+			executor:               executor,
+			membershipResolver:     resolver,
+			metricsClient:          metrics.NewNoopMetricsClient(),
+			percentageOnboarded:    pct,
+			taskListDifferentiator: newTestTaskListDifferentiator(false, false),
+			shutdown:               make(chan struct{}),
+			logger:                 log.NewNoop(),
 		}
 		return engine, executor, resolver
 	}
@@ -488,6 +484,35 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("checks the shard process of the task list's shard", func(t *testing.T) {
+		tests := []struct {
+			name                 string
+			shardTaskListsByHash bool
+			wantShardID          string
+		}{
+			{
+				name:                 "shard per task list",
+				shardTaskListsByHash: false,
+				wantShardID:          "test-tasklist",
+			},
+			{
+				name:                 "shard by hash",
+				shardTaskListsByHash: true,
+				wantShardID:          "5936", // farm.Fingerprint64([]byte("test-tasklist"))%8192
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				engine, executor, _ := newEngine(t)
+				engine.taskListDifferentiator = newTestTaskListDifferentiator(false, tt.shardTaskListsByHash)
+				executor.EXPECT().GetShardProcess(gomock.Any(), tt.wantShardID).Return(&tasklist.MockShardProcessor{}, nil)
+
+				err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+				require.NoError(t, err)
+			})
+		}
+	})
+
 	t.Run("matching engine is shutting down", func(t *testing.T) {
 		engine, _, _ := newEngine(t)
 		close(engine.shutdown)
@@ -498,7 +523,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 
 	t.Run("excluded from sd, ringpop and owner has changed", func(t *testing.T) {
 		engine, _, resolver := newEngine(t)
-		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+		engine.taskListDifferentiator = newTestTaskListDifferentiator(true, false)
 		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("owner", "owner", nil), nil)
 
@@ -508,7 +533,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 
 	t.Run("excluded from sd, ringpop and owner is the same", func(t *testing.T) {
 		engine, _, resolver := newEngine(t)
-		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+		engine.taskListDifferentiator = newTestTaskListDifferentiator(true, false)
 		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("self", "self", nil), nil)
 
@@ -518,68 +543,13 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 
 	t.Run("non-excluded tasklist with uuid-like name and flag disabled still uses executor", func(t *testing.T) {
 		engine, executor, _ := newEngine(t)
-		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return false }
+		engine.taskListDifferentiator = newTestTaskListDifferentiator(false, false)
 		uuidID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(&tasklist.MockShardProcessor{}, nil)
 
 		err := engine.errIfShardOwnershipLost(context.Background(), uuidID)
 		require.NoError(t, err)
 	})
-}
-
-func TestIsExcludedFromShardDistributor(t *testing.T) {
-	tests := []struct {
-		name         string
-		taskListName string
-		flagEnabled  bool
-		want         bool
-	}{
-		{
-			name:         "flag disabled, uuid name",
-			taskListName: "tasklist-550e8400-e29b-41d4-a716-446655440000",
-			flagEnabled:  false,
-			want:         false,
-		},
-		{
-			name:         "flag enabled, no uuid in name",
-			taskListName: "my-regular-tasklist",
-			flagEnabled:  true,
-			want:         false,
-		},
-		{
-			name:         "flag enabled, uuid in name",
-			taskListName: "tasklist-550e8400-e29b-41d4-a716-446655440000",
-			flagEnabled:  true,
-			want:         true,
-		},
-		{
-			name:         "flag enabled, uuid-only name",
-			taskListName: "550e8400-e29b-41d4-a716-446655440000",
-			flagEnabled:  true,
-			want:         true,
-		},
-		{
-			name:         "flag disabled, no uuid in name",
-			taskListName: "my-regular-tasklist",
-			flagEnabled:  false,
-			want:         false,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			pct := membership.NewMockPercentageOnboarded(gomock.NewController(t))
-			pct.EXPECT().Value().Return(100).AnyTimes()
-			engine := &matchingEngineImpl{
-				metricsClient:       metrics.NewNoopMetricsClient(),
-				percentageOnboarded: pct,
-				config: &config.Config{
-					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return tc.flagEnabled },
-				},
-			}
-			got := engine.isExcludedFromShardDistributor(tc.taskListName)
-			assert.Equal(t, tc.want, got)
-		})
-	}
 }
 
 func TestRespondQueryTaskCompleted(t *testing.T) {
@@ -750,19 +720,17 @@ func TestQueryWorkflow(t *testing.T) {
 			tasklistID := mustNewIdentifier(t, "test-domain-id", "test-tasklist", 0)
 			mockManager := newMockManagerWithTaskListID(mockCtrl, tasklistID)
 			executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
-			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient())
+			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 			pct := membership.NewMockPercentageOnboarded(mockCtrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
-				taskListRegistry:     taskListRegistry,
-				timeSource:           clock.NewRealTimeSource(),
-				lockableQueryTaskMap: lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
-				executor:             executor,
-				metricsClient:        metrics.NewNoopMetricsClient(),
-				percentageOnboarded:  pct,
-				config: &config.Config{
-					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
-				},
+				taskListRegistry:       taskListRegistry,
+				timeSource:             clock.NewRealTimeSource(),
+				lockableQueryTaskMap:   lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
+				executor:               executor,
+				metricsClient:          metrics.NewNoopMetricsClient(),
+				percentageOnboarded:    pct,
+				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
 			tc.mockSetup(mockManager, &engine.lockableQueryTaskMap, mockCtrl, executor)
@@ -930,7 +898,7 @@ func TestIsShuttingDown(t *testing.T) {
 		shutdownCompletion: &wg,
 		shutdown:           make(chan struct{}),
 		executor:           mockExecutor,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 	}
 	e.Start()
@@ -961,7 +929,7 @@ func TestGetTasklistsNotOwned(t *testing.T) {
 	e := matchingEngineImpl{
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		config:             &config.Config{},
 		logger:             log.NewNoop(),
 	}
@@ -997,7 +965,7 @@ func TestShutDownTasklistsNotOwned(t *testing.T) {
 	e := matchingEngineImpl{
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		config:             &config.Config{},
 		metricsClient:      metrics.NewNoopMetricsClient(),
 		logger:             log.NewNoop(),
@@ -1220,7 +1188,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			mockManager := newMockManagerWithTaskListID(mockCtrl, tasklistID)
 			mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockManager, mockCtrl, mockExecutor)
-			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient())
+			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 			pct := membership.NewMockPercentageOnboarded(mockCtrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
@@ -1230,10 +1198,10 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				metricsClient:       metrics.NewNoopMetricsClient(),
 				percentageOnboarded: pct,
 				config: &config.Config{
-					EnableAdaptiveScaler:                       dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
-					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
+					EnableAdaptiveScaler: dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
 				},
-				executor: mockExecutor,
+				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
+				executor:               mockExecutor,
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
 			_, err := engine.UpdateTaskListPartitionConfig(tc.hCtx, tc.req)
@@ -1406,18 +1374,16 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			mockManager := newMockManagerWithTaskListID(mockCtrl, tasklistID)
 			mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockManager, mockCtrl, mockExecutor)
-			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient())
+			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 			pct := membership.NewMockPercentageOnboarded(mockCtrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
-				taskListRegistry:    taskListRegistry,
-				timeSource:          clock.NewRealTimeSource(),
-				executor:            mockExecutor,
-				metricsClient:       metrics.NewNoopMetricsClient(),
-				percentageOnboarded: pct,
-				config: &config.Config{
-					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
-				},
+				taskListRegistry:       taskListRegistry,
+				timeSource:             clock.NewRealTimeSource(),
+				executor:               mockExecutor,
+				metricsClient:          metrics.NewNoopMetricsClient(),
+				percentageOnboarded:    pct,
+				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
 			taskListRegistry.Register(*tasklistID2, mockManager)
@@ -1486,10 +1452,11 @@ func Test_domainChangeCallback(t *testing.T) {
 		failoverNotificationVersion: 1,
 		config:                      defaultTestConfig(),
 		logger:                      log.NewNoop(),
-		taskListRegistry:            tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:            tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		executor:                    mockExecutor,
 		metricsClient:               metrics.NewNoopMetricsClient(),
 		percentageOnboarded:         pct,
+		taskListDifferentiator:      newTestTaskListDifferentiator(false, false),
 	}
 	engine.taskListRegistry.Register(*tlGlobalDecision1, mockGlobalDecision1)
 	engine.taskListRegistry.Register(*tlGlobalActivity1, mockGlobalActivity1)
@@ -1617,7 +1584,7 @@ func Test_registerDomainFailoverCallback(t *testing.T) {
 		failoverNotificationVersion: 0,
 		config:                      defaultTestConfig(),
 		logger:                      log.NewNoop(),
-		taskListRegistry:            tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		taskListRegistry:            tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		metricsClient:               metrics.NewNoopMetricsClient(),
 	}
 
@@ -1911,7 +1878,7 @@ func TestSetupExecutorWithEmptyConfig(t *testing.T) {
 	// When no shard-distributor namespaces are configured, setupExecutor must
 	// succeed and install a no-op executor so the matching service falls back
 	// to local hash-ring assignment.
-	registry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient())
+	registry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 	engine := &matchingEngineImpl{
 		taskListRegistry:               registry,
 		logger:                         log.NewNoop(),
@@ -1959,12 +1926,44 @@ const (
 	testSemaphoreName       = "sem-1"
 )
 
+// The test semaphore has testSemaphoreBuckets buckets of testSemaphoreBucketSize tokens, so
+// bucket b owns tokens b*testSemaphoreBucketSize+1 to (b+1)*testSemaphoreBucketSize.
+const (
+	testSemaphoreBucketSize = 2
+	testSemaphoreBuckets    = 3
+)
+
 var (
 	testSelfHost  = membership.NewHostInfo("self:1234")
 	testOtherHost = membership.NewHostInfo("other:1234")
 	// built through the encoder rather than written out, so it is canonical the same way a real owner id is
 	testSemaphoreOwnerID = commonsemaphore.Owner{WorkflowID: "wf-1", RunID: "run-1", HoldID: 7}.String()
 )
+
+// newSemaphoreMetadata returns the test semaphore's metadata, readable any number of times.
+func newSemaphoreMetadata(t *testing.T) persistence.SemaphoreMetadataManager {
+	t.Helper()
+	md := persistence.NewMockSemaphoreMetadataManager(gomock.NewController(t))
+	md.EXPECT().GetSemaphore(gomock.Any(), &persistence.GetSemaphoreRequest{
+		DomainID:      testSemaphoreDomainID,
+		SemaphoreName: testSemaphoreName,
+	}).AnyTimes().Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{
+		DomainID:      testSemaphoreDomainID,
+		SemaphoreName: testSemaphoreName,
+		Size:          testSemaphoreBuckets * testSemaphoreBucketSize,
+		BucketSize:    testSemaphoreBucketSize,
+	}}, nil)
+	return md
+}
+
+// newSemaphoreTasks returns a task store on which every bucket claims its queue.
+func newSemaphoreTasks(t *testing.T) persistence.SemaphoreTaskManager {
+	t.Helper()
+	tasks := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+	tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+	return tasks
+}
 
 // mustNewSemaphoreIdentifier returns the id of one bucket of the test semaphore.
 func mustNewSemaphoreIdentifier(t *testing.T, bucket int) semaphore.Identifier {
@@ -1989,17 +1988,20 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 	tokens := persistence.NewMockSemaphoreTokenManager(ctrl)
 
 	engine := &matchingEngineImpl{
-		semaphoreRegistry:     semaphore.NewSemaphoreRegistry(),
-		semaphoreTokenManager: tokens,
-		domainCache:           domainCache,
-		membershipResolver:    resolver,
-		metricsClient:         metrics.NewNoopMetricsClient(),
-		logger:                log.NewNoop(),
+		semaphoreRegistry:        semaphore.NewSemaphoreRegistry(),
+		semaphoreTokenManager:    tokens,
+		semaphoreMetadataManager: newSemaphoreMetadata(t),
+		semaphoreTaskManager:     newSemaphoreTasks(t),
+		domainCache:              domainCache,
+		membershipResolver:       resolver,
+		metricsClient:            metrics.NewNoopMetricsClient(),
+		logger:                   log.NewNoop(),
 		// A clock that only moves when a test moves it, so no bucket is evicted mid-test.
 		timeSource: clock.NewMockedTimeSource(),
 		config: &config.Config{
 			EnableDistributedSemaphore: func(string) bool { return true },
 			SemaphoreIdleTime:          func(string) time.Duration { return time.Minute },
+			SemaphoreUpdateAckInterval: func(string) time.Duration { return time.Minute },
 		},
 	}
 
@@ -2016,10 +2018,16 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 func newUnstartedSemaphoreManager(t *testing.T, id semaphore.Identifier, tokens persistence.SemaphoreTokenManager) semaphore.Manager {
 	t.Helper()
 	mgr, err := semaphore.NewManager(semaphore.ManagerParams{
-		ID:         id,
-		Tokens:     tokens,
-		Logger:     log.NewNoop(),
-		IdleTTL:    time.Minute,
+		ID:       id,
+		Tokens:   tokens,
+		Metadata: newSemaphoreMetadata(t),
+		Tasks:    newSemaphoreTasks(t),
+		Logger:   log.NewNoop(),
+		Cfg: &config.Config{
+			SemaphoreIdleTime:          func(string) time.Duration { return time.Minute },
+			SemaphoreUpdateAckInterval: func(string) time.Duration { return time.Minute },
+		},
+		DomainName: "test-domain",
 		OnStopFn:   func(semaphore.Manager) {},
 		TimeSource: clock.NewMockedTimeSource(),
 	})
@@ -2038,8 +2046,9 @@ func registerSemaphoreManager(t *testing.T, e *matchingEngineImpl, mgr semaphore
 	require.Same(t, mgr, got, "the bucket was already held by another manager")
 }
 
-// expectBucketLoadOnce expects exactly one bucket load, returning tokens free slots.
-func expectBucketLoadOnce(m *persistence.MockSemaphoreTokenManager, tokens int) {
+// expectBucketLoadAllFree expects exactly one bucket load, returning token rows 1 to tokens with
+// no holder and no owner rows, so every token is free.
+func expectBucketLoadAllFree(m *persistence.MockSemaphoreTokenManager, tokens int) {
 	rows := make([]*persistence.SemaphoreOwnership, 0, tokens)
 	for i := 1; i <= tokens; i++ {
 		rows = append(rows, &persistence.SemaphoreOwnership{
@@ -2067,7 +2076,7 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 	t.Run("second request reuses the manager already built", func(t *testing.T) {
 		// A bucket is built once, so the second request costs no scan.
 		e, m := newEngineWithSemaphores(t, testSelfHost)
-		expectBucketLoadOnce(m, 3)
+		expectBucketLoadAllFree(m, 3)
 		id := mustNewSemaphoreIdentifier(t, 0)
 
 		first, err := e.getOrCreateSemaphoreManager(id)
@@ -2082,7 +2091,7 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		e, m := newEngineWithSemaphores(t, testSelfHost)
 		id := mustNewSemaphoreIdentifier(t, 0)
 		// fails if the request does not start the manager
-		expectBucketLoadOnce(m, 2)
+		expectBucketLoadAllFree(m, 2)
 
 		unstarted := newUnstartedSemaphoreManager(t, id, m)
 		registerSemaphoreManager(t, e, unstarted)
@@ -2090,22 +2099,6 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		got, err := e.getOrCreateSemaphoreManager(id)
 		require.NoError(t, err)
 		assert.Same(t, unstarted, got, "the registered manager is the one that gets started")
-	})
-
-	t.Run("domain has semaphores disabled", func(t *testing.T) {
-		// Costs nothing: no scan, no manager, no registry entry. The flag is checked before
-		// anything is built for exactly that reason.
-		e, m := newEngineWithSemaphores(t, testSelfHost)
-		e.config.EnableDistributedSemaphore = func(string) bool { return false }
-		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
-
-		mgr, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
-		require.ErrorIs(t, err, ErrSemaphoreDisabled)
-		assert.Nil(t, mgr)
-		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "nothing may be registered for a disabled domain")
-
-		assert.IsType(t, &types.BadRequestError{}, err)
-		assert.False(t, common.IsServiceTransientError(err), "the flag will not change on a retry")
 	})
 
 	t.Run("bucket is owned by another host", func(t *testing.T) {
@@ -2154,7 +2147,7 @@ func TestGetOrCreateSemaphoreManager(t *testing.T) {
 		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "a manager that cannot start must not stay registered")
 
 		// The next request builds a fresh one, so a passing outage is recoverable.
-		expectBucketLoadOnce(m, 2)
+		expectBucketLoadAllFree(m, 2)
 		retry, err := e.getOrCreateSemaphoreManager(id)
 		require.NoError(t, err)
 		assert.NotNil(t, retry)
@@ -2222,7 +2215,7 @@ func TestUnloadSemaphoreManager(t *testing.T) {
 	// Unloading takes a manager out of the registry and stops it, so the next request builds a
 	// fresh one instead of finding the retired manager.
 	e, m := newEngineWithSemaphores(t, testSelfHost)
-	expectBucketLoadOnce(m, 2)
+	expectBucketLoadAllFree(m, 2)
 	id := mustNewSemaphoreIdentifier(t, 0)
 
 	mgr, err := e.getOrCreateSemaphoreManager(id)
@@ -2234,7 +2227,7 @@ func TestUnloadSemaphoreManager(t *testing.T) {
 	_, err = mgr.Acquire(context.Background(), "owner-1")
 	assert.ErrorIs(t, err, semaphore.ErrNotReady, "an unloaded manager must stop serving")
 
-	expectBucketLoadOnce(m, 2)
+	expectBucketLoadAllFree(m, 2)
 	fresh, err := e.getOrCreateSemaphoreManager(id)
 	require.NoError(t, err)
 	assert.NotSame(t, mgr, fresh)
@@ -2249,7 +2242,7 @@ func TestStopSemaphoreManagers(t *testing.T) {
 	e.domainCache.(*cache.MockDomainCache).EXPECT().UnregisterDomainChangeCallback(service.Matching)
 	e.shutdown = make(chan struct{})
 	e.shutdownCompletion = &sync.WaitGroup{}
-	e.taskListRegistry = tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient())
+	e.taskListRegistry = tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
 	e.executor = executorclient.NewNoopExecutor[tasklist.ShardProcessor]()
 
 	managers := make([]semaphore.Manager, 0, 3)
@@ -2271,7 +2264,7 @@ func TestStopSemaphoreManagers(t *testing.T) {
 func TestAcquireSemaphore(t *testing.T) {
 	t.Run("a free slot is granted and named in the response", func(t *testing.T) {
 		e, m := newEngineWithSemaphores(t, testSelfHost)
-		expectBucketLoadOnce(m, 3)
+		expectBucketLoadAllFree(m, 3)
 		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Return(
 			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
 
@@ -2285,8 +2278,17 @@ func TestAcquireSemaphore(t *testing.T) {
 		// Nothing is wrong: the caller asked and the answer is no. Reporting it as an error would
 		// make an ordinary saturated semaphore look like a fault.
 		e, m := newEngineWithSemaphores(t, testSelfHost)
+		// Bucket 0 owns tokens 1 and 2, and both are held.
+		var rows []*persistence.SemaphoreOwnership
+		for tokenID := 1; tokenID <= testSemaphoreBucketSize; tokenID++ {
+			owner := fmt.Sprintf("owner-%d", tokenID)
+			rows = append(rows,
+				&persistence.SemaphoreOwnership{RowType: persistence.SemaphoreRowTypeToken, TokenID: tokenID, Holder: owner},
+				&persistence.SemaphoreOwnership{RowType: persistence.SemaphoreRowTypeOwner, OwnerID: owner, HeldToken: tokenID},
+			)
+		}
 		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).
-			Return(&persistence.ScanSemaphoreBucketResponse{}, nil)
+			Return(&persistence.ScanSemaphoreBucketResponse{Ownerships: rows}, nil)
 
 		resp, err := e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
 		require.NoError(t, err)
@@ -2304,6 +2306,30 @@ func TestAcquireSemaphore(t *testing.T) {
 		assert.IsType(t, &types.BadRequestError{}, err)
 	})
 
+	t.Run("a domain with semaphores disabled is refused before any manager is built", func(t *testing.T) {
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		e.config.EnableDistributedSemaphore = func(string) bool { return false }
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err := e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
+		require.ErrorIs(t, err, ErrSemaphoreDisabled)
+		assert.Empty(t, e.semaphoreRegistry.AllManagers(), "nothing may be registered for a disabled domain")
+	})
+
+	t.Run("turning the flag off refuses acquires on a bucket that is already loaded", func(t *testing.T) {
+		// The flag used to be checked only when a bucket loaded.
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		expectBucketLoadAllFree(m, 2)
+		_, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
+		require.NoError(t, err)
+		e.config.EnableDistributedSemaphore = func(string) bool { return false }
+		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err = e.AcquireSemaphore(&handlerContext{Context: context.Background()}, newAcquireSemaphoreRequest(0, testSemaphoreOwnerID))
+		assert.ErrorIs(t, err, ErrSemaphoreDisabled)
+		assert.Len(t, e.semaphoreRegistry.AllManagers(), 1, "the bucket stays loaded; only acquires are refused")
+	})
+
 	t.Run("a request arriving while the bucket loads gives up at its own deadline", func(t *testing.T) {
 		e, m := newEngineWithSemaphores(t, testSelfHost)
 		scanning, finishScan := make(chan struct{}), make(chan struct{})
@@ -2313,6 +2339,9 @@ func TestAcquireSemaphore(t *testing.T) {
 				<-finishScan
 				return &persistence.ScanSemaphoreBucketResponse{}, nil
 			})
+		// Once the load finishes, the first request is granted a slot.
+		m.EXPECT().GrantSemaphoreToken(gomock.Any(), gomock.Any()).Times(1).Return(
+			&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
 
 		// The first request triggers the load and is held inside it.
 		firstDone := make(chan error, 1)
@@ -2342,4 +2371,56 @@ func TestAcquireSemaphore(t *testing.T) {
 			t.Fatal("the second request waited on the load instead of its own deadline")
 		}
 	})
+}
+
+// newReleaseSemaphoreRequest returns a release for one bucket of the test semaphore.
+func newReleaseSemaphoreRequest(bucket int32, ownerID string) *types.ReleaseSemaphoreRequest {
+	return &types.ReleaseSemaphoreRequest{
+		DomainUUID:    testSemaphoreDomainID,
+		SemaphoreName: testSemaphoreName,
+		Bucket:        bucket,
+		OwnerID:       ownerID,
+	}
+}
+
+func TestReleaseSemaphore(t *testing.T) {
+	t.Run("an error reading the owner row is returned", func(t *testing.T) {
+		// Every token is free, so no token is cached for the owner and Release reads the owner row.
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		expectBucketLoadAllFree(m, 2)
+		m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), gomock.Any()).Times(1).Return(nil, assert.AnError)
+
+		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, testSemaphoreOwnerID))
+		assert.ErrorIs(t, err, assert.AnError)
+	})
+
+	t.Run("an owner id that cannot be decoded is refused before any store call", func(t *testing.T) {
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		m.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(0)
+
+		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, "not-an-owner-id"))
+		assert.IsType(t, &types.BadRequestError{}, err)
+	})
+
+	t.Run("a release still reaches the manager when the domain has semaphores disabled", func(t *testing.T) {
+		// Tokens granted before the flag was turned off must still be released.
+		e, m := newEngineWithSemaphores(t, testSelfHost)
+		e.config.EnableDistributedSemaphore = func(string) bool { return false }
+		expectBucketLoadAllFree(m, 2)
+		// The owner holds nothing, so the release succeeds.
+		m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), gomock.Any()).Times(1).Return(
+			nil, &types.EntityNotExistsError{Message: "not found"})
+
+		_, err := e.ReleaseSemaphore(&handlerContext{Context: context.Background()}, newReleaseSemaphoreRequest(0, testSemaphoreOwnerID))
+		assert.NoError(t, err)
+	})
+}
+
+func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByHash bool) *membership.TaskListDifferentiator {
+	return membership.NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(excludeShortLivedTaskLists),
+		dynamicproperties.GetBoolPropertyFn(shardTaskListsByHash),
+		membership.StaticPercentageOnboarded(100),
+		commonConfig.DefaultNumMatchingShards,
+	)
 }

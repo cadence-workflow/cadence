@@ -23,4 +23,4 @@ jobs:
         with:
           script: |
             const { run } = require("./.github/scripts/validate-issue.js");
-            await run(github, context);
+            await run({ github, context });

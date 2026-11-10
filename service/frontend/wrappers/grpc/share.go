@@ -44,6 +44,7 @@ func (g APIHandler) Register(dispatcher *yarpc.Dispatcher) {
 	dispatcher.Register(apiv1.BuildMetaAPIYARPCProcedures(g))
 	dispatcher.Register(apiv1.BuildScheduleAPIYARPCProcedures(g))
 	dispatcher.Register(apiv1.BuildSemaphoreAPIYARPCProcedures(g))
+	dispatcher.Register(apiv1.BuildBatchAPIYARPCProcedures(g))
 }
 
 func (g APIHandler) Health(ctx context.Context, request *apiv1.HealthRequest) (*apiv1.HealthResponse, error) {

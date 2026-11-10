@@ -1,8 +1,8 @@
 module github.com/uber/cadence/common/archiver/gcloud
 
-go 1.25.0
+go 1.26.2
 
-toolchain go1.25.14
+toolchain go1.26.10
 
 // build against the current code in the "main" module, not a specific SHA.
 //
@@ -10,9 +10,6 @@ toolchain go1.25.14
 // are at the same SHA for consistency, but internally we can cheat by telling Go that it's at a
 // relative file path.
 replace github.com/uber/cadence => ../../..
-
-// tchannel-go depends on older version of thrift, yarpc brings up newer version
-replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
 
 require (
 	github.com/aws/aws-sdk-go v1.54.12 // indirect
@@ -66,7 +63,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.33.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0 // indirect
-	github.com/apache/thrift v0.17.0 // indirect
+	github.com/apache/thrift v0.25.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cadence-workflow/shard-manager v0.0.0-20260610143419-4bef35311802 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -75,7 +72,7 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
@@ -89,7 +86,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.17.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/m3db/prometheus_client_model v0.2.1 // indirect
 	github.com/m3db/prometheus_common v0.34.6 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
@@ -107,7 +104,7 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/uber-go/mapdecode v1.0.0 // indirect
-	github.com/uber/cadence-idl v0.0.0-20261006184647-bfbf273b41b9 // indirect
+	github.com/uber/cadence-idl v0.0.0-20261104230047-1ceaffdb11a0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect

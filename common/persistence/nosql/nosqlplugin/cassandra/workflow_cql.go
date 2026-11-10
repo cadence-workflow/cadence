@@ -107,7 +107,8 @@ const (
 		`record_visibility: ?, ` +
 		`version: ?, ` +
 		`original_task_list: ?, ` +
-		`original_task_list_kind: ?` +
+		`original_task_list_kind: ?, ` +
+		`semaphore_name: ?` +
 		`}`
 
 	templateCrossClusterTaskType = templateTransferTaskType

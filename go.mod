@@ -1,8 +1,8 @@
 module github.com/uber/cadence
 
-go 1.25.0
+go 1.26.2
 
-toolchain go1.25.14
+toolchain go1.26.10
 
 require (
 	github.com/MicahParks/keyfunc/v2 v2.1.0
@@ -39,7 +39,7 @@ require (
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally v3.5.8+incompatible
-	github.com/uber/cadence-idl v0.0.0-20261006184647-bfbf273b41b9
+	github.com/uber/cadence-idl v0.0.0-20261104230047-1ceaffdb11a0
 	github.com/uber/ringpop-go v0.10.0
 	github.com/uber/tchannel-go v1.34.4
 	github.com/urfave/cli/v2 v2.27.4
@@ -94,12 +94,11 @@ require (
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
 )
 
 require (
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
-	github.com/apache/thrift v0.17.0 // indirect
+	github.com/apache/thrift v0.25.0 // indirect
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -123,7 +122,7 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/m3db/prometheus_client_model v0.2.1 // indirect
 	github.com/m3db/prometheus_common v0.34.6 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -162,9 +161,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.5.1 // indirect
 )
-
-// ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version
-replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
 
 // DO NOT USE as it misses mysql/config store fix
 retract v1.2.3
