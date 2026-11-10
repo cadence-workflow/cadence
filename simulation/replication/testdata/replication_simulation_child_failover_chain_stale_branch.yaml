@@ -75,7 +75,7 @@ operations:
   # the simulator has a go test timeout of 240s that includes the setup, so the validation must be earlier.
   # The parents close at ~85s and ~145s.
   - op: validate
-    at: 180s
+    at: 165s
     workflowID: chain-stale-branch-running-parent
     cluster: cluster1
     domain: test-domain
@@ -83,7 +83,7 @@ operations:
       status: completed
 
   - op: validate
-    at: 180s
+    at: 165s
     workflowID: chain-stale-branch-closed-parent
     cluster: cluster1
     domain: test-domain
@@ -92,7 +92,7 @@ operations:
 
   # cluster1 must fail the decisions of the parents at the failover, otherwise the test does not create the stale branches
   - op: wait_for_history_event
-    at: 181s
+    at: 166s
     workflowID: chain-stale-branch-running-parent
     cluster: cluster1
     domain: test-domain
@@ -101,7 +101,7 @@ operations:
     timeout: 5s
 
   - op: wait_for_history_event
-    at: 181s
+    at: 166s
     workflowID: chain-stale-branch-closed-parent
     cluster: cluster1
     domain: test-domain
