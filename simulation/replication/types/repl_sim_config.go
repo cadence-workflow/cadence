@@ -98,6 +98,7 @@ type Operation struct {
 	ChildWorkflowCount                   int                                 `yaml:"childWorkflowCount"`
 	ChildWorkflowDuration                time.Duration                       `yaml:"childWorkflowDuration"`
 	ChildWorkflowType                    string                              `yaml:"childWorkflowType"`
+	ChildRunDurations                    []time.Duration                     `yaml:"childRunDurations"`
 	DecisionHoldDuration                 time.Duration                       `yaml:"decisionHoldDuration"`
 	DecisionHoldCluster                  string                              `yaml:"decisionHoldCluster"`
 	ActivityCount                        int                                 `yaml:"activityCount"`

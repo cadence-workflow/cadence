@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"github.com/uber/cadence/simulation/replication/workflows/activityloop"
+	"github.com/uber/cadence/simulation/replication/workflows/chain"
 	"github.com/uber/cadence/simulation/replication/workflows/childactivityloop"
 	"github.com/uber/cadence/simulation/replication/workflows/childworkflowloop"
 	"github.com/uber/cadence/simulation/replication/workflows/noop"
@@ -23,6 +24,7 @@ var (
 			"child-workflow-loop":              childWorkflowLoopRunner.Workflow,
 			"activity-retry-failover-workflow": retryactivityfailover.Workflow,
 			"noop-workflow":                    noop.Workflow,
+			"chain-workflow":                   chain.Workflow,
 		}
 	}
 	Activities = map[string]any{

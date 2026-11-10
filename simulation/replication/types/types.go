@@ -43,8 +43,10 @@ type WorkflowInput struct {
 	ChildWorkflowCount    int
 	ChildWorkflowDuration time.Duration
 	ChildWorkflowType     string
+	ChildRunDurations     []time.Duration
 	DecisionHoldDuration  time.Duration
 	DecisionHoldCluster   string
+	RunDurations          []time.Duration
 }
 
 type WorkflowOutput struct {

@@ -152,6 +152,7 @@ func startWorkflow(
 		ChildWorkflowCount:    op.ChildWorkflowCount,
 		ChildWorkflowDuration: op.ChildWorkflowDuration,
 		ChildWorkflowType:     op.ChildWorkflowType,
+		ChildRunDurations:     op.ChildRunDurations,
 		DecisionHoldDuration:  op.DecisionHoldDuration,
 		DecisionHoldCluster:   op.DecisionHoldCluster,
 	})

@@ -28,6 +28,8 @@ jobs:
           - activityretryfailover
           - budget_manager
           - child_failover_adoption
+          - child_failover_chain_adoption
+          - child_failover_chain_stale_branch
           - child_failover_closed_by_other_cluster
           - child_failover_stale_branch
           - child_failover_stale_branch_running

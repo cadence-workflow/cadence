@@ -43,7 +43,7 @@ func (r *Runner) Workflow(ctx workflow.Context, input types.WorkflowInput) (type
 			ExecutionStartToCloseTimeout: input.ChildWorkflowTimeout,
 		}
 		childCtx := workflow.WithChildOptions(ctx, cwo)
-		childInput := types.WorkflowInput{Duration: input.ChildWorkflowDuration}
+		childInput := types.WorkflowInput{Duration: input.ChildWorkflowDuration, RunDurations: input.ChildRunDurations}
 		futures = append(futures, workflow.ExecuteChildWorkflow(childCtx, childWorkflowType, childInput))
 	}
 

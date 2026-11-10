@@ -1,0 +1,68 @@
+# Test the adoption of chains of child workflow runs after a failover.
+#
+# Replication of shard 1 (shard of chain-adoption-parent) sends one task per batch and waits 30s per batch, see the
+# dynamic config. The children are on shard 2, so they replicate without delay.
+# 1. At ~1s cluster0 writes the initiated events, starts the children and records their start in the parent.
+#    Each child is a chain of runs of 45s, 100s and 10s. At ~45s the first run continues as new on cluster0.
+# 2. Cluster1 gets one task of the parent every 30s. When it has the initiated events, the domain fails over to
+#    cluster1. The next task of the parent, with the first started event, arrives at least 30s later, so cluster1
+#    does not have the started events when it becomes active.
+# 3. Cluster1 starts the children again with the same deterministic request ID. The current run is the second run
+#    of the chain, the request ID of the first run is the same, so the child start adopts the chain.
+# 4. At ~145s the second run continues as new on cluster1. The third run has the version of cluster1, and the first
+#    run has the version of cluster0. When the third run closes, the completion has the start version of the first run.
+#
+# Without the chain adoption, the child start fails with already started, and the parent fails.
+# To check that the path ran: curl -s localhost:8002/metrics | grep child_workflow_chain_adopted
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+primaryCluster: "cluster0"
+
+domains:
+  test-domain:
+    activeClusterName: cluster0
+
+operations:
+  - op: start_workflow
+    at: 0s
+    workflowType: child-workflow-loop
+    workflowID: chain-adoption-parent
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 400s
+    childWorkflowID: chain-adoption-child
+    childWorkflowType: chain-workflow
+    childWorkflowCount: 2
+    childWorkflowTimeout: 300s
+    childRunDurations: [45s, 100s, 10s]
+
+  # the initiated events arrive at ~60s to ~125s
+  - op: wait_for_history_event
+    at: 1s
+    workflowID: chain-adoption-parent
+    cluster: cluster1
+    domain: test-domain
+    eventType: StartChildWorkflowExecutionInitiated
+    eventCount: 2
+    timeout: 150s
+
+  # runs as soon as the wait above returns
+  - op: change_active_clusters
+    at: 2s
+    domain: test-domain
+    newActiveCluster: cluster1
+
+  # the simulator has a go test timeout of 240s that includes the setup, so the validation must be earlier.
+  # The parent closes at ~155s.
+  - op: validate
+    at: 190s
+    workflowID: chain-adoption-parent
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: completed
