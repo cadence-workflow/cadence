@@ -5,13 +5,15 @@
 # For this, the parent holds its decision task with a local activity on the worker of cluster0 only, so that
 # cluster1 sees the decision in flight through replication when the failover occurs.
 # On cluster1 the local activity completes at once, so cluster1 starts the children again soon after the failover.
-# Replication of shard 1 (shard of stale-branch-running-parent) waits 20s per batch, see the dynamic config.
-# The children are on shards 0 and 3, so they replicate to cluster1 without delay.
+# Replication of shard 1 (shard of stale-branch-running-parent) sends one task per batch and waits 20s per batch, see
+# the dynamic config. The worker heartbeats the decision every ~4s, and each heartbeat adds a replication task, so
+# cluster1 gets the events of the parent later and later. The children are on shards 0 and 3, so they replicate to
+# cluster1 without delay.
 # 1. At ~50s cluster0 completes the decision with the initiated events (N) and starts the children.
 #    They run for ~45s.
-# 2. At 55s the domain fails over to cluster1. At ~65s cluster1 still sees the decision of the parent in flight
+# 2. At 65s the domain fails over to cluster1. At ~75s cluster1 still sees the decision of the parent in flight
 #    and fails it with FAILOVER_CLOSE_DECISION. The new events move the event IDs of the parent.
-# 3. At ~70s cluster1 writes the initiated events (N') and starts the children again. The running runs were started
+# 3. At ~80s cluster1 writes the initiated events (N') and starts the children again. The running runs were started
 #    from the initiated events N, which are not on the current branch, so the child start terminates them
 #    and starts a new execution.
 #
@@ -46,12 +48,12 @@ operations:
     decisionHoldCluster: cluster0
 
   - op: change_active_clusters
-    at: 55s
+    at: 65s
     domain: test-domain
     newActiveCluster: cluster1
 
   # the simulator has a go test timeout of 240s that includes the setup, so the validation must be earlier.
-  # The parent closes at ~120s.
+  # The parent closes at ~130s.
   - op: validate
     at: 180s
     workflowID: stale-branch-running-parent
@@ -59,3 +61,13 @@ operations:
     domain: test-domain
     want:
       status: completed
+
+  # cluster1 must fail the decision of the parent at the failover, otherwise the test does not create the stale branch
+  - op: wait_for_history_event
+    at: 181s
+    workflowID: stale-branch-running-parent
+    cluster: cluster1
+    domain: test-domain
+    eventType: DecisionTaskFailed
+    eventCount: 1
+    timeout: 5s

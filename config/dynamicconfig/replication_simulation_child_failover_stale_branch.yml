@@ -6,6 +6,14 @@ system.readVisibilityStoreName:
 history.replicatorTaskBatchSize:
   - value: 25
     constraints: {}
+history.replicatorMinTaskBatchSize: # one task per batch for shard 3, the shard of stale-branch-parent
+  - value: 1
+    constraints:
+      shardID: 3
+history.replicatorMaxTaskBatchSize:
+  - value: 1
+    constraints:
+      shardID: 3
 frontend.failoverCoolDown:
   - value: 5s
 history.ReplicationTaskProcessorStartWait: # wait before each replication batch. Shard 3 is the shard of stale-branch-parent.

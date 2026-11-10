@@ -1,13 +1,16 @@
 # Test a new execution of child workflows after closed runs from a stale branch of the parent.
 #
 # The parent holds its decision task with a local activity, so it always has a decision in flight.
-# Replication of shard 3 (shard of stale-branch-parent) waits 20s per batch, see the dynamic config.
+# Replication of shard 3 (shard of stale-branch-parent) sends one task per batch and waits 20s per batch, see the
+# dynamic config. The worker heartbeats the decision every ~4s, and each heartbeat adds a replication task, so cluster1
+# gets the events of the parent later and later. The children are on shards 0, 1 and 2, so they replicate to cluster1
+# without delay.
 # 1. At ~50s cluster0 completes the decision with the initiated events (N) and starts the noop children.
-#    They close in about 1s. Children on shard 3 replicate to cluster1 with the parent, the others without delay.
-# 2. At 55s the domain fails over to cluster1. At ~65s cluster1 still sees the decision of the parent in flight
+#    They close in about 1s.
+# 2. At 65s the domain fails over to cluster1. At ~75s cluster1 still sees the decision of the parent in flight
 #    and fails it with FAILOVER_CLOSE_DECISION. The new events move the event IDs of the parent.
-# 3. At 70s to 90s the events from cluster0 arrive on a branch that is not current.
-# 4. At ~115s cluster1 writes the initiated events (N') and starts the children again. The closed runs were started
+# 3. Later the events from cluster0 arrive on a branch that is not current.
+# 4. At ~125s cluster1 writes the initiated events (N') and starts the children again. The closed runs were started
 #    from the initiated events N, which are on a stale branch, so the child start starts a new execution.
 #
 # Without the stale branch replacement, the child start fails with already started, and the parent fails.
@@ -33,19 +36,19 @@ operations:
     cluster: cluster0
     domain: test-domain
     workflowExecutionStartToCloseTimeout: 400s
-    childWorkflowID: stale-branch-child
+    childWorkflowID: stale-branch-closed-child
     childWorkflowType: noop-workflow
-    childWorkflowCount: 20
+    childWorkflowCount: 7
     childWorkflowTimeout: 300s
     decisionHoldDuration: 50s
 
   - op: change_active_clusters
-    at: 55s
+    at: 65s
     domain: test-domain
     newActiveCluster: cluster1
 
   # the simulator has a go test timeout of 240s that includes the setup, so the validation must be earlier.
-  # The parent closes at ~115s.
+  # The parent closes at ~125s.
   - op: validate
     at: 180s
     workflowID: stale-branch-parent
@@ -53,3 +56,13 @@ operations:
     domain: test-domain
     want:
       status: completed
+
+  # cluster1 must fail the decision of the parent at the failover, otherwise the test does not create the stale branch
+  - op: wait_for_history_event
+    at: 181s
+    workflowID: stale-branch-parent
+    cluster: cluster1
+    domain: test-domain
+    eventType: DecisionTaskFailed
+    eventCount: 1
+    timeout: 5s
