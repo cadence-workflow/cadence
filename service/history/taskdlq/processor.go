@@ -436,7 +436,12 @@ func (p *ProcessorImpl) ensureSeeded(ctx context.Context) error {
 }
 
 // seedIndex seeds the index under the same serialization and host limiting as processing.
+// The index never becomes unseeded, so a warm index skips the lock and the host slot entirely;
+// ensureSeeded re-checks under the lock for the cold path.
 func (p *ProcessorImpl) seedIndex(ctx context.Context) error {
+	if p.index.Seeded() {
+		return nil
+	}
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
 	if err := p.hostLimiter.Acquire(ctx); err != nil {
