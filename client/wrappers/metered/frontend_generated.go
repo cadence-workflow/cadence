@@ -101,6 +101,30 @@ func (c *frontendClient) CreateSchedule(ctx context.Context, cp1 *types.CreateSc
 	return cp2, err
 }
 
+func (c *frontendClient) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest, p1 ...yarpc.CallOption) (cp2 *types.CreateSemaphoreResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.FrontendClientCreateSemaphoreScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.FrontendClientCreateSemaphoreScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	cp2, err = c.client.CreateSemaphore(ctx, cp1, p1...)
+	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return cp2, err
+}
+
 func (c *frontendClient) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest, p1 ...yarpc.CallOption) (err error) {
 	retryCount := getRetryCountFromContext(ctx)
 

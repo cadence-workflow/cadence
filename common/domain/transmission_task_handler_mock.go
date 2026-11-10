@@ -56,3 +56,41 @@ func (mr *MockReplicatorMockRecorder) HandleTransmissionTask(ctx, domainOperatio
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleTransmissionTask", reflect.TypeOf((*MockReplicator)(nil).HandleTransmissionTask), ctx, domainOperation, info, config, replicationConfig, configVersion, failoverVersion, previousFailoverVersion, isGlobalDomainEnabled)
 }
+
+// MockSemaphoreReplicator is a mock of SemaphoreReplicator interface.
+type MockSemaphoreReplicator struct {
+	ctrl     *gomock.Controller
+	recorder *MockSemaphoreReplicatorMockRecorder
+	isgomock struct{}
+}
+
+// MockSemaphoreReplicatorMockRecorder is the mock recorder for MockSemaphoreReplicator.
+type MockSemaphoreReplicatorMockRecorder struct {
+	mock *MockSemaphoreReplicator
+}
+
+// NewMockSemaphoreReplicator creates a new mock instance.
+func NewMockSemaphoreReplicator(ctrl *gomock.Controller) *MockSemaphoreReplicator {
+	mock := &MockSemaphoreReplicator{ctrl: ctrl}
+	mock.recorder = &MockSemaphoreReplicatorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSemaphoreReplicator) EXPECT() *MockSemaphoreReplicatorMockRecorder {
+	return m.recorder
+}
+
+// ReplicateCreate mocks base method.
+func (m *MockSemaphoreReplicator) ReplicateCreate(ctx context.Context, semaphore *persistence.SemaphoreMetadata) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplicateCreate", ctx, semaphore)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReplicateCreate indicates an expected call of ReplicateCreate.
+func (mr *MockSemaphoreReplicatorMockRecorder) ReplicateCreate(ctx, semaphore any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateCreate", reflect.TypeOf((*MockSemaphoreReplicator)(nil).ReplicateCreate), ctx, semaphore)
+}

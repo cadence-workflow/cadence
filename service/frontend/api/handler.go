@@ -55,6 +55,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
 	"github.com/uber/cadence/service/frontend/config"
+	"github.com/uber/cadence/service/frontend/semaphore"
 	"github.com/uber/cadence/service/frontend/validate"
 	"github.com/uber/cadence/service/worker/diagnostics"
 )
@@ -81,6 +82,7 @@ type (
 		config                    *config.Config
 		versionChecker            client.VersionChecker
 		domainHandler             domain.Handler
+		semaphoreHandler          semaphore.Handler
 		visibilityQueryValidator  *validator.VisibilityQueryValidator
 		searchAttributesValidator *validator.SearchAttributesValidator
 		throttleRetry             *backoff.ThrottleRetry
@@ -118,14 +120,16 @@ func NewWorkflowHandler(
 	config *config.Config,
 	versionChecker client.VersionChecker,
 	domainHandler domain.Handler,
+	semaphoreHandler semaphore.Handler,
 ) *WorkflowHandler {
 	return &WorkflowHandler{
-		Resource:        resource,
-		config:          config,
-		healthStatus:    int32(HealthStatusWarmingUp),
-		tokenSerializer: common.NewJSONTaskTokenSerializer(),
-		versionChecker:  versionChecker,
-		domainHandler:   domainHandler,
+		Resource:         resource,
+		config:           config,
+		healthStatus:     int32(HealthStatusWarmingUp),
+		tokenSerializer:  common.NewJSONTaskTokenSerializer(),
+		versionChecker:   versionChecker,
+		domainHandler:    domainHandler,
+		semaphoreHandler: semaphoreHandler,
 		visibilityQueryValidator: validator.NewQueryValidator(
 			config.ValidSearchAttributes,
 			config.EnableQueryAttributeValidation,

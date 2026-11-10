@@ -94,4 +94,6 @@ type Client interface {
 	UnpauseSchedule(context.Context, *types.UnpauseScheduleRequest, ...yarpc.CallOption) (*types.UnpauseScheduleResponse, error)
 	BackfillSchedule(context.Context, *types.BackfillScheduleRequest, ...yarpc.CallOption) (*types.BackfillScheduleResponse, error)
 	ListSchedules(context.Context, *types.ListSchedulesRequest, ...yarpc.CallOption) (*types.ListSchedulesResponse, error)
+
+	CreateSemaphore(context.Context, *types.CreateSemaphoreRequest, ...yarpc.CallOption) (*types.CreateSemaphoreResponse, error)
 }

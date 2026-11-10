@@ -41,6 +41,7 @@ import (
 	"github.com/uber/cadence/service/frontend/admin"
 	"github.com/uber/cadence/service/frontend/api"
 	"github.com/uber/cadence/service/frontend/config"
+	"github.com/uber/cadence/service/frontend/semaphore"
 	"github.com/uber/cadence/service/frontend/wrappers/accesscontrolled"
 	"github.com/uber/cadence/service/frontend/wrappers/clusterredirection"
 	"github.com/uber/cadence/service/frontend/wrappers/grpc"
@@ -137,8 +138,16 @@ func (s *Service) Start() {
 		s.GetTimeSource(),
 	)
 
+	// semaphore handler publishes to the same domain replication queue as the domain handler
+	sh := semaphore.NewHandler(
+		s.GetSemaphoreMetadataManager(),
+		s.GetDomainCache(),
+		s.GetClusterMetadata(),
+		domain.NewSemaphoreReplicator(s.GetDomainReplicationQueue()),
+	)
+
 	// Base handler
-	s.handler = api.NewWorkflowHandler(s, s.config, client.NewVersionChecker(), dh)
+	s.handler = api.NewWorkflowHandler(s, s.config, client.NewVersionChecker(), dh, sh)
 
 	collections, err := s.createGlobalQuotaCollections()
 	if err != nil {
