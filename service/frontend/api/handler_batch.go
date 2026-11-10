@@ -199,9 +199,20 @@ func (wh *WorkflowHandler) ListBatchOperations(
 	return nil, &types.BadRequestError{Message: "ListBatchOperations is not yet implemented."}
 }
 
-// StopBatchOperation stops a running batch. Implementation tracked
-// separately; this is a placeholder so the BatchAPI contract and its
-// authorization wrapper can land ahead of the per-operation business logic.
+func validateStopBatchOperationRequest(request *types.StopBatchOperationRequest) error {
+	if request == nil {
+		return validate.ErrRequestNotSet
+	}
+	if request.GetDomain() == "" {
+		return validate.ErrDomainNotSet
+	}
+	if request.GetBatchID() == "" {
+		return validate.ErrBatchIDNotSet
+	}
+	return nil
+}
+
+// StopBatchOperation terminates the cadence-batcher workflow for a batch.
 func (wh *WorkflowHandler) StopBatchOperation(
 	ctx context.Context,
 	request *types.StopBatchOperationRequest,
@@ -209,7 +220,27 @@ func (wh *WorkflowHandler) StopBatchOperation(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
-	return nil, &types.BadRequestError{Message: "StopBatchOperation is not yet implemented."}
+	if err := validateStopBatchOperationRequest(request); err != nil {
+		return nil, err
+	}
+
+	domainName := request.GetDomain()
+	if _, err := wh.GetDomainCache().GetDomainID(domainName); err != nil {
+		return nil, err
+	}
+
+	wfID := batchOperationWorkflowID(domainName, request.GetBatchID())
+	err := wh.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
+		Domain:            constants.BatcherLocalDomainName,
+		WorkflowExecution: &types.WorkflowExecution{WorkflowID: wfID},
+		Reason:            request.GetReason(),
+		Identity:          request.GetIdentity(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.StopBatchOperationResponse{}, nil
 }
 
 // UpdateBatchOperation changes the rate and concurrency of a running batch.

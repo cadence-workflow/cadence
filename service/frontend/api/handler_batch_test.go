@@ -197,3 +197,83 @@ func TestStartBatchOperation(t *testing.T) {
 		})
 	}
 }
+
+func TestStopBatchOperation(t *testing.T) {
+	validRequest := &types.StopBatchOperationRequest{
+		Domain:  testDomain,
+		BatchID: "my-batch-id",
+		Reason:  "my-reason",
+	}
+
+	tests := map[string]struct {
+		request *types.StopBatchOperationRequest
+		mockFn  func(*scheduleTestFixture)
+		wantErr bool
+	}{
+		"nil request": {
+			request: nil,
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty domain": {
+			request: &types.StopBatchOperationRequest{},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty batch ID": {
+			request: &types.StopBatchOperationRequest{Domain: testDomain},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"domain not found": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return("", errors.New("not found")).AnyTimes()
+			},
+			wantErr: true,
+		},
+		"history error": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("internal error"))
+			},
+			wantErr: true,
+		},
+		"success": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistoryTerminateWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						assert.Equal(t, batcherDomainID, req.DomainUUID)
+						assert.Equal(t, constants.BatcherLocalDomainName, req.TerminateRequest.Domain)
+						assert.Equal(t, "cadence-sys-batch-operation:test-domain:my-batch-id", req.TerminateRequest.WorkflowExecution.WorkflowID)
+						assert.Equal(t, "my-reason", req.TerminateRequest.Reason)
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newScheduleTestFixture(t)
+			defer f.finish()
+			tt.mockFn(f)
+
+			resp, err := f.handler.StopBatchOperation(context.Background(), tt.request)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				require.NotNil(t, resp)
+			}
+		})
+	}
+}
