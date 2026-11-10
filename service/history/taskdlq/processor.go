@@ -458,8 +458,13 @@ func (p *ProcessorImpl) ensureSeeded(ctx context.Context) error {
 	return nil
 }
 
-// seedIndex seeds the index under the same serialization as processing.
+// seedIndex seeds the index under the same serialization as processing. The index never
+// becomes unseeded, so a warm index skips the lock entirely; ensureSeeded re-checks under the
+// lock for the cold path.
 func (p *ProcessorImpl) seedIndex(ctx context.Context) error {
+	if p.index.Seeded() {
+		return nil
+	}
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
 	if ctx.Err() != nil {

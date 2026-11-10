@@ -1801,3 +1801,33 @@ func TestProcessShard_BusyThenNonBusyError_ReturnsTheNonBusyError(t *testing.T) 
 		t.Fatal("ProcessShard did not finish")
 	}
 }
+
+func TestSeedIndex_WarmIndex_DoesNotWaitForTheShardLock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := shard.NewDLQAckLevelIndex()
+	idx.Merge([]persistence.HistoryDLQAckLevel{baseAckLevel(1)})
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           persistence.NewMockHistoryTaskDLQManager(ctrl),
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+		Index:             idx,
+	})
+
+	// A sweep holds the shard lock. A warm index has nothing to seed, so a failover batch must not
+	// queue behind the sweep just to find that out.
+	proc.processMu.Lock()
+	defer proc.processMu.Unlock()
+
+	done := make(chan error, 1)
+	go func() { done <- proc.seedIndex(context.Background()) }()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("seedIndex blocked on the shard lock although the index was already seeded")
+	}
+}
