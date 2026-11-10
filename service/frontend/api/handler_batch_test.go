@@ -197,3 +197,159 @@ func TestStartBatchOperation(t *testing.T) {
 		})
 	}
 }
+
+func TestDescribeBatchOperation(t *testing.T) {
+	validRequest := &types.DescribeBatchOperationRequest{
+		Domain:  testDomain,
+		BatchID: "my-batch-id",
+	}
+	reasonBytes, err := json.Marshal("my-reason")
+	require.NoError(t, err)
+	operatorBytes, err := json.Marshal("my-operator")
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		request  *types.DescribeBatchOperationRequest
+		mockFn   func(*scheduleTestFixture)
+		wantErr  bool
+		validate func(*testing.T, *types.DescribeBatchOperationResponse)
+	}{
+		"nil request": {
+			request: nil,
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty domain": {
+			request: &types.DescribeBatchOperationRequest{},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty batch ID": {
+			request: &types.DescribeBatchOperationRequest{Domain: testDomain},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"domain not found": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return("", errors.New("not found")).AnyTimes()
+			},
+			wantErr: true,
+		},
+		"history error": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("internal error"))
+			},
+			wantErr: true,
+		},
+		"running with progress": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				hbd, err := json.Marshal(batcher.HeartBeatDetails{TotalEstimate: 10, SuccessCount: 3, ErrorCount: 1})
+				require.NoError(t, err)
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistoryDescribeWorkflowExecutionRequest, _ ...yarpc.CallOption) (*types.DescribeWorkflowExecutionResponse, error) {
+						assert.Equal(t, batcherDomainID, req.DomainUUID)
+						assert.Equal(t, "cadence-sys-batch-operation:test-domain:my-batch-id", req.Request.Execution.WorkflowID)
+						return &types.DescribeWorkflowExecutionResponse{
+							WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+								Memo:             &types.Memo{Fields: map[string][]byte{"Reason": reasonBytes}},
+								SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{"Operator": operatorBytes}},
+							},
+							PendingActivities: []*types.PendingActivityInfo{{HeartbeatDetails: hbd}},
+						}, nil
+					})
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.DescribeBatchOperationResponse) {
+				assert.Equal(t, types.BatchOperationStateRunning, resp.State)
+				assert.Equal(t, "my-reason", resp.Reason)
+				assert.Equal(t, "my-operator", resp.StartedBy)
+				require.NotNil(t, resp.Progress)
+				assert.Equal(t, int64(10), resp.Progress.TotalEstimate)
+				assert.Equal(t, int64(3), resp.Progress.SuccessCount)
+				assert.Equal(t, int64(1), resp.Progress.ErrorCount)
+				assert.Nil(t, resp.StartTime)
+				assert.Nil(t, resp.CloseTime)
+			},
+		},
+		"completed with no pending activity": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+							CloseStatus: types.WorkflowExecutionCloseStatusCompleted.Ptr(),
+						},
+					}, nil)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.DescribeBatchOperationResponse) {
+				assert.Equal(t, types.BatchOperationStateCompleted, resp.State)
+				assert.Nil(t, resp.Progress)
+			},
+		},
+		"terminated maps to stopped": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+							CloseStatus: types.WorkflowExecutionCloseStatusTerminated.Ptr(),
+						},
+					}, nil)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.DescribeBatchOperationResponse) {
+				assert.Equal(t, types.BatchOperationStateStopped, resp.State)
+			},
+		},
+		"failed maps to failed": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+							CloseStatus: types.WorkflowExecutionCloseStatusFailed.Ptr(),
+						},
+					}, nil)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.DescribeBatchOperationResponse) {
+				assert.Equal(t, types.BatchOperationStateFailed, resp.State)
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newScheduleTestFixture(t)
+			defer f.finish()
+			tt.mockFn(f)
+
+			resp, err := f.handler.DescribeBatchOperation(context.Background(), tt.request)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				require.NotNil(t, resp)
+				if tt.validate != nil {
+					tt.validate(t, resp)
+				}
+			}
+		})
+	}
+}
