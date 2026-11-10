@@ -144,6 +144,17 @@ func (c *frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *typ
 	return resp, err
 }
 
+func (c *frontendClient) ExportWorkflowExecution(ctx context.Context, ep1 *types.ExportWorkflowExecutionRequest, p1 ...yarpc.CallOption) (ep2 *types.ExportWorkflowExecutionResponse, err error) {
+	var resp *types.ExportWorkflowExecutionResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.ExportWorkflowExecution(ctx, ep1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest, p1 ...yarpc.CallOption) (fp2 *types.FailoverDomainResponse, err error) {
 	var resp *types.FailoverDomainResponse
 	op := func(ctx context.Context) error {

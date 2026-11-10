@@ -41,6 +41,8 @@ var (
 	ErrInvalidRunID                               = &types.BadRequestError{Message: "Invalid RunId."}
 	ErrInvalidNextPageToken                       = &types.BadRequestError{Message: "Invalid NextPageToken."}
 	ErrNextPageTokenRunIDMismatch                 = &types.BadRequestError{Message: "RunID in the request does not match the NextPageToken."}
+	ErrNextPageTokenWorkflowIDMismatch            = &types.BadRequestError{Message: "WorkflowID in the request does not match the NextPageToken."}
+	ErrNextPageTokenDomainMismatch                = &types.BadRequestError{Message: "Domain in the request does not match the NextPageToken."}
 	ErrQueryNotSet                                = &types.BadRequestError{Message: "WorkflowQuery is not set on request."}
 	ErrQueryTypeNotSet                            = &types.BadRequestError{Message: "QueryType is not set on request."}
 	ErrRequestNotSet                              = &types.BadRequestError{Message: "Request is nil."}
