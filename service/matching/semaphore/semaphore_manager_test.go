@@ -478,8 +478,7 @@ func TestManagerLifecycle(t *testing.T) {
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 
-	// The idle clock does not run during the load, is reset by Acquire, and stops the manager after
-	// the idle TTL.
+	// The idle clock starts after the load and is reset by Acquire, not by GetTokenByOwner.
 	t.Run("unloads after the idle TTL", func(t *testing.T) {
 		defer goleak.VerifyNone(t)
 		m := persistence.NewMockSemaphoreTokenManager(gomock.NewController(t))
@@ -501,8 +500,10 @@ func TestManagerLifecycle(t *testing.T) {
 		mockClock.Advance(testIdleTTL / 2)
 		require.Never(t, isStopped, 50*time.Millisecond, 5*time.Millisecond, "stopped within the idle TTL of an Acquire")
 
-		mockClock.Advance(testIdleTTL)
-		require.Eventually(t, isStopped, time.Second, 5*time.Millisecond, "did not stop after the idle TTL")
+		_, err = mgr.GetTokenByOwner(context.Background(), "caller")
+		require.NoError(t, err)
+		mockClock.Advance(testIdleTTL * 3 / 4)
+		require.Eventually(t, isStopped, time.Second, 5*time.Millisecond, "did not stop an idle TTL after the Acquire")
 	})
 
 	t.Run("a non-positive idle time still starts", func(t *testing.T) {

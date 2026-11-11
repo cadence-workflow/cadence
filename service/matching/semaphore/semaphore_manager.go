@@ -661,7 +661,6 @@ func (m *semaphoreManagerImpl) tryReleaseTokenLocked(ctx context.Context, cache 
 // GetTokenByOwner returns the token ownerID holds, or 0 if none. It takes no lock, so a concurrent
 // grant or release can make the answer stale.
 func (m *semaphoreManagerImpl) GetTokenByOwner(ctx context.Context, ownerID string) (int, error) {
-	m.liveness.MarkAlive()
 	if err := m.awaitStartup(ctx); err != nil {
 		return 0, err
 	}
