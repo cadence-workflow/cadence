@@ -1,4 +1,4 @@
-package membership
+package matching
 
 import (
 	"regexp"
@@ -7,6 +7,7 @@ import (
 	"github.com/dgryski/go-farm"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/membership"
 )
 
 const uuidRegex = `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`
@@ -19,14 +20,14 @@ var uuidRegexp = regexp.MustCompile(uuidRegex)
 type TaskListDifferentiator struct {
 	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn
 	shardTaskListsByHash       dynamicproperties.BoolPropertyFn
-	percentageOnboarded        PercentageOnboarded
+	percentageOnboarded        membership.PercentageOnboarded
 	shardCount                 int
 }
 
 func NewTaskListDifferentiator(
 	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn,
 	shardTaskListsByHash dynamicproperties.BoolPropertyFn,
-	percentageOnboarded PercentageOnboarded,
+	percentageOnboarded membership.PercentageOnboarded,
 	shardCount int,
 ) *TaskListDifferentiator {
 	return &TaskListDifferentiator{

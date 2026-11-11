@@ -90,6 +90,7 @@ type Resource interface {
 
 	// membership infos
 	GetMembershipResolver() membership.Resolver
+	GetTaskListRouter() matching.TaskListRouter
 
 	// internal services clients
 

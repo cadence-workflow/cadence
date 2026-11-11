@@ -10,8 +10,8 @@ import (
 	smtypes "github.com/cadence-workflow/shard-manager/common/types"
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/membership"
 )
 
 type ShardProcessorParams struct {
@@ -21,7 +21,7 @@ type ShardProcessorParams struct {
 	TimeSource        clock.TimeSource
 	// TaskListDifferentiator decides whether ShardID is a hashed shard or the name of a single task
 	// list, and which task lists the hash ring owns instead of the shard distributor.
-	TaskListDifferentiator *membership.TaskListDifferentiator
+	TaskListDifferentiator *matching.TaskListDifferentiator
 }
 
 type shardProcessorImpl struct {
@@ -34,7 +34,7 @@ type shardProcessorImpl struct {
 	reportTTL         time.Duration
 	timeSource        clock.TimeSource
 
-	taskListDifferentiator *membership.TaskListDifferentiator
+	taskListDifferentiator *matching.TaskListDifferentiator
 }
 
 func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {

@@ -21,6 +21,7 @@ import (
 	"go.uber.org/cadence/compatibility"
 	"go.uber.org/zap"
 
+	matchingClient "github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -156,7 +157,7 @@ func (s *server) startService() common.Daemon {
 		params.MetricsClient,
 		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 	)
-	params.TaskListDifferentiator = membership.NewTaskListDifferentiator(
+	params.TaskListDifferentiator = matchingClient.NewTaskListDifferentiator(
 		s.operationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
 		s.operationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
 		params.PercentageOnboarded,
@@ -204,19 +205,11 @@ func (s *server) startService() common.Daemon {
 		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
 	}
 
-	wrappedRings := s.wrapHashRingsWithShardDistributor(
-		params.HashRings,
-		spectator,
-		params.TaskListDifferentiator,
-		params.Logger,
-		params.MetricsClient.Scope(metrics.ShardDistributorResolverScope),
-	)
-
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
 		params.MetricsClient,
 		params.Logger,
-		wrappedRings,
+		params.HashRings,
 	)
 
 	if err != nil {
@@ -305,25 +298,6 @@ func (s *server) startService() common.Daemon {
 	go execute(daemon, s.doneC)
 
 	return daemon
-}
-
-func (*server) wrapHashRingsWithShardDistributor(
-	hashRings map[string]membership.SingleProvider,
-	spectator spectatorclient.Spectator,
-	taskListDifferentiator *membership.TaskListDifferentiator,
-	logger log.Logger,
-	metricsScope metrics.Scope,
-) map[string]membership.SingleProvider {
-	if _, ok := hashRings[service.Matching]; ok {
-		hashRings[service.Matching] = membership.NewShardDistributorResolver(
-			spectator,
-			taskListDifferentiator,
-			hashRings[service.Matching],
-			logger,
-			metricsScope,
-		)
-	}
-	return hashRings
 }
 
 func (*server) createShardDistributorClient(

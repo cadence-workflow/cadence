@@ -741,6 +741,20 @@ func (mr *MockResourceMockRecorder) GetShardManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardManager", reflect.TypeOf((*MockResource)(nil).GetShardManager))
 }
 
+// GetTaskListRouter mocks base method.
+func (m *MockResource) GetTaskListRouter() matching.TaskListRouter {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskListRouter")
+	ret0, _ := ret[0].(matching.TaskListRouter)
+	return ret0
+}
+
+// GetTaskListRouter indicates an expected call of GetTaskListRouter.
+func (mr *MockResourceMockRecorder) GetTaskListRouter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskListRouter", reflect.TypeOf((*MockResource)(nil).GetTaskListRouter))
+}
+
 // GetTaskManager mocks base method.
 func (m *MockResource) GetTaskManager() persistence.TaskManager {
 	m.ctrl.T.Helper()

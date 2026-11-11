@@ -113,6 +113,7 @@ type (
 		domainCache                    cache.DomainCache
 		versionChecker                 client.VersionChecker
 		membershipResolver             membership.Resolver
+		taskListRouter                 matching.TaskListRouter
 		isolationState                 isolationgroup.State
 		timeSource                     clock.TimeSource
 		zapLogger                      *zap.Logger
@@ -120,7 +121,7 @@ type (
 		ShardDistributorMatchingConfig clientcommon.Config
 		drainObserver                  clientcommon.DrainSignalObserver
 		percentageOnboarded            membership.PercentageOnboarded
-		taskListDifferentiator         *membership.TaskListDifferentiator
+		taskListDifferentiator         *matching.TaskListDifferentiator
 	}
 )
 
@@ -164,11 +165,12 @@ func NewEngine(
 	metricsScope tally.Scope,
 	domainCache cache.DomainCache,
 	resolver membership.Resolver,
+	taskListRouter matching.TaskListRouter,
 	isolationState isolationgroup.State,
 	timeSource clock.TimeSource,
 	shardDistributorClient executorclient.Client,
 	ShardDistributorMatchingConfig clientcommon.Config,
-	taskListDifferentiator *membership.TaskListDifferentiator,
+	taskListDifferentiator *matching.TaskListDifferentiator,
 	drainObserver clientcommon.DrainSignalObserver,
 	percentageOnboarded membership.PercentageOnboarded,
 ) Engine {
@@ -193,6 +195,7 @@ func NewEngine(
 		domainCache:                    domainCache,
 		versionChecker:                 client.NewVersionChecker(),
 		membershipResolver:             resolver,
+		taskListRouter:                 taskListRouter,
 		isolationState:                 isolationState,
 		timeSource:                     timeSource,
 		zapLogger:                      zapLogger,
@@ -1374,7 +1377,7 @@ func (e *matchingEngineImpl) RefreshTaskListPartitionConfig(
 }
 
 func (e *matchingEngineImpl) getHostInfo(partitionKey string) (string, error) {
-	host, err := e.membershipResolver.Lookup(service.Matching, partitionKey)
+	host, err := e.taskListRouter.FromTaskList(partitionKey)
 	if err != nil {
 		return "", err
 	}

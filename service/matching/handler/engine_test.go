@@ -38,6 +38,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
@@ -335,6 +336,7 @@ func TestListTaskListPartitions(t *testing.T) {
 			engine := &matchingEngineImpl{
 				domainCache:        mockDomainCache,
 				membershipResolver: mockResolver,
+				taskListRouter:     newTestTaskListRouter(mockResolver),
 				config: &config.Config{
 					NumTasklistWritePartitions: dynamicproperties.GetIntPropertyFilteredByTaskListInfo(3),
 				},
@@ -431,6 +433,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		engine := &matchingEngineImpl{
 			executor:               executor,
 			membershipResolver:     resolver,
+			taskListRouter:         newTestTaskListRouter(resolver),
 			metricsClient:          metrics.NewNoopMetricsClient(),
 			percentageOnboarded:    pct,
 			taskListDifferentiator: newTestTaskListDifferentiator(false, false),
@@ -929,6 +932,7 @@ func TestGetTasklistsNotOwned(t *testing.T) {
 	e := matchingEngineImpl{
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
+		taskListRouter:     newTestTaskListRouter(resolver),
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		config:             &config.Config{},
 		logger:             log.NewNoop(),
@@ -965,6 +969,7 @@ func TestShutDownTasklistsNotOwned(t *testing.T) {
 	e := matchingEngineImpl{
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
+		taskListRouter:     newTestTaskListRouter(resolver),
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		config:             &config.Config{},
 		metricsClient:      metrics.NewNoopMetricsClient(),
@@ -1994,6 +1999,7 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 		semaphoreTaskManager:     newSemaphoreTasks(t),
 		domainCache:              domainCache,
 		membershipResolver:       resolver,
+		taskListRouter:           newTestTaskListRouter(resolver),
 		metricsClient:            metrics.NewNoopMetricsClient(),
 		logger:                   log.NewNoop(),
 		// A clock that only moves when a test moves it, so no bucket is evicted mid-test.
@@ -2416,11 +2422,23 @@ func TestReleaseSemaphore(t *testing.T) {
 	})
 }
 
-func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByHash bool) *membership.TaskListDifferentiator {
-	return membership.NewTaskListDifferentiator(
+func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByHash bool) *matching.TaskListDifferentiator {
+	return matching.NewTaskListDifferentiator(
 		dynamicproperties.GetBoolPropertyFn(excludeShortLivedTaskLists),
 		dynamicproperties.GetBoolPropertyFn(shardTaskListsByHash),
 		membership.StaticPercentageOnboarded(100),
 		commonConfig.DefaultNumMatchingShards,
 	)
+}
+
+// newTestTaskListRouter returns a router for tests without a shard distributor. Nothing is onboarded,
+// so it looks up every task list on the resolver's hash ring.
+func newTestTaskListRouter(resolver membership.Resolver) matching.TaskListRouter {
+	taskListDifferentiator := matching.NewTaskListDifferentiator(
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		membership.StaticPercentageOnboarded(0),
+		commonConfig.DefaultNumMatchingShards,
+	)
+	return matching.NewTaskListRouter(resolver, taskListDifferentiator, nil, log.NewNoop(), metrics.NoopScope)
 }

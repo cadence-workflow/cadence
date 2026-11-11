@@ -40,23 +40,25 @@ type PeerResolver interface {
 }
 
 type peerResolver struct {
-	resolver  membership.Resolver
-	namedPort string // grpc or tchannel, depends on yarpc configuration
+	resolver       membership.Resolver
+	taskListRouter TaskListRouter
+	namedPort      string // grpc or tchannel, depends on yarpc configuration
 }
 
 // NewPeerResolver creates a new matching peer resolver.
-func NewPeerResolver(membership membership.Resolver, namedPort string) PeerResolver {
+func NewPeerResolver(membership membership.Resolver, taskListRouter TaskListRouter, namedPort string) PeerResolver {
 	return peerResolver{
-		resolver:  membership,
-		namedPort: namedPort,
+		resolver:       membership,
+		taskListRouter: taskListRouter,
+		namedPort:      namedPort,
 	}
 }
 
 // FromTaskList resolves the matching peer responsible for the given task list name.
-// It uses our membership provider to lookup which instance currently owns the given task list.
+// It uses the task list router to lookup which instance currently owns the given task list.
 // FromHostAddress is used for further resolving.
 func (pr peerResolver) FromTaskList(taskListName string) (string, error) {
-	host, err := pr.resolver.Lookup(service.Matching, taskListName)
+	host, err := pr.taskListRouter.FromTaskList(taskListName)
 	if err != nil {
 		return "", common.ToServiceTransientError(err)
 	}

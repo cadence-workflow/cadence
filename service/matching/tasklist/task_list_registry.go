@@ -25,7 +25,7 @@ package tasklist
 import (
 	"sync"
 
-	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/metrics"
 )
 
@@ -70,7 +70,7 @@ func (r *taskListRegistryImpl) Register(id Identifier, mgr Manager) {
 	if _, ok := r.taskListsByTaskListName[id.GetName()]; !ok {
 		r.taskListsByTaskListName[id.GetName()] = make(map[Identifier]Manager)
 	}
-	shardID := membership.TaskListNameToShard(id.GetName(), r.shardCount)
+	shardID := matching.TaskListNameToShard(id.GetName(), r.shardCount)
 	if _, ok := r.taskListsByShard[shardID]; !ok {
 		r.taskListsByShard[shardID] = make(map[Identifier]Manager)
 	}
@@ -101,7 +101,7 @@ func (r *taskListRegistryImpl) Unregister(mgr Manager) bool {
 			delete(r.taskListsByTaskListName, id.GetName())
 		}
 
-		shardID := membership.TaskListNameToShard(id.GetName(), r.shardCount)
+		shardID := matching.TaskListNameToShard(id.GetName(), r.shardCount)
 		delete(r.taskListsByShard[shardID], *id)
 		if len(r.taskListsByShard[shardID]) == 0 {
 			delete(r.taskListsByShard, shardID)

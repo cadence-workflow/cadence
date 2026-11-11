@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package membership
+package matching
 
 import (
 	"testing"
@@ -34,10 +34,12 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/service"
 )
 
-func TestShardDistributorResolver_Lookup(t *testing.T) {
+func TestTaskListRouter_FromTaskList(t *testing.T) {
 	tests := []struct {
 		name                 string
 		shardTaskListsByHash bool
@@ -56,11 +58,11 @@ func TestShardDistributorResolver_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resolver, _, shardDistributorMock := newShardDistributorResolver(t)
-			resolver.taskListDifferentiator = NewTaskListDifferentiator(
+			router, _, shardDistributorMock := newTestTaskListRouter(t)
+			router.taskListDifferentiator = NewTaskListDifferentiator(
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
-				StaticPercentageOnboarded(100),
+				membership.StaticPercentageOnboarded(100),
 				config.DefaultNumMatchingShards,
 			)
 
@@ -74,35 +76,35 @@ func TestShardDistributorResolver_Lookup(t *testing.T) {
 					},
 				}, nil)
 
-			host, err := resolver.Lookup("test-key")
+			host, err := router.FromTaskList("test-key")
 			require.NoError(t, err)
-			assert.Equal(t, "127.0.0.1:7933", host.addr)
+			assert.Equal(t, "127.0.0.1:7933", host.GetAddress())
 		})
 	}
 }
 
-func TestShardDistributorResolver_Lookup_ExcludedFallsBackToHashRing(t *testing.T) {
-	resolver, ring, _ := newShardDistributorResolver(t)
+func TestTaskListRouter_FromTaskList_ExcludedFallsBackToHashRing(t *testing.T) {
+	router, resolver, _ := newTestTaskListRouter(t)
 	// Set percentage to 0 so all task lists are excluded
-	resolver.taskListDifferentiator = NewTaskListDifferentiator(
+	router.taskListDifferentiator = NewTaskListDifferentiator(
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
-		StaticPercentageOnboarded(0),
+		membership.StaticPercentageOnboarded(0),
 		config.DefaultNumMatchingShards,
 	)
 
-	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "test-addr"}, nil)
+	resolver.EXPECT().Lookup(service.Matching, "test-key").Return(membership.NewHostInfo("test-addr"), nil)
 
-	host, err := resolver.Lookup("test-key")
+	host, err := router.FromTaskList("test-key")
 	assert.NoError(t, err)
-	assert.Equal(t, "test-addr", host.addr)
+	assert.Equal(t, "test-addr", host.GetAddress())
 }
 
-func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *testing.T) {
+func TestTaskListRouter_FromTaskList_NilSpectatorFallsBackToHashRing(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	ring := NewMockSingleProvider(ctrl)
+	resolver := membership.NewMockResolver(ctrl)
 	logger := log.NewNoop()
-	pct := NewMockPercentageOnboarded(ctrl)
+	pct := membership.NewMockPercentageOnboarded(ctrl)
 	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	taskListDifferentiator := NewTaskListDifferentiator(
@@ -111,22 +113,22 @@ func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *test
 		pct,
 		config.DefaultNumMatchingShards,
 	)
-	resolver := NewShardDistributorResolver(
-		nil, // nil spectator
+	router := NewTaskListRouter(
+		resolver,
 		taskListDifferentiator,
-		ring,
+		nil, // nil spectator
 		logger,
 		metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),
-	).(*shardDistributorResolver)
+	).(*taskListRouter)
 
-	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "hash-ring-addr"}, nil)
+	resolver.EXPECT().Lookup(service.Matching, "test-key").Return(membership.NewHostInfo("hash-ring-addr"), nil)
 
-	host, err := resolver.Lookup("test-key")
+	host, err := router.FromTaskList("test-key")
 	assert.NoError(t, err)
-	assert.Equal(t, "hash-ring-addr", host.addr)
+	assert.Equal(t, "hash-ring-addr", host.GetAddress())
 }
 
-func TestShardDistributorResolver_Lookup_RecordsRoutingPath(t *testing.T) {
+func TestTaskListRouter_FromTaskList_RecordsRoutingPath(t *testing.T) {
 	tests := []struct {
 		name                string
 		percentageOnboarded int
@@ -156,8 +158,8 @@ func TestShardDistributorResolver_Lookup_RecordsRoutingPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			ring := NewMockSingleProvider(ctrl)
-			percentageOnboarded := NewMockPercentageOnboarded(ctrl)
+			resolver := membership.NewMockResolver(ctrl)
+			percentageOnboarded := membership.NewMockPercentageOnboarded(ctrl)
 			percentageOnboarded.EXPECT().Value().Return(tt.percentageOnboarded)
 
 			var spectator spectatorclient.Spectator
@@ -175,7 +177,7 @@ func TestShardDistributorResolver_Lookup_RecordsRoutingPath(t *testing.T) {
 				}
 			}
 			if tt.percentageOnboarded == 0 || !tt.withSpectator {
-				ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "hash-ring-addr"}, nil)
+				resolver.EXPECT().Lookup(service.Matching, "test-key").Return(membership.NewHostInfo("hash-ring-addr"), nil)
 			}
 
 			testScope := tally.NewTestScope("", nil)
@@ -186,15 +188,15 @@ func TestShardDistributorResolver_Lookup_RecordsRoutingPath(t *testing.T) {
 				percentageOnboarded,
 				config.DefaultNumMatchingShards,
 			)
-			resolver := NewShardDistributorResolver(
-				spectator,
+			router := NewTaskListRouter(
+				resolver,
 				taskListDifferentiator,
-				ring,
+				spectator,
 				log.NewNoop(),
 				metricsClient.Scope(metrics.ShardDistributorResolverScope),
 			)
 
-			_, err := resolver.Lookup("test-key")
+			_, err := router.FromTaskList("test-key")
 			assert.NoError(t, err)
 
 			counters := testScope.Snapshot().Counters()
@@ -208,55 +210,7 @@ func TestShardDistributorResolver_Lookup_RecordsRoutingPath(t *testing.T) {
 	}
 }
 
-func TestShardDistributorResolver_Start(t *testing.T) {
-	resolver, ring, _ := newShardDistributorResolver(t)
-	ring.EXPECT().Start().Times(1)
-	resolver.Start()
-}
-
-func TestShardDistributorResolver_Stop(t *testing.T) {
-	resolver, ring, _ := newShardDistributorResolver(t)
-	ring.EXPECT().Stop().Times(1)
-	resolver.Stop()
-}
-
-func TestShardDistributorResolver_Subscribe(t *testing.T) {
-	resolver, ring, _ := newShardDistributorResolver(t)
-	ring.EXPECT().Subscribe("test-name", gomock.Any()).Times(1)
-	resolver.Subscribe("test-name", nil)
-}
-
-func TestShardDistributorResolver_UnSubscribe(t *testing.T) {
-	resolver, ring, _ := newShardDistributorResolver(t)
-	ring.EXPECT().Unsubscribe("test-name").Times(1)
-	resolver.Unsubscribe("test-name")
-}
-
-func TestShardDistributorResolver_Members(t *testing.T) {
-	resolver, ring, _ := newShardDistributorResolver(t)
-	ring.EXPECT().Members().Return(nil)
-	resolver.Members()
-}
-
-func TestShardDistributorResolver_MemberCount(t *testing.T) {
-	resolver, ring, _ := newShardDistributorResolver(t)
-	ring.EXPECT().MemberCount().Return(0)
-	resolver.MemberCount()
-}
-
-func TestShardDistributorResolver_Refresh(t *testing.T) {
-	resolver, ring, _ := newShardDistributorResolver(t)
-	ring.EXPECT().Refresh().Times(1)
-	resolver.Refresh()
-}
-
-func TestShardDistributorResolver_AddressToHost(t *testing.T) {
-	resolver, ring, _ := newShardDistributorResolver(t)
-	ring.EXPECT().AddressToHost("test").Return(HostInfo{}, nil)
-	resolver.AddressToHost("test")
-}
-
-func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T) {
+func TestTaskListRouter_FromTaskList_ExcludeShortLivedTaskLists(t *testing.T) {
 	cases := []struct {
 		name                       string
 		excludeShortLivedTaskLists bool
@@ -287,9 +241,9 @@ func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			spectator := spectatorclient.NewMockSpectator(ctrl)
-			ring := NewMockSingleProvider(ctrl)
+			resolver := membership.NewMockResolver(ctrl)
 			logger := log.NewNoop()
-			pct := NewMockPercentageOnboarded(ctrl)
+			pct := membership.NewMockPercentageOnboarded(ctrl)
 			pct.EXPECT().Value().Return(100).AnyTimes()
 
 			taskListDifferentiator := NewTaskListDifferentiator(
@@ -298,16 +252,16 @@ func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T
 				pct,
 				config.DefaultNumMatchingShards,
 			)
-			resolver := NewShardDistributorResolver(
-				spectator,
+			router := NewTaskListRouter(
+				resolver,
 				taskListDifferentiator,
-				ring,
+				spectator,
 				logger,
 				metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),
-			).(*shardDistributorResolver)
+			).(*taskListRouter)
 
 			if tc.expectHashRing {
-				ring.EXPECT().Lookup(tc.taskListName).Return(HostInfo{addr: "hash-ring-addr"}, nil)
+				resolver.EXPECT().Lookup(service.Matching, tc.taskListName).Return(membership.NewHostInfo("hash-ring-addr"), nil)
 			} else {
 				spectator.EXPECT().GetShardOwner(gomock.Any(), tc.taskListName).
 					Return(&spectatorclient.ShardOwner{
@@ -320,25 +274,25 @@ func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T
 					}, nil)
 			}
 
-			host, err := resolver.Lookup(tc.taskListName)
+			host, err := router.FromTaskList(tc.taskListName)
 			assert.NoError(t, err)
 
 			if tc.expectHashRing {
-				assert.Equal(t, "hash-ring-addr", host.addr)
+				assert.Equal(t, "hash-ring-addr", host.GetAddress())
 			} else {
-				assert.Equal(t, "127.0.0.1:7933", host.addr)
+				assert.Equal(t, "127.0.0.1:7933", host.GetAddress())
 			}
 		})
 	}
 }
 
-func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *MockSingleProvider, *spectatorclient.MockSpectator) {
+func newTestTaskListRouter(t *testing.T) (*taskListRouter, *membership.MockResolver, *spectatorclient.MockSpectator) {
 	ctrl := gomock.NewController(t)
 	spectator := spectatorclient.NewMockSpectator(ctrl)
 	excludeShortLivedTaskLists := dynamicproperties.GetBoolPropertyFn(false)
-	percentageOnboarded := NewMockPercentageOnboarded(ctrl)
+	percentageOnboarded := membership.NewMockPercentageOnboarded(ctrl)
 	percentageOnboarded.EXPECT().Value().Return(100).AnyTimes()
-	ring := NewMockSingleProvider(ctrl)
+	resolver := membership.NewMockResolver(ctrl)
 	logger := log.NewNoop()
 
 	taskListDifferentiator := NewTaskListDifferentiator(
@@ -347,13 +301,13 @@ func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *Mock
 		percentageOnboarded,
 		config.DefaultNumMatchingShards,
 	)
-	resolver := NewShardDistributorResolver(
-		spectator,
+	router := NewTaskListRouter(
+		resolver,
 		taskListDifferentiator,
-		ring,
+		spectator,
 		logger,
 		metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),
-	).(*shardDistributorResolver)
+	).(*taskListRouter)
 
-	return resolver, ring, spectator
+	return router, resolver, spectator
 }

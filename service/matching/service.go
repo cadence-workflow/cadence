@@ -21,13 +21,12 @@
 package matching
 
 import (
-	"errors"
-	"fmt"
 	"sync/atomic"
 	"time"
 
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
 
+	matchingClient "github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/resource"
@@ -47,7 +46,7 @@ type Service struct {
 	stopC                          chan struct{}
 	config                         *config.Config
 	ShardDistributorMatchingConfig clientcommon.Config
-	taskListDifferentiator         *membership.TaskListDifferentiator
+	taskListDifferentiator         *matchingClient.TaskListDifferentiator
 	drainObserver                  clientcommon.DrainSignalObserver
 	percentageOnboarded            membership.PercentageOnboarded
 }
@@ -56,15 +55,6 @@ type Service struct {
 func NewService(
 	params *resource.Params,
 ) (resource.Resource, error) {
-	if params.TaskListDifferentiator == nil {
-		return nil, errors.New("creating matching service: resource.Params.TaskListDifferentiator must be set")
-	}
-	// The task list registry hashes every task list name into a shard, and a non-positive count
-	// would make that panic. We fail here instead.
-	if shardCount := params.TaskListDifferentiator.ShardCount(); shardCount <= 0 {
-		return nil, fmt.Errorf("creating matching service: numMatchingShards must be positive, got %d", shardCount)
-	}
-
 	serviceConfig := config.NewConfig(
 		params.DynamicCollection,
 		params.OperationalDynamicConfig,
@@ -124,6 +114,7 @@ func (s *Service) Start() {
 		s.GetMetricsScope(),
 		s.GetDomainCache(),
 		s.GetMembershipResolver(),
+		s.GetTaskListRouter(),
 		s.GetIsolationGroupState(),
 		s.GetTimeSource(),
 		s.GetShardDistributorExecutorClient(),
