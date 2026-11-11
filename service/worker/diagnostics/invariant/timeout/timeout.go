@@ -9,6 +9,7 @@ import (
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/cadence/.gen/go/shared"
 
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
@@ -34,7 +35,7 @@ func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInpu
 	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
 	issueID := 0
 	for _, event := range events {
-		if event.WorkflowExecutionTimedOutEventAttributes != nil {
+		if timeoutType, ok := executionTimeoutType(event); ok {
 			timeoutLimit := getWorkflowExecutionConfiguredTimeout(events)
 			data := TimeoutIssuesMetadata{
 				EventID:           event.ID,
@@ -48,7 +49,7 @@ func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInpu
 			result = append(result, invariant.InvariantCheckResult{
 				IssueID:       issueID,
 				InvariantType: TimeoutTypeExecution.String(),
-				Reason:        event.GetWorkflowExecutionTimedOutEventAttributes().GetTimeoutType().String(),
+				Reason:        timeoutType.String(),
 				Metadata:      invariant.MarshalData(data),
 			})
 			issueID++
@@ -96,6 +97,20 @@ func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInpu
 		}
 	}
 	return result, nil
+}
+
+// executionTimeoutType reports whether the event closed the run on its execution timeout.
+// A retry or cron run closes with ContinuedAsNew instead, which the server writes without a decision task.
+func executionTimeoutType(event *types.HistoryEvent) (types.TimeoutType, bool) {
+	if attr := event.WorkflowExecutionTimedOutEventAttributes; attr != nil {
+		return attr.GetTimeoutType(), true
+	}
+	if attr := event.GetWorkflowExecutionContinuedAsNewEventAttributes(); attr.GetFailureReason() != "" &&
+		attr.DecisionTaskCompletedEventID == constants.EmptyEventID {
+		// ContinuedAsNew has no timeout type, and execution timeouts are always START_TO_CLOSE.
+		return types.TimeoutTypeStartToClose, true
+	}
+	return 0, false
 }
 
 func (t *timeout) RootCause(ctx context.Context, params invariant.InvariantRootCauseInput) ([]invariant.InvariantRootCauseResult, error) {
