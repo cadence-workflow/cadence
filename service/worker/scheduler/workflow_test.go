@@ -22,6 +22,7 @@ package scheduler
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/testsuite"
+	"go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/zap"
 
@@ -180,6 +182,24 @@ func TestComputeNextRunTime(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSchedulerWorkflowReplaysWithoutVersionMarker(t *testing.T) {
+	// The legacy workflow waits for noon and is deleted at 11:59:30. Under the
+	// corrected rule, the next tick is past EndTime and it completes at 11:59.
+	history, err := os.Open("testdata/fractional_start_no_marker.json")
+	require.NoError(t, err)
+	defer history.Close()
+
+	replayer := worker.NewWorkflowReplayer()
+	var completedAt time.Time
+	replayer.RegisterWorkflowWithOptions(func(ctx workflow.Context, input SchedulerWorkflowInput) error {
+		err := SchedulerWorkflow(ctx, input)
+		completedAt = workflow.Now(ctx)
+		return err
+	}, workflow.RegisterOptions{Name: WorkflowTypeName})
+	require.NoError(t, replayer.ReplayWorkflowHistoryFromJSON(testLogger, history))
+	require.Equal(t, time.Date(2026, 1, 1, 11, 59, 30, 0, time.UTC), completedAt.UTC())
 }
 
 func TestSchedulerWorkflowFractionalStartVersion(t *testing.T) {
