@@ -1307,6 +1307,12 @@ func newAdminRebalanceCommands() []*cli.Command {
 					Name:  FlagFailoverV2,
 					Usage: "Use the V2 rebalance workflow, which corrects domain-level and cluster-attribute drift from stored preferences",
 				},
+				&cli.IntFlag{
+					Name:    FlagExecutionTimeout,
+					Aliases: []string{"et"},
+					Usage:   "Optional Rebalance workflow timeout in seconds",
+					Value:   defaultFailoverWorkflowTimeoutInSeconds,
+				},
 			},
 			Action: AdminRebalanceStart,
 		},

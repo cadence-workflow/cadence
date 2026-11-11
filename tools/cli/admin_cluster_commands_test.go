@@ -254,6 +254,42 @@ func TestAdminRebalanceStart(t *testing.T) {
 	}
 }
 
+func TestAdminRebalanceStart_ExecutionTimeout(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		wantTimeout int32
+	}{
+		{
+			name:        "default timeout when the flag is not set",
+			args:        []string{"", "admin", "cluster", "rebalance", "start"},
+			wantTimeout: defaultFailoverWorkflowTimeoutInSeconds,
+		},
+		{
+			name:        "timeout from the flag",
+			args:        []string{"", "admin", "cluster", "rebalance", "start", "--execution_timeout", "600"},
+			wantTimeout: 600,
+		},
+		{
+			name:        "default timeout when the flag is not positive",
+			args:        []string{"", "admin", "cluster", "rebalance", "start", "--v2", "--execution_timeout", "0"},
+			wantTimeout: defaultFailoverWorkflowTimeoutInSeconds,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := newCLITestData(t)
+			td.mockFrontendClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ interface{}, req *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
+					assert.Equal(t, tt.wantTimeout, req.GetExecutionStartToCloseTimeoutSeconds())
+					return &types.StartWorkflowExecutionResponse{RunID: "test-run-id"}, nil
+				}).Times(1)
+
+			assert.NoError(t, td.app.Run(tt.args))
+		})
+	}
+}
+
 func TestAdminRebalanceStartV2_WhenV2FlagIsSetItStartsTheV2RebalanceWorkflow(t *testing.T) {
 	td := newCLITestData(t)
 	td.mockFrontendClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
