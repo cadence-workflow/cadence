@@ -55,6 +55,21 @@ func (mr *MockManagerMockRecorder) Acquire(ctx, ownerID any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Acquire", reflect.TypeOf((*MockManager)(nil).Acquire), ctx, ownerID)
 }
 
+// GetTokenByOwner mocks base method.
+func (m *MockManager) GetTokenByOwner(ctx context.Context, ownerID string) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTokenByOwner", ctx, ownerID)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTokenByOwner indicates an expected call of GetTokenByOwner.
+func (mr *MockManagerMockRecorder) GetTokenByOwner(ctx, ownerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTokenByOwner", reflect.TypeOf((*MockManager)(nil).GetTokenByOwner), ctx, ownerID)
+}
+
 // Identifier mocks base method.
 func (m *MockManager) Identifier() Identifier {
 	m.ctrl.T.Helper()

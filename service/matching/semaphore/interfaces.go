@@ -21,6 +21,8 @@ type (
 		// Release frees the token ownerID holds. An owner that holds nothing is released too, so a
 		// repeated release succeeds.
 		Release(ctx context.Context, ownerID string) error
+		// GetTokenByOwner returns the token ownerID holds, or 0 if it holds none.
+		GetTokenByOwner(ctx context.Context, ownerID string) (int, error)
 		// Identifier names the bucket this manager serves.
 		Identifier() Identifier
 	}

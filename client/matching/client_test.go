@@ -636,6 +636,40 @@ func TestClient_withResponse(t *testing.T) {
 			want:      nil,
 			wantError: true,
 		},
+		{
+			name: "GetSemaphoreTokenByOwner",
+			op: func(c Client) (any, error) {
+				return c.GetSemaphoreTokenByOwner(context.Background(), testGetSemaphoreTokenByOwnerRequest())
+			},
+			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
+				p.EXPECT().FromSemaphoreBucket(_testDomainUUID, "sem-1", 2).Return("peer0", nil)
+				c.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), testGetSemaphoreTokenByOwnerRequest(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(&types.GetSemaphoreTokenByOwnerResponse{TokenID: 3}, nil)
+			},
+			want: &types.GetSemaphoreTokenByOwnerResponse{TokenID: 3},
+		},
+		{
+			name: "GetSemaphoreTokenByOwner - Error in resolving peer",
+			op: func(c Client) (any, error) {
+				return c.GetSemaphoreTokenByOwner(context.Background(), testGetSemaphoreTokenByOwnerRequest())
+			},
+			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
+				p.EXPECT().FromSemaphoreBucket(_testDomainUUID, "sem-1", 2).Return("", assert.AnError)
+			},
+			want:      nil,
+			wantError: true,
+		},
+		{
+			name: "GetSemaphoreTokenByOwner - Error while looking up",
+			op: func(c Client) (any, error) {
+				return c.GetSemaphoreTokenByOwner(context.Background(), testGetSemaphoreTokenByOwnerRequest())
+			},
+			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
+				p.EXPECT().FromSemaphoreBucket(_testDomainUUID, "sem-1", 2).Return("peer0", nil)
+				c.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(nil, assert.AnError)
+			},
+			want:      nil,
+			wantError: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -792,6 +826,15 @@ func testAcquireSemaphoreRequest() *types.AcquireSemaphoreRequest {
 
 func testReleaseSemaphoreRequest() *types.ReleaseSemaphoreRequest {
 	return &types.ReleaseSemaphoreRequest{
+		DomainUUID:    _testDomainUUID,
+		SemaphoreName: "sem-1",
+		Bucket:        2,
+		OwnerID:       "owner-1",
+	}
+}
+
+func testGetSemaphoreTokenByOwnerRequest() *types.GetSemaphoreTokenByOwnerRequest {
+	return &types.GetSemaphoreTokenByOwnerRequest{
 		DomainUUID:    _testDomainUUID,
 		SemaphoreName: "sem-1",
 		Bucket:        2,

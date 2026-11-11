@@ -496,6 +496,7 @@ var (
 	MatchingClientOperationRefreshTaskListPartitionConfig = clientOperation("matching-refresh-task-list-partition-config")
 	MatchingClientOperationAcquireSemaphore               = clientOperation("matching-acquire-semaphore")
 	MatchingClientOperationReleaseSemaphore               = clientOperation("matching-release-semaphore")
+	MatchingClientOperationGetSemaphoreTokenByOwner       = clientOperation("matching-get-semaphore-token-by-owner")
 )
 
 // Pre-defined values for TagIDType

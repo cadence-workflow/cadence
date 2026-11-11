@@ -82,6 +82,17 @@ func (c *matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.Matchi
 	return resp, err
 }
 
+func (c *matchingClient) GetSemaphoreTokenByOwner(ctx context.Context, gp1 *types.GetSemaphoreTokenByOwnerRequest, p1 ...yarpc.CallOption) (gp2 *types.GetSemaphoreTokenByOwnerResponse, err error) {
+	var resp *types.GetSemaphoreTokenByOwnerResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.GetSemaphoreTokenByOwner(ctx, gp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest, p1 ...yarpc.CallOption) (gp2 *types.GetTaskListsByDomainResponse, err error) {
 	var resp *types.GetTaskListsByDomainResponse
 	op := func(ctx context.Context) error {

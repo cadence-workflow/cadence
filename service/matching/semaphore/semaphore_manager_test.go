@@ -478,8 +478,7 @@ func TestManagerLifecycle(t *testing.T) {
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 
-	// The idle clock does not run during the load, is reset by Acquire, and stops the manager after
-	// the idle TTL.
+	// The idle clock starts after the load and is reset by Acquire, not by GetTokenByOwner.
 	t.Run("unloads after the idle TTL", func(t *testing.T) {
 		defer goleak.VerifyNone(t)
 		m := persistence.NewMockSemaphoreTokenManager(gomock.NewController(t))
@@ -501,8 +500,10 @@ func TestManagerLifecycle(t *testing.T) {
 		mockClock.Advance(testIdleTTL / 2)
 		require.Never(t, isStopped, 50*time.Millisecond, 5*time.Millisecond, "stopped within the idle TTL of an Acquire")
 
-		mockClock.Advance(testIdleTTL)
-		require.Eventually(t, isStopped, time.Second, 5*time.Millisecond, "did not stop after the idle TTL")
+		_, err = mgr.GetTokenByOwner(context.Background(), "caller")
+		require.NoError(t, err)
+		mockClock.Advance(testIdleTTL * 3 / 4)
+		require.Eventually(t, isStopped, time.Second, 5*time.Millisecond, "did not stop an idle TTL after the Acquire")
 	})
 
 	t.Run("a non-positive idle time still starts", func(t *testing.T) {
@@ -1146,6 +1147,111 @@ func TestManager_ConcurrentCalls(t *testing.T) {
 	assert.Equal(t, tokens, freeTokenCount(mgr), "every acquired token was released")
 	assertBucketUnlocked(t, mgr)
 	assertCacheConsistent(t, mgr.currentCache())
+}
+
+func TestGetTokenByOwner(t *testing.T) {
+	readErr := errors.New("cassandra unavailable")
+	notFound := &types.EntityNotExistsError{Message: "not found"}
+	ownerRowNaming := func(tokenID int) *persistence.GetSemaphoreOwnershipByOwnerResponse {
+		return &persistence.GetSemaphoreOwnershipByOwnerResponse{Ownership: ownerRow("caller", tokenID)}
+	}
+
+	tests := []struct {
+		name           string
+		cacheEntries   map[int]tokenEntry
+		managerStopped bool
+		bucketLocked   bool
+		mockSetup      func(m *persistence.MockSemaphoreTokenManager)
+		wantTokenID    int
+		assertErr      func(t *testing.T, err error)
+	}{
+		{
+			name:         "success - token in cache, returned without reading the database",
+			cacheEntries: map[int]tokenEntry{1: heldByCaller, 2: free},
+			wantTokenID:  1,
+		},
+		{
+			name:         "success - token in cache while a grant holds the bucket lock, returned without waiting",
+			cacheEntries: map[int]tokenEntry{1: heldByCaller, 2: free},
+			bucketLocked: true,
+			wantTokenID:  1,
+		},
+		{
+			name:         "success - not in cache and no owner row, returns 0",
+			cacheEntries: map[int]tokenEntry{1: heldByOther, 2: free},
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				expectGetOwnerRow(m).Return(nil, notFound)
+			},
+		},
+		{
+			name:         "success - not in cache, owner row has token 2, returns 2",
+			cacheEntries: map[int]tokenEntry{1: free, 2: unavailable},
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				expectGetOwnerRow(m).Return(ownerRowNaming(2), nil)
+			},
+			wantTokenID: 2,
+		},
+		{
+			name:         "failure - not in cache, owner row read error is returned",
+			cacheEntries: map[int]tokenEntry{1: free, 2: free},
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				expectGetOwnerRow(m).Return(nil, readErr)
+			},
+			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, readErr) },
+		},
+		{
+			name:         "failure - not in cache, owner row token outside the bucket, returns an error",
+			cacheEntries: map[int]tokenEntry{1: free, 2: free},
+			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
+				expectGetOwnerRow(m).Return(ownerRowNaming(3), nil)
+			},
+			assertErr: func(t *testing.T, err error) {
+				assert.IsType(t, &types.InternalServiceError{}, err)
+				assert.ErrorContains(t, err, "owner caller's owner row names token 3, outside tokens 1 to 2")
+			},
+		},
+		{
+			name:           "failure - manager stopped, returns ErrNotReady",
+			cacheEntries:   map[int]tokenEntry{1: heldByCaller, 2: free},
+			managerStopped: true,
+			assertErr: func(t *testing.T, err error) {
+				assert.ErrorIs(t, err, ErrNotReady)
+				assert.True(t, common.IsServiceTransientError(err), "a retry can get a different answer")
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := persistence.NewMockSemaphoreTokenManager(gomock.NewController(t))
+			mgr := startManager(t, m, 2, nil)
+			for tokenID, entry := range tc.cacheEntries {
+				setTokenEntry(t, mgr.currentCache(), tokenID, entry)
+			}
+			if tc.managerStopped {
+				mgr.Stop()
+			}
+			if tc.bucketLocked {
+				require.NoError(t, mgr.bucketLock.Lock(context.Background()))
+				defer mgr.bucketLock.Unlock()
+			}
+			if tc.mockSetup != nil {
+				tc.mockSetup(m)
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			tokenID, err := mgr.GetTokenByOwner(ctx, "caller")
+			if tc.assertErr != nil {
+				tc.assertErr(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.wantTokenID, tokenID)
+			cache := mgr.currentCache()
+			assert.Equal(t, tc.cacheEntries, map[int]tokenEntry{1: getTokenEntry(cache, 1), 2: getTokenEntry(cache, 2)}, "a lookup never changes the cache")
+		})
+	}
 }
 
 // expectReleaseToken expects one release of tokenID for "caller".
