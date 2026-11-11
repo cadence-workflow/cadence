@@ -147,7 +147,7 @@ type (
 		failoverLevels               map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel // category -> uuid -> FailoverLevel
 
 		// historyTaskDLQWriter wraps the host-wide DLQ manager and keeps historyTaskDLQAckLevelIndex
-		// current. Both die with the shard.
+		// current. Both are scoped to the shard's lifecycle.
 		historyTaskDLQWriter        TaskDLQWriter
 		historyTaskDLQAckLevelIndex *DLQAckLevelIndex
 
@@ -1994,9 +1994,7 @@ func (s *contextImpl) GetHistoryTaskDLQAckLevelIndex() *DLQAckLevelIndex {
 }
 
 // shardedHistoryTaskDLQWriter wraps the host-wide DLQ manager and keeps the shard's DLQ ack-level
-// index current: the idempotent ack-level write is issued at most once per partition/task-category
-// for the life of the shard, and every task write marks its partition dirty. It holds no shard
-// reference: shardID is stamped onto each request by the caller.
+// index current. It has the same lifecycle as the shard.
 type shardedHistoryTaskDLQWriter struct {
 	writer TaskDLQWriter
 	index  *DLQAckLevelIndex
@@ -2011,13 +2009,11 @@ func (w *shardedHistoryTaskDLQWriter) CreateHistoryDLQTask(ctx context.Context, 
 		ClusterAttributeName:  request.ClusterAttributeName,
 		TaskCategoryID:        request.Task.GetTaskCategory().ID(),
 	}
-	// Mark before the write so a reader that snapshots before it sees a dirty entry, and again after
-	// the write returns (success or failure, the row may have landed either way) so a reader that
-	// snapshotted while the write was in flight cannot MarkClean against a generation that predates
-	// the commit. Both marks are kept on failure (conservative).
+	err := w.writer.CreateHistoryDLQTask(ctx, request)
+	// Mark after the write, even on error, so a sweep that read the partition before the task
+	// landed cannot mark it clean.
 	w.index.MarkWrite(key)
-	defer w.index.MarkWrite(key)
-	return w.writer.CreateHistoryDLQTask(ctx, request)
+	return err
 }
 
 func (w *shardedHistoryTaskDLQWriter) CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request persistence.CreateHistoryDLQAckLevelRequest) error {
@@ -2030,8 +2026,8 @@ func (w *shardedHistoryTaskDLQWriter) CreateHistoryDLQAckLevelIfNotExists(ctx co
 	if w.index.Has(key) {
 		return nil
 	}
-	// No lock is held across the persistence call; IF NOT EXISTS is idempotent. If the row already
-	// existed at a higher position, the next seed/sweep Merge max-corrects the entry.
+	// IF NOT EXISTS makes a duplicate create harmless. If the row already existed at a higher
+	// position, the next Merge corrects the entry.
 	if err := w.writer.CreateHistoryDLQAckLevelIfNotExists(ctx, request); err != nil {
 		return err
 	}

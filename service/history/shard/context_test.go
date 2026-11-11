@@ -2318,7 +2318,7 @@ func TestShardedHistoryTaskDLQWriterAckLevel(t *testing.T) {
 	}
 }
 
-func TestShardedHistoryTaskDLQWriter_MarksPartitionBeforePersistenceWrite(t *testing.T) {
+func TestShardedHistoryTaskDLQWriter_FailedWriteMarksCleanPartitionDirty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -2348,18 +2348,11 @@ func TestShardedHistoryTaskDLQWriter_MarksPartitionBeforePersistenceWrite(t *tes
 		ClusterAttributeName:  "n",
 		Task:                  task,
 	}
-	inner.EXPECT().CreateHistoryDLQTask(gomock.Any(), taskReq).DoAndReturn(
-		func(context.Context, persistence.CreateHistoryDLQTaskRequest) error {
-			// The index must already report the partition dirty when the persistence write is
-			// issued, so a concurrent reader can never observe a committed write against a clean entry.
-			require.Len(t, index.Lookup("d1", "s", "n", true), 1,
-				"partition must be marked dirty before the persistence write is issued")
-			return errors.New("persistence write failed")
-		})
+	inner.EXPECT().CreateHistoryDLQTask(gomock.Any(), taskReq).Return(errors.New("persistence write failed"))
 	require.Error(t, w.CreateHistoryDLQTask(context.Background(), taskReq))
-	// Pre-marking is conservative: the mark survives a failed write.
+
+	// A failed write may still have landed, so the partition is dirty and an older snapshot cannot clean it.
 	require.Len(t, index.Lookup("d1", "s", "n", true), 1)
-	// The generation moved, so a reader holding the old snapshot cannot clean the entry.
 	index.MarkClean(key, gen)
 	require.Len(t, index.Lookup("d1", "s", "n", true), 1)
 }
@@ -2421,8 +2414,8 @@ func TestShardedHistoryTaskDLQWriter_FailedWriteStillMovesGeneration(t *testing.
 	mock.EXPECT().CreateHistoryDLQTask(gomock.Any(), req).Return(errors.New("timeout: may have landed"))
 	require.Error(t, w.CreateHistoryDLQTask(context.Background(), req))
 
-	// Two bumps: one before the write, one after it returned (even on error).
-	require.Equal(t, before+2, idx.Lookup("d", "s", "n", false)[0].Generation)
+	// One bump, after the write returned, even on error.
+	require.Equal(t, before+1, idx.Lookup("d", "s", "n", false)[0].Generation)
 }
 
 func TestShardedHistoryTaskDLQWriter_AckLevelCreateDedupsThroughIndex(t *testing.T) {

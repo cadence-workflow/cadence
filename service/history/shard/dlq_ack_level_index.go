@@ -1,14 +1,13 @@
 package shard
 
 import (
-	"sort"
 	"sync"
 
 	"github.com/uber/cadence/common/persistence"
 )
 
 type (
-	// DLQAckLevelKey identifies a single DLQ partition + task category within a shard.
+	// DLQAckLevelKey identifies one DLQ partition and task category within a shard.
 	DLQAckLevelKey struct {
 		DomainID              string
 		ClusterAttributeScope string
@@ -16,7 +15,7 @@ type (
 		TaskCategoryID        int
 	}
 
-	// IndexedDLQAckLevel is a snapshot of one index entry handed to the processor.
+	// IndexedDLQAckLevel is a snapshot of one index entry.
 	IndexedDLQAckLevel struct {
 		Level      persistence.HistoryDLQAckLevel
 		Generation uint64
@@ -24,14 +23,13 @@ type (
 
 	dlqIndexEntry struct {
 		level      persistence.HistoryDLQAckLevel
-		dirty      bool   // a task may exist past the ack level; cleared only by MarkClean
-		generation uint64 // bumped on every MarkWrite; MarkClean is ignored if it moved
+		dirty      bool   // a task may exist past the ack level
+		generation uint64 // bumped by every MarkWrite
 	}
 
-	// DLQAckLevelIndex is the shard-owned in-memory view of the shard's history_task_dlq_ack_level rows.
-	// Before the first Merge, Seeded() is false and absence means "unknown"; after it, absence means
-	// "no ack-level row exists for this shard" (only the owning shard writes rows; the periodic sweep
-	// re-merges every interval as a backstop). All methods are safe for concurrent use.
+	// DLQAckLevelIndex is an in-memory view of a shard's history_task_dlq_ack_level rows.
+	// Seeded() is false until the first Merge. After that, a missing key means the row does not exist.
+	// Each periodic sweep merges the rows from persistence again. Safe for concurrent use.
 	DLQAckLevelIndex struct {
 		mu      sync.Mutex
 		seeded  bool
@@ -54,16 +52,15 @@ func NewDLQAckLevelIndex() *DLQAckLevelIndex {
 	return &DLQAckLevelIndex{entries: make(map[DLQAckLevelKey]*dlqIndexEntry)}
 }
 
-// Seeded reports whether the index has been populated by at least one Merge.
+// Seeded reports whether Merge has run at least once.
 func (i *DLQAckLevelIndex) Seeded() bool {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.seeded
 }
 
-// Merge is monotone: it marks the index seeded, inserts unknown keys as dirty, and for known keys
-// takes the max ack position, leaving dirty/generation untouched. It never removes entries.
-// It is used by the seed read and the periodic sweep read.
+// Merge marks the index seeded and adds the given ack levels. New keys start dirty. Known keys keep
+// the higher ack position, and no entry is removed.
 func (i *DLQAckLevelIndex) Merge(levels []persistence.HistoryDLQAckLevel) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -73,9 +70,8 @@ func (i *DLQAckLevelIndex) Merge(levels []persistence.HistoryDLQAckLevel) {
 	}
 }
 
-// Lookup returns snapshots of the entries whose key matches (domainID, scope, name) exactly. The
-// default (active-passive) partition is exactly ("", ""). dirtyOnly filters to dirty entries.
-// Results are sorted by (DomainID, ClusterAttributeScope, ClusterAttributeName, TaskCategoryID).
+// Lookup returns snapshots of the entries for one partition, across task categories. The
+// active-passive partition is ("", ""). dirtyOnly skips clean entries.
 func (i *DLQAckLevelIndex) Lookup(domainID, clusterAttributeScope, clusterAttributeName string, dirtyOnly bool) []IndexedDLQAckLevel {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -91,11 +87,10 @@ func (i *DLQAckLevelIndex) Lookup(domainID, clusterAttributeScope, clusterAttrib
 		}
 		result = append(result, entry.snapshot())
 	}
-	sortSnapshots(result)
 	return result
 }
 
-// All returns snapshots of every entry, sorted the same way as Lookup.
+// All returns snapshots of every entry.
 func (i *DLQAckLevelIndex) All() []IndexedDLQAckLevel {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -103,11 +98,10 @@ func (i *DLQAckLevelIndex) All() []IndexedDLQAckLevel {
 	for _, entry := range i.entries {
 		result = append(result, entry.snapshot())
 	}
-	sortSnapshots(result)
 	return result
 }
 
-// Has reports whether the key is present. It does not require the index to be seeded.
+// Has reports whether the key is present. It works before the index is seeded.
 func (i *DLQAckLevelIndex) Has(key DLQAckLevelKey) bool {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -115,8 +109,7 @@ func (i *DLQAckLevelIndex) Has(key DLQAckLevelKey) bool {
 	return ok
 }
 
-// Add inserts level as a dirty entry if its key is absent; it is a no-op when the key is present.
-// It does not mark the index seeded.
+// Add inserts level as a dirty entry if its key is absent. It does not mark the index seeded.
 func (i *DLQAckLevelIndex) Add(level persistence.HistoryDLQAckLevel) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -127,8 +120,8 @@ func (i *DLQAckLevelIndex) Add(level persistence.HistoryDLQAckLevel) {
 	i.entries[key] = &dlqIndexEntry{level: level, dirty: true}
 }
 
-// MarkWrite records that a task was (about to be) written past the ack level: the entry becomes
-// dirty and its generation is bumped. It is a no-op when the key is absent.
+// MarkWrite marks the entry dirty and bumps its generation after a task write. It does nothing if
+// the key is absent.
 func (i *DLQAckLevelIndex) MarkWrite(key DLQAckLevelKey) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -140,14 +133,14 @@ func (i *DLQAckLevelIndex) MarkWrite(key DLQAckLevelKey) {
 	entry.generation++
 }
 
-// Advance max-merges the ack position for level's key, inserting a dirty entry if absent.
+// Advance moves the entry's ack position forward, inserting a dirty entry if the key is absent.
 func (i *DLQAckLevelIndex) Advance(level persistence.HistoryDLQAckLevel) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.upsertLocked(level)
 }
 
-// MarkClean clears the dirty bit only if the entry exists and its generation still equals generation.
+// MarkClean clears the dirty bit if the entry's generation still equals generation.
 func (i *DLQAckLevelIndex) MarkClean(key DLQAckLevelKey, generation uint64) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -158,8 +151,8 @@ func (i *DLQAckLevelIndex) MarkClean(key DLQAckLevelKey, generation uint64) {
 	entry.dirty = false
 }
 
-// upsertLocked inserts level as a dirty entry if absent, otherwise max-merges its ack position.
-// The caller must hold i.mu.
+// upsertLocked inserts level as a dirty entry if absent, or keeps the higher ack position. The
+// caller must hold i.mu.
 func (i *DLQAckLevelIndex) upsertLocked(level persistence.HistoryDLQAckLevel) {
 	key := DLQAckLevelKeyOf(level)
 	entry, ok := i.entries[key]
@@ -179,20 +172,4 @@ func (e *dlqIndexEntry) snapshot() IndexedDLQAckLevel {
 
 func ackPosition(level persistence.HistoryDLQAckLevel) persistence.HistoryTaskKey {
 	return persistence.NewHistoryTaskKey(level.AckLevelVisibilityTS, level.AckLevelTaskID)
-}
-
-func sortSnapshots(snapshots []IndexedDLQAckLevel) {
-	sort.Slice(snapshots, func(a, b int) bool {
-		x, y := DLQAckLevelKeyOf(snapshots[a].Level), DLQAckLevelKeyOf(snapshots[b].Level)
-		if x.DomainID != y.DomainID {
-			return x.DomainID < y.DomainID
-		}
-		if x.ClusterAttributeScope != y.ClusterAttributeScope {
-			return x.ClusterAttributeScope < y.ClusterAttributeScope
-		}
-		if x.ClusterAttributeName != y.ClusterAttributeName {
-			return x.ClusterAttributeName < y.ClusterAttributeName
-		}
-		return x.TaskCategoryID < y.TaskCategoryID
-	})
 }
