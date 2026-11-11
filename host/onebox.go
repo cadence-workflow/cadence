@@ -682,8 +682,7 @@ func setOperationalDefaults(params *resource.Params) {
 	params.PercentageOnboarded = membership.StaticPercentageOnboarded(0)
 }
 
-// newTaskListDifferentiator builds the differentiator every service needs to route task lists to
-// matching. It reads params.OperationalDynamicConfig, so call it after that is set.
+// newTaskListDifferentiator reads params.OperationalDynamicConfig, so call it after that is set.
 func newTaskListDifferentiator(params *resource.Params) *matchingClient.TaskListDifferentiator {
 	return matchingClient.NewTaskListDifferentiator(
 		params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),

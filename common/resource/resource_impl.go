@@ -169,8 +169,6 @@ func New(
 	if params.TaskListDifferentiator == nil {
 		return nil, errors.New("creating resource: resource.Params.TaskListDifferentiator must be set")
 	}
-	// Every service hashes task lists into shards to find their matching host, and a non-positive
-	// count would make that panic. We fail here instead.
 	if shardCount := params.TaskListDifferentiator.ShardCount(); shardCount <= 0 {
 		return nil, fmt.Errorf("creating resource: numMatchingShards must be positive, got %d", shardCount)
 	}

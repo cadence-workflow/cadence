@@ -130,7 +130,6 @@ func TestPeerResolverFromSemaphoreBucket(t *testing.T) {
 			controller := gomock.NewController(t)
 			serviceResolver := membership.NewMockResolver(controller)
 			serviceResolver.EXPECT().Lookup(service.Matching, ringKey).Return(tt.lookupHost, tt.lookupErr)
-			// Semaphore buckets live on the hash ring, so the task list router is never asked.
 			r := NewPeerResolver(serviceResolver, NewMockTaskListRouter(controller), membership.PortGRPC)
 
 			got, err := r.FromSemaphoreBucket(domainID, semaphoreName, bucket)

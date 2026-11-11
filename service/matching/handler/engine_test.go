@@ -2431,8 +2431,7 @@ func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByH
 	)
 }
 
-// newTestTaskListRouter returns a router for tests without a shard distributor. Nothing is onboarded,
-// so it looks up every task list on the resolver's hash ring.
+// newTestTaskListRouter returns a router that looks up every task list on the resolver's hash ring.
 func newTestTaskListRouter(resolver membership.Resolver) matching.TaskListRouter {
 	taskListDifferentiator := matching.NewTaskListDifferentiator(
 		dynamicproperties.GetBoolPropertyFn(false),
