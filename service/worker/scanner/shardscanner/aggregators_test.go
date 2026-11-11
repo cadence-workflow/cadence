@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	c "github.com/uber/cadence/common"
@@ -663,5 +664,29 @@ func (s *aggregatorsSuite) TestInsertReportIntoSizes() {
 	}
 	for i := 0; i < 999; i++ {
 		s.GreaterOrEqual(agg.shardSizes[i].EntitiesCount, agg.shardSizes[i+1].EntitiesCount)
+	}
+}
+
+func TestGetShardDistributionStats(t *testing.T) {
+	failed := ScanResult{ControlFlowFailure: &ControlFlowFailure{}}
+	tests := map[string]struct {
+		reports  []ScanReport
+		expected ShardDistributionStats
+	}{
+		"no reports":        {expected: ShardDistributionStats{}},
+		"all shards failed": {reports: []ScanReport{{ShardID: 1, Result: failed}, {ShardID: 2, Result: failed}}, expected: ShardDistributionStats{}},
+		"single shard": {
+			reports:  []ScanReport{{ShardID: 1, Stats: ScanStats{EntitiesCount: 10}, Result: ScanResult{ShardScanKeys: &ScanKeys{}}}},
+			expected: ShardDistributionStats{Max: 10, Median: 10, Min: 10, P90: 10, P75: 10, P25: 10, P10: 10},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			agg := NewShardScanResultAggregator([]int{1, 2}, 1, 2)
+			for _, r := range tc.reports {
+				agg.AddReport(r)
+			}
+			assert.Equal(t, tc.expected, agg.GetShardDistributionStats())
+		})
 	}
 }
