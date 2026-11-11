@@ -183,6 +183,11 @@ func failoverDomains(ctx context.Context, prefs []DomainFailoverPreferences, ski
 		}
 	}
 	for i := progress.NextIndex; i < len(prefs); i++ {
+		// Stop when the activity context is done (StartToClose, heartbeat timeout or worker stop). The server
+		// can have started a retry already, and that retry continues from the last recorded progress.
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		p := prefs[i]
 		warnIfMissingPollers(ctx, logger, p)
 		failoverRequest := &types.FailoverDomainRequest{
@@ -200,6 +205,10 @@ func failoverDomains(ctx context.Context, prefs []DomainFailoverPreferences, ski
 		}
 
 		if _, err := frontendClient.FailoverDomain(ctx, failoverRequest); err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				// Leave progress unchanged so the retry attempts this domain again.
+				return nil, ctxErr
+			}
 			progress.FailedDomains = append(progress.FailedDomains, DomainFailoverFailure{DomainName: p.DomainName, Error: err.Error()})
 		} else {
 			successDomains = append(successDomains, DomainFailoverSuccess{DomainName: p.DomainName})
