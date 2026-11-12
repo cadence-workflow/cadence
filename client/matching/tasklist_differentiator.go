@@ -55,7 +55,7 @@ type TaskListShard struct {
 func (d *TaskListDifferentiator) TaskListShard(taskListName string) TaskListShard {
 	// This regex checks if the task list name has a UUID, if it does we
 	// consider it a short lived tasklist that will not be managed by the shard distributor.
-	shortLived := d.excludeShortLivedTaskLists() && uuidRegexp.MatchString(taskListName)
+	excludedAsShortLived := d.excludeShortLivedTaskLists() && uuidRegexp.MatchString(taskListName)
 	percentageOnboarded := uint64(d.percentageOnboarded.Value())
 
 	if d.shardTaskListsByHash() {
@@ -65,14 +65,14 @@ func (d *TaskListDifferentiator) TaskListShard(taskListName string) TaskListShar
 		shardOnboarded := shardIndex*100 < percentageOnboarded*uint64(d.shardCount)
 		return TaskListShard{
 			ID:        formatShardID(shardIndex),
-			Onboarded: !shortLived && shardOnboarded,
+			Onboarded: !excludedAsShortLived && shardOnboarded,
 		}
 	}
 
 	hash := farm.Fingerprint64([]byte(taskListName))
 	return TaskListShard{
 		ID:        taskListName,
-		Onboarded: !shortLived && isbelowPercentage(hash, percentageOnboarded),
+		Onboarded: !excludedAsShortLived && isbelowPercentage(hash, percentageOnboarded),
 	}
 }
 
