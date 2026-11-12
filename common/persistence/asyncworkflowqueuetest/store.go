@@ -1,8 +1,7 @@
 // Package asyncworkflowqueuetest provides an in-memory persistence.AsyncWorkflowQueueStore for tests.
 // Only _test.go files and test helpers may import it; production code must not.
 //
-// Duplicate message ids return *types.InternalServiceError because the real stores do not define a
-// dedicated error yet.
+// Duplicate message ids return *persistence.ConditionFailedError, matching the other queue stores.
 package asyncworkflowqueuetest
 
 import (
@@ -13,7 +12,6 @@ import (
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/types"
 )
 
 type queueKey struct {
@@ -124,7 +122,7 @@ func (s *Store) EnqueueAsyncWorkflowMessage(ctx context.Context, request *persis
 	}
 	rows, ok := upsertSorted(s.rows[key], msg, msgID, false)
 	if !ok {
-		return &types.InternalServiceError{Message: fmt.Sprintf("async workflow message %d already exists for shard %d source %q", r.MessageID, r.ShardID, r.SourceCluster)}
+		return &persistence.ConditionFailedError{Msg: fmt.Sprintf("async workflow message %d already exists for shard %d source %q", r.MessageID, r.ShardID, r.SourceCluster)}
 	}
 	s.rows[key] = rows
 	return nil

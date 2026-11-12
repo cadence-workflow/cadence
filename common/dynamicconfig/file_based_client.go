@@ -260,7 +260,7 @@ func (fc *fileBasedClient) update() error {
 	}
 
 	if err = yaml.Unmarshal(confContent, newValues); err != nil {
-		return fmt.Errorf("failed to decode dynamic config %v", err)
+		return fmt.Errorf("failed to decode dynamic config file %v: %w", fc.config.Filepath, err)
 	}
 
 	return fc.storeValues(newValues)

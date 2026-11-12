@@ -2,7 +2,10 @@ package workflows
 
 import (
 	"github.com/uber/cadence/simulation/replication/workflows/activityloop"
+	"github.com/uber/cadence/simulation/replication/workflows/chain"
 	"github.com/uber/cadence/simulation/replication/workflows/childactivityloop"
+	"github.com/uber/cadence/simulation/replication/workflows/childworkflowloop"
+	"github.com/uber/cadence/simulation/replication/workflows/noop"
 	"github.com/uber/cadence/simulation/replication/workflows/query"
 	"github.com/uber/cadence/simulation/replication/workflows/retryactivityfailover"
 	"github.com/uber/cadence/simulation/replication/workflows/timeractivityloop"
@@ -12,12 +15,16 @@ import (
 var (
 	Workflows = func(clusterName string) map[string]any {
 		queryWFRunner := &query.Runner{ClusterName: clusterName}
+		childWorkflowLoopRunner := &childworkflowloop.Runner{ClusterName: clusterName}
 		return map[string]any{
 			"timer-activity-loop-workflow":     timeractivityloop.Workflow,
 			"activity-loop-workflow":           activityloop.Workflow,
 			"query-workflow":                   queryWFRunner.Workflow,
 			"child-activity-loop-workflow":     childactivityloop.Workflow,
+			"child-workflow-loop":              childWorkflowLoopRunner.Workflow,
 			"activity-retry-failover-workflow": retryactivityfailover.Workflow,
+			"noop-workflow":                    noop.Workflow,
+			"chain-workflow":                   chain.Workflow,
 		}
 	}
 	Activities = map[string]any{

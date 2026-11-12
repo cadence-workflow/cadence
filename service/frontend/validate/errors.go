@@ -41,6 +41,8 @@ var (
 	ErrInvalidRunID                               = &types.BadRequestError{Message: "Invalid RunId."}
 	ErrInvalidNextPageToken                       = &types.BadRequestError{Message: "Invalid NextPageToken."}
 	ErrNextPageTokenRunIDMismatch                 = &types.BadRequestError{Message: "RunID in the request does not match the NextPageToken."}
+	ErrNextPageTokenWorkflowIDMismatch            = &types.BadRequestError{Message: "WorkflowID in the request does not match the NextPageToken."}
+	ErrNextPageTokenDomainMismatch                = &types.BadRequestError{Message: "Domain in the request does not match the NextPageToken."}
 	ErrQueryNotSet                                = &types.BadRequestError{Message: "WorkflowQuery is not set on request."}
 	ErrQueryTypeNotSet                            = &types.BadRequestError{Message: "QueryType is not set on request."}
 	ErrRequestNotSet                              = &types.BadRequestError{Message: "Request is nil."}
@@ -58,6 +60,9 @@ var (
 	ErrEmptyQueueType                             = &types.BadRequestError{Message: "Queue type is not set."}
 	ErrDomainInLockdown                           = &types.BadRequestError{Message: "Domain is not accepting fail overs at this time due to lockdown."}
 	ErrShuttingDown                               = &types.InternalServiceError{Message: "Shutting down"}
+	ErrBatchIDNotSet                              = &types.BadRequestError{Message: "BatchID is not set on request."}
+	ErrBatchOperationNotSet                       = &types.BadRequestError{Message: "Operation is not set on request."}
+	ErrBatchOperationTypeNotSet                   = &types.BadRequestError{Message: "Operation.OperationType is not set or invalid on request."}
 
 	// Err for archival
 	ErrHistoryNotFound = &types.BadRequestError{Message: "Requested workflow history not found, may have passed retention period."}

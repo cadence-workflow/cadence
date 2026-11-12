@@ -31,6 +31,8 @@ import (
 	"strconv"
 	"time"
 
+	"go.uber.org/cadence"
+	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/zap"
 
@@ -91,6 +93,15 @@ type (
 		SuccessDomains []DomainFailoverSuccess
 		FailedDomains  []DomainFailoverFailure
 	}
+
+	// failoverActivityV2Progress is recorded as heartbeat details after each domain, so a retried
+	// FailoverActivityV2 resumes after the last processed domain and keeps its earlier results.
+	// Success domains are not stored to keep the heartbeat small: every domain before NextIndex
+	// that is not in FailedDomains succeeded.
+	failoverActivityV2Progress struct {
+		NextIndex     int
+		FailedDomains []DomainFailoverFailure
+	}
 )
 
 // FailoverActivityV2 is the single apply activity shared by FailoverWorkflowV2 and
@@ -104,7 +115,7 @@ func FailoverActivityV2(ctx context.Context, params *FailoverActivityV2Params) (
 // skipDestinationClusterCheck is set on every FailoverDomain request the activity issues.
 func executeFailoverBatch(skipDestinationClusterCheck bool) batchExecutor {
 	return func(ctx workflow.Context, batch []DomainFailoverPreferences) (success []DomainFailoverSuccess, failed []DomainFailoverFailure) {
-		ao := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())
+		ao := workflow.WithActivityOptions(ctx, getFailoverV2ActivityOptions(len(batch)))
 		actParams := &FailoverActivityV2Params{DomainPreferences: batch, SkipDestinationClusterCheck: skipDestinationClusterCheck}
 		var actResult FailoverActivityV2Result
 		if err := workflow.ExecuteActivity(ao, FailoverActivityV2, actParams).Get(ctx, &actResult); err != nil {
@@ -114,14 +125,71 @@ func executeFailoverBatch(skipDestinationClusterCheck bool) batchExecutor {
 	}
 }
 
-// failoverDomains is the shared per-domain loop. For each entry it issues a single FailoverDomain request carrying the
-// preferred ActiveClusterName and any per-attribute ActiveClusters overrides.
+const (
+	// failoverV2ActivityTimeoutPerDomain is the StartToClose budget for one domain: the poller check and the
+	// FailoverDomain call, with margin for a frontend several times slower than normal.
+	failoverV2ActivityTimeoutPerDomain = 10 * time.Second
+	failoverV2ActivityMinTimeout       = 1 * time.Minute
+	// failoverV2ActivityMaxTimeout keeps one batch to a part of the workflow timeout. A larger batch
+	// continues on retry from the heartbeat progress.
+	failoverV2ActivityMaxTimeout = 10 * time.Minute
+	// failoverV2ActivityHeartbeatTimeout must be longer than the worst case for one domain, because the
+	// heartbeat is sent after each domain: three frontend calls of up to 10s each.
+	failoverV2ActivityHeartbeatTimeout = 1 * time.Minute
+)
+
+// getFailoverV2ActivityOptions relies on the heartbeat sent after each domain to detect a stuck activity.
+// StartToCloseTimeout increases with the batch size. A retried attempt resumes from the heartbeat progress,
+// so domains already processed are not failed over again.
+func getFailoverV2ActivityOptions(batchSize int) workflow.ActivityOptions {
+	startToClose := time.Duration(batchSize) * failoverV2ActivityTimeoutPerDomain
+	startToClose = min(max(startToClose, failoverV2ActivityMinTimeout), failoverV2ActivityMaxTimeout)
+	return workflow.ActivityOptions{
+		ScheduleToStartTimeout: 10 * time.Second,
+		StartToCloseTimeout:    startToClose,
+		HeartbeatTimeout:       failoverV2ActivityHeartbeatTimeout,
+		RetryPolicy: &cadence.RetryPolicy{
+			InitialInterval:    2 * time.Second,
+			BackoffCoefficient: 2,
+			MaximumInterval:    1 * time.Minute,
+			ExpirationInterval: 2 * startToClose,
+		},
+	}
+}
+
+// failoverDomains is the shared per-domain loop. For each entry it warns if the destination has no pollers,
+// then issues a single FailoverDomain request carrying the preferred ActiveClusterName and any per-attribute
+// ActiveClusters overrides.
 // Returns lists of domains delineated by success or failure, failures carrying the error.
+// Progress is recorded as heartbeat details after each domain, and a retried attempt resumes from it.
 func failoverDomains(ctx context.Context, prefs []DomainFailoverPreferences, skipDestinationClusterCheck bool) (*FailoverActivityV2Result, error) {
 	frontendClient := getClient(ctx)
+	logger := activity.GetLogger(ctx)
+	var progress failoverActivityV2Progress
+	if activity.HasHeartbeatDetails(ctx) {
+		if err := activity.GetHeartbeatDetails(ctx, &progress); err != nil || progress.NextIndex > len(prefs) {
+			logger.Warn("Failed to read failover progress, starting from the first domain", zap.Error(err))
+			progress = failoverActivityV2Progress{}
+		}
+	}
+	failed := make(map[string]struct{}, len(progress.FailedDomains))
+	for _, f := range progress.FailedDomains {
+		failed[f.DomainName] = struct{}{}
+	}
 	var successDomains []DomainFailoverSuccess
-	var failedDomains []DomainFailoverFailure
-	for _, p := range prefs {
+	for _, p := range prefs[:progress.NextIndex] {
+		if _, ok := failed[p.DomainName]; !ok {
+			successDomains = append(successDomains, DomainFailoverSuccess{DomainName: p.DomainName})
+		}
+	}
+	for i := progress.NextIndex; i < len(prefs); i++ {
+		// Stop when the activity context is done (StartToClose, heartbeat timeout or worker stop). The server
+		// can have started a retry already, and that retry continues from the last recorded progress.
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		p := prefs[i]
+		warnIfMissingPollers(ctx, logger, p)
 		failoverRequest := &types.FailoverDomainRequest{
 			DomainName:                  p.DomainName,
 			SkipDestinationClusterCheck: skipDestinationClusterCheck,
@@ -137,14 +205,20 @@ func failoverDomains(ctx context.Context, prefs []DomainFailoverPreferences, ski
 		}
 
 		if _, err := frontendClient.FailoverDomain(ctx, failoverRequest); err != nil {
-			failedDomains = append(failedDomains, DomainFailoverFailure{DomainName: p.DomainName, Error: err.Error()})
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				// Leave progress unchanged so the retry attempts this domain again.
+				return nil, ctxErr
+			}
+			progress.FailedDomains = append(progress.FailedDomains, DomainFailoverFailure{DomainName: p.DomainName, Error: err.Error()})
 		} else {
 			successDomains = append(successDomains, DomainFailoverSuccess{DomainName: p.DomainName})
 		}
+		progress.NextIndex = i + 1
+		activity.RecordHeartbeat(ctx, progress)
 	}
 	return &FailoverActivityV2Result{
 		SuccessDomains: successDomains,
-		FailedDomains:  failedDomains,
+		FailedDomains:  progress.FailedDomains,
 	}, nil
 }
 

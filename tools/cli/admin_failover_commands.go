@@ -43,7 +43,7 @@ const (
 	defaultAbortReason                      = "Failover aborted through admin CLI"
 	defaultBatchFailoverSize                = 20
 	defaultBatchFailoverWaitTimeInSeconds   = 30
-	defaultFailoverWorkflowTimeoutInSeconds = 1200
+	defaultFailoverWorkflowTimeoutInSeconds = 3600
 )
 
 var (
@@ -457,7 +457,7 @@ func failoverStartV2(c *cli.Context, sourceCluster, targetCluster string) error 
 		WorkflowID:                          workflowID,
 		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 		TaskList:                            &types.TaskList{Name: failovermanager.TaskListName},
-		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32(c.Int(FlagExecutionTimeout))),
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(getFailoverWorkflowTimeout(c)),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
 		Memo:                                memo,
 		WorkflowType:                        &types.WorkflowType{Name: failovermanager.FailoverWorkflowV2TypeName},
@@ -471,6 +471,15 @@ func failoverStartV2(c *cli.Context, sourceCluster, targetCluster string) error 
 	fmt.Println("wid: " + workflowID)
 	fmt.Println("rid: " + wf.GetRunID())
 	return nil
+}
+
+// getFailoverWorkflowTimeout returns the execution timeout in seconds for the failover and rebalance
+// workflows, falling back to the default when the flag is not positive.
+func getFailoverWorkflowTimeout(c *cli.Context) int32 {
+	if timeout := c.Int(FlagExecutionTimeout); timeout > 0 {
+		return int32(timeout)
+	}
+	return defaultFailoverWorkflowTimeoutInSeconds
 }
 
 func getFailoverWorkflowID(c *cli.Context) string {

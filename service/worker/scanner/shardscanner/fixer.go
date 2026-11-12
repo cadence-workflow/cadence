@@ -28,6 +28,7 @@ import (
 
 	"github.com/pborman/uuid"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -115,7 +116,7 @@ func (f *ShardFixer) Fix() FixReport {
 
 		domainID := soe.Execution.(entity.Entity).GetDomainID()
 		domainName, err := f.domainCache.GetDomainName(domainID)
-		if err != nil {
+		if err != nil && !common.IsEntityNotExistsError(err) {
 			result.Result.ControlFlowFailure = &ControlFlowFailure{
 				Info:        "failed to get domain name",
 				InfoDetails: err.Error(),

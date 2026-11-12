@@ -234,7 +234,6 @@ func GetDomainsForFailoverV2Activity(ctx context.Context, params *GetDomainsForF
 		if !ok {
 			continue
 		}
-		warnIfMissingPollers(ctx, logger, prefs)
 		result.Preferences = append(result.Preferences, prefs)
 		result.Snapshots = append(result.Snapshots, snapshot)
 	}

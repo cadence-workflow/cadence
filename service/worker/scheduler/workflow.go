@@ -34,6 +34,23 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
+const fractionalStartTimeChangeID = "scheduler-fractional-start-time"
+
+// fractionalStartCron excludes a whole-second fire that falls just before
+// StartTime. Retain already-eligible fires so @every intervals keep their phase.
+type fractionalStartCron struct {
+	cron.Schedule
+	start time.Time
+}
+
+func (s fractionalStartCron) Next(after time.Time) time.Time {
+	next := s.Schedule.Next(after)
+	if !next.IsZero() && next.Before(s.start) {
+		return s.Schedule.Next(s.start)
+	}
+	return next
+}
+
 // signalChannels bundles the signal channels used by the scheduler workflow
 type signalChannels struct {
 	pause    workflow.Channel
@@ -101,6 +118,21 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	if err != nil {
 		logger.Error("invalid cron expression, terminating", zap.String("cron", input.Spec.CronExpression), zap.Error(err))
 		return fmt.Errorf("invalid cron expression %q: %w", input.Spec.CronExpression, err)
+	}
+
+	// Keep new executions on the old timing until all scheduler workers can replay
+	// version 1. Then remove ExecuteWithMinVersion to enable the corrected timing.
+	if input.Spec.StartTime.Nanosecond() != 0 &&
+		workflow.GetVersion(ctx, fractionalStartTimeChangeID, workflow.DefaultVersion, 1, workflow.ExecuteWithMinVersion()) == 1 {
+		sched = fractionalStartCron{Schedule: sched, start: input.Spec.StartTime}
+		// A paused execution can retain this cached tick indefinitely.
+		if !state.NextRunTime.IsZero() && state.NextRunTime.Before(input.Spec.StartTime) {
+			state.NextRunTime = computeNextRunTime(sched, state.NextRunTime, input.Spec)
+		}
+	}
+	// Catch-up can continue as new before processBackfills sees the queue.
+	if err := reconcileBackfillTotals(ctx, sched, input.Spec, state.PendingBackfills); err != nil {
+		return err
 	}
 
 	// activityBudget is the per-execution ceiling for local-activity dispatches.

@@ -507,4 +507,18 @@ var (
 	DescribeDomainResponseArray = []*types.DescribeDomainResponse{
 		&DescribeDomainResponse,
 	}
+
+	ExportWorkflowExecutionRequest = types.ExportWorkflowExecutionRequest{
+		Domain:        DomainName,
+		Execution:     &WorkflowExecution,
+		PageSize:      int32(PageSize),
+		NextPageToken: NextPageToken,
+		LastEventID:   common.Int64Ptr(10),
+	}
+	ExportWorkflowExecutionResponse = types.ExportWorkflowExecutionResponse{
+		Execution:      &WorkflowExecution,
+		HistoryBatches: DataBlobArray,
+		NextPageToken:  NextPageToken,
+		Version:        1,
+	}
 )

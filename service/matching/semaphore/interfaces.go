@@ -5,19 +5,24 @@ import "context"
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go -self_package github.com/uber/cadence/service/matching/semaphore
 
 type (
-	// Manager hands out the slots of one semaphore token bucket. A manager has to be started
+	// Manager hands out the tokens of one semaphore bucket. A manager has to be started
 	// before it can serve, and stopped once it is done serving: Acquire waits on startup, or
 	// until its own context deadline.
 	Manager interface {
-		// Start loads the bucket by scanning its partition. Only the first call loads; later
-		// calls return at once, even while that load is still running. Returns ErrNotReady
-		// once the manager has stopped.
+		// Start claims the bucket and loads its tokens; the manager stops if another host claims it
+		// later. Only the first call loads, and later calls return at once. Returns ErrNotReady once
+		// stopped.
 		Start(ctx context.Context) error
-		// Stop shuts the manager down: later acquires get ErrNotReady. Safe to call again, and
-		// called by the manager itself once the bucket has gone IdleTTL without a request.
+		// Stop shuts the manager down; later acquires get ErrNotReady. Safe to call more than once.
+		// The manager also stops itself when idle, when its load fails, or when it loses its claim.
 		Stop()
 		// Acquire answers Acquired or NoSlot.
 		Acquire(ctx context.Context, ownerID string) (AcquireResult, error)
+		// Release frees the token ownerID holds. An owner that holds nothing is released too, so a
+		// repeated release succeeds.
+		Release(ctx context.Context, ownerID string) error
+		// GetTokenByOwner returns the token ownerID holds, or 0 if it holds none.
+		GetTokenByOwner(ctx context.Context, ownerID string) (int, error)
 		// Identifier names the bucket this manager serves.
 		Identifier() Identifier
 	}

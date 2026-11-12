@@ -27,6 +27,12 @@ jobs:
           - activepassive_to_activeactive
           - activityretryfailover
           - budget_manager
+          - child_failover_adoption
+          - child_failover_chain_adoption
+          - child_failover_chain_stale_branch
+          - child_failover_closed_by_other_cluster
+          - child_failover_stale_branch
+          - child_failover_stale_branch_running
           - clusterredirection
           - default
 
@@ -39,7 +45,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.14'
+          go-version: '1.26.10'
 
       - name: Run simulation
         uses: nick-fields/retry@v3

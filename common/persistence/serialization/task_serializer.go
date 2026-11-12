@@ -167,6 +167,19 @@ func (s *taskSerializerImpl) serializeTransferTask(task persistence.Task) (persi
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
 		info.TaskList = t.TaskList
+	case *persistence.AcquireSemaphoreTask:
+		info.DomainID = MustParseUUID(t.DomainID)
+		info.WorkflowID = t.WorkflowID
+		info.RunID = MustParseUUID(t.RunID)
+		info.ScheduleID = t.InitiatedID
+		info.TaskList = t.TaskList
+	case *persistence.ReleaseSemaphoreTask:
+		info.DomainID = MustParseUUID(t.DomainID)
+		info.WorkflowID = t.WorkflowID
+		info.RunID = MustParseUUID(t.RunID)
+		info.ScheduleID = t.InitiatedID
+		info.SemaphoreName = t.SemaphoreName
+		info.TaskList = t.TaskList
 	default:
 		return persistence.DataBlob{}, &types.InternalServiceError{
 			Message: fmt.Sprintf("Unknown transfer type: %v", task.GetTaskType()),
@@ -279,6 +292,21 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 			TargetRunID:        info.TargetRunID.String(),
 			TaskList:           info.GetTaskList(),
 		}
+	case persistence.TransferTaskTypeAcquireSemaphore:
+		task = &persistence.AcquireSemaphoreTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			InitiatedID:        info.GetScheduleID(),
+			TaskList:           info.GetTaskList(),
+		}
+	case persistence.TransferTaskTypeReleaseSemaphore:
+		task = &persistence.ReleaseSemaphoreTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			InitiatedID:        info.GetScheduleID(),
+			SemaphoreName:      info.GetSemaphoreName(),
+			TaskList:           info.GetTaskList(),
+		}
 	default:
 		return nil, fmt.Errorf("unknown transfer task type: %v", info.GetTaskType())
 	}
@@ -326,6 +354,12 @@ func (s *taskSerializerImpl) serializeTimerTask(task persistence.Task) (persiste
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
 		info.TimeoutType = common.Int16Ptr(int16(t.TimeoutType))
+		info.TaskList = t.TaskList
+	case *persistence.SemaphoreAcquireTimeoutTask:
+		info.DomainID = MustParseUUID(t.DomainID)
+		info.WorkflowID = t.WorkflowID
+		info.RunID = MustParseUUID(t.RunID)
+		info.EventID = t.EventID
 		info.TaskList = t.TaskList
 	case *persistence.WorkflowTimeoutTask:
 		info.DomainID = MustParseUUID(t.DomainID)
@@ -410,6 +444,13 @@ func (s *taskSerializerImpl) deserializeTimerTask(blob *persistence.DataBlob) (p
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TimeoutType:        int(info.GetTimeoutType()),
+			TaskList:           info.GetTaskList(),
+		}
+	case persistence.TaskTypeSemaphoreAcquireTimeout:
+		task = &persistence.SemaphoreAcquireTimeoutTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			EventID:            info.GetEventID(),
 			TaskList:           info.GetTaskList(),
 		}
 	default:

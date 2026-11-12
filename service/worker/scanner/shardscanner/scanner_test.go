@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/reconciliation/entity"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/reconciliation/store"
+	"github.com/uber/cadence/common/types"
 )
 
 type ScannerSuite struct {
@@ -527,4 +528,75 @@ func (s *ScannerSuite) TestGetDomainIDFromEntity() {
 	result, err := scanner.getDomainIDFromEntity(&baseExecution)
 	s.Nil(result)
 	s.Error(err)
+}
+
+func TestScan_DomainLookupError(t *testing.T) {
+	tests := map[string]struct {
+		domainErr       error
+		wantEntities    int64
+		wantFailure     *ControlFlowFailure
+		wantDomainStats map[string]*ScanStats
+	}{
+		"domain not found continues the scan": {
+			domainErr:    &types.EntityNotExistsError{Message: "domain not found"},
+			wantEntities: 2,
+			wantDomainStats: map[string]*ScanStats{
+				"missing": {
+					EntitiesCount:    2,
+					CheckFailedCount: 2,
+					CorruptionByType: make(map[invariant.Name]int64),
+				},
+			},
+		},
+		"other errors abort the scan": {
+			domainErr: errors.New("timeout"),
+			wantFailure: &ControlFlowFailure{
+				Info:        "failed to get domain name from cache",
+				InfoDetails: "timeout",
+			},
+			wantDomainStats: make(map[string]*ScanStats),
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			execution := &entity.ConcreteExecution{Execution: entity.Execution{DomainID: "missing"}}
+			calls := 0
+			mockItr := pagination.NewMockIterator(ctrl)
+			mockItr.EXPECT().HasNext().DoAndReturn(func() bool { return calls < 2 }).AnyTimes()
+			mockItr.EXPECT().Next().DoAndReturn(func() (pagination.Entity, error) {
+				calls++
+				return execution, nil
+			}).AnyTimes()
+			mockInvariantManager := invariant.NewMockManager(ctrl)
+			mockInvariantManager.EXPECT().RunChecks(gomock.Any(), execution).Return(invariant.ManagerCheckResult{
+				CheckResultType: invariant.CheckResultTypeFailed,
+			}).AnyTimes()
+			domainCache := cache.NewMockDomainCache(ctrl)
+			domainCache.EXPECT().GetDomainName("missing").Return("", tc.domainErr).AnyTimes()
+			failedWriter := store.NewMockExecutionWriter(ctrl)
+			failedWriter.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
+			failedWriter.EXPECT().Flush().Return(nil).AnyTimes()
+			failedWriter.EXPECT().FlushedKeys().Return(nil).AnyTimes()
+			corruptedWriter := store.NewMockExecutionWriter(ctrl)
+			corruptedWriter.EXPECT().Flush().Return(nil).AnyTimes()
+			corruptedWriter.EXPECT().FlushedKeys().Return(nil).AnyTimes()
+
+			scanner := &ShardScanner{
+				itr:              mockItr,
+				failedWriter:     failedWriter,
+				corruptedWriter:  corruptedWriter,
+				invariantManager: mockInvariantManager,
+				progressReportFn: func() {},
+				domainCache:      domainCache,
+				scope:            metrics.NoopScope,
+			}
+			result := scanner.Scan(context.Background())
+
+			require.Equal(t, tc.wantFailure, result.Result.ControlFlowFailure)
+			require.Equal(t, tc.wantEntities, result.Stats.EntitiesCount)
+			require.Equal(t, tc.wantDomainStats, result.DomainStats)
+		})
+	}
 }

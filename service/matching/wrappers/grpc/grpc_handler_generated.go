@@ -45,6 +45,11 @@ func (g GRPCHandler) DescribeTaskList(ctx context.Context, request *matchingv1.D
 	return proto.FromMatchingDescribeTaskListResponse(response), proto.FromError(err)
 }
 
+func (g GRPCHandler) GetSemaphoreTokenByOwner(ctx context.Context, request *matchingv1.GetSemaphoreTokenByOwnerRequest) (*matchingv1.GetSemaphoreTokenByOwnerResponse, error) {
+	response, err := g.h.GetSemaphoreTokenByOwner(ctx, proto.ToMatchingGetSemaphoreTokenByOwnerRequest(request))
+	return proto.FromMatchingGetSemaphoreTokenByOwnerResponse(response), proto.FromError(err)
+}
+
 func (g GRPCHandler) GetTaskListsByDomain(ctx context.Context, request *matchingv1.GetTaskListsByDomainRequest) (*matchingv1.GetTaskListsByDomainResponse, error) {
 	response, err := g.h.GetTaskListsByDomain(ctx, proto.ToMatchingGetTaskListsByDomainRequest(request))
 	return proto.FromMatchingGetTaskListsByDomainResponse(response), proto.FromError(err)
@@ -73,6 +78,11 @@ func (g GRPCHandler) QueryWorkflow(ctx context.Context, request *matchingv1.Quer
 func (g GRPCHandler) RefreshTaskListPartitionConfig(ctx context.Context, request *matchingv1.RefreshTaskListPartitionConfigRequest) (*matchingv1.RefreshTaskListPartitionConfigResponse, error) {
 	response, err := g.h.RefreshTaskListPartitionConfig(ctx, proto.ToMatchingRefreshTaskListPartitionConfigRequest(request))
 	return proto.FromMatchingRefreshTaskListPartitionConfigResponse(response), proto.FromError(err)
+}
+
+func (g GRPCHandler) ReleaseSemaphore(ctx context.Context, request *matchingv1.ReleaseSemaphoreRequest) (*matchingv1.ReleaseSemaphoreResponse, error) {
+	response, err := g.h.ReleaseSemaphore(ctx, proto.ToMatchingReleaseSemaphoreRequest(request))
+	return proto.FromMatchingReleaseSemaphoreResponse(response), proto.FromError(err)
 }
 
 func (g GRPCHandler) RespondQueryTaskCompleted(ctx context.Context, request *matchingv1.RespondQueryTaskCompletedRequest) (*matchingv1.RespondQueryTaskCompletedResponse, error) {

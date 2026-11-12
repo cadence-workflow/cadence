@@ -282,7 +282,7 @@ func newAdminShardManagementCommands() []*cli.Command {
 					Name: FlagTimerType,
 					Usage: "timer types: 0 - DecisionTimeoutTask, 1 - TaskTypeActivityTimeout, " +
 						"2 - TaskTypeUserTimer, 3 - TaskTypeWorkflowTimeout, 4 - TaskTypeDeleteHistoryEvent, " +
-						"5 - TaskTypeActivityRetryTimer, 6 - TaskTypeWorkflowBackoffTimer",
+						"5 - TaskTypeActivityRetryTimer, 6 - TaskTypeWorkflowBackoffTimer, 7 - TaskTypeSemaphoreAcquireTimeout",
 					Value: cli.NewIntSlice(-1),
 				},
 				&cli.BoolFlag{
@@ -1306,6 +1306,12 @@ func newAdminRebalanceCommands() []*cli.Command {
 				&cli.BoolFlag{
 					Name:  FlagFailoverV2,
 					Usage: "Use the V2 rebalance workflow, which corrects domain-level and cluster-attribute drift from stored preferences",
+				},
+				&cli.IntFlag{
+					Name:    FlagExecutionTimeout,
+					Aliases: []string{"et"},
+					Usage:   "Optional Rebalance workflow timeout in seconds",
+					Value:   defaultFailoverWorkflowTimeoutInSeconds,
 				},
 			},
 			Action: AdminRebalanceStart,

@@ -23,6 +23,7 @@
 package shardscanner
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -39,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/reconciliation/store"
 	"github.com/uber/cadence/common/resource"
+	"github.com/uber/cadence/common/types"
 )
 
 type FixerSuite struct {
@@ -774,4 +776,89 @@ func (s *FixerSuite) TestFix_Success() {
 			},
 		},
 	}, result)
+}
+
+func TestFix_DomainLookupError(t *testing.T) {
+	tests := map[string]struct {
+		domainErr       error
+		allowDomain     dynamicproperties.BoolPropertyFnWithDomainFilter
+		wantRunFixes    int
+		wantFailure     *ControlFlowFailure
+		wantStats       FixStats
+		wantDomainStats map[string]*FixStats
+	}{
+		"domain not found runs fixes when all domains are allowed": {
+			domainErr:    &types.EntityNotExistsError{Message: "domain not found"},
+			allowDomain:  dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
+			wantRunFixes: 2,
+			wantStats:    FixStats{EntitiesCount: 2, FailedCount: 2},
+			wantDomainStats: map[string]*FixStats{
+				"missing": {EntitiesCount: 2, FailedCount: 2},
+			},
+		},
+		"domain not found is skipped by a per-domain allowlist": {
+			domainErr:   &types.EntityNotExistsError{Message: "domain not found"},
+			allowDomain: func(domain string) bool { return domain == "allowed-domain" },
+			wantStats:   FixStats{EntitiesCount: 2, SkippedCount: 2},
+			wantDomainStats: map[string]*FixStats{
+				"missing": {EntitiesCount: 2, SkippedCount: 2},
+			},
+		},
+		"other errors abort the fix": {
+			domainErr:   errors.New("timeout"),
+			allowDomain: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
+			wantFailure: &ControlFlowFailure{
+				Info:        "failed to get domain name",
+				InfoDetails: "timeout",
+			},
+			wantDomainStats: make(map[string]*FixStats),
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			execution := &entity.ConcreteExecution{Execution: entity.Execution{DomainID: "missing"}}
+			calls := 0
+			mockItr := store.NewMockScanOutputIterator(ctrl)
+			mockItr.EXPECT().HasNext().DoAndReturn(func() bool { return calls < 2 }).AnyTimes()
+			mockItr.EXPECT().Next().DoAndReturn(func() (*store.ScanOutputEntity, error) {
+				calls++
+				return &store.ScanOutputEntity{Execution: execution}, nil
+			}).AnyTimes()
+			mockInvariantManager := invariant.NewMockManager(ctrl)
+			mockInvariantManager.EXPECT().RunFixes(gomock.Any(), execution).Return(invariant.ManagerFixResult{
+				FixResultType: invariant.FixResultTypeFailed,
+			}).Times(tc.wantRunFixes)
+			domainCache := cache.NewMockDomainCache(ctrl)
+			domainCache.EXPECT().GetDomainName("missing").Return("", tc.domainErr).AnyTimes()
+			failedWriter := store.NewMockExecutionWriter(ctrl)
+			failedWriter.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
+			skippedWriter := store.NewMockExecutionWriter(ctrl)
+			skippedWriter.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
+			fixedWriter := store.NewMockExecutionWriter(ctrl)
+			for _, w := range []*store.MockExecutionWriter{failedWriter, skippedWriter, fixedWriter} {
+				w.EXPECT().Flush().Return(nil).AnyTimes()
+				w.EXPECT().FlushedKeys().Return(nil).AnyTimes()
+			}
+
+			fixer := &ShardFixer{
+				ctx:              context.Background(),
+				itr:              mockItr,
+				skippedWriter:    skippedWriter,
+				failedWriter:     failedWriter,
+				fixedWriter:      fixedWriter,
+				invariantManager: mockInvariantManager,
+				progressReportFn: func() {},
+				domainCache:      domainCache,
+				allowDomain:      tc.allowDomain,
+				scope:            metrics.NoopScope,
+			}
+			result := fixer.Fix()
+
+			require.Equal(t, tc.wantFailure, result.Result.ControlFlowFailure)
+			require.Equal(t, tc.wantStats, result.Stats)
+			require.Equal(t, tc.wantDomainStats, result.DomainStats)
+		})
+	}
 }

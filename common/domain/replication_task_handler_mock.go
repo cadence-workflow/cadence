@@ -54,3 +54,41 @@ func (mr *MockReplicationTaskExecutorMockRecorder) Execute(task any) *gomock.Cal
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockReplicationTaskExecutor)(nil).Execute), task)
 }
+
+// MockSemaphoreReplicationTaskExecutor is a mock of SemaphoreReplicationTaskExecutor interface.
+type MockSemaphoreReplicationTaskExecutor struct {
+	ctrl     *gomock.Controller
+	recorder *MockSemaphoreReplicationTaskExecutorMockRecorder
+	isgomock struct{}
+}
+
+// MockSemaphoreReplicationTaskExecutorMockRecorder is the mock recorder for MockSemaphoreReplicationTaskExecutor.
+type MockSemaphoreReplicationTaskExecutorMockRecorder struct {
+	mock *MockSemaphoreReplicationTaskExecutor
+}
+
+// NewMockSemaphoreReplicationTaskExecutor creates a new mock instance.
+func NewMockSemaphoreReplicationTaskExecutor(ctrl *gomock.Controller) *MockSemaphoreReplicationTaskExecutor {
+	mock := &MockSemaphoreReplicationTaskExecutor{ctrl: ctrl}
+	mock.recorder = &MockSemaphoreReplicationTaskExecutorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSemaphoreReplicationTaskExecutor) EXPECT() *MockSemaphoreReplicationTaskExecutorMockRecorder {
+	return m.recorder
+}
+
+// Execute mocks base method.
+func (m *MockSemaphoreReplicationTaskExecutor) Execute(task *types.SemaphoreMetadataTaskAttributes) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Execute", task)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Execute indicates an expected call of Execute.
+func (mr *MockSemaphoreReplicationTaskExecutorMockRecorder) Execute(task any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockSemaphoreReplicationTaskExecutor)(nil).Execute), task)
+}
