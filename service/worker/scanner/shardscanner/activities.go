@@ -171,16 +171,17 @@ func scanShard(
 	execManager := resources.GetExecutionManager()
 
 	pr := persistence.NewPersistenceRetryerWithShardID(execManager, resources.GetHistoryManager(), c.CreatePersistenceRetryPolicy(), shardID)
+	domainCache := newDomainCacheWithNegativeCaching(resources.GetDomainCache(), resources.GetTimeSource())
 
 	scanner := NewScanner(
 		shardID,
 		ctx.Hooks.Iterator(activityCtx, pr, params),
 		resources.GetBlobstoreClient(),
 		params.BlobstoreFlushThreshold,
-		ctx.Hooks.Manager(activityCtx, pr, params, resources.GetDomainCache()),
+		ctx.Hooks.Manager(activityCtx, pr, params, domainCache),
 		func() { activity.RecordHeartbeat(activityCtx, heartbeatDetails) },
 		scope,
-		resources.GetDomainCache(),
+		domainCache,
 	)
 	report := scanner.Scan(activityCtx)
 	if report.Result.ControlFlowFailure != nil {
@@ -390,16 +391,17 @@ func fixShard(
 	execManager := resource.GetExecutionManager()
 
 	pr := persistence.NewPersistenceRetryerWithShardID(execManager, resource.GetHistoryManager(), c.CreatePersistenceRetryPolicy(), shardID)
+	domainCache := newDomainCacheWithNegativeCaching(resource.GetDomainCache(), resource.GetTimeSource())
 
 	fixer := NewFixer(
 		activityCtx,
 		shardID,
-		ctx.Hooks.InvariantManager(activityCtx, pr, params, resource.GetDomainCache()),
+		ctx.Hooks.InvariantManager(activityCtx, pr, params, domainCache),
 		ctx.Hooks.Iterator(activityCtx, resource.GetBlobstoreClient(), corruptedKeys, params),
 		resource.GetBlobstoreClient(),
 		params.ResolvedFixerWorkflowConfig.BlobstoreFlushThreshold,
 		func() { activity.RecordHeartbeat(activityCtx, heartbeatDetails) },
-		resource.GetDomainCache(),
+		domainCache,
 		ctx.Config.DynamicParams.AllowDomain,
 		scope,
 	)
