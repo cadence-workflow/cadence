@@ -153,14 +153,11 @@ func (s *server) startService() common.Daemon {
 
 	params.OperationalConfigStore = s.operationalConfigStore
 	params.OperationalDynamicConfig = s.operationalDynamicConfig
-	params.PercentageOnboarded = matchingClient.NewPercentageOnboarded(
-		params.MetricsClient,
-		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
-	)
 	params.TaskListDifferentiator = matchingClient.NewTaskListDifferentiator(
+		params.MetricsClient,
 		s.operationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
 		s.operationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
-		params.PercentageOnboarded,
+		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 		s.cfg.NumMatchingShards,
 	)
 
@@ -175,17 +172,13 @@ func (s *server) startService() common.Daemon {
 		if len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 1 {
 			s.logger.Fatal("spectator does not support multiple namespaces", tag.Value(s.cfg.ShardDistributorMatchingConfig.Namespaces))
 		}
-		matchingPercentageOnboarded := params.PercentageOnboarded
-
 		spectatorParams := spectatorclient.Params{
 			Client:       shardDistributorClient,
 			MetricsScope: params.MetricScope,
 			Logger:       params.ZapLogger,
 			Config:       s.cfg.ShardDistributorMatchingConfig,
 			TimeSource:   clock.NewSMTimeSourceAdapter(clock.NewRealTimeSource()),
-			Enabled: func() bool {
-				return matchingPercentageOnboarded.Value() > 0
-			},
+			Enabled:      params.TaskListDifferentiator.ShardDistributorEnabled,
 		}
 		namespace := s.cfg.ShardDistributorMatchingConfig.Namespaces[0].Namespace
 		spectator, err = spectatorclient.NewSpectatorWithNamespace(

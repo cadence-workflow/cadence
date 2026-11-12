@@ -679,15 +679,15 @@ func (c *cadenceImpl) GetMatchingClients() []matchingClient.Client {
 func setOperationalDefaults(params *resource.Params) {
 	params.OperationalConfigStore = configstore.NewNopClient()
 	// OperationalDynamicConfig will be set after DynamicConfig is available
-	params.PercentageOnboarded = matchingClient.StaticPercentageOnboarded(0)
 }
 
 // newTaskListDifferentiator reads params.OperationalDynamicConfig, so call it after that is set.
 func newTaskListDifferentiator(params *resource.Params) *matchingClient.TaskListDifferentiator {
 	return matchingClient.NewTaskListDifferentiator(
+		params.MetricsClient,
 		params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
 		params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
-		params.PercentageOnboarded,
+		dynamicproperties.GetIntPropertyFn(0),
 		config.DefaultNumMatchingShards,
 	)
 }

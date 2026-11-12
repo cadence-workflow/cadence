@@ -154,9 +154,10 @@ func TestStartStop(t *testing.T) {
 	archiveProvider.EXPECT().RegisterBootstrapContainer(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	taskListDifferentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
-		matching.StaticPercentageOnboarded(0),
+		dynamicproperties.GetIntPropertyFn(0),
 		config.DefaultNumMatchingShards,
 	)
 
@@ -289,9 +290,10 @@ func TestNewFailsWithoutTaskListDifferentiator(t *testing.T) {
 
 func TestNewFailsWithoutMatchingShards(t *testing.T) {
 	differentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
-		matching.StaticPercentageOnboarded(0),
+		dynamicproperties.GetIntPropertyFn(0),
 		0,
 	)
 	params := &Params{Logger: testlogger.New(t), TaskListDifferentiator: differentiator}

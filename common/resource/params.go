@@ -119,7 +119,6 @@ type (
 		// gracefully stop processing during drains.
 		DrainObserver clientcommon.DrainSignalObserver
 
-		PercentageOnboarded matching.PercentageOnboarded
 		// TaskListDifferentiator decides which task lists the shard distributor owns and which shard each
 		// one belongs to. Every service's task list router and the matching service share it, so they agree.
 		TaskListDifferentiator *matching.TaskListDifferentiator

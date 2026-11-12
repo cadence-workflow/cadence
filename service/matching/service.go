@@ -47,7 +47,6 @@ type Service struct {
 	ShardDistributorMatchingConfig clientcommon.Config
 	taskListDifferentiator         *matchingClient.TaskListDifferentiator
 	drainObserver                  clientcommon.DrainSignalObserver
-	percentageOnboarded            matchingClient.PercentageOnboarded
 }
 
 // NewService builds a new cadence-matching service
@@ -85,7 +84,6 @@ func NewService(
 		ShardDistributorMatchingConfig: params.ShardDistributorMatchingConfig,
 		taskListDifferentiator:         params.TaskListDifferentiator,
 		drainObserver:                  params.DrainObserver,
-		percentageOnboarded:            params.PercentageOnboarded,
 	}, nil
 }
 
@@ -120,7 +118,6 @@ func (s *Service) Start() {
 		s.ShardDistributorMatchingConfig,
 		s.taskListDifferentiator,
 		s.drainObserver,
-		s.percentageOnboarded,
 	)
 
 	s.handler = handler.NewHandler(engine, s.config, s.GetDomainCache(), s.GetMetricsClient(), s.GetLogger(), s.GetThrottledLogger())

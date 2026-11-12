@@ -120,7 +120,6 @@ type (
 		failoverNotificationVersion    int64
 		ShardDistributorMatchingConfig clientcommon.Config
 		drainObserver                  clientcommon.DrainSignalObserver
-		percentageOnboarded            matching.PercentageOnboarded
 		taskListDifferentiator         *matching.TaskListDifferentiator
 	}
 )
@@ -172,7 +171,6 @@ func NewEngine(
 	ShardDistributorMatchingConfig clientcommon.Config,
 	taskListDifferentiator *matching.TaskListDifferentiator,
 	drainObserver clientcommon.DrainSignalObserver,
-	percentageOnboarded matching.PercentageOnboarded,
 ) Engine {
 	e := &matchingEngineImpl{
 		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient, taskListDifferentiator.ShardCount()),
@@ -201,7 +199,6 @@ func NewEngine(
 		zapLogger:                      zapLogger,
 		ShardDistributorMatchingConfig: ShardDistributorMatchingConfig,
 		drainObserver:                  drainObserver,
-		percentageOnboarded:            percentageOnboarded,
 		taskListDifferentiator:         taskListDifferentiator,
 	}
 
@@ -275,7 +272,7 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 		ShardProcessorFactory: taskListFactory,
 		Config:                cfg,
 		TimeSource:            smTimeSource,
-		Enabled:               e.shardDistributorOnboarded,
+		Enabled:               e.taskListDifferentiator.ShardDistributorEnabled,
 		Metadata: map[string]string{
 			"tchannel": fmt.Sprintf("%d", e.config.RPCConfig.Port),
 			"grpc":     fmt.Sprintf("%d", e.config.RPCConfig.GRPCPort),
@@ -289,13 +286,6 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 	}
 
 	e.executor = executor
-}
-
-// shardDistributorOnboarded reports whether this matching host should heartbeat
-// to the shard distributor, gated on the onboarding percentage. It is consulted
-// on every heartbeat tick, so driving the percentage to 0 offboards the executor.
-func (e *matchingEngineImpl) shardDistributorOnboarded() bool {
-	return e.percentageOnboarded.Value() > 0
 }
 
 func (e *matchingEngineImpl) getValidatedShardDistributorConfig() (clientcommon.Config, time.Duration) {

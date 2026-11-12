@@ -201,12 +201,10 @@ func newOnboardingTestData(
 
 	// SD gives out every shard, so shardOwners names them all.
 	shardCount := len(shardOwners)
-	percentageOnboarded := matching.NewPercentageOnboarded(
-		metrics.NewNoopMetricsClient(),
-		func(...dynamicproperties.FilterOption) int { return td.percentageOnboarded },
-	)
+	percentageOnboarded := func(...dynamicproperties.FilterOption) int { return td.percentageOnboarded }
 	shardTaskListsByHash := true
 	td.taskListDifferentiator = matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(true), // short-lived task lists stay on the hash ring
 		dynamicproperties.GetBoolPropertyFn(shardTaskListsByHash),
 		percentageOnboarded,
@@ -221,7 +219,7 @@ func newOnboardingTestData(
 	hostNames := []string{host1, host2}
 	td.taskListRouter = td.newTaskListRouter(t, len(hostNames))
 	for _, hostName := range hostNames {
-		td.hosts = append(td.hosts, td.newHost(t, hostName, percentageOnboarded))
+		td.hosts = append(td.hosts, td.newHost(t, hostName))
 	}
 	return td
 }
@@ -277,7 +275,7 @@ func (td *onboardingTestData) newTaskListRouter(t *testing.T, hostCount int) mat
 
 // newHost starts a matching engine that knows itself as hostName and routes task lists with the
 // shared router.
-func (td *onboardingTestData) newHost(t *testing.T, hostName string, percentageOnboarded matching.PercentageOnboarded) *onboardingHost {
+func (td *onboardingTestData) newHost(t *testing.T, hostName string) *onboardingHost {
 	peerProvider := membership.NewMockPeerProvider(td.ctrl)
 	self := membership.NewDetailedHostInfo("", hostName, nil)
 	peerProvider.EXPECT().WhoAmI().Return(self, nil).AnyTimes()
@@ -310,7 +308,6 @@ func (td *onboardingTestData) newHost(t *testing.T, hostName string, percentageO
 		defaultSDExecutorConfig(),
 		td.taskListDifferentiator,
 		nil,
-		percentageOnboarded,
 	).(*matchingEngineImpl)
 	// NewEngine starts the membership loop. Stop it directly, since engine.Stop would also stop
 	// every task list still running.
@@ -428,7 +425,7 @@ func (td *onboardingTestData) currentShards(t *testing.T) shards {
 // to SD. A host that stops heartbeating keeps its shards, as its executor no longer cleans them up.
 func (td *onboardingTestData) joinSDOnceOnboarded(t *testing.T) {
 	for _, host := range td.hosts {
-		if host.joinedSD || !host.engine.shardDistributorOnboarded() {
+		if host.joinedSD || !td.taskListDifferentiator.ShardDistributorEnabled() {
 			continue
 		}
 		host.joinedSD = true

@@ -397,13 +397,10 @@ func TestCancelOutstandingPoll(t *testing.T) {
 			executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockCtrl, mockManager, executor)
 			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
-			pct := matching.NewMockPercentageOnboarded(mockCtrl)
-			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
 				taskListRegistry:       taskListRegistry,
 				executor:               executor,
 				metricsClient:          metrics.NewNoopMetricsClient(),
-				percentageOnboarded:    pct,
 				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
@@ -427,15 +424,12 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
 		resolver := membership.NewMockResolver(ctrl)
 		resolver.EXPECT().WhoAmI().Return(membership.NewDetailedHostInfo("self", "self", nil), nil).AnyTimes()
-		pct := matching.NewMockPercentageOnboarded(ctrl)
-		pct.EXPECT().Value().Return(100).AnyTimes()
 
 		engine := &matchingEngineImpl{
 			executor:               executor,
 			membershipResolver:     resolver,
 			taskListRouter:         newTestTaskListRouter(resolver),
 			metricsClient:          metrics.NewNoopMetricsClient(),
-			percentageOnboarded:    pct,
 			taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			shutdown:               make(chan struct{}),
 			logger:                 log.NewNoop(),
@@ -731,15 +725,12 @@ func TestQueryWorkflow(t *testing.T) {
 			mockManager := newMockManagerWithTaskListID(mockCtrl, tasklistID)
 			executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
-			pct := matching.NewMockPercentageOnboarded(mockCtrl)
-			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
 				taskListRegistry:       taskListRegistry,
 				timeSource:             clock.NewRealTimeSource(),
 				lockableQueryTaskMap:   lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
 				executor:               executor,
 				metricsClient:          metrics.NewNoopMetricsClient(),
-				percentageOnboarded:    pct,
 				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
@@ -1201,14 +1192,11 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockManager, mockCtrl, mockExecutor)
 			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
-			pct := matching.NewMockPercentageOnboarded(mockCtrl)
-			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
-				taskListRegistry:    taskListRegistry,
-				timeSource:          clock.NewRealTimeSource(),
-				domainCache:         mockDomainCache,
-				metricsClient:       metrics.NewNoopMetricsClient(),
-				percentageOnboarded: pct,
+				taskListRegistry: taskListRegistry,
+				timeSource:       clock.NewRealTimeSource(),
+				domainCache:      mockDomainCache,
+				metricsClient:    metrics.NewNoopMetricsClient(),
 				config: &config.Config{
 					EnableAdaptiveScaler: dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
 				},
@@ -1387,14 +1375,11 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockManager, mockCtrl, mockExecutor)
 			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
-			pct := matching.NewMockPercentageOnboarded(mockCtrl)
-			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
 				taskListRegistry:       taskListRegistry,
 				timeSource:             clock.NewRealTimeSource(),
 				executor:               mockExecutor,
 				metricsClient:          metrics.NewNoopMetricsClient(),
-				percentageOnboarded:    pct,
 				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
@@ -1456,8 +1441,6 @@ func Test_domainChangeCallback(t *testing.T) {
 
 	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(tasklist.NewMockShardProcessor(mockCtrl), nil).AnyTimes()
-	pct := matching.NewMockPercentageOnboarded(mockCtrl)
-	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	engine := &matchingEngineImpl{
 		domainCache:                 mockDomainCache,
@@ -1467,7 +1450,6 @@ func Test_domainChangeCallback(t *testing.T) {
 		taskListRegistry:            tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		executor:                    mockExecutor,
 		metricsClient:               metrics.NewNoopMetricsClient(),
-		percentageOnboarded:         pct,
 		taskListDifferentiator:      newTestTaskListDifferentiator(false, false),
 	}
 	engine.taskListRegistry.Register(*tlGlobalDecision1, mockGlobalDecision1)
@@ -1909,27 +1891,6 @@ func TestSetupExecutorWithEmptyConfig(t *testing.T) {
 	// hash-ring ownership by returning ErrShardProcessNotFound.
 	_, err := engine.executor.GetShardProcess(context.Background(), "any-shard")
 	assert.ErrorIs(t, err, executorclient.ErrShardProcessNotFound)
-}
-
-func TestShardDistributorOnboarded(t *testing.T) {
-	tests := []struct {
-		name       string
-		percentage int
-		want       bool
-	}{
-		{name: "offboarded at zero", percentage: 0, want: false},
-		{name: "onboarded above zero", percentage: 1, want: true},
-		{name: "onboarded at full", percentage: 100, want: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			pct := matching.NewMockPercentageOnboarded(ctrl)
-			pct.EXPECT().Value().Return(tt.percentage)
-			engine := &matchingEngineImpl{percentageOnboarded: pct}
-			assert.Equal(t, tt.want, engine.shardDistributorOnboarded())
-		})
-	}
 }
 
 const (
@@ -2431,9 +2392,10 @@ func TestReleaseSemaphore(t *testing.T) {
 
 func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByHash bool) *matching.TaskListDifferentiator {
 	return matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(excludeShortLivedTaskLists),
 		dynamicproperties.GetBoolPropertyFn(shardTaskListsByHash),
-		matching.StaticPercentageOnboarded(100),
+		dynamicproperties.GetIntPropertyFn(100),
 		commonConfig.DefaultNumMatchingShards,
 	)
 }
@@ -2441,9 +2403,10 @@ func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByH
 // newTestTaskListRouter returns a router that looks up every task list on the resolver's hash ring.
 func newTestTaskListRouter(resolver membership.Resolver) matching.TaskListRouter {
 	taskListDifferentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
-		matching.StaticPercentageOnboarded(0),
+		dynamicproperties.GetIntPropertyFn(0),
 		commonConfig.DefaultNumMatchingShards,
 	)
 	return matching.NewTaskListRouter(resolver, taskListDifferentiator, nil, log.NewNoop(), metrics.NoopScope)

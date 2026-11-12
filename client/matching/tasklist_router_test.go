@@ -38,9 +38,10 @@ func TestTaskListRouter_FromTaskList(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			router, _, shardDistributorMock := newTestTaskListRouter(t)
 			router.taskListDifferentiator = NewTaskListDifferentiator(
+				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
-				StaticPercentageOnboarded(100),
+				dynamicproperties.GetIntPropertyFn(100),
 				config.DefaultNumMatchingShards,
 			)
 
@@ -61,75 +62,34 @@ func TestTaskListRouter_FromTaskList(t *testing.T) {
 	}
 }
 
-func TestTaskListRouter_FromTaskList_ExcludedFallsBackToHashRing(t *testing.T) {
-	router, resolver, _ := newTestTaskListRouter(t)
-	// Set percentage to 0 so all task lists are excluded
-	router.taskListDifferentiator = NewTaskListDifferentiator(
-		dynamicproperties.GetBoolPropertyFn(false),
-		dynamicproperties.GetBoolPropertyFn(false),
-		StaticPercentageOnboarded(0),
-		config.DefaultNumMatchingShards,
-	)
-
-	resolver.EXPECT().Lookup(service.Matching, "test-key").Return(membership.NewHostInfo("test-addr"), nil)
-
-	host, err := router.FromTaskList("test-key")
-	assert.NoError(t, err)
-	assert.Equal(t, "test-addr", host.GetAddress())
-}
-
-func TestTaskListRouter_FromTaskList_NilSpectatorFallsBackToHashRing(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	resolver := membership.NewMockResolver(ctrl)
-	logger := log.NewNoop()
-	pct := NewMockPercentageOnboarded(ctrl)
-	pct.EXPECT().Value().Return(100).AnyTimes()
-
-	taskListDifferentiator := NewTaskListDifferentiator(
-		dynamicproperties.GetBoolPropertyFn(false),
-		dynamicproperties.GetBoolPropertyFn(false),
-		pct,
-		config.DefaultNumMatchingShards,
-	)
-	router := NewTaskListRouter(
-		resolver,
-		taskListDifferentiator,
-		nil, // nil spectator
-		logger,
-		metrics.NewNoopMetricsClient().Scope(metrics.ShardDistributorResolverScope),
-	).(*taskListRouter)
-
-	resolver.EXPECT().Lookup(service.Matching, "test-key").Return(membership.NewHostInfo("hash-ring-addr"), nil)
-
-	host, err := router.FromTaskList("test-key")
-	assert.NoError(t, err)
-	assert.Equal(t, "hash-ring-addr", host.GetAddress())
-}
-
 func TestTaskListRouter_FromTaskList_RecordsRoutingPath(t *testing.T) {
 	tests := []struct {
 		name                string
 		percentageOnboarded int
 		withSpectator       bool
 		expectedPath        string
+		wantAddress         string
 	}{
 		{
 			name:                "shard distributor",
 			percentageOnboarded: 100,
 			withSpectator:       true,
 			expectedPath:        routingPathShardDistributor,
+			wantAddress:         "127.0.0.1:7933",
 		},
 		{
 			name:                "excluded task list",
 			percentageOnboarded: 0,
 			withSpectator:       true,
 			expectedPath:        routingPathHashRing,
+			wantAddress:         "hash-ring-addr",
 		},
 		{
 			name:                "missing spectator",
 			percentageOnboarded: 100,
 			withSpectator:       false,
 			expectedPath:        routingPathHashRing,
+			wantAddress:         "hash-ring-addr",
 		},
 	}
 
@@ -137,8 +97,6 @@ func TestTaskListRouter_FromTaskList_RecordsRoutingPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			resolver := membership.NewMockResolver(ctrl)
-			percentageOnboarded := NewMockPercentageOnboarded(ctrl)
-			percentageOnboarded.EXPECT().Value().Return(tt.percentageOnboarded)
 
 			var spectator spectatorclient.Spectator
 			if tt.withSpectator {
@@ -161,9 +119,10 @@ func TestTaskListRouter_FromTaskList_RecordsRoutingPath(t *testing.T) {
 			testScope := tally.NewTestScope("", nil)
 			metricsClient := metrics.NewClient(testScope, metrics.Matching, metrics.MigrationConfig{})
 			taskListDifferentiator := NewTaskListDifferentiator(
+				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(false),
-				percentageOnboarded,
+				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
 				config.DefaultNumMatchingShards,
 			)
 			router := NewTaskListRouter(
@@ -174,8 +133,9 @@ func TestTaskListRouter_FromTaskList_RecordsRoutingPath(t *testing.T) {
 				metricsClient.Scope(metrics.ShardDistributorResolverScope),
 			)
 
-			_, err := router.FromTaskList("test-key")
-			assert.NoError(t, err)
+			host, err := router.FromTaskList("test-key")
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantAddress, host.GetAddress())
 
 			counters := testScope.Snapshot().Counters()
 			assert.Len(t, counters, 1)
@@ -192,15 +152,14 @@ func newTestTaskListRouter(t *testing.T) (*taskListRouter, *membership.MockResol
 	ctrl := gomock.NewController(t)
 	spectator := spectatorclient.NewMockSpectator(ctrl)
 	excludeShortLivedTaskLists := dynamicproperties.GetBoolPropertyFn(false)
-	percentageOnboarded := NewMockPercentageOnboarded(ctrl)
-	percentageOnboarded.EXPECT().Value().Return(100).AnyTimes()
 	resolver := membership.NewMockResolver(ctrl)
 	logger := log.NewNoop()
 
 	taskListDifferentiator := NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		excludeShortLivedTaskLists,
 		dynamicproperties.GetBoolPropertyFn(false),
-		percentageOnboarded,
+		dynamicproperties.GetIntPropertyFn(100),
 		config.DefaultNumMatchingShards,
 	)
 	router := NewTaskListRouter(

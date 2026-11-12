@@ -4,9 +4,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/metrics"
 )
 
 func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
@@ -138,9 +140,10 @@ func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			differentiator := NewTaskListDifferentiator(
+				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(tt.excludeShortLivedTaskLists),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
-				StaticPercentageOnboarded(tt.percentageOnboarded),
+				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
 				shardCount,
 			)
 
@@ -222,9 +225,10 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			differentiator := NewTaskListDifferentiator(
+				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
-				StaticPercentageOnboarded(100),
+				dynamicproperties.GetIntPropertyFn(100),
 				shardCount,
 			)
 
@@ -241,13 +245,12 @@ func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 
 	shardTaskListsByHash := false
 	percentageOnboarded := 0
-	pct := NewMockPercentageOnboarded(gomock.NewController(t))
-	pct.EXPECT().Value().DoAndReturn(func() int { return percentageOnboarded }).AnyTimes()
 
 	differentiator := NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(false),
 		func(...dynamicproperties.FilterOption) bool { return shardTaskListsByHash },
-		pct,
+		func(...dynamicproperties.FilterOption) int { return percentageOnboarded },
 		shardCount,
 	)
 
@@ -259,4 +262,38 @@ func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 
 	assert.True(t, differentiator.ShardsByHash())
 	assert.Equal(t, TaskListShard{ID: hashedShardID, Onboarded: true}, differentiator.TaskListShard(taskListName))
+}
+
+func TestTaskListDifferentiator_ShardDistributorEnabled(t *testing.T) {
+	tests := []struct {
+		name                string
+		percentageOnboarded int
+		want                bool
+	}{
+		{name: "offboarded at zero", percentageOnboarded: 0, want: false},
+		{name: "onboarded above zero", percentageOnboarded: 1, want: true},
+		{name: "onboarded at full", percentageOnboarded: 100, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testScope := tally.NewTestScope("", nil)
+			metricsClient := metrics.NewClient(testScope, metrics.Matching, metrics.MigrationConfig{})
+			differentiator := NewTaskListDifferentiator(
+				metricsClient,
+				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(true),
+				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
+				1000,
+			)
+
+			assert.Equal(t, tt.want, differentiator.ShardDistributorEnabled())
+
+			gauges := testScope.Snapshot().Gauges()
+			require.Len(t, gauges, 1, "reading the percentage should report it as a single gauge")
+			for _, gauge := range gauges {
+				assert.Equal(t, "percentage_onboarded_to_shard_manager", gauge.Name())
+				assert.Equal(t, float64(tt.percentageOnboarded), gauge.Value())
+			}
+		})
+	}
 }

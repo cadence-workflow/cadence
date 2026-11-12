@@ -116,12 +116,11 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			// testing. With the onboarding percentage at 0, no task list name is below the
 			// percentage threshold, so every name is considered excluded regardless of whether it
 			// contains a UUID.
-			pct := matching.NewMockPercentageOnboarded(ctrl)
-			pct.EXPECT().Value().Return(0).AnyTimes()
 			taskListDifferentiator := matching.NewTaskListDifferentiator(
+				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(true),
 				dynamicproperties.GetBoolPropertyFn(false),
-				pct,
+				dynamicproperties.GetIntPropertyFn(0),
 				commonConfig.DefaultNumMatchingShards,
 			)
 
@@ -147,7 +146,6 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				defaultSDExecutorConfig(),
 				taskListDifferentiator,
 				nil,
-				pct,
 			).(*matchingEngineImpl)
 
 			// All task lists are excluded from the ShardDistributor, so GetShardProcess is
@@ -354,8 +352,6 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
-	pct := matching.NewMockPercentageOnboarded(ctrl)
-	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	engine := matchingEngineImpl{
 		shutdownCompletion:     &shutdownWG,
@@ -364,7 +360,6 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 		taskListRegistry:       tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:      semaphore.NewSemaphoreRegistry(),
 		metricsClient:          metrics.NewNoopMetricsClient(),
-		percentageOnboarded:    pct,
 		taskListDifferentiator: newTestTaskListDifferentiator(true, false),
 		shutdown:               make(chan struct{}),
 		logger:                 log.NewNoop(),

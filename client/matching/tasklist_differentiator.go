@@ -7,6 +7,7 @@ import (
 	"github.com/dgryski/go-farm"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/metrics"
 )
 
 const uuidRegex = `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`
@@ -17,19 +18,22 @@ var uuidRegexp = regexp.MustCompile(uuidRegex)
 // manages it. It reads the dynamic config on every call, so changes take effect without
 // rebuilding it.
 type TaskListDifferentiator struct {
+	metricsClient              metrics.Client
 	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn
 	shardTaskListsByHash       dynamicproperties.BoolPropertyFn
-	percentageOnboarded        PercentageOnboarded
+	percentageOnboarded        dynamicproperties.IntPropertyFn
 	shardCount                 int
 }
 
 func NewTaskListDifferentiator(
+	metricsClient metrics.Client,
 	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn,
 	shardTaskListsByHash dynamicproperties.BoolPropertyFn,
-	percentageOnboarded PercentageOnboarded,
+	percentageOnboarded dynamicproperties.IntPropertyFn,
 	shardCount int,
 ) *TaskListDifferentiator {
 	return &TaskListDifferentiator{
+		metricsClient:              metricsClient,
 		excludeShortLivedTaskLists: excludeShortLivedTaskLists,
 		shardTaskListsByHash:       shardTaskListsByHash,
 		percentageOnboarded:        percentageOnboarded,
@@ -55,7 +59,7 @@ func (d *TaskListDifferentiator) TaskListShard(taskListName string) TaskListShar
 	// This regex checks if the task list name has a UUID, if it does we
 	// consider it a short lived tasklist that will not be managed by the shard distributor.
 	excludedAsShortLived := d.excludeShortLivedTaskLists() && uuidRegexp.MatchString(taskListName)
-	percentageOnboarded := uint64(d.percentageOnboarded.Value())
+	percentageOnboarded := uint64(d.currentPercentageOnboarded())
 
 	if d.shardTaskListsByHash() {
 		shardIndex := taskListShardIndex(taskListName, d.shardCount)
@@ -75,6 +79,13 @@ func (d *TaskListDifferentiator) TaskListShard(taskListName string) TaskListShar
 	}
 }
 
+// ShardDistributorEnabled reports whether the shard distributor manages any task lists, that is
+// whether the onboarding percentage is above 0. Matching hosts heartbeat to the shard distributor
+// only while it is, so driving the percentage to 0 offboards them.
+func (d *TaskListDifferentiator) ShardDistributorEnabled() bool {
+	return d.currentPercentageOnboarded() > 0
+}
+
 // ShardsByHash reports whether task lists are currently grouped into hashed shards.
 func (d *TaskListDifferentiator) ShardsByHash() bool {
 	return d.shardTaskListsByHash()
@@ -90,6 +101,15 @@ func (d *TaskListDifferentiator) ShardCount() int {
 func TaskListNameToShard(taskListName string, shardCount int) string {
 	shardIndex := taskListShardIndex(taskListName, shardCount)
 	return formatShardID(shardIndex)
+}
+
+// currentPercentageOnboarded reads the onboarding percentage and reports it as a gauge, so
+// dashboards show the value each host acts on.
+func (d *TaskListDifferentiator) currentPercentageOnboarded() int {
+	percentageOnboarded := d.percentageOnboarded()
+	d.metricsClient.Scope(metrics.ShardManagerOnboardingScope).
+		UpdateGauge(metrics.PercentageOnboardedToShardManagerGauge, float64(percentageOnboarded))
+	return percentageOnboarded
 }
 
 func taskListShardIndex(taskListName string, shardCount int) uint64 {
