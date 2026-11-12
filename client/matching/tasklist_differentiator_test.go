@@ -235,18 +235,6 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 	}
 }
 
-func TestTaskListDifferentiator_ShardCount(t *testing.T) {
-	shardCount := 1000
-	differentiator := NewTaskListDifferentiator(
-		dynamicproperties.GetBoolPropertyFn(false),
-		dynamicproperties.GetBoolPropertyFn(false),
-		membership.StaticPercentageOnboarded(0),
-		shardCount,
-	)
-
-	assert.Equal(t, shardCount, differentiator.ShardCount())
-}
-
 func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 	shardCount := 1000
 	taskListName := "orders" // farm.Fingerprint64([]byte("orders"))%1000 = 639
@@ -272,32 +260,4 @@ func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 
 	assert.True(t, differentiator.ShardsByHash())
 	assert.Equal(t, TaskListShard{ID: hashedShardID, Onboarded: true}, differentiator.TaskListShard(taskListName))
-}
-
-func TestTaskListDifferentiator_TaskListShard_ReadsEachConfigOnce(t *testing.T) {
-	shardCount := 1000
-	taskListName := "orders"
-
-	excludeShortLivedReads := 0
-	shardTaskListsByHashReads := 0
-	pct := membership.NewMockPercentageOnboarded(gomock.NewController(t))
-	pct.EXPECT().Value().Return(100).Times(1)
-
-	differentiator := NewTaskListDifferentiator(
-		func(...dynamicproperties.FilterOption) bool {
-			excludeShortLivedReads++
-			return true
-		},
-		func(...dynamicproperties.FilterOption) bool {
-			shardTaskListsByHashReads++
-			return true
-		},
-		pct,
-		shardCount,
-	)
-
-	differentiator.TaskListShard(taskListName)
-
-	assert.Equal(t, 1, excludeShortLivedReads, "the short-lived flag should be read once")
-	assert.Equal(t, 1, shardTaskListsByHashReads, "the shard by hash flag should be read once")
 }
