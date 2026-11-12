@@ -51,6 +51,8 @@ const (
 	EmptyMessageID = -1
 	// InitialPreviousFailoverVersion is the initial previous failover version
 	InitialPreviousFailoverVersion int64 = -1
+	// NoSemaphoreTokenID means a semaphore hold has no token yet. Real token ids start at 1.
+	NoSemaphoreTokenID = 0
 )
 
 const (

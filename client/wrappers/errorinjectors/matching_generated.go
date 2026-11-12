@@ -140,6 +140,26 @@ func (c *matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.Matchi
 	return
 }
 
+func (c *matchingClient) GetSemaphoreTokenByOwner(ctx context.Context, gp1 *types.GetSemaphoreTokenByOwnerRequest, p1 ...yarpc.CallOption) (gp2 *types.GetSemaphoreTokenByOwnerResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		gp2, err = c.client.GetSemaphoreTokenByOwner(ctx, gp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgMatchingInjectedFakeErr,
+			tag.MatchingClientOperationGetSemaphoreTokenByOwner,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest, p1 ...yarpc.CallOption) (gp2 *types.GetTaskListsByDomainResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -250,6 +270,26 @@ func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1
 	if fakeErr != nil {
 		c.logger.Error(msgMatchingInjectedFakeErr,
 			tag.MatchingClientOperationRefreshTaskListPartitionConfig,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		rp2, err = c.client.ReleaseSemaphore(ctx, rp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgMatchingInjectedFakeErr,
+			tag.MatchingClientOperationReleaseSemaphore,
 			tag.Error(fakeErr),
 			tag.Bool(forwardCall),
 			tag.ClientError(err),

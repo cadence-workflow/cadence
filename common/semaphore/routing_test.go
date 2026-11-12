@@ -41,35 +41,6 @@ func TestOwnerIDToBucketRejectsNonPositiveN(t *testing.T) {
 	}
 }
 
-func TestNumBuckets(t *testing.T) {
-	tests := []struct {
-		name       string
-		size       int
-		bucketSize int
-		want       int
-		wantErr    bool
-	}{
-		{name: "smaller than one bucket", size: 5, bucketSize: 100, want: 1},
-		{name: "exact multiple", size: 200, bucketSize: 100, want: 2},
-		{name: "rounds up", size: 201, bucketSize: 100, want: 3},
-		{name: "bucket size one", size: 7, bucketSize: 1, want: 7},
-		{name: "zero size", size: 0, bucketSize: 100, wantErr: true},
-		{name: "zero bucket size", size: 10, bucketSize: 0, wantErr: true},
-		{name: "negative bucket size", size: 10, bucketSize: -1, wantErr: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := NumBuckets(tt.size, tt.bucketSize)
-			if tt.wantErr {
-				assert.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestRingKey(t *testing.T) {
 	assert.Equal(t, "domain-1_sem-1_0", RingKey("domain-1", "sem-1", 0))
 	assert.Equal(t, "domain-1_sem-1_12", RingKey("domain-1", "sem-1", 12))

@@ -52,6 +52,7 @@ const (
 	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
 	ReplicationSimulationOperationValidateWorkflowReplication ReplicationSimulationOperation = "validate_workflow_replication"
 	ReplicationSimulationOperationValidatePendingActivity     ReplicationSimulationOperation = "validate_pending_activity"
+	ReplicationSimulationOperationWaitForHistoryEvent         ReplicationSimulationOperation = "wait_for_history_event"
 )
 
 type ReplicationSimulationConfig struct {
@@ -94,6 +95,12 @@ type Operation struct {
 	WorkflowDuration                     time.Duration                       `yaml:"workflowDuration"`
 	ChildWorkflowID                      string                              `yaml:"childWorkflowID"`
 	ChildWorkflowTimeout                 time.Duration                       `yaml:"childWorkflowTimeout"`
+	ChildWorkflowCount                   int                                 `yaml:"childWorkflowCount"`
+	ChildWorkflowDuration                time.Duration                       `yaml:"childWorkflowDuration"`
+	ChildWorkflowType                    string                              `yaml:"childWorkflowType"`
+	ChildRunDurations                    []time.Duration                     `yaml:"childRunDurations"`
+	DecisionHoldDuration                 time.Duration                       `yaml:"decisionHoldDuration"`
+	DecisionHoldCluster                  string                              `yaml:"decisionHoldCluster"`
 	ActivityCount                        int                                 `yaml:"activityCount"`
 	DelayStartSeconds                    int32                               `yaml:"delayStartSeconds"`
 	CronSchedule                         string                              `yaml:"cronSchedule"`
@@ -107,6 +114,11 @@ type Operation struct {
 	SignalInput any    `yaml:"signalInput"`
 
 	EventID int64 `yaml:"eventID"`
+
+	// EventType, EventCount and Timeout are used by wait_for_history_event
+	EventType  string        `yaml:"eventType"`
+	EventCount int           `yaml:"eventCount"`
+	Timeout    time.Duration `yaml:"timeout"`
 
 	Domain           string `yaml:"domain"`
 	NewActiveCluster string `yaml:"newActiveCluster"`

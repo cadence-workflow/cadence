@@ -1,13 +1,25 @@
-FROM golang:1.25.14-trixie
+FROM golang:1.26.10-alpine3.24
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# build-base provides gcc/musl-dev/make, needed for cgo (go test -race).
+# bash and the GNU userland are installed because the Makefile and scripts assume them.
+# gcompat/libstdc++/libgcc let glibc-linked prebuilt tools the Makefile downloads (e.g. protoc) run on musl.
+RUN apk add --no-cache \
+      bash \
+      build-base \
+      ca-certificates \
+      coreutils \
       curl \
-      gettext-base \
-      libyaml-dev \
+      findutils \
+      gcompat \
+      gettext \
+      git \
+      grep \
+      libgcc \
+      libstdc++ \
+      sed \
       time \
       unzip \
-      ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+      yaml-dev
 
 # verbose test output from `make`, can be disabled with V=0
 ENV V=0

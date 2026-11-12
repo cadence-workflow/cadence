@@ -856,7 +856,7 @@ func TestAdminFailoverRollback(t *testing.T) {
 								BatchFailoverSize:              20, // default value will be used
 								BatchFailoverWaitTimeInSeconds: 30, // default value will be used
 							}),
-							ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(1200), // default value will be used
+							ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(defaultFailoverWorkflowTimeoutInSeconds), // default value will be used
 							TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
 							Memo: mustGetWorkflowMemo(t, map[string]interface{}{
 								constants.MemoKeyForOperator: "test-user",

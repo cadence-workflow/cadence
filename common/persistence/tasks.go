@@ -221,6 +221,25 @@ type (
 		TaskList         string
 	}
 
+	// AcquireSemaphoreTask identifies a transfer task that asks Matching for a semaphore token
+	// for the acquire started by InitiatedID.
+	AcquireSemaphoreTask struct {
+		WorkflowIdentifier
+		TaskData
+		InitiatedID int64
+		TaskList    string
+	}
+
+	// ReleaseSemaphoreTask identifies a transfer task that asks Matching to free the token of the
+	// hold started by InitiatedID. It carries the name because the hold is already deleted.
+	ReleaseSemaphoreTask struct {
+		WorkflowIdentifier
+		TaskData
+		InitiatedID   int64
+		SemaphoreName string
+		TaskList      string
+	}
+
 	// ActivityTimeoutTask identifies a timeout task.
 	ActivityTimeoutTask struct {
 		WorkflowIdentifier
@@ -254,6 +273,14 @@ type (
 		TaskData
 		TimeoutType int // 0 for retry, 1 for cron.
 		TaskList    string
+	}
+
+	// SemaphoreAcquireTimeoutTask ends a semaphore acquire that is still waiting at its deadline
+	SemaphoreAcquireTimeoutTask struct {
+		WorkflowIdentifier
+		TaskData
+		EventID  int64
+		TaskList string
 	}
 
 	// HistoryReplicationTask is the replication task created for shipping history replication events to other clusters
@@ -296,10 +323,13 @@ var (
 	_ Task = (*UpsertWorkflowSearchAttributesTask)(nil)
 	_ Task = (*StartChildExecutionTask)(nil)
 	_ Task = (*RecordWorkflowClosedTask)(nil)
+	_ Task = (*AcquireSemaphoreTask)(nil)
+	_ Task = (*ReleaseSemaphoreTask)(nil)
 	_ Task = (*ActivityTimeoutTask)(nil)
 	_ Task = (*UserTimerTask)(nil)
 	_ Task = (*ActivityRetryTimerTask)(nil)
 	_ Task = (*WorkflowBackoffTimerTask)(nil)
+	_ Task = (*SemaphoreAcquireTimeoutTask)(nil)
 	_ Task = (*HistoryReplicationTask)(nil)
 	_ Task = (*SyncActivityTask)(nil)
 	_ Task = (*FailoverMarkerTask)(nil)
@@ -1030,6 +1060,57 @@ func (r *WorkflowBackoffTimerTask) ToInternalReplicationTaskInfo() (*types.Repli
 	return nil, fmt.Errorf("workflow backoff timer task is not replication task")
 }
 
+// GetType returns the type of the semaphore acquire timeout task
+func (r *SemaphoreAcquireTimeoutTask) GetTaskType() int {
+	return TaskTypeSemaphoreAcquireTimeout
+}
+
+func (r *SemaphoreAcquireTimeoutTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTimer
+}
+
+func (r *SemaphoreAcquireTimeoutTask) GetTaskKey() HistoryTaskKey {
+	return NewHistoryTaskKey(r.VisibilityTimestamp, r.TaskID)
+}
+
+func (r *SemaphoreAcquireTimeoutTask) GetTaskList() string {
+	return r.TaskList
+}
+
+func (r *SemaphoreAcquireTimeoutTask) GetOriginalTaskList() string {
+	return r.TaskList
+}
+
+func (r *SemaphoreAcquireTimeoutTask) GetOriginalTaskListKind() types.TaskListKind {
+	return types.TaskListKindNormal
+}
+
+func (r *SemaphoreAcquireTimeoutTask) ByteSize() uint64 {
+	return r.WorkflowIdentifier.ByteSize() + r.TaskData.ByteSize() + 8 + uint64(len(r.TaskList))
+}
+
+func (r *SemaphoreAcquireTimeoutTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
+	return nil, fmt.Errorf("semaphore acquire timeout task is not transfer task")
+}
+
+func (r *SemaphoreAcquireTimeoutTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
+	return &TimerTaskInfo{
+		TaskType:            TaskTypeSemaphoreAcquireTimeout,
+		DomainID:            r.DomainID,
+		WorkflowID:          r.WorkflowID,
+		RunID:               r.RunID,
+		TaskID:              r.TaskID,
+		VisibilityTimestamp: r.VisibilityTimestamp,
+		Version:             r.Version,
+		EventID:             r.EventID,
+		TaskList:            r.TaskList,
+	}, nil
+}
+
+func (r *SemaphoreAcquireTimeoutTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
+	return nil, fmt.Errorf("semaphore acquire timeout task is not replication task")
+}
+
 // GetType returns the type of the timeout task.
 func (u *WorkflowTimeoutTask) GetTaskType() int {
 	return TaskTypeWorkflowTimeout
@@ -1413,6 +1494,115 @@ func (u *RecordWorkflowClosedTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 
 func (u *RecordWorkflowClosedTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
 	return nil, fmt.Errorf("record workflow closed task is not replication task")
+}
+
+// GetTaskType returns the type of the acquire semaphore task
+func (u *AcquireSemaphoreTask) GetTaskType() int {
+	return TransferTaskTypeAcquireSemaphore
+}
+
+func (u *AcquireSemaphoreTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
+}
+
+func (u *AcquireSemaphoreTask) GetTaskKey() HistoryTaskKey {
+	return NewImmediateTaskKey(u.TaskID)
+}
+
+func (u *AcquireSemaphoreTask) GetTaskList() string {
+	return u.TaskList
+}
+
+func (u *AcquireSemaphoreTask) GetOriginalTaskList() string {
+	return u.TaskList
+}
+
+func (u *AcquireSemaphoreTask) GetOriginalTaskListKind() types.TaskListKind {
+	return types.TaskListKindNormal
+}
+
+func (u *AcquireSemaphoreTask) ByteSize() uint64 {
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + 8 + uint64(len(u.TaskList))
+}
+
+func (u *AcquireSemaphoreTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
+	return &TransferTaskInfo{
+		TaskType:            TransferTaskTypeAcquireSemaphore,
+		DomainID:            u.DomainID,
+		WorkflowID:          u.WorkflowID,
+		RunID:               u.RunID,
+		TaskID:              u.TaskID,
+		VisibilityTimestamp: u.VisibilityTimestamp,
+		Version:             u.Version,
+		ScheduleID:          u.InitiatedID,
+		TaskList:            u.TaskList,
+		TargetDomainID:      u.DomainID,
+		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
+		TargetRunID:         TransferTaskTransferTargetRunID,
+	}, nil
+}
+
+func (u *AcquireSemaphoreTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
+	return nil, fmt.Errorf("acquire semaphore task is not timer task")
+}
+
+func (u *AcquireSemaphoreTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
+	return nil, fmt.Errorf("acquire semaphore task is not replication task")
+}
+
+// GetTaskType returns the type of the release semaphore task
+func (u *ReleaseSemaphoreTask) GetTaskType() int {
+	return TransferTaskTypeReleaseSemaphore
+}
+
+func (u *ReleaseSemaphoreTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
+}
+
+func (u *ReleaseSemaphoreTask) GetTaskKey() HistoryTaskKey {
+	return NewImmediateTaskKey(u.TaskID)
+}
+
+func (u *ReleaseSemaphoreTask) GetTaskList() string {
+	return u.TaskList
+}
+
+func (u *ReleaseSemaphoreTask) GetOriginalTaskList() string {
+	return u.TaskList
+}
+
+func (u *ReleaseSemaphoreTask) GetOriginalTaskListKind() types.TaskListKind {
+	return types.TaskListKindNormal
+}
+
+func (u *ReleaseSemaphoreTask) ByteSize() uint64 {
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + 8 + uint64(len(u.SemaphoreName)) + uint64(len(u.TaskList))
+}
+
+func (u *ReleaseSemaphoreTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
+	return &TransferTaskInfo{
+		TaskType:            TransferTaskTypeReleaseSemaphore,
+		DomainID:            u.DomainID,
+		WorkflowID:          u.WorkflowID,
+		RunID:               u.RunID,
+		TaskID:              u.TaskID,
+		VisibilityTimestamp: u.VisibilityTimestamp,
+		Version:             u.Version,
+		ScheduleID:          u.InitiatedID,
+		SemaphoreName:       u.SemaphoreName,
+		TaskList:            u.TaskList,
+		TargetDomainID:      u.DomainID,
+		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
+		TargetRunID:         TransferTaskTransferTargetRunID,
+	}, nil
+}
+
+func (u *ReleaseSemaphoreTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
+	return nil, fmt.Errorf("release semaphore task is not timer task")
+}
+
+func (u *ReleaseSemaphoreTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
+	return nil, fmt.Errorf("release semaphore task is not replication task")
 }
 
 // GetType returns the type of the history replication task

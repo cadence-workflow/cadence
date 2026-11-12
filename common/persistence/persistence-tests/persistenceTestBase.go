@@ -1183,7 +1183,9 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 			*persistence.SignalExecutionTask,
 			*persistence.RecordWorkflowStartedTask,
 			*persistence.ResetWorkflowTask,
-			*persistence.UpsertWorkflowSearchAttributesTask:
+			*persistence.UpsertWorkflowSearchAttributesTask,
+			*persistence.AcquireSemaphoreTask,
+			*persistence.ReleaseSemaphoreTask:
 			transferTasks = append(transferTasks, t)
 		case *persistence.HistoryReplicationTask, *persistence.SyncActivityTask:
 			replicationTasks = append(replicationTasks, t)

@@ -342,7 +342,7 @@ func getOperator(ctx workflow.Context) string {
 func getGetDomainsActivityOptions() workflow.ActivityOptions {
 	return workflow.ActivityOptions{
 		ScheduleToStartTimeout: 10 * time.Second,
-		StartToCloseTimeout:    20 * time.Second,
+		StartToCloseTimeout:    1 * time.Minute,
 		RetryPolicy: &cadence.RetryPolicy{
 			InitialInterval:    2 * time.Second,
 			BackoffCoefficient: 2,

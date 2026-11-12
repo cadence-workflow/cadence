@@ -116,6 +116,21 @@ func (mr *MockEngineMockRecorder) DescribeTaskList(hCtx, request any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeTaskList", reflect.TypeOf((*MockEngine)(nil).DescribeTaskList), hCtx, request)
 }
 
+// GetSemaphoreTokenByOwner mocks base method.
+func (m *MockEngine) GetSemaphoreTokenByOwner(hCtx *handlerContext, request *types.GetSemaphoreTokenByOwnerRequest) (*types.GetSemaphoreTokenByOwnerResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreTokenByOwner", hCtx, request)
+	ret0, _ := ret[0].(*types.GetSemaphoreTokenByOwnerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSemaphoreTokenByOwner indicates an expected call of GetSemaphoreTokenByOwner.
+func (mr *MockEngineMockRecorder) GetSemaphoreTokenByOwner(hCtx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTokenByOwner", reflect.TypeOf((*MockEngine)(nil).GetSemaphoreTokenByOwner), hCtx, request)
+}
+
 // GetTaskListsByDomain mocks base method.
 func (m *MockEngine) GetTaskListsByDomain(hCtx *handlerContext, request *types.GetTaskListsByDomainRequest) (*types.GetTaskListsByDomainResponse, error) {
 	m.ctrl.T.Helper()
@@ -204,6 +219,21 @@ func (m *MockEngine) RefreshTaskListPartitionConfig(hCtx *handlerContext, reques
 func (mr *MockEngineMockRecorder) RefreshTaskListPartitionConfig(hCtx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshTaskListPartitionConfig", reflect.TypeOf((*MockEngine)(nil).RefreshTaskListPartitionConfig), hCtx, request)
+}
+
+// ReleaseSemaphore mocks base method.
+func (m *MockEngine) ReleaseSemaphore(hCtx *handlerContext, request *types.ReleaseSemaphoreRequest) (*types.ReleaseSemaphoreResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseSemaphore", hCtx, request)
+	ret0, _ := ret[0].(*types.ReleaseSemaphoreResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseSemaphore indicates an expected call of ReleaseSemaphore.
+func (mr *MockEngineMockRecorder) ReleaseSemaphore(hCtx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseSemaphore", reflect.TypeOf((*MockEngine)(nil).ReleaseSemaphore), hCtx, request)
 }
 
 // RespondQueryTaskCompleted mocks base method.
@@ -357,6 +387,21 @@ func (mr *MockHandlerMockRecorder) DescribeTaskList(arg0, arg1 any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeTaskList", reflect.TypeOf((*MockHandler)(nil).DescribeTaskList), arg0, arg1)
 }
 
+// GetSemaphoreTokenByOwner mocks base method.
+func (m *MockHandler) GetSemaphoreTokenByOwner(arg0 context.Context, arg1 *types.GetSemaphoreTokenByOwnerRequest) (*types.GetSemaphoreTokenByOwnerResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSemaphoreTokenByOwner", arg0, arg1)
+	ret0, _ := ret[0].(*types.GetSemaphoreTokenByOwnerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSemaphoreTokenByOwner indicates an expected call of GetSemaphoreTokenByOwner.
+func (mr *MockHandlerMockRecorder) GetSemaphoreTokenByOwner(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTokenByOwner", reflect.TypeOf((*MockHandler)(nil).GetSemaphoreTokenByOwner), arg0, arg1)
+}
+
 // GetTaskListsByDomain mocks base method.
 func (m *MockHandler) GetTaskListsByDomain(arg0 context.Context, arg1 *types.GetTaskListsByDomainRequest) (*types.GetTaskListsByDomainResponse, error) {
 	m.ctrl.T.Helper()
@@ -460,6 +505,21 @@ func (m *MockHandler) RefreshTaskListPartitionConfig(arg0 context.Context, arg1 
 func (mr *MockHandlerMockRecorder) RefreshTaskListPartitionConfig(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshTaskListPartitionConfig", reflect.TypeOf((*MockHandler)(nil).RefreshTaskListPartitionConfig), arg0, arg1)
+}
+
+// ReleaseSemaphore mocks base method.
+func (m *MockHandler) ReleaseSemaphore(arg0 context.Context, arg1 *types.ReleaseSemaphoreRequest) (*types.ReleaseSemaphoreResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseSemaphore", arg0, arg1)
+	ret0, _ := ret[0].(*types.ReleaseSemaphoreResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseSemaphore indicates an expected call of ReleaseSemaphore.
+func (mr *MockHandlerMockRecorder) ReleaseSemaphore(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseSemaphore", reflect.TypeOf((*MockHandler)(nil).ReleaseSemaphore), arg0, arg1)
 }
 
 // RespondQueryTaskCompleted mocks base method.

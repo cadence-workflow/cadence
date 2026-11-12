@@ -12,11 +12,11 @@ import (
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
 )
 
-{{$nonForwardingAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "FailoverDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "DiagnoseWorkflowExecution" "ListFailoverHistory" "CreateSemaphore"}}
+{{$nonForwardingAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "FailoverDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "DiagnoseWorkflowExecution" "ListFailoverHistory" "CreateSemaphore" "StartBatchOperation" "DescribeBatchOperation" "ListBatchOperations" "StopBatchOperation" "UpdateBatchOperation"}}
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$startWFAPIs := list "StartWorkflowExecution" "StartWorkflowExecutionAsync" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
 {{$signalWithStartAPIs := list "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
-{{$nonstartWFAPIs := list "DescribeWorkflowExecutionRequest" "GetWorkflowExecutionHistory" "QueryWorkflowRequest" "RequestCancelWorkflowExecution" "ResetWorkflowExecution" "RestartWorkflowExecution" "SignalWorkflowExecution" "TerminateWorkflowExecution" }}
+{{$nonstartWFAPIs := list "DescribeWorkflowExecutionRequest" "GetWorkflowExecutionHistory" "QueryWorkflowRequest" "RequestCancelWorkflowExecution" "ResetWorkflowExecution" "RestartWorkflowExecution" "SignalWorkflowExecution" "TerminateWorkflowExecution" "ExportWorkflowExecution" }}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
 {{$readAPIsWithStrongConsistency := list "QueryWorkflow" "DescribeWorkflowExecution" "GetWorkflowExecutionHistory"}}
 

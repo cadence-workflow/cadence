@@ -25,6 +25,7 @@ import (
 	"errors"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
@@ -250,24 +252,9 @@ func expectPollersPresent(mockResource *resource.Test) {
 	mockResource.RemoteFrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(resp, nil).AnyTimes()
 }
 
-// expectDestinationMissingPollers simulates a destination cluster with no pollers: the local frontend
-// reports task lists with pollers but the remote (destination) frontend reports none, so the poller
-// check fails and warnIfMissingPollers logs a warning — without skipping the domain.
-func expectDestinationMissingPollers(mockResource *resource.Test) {
-	local := &types.GetTaskListsByDomainResponse{
-		DecisionTaskListMap: taskListMapWithPollers(),
-		ActivityTaskListMap: taskListMapWithPollers(),
-	}
-	remote := &types.GetTaskListsByDomainResponse{
-		DecisionTaskListMap: map[string]*types.DescribeTaskListResponse{"tl": {}},
-		ActivityTaskListMap: map[string]*types.DescribeTaskListResponse{"tl": {}},
-	}
-	mockResource.FrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(local, nil).AnyTimes()
-	mockResource.RemoteFrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(remote, nil).AnyTimes()
-}
-
 func TestFailoverActivityV2_WhenGivenPreferencesItAppliesThemAndReportsSuccessDomains(t *testing.T) {
 	env, mockResource := newFailoverV2ActivityEnv(t)
+	expectPollersPresent(mockResource)
 
 	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 
@@ -290,6 +277,7 @@ func TestFailoverActivityV2_WhenGivenPreferencesItAppliesThemAndReportsSuccessDo
 
 func TestFailoverActivityV2_WhenADomainFailsItIsReportedFailedWithTheError(t *testing.T) {
 	env, mockResource := newFailoverV2ActivityEnv(t)
+	expectPollersPresent(mockResource)
 
 	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).Return(nil, errors.New("boom"))
 
@@ -305,6 +293,91 @@ func TestFailoverActivityV2_WhenADomainFailsItIsReportedFailedWithTheError(t *te
 	require.Len(t, result.FailedDomains, 1)
 	assert.Equal(t, "d1", result.FailedDomains[0].DomainName)
 	assert.Contains(t, result.FailedDomains[0].Error, "boom")
+}
+
+// TestFailoverActivityV2_WhenDestinationHasNoPollersItStillFailsOverTheDomain verifies the V2 poller
+// check is advisory: a destination cluster with zero pollers produces a warning but the domain is still
+// failed over (unlike V1, which skips it).
+func TestFailoverActivityV2_WhenDestinationHasNoPollersItStillFailsOverTheDomain(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+	core, logs := observer.New(zap.WarnLevel)
+	env.SetWorkerOptions(worker.Options{Logger: zap.New(core)})
+
+	local := &types.GetTaskListsByDomainResponse{
+		DecisionTaskListMap: taskListMapWithPollers(),
+		ActivityTaskListMap: taskListMapWithPollers(),
+	}
+	remote := &types.GetTaskListsByDomainResponse{
+		DecisionTaskListMap: map[string]*types.DescribeTaskListResponse{"tl": {}},
+		ActivityTaskListMap: map[string]*types.DescribeTaskListResponse{"tl": {}},
+	}
+	mockResource.FrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(local, nil).Times(1)
+	mockResource.RemoteFrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(remote, nil).Times(1)
+	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
+
+	val, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{
+		DomainPreferences: []DomainFailoverPreferences{{DomainName: "d1", TargetCluster: "cluster1"}},
+	})
+	require.NoError(t, err)
+	var result FailoverActivityV2Result
+	require.NoError(t, val.Get(&result))
+	assert.Equal(t, []DomainFailoverSuccess{{DomainName: "d1"}}, result.SuccessDomains)
+	assert.Empty(t, result.FailedDomains)
+	warnings := logs.FilterMessage("domain has no active pollers in destination cluster; proceeding anyway").All()
+	require.Len(t, warnings, 1)
+	assert.Equal(t, "d1", warnings[0].ContextMap()["domain"])
+	assert.Equal(t, "cluster1", warnings[0].ContextMap()["targetCluster"])
+}
+
+func TestFailoverActivityV2_WhenRetriedWithProgressItResumesAfterTheLastProcessedDomain(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+	env.SetHeartbeatDetails(failoverActivityV2Progress{
+		NextIndex:     2,
+		FailedDomains: []DomainFailoverFailure{{DomainName: "d2", Error: "boom"}},
+	})
+	expectPollersPresent(mockResource)
+
+	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *types.FailoverDomainRequest, _ ...yarpc.CallOption) (*types.FailoverDomainResponse, error) {
+			assert.Equal(t, "d3", req.DomainName)
+			return nil, nil
+		}).Times(1)
+
+	val, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{
+		DomainPreferences: []DomainFailoverPreferences{
+			{DomainName: "d1", TargetCluster: "cluster1"},
+			{DomainName: "d2", TargetCluster: "cluster1"},
+			{DomainName: "d3", TargetCluster: "cluster1"},
+		},
+	})
+	require.NoError(t, err)
+	var result FailoverActivityV2Result
+	require.NoError(t, val.Get(&result))
+	assert.Equal(t, []DomainFailoverSuccess{{DomainName: "d1"}, {DomainName: "d3"}}, result.SuccessDomains)
+	assert.Equal(t, []DomainFailoverFailure{{DomainName: "d2", Error: "boom"}}, result.FailedDomains)
+}
+
+func TestGetFailoverV2ActivityOptions(t *testing.T) {
+	tests := []struct {
+		name             string
+		batchSize        int
+		wantStartToClose time.Duration
+	}{
+		{"empty batch uses the minimum", 0, 1 * time.Minute},
+		{"small batch uses the minimum", 3, 1 * time.Minute},
+		{"default batch scales with its size", 20, 200 * time.Second},
+		{"batch at the cap", 60, 10 * time.Minute},
+		{"large batch is capped", 1000, 10 * time.Minute},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := getFailoverV2ActivityOptions(tc.batchSize)
+			assert.Equal(t, tc.wantStartToClose, opts.StartToCloseTimeout)
+			assert.Equal(t, 1*time.Minute, opts.HeartbeatTimeout)
+			require.NotNil(t, opts.RetryPolicy)
+			assert.Equal(t, 2*tc.wantStartToClose, opts.RetryPolicy.ExpirationInterval)
+		})
+	}
 }
 
 func TestGetFailoverTimeoutSeconds(t *testing.T) {
@@ -337,6 +410,7 @@ func TestGetFailoverTimeoutSeconds(t *testing.T) {
 
 func TestFailoverActivityV2_WhenDomainHasTimeoutItPassesGracefulFailover(t *testing.T) {
 	env, mockResource := newFailoverV2ActivityEnv(t)
+	expectPollersPresent(mockResource)
 
 	var capturedReq *types.FailoverDomainRequest
 	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).
@@ -360,6 +434,7 @@ func TestFailoverActivityV2_WhenDomainHasTimeoutItPassesGracefulFailover(t *test
 
 func TestFailoverActivityV2_WhenDomainHasNoTimeoutItUsesForceFailover(t *testing.T) {
 	env, mockResource := newFailoverV2ActivityEnv(t)
+	expectPollersPresent(mockResource)
 
 	var capturedReq *types.FailoverDomainRequest
 	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).
@@ -382,6 +457,7 @@ func TestFailoverActivityV2_WhenDomainHasNoTimeoutItUsesForceFailover(t *testing
 
 func TestFailoverActivityV2_WhenSkipDestinationClusterCheckIsSetEveryFailoverDomainRequestCarriesIt(t *testing.T) {
 	env, mockResource := newFailoverV2ActivityEnv(t)
+	expectPollersPresent(mockResource)
 
 	var got []*types.FailoverDomainRequest
 	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).
@@ -408,6 +484,7 @@ func TestFailoverActivityV2_WhenSkipDestinationClusterCheckIsSetEveryFailoverDom
 
 func TestFailoverActivityV2_WhenSkipDestinationClusterCheckIsUnsetRequestsDoNotSkipIt(t *testing.T) {
 	env, mockResource := newFailoverV2ActivityEnv(t)
+	expectPollersPresent(mockResource)
 
 	var got *types.FailoverDomainRequest
 	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).

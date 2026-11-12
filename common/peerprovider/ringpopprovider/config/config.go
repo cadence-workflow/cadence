@@ -122,7 +122,7 @@ func validateBootstrapMode(
 	case BootstrapModeCustom:
 		return fmt.Errorf("ringpop bootstrapMode custom is not supported")
 	default:
-		return fmt.Errorf("ringpop config with unknown boostrap mode %q", rpConfig.BootstrapMode)
+		return fmt.Errorf("ringpop config with unknown boostrap mode %d", rpConfig.BootstrapMode)
 	}
 	return nil
 }

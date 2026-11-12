@@ -1,0 +1,33 @@
+# This file is used as dynamicconfig override for "child_failover_stale_branch_running" replication simulation scenario configured via simulation/replication/testdata/replication_simulation_child_failover_stale_branch_running.yaml
+system.writeVisibilityStoreName:
+  - value: "db"
+system.readVisibilityStoreName:
+  - value: "db"
+history.replicatorTaskBatchSize:
+  - value: 25
+    constraints: {}
+history.replicatorMinTaskBatchSize: # one task per batch for shard 1, the shard of stale-branch-running-parent
+  - value: 1
+    constraints:
+      shardID: 1
+history.replicatorMaxTaskBatchSize:
+  - value: 1
+    constraints:
+      shardID: 1
+frontend.failoverCoolDown:
+  - value: 5s
+history.ReplicationTaskProcessorStartWait: # wait before each replication batch. Shard 1 is the shard of stale-branch-running-parent.
+  - value: 20s
+    constraints:
+      shardID: 1
+  - value: 10ms
+history.ReplicationTaskProcessorStartWaitJitterCoefficient: # no jitter, so that the wait of shard 1 is always 20s
+  - value: 0
+    constraints:
+      shardID: 1
+history.enableDeterministicChildWorkflowRequestID:
+  - value: true
+history.enableExistingChildWorkflowRunHandling:
+  - value: true
+history.enableChildWorkflowStaleBranchReplacement:
+  - value: true
