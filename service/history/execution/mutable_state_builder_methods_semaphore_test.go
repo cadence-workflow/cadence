@@ -304,10 +304,11 @@ func Test__AddSemaphoreAcquiredEvent(t *testing.T) {
 			wantHoldToken: 7,
 		},
 		{
-			name:          "a hold with a different token gets the new token",
+			name:          "a hold with a different token is refused",
 			holdTokenID:   common.IntPtr(3),
 			grantTokenID:  7,
-			wantHoldToken: 7,
+			wantErr:       errRefused,
+			wantHoldToken: 3,
 		},
 		{
 			name:          "the same token granted again is refused",
@@ -386,6 +387,15 @@ func Test__ReplicateSemaphoreAcquiredEvent(t *testing.T) {
 		assert.Equal(t, int64(4), mb.pendingSemaphoreInfoIDs[2].Version)
 		assert.Equal(t, mb.pendingSemaphoreInfoIDs[2], mb.updateSemaphoreInfos[2])
 	})
+	t.Run("a hold that already has a token is overwritten with the granted token", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+		hold := testSemaphoreInfo(2)
+		hold.TokenID = 3
+		mb.pendingSemaphoreInfoIDs[2] = hold
+
+		require.NoError(t, mb.ReplicateSemaphoreAcquiredEvent(event))
+		assert.Equal(t, 7, mb.pendingSemaphoreInfoIDs[2].TokenID)
+	})
 	t.Run("an event with no matching hold returns an error", func(t *testing.T) {
 		mb := testSemaphoreMutableStateBuilder(t)
 		assert.Equal(t, ErrMissingSemaphoreInfo, mb.ReplicateSemaphoreAcquiredEvent(event))
@@ -399,9 +409,6 @@ func Test__SemaphoreEventsReplayToTheSameHolds(t *testing.T) {
 	acquireAEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(4, "sem-a", 30)
 	require.NoError(t, err)
 	_, err = original.AddSemaphoreAcquiredEvent(acquireAEvent.ID, 3)
-	require.NoError(t, err)
-	// acquireA is granted again with a new token, as after a failover.
-	_, err = original.AddSemaphoreAcquiredEvent(acquireAEvent.ID, 8)
 	require.NoError(t, err)
 	// Grant events are buffered until the transaction closes, which flushes them and gives them IDs.
 	require.NoError(t, original.FlushBufferedEvents())

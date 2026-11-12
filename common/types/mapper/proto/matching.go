@@ -744,6 +744,8 @@ func FromSemaphoreAcquireOutcome(t types.SemaphoreAcquireOutcome) matchingv1.Sem
 		return matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_ACQUIRED
 	case types.SemaphoreAcquireOutcomeNoSlot:
 		return matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_NO_SLOT
+	case types.SemaphoreAcquireOutcomeQueued:
+		return matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_QUEUED
 	}
 	return matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_INVALID
 }
@@ -754,6 +756,8 @@ func ToSemaphoreAcquireOutcome(t matchingv1.SemaphoreAcquireOutcome) types.Semap
 		return types.SemaphoreAcquireOutcomeAcquired
 	case matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_NO_SLOT:
 		return types.SemaphoreAcquireOutcomeNoSlot
+	case matchingv1.SemaphoreAcquireOutcome_SEMAPHORE_ACQUIRE_OUTCOME_QUEUED:
+		return types.SemaphoreAcquireOutcomeQueued
 	}
 	return types.SemaphoreAcquireOutcomeInvalid
 }

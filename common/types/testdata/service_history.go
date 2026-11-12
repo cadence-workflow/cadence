@@ -181,6 +181,13 @@ var (
 		DomainUIID: DomainID,
 		Request:    &AdminRefreshWorkflowTasksRequest,
 	}
+	HistoryRecordSemaphoreAcquiredRequest = types.RecordSemaphoreAcquiredRequest{
+		DomainUUID:        DomainID,
+		WorkflowExecution: &WorkflowExecution,
+		InitiatedID:       EventID1,
+		TokenID:           17,
+		SemaphoreName:     SemaphoreName,
+	}
 	HistoryRemoveSignalMutableStateRequest = types.RemoveSignalMutableStateRequest{
 		DomainUUID:        DomainID,
 		WorkflowExecution: &WorkflowExecution,

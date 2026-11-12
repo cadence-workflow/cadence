@@ -498,6 +498,26 @@ func (mr *MockClientMockRecorder) RecordDecisionTaskStarted(arg0, arg1 any, arg2
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordDecisionTaskStarted", reflect.TypeOf((*MockClient)(nil).RecordDecisionTaskStarted), varargs...)
 }
 
+// RecordSemaphoreAcquired mocks base method.
+func (m *MockClient) RecordSemaphoreAcquired(arg0 context.Context, arg1 *types.RecordSemaphoreAcquiredRequest, arg2 ...yarpc.CallOption) (*types.RecordSemaphoreAcquiredResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "RecordSemaphoreAcquired", varargs...)
+	ret0, _ := ret[0].(*types.RecordSemaphoreAcquiredResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RecordSemaphoreAcquired indicates an expected call of RecordSemaphoreAcquired.
+func (mr *MockClientMockRecorder) RecordSemaphoreAcquired(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordSemaphoreAcquired", reflect.TypeOf((*MockClient)(nil).RecordSemaphoreAcquired), varargs...)
+}
+
 // RefreshWorkflowTasks mocks base method.
 func (m *MockClient) RefreshWorkflowTasks(arg0 context.Context, arg1 *types.HistoryRefreshWorkflowTasksRequest, arg2 ...yarpc.CallOption) error {
 	m.ctrl.T.Helper()
