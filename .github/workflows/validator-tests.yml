@@ -1,0 +1,20 @@
+name: Validator Tests
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/**'
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/scripts/**'
+
+jobs:
+  test-validator:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run validator unit tests
+        run: node --test .github/scripts/validate-issue.test.js

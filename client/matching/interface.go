@@ -50,5 +50,7 @@ type Client interface {
 	RespondQueryTaskCompleted(context.Context, *types.MatchingRespondQueryTaskCompletedRequest, ...yarpc.CallOption) error
 	UpdateTaskListPartitionConfig(context.Context, *types.MatchingUpdateTaskListPartitionConfigRequest, ...yarpc.CallOption) (*types.MatchingUpdateTaskListPartitionConfigResponse, error)
 	RefreshTaskListPartitionConfig(context.Context, *types.MatchingRefreshTaskListPartitionConfigRequest, ...yarpc.CallOption) (*types.MatchingRefreshTaskListPartitionConfigResponse, error)
-	AddSemaphoreTask(context.Context, *types.AddSemaphoreTaskRequest, ...yarpc.CallOption) (*types.AddSemaphoreTaskResponse, error)
+	AcquireSemaphore(context.Context, *types.AcquireSemaphoreRequest, ...yarpc.CallOption) (*types.AcquireSemaphoreResponse, error)
+	ReleaseSemaphore(context.Context, *types.ReleaseSemaphoreRequest, ...yarpc.CallOption) (*types.ReleaseSemaphoreResponse, error)
+	GetSemaphoreTokenByOwner(context.Context, *types.GetSemaphoreTokenByOwnerRequest, ...yarpc.CallOption) (*types.GetSemaphoreTokenByOwnerResponse, error)
 }

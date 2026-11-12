@@ -374,6 +374,21 @@ func (mr *MockEngineMockRecorder) RecordDecisionTaskStarted(ctx, request any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordDecisionTaskStarted", reflect.TypeOf((*MockEngine)(nil).RecordDecisionTaskStarted), ctx, request)
 }
 
+// RecordSemaphoreAcquired mocks base method.
+func (m *MockEngine) RecordSemaphoreAcquired(ctx context.Context, request *types.RecordSemaphoreAcquiredRequest) (*types.RecordSemaphoreAcquiredResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RecordSemaphoreAcquired", ctx, request)
+	ret0, _ := ret[0].(*types.RecordSemaphoreAcquiredResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RecordSemaphoreAcquired indicates an expected call of RecordSemaphoreAcquired.
+func (mr *MockEngineMockRecorder) RecordSemaphoreAcquired(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordSemaphoreAcquired", reflect.TypeOf((*MockEngine)(nil).RecordSemaphoreAcquired), ctx, request)
+}
+
 // RefreshWorkflowTasks mocks base method.
 func (m *MockEngine) RefreshWorkflowTasks(ctx context.Context, domainUUID string, execution types.WorkflowExecution) error {
 	m.ctrl.T.Helper()

@@ -167,6 +167,7 @@ func TestGettersForInfos(t *testing.T) {
 			VisibilityTimestamp:     taskInfoCreateTime,
 			OriginalTaskList:        "originalTaskList",
 			OriginalTaskListKind:    types.TaskListKindEphemeral,
+			SemaphoreName:           "semaphoreName",
 		},
 		&TimerTaskInfo{
 			DomainID:        taskDomainID,

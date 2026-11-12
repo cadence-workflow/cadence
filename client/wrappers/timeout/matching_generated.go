@@ -36,6 +36,12 @@ func NewMatchingClient(
 	}
 }
 
+func (c *matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest, p1 ...yarpc.CallOption) (ap2 *types.AcquireSemaphoreResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.AcquireSemaphore(ctx, ap1, p1...)
+}
+
 func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
@@ -48,12 +54,6 @@ func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDeci
 	return c.client.AddDecisionTask(ctx, ap1, p1...)
 }
 
-func (c *matchingClient) AddSemaphoreTask(ctx context.Context, ap1 *types.AddSemaphoreTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddSemaphoreTaskResponse, err error) {
-	ctx, cancel := createContext(ctx, c.timeout)
-	defer cancel()
-	return c.client.AddSemaphoreTask(ctx, ap1, p1...)
-}
-
 func (c *matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
@@ -64,6 +64,12 @@ func (c *matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.Matchi
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.DescribeTaskList(ctx, mp1, p1...)
+}
+
+func (c *matchingClient) GetSemaphoreTokenByOwner(ctx context.Context, gp1 *types.GetSemaphoreTokenByOwnerRequest, p1 ...yarpc.CallOption) (gp2 *types.GetSemaphoreTokenByOwnerResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.GetSemaphoreTokenByOwner(ctx, gp1, p1...)
 }
 
 func (c *matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest, p1 ...yarpc.CallOption) (gp2 *types.GetTaskListsByDomainResponse, err error) {
@@ -98,6 +104,12 @@ func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.RefreshTaskListPartitionConfig(ctx, mp1, p1...)
+}
+
+func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.ReleaseSemaphore(ctx, rp1, p1...)
 }
 
 func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {

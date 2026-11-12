@@ -169,6 +169,7 @@ func AdminTimers(c *cli.Context) error {
 			persistence.TaskTypeDeleteHistoryEvent,
 			persistence.TaskTypeActivityRetryTimer,
 			persistence.TaskTypeWorkflowBackoffTimer,
+			persistence.TaskTypeSemaphoreAcquireTimeout,
 		}
 	}
 

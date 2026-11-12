@@ -97,5 +97,13 @@ type (
 		ListSchedules(context.Context, *types.ListSchedulesRequest) (*types.ListSchedulesResponse, error)
 
 		CreateSemaphore(context.Context, *types.CreateSemaphoreRequest) (*types.CreateSemaphoreResponse, error)
+
+		StartBatchOperation(context.Context, *types.StartBatchOperationRequest) (*types.StartBatchOperationResponse, error)
+		DescribeBatchOperation(context.Context, *types.DescribeBatchOperationRequest) (*types.DescribeBatchOperationResponse, error)
+		ListBatchOperations(context.Context, *types.ListBatchOperationsRequest) (*types.ListBatchOperationsResponse, error)
+		StopBatchOperation(context.Context, *types.StopBatchOperationRequest) (*types.StopBatchOperationResponse, error)
+		UpdateBatchOperation(context.Context, *types.UpdateBatchOperationRequest) (*types.UpdateBatchOperationResponse, error)
+
+		ExportWorkflowExecution(context.Context, *types.ExportWorkflowExecutionRequest) (*types.ExportWorkflowExecutionResponse, error)
 	}
 )

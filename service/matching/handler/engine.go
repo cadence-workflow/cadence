@@ -94,6 +94,8 @@ type (
 		taskListRegistry               tasklist.TaskListRegistry
 		semaphoreRegistry              semaphore.SemaphoreRegistry
 		semaphoreTokenManager          persistence.SemaphoreTokenManager
+		semaphoreMetadataManager       persistence.SemaphoreMetadataManager
+		semaphoreTaskManager           persistence.SemaphoreTaskManager
 		shutdownCompletion             *sync.WaitGroup
 		shutdown                       chan struct{}
 		taskManager                    persistence.TaskManager
@@ -118,6 +120,7 @@ type (
 		ShardDistributorMatchingConfig clientcommon.Config
 		drainObserver                  clientcommon.DrainSignalObserver
 		percentageOnboarded            membership.PercentageOnboarded
+		taskListDifferentiator         *membership.TaskListDifferentiator
 	}
 )
 
@@ -148,6 +151,9 @@ var _ Engine = (*matchingEngineImpl)(nil) // Asserts that interface is indeed im
 // NewEngine creates an instance of matching engine
 func NewEngine(
 	taskManager persistence.TaskManager,
+	semaphoreTokenManager persistence.SemaphoreTokenManager,
+	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
+	semaphoreTaskManager persistence.SemaphoreTaskManager,
 	clusterMetadata cluster.Metadata,
 	historyService history.Client,
 	matchingClient matching.Client,
@@ -162,15 +168,19 @@ func NewEngine(
 	timeSource clock.TimeSource,
 	shardDistributorClient executorclient.Client,
 	ShardDistributorMatchingConfig clientcommon.Config,
+	taskListDifferentiator *membership.TaskListDifferentiator,
 	drainObserver clientcommon.DrainSignalObserver,
 	percentageOnboarded membership.PercentageOnboarded,
 ) Engine {
 	e := &matchingEngineImpl{
-		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient),
+		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient, taskListDifferentiator.ShardCount()),
 		semaphoreRegistry:              semaphore.NewSemaphoreRegistry(),
 		shutdown:                       make(chan struct{}),
 		shutdownCompletion:             &sync.WaitGroup{},
 		taskManager:                    taskManager,
+		semaphoreTokenManager:          semaphoreTokenManager,
+		semaphoreMetadataManager:       semaphoreMetadataManager,
+		semaphoreTaskManager:           semaphoreTaskManager,
 		clusterMetadata:                clusterMetadata,
 		historyService:                 historyService,
 		tokenSerializer:                common.NewJSONTaskTokenSerializer(),
@@ -189,6 +199,7 @@ func NewEngine(
 		ShardDistributorMatchingConfig: ShardDistributorMatchingConfig,
 		drainObserver:                  drainObserver,
 		percentageOnboarded:            percentageOnboarded,
+		taskListDifferentiator:         taskListDifferentiator,
 	}
 
 	e.setupExecutor(shardDistributorClient)
@@ -226,9 +237,10 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 		e.executor = executorclient.NewNoopExecutor[tasklist.ShardProcessor]()
 
 		taskListFactory := &tasklist.ShardProcessorFactory{
-			TaskListsRegistry: e.taskListRegistry,
-			ReportTTL:         _defaultSDReportTTL,
-			TimeSource:        e.timeSource,
+			TaskListsRegistry:      e.taskListRegistry,
+			ReportTTL:              _defaultSDReportTTL,
+			TimeSource:             e.timeSource,
+			TaskListDifferentiator: e.taskListDifferentiator,
 		}
 		e.taskListsFactory = taskListFactory
 		return
@@ -237,9 +249,10 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 	cfg, reportTTL := e.getValidatedShardDistributorConfig()
 
 	taskListFactory := &tasklist.ShardProcessorFactory{
-		TaskListsRegistry: e.taskListRegistry,
-		ReportTTL:         reportTTL,
-		TimeSource:        e.timeSource,
+		TaskListsRegistry:      e.taskListRegistry,
+		ReportTTL:              reportTTL,
+		TimeSource:             e.timeSource,
+		TaskListDifferentiator: e.taskListDifferentiator,
 	}
 	e.taskListsFactory = taskListFactory
 
@@ -316,7 +329,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	// The first check is an optimization so almost all requests will have a task list manager
 	// and return avoiding the write lock
 	result, ok := e.taskListRegistry.ManagerByTaskListIdentifier(*taskList)
-	excludedFromShardDistributor := e.isExcludedFromShardDistributor(taskList.GetName())
+	excludedFromShardDistributor := e.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskList.GetName())
 
 	// Task lists excluded from the ShardDistributor (short-lived task lists with UUIDs) bypass
 	// the executor/shard-processor entirely and always use local hash-ring assignment.
@@ -324,7 +337,8 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		return result, nil
 	}
 	if !excludedFromShardDistributor {
-		sp, _ := e.executor.GetShardProcess(ctx, taskList.GetName())
+		shardID := e.taskListDifferentiator.ShardID(taskList.GetName())
+		sp, _ := e.executor.GetShardProcess(ctx, shardID)
 		if sp != nil && ok {
 			return result, nil
 		}
@@ -396,11 +410,11 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	return mgr, nil
 }
 
-// AddSemaphoreTask claims a token slot in one semaphore bucket for one owner.
-func (e *matchingEngineImpl) AddSemaphoreTask(
+// AcquireSemaphore claims a token slot in one semaphore bucket for one owner.
+func (e *matchingEngineImpl) AcquireSemaphore(
 	hCtx *handlerContext,
-	request *types.AddSemaphoreTaskRequest,
-) (*types.AddSemaphoreTaskResponse, error) {
+	request *types.AcquireSemaphoreRequest,
+) (*types.AcquireSemaphoreResponse, error) {
 	domainID := request.GetDomainUUID()
 	semaphoreName := request.GetSemaphoreName()
 	bucket := int(request.GetBucket())
@@ -413,7 +427,62 @@ func (e *matchingEngineImpl) AddSemaphoreTask(
 
 	e.emitInfoOrDebugLog(
 		domainID,
-		"Received AddSemaphoreTask",
+		"Received AcquireSemaphore",
+		tag.WorkflowID(owner.WorkflowID),
+		tag.WorkflowRunID(owner.RunID),
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowScheduleID(owner.HoldID),
+	)
+
+	identifier, err := semaphore.NewIdentifier(domainID, semaphoreName, bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	// Checked on every acquire, so turning the flag off takes effect on loaded buckets too.
+	domainName, err := e.domainCache.GetDomainName(domainID)
+	if err != nil {
+		return nil, err
+	}
+	if !e.config.EnableDistributedSemaphore(domainName) {
+		return nil, ErrSemaphoreDisabled
+	}
+
+	semMgr, err := e.getOrCreateSemaphoreManager(identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := semMgr.Acquire(hCtx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.AcquireSemaphoreResponse{
+		Outcome: resp.Outcome,
+		TokenID: int32(resp.TokenID),
+	}, nil
+}
+
+// ReleaseSemaphore frees the token slot one owner holds in one semaphore bucket. An owner that
+// holds nothing is released too, so a repeated release succeeds.
+func (e *matchingEngineImpl) ReleaseSemaphore(
+	hCtx *handlerContext,
+	request *types.ReleaseSemaphoreRequest,
+) (*types.ReleaseSemaphoreResponse, error) {
+	domainID := request.GetDomainUUID()
+	semaphoreName := request.GetSemaphoreName()
+	bucket := int(request.GetBucket())
+	ownerID := request.GetOwnerID()
+
+	owner, err := semaphore.ParseRequestOwner(ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	e.emitInfoOrDebugLog(
+		domainID,
+		"Received ReleaseSemaphore",
 		tag.WorkflowID(owner.WorkflowID),
 		tag.WorkflowRunID(owner.RunID),
 		tag.WorkflowDomainID(domainID),
@@ -430,15 +499,51 @@ func (e *matchingEngineImpl) AddSemaphoreTask(
 		return nil, err
 	}
 
-	resp, err := semMgr.Acquire(hCtx, ownerID)
+	if err := semMgr.Release(hCtx, ownerID); err != nil {
+		return nil, err
+	}
+	return &types.ReleaseSemaphoreResponse{}, nil
+}
+
+// GetSemaphoreTokenByOwner returns the token an owner holds in a semaphore bucket, or 0 if none.
+func (e *matchingEngineImpl) GetSemaphoreTokenByOwner(
+	hCtx *handlerContext,
+	request *types.GetSemaphoreTokenByOwnerRequest,
+) (*types.GetSemaphoreTokenByOwnerResponse, error) {
+	domainID := request.GetDomainUUID()
+	semaphoreName := request.GetSemaphoreName()
+	bucket := int(request.GetBucket())
+	ownerID := request.GetOwnerID()
+
+	owner, err := semaphore.ParseRequestOwner(ownerID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &types.AddSemaphoreTaskResponse{
-		Outcome: resp.Outcome,
-		TokenID: int32(resp.TokenID),
-	}, nil
+	e.emitInfoOrDebugLog(
+		domainID,
+		"Received GetSemaphoreTokenByOwner",
+		tag.WorkflowID(owner.WorkflowID),
+		tag.WorkflowRunID(owner.RunID),
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowScheduleID(owner.HoldID),
+	)
+
+	identifier, err := semaphore.NewIdentifier(domainID, semaphoreName, bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	semMgr, err := e.getOrCreateSemaphoreManager(identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenID, err := semMgr.GetTokenByOwner(hCtx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	return &types.GetSemaphoreTokenByOwnerResponse{TokenID: int32(tokenID)}, nil
 }
 
 // getOrCreateSemaphoreManager returns this host's manager for one bucket, building it the first
@@ -449,14 +554,10 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 	// lookup and the ring check below.
 	mgr, ok := e.semaphoreRegistry.ManagerByIdentifier(id)
 	if !ok {
-		// The flag filters on domain name while a bucket is keyed by domain id, so resolve the
-		// name first. Both stay out of create, which holds the registry lock.
+		// SemaphoreIdleTime is keyed by domain name. Resolved outside create, which holds the registry lock.
 		domainName, err := e.domainCache.GetDomainName(id.DomainID)
 		if err != nil {
 			return nil, err
-		}
-		if !e.config.EnableDistributedSemaphore(domainName) {
-			return nil, ErrSemaphoreDisabled
 		}
 
 		if err := e.errIfSemaphoreOwnershipLost(id); err != nil {
@@ -469,8 +570,11 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 			return semaphore.NewManager(semaphore.ManagerParams{
 				ID:         id,
 				Tokens:     e.semaphoreTokenManager,
+				Metadata:   e.semaphoreMetadataManager,
+				Tasks:      e.semaphoreTaskManager,
 				Logger:     e.logger,
-				IdleTTL:    e.config.SemaphoreIdleTime(domainName),
+				Cfg:        e.config,
+				DomainName: domainName,
 				OnStopFn:   e.unregisterSemaphoreManager,
 				TimeSource: e.timeSource,
 			})
@@ -480,9 +584,9 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 		}
 	}
 
-	// Always call Start, even on a manager found in the registry: if the request that registered
-	// it never started it, nothing else will, and the bucket would stay stuck. Start is free when
-	// the manager is already running or loading.
+	// Start runs outside the registry lock, so a slow load does not block other buckets. It also
+	// runs for a manager found in the registry, in case the request that registered it never
+	// started it. Start does nothing if the manager is already loading or running.
 	startCtx, cancel := context.WithTimeout(context.Background(), semaphoreManagerStartTimeout)
 	defer cancel()
 	if err := mgr.Start(startCtx); err != nil {
@@ -1623,10 +1727,12 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 
 	// Task lists excluded from the ShardDistributor bypass the executor entirely and rely on
 	// the local hash-ring for ownership, so skip the SD-based ownership check for them.
-	if !e.isExcludedFromShardDistributor(taskList.GetName()) {
-		// We have a shard-processor shared by all the task lists with the same name.
+	if !e.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskList.GetName()) {
+		// We have a shard-processor shared by all the task lists with the same name, or, when task
+		// lists are sharded by hash, by all the task lists whose names hash to the same shard.
 		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
-		sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
+		shardID := e.taskListDifferentiator.ShardID(taskList.GetName())
+		sp, err := e.executor.GetShardProcess(ctx, shardID)
 		if err != nil {
 			if errors.Is(err, executorclient.ErrShardProcessNotFound) {
 				// The shard is not assigned to this host – treat it as an ownership loss,
@@ -1698,10 +1804,6 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 	default:
 		return false
 	}
-}
-
-func (e *matchingEngineImpl) isExcludedFromShardDistributor(taskListName string) bool {
-	return membership.TaskListExcludedFromShardDistributor(taskListName, uint64(e.percentageOnboarded.Value()), e.config.ExcludeShortLivedTaskListsFromShardManager())
 }
 
 func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {

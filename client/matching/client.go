@@ -356,17 +356,48 @@ func (c *clientImpl) GetTaskListsByDomain(
 	}, nil
 }
 
-// AddSemaphoreTask routes the request to the matching host that owns the semaphore bucket.
-func (c *clientImpl) AddSemaphoreTask(
+func (c *clientImpl) AcquireSemaphore(
 	ctx context.Context,
-	request *types.AddSemaphoreTaskRequest,
+	request *types.AcquireSemaphoreRequest,
 	opts ...yarpc.CallOption,
-) (*types.AddSemaphoreTaskResponse, error) {
+) (*types.AcquireSemaphoreResponse, error) {
 	peer, err := c.peerResolver.FromSemaphoreBucket(request.GetDomainUUID(), request.GetSemaphoreName(), int(request.GetBucket()))
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.client.AddSemaphoreTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.AcquireSemaphore(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clientImpl) ReleaseSemaphore(
+	ctx context.Context,
+	request *types.ReleaseSemaphoreRequest,
+	opts ...yarpc.CallOption,
+) (*types.ReleaseSemaphoreResponse, error) {
+	peer, err := c.peerResolver.FromSemaphoreBucket(request.GetDomainUUID(), request.GetSemaphoreName(), int(request.GetBucket()))
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.client.ReleaseSemaphore(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clientImpl) GetSemaphoreTokenByOwner(
+	ctx context.Context,
+	request *types.GetSemaphoreTokenByOwnerRequest,
+	opts ...yarpc.CallOption,
+) (*types.GetSemaphoreTokenByOwnerResponse, error) {
+	peer, err := c.peerResolver.FromSemaphoreBucket(request.GetDomainUUID(), request.GetSemaphoreName(), int(request.GetBucket()))
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.client.GetSemaphoreTokenByOwner(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
 	if err != nil {
 		return nil, err
 	}

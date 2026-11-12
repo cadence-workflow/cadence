@@ -520,6 +520,26 @@ func (c *historyClient) RecordDecisionTaskStarted(ctx context.Context, rp1 *type
 	return
 }
 
+func (c *historyClient) RecordSemaphoreAcquired(ctx context.Context, rp1 *types.RecordSemaphoreAcquiredRequest, p1 ...yarpc.CallOption) (rp2 *types.RecordSemaphoreAcquiredResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		rp2, err = c.client.RecordSemaphoreAcquired(ctx, rp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgHistoryInjectedFakeErr,
+			tag.HistoryClientOperationRecordSemaphoreAcquired,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *historyClient) RefreshWorkflowTasks(ctx context.Context, hp1 *types.HistoryRefreshWorkflowTasksRequest, p1 ...yarpc.CallOption) (err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool

@@ -1053,3 +1053,77 @@ func (e eqSnapshotVersionMatcher) String() string {
 func EqSnapshotVersion(version int64) gomock.Matcher {
 	return eqSnapshotVersionMatcher{version}
 }
+
+func TestGetValues_EmptyStoreReturnsDefault(t *testing.T) {
+	tests := map[string]struct {
+		get          func(csc *configStoreClient) (interface{}, error)
+		defaultValue interface{}
+	}{
+		"GetValue": {
+			get: func(csc *configStoreClient) (interface{}, error) {
+				return csc.GetValue(dynamicproperties.TestGetIntPropertyKey)
+			},
+			defaultValue: dynamicproperties.TestGetIntPropertyKey.DefaultValue(),
+		},
+		"GetValueWithFilters": {
+			get: func(csc *configStoreClient) (interface{}, error) {
+				return csc.GetValueWithFilters(dynamicproperties.TestGetIntPropertyKey, nil)
+			},
+			defaultValue: dynamicproperties.TestGetIntPropertyKey.DefaultValue(),
+		},
+		"GetIntValue": {
+			get: func(csc *configStoreClient) (interface{}, error) {
+				return csc.GetIntValue(dynamicproperties.MatchingPercentageOnboardedToShardManager, nil)
+			},
+			defaultValue: dynamicproperties.MatchingPercentageOnboardedToShardManager.DefaultInt(),
+		},
+		"GetFloatValue": {
+			get: func(csc *configStoreClient) (interface{}, error) {
+				return csc.GetFloatValue(dynamicproperties.TestGetFloat64PropertyKey, nil)
+			},
+			defaultValue: dynamicproperties.TestGetFloat64PropertyKey.DefaultFloat(),
+		},
+		"GetBoolValue": {
+			get: func(csc *configStoreClient) (interface{}, error) {
+				return csc.GetBoolValue(dynamicproperties.TestGetBoolPropertyKey, nil)
+			},
+			defaultValue: dynamicproperties.TestGetBoolPropertyKey.DefaultBool(),
+		},
+		"GetStringValue": {
+			get: func(csc *configStoreClient) (interface{}, error) {
+				return csc.GetStringValue(dynamicproperties.TestGetStringPropertyKey, nil)
+			},
+			defaultValue: dynamicproperties.TestGetStringPropertyKey.DefaultString(),
+		},
+		"GetMapValue": {
+			get: func(csc *configStoreClient) (interface{}, error) {
+				return csc.GetMapValue(dynamicproperties.TestGetMapPropertyKey, nil)
+			},
+			defaultValue: dynamicproperties.TestGetMapPropertyKey.DefaultMap(),
+		},
+		"GetDurationValue": {
+			get: func(csc *configStoreClient) (interface{}, error) {
+				return csc.GetDurationValue(dynamicproperties.TestGetDurationPropertyKey, nil)
+			},
+			defaultValue: dynamicproperties.TestGetDurationPropertyKey.DefaultDuration(),
+		},
+		"GetListValue": {
+			get: func(csc *configStoreClient) (interface{}, error) {
+				return csc.GetListValue(dynamicproperties.TestGetListPropertyKey, nil)
+			},
+			defaultValue: dynamicproperties.TestGetListPropertyKey.DefaultList(),
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// a client that has never stored a snapshot, as happens when the store has no rows
+			csc := &configStoreClient{}
+
+			val, err := tc.get(csc)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.defaultValue, val)
+		})
+	}
+}

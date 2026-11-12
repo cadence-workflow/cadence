@@ -657,6 +657,16 @@ func (h *Impl) GetSemaphoreMetadataManager() persistence.SemaphoreMetadataManage
 	return h.persistenceBean.GetSemaphoreMetadataManager()
 }
 
+// GetSemaphoreTokenManager return semaphore token manager
+func (h *Impl) GetSemaphoreTokenManager() persistence.SemaphoreTokenManager {
+	return h.persistenceBean.GetSemaphoreTokenManager()
+}
+
+// GetSemaphoreTaskManager return semaphore task manager
+func (h *Impl) GetSemaphoreTaskManager() persistence.SemaphoreTaskManager {
+	return h.persistenceBean.GetSemaphoreTaskManager()
+}
+
 // GetTaskManager return task manager
 func (h *Impl) GetTaskManager() persistence.TaskManager {
 	return h.persistenceBean.GetTaskManager()

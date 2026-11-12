@@ -161,6 +161,10 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		metricsClient,
 		logger,
 	)
+	semaphoreMetadataMgr, err := testBase.PersistenceFactory.NewSemaphoreMetadataManager()
+	if err != nil {
+		return nil, err
+	}
 	aConfig := noopAuthorizationConfig()
 	doneCh := make(chan struct{})
 	dynamicClient, err := dynamicconfig.NewFileBasedClient(
@@ -172,33 +176,34 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		return nil, err
 	}
 	cadenceParams := &CadenceParams{
-		ClusterMetadata:               *params.ClusterMetadata,
-		PersistenceConfig:             pConfig,
-		MessagingClient:               messagingClient,
-		DomainManager:                 testBase.DomainManager,
-		HistoryV2Mgr:                  testBase.HistoryV2Mgr,
-		ExecutionMgr:                  testBase.ExecutionManager,
-		DomainReplicationQueue:        domainReplicationQueue,
-		Logger:                        logger,
-		ZapLogger:                     testlogger.NewZap(t),
-		ClusterNo:                     options.ClusterNo,
-		ESConfig:                      options.ESConfig,
-		ESClient:                      esClient,
-		ArchiverMetadata:              archiverBase.metadata,
-		ArchiverProvider:              archiverBase.provider,
-		HistoryConfig:                 options.HistoryConfig,
-		MatchingConfig:                options.MatchingConfig,
-		WorkerConfig:                  options.WorkerConfig,
-		MockAdminClient:               options.MockAdminClient,
-		DomainReplicationTaskExecutor: domain.NewReplicationTaskExecutor(testBase.DomainManager, newNoopDomainAuditManager(), clock.NewRealTimeSource(), logger, dynamicproperties.GetBoolPropertyFn(false)),
-		AuthorizationConfig:           aConfig,
-		AsyncWFQueues:                 options.AsyncWFQueues,
-		TimeSource:                    options.TimeSource,
-		DynamicClient:                 dynamicClient,
-		FrontendDynCfgOverrides:       options.FrontendDynamicConfigOverrides,
-		HistoryDynCfgOverrides:        options.HistoryDynamicConfigOverrides,
-		MatchingDynCfgOverrides:       options.MatchingDynamicConfigOverrides,
-		WorkerDynCfgOverrides:         options.WorkerDynamicConfigOverrides,
+		ClusterMetadata:                  *params.ClusterMetadata,
+		PersistenceConfig:                pConfig,
+		MessagingClient:                  messagingClient,
+		DomainManager:                    testBase.DomainManager,
+		HistoryV2Mgr:                     testBase.HistoryV2Mgr,
+		ExecutionMgr:                     testBase.ExecutionManager,
+		DomainReplicationQueue:           domainReplicationQueue,
+		Logger:                           logger,
+		ZapLogger:                        testlogger.NewZap(t),
+		ClusterNo:                        options.ClusterNo,
+		ESConfig:                         options.ESConfig,
+		ESClient:                         esClient,
+		ArchiverMetadata:                 archiverBase.metadata,
+		ArchiverProvider:                 archiverBase.provider,
+		HistoryConfig:                    options.HistoryConfig,
+		MatchingConfig:                   options.MatchingConfig,
+		WorkerConfig:                     options.WorkerConfig,
+		MockAdminClient:                  options.MockAdminClient,
+		DomainReplicationTaskExecutor:    domain.NewReplicationTaskExecutor(testBase.DomainManager, newNoopDomainAuditManager(), clock.NewRealTimeSource(), logger, dynamicproperties.GetBoolPropertyFn(false)),
+		SemaphoreReplicationTaskExecutor: domain.NewSemaphoreReplicationTaskExecutor(semaphoreMetadataMgr, logger),
+		AuthorizationConfig:              aConfig,
+		AsyncWFQueues:                    options.AsyncWFQueues,
+		TimeSource:                       options.TimeSource,
+		DynamicClient:                    dynamicClient,
+		FrontendDynCfgOverrides:          options.FrontendDynamicConfigOverrides,
+		HistoryDynCfgOverrides:           options.HistoryDynamicConfigOverrides,
+		MatchingDynCfgOverrides:          options.MatchingDynamicConfigOverrides,
+		WorkerDynCfgOverrides:            options.WorkerDynamicConfigOverrides,
 	}
 	cluster := NewCadence(cadenceParams)
 	if err := cluster.Start(); err != nil {
@@ -250,6 +255,10 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 		metricsClient,
 		logger,
 	)
+	semaphoreMetadataMgr, err := testBase.PersistenceFactory.NewSemaphoreMetadataManager()
+	if err != nil {
+		return nil, err
+	}
 	aConfig := noopAuthorizationConfig()
 	doneCh := make(chan struct{})
 	dynamicClient, err := dynamicconfig.NewFileBasedClient(
@@ -261,29 +270,30 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 		return nil, err
 	}
 	cadenceParams := &CadenceParams{
-		ClusterMetadata:               *params.ClusterMetadata,
-		PersistenceConfig:             pConfig,
-		MessagingClient:               messagingClient,
-		DomainManager:                 testBase.DomainManager,
-		HistoryV2Mgr:                  testBase.HistoryV2Mgr,
-		ExecutionMgr:                  testBase.ExecutionManager,
-		DomainReplicationQueue:        domainReplicationQueue,
-		Logger:                        logger,
-		ZapLogger:                     testlogger.NewZap(t),
-		ClusterNo:                     options.ClusterNo,
-		ESConfig:                      options.ESConfig,
-		ESClient:                      esClient,
-		ArchiverMetadata:              archiverBase.metadata,
-		ArchiverProvider:              archiverBase.provider,
-		HistoryConfig:                 options.HistoryConfig,
-		MatchingConfig:                options.MatchingConfig,
-		WorkerConfig:                  options.WorkerConfig,
-		MockAdminClient:               options.MockAdminClient,
-		DomainReplicationTaskExecutor: domain.NewReplicationTaskExecutor(testBase.DomainManager, newNoopDomainAuditManager(), clock.NewRealTimeSource(), logger, dynamicproperties.GetBoolPropertyFn(false)),
-		AuthorizationConfig:           aConfig,
-		PinotConfig:                   options.PinotConfig,
-		PinotClient:                   pinotClient,
-		DynamicClient:                 dynamicClient,
+		ClusterMetadata:                  *params.ClusterMetadata,
+		PersistenceConfig:                pConfig,
+		MessagingClient:                  messagingClient,
+		DomainManager:                    testBase.DomainManager,
+		HistoryV2Mgr:                     testBase.HistoryV2Mgr,
+		ExecutionMgr:                     testBase.ExecutionManager,
+		DomainReplicationQueue:           domainReplicationQueue,
+		Logger:                           logger,
+		ZapLogger:                        testlogger.NewZap(t),
+		ClusterNo:                        options.ClusterNo,
+		ESConfig:                         options.ESConfig,
+		ESClient:                         esClient,
+		ArchiverMetadata:                 archiverBase.metadata,
+		ArchiverProvider:                 archiverBase.provider,
+		HistoryConfig:                    options.HistoryConfig,
+		MatchingConfig:                   options.MatchingConfig,
+		WorkerConfig:                     options.WorkerConfig,
+		MockAdminClient:                  options.MockAdminClient,
+		DomainReplicationTaskExecutor:    domain.NewReplicationTaskExecutor(testBase.DomainManager, newNoopDomainAuditManager(), clock.NewRealTimeSource(), logger, dynamicproperties.GetBoolPropertyFn(false)),
+		SemaphoreReplicationTaskExecutor: domain.NewSemaphoreReplicationTaskExecutor(semaphoreMetadataMgr, logger),
+		AuthorizationConfig:              aConfig,
+		PinotConfig:                      options.PinotConfig,
+		PinotClient:                      pinotClient,
+		DynamicClient:                    dynamicClient,
 	}
 	cluster := NewCadence(cadenceParams)
 	if err := cluster.Start(); err != nil {

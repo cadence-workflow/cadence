@@ -652,6 +652,28 @@ func (c *clientImpl) RecordChildExecutionCompleted(
 	return err
 }
 
+func (c *clientImpl) RecordSemaphoreAcquired(
+	ctx context.Context,
+	request *types.RecordSemaphoreAcquiredRequest,
+	opts ...yarpc.CallOption,
+) (*types.RecordSemaphoreAcquiredResponse, error) {
+	peer, err := c.peerResolver.FromWorkflowID(request.WorkflowExecution.GetWorkflowID())
+	if err != nil {
+		return nil, err
+	}
+	var response *types.RecordSemaphoreAcquiredResponse
+	op := func(ctx context.Context, peer string) error {
+		var err error
+		response, err = c.client.RecordSemaphoreAcquired(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+		return err
+	}
+	err = c.executeWithRedirect(ctx, peer, op)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 func (c *clientImpl) ReplicateEventsV2(
 	ctx context.Context,
 	request *types.ReplicateEventsV2Request,

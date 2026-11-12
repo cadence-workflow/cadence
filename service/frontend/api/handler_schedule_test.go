@@ -1762,6 +1762,75 @@ func TestListSchedules(t *testing.T) {
 		require.Len(t, resp.Schedules, 1)
 		assert.Equal(t, "good", resp.Schedules[0].ScheduleID)
 	})
+
+	t.Run("forwards memo and strips internal search attributes", func(t *testing.T) {
+		f := newScheduleTestFixture(t)
+		defer f.finish()
+
+		f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+
+		userMemo := &types.Memo{Fields: map[string][]byte{"key": []byte(`"val"`)}}
+		stateBytes, _ := json.Marshal(scheduler.ScheduleStateActive)
+
+		f.mockResource.VisibilityMgr.On("ListOpenWorkflowExecutionsByType", mock.Anything, mock.Anything).
+			Return(&persistence.ListWorkflowExecutionsResponse{
+				Executions: []*types.WorkflowExecutionInfo{
+					{
+						Execution: &types.WorkflowExecution{WorkflowID: "cadence-scheduler:s1", RunID: "r1"},
+						Type:      &types.WorkflowType{Name: scheduler.WorkflowTypeName},
+						Memo:      userMemo,
+						SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{
+							scheduler.SearchAttrScheduleState: stateBytes,
+							scheduler.SearchAttrScheduleID:    []byte(`"s1"`),
+							"UserKey":                         []byte(`"userval"`),
+						}},
+					},
+				},
+			}, nil).Once()
+
+		resp, err := f.handler.ListSchedules(context.Background(), &types.ListSchedulesRequest{
+			Domain:   testDomain,
+			PageSize: 10,
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Schedules, 1)
+		entry := resp.Schedules[0]
+		assert.Equal(t, userMemo, entry.Memo)
+		require.NotNil(t, entry.SearchAttributes)
+		assert.Equal(t, map[string][]byte{"UserKey": []byte(`"userval"`)}, entry.SearchAttributes.IndexedFields)
+	})
+
+	t.Run("nil memo and all-internal SA yields nil SA in entry", func(t *testing.T) {
+		f := newScheduleTestFixture(t)
+		defer f.finish()
+
+		f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+
+		stateBytes, _ := json.Marshal(scheduler.ScheduleStateActive)
+
+		f.mockResource.VisibilityMgr.On("ListOpenWorkflowExecutionsByType", mock.Anything, mock.Anything).
+			Return(&persistence.ListWorkflowExecutionsResponse{
+				Executions: []*types.WorkflowExecutionInfo{
+					{
+						Execution: &types.WorkflowExecution{WorkflowID: "cadence-scheduler:s2", RunID: "r2"},
+						Type:      &types.WorkflowType{Name: scheduler.WorkflowTypeName},
+						SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{
+							scheduler.SearchAttrScheduleState: stateBytes,
+						}},
+					},
+				},
+			}, nil).Once()
+
+		resp, err := f.handler.ListSchedules(context.Background(), &types.ListSchedulesRequest{
+			Domain:   testDomain,
+			PageSize: 10,
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Schedules, 1)
+		entry := resp.Schedules[0]
+		assert.Nil(t, entry.Memo)
+		assert.Nil(t, entry.SearchAttributes)
+	})
 }
 
 func TestNormalizeScheduleError(t *testing.T) {

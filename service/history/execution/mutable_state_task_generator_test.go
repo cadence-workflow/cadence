@@ -1634,3 +1634,161 @@ func GenerateWorkflowCloseTasksTestCases(retention time.Duration, closeEvent *ty
 		},
 	}
 }
+
+func TestGenerateAcquireSemaphoreTasks(t *testing.T) {
+	executionInfo := &persistence.WorkflowExecutionInfo{
+		DomainID:   constants.TestDomainID,
+		WorkflowID: constants.TestWorkflowID,
+		RunID:      constants.TestRunID,
+		TaskList:   "task-list",
+	}
+
+	testCases := []struct {
+		name      string
+		setupMock func(mockMutableState *MockMutableState)
+		wantErr   error
+	}{
+		{
+			name: "Success case",
+			setupMock: func(mockMutableState *MockMutableState) {
+				mockMutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{Version: 3, InitiatedID: 5}, true)
+				mockMutableState.EXPECT().GetExecutionInfo().Return(executionInfo)
+				mockMutableState.EXPECT().AddTransferTasks(&persistence.AcquireSemaphoreTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
+					TaskData:    persistence.TaskData{Version: 3},
+					InitiatedID: 5,
+					TaskList:    "task-list",
+				})
+			},
+		},
+		{
+			name: "Error case - GetSemaphoreInfo error",
+			setupMock: func(mockMutableState *MockMutableState) {
+				mockMutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(nil, false)
+			},
+			wantErr: &types.InternalServiceError{Message: "it could be a bug, cannot get pending semaphore hold: 5"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockMutableState := NewMockMutableState(ctrl)
+			tc.setupMock(mockMutableState)
+			taskGenerator := NewMutableStateTaskGenerator(log.NewNoop(), constants.TestClusterMetadata, cache.NewMockDomainCache(ctrl), mockMutableState)
+
+			err := taskGenerator.GenerateAcquireSemaphoreTasks(5)
+			assert.Equal(t, tc.wantErr, err)
+		})
+	}
+}
+
+func TestGenerateSemaphoreAcquireTimeoutTasks(t *testing.T) {
+	executionInfo := &persistence.WorkflowExecutionInfo{
+		DomainID:   constants.TestDomainID,
+		WorkflowID: constants.TestWorkflowID,
+		RunID:      constants.TestRunID,
+		TaskList:   "task-list",
+	}
+	deadline := time.Unix(100, 0)
+
+	testCases := []struct {
+		name      string
+		setupMock func(mockMutableState *MockMutableState)
+		wantErr   error
+	}{
+		{
+			name: "Success case",
+			setupMock: func(mockMutableState *MockMutableState) {
+				mockMutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{Version: 3, InitiatedID: 5, AcquireDeadline: deadline}, true)
+				mockMutableState.EXPECT().GetExecutionInfo().Return(executionInfo)
+				mockMutableState.EXPECT().AddTimerTasks(&persistence.SemaphoreAcquireTimeoutTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
+					TaskData: persistence.TaskData{Version: 3, VisibilityTimestamp: deadline},
+					EventID:  5,
+					TaskList: "task-list",
+				})
+			},
+		},
+		{
+			name: "Error case - GetSemaphoreInfo error",
+			setupMock: func(mockMutableState *MockMutableState) {
+				mockMutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(nil, false)
+			},
+			wantErr: &types.InternalServiceError{Message: "it could be a bug, cannot get pending semaphore hold: 5"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockMutableState := NewMockMutableState(ctrl)
+			tc.setupMock(mockMutableState)
+			taskGenerator := NewMutableStateTaskGenerator(log.NewNoop(), constants.TestClusterMetadata, cache.NewMockDomainCache(ctrl), mockMutableState)
+
+			err := taskGenerator.GenerateSemaphoreAcquireTimeoutTasks(5)
+			assert.Equal(t, tc.wantErr, err)
+		})
+	}
+}
+
+func TestGenerateReleaseSemaphoreTasks(t *testing.T) {
+	executionInfo := &persistence.WorkflowExecutionInfo{
+		DomainID:   constants.TestDomainID,
+		WorkflowID: constants.TestWorkflowID,
+		RunID:      constants.TestRunID,
+		TaskList:   "task-list",
+	}
+
+	testCases := []struct {
+		name      string
+		setupMock func(mockMutableState *MockMutableState)
+		wantErr   error
+	}{
+		{
+			name: "Success case",
+			setupMock: func(mockMutableState *MockMutableState) {
+				mockMutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{Version: 3, InitiatedID: 5, SemaphoreName: "my-semaphore"}, true)
+				mockMutableState.EXPECT().GetExecutionInfo().Return(executionInfo)
+				mockMutableState.EXPECT().AddTransferTasks(&persistence.ReleaseSemaphoreTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
+					TaskData:      persistence.TaskData{Version: 3},
+					InitiatedID:   5,
+					SemaphoreName: "my-semaphore",
+					TaskList:      "task-list",
+				})
+			},
+		},
+		{
+			name: "Error case - GetSemaphoreInfo error",
+			setupMock: func(mockMutableState *MockMutableState) {
+				mockMutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(nil, false)
+			},
+			wantErr: &types.InternalServiceError{Message: "it could be a bug, cannot get pending semaphore hold: 5"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockMutableState := NewMockMutableState(ctrl)
+			tc.setupMock(mockMutableState)
+			taskGenerator := NewMutableStateTaskGenerator(log.NewNoop(), constants.TestClusterMetadata, cache.NewMockDomainCache(ctrl), mockMutableState)
+
+			err := taskGenerator.GenerateReleaseSemaphoreTasks(5)
+			assert.Equal(t, tc.wantErr, err)
+		})
+	}
+}

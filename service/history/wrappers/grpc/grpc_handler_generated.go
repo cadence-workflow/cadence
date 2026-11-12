@@ -140,6 +140,11 @@ func (g GRPCHandler) RecordDecisionTaskStarted(ctx context.Context, request *his
 	return proto.FromHistoryRecordDecisionTaskStartedResponse(response), proto.FromError(err)
 }
 
+func (g GRPCHandler) RecordSemaphoreAcquired(ctx context.Context, request *historyv1.RecordSemaphoreAcquiredRequest) (*historyv1.RecordSemaphoreAcquiredResponse, error) {
+	response, err := g.h.RecordSemaphoreAcquired(ctx, proto.ToHistoryRecordSemaphoreAcquiredRequest(request))
+	return proto.FromHistoryRecordSemaphoreAcquiredResponse(response), proto.FromError(err)
+}
+
 func (g GRPCHandler) RefreshWorkflowTasks(ctx context.Context, request *historyv1.RefreshWorkflowTasksRequest) (*historyv1.RefreshWorkflowTasksResponse, error) {
 	err := g.h.RefreshWorkflowTasks(ctx, proto.ToHistoryRefreshWorkflowTasksRequest(request))
 	return &historyv1.RefreshWorkflowTasksResponse{}, proto.FromError(err)

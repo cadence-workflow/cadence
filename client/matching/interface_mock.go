@@ -43,6 +43,26 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
+// AcquireSemaphore mocks base method.
+func (m *MockClient) AcquireSemaphore(arg0 context.Context, arg1 *types.AcquireSemaphoreRequest, arg2 ...yarpc.CallOption) (*types.AcquireSemaphoreResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "AcquireSemaphore", varargs...)
+	ret0, _ := ret[0].(*types.AcquireSemaphoreResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireSemaphore indicates an expected call of AcquireSemaphore.
+func (mr *MockClientMockRecorder) AcquireSemaphore(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireSemaphore", reflect.TypeOf((*MockClient)(nil).AcquireSemaphore), varargs...)
+}
+
 // AddActivityTask mocks base method.
 func (m *MockClient) AddActivityTask(arg0 context.Context, arg1 *types.AddActivityTaskRequest, arg2 ...yarpc.CallOption) (*types.AddActivityTaskResponse, error) {
 	m.ctrl.T.Helper()
@@ -83,26 +103,6 @@ func (mr *MockClientMockRecorder) AddDecisionTask(arg0, arg1 any, arg2 ...any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDecisionTask", reflect.TypeOf((*MockClient)(nil).AddDecisionTask), varargs...)
 }
 
-// AddSemaphoreTask mocks base method.
-func (m *MockClient) AddSemaphoreTask(arg0 context.Context, arg1 *types.AddSemaphoreTaskRequest, arg2 ...yarpc.CallOption) (*types.AddSemaphoreTaskResponse, error) {
-	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1}
-	for _, a := range arg2 {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "AddSemaphoreTask", varargs...)
-	ret0, _ := ret[0].(*types.AddSemaphoreTaskResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// AddSemaphoreTask indicates an expected call of AddSemaphoreTask.
-func (mr *MockClientMockRecorder) AddSemaphoreTask(arg0, arg1 any, arg2 ...any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1}, arg2...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreTask", reflect.TypeOf((*MockClient)(nil).AddSemaphoreTask), varargs...)
-}
-
 // CancelOutstandingPoll mocks base method.
 func (m *MockClient) CancelOutstandingPoll(arg0 context.Context, arg1 *types.CancelOutstandingPollRequest, arg2 ...yarpc.CallOption) error {
 	m.ctrl.T.Helper()
@@ -140,6 +140,26 @@ func (mr *MockClientMockRecorder) DescribeTaskList(arg0, arg1 any, arg2 ...any) 
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeTaskList", reflect.TypeOf((*MockClient)(nil).DescribeTaskList), varargs...)
+}
+
+// GetSemaphoreTokenByOwner mocks base method.
+func (m *MockClient) GetSemaphoreTokenByOwner(arg0 context.Context, arg1 *types.GetSemaphoreTokenByOwnerRequest, arg2 ...yarpc.CallOption) (*types.GetSemaphoreTokenByOwnerResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetSemaphoreTokenByOwner", varargs...)
+	ret0, _ := ret[0].(*types.GetSemaphoreTokenByOwnerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSemaphoreTokenByOwner indicates an expected call of GetSemaphoreTokenByOwner.
+func (mr *MockClientMockRecorder) GetSemaphoreTokenByOwner(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTokenByOwner", reflect.TypeOf((*MockClient)(nil).GetSemaphoreTokenByOwner), varargs...)
 }
 
 // GetTaskListsByDomain mocks base method.
@@ -260,6 +280,26 @@ func (mr *MockClientMockRecorder) RefreshTaskListPartitionConfig(arg0, arg1 any,
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshTaskListPartitionConfig", reflect.TypeOf((*MockClient)(nil).RefreshTaskListPartitionConfig), varargs...)
+}
+
+// ReleaseSemaphore mocks base method.
+func (m *MockClient) ReleaseSemaphore(arg0 context.Context, arg1 *types.ReleaseSemaphoreRequest, arg2 ...yarpc.CallOption) (*types.ReleaseSemaphoreResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ReleaseSemaphore", varargs...)
+	ret0, _ := ret[0].(*types.ReleaseSemaphoreResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseSemaphore indicates an expected call of ReleaseSemaphore.
+func (mr *MockClientMockRecorder) ReleaseSemaphore(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseSemaphore", reflect.TypeOf((*MockClient)(nil).ReleaseSemaphore), varargs...)
 }
 
 // RespondQueryTaskCompleted mocks base method.

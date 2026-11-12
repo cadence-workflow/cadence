@@ -163,6 +163,24 @@ func (a *apiHandler) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDo
 	return a.handler.DeprecateDomain(ctx, dp1)
 }
 
+func (a *apiHandler) DescribeBatchOperation(ctx context.Context, dp1 *types.DescribeBatchOperationRequest) (dp2 *types.DescribeBatchOperationResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendDescribeBatchOperationScope, dp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "DescribeBatchOperation",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(dp1),
+		DomainName:  dp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.DescribeBatchOperation(ctx, dp1)
+}
+
 func (a *apiHandler) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest) (dp2 *types.DescribeDomainResponse, err error) {
 	scope := a.GetMetricsClient().Scope(metrics.FrontendDescribeDomainScope).Tagged(metrics.NonDomainTag())
 	attr := &authorization.Attributes{
@@ -237,6 +255,24 @@ func (a *apiHandler) DescribeWorkflowExecution(ctx context.Context, dp1 *types.D
 
 func (a *apiHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.DiagnoseWorkflowExecutionRequest) (dp2 *types.DiagnoseWorkflowExecutionResponse, err error) {
 	return a.handler.DiagnoseWorkflowExecution(ctx, dp1)
+}
+
+func (a *apiHandler) ExportWorkflowExecution(ctx context.Context, ep1 *types.ExportWorkflowExecutionRequest) (ep2 *types.ExportWorkflowExecutionResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendExportWorkflowExecutionScope, ep1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "ExportWorkflowExecution",
+		Permission:  authorization.PermissionRead,
+		RequestBody: authorization.NewFilteredRequestBody(ep1),
+		DomainName:  ep1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.ExportWorkflowExecution(ctx, ep1)
 }
 
 func (a *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
@@ -321,6 +357,24 @@ func (a *apiHandler) ListArchivedWorkflowExecutions(ctx context.Context, lp1 *ty
 		return nil, errUnauthorized
 	}
 	return a.handler.ListArchivedWorkflowExecutions(ctx, lp1)
+}
+
+func (a *apiHandler) ListBatchOperations(ctx context.Context, lp1 *types.ListBatchOperationsRequest) (lp2 *types.ListBatchOperationsResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendListBatchOperationsScope, lp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "ListBatchOperations",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(lp1),
+		DomainName:  lp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.ListBatchOperations(ctx, lp1)
 }
 
 func (a *apiHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *types.ListClosedWorkflowExecutionsRequest) (lp2 *types.ListClosedWorkflowExecutionsResponse, err error) {
@@ -708,6 +762,24 @@ func (a *apiHandler) SignalWorkflowExecution(ctx context.Context, sp1 *types.Sig
 	return a.handler.SignalWorkflowExecution(ctx, sp1)
 }
 
+func (a *apiHandler) StartBatchOperation(ctx context.Context, sp1 *types.StartBatchOperationRequest) (sp2 *types.StartBatchOperationResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendStartBatchOperationScope, sp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "StartBatchOperation",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(sp1),
+		DomainName:  sp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.StartBatchOperation(ctx, sp1)
+}
+
 func (a *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.StartWorkflowExecutionRequest) (sp2 *types.StartWorkflowExecutionResponse, err error) {
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendStartWorkflowExecutionScope, sp1.GetDomain())
 	attr := &authorization.Attributes{
@@ -748,6 +820,24 @@ func (a *apiHandler) StartWorkflowExecutionAsync(ctx context.Context, sp1 *types
 	return a.handler.StartWorkflowExecutionAsync(ctx, sp1)
 }
 
+func (a *apiHandler) StopBatchOperation(ctx context.Context, sp1 *types.StopBatchOperationRequest) (sp2 *types.StopBatchOperationResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendStopBatchOperationScope, sp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "StopBatchOperation",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(sp1),
+		DomainName:  sp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.StopBatchOperation(ctx, sp1)
+}
+
 func (a *apiHandler) TerminateWorkflowExecution(ctx context.Context, tp1 *types.TerminateWorkflowExecutionRequest) (err error) {
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendTerminateWorkflowExecutionScope, tp1.GetDomain())
 	attr := &authorization.Attributes{
@@ -782,6 +872,24 @@ func (a *apiHandler) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseSche
 		return nil, errUnauthorized
 	}
 	return a.handler.UnpauseSchedule(ctx, up1)
+}
+
+func (a *apiHandler) UpdateBatchOperation(ctx context.Context, up1 *types.UpdateBatchOperationRequest) (up2 *types.UpdateBatchOperationResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendUpdateBatchOperationScope, up1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "UpdateBatchOperation",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(up1),
+		DomainName:  up1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.UpdateBatchOperation(ctx, up1)
 }
 
 func (a *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {

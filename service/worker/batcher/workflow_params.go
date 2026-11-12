@@ -26,7 +26,7 @@ import (
 	"github.com/uber/cadence/common"
 )
 
-func validateParams(params BatchParams) error {
+func ValidateParams(params BatchParams) error {
 	if params.BatchType == "" ||
 		params.Reason == "" ||
 		params.DomainName == "" ||
@@ -58,7 +58,43 @@ func validateParams(params BatchParams) error {
 	}
 }
 
+// NormalizeOperation derives BatchType and the matching legacy Xxx Params
+// field from params.Operation when set, so the rest of this package can keep
+// switching on BatchType regardless of whether the caller is the old CLI
+// flow (which already sets BatchType/Xxx Params directly) or the newer
+// StartBatchOperation handler (which only sets Operation). Exported so the
+// frontend handler can validate a request against the same rules the
+// workflow itself enforces before starting it.
+func NormalizeOperation(params BatchParams) BatchParams {
+	if params.Operation == nil {
+		return params
+	}
+	params.BatchType = BatchTypeFromOperation(params.Operation)
+	switch params.BatchType {
+	case BatchTypeTerminate:
+		if t := params.Operation.GetTerminateBatchOperation(); t != nil {
+			params.TerminateParams = TerminateParams{TerminateChildren: t.TerminateChildren}
+		}
+	case BatchTypeCancel:
+		if c := params.Operation.GetCancelBatchOperation(); c != nil {
+			params.CancelParams = CancelParams{CancelChildren: c.CancelChildren}
+		}
+	case BatchTypeSignal:
+		if s := params.Operation.GetSignalBatchOperation(); s != nil {
+			params.SignalParams = SignalParams{SignalName: s.SignalName, Input: string(s.Input)}
+		}
+	case BatchTypeReplicate:
+		if r := params.Operation.GetReplicateBatchOperation(); r != nil {
+			params.ReplicateParams = ReplicateParams{SourceCluster: r.SourceCluster, TargetCluster: r.TargetCluster}
+		}
+	case BatchTypeRefresh:
+		// RefreshBatchOperation carries no fields; BatchType alone drives the workflow.
+	}
+	return params
+}
+
 func setDefaultParams(params BatchParams) BatchParams {
+	params = NormalizeOperation(params)
 	if params.RPS <= 0 {
 		params.RPS = DefaultRPS
 	}

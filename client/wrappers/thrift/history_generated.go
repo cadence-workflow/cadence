@@ -131,6 +131,10 @@ func (g historyClient) RecordDecisionTaskStarted(ctx context.Context, rp1 *types
 	return thrift.ToHistoryRecordDecisionTaskStartedResponse(response), thrift.ToError(err)
 }
 
+func (g historyClient) RecordSemaphoreAcquired(ctx context.Context, rp1 *types.RecordSemaphoreAcquiredRequest, p1 ...yarpc.CallOption) (rp2 *types.RecordSemaphoreAcquiredResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g historyClient) RefreshWorkflowTasks(ctx context.Context, hp1 *types.HistoryRefreshWorkflowTasksRequest, p1 ...yarpc.CallOption) (err error) {
 	err = g.c.RefreshWorkflowTasks(ctx, thrift.FromHistoryRefreshWorkflowTasksRequest(hp1), p1...)
 	return thrift.ToError(err)

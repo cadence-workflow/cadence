@@ -623,8 +623,11 @@ type (
 
 		UpsertActivityInfos       []*InternalActivityInfo
 		DeleteActivityInfos       []int64
+		RewriteActivityInfos      []*InternalActivityInfo
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		RewriteTimerInfos         []*TimerInfo
+		SentinelWriteEnabled      bool
 		WorkflowTimerTasks        []HistoryTaskKey
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64
