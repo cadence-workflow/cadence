@@ -101,6 +101,19 @@ func (i *DLQAckLevelIndex) All() []IndexedDLQAckLevel {
 	return result
 }
 
+// Dirty returns snapshots of the dirty entries.
+func (i *DLQAckLevelIndex) Dirty() []IndexedDLQAckLevel {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	var result []IndexedDLQAckLevel
+	for _, entry := range i.entries {
+		if entry.dirty {
+			result = append(result, entry.snapshot())
+		}
+	}
+	return result
+}
+
 // Has reports whether the key is present. It works before the index is seeded.
 func (i *DLQAckLevelIndex) Has(key DLQAckLevelKey) bool {
 	i.mu.Lock()

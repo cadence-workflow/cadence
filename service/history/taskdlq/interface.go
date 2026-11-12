@@ -40,8 +40,8 @@ type TaskReinjector interface {
 type AckLevelIndex interface {
 	Seeded() bool
 	Merge(levels []persistence.HistoryDLQAckLevel)
-	Lookup(domainID, clusterAttributeScope, clusterAttributeName string, dirtyOnly bool) []shard.IndexedDLQAckLevel
 	All() []shard.IndexedDLQAckLevel
+	Dirty() []shard.IndexedDLQAckLevel
 	Advance(level persistence.HistoryDLQAckLevel)
 	MarkClean(key shard.DLQAckLevelKey, generation uint64)
 }

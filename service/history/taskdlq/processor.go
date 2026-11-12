@@ -64,7 +64,7 @@ type (
 
 		// ProcessPartitions processes all task types for the given partitions within the shard.
 		// The partitions are served from the in-memory ack-level index, which one shard-scoped read
-		// seeds when cold.
+		// seeds when cold. A partition with no cluster attribute covers every row of its domain.
 		// Returns errors for all partitions that could not be processed.
 		ProcessPartitions(ctx context.Context, partitions []Partition) error
 
@@ -77,7 +77,7 @@ type (
 	}
 
 	// Partition identifies a single DLQ partition to reprocess on demand.
-	// An empty ClusterAttributeScope/ClusterAttributeName targets the domain's default partition.
+	// An empty ClusterAttributeScope/ClusterAttributeName covers every row of the domain.
 	Partition struct {
 		DomainID              string
 		ClusterAttributeScope string
@@ -429,15 +429,27 @@ func (p *ProcessorImpl) domainName(domainID string) string {
 func (p *ProcessorImpl) ProcessPartitions(ctx context.Context, partitions []Partition) error {
 	// Drop partitions whose domain is not enabled before taking the lock, so a batch of disabled
 	// domains costs no persistence call. processAckLevel checks each row again.
+	enabledDomains := make(map[string]bool)
 	wanted := make(map[Partition]struct{}, len(partitions))
+	wholeDomain := make(map[string]struct{})
 	for _, part := range partitions {
-		if p.domainMode(p.domainName(part.DomainID)) != constants.HistoryTaskDLQModeEnabled {
+		enabled, checked := enabledDomains[part.DomainID]
+		if !checked {
+			enabled = p.domainMode(p.domainName(part.DomainID)) == constants.HistoryTaskDLQModeEnabled
+			enabledDomains[part.DomainID] = enabled
+		}
+		if !enabled {
 			p.logger.Debug("DLQ not enabled for domain, skipping partition processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(part.DomainID))
 			continue
 		}
-		wanted[part] = struct{}{}
+		// Partitions without cluster attributes cover the whole domain, as the domain query did.
+		if part.ClusterAttributeScope == "" && part.ClusterAttributeName == "" {
+			wholeDomain[part.DomainID] = struct{}{}
+		} else {
+			wanted[part] = struct{}{}
+		}
 	}
-	if len(wanted) == 0 {
+	if len(wanted) == 0 && len(wholeDomain) == 0 {
 		return nil
 	}
 
@@ -454,8 +466,19 @@ func (p *ProcessorImpl) ProcessPartitions(ctx context.Context, partitions []Part
 		return err
 	}
 	var entries []shard.IndexedDLQAckLevel
-	for part := range wanted {
-		entries = append(entries, p.index.Lookup(part.DomainID, part.ClusterAttributeScope, part.ClusterAttributeName, true)...)
+	for _, entry := range p.index.Dirty() {
+		al := entry.Level
+		if _, ok := wholeDomain[al.DomainID]; ok {
+			entries = append(entries, entry)
+			continue
+		}
+		if _, ok := wanted[Partition{
+			DomainID:              al.DomainID,
+			ClusterAttributeScope: al.ClusterAttributeScope,
+			ClusterAttributeName:  al.ClusterAttributeName,
+		}]; ok {
+			entries = append(entries, entry)
+		}
 	}
 	return p.processAckLevels(ctx, entries)
 }

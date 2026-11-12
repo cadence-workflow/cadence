@@ -112,3 +112,15 @@ func TestDLQAckLevelIndex_MarkWriteOnAbsentKeyIsNoOp_AddKeepsExisting(t *testing
 	idx.Advance(level) // but never backwards
 	assert.Equal(t, int64(9), idx.All()[0].Level.AckLevelTaskID)
 }
+
+func TestDLQAckLevelIndex_DirtyReturnsOnlyDirtyEntries(t *testing.T) {
+	idx := NewDLQAckLevelIndex()
+	clean := testIndexLevel("clean", 1)
+	dirty := testIndexLevel("dirty", 1)
+	idx.Merge([]persistence.HistoryDLQAckLevel{clean, dirty})
+	idx.MarkClean(DLQAckLevelKeyOf(clean), idx.Lookup("d", "s", "clean", false)[0].Generation)
+
+	got := idx.Dirty()
+	require.Len(t, got, 1)
+	assert.Equal(t, "dirty", got[0].Level.ClusterAttributeName)
+}
