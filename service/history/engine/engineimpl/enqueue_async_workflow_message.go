@@ -29,7 +29,10 @@ func (e *historyEngineImpl) EnqueueAsyncWorkflowMessage(
 	if payload == nil || len(payload.Data) == 0 {
 		return nil, &types.BadRequestError{Message: "payload is required"}
 	}
-	payloadEncoding, err := asyncWorkflowPayloadEncoding(payload.GetEncodingType())
+	if payload.EncodingType == nil {
+		return nil, &types.BadRequestError{Message: "payload encoding is required"}
+	}
+	payloadEncoding, err := asyncWorkflowPayloadEncoding(*payload.EncodingType)
 	if err != nil {
 		return nil, err
 	}
