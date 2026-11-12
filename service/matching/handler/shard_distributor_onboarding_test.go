@@ -214,7 +214,7 @@ func newOnboardingTestData(
 	)
 	for _, taskList := range taskLists {
 		require.Contains(t, shardOwners, taskList.shard, "SD gives out the shard of task list %q", taskList.name)
-		gotShardID := td.taskListDifferentiator.ShardID(taskList.name)
+		gotShardID := td.taskListDifferentiator.TaskListShard(taskList.name).ID
 		require.Equal(t, taskList.shard, gotShardID, "shard of task list %q", taskList.name)
 	}
 
@@ -530,7 +530,8 @@ func (h *onboardingHost) removeShard(shardID string) {
 
 // owns runs the ownership check matching runs before it starts a task list.
 func (h *onboardingHost) owns(t *testing.T, taskListID *tasklist.Identifier) bool {
-	err := h.engine.errIfShardOwnershipLost(context.Background(), taskListID)
+	shard := h.engine.taskListDifferentiator.TaskListShard(taskListID.GetName())
+	err := h.engine.errIfShardOwnershipLost(context.Background(), taskListID, shard)
 	if err == nil {
 		return true
 	}

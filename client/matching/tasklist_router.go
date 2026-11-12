@@ -53,7 +53,8 @@ func NewTaskListRouter(
 }
 
 func (r *taskListRouter) FromTaskList(taskListName string) (membership.HostInfo, error) {
-	if r.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskListName) {
+	shard := r.taskListDifferentiator.TaskListShard(taskListName)
+	if !shard.Onboarded {
 		r.emitRoutingPathMetric(routingPathHashRing)
 		return r.resolver.Lookup(service.Matching, taskListName)
 	}
@@ -66,8 +67,7 @@ func (r *taskListRouter) FromTaskList(taskListName string) (membership.HostInfo,
 
 	r.emitRoutingPathMetric(routingPathShardDistributor)
 
-	shardID := r.taskListDifferentiator.ShardID(taskListName)
-	return r.lookUpInShardDistributor(shardID)
+	return r.lookUpInShardDistributor(shard.ID)
 }
 
 // TODO: cache the hostinfos, creating them on every request is relatively expensive (we need to do string parsing etc.)

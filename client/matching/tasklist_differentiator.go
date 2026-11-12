@@ -38,35 +38,42 @@ func NewTaskListDifferentiator(
 	}
 }
 
-// TaskListExcludedFromShardDistributor reports whether the hash ring owns the task list instead of
-// the shard distributor.
-func (d *TaskListDifferentiator) TaskListExcludedFromShardDistributor(taskListName string) bool {
+// TaskListShard is the shard that holds a task list, and whether the shard distributor manages it.
+type TaskListShard struct {
+	// ID is one of shardCount shards when task lists are sharded by hash, formatted the way the shard
+	// manager formats the shard IDs of a fixed namespace. Otherwise each task list has its own shard,
+	// named after it.
+	ID string
+	// Onboarded is true when the shard distributor manages the task list, and false when the hash
+	// ring does.
+	Onboarded bool
+}
+
+// TaskListShard returns the shard that holds the task list and whether the shard distributor
+// manages it. It reads the dynamic config once, so the two always agree. Callers that make several
+// decisions about one task list should compute it once and pass it on.
+func (d *TaskListDifferentiator) TaskListShard(taskListName string) TaskListShard {
 	// This regex checks if the task list name has a UUID, if it does we
 	// consider it a short lived tasklist that will not be managed by the shard distributor.
-	if d.excludeShortLivedTaskLists() && uuidRegexp.MatchString(taskListName) {
-		return true
-	}
-
+	shortLived := d.excludeShortLivedTaskLists() && uuidRegexp.MatchString(taskListName)
 	percentageOnboarded := uint64(d.percentageOnboarded.Value())
+
 	if d.shardTaskListsByHash() {
+		shardIndex := taskListShardIndex(taskListName, d.shardCount)
 		// Onboard the first percentageOnboarded percent of shards, so every task list in a shard
 		// gets the same decision.
-		shardIndex := taskListShardIndex(taskListName, d.shardCount)
-		return shardIndex*100 >= percentageOnboarded*uint64(d.shardCount)
+		shardOnboarded := shardIndex*100 < percentageOnboarded*uint64(d.shardCount)
+		return TaskListShard{
+			ID:        strconv.FormatUint(shardIndex, 10),
+			Onboarded: !shortLived && shardOnboarded,
+		}
 	}
 
 	hash := farm.Fingerprint64([]byte(taskListName))
-	return !isbelowPercentage(hash, percentageOnboarded)
-}
-
-// ShardID returns the shard that holds the task list. When task lists are sharded by hash it is one
-// of shardCount shards, formatted the way the shard manager formats the shard IDs of a fixed
-// namespace. Otherwise each task list has its own shard, named after it.
-func (d *TaskListDifferentiator) ShardID(taskListName string) string {
-	if d.shardTaskListsByHash() {
-		return TaskListNameToShard(taskListName, d.shardCount)
+	return TaskListShard{
+		ID:        taskListName,
+		Onboarded: !shortLived && isbelowPercentage(hash, percentageOnboarded),
 	}
-	return taskListName
 }
 
 // ShardsByHash reports whether task lists are currently grouped into hashed shards.

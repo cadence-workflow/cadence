@@ -443,6 +443,13 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		return engine, executor, resolver
 	}
 
+	// checkOwnership computes the task list's shard the way getOrCreateTaskListManager does, then
+	// checks ownership with it.
+	checkOwnership := func(engine *matchingEngineImpl, taskListID *tasklist.Identifier) error {
+		shard := engine.taskListDifferentiator.TaskListShard(taskListID.GetName())
+		return engine.errIfShardOwnershipLost(context.Background(), taskListID, shard)
+	}
+
 	assertTypedOwnershipErr := func(t *testing.T, err error, ownedBy, me string) {
 		t.Helper()
 		require.Error(t, err)
@@ -456,7 +463,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		engine, executor, _ := newEngine(t)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, errors.New("sd lookup failed"))
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		err := checkOwnership(engine, taskListID)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "failed to lookup ownership in SD")
 	})
@@ -465,7 +472,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		engine, executor, _ := newEngine(t)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, executorclient.ErrShardProcessNotFound)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		err := checkOwnership(engine, taskListID)
 		assertTypedOwnershipErr(t, err, "not known", "self")
 	})
 
@@ -473,7 +480,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		engine, executor, _ := newEngine(t)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		err := checkOwnership(engine, taskListID)
 		assertTypedOwnershipErr(t, err, "not known", "self")
 	})
 
@@ -483,7 +490,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 			Return(&tasklist.MockShardProcessor{}, nil). // not nil being returned because the shard is still owned by this host
 			AnyTimes()
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		err := checkOwnership(engine, taskListID)
 		require.NoError(t, err)
 	})
 
@@ -510,7 +517,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 				engine.taskListDifferentiator = newTestTaskListDifferentiator(false, tt.shardTaskListsByHash)
 				executor.EXPECT().GetShardProcess(gomock.Any(), tt.wantShardID).Return(&tasklist.MockShardProcessor{}, nil)
 
-				err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+				err := checkOwnership(engine, taskListID)
 				require.NoError(t, err)
 			})
 		}
@@ -520,7 +527,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		engine, _, _ := newEngine(t)
 		close(engine.shutdown)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		err := checkOwnership(engine, taskListID)
 		assertTypedOwnershipErr(t, err, "not known", "self")
 	})
 
@@ -530,7 +537,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("owner", "owner", nil), nil)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), excludedID)
+		err := checkOwnership(engine, excludedID)
 		assertTypedOwnershipErr(t, err, "owner", "self")
 	})
 
@@ -540,7 +547,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("self", "self", nil), nil)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), excludedID)
+		err := checkOwnership(engine, excludedID)
 		require.NoError(t, err)
 	})
 
@@ -550,7 +557,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		uuidID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(&tasklist.MockShardProcessor{}, nil)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), uuidID)
+		err := checkOwnership(engine, uuidID)
 		require.NoError(t, err)
 	})
 }
