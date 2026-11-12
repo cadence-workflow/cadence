@@ -623,6 +623,13 @@ type RecordChildExecutionCompletedRequest struct {
 	CompletedExecution *WorkflowExecution `json:"completedExecution,omitempty"`
 	CompletionEvent    *HistoryEvent      `json:"completionEvent,omitempty"`
 	StartedID          int64              `json:"startedId,omitempty"`
+	// FirstExecutionRunID is the first run of the chain of the completed child, so the parent accepts only the
+	// completion of the child run it started
+	FirstExecutionRunID string `json:"firstExecutionRunId,omitempty"`
+	// ChildStartVersion is the version of the started event of the first run of the chain of the completed child, set
+	// only when the parent is in the same domain, so the parent can drop a completion from an initiated event that can not
+	// be on its current branch
+	ChildStartVersion *int64 `json:"childStartVersion,omitempty"`
 }
 
 // GetDomainUUID is an internal getter (TBD...)
@@ -632,6 +639,47 @@ func (v *RecordChildExecutionCompletedRequest) GetDomainUUID() (o string) {
 	}
 	return
 }
+
+// RecordSemaphoreAcquiredRequest carries a semaphore token that Matching granted to a queued acquire.
+type RecordSemaphoreAcquiredRequest struct {
+	DomainUUID        string             `json:"domainUUID,omitempty"`
+	WorkflowExecution *WorkflowExecution `json:"workflowExecution,omitempty"`
+	// InitiatedID is the id of the SemaphoreAcquireInitiated event that started the acquire.
+	InitiatedID   int64  `json:"initiatedId,omitempty"`
+	TokenID       int32  `json:"tokenId,omitempty"`
+	SemaphoreName string `json:"semaphoreName,omitempty"`
+}
+
+func (v *RecordSemaphoreAcquiredRequest) GetDomainUUID() (o string) {
+	if v != nil {
+		return v.DomainUUID
+	}
+	return
+}
+
+func (v *RecordSemaphoreAcquiredRequest) GetInitiatedID() (o int64) {
+	if v != nil {
+		return v.InitiatedID
+	}
+	return
+}
+
+func (v *RecordSemaphoreAcquiredRequest) GetTokenID() (o int32) {
+	if v != nil {
+		return v.TokenID
+	}
+	return
+}
+
+func (v *RecordSemaphoreAcquiredRequest) GetSemaphoreName() (o string) {
+	if v != nil {
+		return v.SemaphoreName
+	}
+	return
+}
+
+// RecordSemaphoreAcquiredResponse is empty: a refused grant is an error.
+type RecordSemaphoreAcquiredResponse struct{}
 
 // RecordDecisionTaskStartedRequest is an internal type (TBD...)
 type RecordDecisionTaskStartedRequest struct {
@@ -1010,6 +1058,9 @@ type HistoryStartWorkflowExecutionRequest struct {
 	LastCompletionResult            []byte                         `json:"lastCompletionResult,omitempty"`
 	FirstDecisionTaskBackoffSeconds *int32                         `json:"firstDecisionTaskBackoffSeconds,omitempty"`
 	PartitionConfig                 map[string]string
+	// ParentVersionHistoryItems are the version history items of the current branch of the parent, set only for a
+	// child start, to find out if an existing child run was started by an initiated event that is not on that branch
+	ParentVersionHistoryItems []*VersionHistoryItem `json:"parentVersionHistoryItems,omitempty"`
 }
 
 // GetDomainUUID is an internal getter (TBD...)

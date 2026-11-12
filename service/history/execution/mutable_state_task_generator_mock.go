@@ -42,6 +42,20 @@ func (m *MockMutableStateTaskGenerator) EXPECT() *MockMutableStateTaskGeneratorM
 	return m.recorder
 }
 
+// GenerateAcquireSemaphoreTasks mocks base method.
+func (m *MockMutableStateTaskGenerator) GenerateAcquireSemaphoreTasks(initiatedEventID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenerateAcquireSemaphoreTasks", initiatedEventID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GenerateAcquireSemaphoreTasks indicates an expected call of GenerateAcquireSemaphoreTasks.
+func (mr *MockMutableStateTaskGeneratorMockRecorder) GenerateAcquireSemaphoreTasks(initiatedEventID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateAcquireSemaphoreTasks", reflect.TypeOf((*MockMutableStateTaskGenerator)(nil).GenerateAcquireSemaphoreTasks), initiatedEventID)
+}
+
 // GenerateActivityRetryTasks mocks base method.
 func (m *MockMutableStateTaskGenerator) GenerateActivityRetryTasks(activityScheduleID int64) error {
 	m.ctrl.T.Helper()
@@ -154,6 +168,20 @@ func (mr *MockMutableStateTaskGeneratorMockRecorder) GenerateRecordWorkflowStart
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateRecordWorkflowStartedTasks", reflect.TypeOf((*MockMutableStateTaskGenerator)(nil).GenerateRecordWorkflowStartedTasks), startEvent)
 }
 
+// GenerateReleaseSemaphoreTasks mocks base method.
+func (m *MockMutableStateTaskGenerator) GenerateReleaseSemaphoreTasks(initiatedEventID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenerateReleaseSemaphoreTasks", initiatedEventID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GenerateReleaseSemaphoreTasks indicates an expected call of GenerateReleaseSemaphoreTasks.
+func (mr *MockMutableStateTaskGeneratorMockRecorder) GenerateReleaseSemaphoreTasks(initiatedEventID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateReleaseSemaphoreTasks", reflect.TypeOf((*MockMutableStateTaskGenerator)(nil).GenerateReleaseSemaphoreTasks), initiatedEventID)
+}
+
 // GenerateRequestCancelExternalTasks mocks base method.
 func (m *MockMutableStateTaskGenerator) GenerateRequestCancelExternalTasks(event *types.HistoryEvent) error {
 	m.ctrl.T.Helper()
@@ -166,6 +194,20 @@ func (m *MockMutableStateTaskGenerator) GenerateRequestCancelExternalTasks(event
 func (mr *MockMutableStateTaskGeneratorMockRecorder) GenerateRequestCancelExternalTasks(event any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateRequestCancelExternalTasks", reflect.TypeOf((*MockMutableStateTaskGenerator)(nil).GenerateRequestCancelExternalTasks), event)
+}
+
+// GenerateSemaphoreAcquireTimeoutTasks mocks base method.
+func (m *MockMutableStateTaskGenerator) GenerateSemaphoreAcquireTimeoutTasks(initiatedEventID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenerateSemaphoreAcquireTimeoutTasks", initiatedEventID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GenerateSemaphoreAcquireTimeoutTasks indicates an expected call of GenerateSemaphoreAcquireTimeoutTasks.
+func (mr *MockMutableStateTaskGeneratorMockRecorder) GenerateSemaphoreAcquireTimeoutTasks(initiatedEventID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateSemaphoreAcquireTimeoutTasks", reflect.TypeOf((*MockMutableStateTaskGenerator)(nil).GenerateSemaphoreAcquireTimeoutTasks), initiatedEventID)
 }
 
 // GenerateSignalExternalTasks mocks base method.

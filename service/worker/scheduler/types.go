@@ -266,6 +266,9 @@ type BackfillRequest struct {
 	// processBackfills does not re-walk the cron on every batch and an empty
 	// range (RunsTotal == 0) is not confused with "not yet computed".
 	RunsTotalComputed bool `json:"runsTotalComputed,omitempty"`
+	// RunsTotalWithFractionalStart records that the cached count used the corrected
+	// fractional-start behavior. Older ContinueAsNew inputs omit this field.
+	RunsTotalWithFractionalStart bool `json:"runsTotalWithFractionalStart,omitempty"`
 }
 
 // PauseSignal is the payload sent with a pause signal.

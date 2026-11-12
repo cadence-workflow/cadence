@@ -98,6 +98,14 @@ type BatchParams struct {
 	// so the next activity invocation can resume where the previous left off.
 	// Used only by BatchWorkflowV2; nil means no prior progress.
 	Progress *HeartBeatDetails
+
+	// Operation is the typed operation from StartBatchOperation. When set,
+	// setDefaultParams derives BatchType and the matching legacy Xxx Params
+	// field from it, so the rest of this package only ever reads those
+	// fields. nil for batches started the old way (e.g. the CLI), which
+	// keeps already-running workflows replaying unaffected by this field's
+	// addition.
+	Operation *types.BatchOperation
 }
 
 // HeartBeatDetails is the struct for heartbeat details

@@ -420,3 +420,39 @@ func toCreateSemaphoreRequestTags(req *types.CreateSemaphoreRequest) []tag.Tag {
 		tag.WorkflowDomainName(req.GetDomain()),
 	}
 }
+
+func toStartBatchOperationRequestTags(req *types.StartBatchOperationRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toDescribeBatchOperationRequestTags(req *types.DescribeBatchOperationRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toListBatchOperationsRequestTags(req *types.ListBatchOperationsRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toStopBatchOperationRequestTags(req *types.StopBatchOperationRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toUpdateBatchOperationRequestTags(req *types.UpdateBatchOperationRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toExportWorkflowExecutionRequestTags(req *types.ExportWorkflowExecutionRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}

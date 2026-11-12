@@ -2443,6 +2443,107 @@ func (s *handlerSuite) TestRecordChildExecutionCompleted() {
 	}
 }
 
+func (s *handlerSuite) TestRecordSemaphoreAcquired() {
+	validInput := &types.RecordSemaphoreAcquiredRequest{
+		DomainUUID:  testDomainID,
+		InitiatedID: 1,
+		WorkflowExecution: &types.WorkflowExecution{
+			WorkflowID: testWorkflowID,
+			RunID:      testValidUUID,
+		},
+		TokenID:       3,
+		SemaphoreName: "my-semaphore",
+	}
+
+	testInput := map[string]struct {
+		input         *types.RecordSemaphoreAcquiredRequest
+		expectedError bool
+		mockFn        func()
+	}{
+		"shutting down": {
+			input:         validInput,
+			expectedError: true,
+			mockFn: func() {
+				s.handler.shuttingDown = int32(1)
+			},
+		},
+		"empty domainID": {
+			input: &types.RecordSemaphoreAcquiredRequest{
+				DomainUUID: "",
+			},
+			expectedError: true,
+			mockFn:        func() {},
+		},
+		"ratelimit exceeded": {
+			input:         validInput,
+			expectedError: true,
+			mockFn: func() {
+				s.mockRatelimiter.EXPECT().Allow().Return(false).Times(1)
+			},
+		},
+		"getEngine error": {
+			input:         validInput,
+			expectedError: true,
+			mockFn: func() {
+				s.mockRatelimiter.EXPECT().Allow().Return(true).Times(1)
+				s.mockShardController.EXPECT().GetEngine(testWorkflowID).Return(nil, errors.New("error")).Times(1)
+			},
+		},
+		"recordSemaphoreAcquired error": {
+			input:         validInput,
+			expectedError: true,
+			mockFn: func() {
+				s.mockRatelimiter.EXPECT().Allow().Return(true).Times(1)
+				s.mockShardController.EXPECT().GetEngine(testWorkflowID).Return(s.mockEngine, nil).Times(1)
+				s.mockEngine.EXPECT().RecordSemaphoreAcquired(gomock.Any(), validInput).Return(nil, errors.New("error")).Times(1)
+			},
+		},
+		"success": {
+			input:         validInput,
+			expectedError: false,
+			mockFn: func() {
+				s.mockRatelimiter.EXPECT().Allow().Return(true).Times(1)
+				s.mockShardController.EXPECT().GetEngine(testWorkflowID).Return(s.mockEngine, nil).Times(1)
+				s.mockEngine.EXPECT().RecordSemaphoreAcquired(gomock.Any(), validInput).Return(&types.RecordSemaphoreAcquiredResponse{}, nil).Times(1)
+			},
+		},
+		"empty execution": {
+			input: &types.RecordSemaphoreAcquiredRequest{
+				DomainUUID: testDomainID,
+			},
+			expectedError: true,
+			mockFn: func() {
+				s.mockRatelimiter.EXPECT().Allow().Return(true).Times(1)
+			},
+		},
+		"token id not set": {
+			input: &types.RecordSemaphoreAcquiredRequest{
+				DomainUUID:        testDomainID,
+				WorkflowExecution: validInput.WorkflowExecution,
+			},
+			expectedError: true,
+			mockFn: func() {
+				s.mockRatelimiter.EXPECT().Allow().Return(true).Times(1)
+			},
+		},
+	}
+
+	for name, input := range testInput {
+		s.Run(name, func() {
+			input.mockFn()
+			resp, err := s.handler.RecordSemaphoreAcquired(context.Background(), input.input)
+			s.handler.shuttingDown = int32(0)
+			if input.expectedError {
+				s.Error(err)
+				s.Nil(resp)
+			} else {
+				s.NoError(err)
+				s.Equal(&types.RecordSemaphoreAcquiredResponse{}, resp)
+			}
+		})
+	}
+}
+
 func (s *handlerSuite) TestResetStickyTaskList() {
 	validInput := &types.HistoryResetStickyTaskListRequest{
 		DomainUUID: testDomainID,

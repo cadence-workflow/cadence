@@ -1,0 +1,110 @@
+# Test the replacement of chains of child workflow runs from a stale branch of the parent.
+#
+# The test needs cluster1 to fail the decisions of the parents with FAILOVER_CLOSE_DECISION. The new events move
+# the event IDs of the parents, so the initiated events from cluster0 are not on the current branch of cluster1.
+# For this, the parents hold their decision task with a local activity on the worker of cluster0 only, so that
+# cluster1 sees the decisions in flight through replication when the failover occurs.
+# On cluster1 the local activity completes at once, so cluster1 starts the children again soon after the failover.
+# Replication of shards 1 and 2 (shards of the parents) sends one task per batch and waits 20s per batch, see the
+# dynamic config. The worker heartbeats the decisions every ~4s, and each heartbeat adds a replication task, so
+# cluster1 gets the events of the parents later and later.
+# The children of chain-stale-branch-running-parent are on shard 0, the children of chain-stale-branch-closed-parent
+# are on shard 3, so they replicate to cluster1 without delay.
+# 1. At ~50s cluster0 completes the decisions with the initiated events (N) and starts the children. At ~52s the first
+#    run of each chain continues as new. The second runs of the running chains run for 60s, the second runs of the
+#    closed chains close at ~54s.
+# 2. At 65s the domain fails over to cluster1. At ~75s cluster1 still sees the decisions of the parents in flight
+#    and fails them with FAILOVER_CLOSE_DECISION. The new events move the event IDs of the parents.
+# 3. At ~80s cluster1 writes the initiated events (N') and starts the children again. The current runs are the second
+#    runs of the chains. The first runs were started from the initiated events N, which are not on the current branch,
+#    so the child start terminates the running chains and starts a new execution, and starts a new execution after
+#    the closed chains.
+#
+# Without the stale branch replacement, the child start fails with already started, and the parents fail.
+# To check that the paths ran:
+# curl -s localhost:8002/metrics | grep -E 'child_workflow_stale_branch_(replaced|new_execution)'
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+primaryCluster: "cluster0"
+
+domains:
+  test-domain:
+    activeClusterName: cluster0
+
+operations:
+  - op: start_workflow
+    at: 0s
+    workflowType: child-workflow-loop
+    workflowID: chain-stale-branch-running-parent
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 400s
+    childWorkflowID: chain-stale-branch-running-child
+    childWorkflowType: chain-workflow
+    childWorkflowCount: 2
+    childWorkflowTimeout: 300s
+    childRunDurations: [2s, 60s]
+    decisionHoldDuration: 50s
+    decisionHoldCluster: cluster0
+
+  - op: start_workflow
+    at: 0s
+    workflowType: child-workflow-loop
+    workflowID: chain-stale-branch-closed-parent
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 400s
+    childWorkflowID: chain-stale-branch-closed-child
+    childWorkflowType: chain-workflow
+    childWorkflowCount: 2
+    childWorkflowTimeout: 300s
+    childRunDurations: [2s, 2s]
+    decisionHoldDuration: 50s
+    decisionHoldCluster: cluster0
+
+  - op: change_active_clusters
+    at: 65s
+    domain: test-domain
+    newActiveCluster: cluster1
+
+  # the simulator has a go test timeout of 240s that includes the setup, so the validation must be earlier.
+  # The parents close at ~85s and ~145s.
+  - op: validate
+    at: 165s
+    workflowID: chain-stale-branch-running-parent
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: completed
+
+  - op: validate
+    at: 165s
+    workflowID: chain-stale-branch-closed-parent
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: completed
+
+  # cluster1 must fail the decisions of the parents at the failover, otherwise the test does not create the stale branches
+  - op: wait_for_history_event
+    at: 166s
+    workflowID: chain-stale-branch-running-parent
+    cluster: cluster1
+    domain: test-domain
+    eventType: DecisionTaskFailed
+    eventCount: 1
+    timeout: 5s
+
+  - op: wait_for_history_event
+    at: 166s
+    workflowID: chain-stale-branch-closed-parent
+    cluster: cluster1
+    domain: test-domain
+    eventType: DecisionTaskFailed
+    eventCount: 1
+    timeout: 5s

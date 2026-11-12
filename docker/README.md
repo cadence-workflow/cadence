@@ -196,7 +196,7 @@ docker run -e CASSANDRA_SEEDS=10.x.x.x                  -- csv of cassandra serv
     -e NUM_HISTORY_SHARDS=1024                          -- Number of history shards
     -e SERVICES=history,matching                        -- Spinup only the provided services, separated by commas, options are frontend,history,matching and worker
     -e LOG_LEVEL=debug,info                             -- Logging level
-    -e DYNAMIC_CONFIG_FILE_PATH=<dynamic_config_file>   -- Dynamic config file to be watched, default to /etc/cadence/config/dynamicconfig/development.yaml, but you can choose /etc/cadence/config/dynamicconfig/development_es.yaml if using ElasticSearch
+    -e DYNAMIC_CONFIG_FILE_PATH=<dynamic_config_file>   -- Dynamic config file to be watched, default to /etc/cadence/dynamicconfig/development.yaml, but you can choose /etc/cadence/dynamicconfig/development_es.yaml if using ElasticSearch
     ubercadence/server:<tag>
 ```
 Note that each env variable has a default value, so you don't have to specify it if the default works for you.

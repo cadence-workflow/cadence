@@ -64,6 +64,11 @@ func (g frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *type
 	return thrift.ToDiagnoseWorkflowExecutionResponse(response), thrift.ToError(err)
 }
 
+func (g frontendClient) ExportWorkflowExecution(ctx context.Context, ep1 *types.ExportWorkflowExecutionRequest, p1 ...yarpc.CallOption) (ep2 *types.ExportWorkflowExecutionResponse, err error) {
+	response, err := g.c.ExportWorkflowExecution(ctx, thrift.FromExportWorkflowExecutionRequest(ep1), p1...)
+	return thrift.ToExportWorkflowExecutionResponse(response), thrift.ToError(err)
+}
+
 func (g frontendClient) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest, p1 ...yarpc.CallOption) (fp2 *types.FailoverDomainResponse, err error) {
 	response, err := g.c.FailoverDomain(ctx, thrift.FromFailoverDomainRequest(fp1), p1...)
 	return thrift.ToFailoverDomainResponse(response), thrift.ToError(err)

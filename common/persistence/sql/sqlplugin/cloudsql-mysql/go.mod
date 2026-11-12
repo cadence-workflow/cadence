@@ -1,8 +1,8 @@
 module github.com/uber/cadence/common/persistence/sql/sqlplugin/cloudsql-mysql
 
-go 1.25.0
+go 1.26.2
 
-toolchain go1.25.14
+toolchain go1.26.10
 
 // build against the current code in the "main" module, not a specific SHA.
 //
@@ -11,14 +11,11 @@ toolchain go1.25.14
 // relative file path.
 replace github.com/uber/cadence => ../../../../..
 
-// tchannel-go depends on older version of thrift, yarpc brings up newer version
-replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
-
 require (
 	cloud.google.com/go/cloudsqlconn v1.16.1
 	cloud.google.com/go/compute/metadata v0.9.0
 	github.com/iancoleman/strcase v0.3.0
-	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee
+	github.com/jmoiron/sqlx v1.4.0
 	github.com/stretchr/testify v1.11.1
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	go.uber.org/multierr v1.11.0
@@ -27,10 +24,10 @@ require (
 require (
 	cloud.google.com/go/auth v0.18.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/VividCortex/mysqlerr v1.0.0 // indirect
-	github.com/apache/thrift v0.17.0 // indirect
+	github.com/apache/thrift v0.25.0 // indirect
 	github.com/aws/aws-sdk-go v1.54.12 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cactus/go-statsd-client/statsd v0.0.0-20191106001114-12b4e2b38748 // indirect
@@ -43,7 +40,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-sql-driver/mysql v1.9.3 // indirect
+	github.com/go-sql-driver/mysql v1.10.1 // indirect
 	github.com/go-zookeeper/zk v1.0.3 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -61,7 +58,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/m3db/prometheus_client_golang v1.12.8 // indirect
 	github.com/m3db/prometheus_client_model v0.2.1 // indirect
 	github.com/m3db/prometheus_common v0.34.6 // indirect
@@ -88,7 +85,7 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/uber-go/mapdecode v1.0.0 // indirect
 	github.com/uber-go/tally v3.5.8+incompatible // indirect
-	github.com/uber/cadence-idl v0.0.0-20261006184647-bfbf273b41b9 // indirect
+	github.com/uber/cadence-idl v0.0.0-20261110022531-0db0311705e1 // indirect
 	github.com/uber/tchannel-go v1.34.4 // indirect
 	github.com/valyala/fastjson v1.4.1 // indirect
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2 // indirect
@@ -121,7 +118,7 @@ require (
 	golang.org/x/tools v0.48.0 // indirect
 	google.golang.org/api v0.264.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/grpc v1.83.1 // indirect
+	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

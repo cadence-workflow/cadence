@@ -88,6 +88,8 @@ var (
 	// semaphore
 	WorkflowActionSemaphoreAcquireInitiated = workflowAction("add-semaphore-acquire-initiated-event")
 	WorkflowActionSemaphoreAcquired         = workflowAction("add-semaphore-acquired-event")
+	WorkflowActionSemaphoreAcquireFailed    = workflowAction("add-semaphore-acquire-failed-event")
+	WorkflowActionSemaphoreReleased         = workflowAction("add-semaphore-released-event")
 
 	WorkflowActionUnknown = workflowAction("add-unknown-event")
 )
@@ -427,6 +429,7 @@ var (
 	FrontendClientOperationUnpauseSchedule                       = clientOperation("frontend-unpause-schedule")
 	FrontendClientOperationBackfillSchedule                      = clientOperation("frontend-backfill-schedule")
 	FrontendClientOperationListSchedules                         = clientOperation("frontend-list-schedules")
+	FrontendClientOperationExportWorkflowExecution               = clientOperation("frontend-export-workflow-execution")
 
 	HistoryClientOperationStartWorkflowExecution            = clientOperation("history-start-wf-execution")
 	HistoryClientOperationDescribeHistoryHost               = clientOperation("history-describe-history-host")
@@ -455,6 +458,7 @@ var (
 	HistoryClientOperationResetWorkflowExecution            = clientOperation("history-reset-wf-execution")
 	HistoryClientOperationScheduleDecisionTask              = clientOperation("history-schedule-decision-task")
 	HistoryClientOperationRecordChildExecutionCompleted     = clientOperation("history-record-child-execution-completed")
+	HistoryClientOperationRecordSemaphoreAcquired           = clientOperation("history-record-semaphore-acquired")
 	HistoryClientOperationReplicateEventsV2                 = clientOperation("history-replicate-events-v2")
 	HistoryClientOperationSyncShardStatus                   = clientOperation("history-sync-shard-status")
 	HistoryClientOperationSyncActivity                      = clientOperation("history-sync-activity")
@@ -492,6 +496,8 @@ var (
 	MatchingClientOperationUpdateTaskListPartitionConfig  = clientOperation("matching-update-task-list-partition-config")
 	MatchingClientOperationRefreshTaskListPartitionConfig = clientOperation("matching-refresh-task-list-partition-config")
 	MatchingClientOperationAcquireSemaphore               = clientOperation("matching-acquire-semaphore")
+	MatchingClientOperationReleaseSemaphore               = clientOperation("matching-release-semaphore")
+	MatchingClientOperationGetSemaphoreTokenByOwner       = clientOperation("matching-get-semaphore-token-by-owner")
 )
 
 // Pre-defined values for TagIDType

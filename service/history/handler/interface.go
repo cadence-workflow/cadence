@@ -63,6 +63,7 @@ type Handler interface {
 	RecordActivityTaskHeartbeat(context.Context, *types.HistoryRecordActivityTaskHeartbeatRequest) (*types.RecordActivityTaskHeartbeatResponse, error)
 	RecordActivityTaskStarted(context.Context, *types.RecordActivityTaskStartedRequest) (*types.RecordActivityTaskStartedResponse, error)
 	RecordChildExecutionCompleted(context.Context, *types.RecordChildExecutionCompletedRequest) error
+	RecordSemaphoreAcquired(context.Context, *types.RecordSemaphoreAcquiredRequest) (*types.RecordSemaphoreAcquiredResponse, error)
 	RecordDecisionTaskStarted(context.Context, *types.RecordDecisionTaskStartedRequest) (*types.RecordDecisionTaskStartedResponse, error)
 	RefreshWorkflowTasks(context.Context, *types.HistoryRefreshWorkflowTasksRequest) error
 	RemoveSignalMutableState(context.Context, *types.RemoveSignalMutableStateRequest) error

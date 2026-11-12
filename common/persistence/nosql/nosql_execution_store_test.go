@@ -116,9 +116,8 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					Return(err)
 			},
 			expectedResp: nil,
-			expectedError: &persistence.ShardOwnershipLostError{
-				ShardID: 123,
-				Msg:     "Unknown error occurred during operation",
+			expectedError: &persistence.ConditionFailedError{
+				Msg: "Unknown error occurred during operation",
 			},
 		},
 		{
@@ -2211,4 +2210,96 @@ func TestGetWorkflowExecution_usesRequestShardID(t *testing.T) {
 
 	_, err := store.GetWorkflowExecution(ctx, req)
 	require.NoError(t, err)
+}
+
+func TestConvertWorkflowConditionFailure(t *testing.T) {
+	tests := []struct {
+		name      string
+		operation string
+		failure   *nosqlplugin.WorkflowOperationConditionFailure
+		want      error
+	}{
+		{
+			name:      "unknown failure is not a shard ownership loss on create",
+			operation: "create",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{UnknownConditionFailureDetails: common.StringPtr("details")},
+			want:      &persistence.ConditionFailedError{Msg: "details"},
+		},
+		{
+			name:      "unknown failure is not a shard ownership loss on update",
+			operation: "update",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{UnknownConditionFailureDetails: common.StringPtr("details")},
+			want:      &persistence.ConditionFailedError{Msg: "details"},
+		},
+		{
+			name:      "range id mismatch on create",
+			operation: "create",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{ShardRangeIDNotMatch: common.Int64Ptr(456)},
+			want: &persistence.ShardOwnershipLostError{
+				ShardID: 7,
+				Msg:     "Failed to create workflow execution. Request RangeID: 123, Actual RangeID: 456",
+			},
+		},
+		{
+			name:      "range id mismatch on update",
+			operation: "update",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{ShardRangeIDNotMatch: common.Int64Ptr(456)},
+			want: &persistence.ShardOwnershipLostError{
+				ShardID: 7,
+				Msg:     "Failed to update workflow execution. Request RangeID: 123, Actual RangeID: 456",
+			},
+		},
+		{
+			name:      "current workflow condition failed",
+			operation: "create",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{CurrentWorkflowConditionFailInfo: common.StringPtr("info")},
+			want:      &persistence.CurrentWorkflowConditionFailedError{Msg: "info"},
+		},
+		{
+			name:      "workflow already exists",
+			operation: "create",
+			failure: &nosqlplugin.WorkflowOperationConditionFailure{
+				WorkflowExecutionAlreadyExists: &nosqlplugin.WorkflowExecutionAlreadyExists{
+					RunID:            "run",
+					CreateRequestID:  "req",
+					State:            1,
+					CloseStatus:      2,
+					LastWriteVersion: 3,
+					OtherInfo:        "other",
+				},
+			},
+			want: &persistence.WorkflowExecutionAlreadyStartedError{
+				Msg:              "other",
+				StartRequestID:   "req",
+				RunID:            "run",
+				State:            1,
+				CloseStatus:      2,
+				LastWriteVersion: 3,
+			},
+		},
+		{
+			name:      "duplicate request",
+			operation: "update",
+			failure: &nosqlplugin.WorkflowOperationConditionFailure{
+				DuplicateRequest: &nosqlplugin.DuplicateRequest{RequestType: persistence.WorkflowRequestTypeSignal, RunID: "run"},
+			},
+			want: &persistence.DuplicateRequestError{RequestType: persistence.WorkflowRequestTypeSignal, RunID: "run"},
+		},
+		{
+			name:      "empty failure is a bug",
+			operation: "create",
+			failure:   &nosqlplugin.WorkflowOperationConditionFailure{},
+			want:      fmt.Errorf("unsupported conditionFailureReason error"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			store := newTestNosqlExecutionStore(nosqlplugin.NewMockDB(ctrl), log.NewNoop())
+
+			got := store.convertWorkflowConditionFailure(tc.operation, 7, 123, tc.failure)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }

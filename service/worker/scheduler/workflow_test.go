@@ -22,6 +22,7 @@ package scheduler
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 	"time"
 
@@ -29,6 +30,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/cadence/testsuite"
+	"go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/zap"
 
@@ -102,6 +105,37 @@ func TestComputeNextRunTime(t *testing.T) {
 			wantTime: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
 		},
 		{
+			name:     "fractional start excludes the fire immediately before it",
+			cron:     "* * * * *",
+			now:      now.Add(-time.Minute),
+			spec:     types.ScheduleSpec{StartTime: now.Add(500 * time.Millisecond)},
+			wantTime: now.Add(time.Minute),
+		},
+		{
+			name: "fractional start and end contain no fire",
+			cron: "* * * * *",
+			now:  now.Add(-time.Minute),
+			spec: types.ScheduleSpec{
+				StartTime: now.Add(500 * time.Millisecond),
+				EndTime:   now.Add(time.Second),
+			},
+			wantZero: true,
+		},
+		{
+			name:     "one second interval starts on the next eligible second",
+			cron:     "@every 1s",
+			now:      now.Add(-time.Minute),
+			spec:     types.ScheduleSpec{StartTime: now.Add(500 * time.Millisecond)},
+			wantTime: now.Add(time.Second),
+		},
+		{
+			name:     "longer interval keeps its first eligible fire",
+			cron:     "@every 5s",
+			now:      now.Add(-time.Minute),
+			spec:     types.ScheduleSpec{StartTime: now.Add(500 * time.Millisecond)},
+			wantTime: now.Add(4 * time.Second),
+		},
+		{
 			name:     "next run is after endTime - returns zero",
 			cron:     "0 0 * * *",
 			now:      time.Date(2026, 1, 15, 23, 0, 0, 0, time.UTC),
@@ -137,12 +171,108 @@ func TestComputeNextRunTime(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sched := mustParseCron(t, tt.cron)
+			if tt.spec.StartTime.Nanosecond() != 0 {
+				sched = fractionalStartCron{Schedule: sched, start: tt.spec.StartTime}
+			}
 			got := computeNextRunTime(sched, tt.now, tt.spec)
 			if tt.wantZero {
 				assert.True(t, got.IsZero(), "expected zero time, got %v", got)
 			} else {
 				assert.Equal(t, tt.wantTime, got)
 			}
+		})
+	}
+}
+
+func TestSchedulerWorkflowReplaysWithoutVersionMarker(t *testing.T) {
+	// The legacy workflow waits for noon and is deleted at 11:59:30. Under the
+	// corrected rule, the next tick is past EndTime and it completes at 11:59.
+	history, err := os.Open("testdata/fractional_start_no_marker.json")
+	require.NoError(t, err)
+	defer history.Close()
+
+	replayer := worker.NewWorkflowReplayer()
+	var completedAt time.Time
+	replayer.RegisterWorkflowWithOptions(func(ctx workflow.Context, input SchedulerWorkflowInput) error {
+		err := SchedulerWorkflow(ctx, input)
+		completedAt = workflow.Now(ctx)
+		return err
+	}, workflow.RegisterOptions{Name: WorkflowTypeName})
+	require.NoError(t, replayer.ReplayWorkflowHistoryFromJSON(testLogger, history))
+	require.Equal(t, time.Date(2026, 1, 1, 11, 59, 30, 0, time.UTC), completedAt.UTC())
+}
+
+func TestSchedulerWorkflowFractionalStartVersion(t *testing.T) {
+	minute := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	pausedWithNextRun := func(next time.Time) SchedulerWorkflowState {
+		return SchedulerWorkflowState{Paused: true, CreateTime: minute.Add(-time.Hour), NextRunTime: next}
+	}
+	for _, tt := range []struct {
+		name           string
+		alreadyChoseV1 bool
+		state          SchedulerWorkflowState
+		end            time.Time
+		want           time.Time
+	}{
+		{name: "new execution uses the old timer during rollout", want: minute},
+		{name: "execution already on version 1 uses the corrected timer", alreadyChoseV1: true, want: minute.Add(time.Minute)},
+		{
+			name:  "paused legacy execution retains its cached tick",
+			state: pausedWithNextRun(minute),
+			want:  minute,
+		},
+		{
+			name:           "paused version 1 corrects its cached tick",
+			alreadyChoseV1: true,
+			state:          pausedWithNextRun(minute),
+			want:           minute.Add(time.Minute),
+		},
+		{
+			name:           "paused version 1 has no eligible tick before end",
+			alreadyChoseV1: true,
+			state:          pausedWithNextRun(minute),
+			end:            minute.Add(time.Second),
+		},
+		{
+			name:           "paused version 1 retains an unset tick",
+			alreadyChoseV1: true,
+			state:          pausedWithNextRun(time.Time{}),
+		},
+		{
+			name:           "paused version 1 retains a valid cached tick",
+			alreadyChoseV1: true,
+			state:          pausedWithNextRun(minute.Add(2 * time.Minute)),
+			want:           minute.Add(2 * time.Minute),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var suite testsuite.WorkflowTestSuite
+			env := suite.NewTestWorkflowEnvironment()
+			env.SetStartTime(minute.Add(-time.Minute))
+			if tt.state.Paused {
+				// A paused schedule may carry its last computed tick across executions.
+				env.SetStartTime(minute.Add(time.Hour))
+			}
+			var desc ScheduleDescription
+			env.RegisterDelayedCallback(func() {
+				result, err := env.QueryWorkflow(QueryTypeDescribe)
+				require.NoError(t, err)
+				require.NoError(t, result.Get(&desc))
+				env.SignalWorkflow(SignalNameDelete, nil)
+			}, time.Second)
+			env.ExecuteWorkflow(func(ctx workflow.Context, input SchedulerWorkflowInput) error {
+				if tt.alreadyChoseV1 {
+					// Seed the version a worker with the fix enabled would have chosen.
+					workflow.GetVersion(ctx, fractionalStartTimeChangeID, workflow.DefaultVersion, 1)
+				}
+				return SchedulerWorkflow(ctx, input)
+			}, SchedulerWorkflowInput{
+				Spec:  types.ScheduleSpec{CronExpression: "* * * * *", StartTime: minute.Add(500 * time.Millisecond), EndTime: tt.end},
+				State: tt.state,
+			})
+			require.NoError(t, env.GetWorkflowError())
+			require.Equal(t, tt.state.Paused, desc.Paused)
+			require.Equal(t, tt.want, desc.NextRunTime)
 		})
 	}
 }
@@ -989,10 +1119,11 @@ func TestHandleBackfill(t *testing.T) {
 
 func TestCountCronFires(t *testing.T) {
 	hourly := mustParseCron(t, "0 * * * *")
-	spec := types.ScheduleSpec{CronExpression: "0 * * * *"}
+	startOfDay := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	tests := map[string]struct {
 		start, end time.Time
+		specStart  time.Time
 		limit      int
 		wantCount  int
 		wantTrunc  bool
@@ -1003,6 +1134,13 @@ func TestCountCronFires(t *testing.T) {
 			limit:     100,
 			wantCount: 25,
 			wantTrunc: false,
+		},
+		"backfill overlaps fractional schedule start": {
+			start:     startOfDay.Add(-time.Second),
+			end:       startOfDay.Add(time.Hour),
+			specStart: startOfDay.Add(500 * time.Millisecond),
+			limit:     10,
+			wantCount: 1,
 		},
 		"empty range returns zero": {
 			start:     time.Date(2026, 1, 1, 0, 0, 0, 30, time.UTC),
@@ -1021,7 +1159,11 @@ func TestCountCronFires(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			count, truncated := countCronFires(hourly, tt.start, tt.end, spec, tt.limit)
+			sched := hourly
+			if tt.specStart.Nanosecond() != 0 {
+				sched = fractionalStartCron{Schedule: sched, start: tt.specStart}
+			}
+			count, truncated := countCronFires(t.Context(), sched, tt.start, tt.end, types.ScheduleSpec{StartTime: tt.specStart}, tt.limit)
 			assert.Equal(t, tt.wantCount, count)
 			assert.Equal(t, tt.wantTrunc, truncated)
 		})
@@ -1286,6 +1428,27 @@ func TestBackfillFireComputation(t *testing.T) {
 			assert.Equal(t, tt.wantFires, len(fires.times))
 		})
 	}
+}
+
+func TestFractionalScheduleStartCatchUp(t *testing.T) {
+	minute := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	input := SchedulerWorkflowInput{
+		Spec:     types.ScheduleSpec{CronExpression: "* * * * *", StartTime: minute.Add(500 * time.Millisecond)},
+		Policies: types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicySkip},
+	}
+	sched := fractionalStartCron{Schedule: mustParseCron(t, input.Spec.CronExpression), start: input.Spec.StartTime}
+	state := &SchedulerWorkflowState{CreateTime: minute.Add(-time.Minute)}
+	now := minute.Add(time.Minute)
+	budget := maxActivitiesPerExecution
+
+	more := processMissedRunsAt(nil, testLogger, tally.NoopScope, sched, &input, state, catchUpWatermark(state), now, &budget)
+	require.False(t, more)
+	require.Equal(t, int64(1), state.SkippedRuns)
+	require.Equal(t, now, state.LastProcessedTime)
+
+	more = processMissedRunsAt(nil, testLogger, tally.NoopScope, sched, &input, state, catchUpWatermark(state), now, &budget)
+	require.False(t, more)
+	require.Equal(t, int64(1), state.SkippedRuns)
 }
 
 // TestProcessMissedRunsAtMetrics verifies that processMissedRunsAt emits

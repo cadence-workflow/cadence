@@ -156,6 +156,31 @@ func (c *matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.Matchi
 	return dp1, err
 }
 
+func (c *matchingClient) GetSemaphoreTokenByOwner(ctx context.Context, gp1 *types.GetSemaphoreTokenByOwnerRequest, p1 ...yarpc.CallOption) (gp2 *types.GetSemaphoreTokenByOwnerResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.MatchingClientGetSemaphoreTokenByOwnerScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.MatchingClientGetSemaphoreTokenByOwnerScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+	c.emitForwardedFromStats(scope, gp1)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	gp2, err = c.client.GetSemaphoreTokenByOwner(ctx, gp1, p1...)
+	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return gp2, err
+}
+
 func (c *matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest, p1 ...yarpc.CallOption) (gp2 *types.GetTaskListsByDomainResponse, err error) {
 	retryCount := getRetryCountFromContext(ctx)
 
@@ -304,6 +329,31 @@ func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1
 		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return mp2, err
+}
+
+func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.MatchingClientReleaseSemaphoreScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.MatchingClientReleaseSemaphoreScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+	c.emitForwardedFromStats(scope, rp1)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	rp2, err = c.client.ReleaseSemaphore(ctx, rp1, p1...)
+	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return rp2, err
 }
 
 func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {

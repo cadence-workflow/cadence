@@ -82,6 +82,17 @@ func (c *matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.Matchi
 	return resp, err
 }
 
+func (c *matchingClient) GetSemaphoreTokenByOwner(ctx context.Context, gp1 *types.GetSemaphoreTokenByOwnerRequest, p1 ...yarpc.CallOption) (gp2 *types.GetSemaphoreTokenByOwnerResponse, err error) {
+	var resp *types.GetSemaphoreTokenByOwnerResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.GetSemaphoreTokenByOwner(ctx, gp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest, p1 ...yarpc.CallOption) (gp2 *types.GetTaskListsByDomainResponse, err error) {
 	var resp *types.GetTaskListsByDomainResponse
 	op := func(ctx context.Context) error {
@@ -142,6 +153,17 @@ func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.RefreshTaskListPartitionConfig(ctx, mp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
+func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	var resp *types.ReleaseSemaphoreResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.ReleaseSemaphore(ctx, rp1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
