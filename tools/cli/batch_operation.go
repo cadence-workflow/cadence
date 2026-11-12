@@ -24,17 +24,17 @@ var batchStartCommonFlags = []cli.Flag{
 	&cli.IntFlag{
 		Name:  FlagRPS,
 		Value: batcher.DefaultRPS,
-		Usage: "RPS of processing",
+		Usage: "Maximum operations per second across the whole batch, shared by all workers. Lower this to reduce load on the target domain",
 	},
 	&cli.IntFlag{
 		Name:  FlagConcurrency,
 		Value: batcher.DefaultConcurrency,
-		Usage: "Concurrency of batch activity",
+		Usage: "Number of workflows processed in parallel. Higher finishes faster but increases load on the target domain; RPS still caps the combined rate across all of them",
 	},
 	&cli.IntFlag{
 		Name:  FlagPageSize,
 		Value: batcher.DefaultPageSize,
-		Usage: "PageSize of processing",
+		Usage: "Number of workflows fetched per visibility query page and queued for the workers to process. Larger pages mean fewer, bigger visibility queries",
 	},
 	&cli.BoolFlag{
 		Name:  FlagYes,
