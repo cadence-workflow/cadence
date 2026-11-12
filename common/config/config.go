@@ -69,7 +69,7 @@ type (
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
 		ShardDistributorMatchingConfig clientcommon.Config `yaml:"shard-distributor-matching"`
 
-		// NumMatchingShards is the number of shards matching hashes task list names into when
+		// NumMatchingShards is the number of shards matching hashes task lists into when
 		// matching.shardTaskListsByHashForShardManager is enabled. It must equal the shardNum of
 		// matching's namespace in the shard distributor, and every service must use the same value.
 		//

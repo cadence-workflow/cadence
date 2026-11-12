@@ -42,16 +42,16 @@ func (m *MockTaskListRouter) EXPECT() *MockTaskListRouterMockRecorder {
 }
 
 // FromTaskList mocks base method.
-func (m *MockTaskListRouter) FromTaskList(taskListName string) (membership.HostInfo, error) {
+func (m *MockTaskListRouter) FromTaskList(domainID, taskListName string) (membership.HostInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FromTaskList", taskListName)
+	ret := m.ctrl.Call(m, "FromTaskList", domainID, taskListName)
 	ret0, _ := ret[0].(membership.HostInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FromTaskList indicates an expected call of FromTaskList.
-func (mr *MockTaskListRouterMockRecorder) FromTaskList(taskListName any) *gomock.Call {
+func (mr *MockTaskListRouterMockRecorder) FromTaskList(domainID, taskListName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FromTaskList", reflect.TypeOf((*MockTaskListRouter)(nil).FromTaskList), taskListName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FromTaskList", reflect.TypeOf((*MockTaskListRouter)(nil).FromTaskList), domainID, taskListName)
 }

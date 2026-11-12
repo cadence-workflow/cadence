@@ -25,7 +25,7 @@ const (
 
 // TaskListRouter finds the matching host that owns a task list.
 type TaskListRouter interface {
-	FromTaskList(taskListName string) (membership.HostInfo, error)
+	FromTaskList(domainID, taskListName string) (membership.HostInfo, error)
 }
 
 type taskListRouter struct {
@@ -55,8 +55,8 @@ func NewTaskListRouter(
 	}
 }
 
-func (r *taskListRouter) FromTaskList(taskListName string) (membership.HostInfo, error) {
-	shard := r.taskListDifferentiator.TaskListShard(taskListName)
+func (r *taskListRouter) FromTaskList(domainID, taskListName string) (membership.HostInfo, error) {
+	shard := r.taskListDifferentiator.TaskListShard(domainID, taskListName)
 	if !shard.Onboarded || r.spectator == nil {
 		r.emitRoutingPathMetric(routingPathHashRing)
 		return r.resolver.Lookup(service.Matching, taskListName)

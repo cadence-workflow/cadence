@@ -108,7 +108,7 @@ func (sp *shardProcessorImpl) SetShardStatus(status smtypes.ShardStatus) {
 func (sp *shardProcessorImpl) getShardLoad() float64 {
 	var load float64
 
-	// We assign a shard only based on the task list name
+	// We assign a shard based on the task list name, plus the domain ID when task lists are sharded by hash,
 	// so task lists of different task type (decisions/activities) or of different kind (normal, sticky, ephemeral)
 	// will be assigned all to the same matching instance (executor)
 	// we need to sum the rps for each of the tasklist to calculate the load.
@@ -137,8 +137,8 @@ func (sp *shardProcessorImpl) ownedManagers() []Manager {
 
 // ownsTaskList is false for task lists the hash ring owns, such as short-lived ones.
 func (sp *shardProcessorImpl) ownsTaskList(tlMgr Manager) bool {
-	taskListName := tlMgr.TaskListID().GetName()
-	return sp.taskListDifferentiator.TaskListShard(taskListName).Onboarded
+	id := tlMgr.TaskListID()
+	return sp.taskListDifferentiator.TaskListShard(id.GetDomainID(), id.GetName()).Onboarded
 }
 
 func validateSPParams(params ShardProcessorParams) error {

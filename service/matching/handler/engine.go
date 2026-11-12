@@ -322,7 +322,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	// The first check is an optimization so almost all requests will have a task list manager
 	// and return avoiding the write lock
 	result, ok := e.taskListRegistry.ManagerByTaskListIdentifier(*taskList)
-	shard := e.taskListDifferentiator.TaskListShard(taskList.GetName())
+	shard := e.taskListDifferentiator.TaskListShard(taskList.GetDomainID(), taskList.GetName())
 
 	// Task lists excluded from the ShardDistributor (short-lived task lists with UUIDs) bypass
 	// the executor/shard-processor entirely and always use local hash-ring assignment.
@@ -1234,8 +1234,13 @@ func (e *matchingEngineImpl) listTaskListPartitions(
 	request *types.MatchingListTaskListPartitionsRequest,
 	taskListType int,
 ) ([]*types.TaskListPartitionMetadata, error) {
+	domainID, err := e.domainCache.GetDomainID(request.GetDomain())
+	if err != nil {
+		return nil, err
+	}
 	partitions, err := e.getAllPartitions(
 		request,
+		domainID,
 		taskListType,
 	)
 	if err != nil {
@@ -1244,7 +1249,7 @@ func (e *matchingEngineImpl) listTaskListPartitions(
 
 	var partitionHostInfo []*types.TaskListPartitionMetadata
 	for _, partition := range partitions {
-		host, _ := e.getHostInfo(partition)
+		host, _ := e.getHostInfo(domainID, partition)
 		partitionHostInfo = append(partitionHostInfo,
 			&types.TaskListPartitionMetadata{
 				Key:           partition,
@@ -1365,8 +1370,8 @@ func (e *matchingEngineImpl) RefreshTaskListPartitionConfig(
 	return &types.MatchingRefreshTaskListPartitionConfigResponse{}, nil
 }
 
-func (e *matchingEngineImpl) getHostInfo(partitionKey string) (string, error) {
-	host, err := e.taskListRouter.FromTaskList(partitionKey)
+func (e *matchingEngineImpl) getHostInfo(domainID, partitionKey string) (string, error) {
+	host, err := e.taskListRouter.FromTaskList(domainID, partitionKey)
 	if err != nil {
 		return "", err
 	}
@@ -1375,12 +1380,9 @@ func (e *matchingEngineImpl) getHostInfo(partitionKey string) (string, error) {
 
 func (e *matchingEngineImpl) getAllPartitions(
 	request *types.MatchingListTaskListPartitionsRequest,
+	domainID string,
 	taskListType int,
 ) ([]string, error) {
-	domainID, err := e.domainCache.GetDomainID(request.GetDomain())
-	if err != nil {
-		return nil, err
-	}
 	taskList := request.GetTaskList()
 	taskListID, err := tasklist.NewIdentifier(domainID, taskList.GetName(), taskListType)
 	if err != nil {
@@ -1682,7 +1684,7 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 	// the local hash-ring for ownership, so skip the SD-based ownership check for them.
 	if shard.Onboarded {
 		// We have a shard-processor shared by all the task lists with the same name, or, when task
-		// lists are sharded by hash, by all the task lists whose names hash to the same shard.
+		// lists are sharded by hash, by all the task lists that hash to the same shard.
 		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
 		sp, err := e.executor.GetShardProcess(ctx, shard.ID)
 		if err != nil {

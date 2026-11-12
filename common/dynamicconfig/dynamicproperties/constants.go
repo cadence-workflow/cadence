@@ -2473,8 +2473,8 @@ const (
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
 
-	// MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard
-	// manager. When disabled, each task list name is its own shard.
+	// MatchingShardTaskListsByHashForShardManager hashes task lists, by domain ID and name, into a fixed set of
+	// shards in the shard manager. When disabled, each task list name is its own shard.
 	// Enabling it also requires matching's namespace in the shard distributor to be a fixed namespace with
 	// shardNum set to numMatchingShards.
 	// Only change it while matching.percentageOnboardedToShardManager is 0, because hosts that disagree on it
@@ -5448,7 +5448,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	},
 	MatchingShardTaskListsByHashForShardManager: {
 		KeyName:      "matching.shardTaskListsByHashForShardManager",
-		Description:  "MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard manager",
+		Description:  "MatchingShardTaskListsByHashForShardManager hashes task lists, by domain ID and name, into a fixed set of shards in the shard manager",
 		DefaultValue: false,
 	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
