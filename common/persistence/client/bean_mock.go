@@ -53,6 +53,20 @@ func (mr *MockBeanMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockBean)(nil).Close))
 }
 
+// GetAsyncWorkflowQueueManager mocks base method.
+func (m *MockBean) GetAsyncWorkflowQueueManager() persistence.AsyncWorkflowQueueManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAsyncWorkflowQueueManager")
+	ret0, _ := ret[0].(persistence.AsyncWorkflowQueueManager)
+	return ret0
+}
+
+// GetAsyncWorkflowQueueManager indicates an expected call of GetAsyncWorkflowQueueManager.
+func (mr *MockBeanMockRecorder) GetAsyncWorkflowQueueManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAsyncWorkflowQueueManager", reflect.TypeOf((*MockBean)(nil).GetAsyncWorkflowQueueManager))
+}
+
 // GetConfigStoreManager mocks base method.
 func (m *MockBean) GetConfigStoreManager() persistence.ConfigStoreManager {
 	m.ctrl.T.Helper()
@@ -233,6 +247,18 @@ func (m *MockBean) GetVisibilityManager() persistence.VisibilityManager {
 func (mr *MockBeanMockRecorder) GetVisibilityManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVisibilityManager", reflect.TypeOf((*MockBean)(nil).GetVisibilityManager))
+}
+
+// SetAsyncWorkflowQueueManager mocks base method.
+func (m *MockBean) SetAsyncWorkflowQueueManager(arg0 persistence.AsyncWorkflowQueueManager) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetAsyncWorkflowQueueManager", arg0)
+}
+
+// SetAsyncWorkflowQueueManager indicates an expected call of SetAsyncWorkflowQueueManager.
+func (mr *MockBeanMockRecorder) SetAsyncWorkflowQueueManager(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAsyncWorkflowQueueManager", reflect.TypeOf((*MockBean)(nil).SetAsyncWorkflowQueueManager), arg0)
 }
 
 // SetConfigStoreManager mocks base method.

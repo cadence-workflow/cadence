@@ -143,3 +143,9 @@ func (f *Factory) NewAdminDBs(dbType persistence.DBType) ([]persistence.AdminDB,
 // Close closes the factory. Store Close methods own connection lifecycle
 // (matching HistoryStore), so this is intentionally a no-op.
 func (f *Factory) Close() {}
+
+// NewAsyncWorkflowQueueStore returns an unimplemented async workflow queue store.
+// It never opens a connection: NewBeanFromFactory calls this on every service start.
+func (f *Factory) NewAsyncWorkflowQueueStore() (persistence.AsyncWorkflowQueueStore, error) {
+	return persistence.NewUnimplementedAsyncWorkflowQueueStore("nosql"), nil
+}
