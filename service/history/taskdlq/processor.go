@@ -52,7 +52,7 @@ type (
 	// Processor reads tasks from the history task DLQ and executes them synchronously.
 	//
 	// Start/Stop manage a background goroutine that periodically calls ProcessShard for
-	// the shard this processor was created for. ProcessPartition is the on-demand failover
+	// the shard this processor was created for. ProcessPartitions is the on-demand failover
 	// path and can be called at any time regardless of daemon state.
 	Processor interface {
 		common.DaemonV2
@@ -62,11 +62,10 @@ type (
 		// error is returned after all partitions have been attempted.
 		ProcessShard(ctx context.Context) error
 
-		// ProcessPartition processes all task types for a specific
-		// (domain, clusterAttributeScope, clusterAttributeName) partition
-		// within a shard.
+		// ProcessPartitions processes all task types for the given partitions within the shard.
+		// It reads the shard's ack levels once and keeps the rows that belong to the given partitions.
 		// Returns errors for all partitions that could not be processed.
-		ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error
+		ProcessPartitions(ctx context.Context, partitions []Partition) error
 
 		// FailoverPartitions schedules on-demand re-injection of the given DLQ partitions.
 		// It is non-blocking and safe to call from the domain failover callback (which must not
@@ -111,7 +110,7 @@ type (
 		ctx       context.Context
 		cancel    context.CancelFunc
 		wg        sync.WaitGroup
-		processMu sync.Mutex // serializes ProcessShard and ProcessPartition
+		processMu sync.Mutex // serializes ProcessShard and ProcessPartitions
 
 		// failoverMu guards the failover coordination state below.
 		failoverMu sync.Mutex
@@ -328,7 +327,7 @@ func (p *ProcessorImpl) runSweep() {
 	}
 }
 
-// processPendingFailovers drains the pending failover set and processes each partition.
+// processPendingFailovers drains the pending failover set and processes the partitions as one batch.
 func (p *ProcessorImpl) processPendingFailovers() {
 	p.failoverMu.Lock()
 	if len(p.pendingFailover) == 0 {
@@ -359,19 +358,12 @@ func (p *ProcessorImpl) processPendingFailovers() {
 	if !p.enabled() {
 		return
 	}
-	for _, part := range parts {
-		if p.ctx.Err() != nil {
-			return
-		}
-		if err := p.ProcessPartition(p.ctx, part.DomainID, part.ClusterAttributeScope, part.ClusterAttributeName); err != nil {
-			p.logger.Error("DLQ failover partition reprocessing failed",
-				tag.ShardID(p.shardID),
-				tag.WorkflowDomainID(part.DomainID),
-				tag.Dynamic("cluster-attribute-scope", part.ClusterAttributeScope),
-				tag.Dynamic("cluster-attribute-name", part.ClusterAttributeName),
-				tag.Error(err),
-			)
-		}
+	if err := p.ProcessPartitions(p.ctx, parts); err != nil && p.ctx.Err() == nil {
+		p.logger.Error("DLQ failover partition reprocessing failed",
+			tag.ShardID(p.shardID),
+			tag.Number(int64(len(parts))),
+			tag.Error(err),
+		)
 	}
 }
 
@@ -404,10 +396,18 @@ func (p *ProcessorImpl) domainName(domainID string) string {
 	return domainName
 }
 
-func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error {
-	// Fast-fail for direct callers; processAckLevel also guards each partition individually.
-	if p.domainMode(p.domainName(domainID)) != constants.HistoryTaskDLQModeEnabled {
-		p.logger.Debug("DLQ not enabled for domain, skipping partition processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(domainID))
+func (p *ProcessorImpl) ProcessPartitions(ctx context.Context, partitions []Partition) error {
+	// Drop partitions whose domain is not enabled before taking the lock, so a batch of disabled
+	// domains costs no persistence call. processAckLevel checks each row again.
+	wanted := make(map[Partition]struct{}, len(partitions))
+	for _, part := range partitions {
+		if p.domainMode(p.domainName(part.DomainID)) != constants.HistoryTaskDLQModeEnabled {
+			p.logger.Debug("DLQ not enabled for domain, skipping partition processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(part.DomainID))
+			continue
+		}
+		wanted[part] = struct{}{}
+	}
+	if len(wanted) == 0 {
 		return nil
 	}
 
@@ -421,16 +421,22 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 		return ctx.Err()
 	}
 	ackLevels, err := p.mgr.GetHistoryDLQAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
-		ShardID:               p.shardID,
-		DomainID:              domainID,
-		ClusterAttributeScope: clusterAttributeScope,
-		ClusterAttributeName:  clusterAttributeName,
+		ShardID: p.shardID,
 	})
 	if err != nil {
-		return fmt.Errorf("get DLQ ack levels for partition (shard=%d domain=%s scope=%s name=%s): %w",
-			p.shardID, domainID, clusterAttributeScope, clusterAttributeName, err)
+		return fmt.Errorf("get DLQ ack levels for shard %d: %w", p.shardID, err)
 	}
-	return p.processAckLevels(ctx, ackLevels)
+	filtered := ackLevels[:0]
+	for _, al := range ackLevels {
+		if _, ok := wanted[Partition{
+			DomainID:              al.DomainID,
+			ClusterAttributeScope: al.ClusterAttributeScope,
+			ClusterAttributeName:  al.ClusterAttributeName,
+		}]; ok {
+			filtered = append(filtered, al)
+		}
+	}
+	return p.processAckLevels(ctx, filtered)
 }
 
 // FailoverPartitions enqueues the given partitions for on-demand reprocessing processLoop.
