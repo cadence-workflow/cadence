@@ -237,6 +237,12 @@ func (wh *WorkflowHandler) StopBatchOperation(
 		Identity:          request.GetIdentity(),
 	})
 	if err != nil {
+		var alreadyCompleted *types.WorkflowExecutionAlreadyCompletedError
+		if errors.As(err, &alreadyCompleted) {
+			// The batch is no longer running, so the desired state is
+			// already reached: treat as success rather than an error.
+			return &types.StopBatchOperationResponse{}, nil
+		}
 		return nil, err
 	}
 

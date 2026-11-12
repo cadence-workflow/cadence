@@ -228,7 +228,7 @@ func TestStopBatchOperation(t *testing.T) {
 		"domain not found": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
-				f.domainCache.EXPECT().GetDomainID(testDomain).Return("", errors.New("not found")).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return("", errors.New("not found")).Times(1)
 			},
 			wantErr: true,
 		},
@@ -241,6 +241,26 @@ func TestStopBatchOperation(t *testing.T) {
 					Return(errors.New("internal error"))
 			},
 			wantErr: true,
+		},
+		"entity not exists is a real error": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.EntityNotExistsError{Message: "not found"})
+			},
+			wantErr: true,
+		},
+		"already completed is treated as idempotent success": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.WorkflowExecutionAlreadyCompletedError{Message: "already completed"})
+			},
+			wantErr: false,
 		},
 		"success": {
 			request: validRequest,
