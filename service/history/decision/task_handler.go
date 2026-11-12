@@ -23,7 +23,6 @@ package decision
 import (
 	"context"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/pborman/uuid"
@@ -1130,25 +1129,29 @@ func (handler *taskHandlerImpl) handleDecisionReleaseSemaphore(
 	}
 }
 
-// acquireWaitTimeoutSeconds returns the decision's wait timeout, or the domain's default when the
-// decision sets none. The result is always positive.
+// acquireWaitTimeoutSeconds returns the decision's wait timeout, or the domain default if unset,
+// lowered to the domain max. A configured value under one second, such as "0" set to mean no limit,
+// would time out every acquire at once, so the key's built-in default is used instead.
 func (handler *taskHandlerImpl) acquireWaitTimeoutSeconds(
 	attr *types.AcquireSemaphoreDecisionAttributes,
 	domainName string,
 ) int32 {
 
-	if timeout := attr.GetWaitTimeoutSeconds(); timeout > 0 {
-		return timeout
+	timeout := time.Duration(attr.GetWaitTimeoutSeconds()) * time.Second
+	if timeout == 0 {
+		timeout = handler.config.SemaphoreAcquireDefaultWaitTimeout(domainName)
+		if timeout < time.Second {
+			timeout = dynamicproperties.SemaphoreAcquireDefaultWaitTimeout.DefaultDuration()
+		}
 	}
-
-	timeout := handler.config.SemaphoreAcquireDefaultWaitTimeout(domainName)
-	if timeout < time.Second {
-		handler.logger.Warn("Semaphore acquire default wait timeout is under one second, using the built-in default",
-			tag.WorkflowDomainName(domainName),
-			tag.Dynamic("configured-timeout", timeout))
-		timeout = dynamicproperties.SemaphoreAcquireDefaultWaitTimeout.DefaultDuration()
+	maxTimeout := handler.config.SemaphoreAcquireMaxWaitTimeout(domainName)
+	if maxTimeout < time.Second {
+		maxTimeout = dynamicproperties.SemaphoreAcquireMaxWaitTimeout.DefaultDuration()
 	}
-	return int32(min(timeout/time.Second, math.MaxInt32))
+	if timeout > maxTimeout {
+		timeout = maxTimeout
+	}
+	return int32(timeout.Seconds())
 }
 
 func convertSearchAttributesToByteArray(fields map[string][]byte) []byte {

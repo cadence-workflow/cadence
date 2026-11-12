@@ -1,0 +1,29 @@
+# This file is used as dynamicconfig override for "child_failover_adoption" replication simulation scenario configured via simulation/replication/testdata/replication_simulation_child_failover_adoption.yaml
+system.writeVisibilityStoreName:
+  - value: "db"
+system.readVisibilityStoreName:
+  - value: "db"
+history.replicatorTaskBatchSize:
+  - value: 25
+    constraints: {}
+history.replicatorMinTaskBatchSize: # one task per batch for shard 2, the shard of adoption-parent
+  - value: 1
+    constraints:
+      shardID: 2
+history.replicatorMaxTaskBatchSize:
+  - value: 1
+    constraints:
+      shardID: 2
+frontend.failoverCoolDown:
+  - value: 5s
+history.ReplicationTaskProcessorStartWait: # wait before each replication batch of shard 2
+  - value: 30s
+    constraints:
+      shardID: 2
+  - value: 10ms
+history.ReplicationTaskProcessorStartWaitJitterCoefficient: # no jitter, so that the wait of shard 2 is always 30s
+  - value: 0
+    constraints:
+      shardID: 2
+history.enableDeterministicChildWorkflowRequestID:
+  - value: true

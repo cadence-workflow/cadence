@@ -1,0 +1,66 @@
+# Test the completion of child workflows that another cluster closed before a failover.
+#
+# Replication of shard 1 (shard of closed-by-other-cluster-parent) sends one task per batch and waits 30s per batch,
+# see the dynamic config. The children are on other shards, so they replicate without delay.
+# 1. At ~1s cluster0 writes the initiated events and starts the noop children. They close in about 1s, and cluster0
+#    records their start and completion in the parent.
+# 2. Cluster1 gets one task of the parent every 30s. When it has the initiated events, the domain fails over to
+#    cluster1. The next task of the parent, with the first started event, arrives at least 30s later, so cluster1
+#    does not have the started events when it becomes active.
+# 3. Cluster1 starts the children again with the same deterministic request ID and finds the runs that cluster0
+#    closed. Only the active cluster sends the completion of a child to its parent, so the child start adds the
+#    completion task again and returns the run to the parent.
+#
+# Without it, the child start fails with already started, and the parent fails.
+# To check that the path ran: curl -s localhost:8002/metrics | grep child_workflow_completion_requested
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+primaryCluster: "cluster0"
+
+domains:
+  test-domain:
+    activeClusterName: cluster0
+
+operations:
+  # the children closed-by-other-cluster-child-0 to 4 are on shards 0 and 3
+  - op: start_workflow
+    at: 0s
+    workflowType: child-workflow-loop
+    workflowID: closed-by-other-cluster-parent
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 400s
+    childWorkflowID: closed-by-other-cluster-child
+    childWorkflowType: noop-workflow
+    childWorkflowCount: 5
+    childWorkflowTimeout: 300s
+
+  # the initiated events arrive at ~60s to ~95s
+  - op: wait_for_history_event
+    at: 1s
+    workflowID: closed-by-other-cluster-parent
+    cluster: cluster1
+    domain: test-domain
+    eventType: StartChildWorkflowExecutionInitiated
+    eventCount: 5
+    timeout: 150s
+
+  # runs as soon as the wait above returns
+  - op: change_active_clusters
+    at: 2s
+    domain: test-domain
+    newActiveCluster: cluster1
+
+  # the simulator has a go test timeout of 240s that includes the setup, so the validation must be earlier
+  - op: validate
+    at: 170s
+    workflowID: closed-by-other-cluster-parent
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: completed

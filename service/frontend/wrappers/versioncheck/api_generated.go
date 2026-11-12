@@ -89,6 +89,14 @@ func (h *versionCheckHandler) DeprecateDomain(ctx context.Context, dp1 *types.De
 	return h.frontendHandler.DeprecateDomain(ctx, dp1)
 }
 
+func (h *versionCheckHandler) DescribeBatchOperation(ctx context.Context, dp1 *types.DescribeBatchOperationRequest) (dp2 *types.DescribeBatchOperationResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.DescribeBatchOperation(ctx, dp1)
+}
+
 func (h *versionCheckHandler) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest) (dp2 *types.DescribeDomainResponse, err error) {
 	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
 	if err != nil {
@@ -127,6 +135,14 @@ func (h *versionCheckHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1
 		return
 	}
 	return h.frontendHandler.DiagnoseWorkflowExecution(ctx, dp1)
+}
+
+func (h *versionCheckHandler) ExportWorkflowExecution(ctx context.Context, ep1 *types.ExportWorkflowExecutionRequest) (ep2 *types.ExportWorkflowExecutionResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.ExportWorkflowExecution(ctx, ep1)
 }
 
 func (h *versionCheckHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
@@ -171,6 +187,14 @@ func (h *versionCheckHandler) ListArchivedWorkflowExecutions(ctx context.Context
 		return
 	}
 	return h.frontendHandler.ListArchivedWorkflowExecutions(ctx, lp1)
+}
+
+func (h *versionCheckHandler) ListBatchOperations(ctx context.Context, lp1 *types.ListBatchOperationsRequest) (lp2 *types.ListBatchOperationsResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.ListBatchOperations(ctx, lp1)
 }
 
 func (h *versionCheckHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *types.ListClosedWorkflowExecutionsRequest) (lp2 *types.ListClosedWorkflowExecutionsResponse, err error) {
@@ -421,6 +445,14 @@ func (h *versionCheckHandler) SignalWorkflowExecution(ctx context.Context, sp1 *
 	return h.frontendHandler.SignalWorkflowExecution(ctx, sp1)
 }
 
+func (h *versionCheckHandler) StartBatchOperation(ctx context.Context, sp1 *types.StartBatchOperationRequest) (sp2 *types.StartBatchOperationResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.StartBatchOperation(ctx, sp1)
+}
+
 func (h *versionCheckHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.StartWorkflowExecutionRequest) (sp2 *types.StartWorkflowExecutionResponse, err error) {
 	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
 	if err != nil {
@@ -437,6 +469,14 @@ func (h *versionCheckHandler) StartWorkflowExecutionAsync(ctx context.Context, s
 	return h.frontendHandler.StartWorkflowExecutionAsync(ctx, sp1)
 }
 
+func (h *versionCheckHandler) StopBatchOperation(ctx context.Context, sp1 *types.StopBatchOperationRequest) (sp2 *types.StopBatchOperationResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.StopBatchOperation(ctx, sp1)
+}
+
 func (h *versionCheckHandler) TerminateWorkflowExecution(ctx context.Context, tp1 *types.TerminateWorkflowExecutionRequest) (err error) {
 	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
 	if err != nil {
@@ -451,6 +491,14 @@ func (h *versionCheckHandler) UnpauseSchedule(ctx context.Context, up1 *types.Un
 		return
 	}
 	return h.frontendHandler.UnpauseSchedule(ctx, up1)
+}
+
+func (h *versionCheckHandler) UpdateBatchOperation(ctx context.Context, up1 *types.UpdateBatchOperationRequest) (up2 *types.UpdateBatchOperationResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.UpdateBatchOperation(ctx, up1)
 }
 
 func (h *versionCheckHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {

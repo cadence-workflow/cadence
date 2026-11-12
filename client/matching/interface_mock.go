@@ -142,6 +142,26 @@ func (mr *MockClientMockRecorder) DescribeTaskList(arg0, arg1 any, arg2 ...any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeTaskList", reflect.TypeOf((*MockClient)(nil).DescribeTaskList), varargs...)
 }
 
+// GetSemaphoreTokenByOwner mocks base method.
+func (m *MockClient) GetSemaphoreTokenByOwner(arg0 context.Context, arg1 *types.GetSemaphoreTokenByOwnerRequest, arg2 ...yarpc.CallOption) (*types.GetSemaphoreTokenByOwnerResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetSemaphoreTokenByOwner", varargs...)
+	ret0, _ := ret[0].(*types.GetSemaphoreTokenByOwnerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSemaphoreTokenByOwner indicates an expected call of GetSemaphoreTokenByOwner.
+func (mr *MockClientMockRecorder) GetSemaphoreTokenByOwner(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSemaphoreTokenByOwner", reflect.TypeOf((*MockClient)(nil).GetSemaphoreTokenByOwner), varargs...)
+}
+
 // GetTaskListsByDomain mocks base method.
 func (m *MockClient) GetTaskListsByDomain(arg0 context.Context, arg1 *types.GetTaskListsByDomainRequest, arg2 ...yarpc.CallOption) (*types.GetTaskListsByDomainResponse, error) {
 	m.ctrl.T.Helper()

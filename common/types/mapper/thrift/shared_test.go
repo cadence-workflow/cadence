@@ -2836,6 +2836,7 @@ func TestSemaphoreAcquireFailedCauseConversion(t *testing.T) {
 	testCases := []*types.SemaphoreAcquireFailedCause{
 		nil,
 		types.SemaphoreAcquireFailedCauseNotFound.Ptr(),
+		types.SemaphoreAcquireFailedCauseTimedOut.Ptr(),
 	}
 
 	for _, original := range testCases {
@@ -3907,8 +3908,30 @@ func TestSemaphoreAcquireFailedEventAttributesFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromSemaphoreAcquireFailedEventAttributes, ToSemaphoreAcquireFailedEventAttributes,
 		testutils.WithCustomFuncs(
 			func(e *types.SemaphoreAcquireFailedCause, c fuzz.Continue) {
-				*e = types.SemaphoreAcquireFailedCauseNotFound
+				*e = types.SemaphoreAcquireFailedCause(c.Intn(2)) // 0-1: NotFound, TimedOut
 			},
 		),
+	)
+}
+
+func TestExportWorkflowExecutionRequest(t *testing.T) {
+	for _, item := range []*types.ExportWorkflowExecutionRequest{nil, {}, &testdata.ExportWorkflowExecutionRequest} {
+		assert.Equal(t, item, ToExportWorkflowExecutionRequest(FromExportWorkflowExecutionRequest(item)))
+	}
+}
+
+func TestExportWorkflowExecutionResponse(t *testing.T) {
+	for _, item := range []*types.ExportWorkflowExecutionResponse{nil, {}, &testdata.ExportWorkflowExecutionResponse} {
+		assert.Equal(t, item, ToExportWorkflowExecutionResponse(FromExportWorkflowExecutionResponse(item)))
+	}
+}
+
+func TestExportWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromExportWorkflowExecutionRequest, ToExportWorkflowExecutionRequest)
+}
+
+func TestExportWorkflowExecutionResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromExportWorkflowExecutionResponse, ToExportWorkflowExecutionResponse,
+		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
 	)
 }

@@ -207,8 +207,8 @@ func parseDDL(file fs.File) ([]string, error) {
 		if len(tokens) > 0 && len(tokens[0]) > 0 {
 			currStmt += tokens[0]
 			// semi-colon is the end of statement delim
-			if strings.HasSuffix(currStmt, ";") {
-				stmts = append(stmts, currStmt)
+			if stmt := strings.TrimSpace(currStmt); strings.HasSuffix(stmt, ";") {
+				stmts = append(stmts, stmt)
 				currStmt = ""
 			}
 		}

@@ -45,6 +45,11 @@ func (g GRPCHandler) DescribeTaskList(ctx context.Context, request *matchingv1.D
 	return proto.FromMatchingDescribeTaskListResponse(response), proto.FromError(err)
 }
 
+func (g GRPCHandler) GetSemaphoreTokenByOwner(ctx context.Context, request *matchingv1.GetSemaphoreTokenByOwnerRequest) (*matchingv1.GetSemaphoreTokenByOwnerResponse, error) {
+	response, err := g.h.GetSemaphoreTokenByOwner(ctx, proto.ToMatchingGetSemaphoreTokenByOwnerRequest(request))
+	return proto.FromMatchingGetSemaphoreTokenByOwnerResponse(response), proto.FromError(err)
+}
+
 func (g GRPCHandler) GetTaskListsByDomain(ctx context.Context, request *matchingv1.GetTaskListsByDomainRequest) (*matchingv1.GetTaskListsByDomainResponse, error) {
 	response, err := g.h.GetTaskListsByDomain(ctx, proto.ToMatchingGetTaskListsByDomainRequest(request))
 	return proto.FromMatchingGetTaskListsByDomainResponse(response), proto.FromError(err)

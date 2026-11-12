@@ -92,18 +92,18 @@ func (mr *MockProcessorMockRecorder) FailoverPartitions(partitions any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FailoverPartitions", reflect.TypeOf((*MockProcessor)(nil).FailoverPartitions), partitions)
 }
 
-// ProcessPartition mocks base method.
-func (m *MockProcessor) ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error {
+// ProcessPartitions mocks base method.
+func (m *MockProcessor) ProcessPartitions(ctx context.Context, partitions []Partition) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessPartition", ctx, domainID, clusterAttributeScope, clusterAttributeName)
+	ret := m.ctrl.Call(m, "ProcessPartitions", ctx, partitions)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// ProcessPartition indicates an expected call of ProcessPartition.
-func (mr *MockProcessorMockRecorder) ProcessPartition(ctx, domainID, clusterAttributeScope, clusterAttributeName any) *gomock.Call {
+// ProcessPartitions indicates an expected call of ProcessPartitions.
+func (mr *MockProcessorMockRecorder) ProcessPartitions(ctx, partitions any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessPartition", reflect.TypeOf((*MockProcessor)(nil).ProcessPartition), ctx, domainID, clusterAttributeScope, clusterAttributeName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessPartitions", reflect.TypeOf((*MockProcessor)(nil).ProcessPartitions), ctx, partitions)
 }
 
 // ProcessShard mocks base method.

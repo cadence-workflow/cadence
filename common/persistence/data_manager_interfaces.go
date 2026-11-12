@@ -256,6 +256,7 @@ const (
 	HistoryTaskCategoryIDTransfer    = 1
 	HistoryTaskCategoryIDTimer       = 2
 	HistoryTaskCategoryIDReplication = 3
+	HistoryTaskCategoryIDVisibility  = 4
 )
 
 var (
@@ -274,6 +275,11 @@ var (
 		categoryID:   HistoryTaskCategoryIDReplication,
 		categoryName: "replication",
 	}
+	HistoryTaskCategoryVisibility = HistoryTaskCategory{
+		categoryType: HistoryTaskCategoryTypeImmediate,
+		categoryID:   HistoryTaskCategoryIDVisibility,
+		categoryName: "visibility",
+	}
 )
 
 // HistoryTaskCategoryFromID converts a stored category ID back to the corresponding HistoryTaskCategory.
@@ -285,6 +291,8 @@ func HistoryTaskCategoryFromID(id int) (HistoryTaskCategory, error) {
 		return HistoryTaskCategoryTimer, nil
 	case HistoryTaskCategoryIDReplication:
 		return HistoryTaskCategoryReplication, nil
+	case HistoryTaskCategoryIDVisibility:
+		return HistoryTaskCategoryVisibility, nil
 	default:
 		return HistoryTaskCategory{}, fmt.Errorf("unknown task category ID: %d", id)
 	}
@@ -324,6 +332,7 @@ const (
 	TaskTypeDeleteHistoryEvent
 	TaskTypeActivityRetryTimer
 	TaskTypeWorkflowBackoffTimer
+	TaskTypeSemaphoreAcquireTimeout
 )
 
 // WorkflowRequestType is the type of workflow request
@@ -2838,6 +2847,13 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TimeoutType:        t.TimeoutType,
+			TaskList:           t.TaskList,
+		}, nil
+	case TaskTypeSemaphoreAcquireTimeout:
+		return &SemaphoreAcquireTimeoutTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			EventID:            t.EventID,
 			TaskList:           t.TaskList,
 		}, nil
 	default:

@@ -829,3 +829,50 @@ func (v *ReleaseSemaphoreRequest) GetOwnerID() (o string) {
 // ReleaseSemaphoreResponse is empty: an owner that held nothing is released too, so the only
 // failures are errors.
 type ReleaseSemaphoreResponse struct{}
+
+// GetSemaphoreTokenByOwnerRequest asks the matching host that owns a bucket which slot an owner holds.
+type GetSemaphoreTokenByOwnerRequest struct {
+	DomainUUID    string
+	SemaphoreName string
+	// Bucket is the partition that holds the owner's slot, the same bucket its acquire used.
+	Bucket  int32
+	OwnerID string
+}
+
+// GetDomainUUID is an internal getter (TBD...)
+func (v *GetSemaphoreTokenByOwnerRequest) GetDomainUUID() (o string) {
+	if v != nil {
+		return v.DomainUUID
+	}
+	return
+}
+
+// GetSemaphoreName is an internal getter (TBD...)
+func (v *GetSemaphoreTokenByOwnerRequest) GetSemaphoreName() (o string) {
+	if v != nil {
+		return v.SemaphoreName
+	}
+	return
+}
+
+// GetBucket is an internal getter (TBD...)
+func (v *GetSemaphoreTokenByOwnerRequest) GetBucket() (o int32) {
+	if v != nil {
+		return v.Bucket
+	}
+	return
+}
+
+// GetOwnerID is an internal getter (TBD...)
+func (v *GetSemaphoreTokenByOwnerRequest) GetOwnerID() (o string) {
+	if v != nil {
+		return v.OwnerID
+	}
+	return
+}
+
+// GetSemaphoreTokenByOwnerResponse reports the slot the owner holds.
+type GetSemaphoreTokenByOwnerResponse struct {
+	// TokenID is the slot held, or 0 if none. Slot ids start at 1.
+	TokenID int32
+}

@@ -1081,6 +1081,7 @@ func FromDataBlob(t *types.DataBlob) *shared.DataBlob {
 	return &shared.DataBlob{
 		EncodingType: FromEncodingType(t.EncodingType),
 		Data:         t.Data,
+		Checksum:     t.Checksum,
 	}
 }
 
@@ -1092,6 +1093,7 @@ func ToDataBlob(t *shared.DataBlob) *types.DataBlob {
 	return &types.DataBlob{
 		EncodingType: ToEncodingType(t.EncodingType),
 		Data:         t.Data,
+		Checksum:     t.Checksum,
 	}
 }
 
@@ -6741,6 +6743,9 @@ func FromSemaphoreAcquireFailedCause(t *types.SemaphoreAcquireFailedCause) *shar
 	case types.SemaphoreAcquireFailedCauseNotFound:
 		v := shared.SemaphoreAcquireFailedCauseNotFound
 		return &v
+	case types.SemaphoreAcquireFailedCauseTimedOut:
+		v := shared.SemaphoreAcquireFailedCauseTimedOut
+		return &v
 	}
 	panic("unexpected enum value")
 }
@@ -6753,6 +6758,9 @@ func ToSemaphoreAcquireFailedCause(t *shared.SemaphoreAcquireFailedCause) *types
 	switch *t {
 	case shared.SemaphoreAcquireFailedCauseNotFound:
 		v := types.SemaphoreAcquireFailedCauseNotFound
+		return &v
+	case shared.SemaphoreAcquireFailedCauseTimedOut:
+		v := types.SemaphoreAcquireFailedCauseTimedOut
 		return &v
 	}
 	panic("unexpected enum value")
@@ -9264,4 +9272,58 @@ func ToCronOverlapPolicy(t *shared.CronOverlapPolicy) *types.CronOverlapPolicy {
 		return types.CronOverlapPolicySkipped.Ptr()
 	}
 	panic("unexpected enum value")
+}
+
+// FromExportWorkflowExecutionRequest converts internal ExportWorkflowExecutionRequest type to thrift
+func FromExportWorkflowExecutionRequest(t *types.ExportWorkflowExecutionRequest) *shared.ExportWorkflowExecutionRequest {
+	if t == nil {
+		return nil
+	}
+	return &shared.ExportWorkflowExecutionRequest{
+		Domain:        &t.Domain,
+		Execution:     FromWorkflowExecution(t.Execution),
+		PageSize:      &t.PageSize,
+		NextPageToken: t.NextPageToken,
+		LastEventID:   t.LastEventID,
+	}
+}
+
+// ToExportWorkflowExecutionRequest converts thrift ExportWorkflowExecutionRequest type to internal
+func ToExportWorkflowExecutionRequest(t *shared.ExportWorkflowExecutionRequest) *types.ExportWorkflowExecutionRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ExportWorkflowExecutionRequest{
+		Domain:        t.GetDomain(),
+		Execution:     ToWorkflowExecution(t.Execution),
+		PageSize:      t.GetPageSize(),
+		NextPageToken: t.NextPageToken,
+		LastEventID:   t.LastEventID,
+	}
+}
+
+// FromExportWorkflowExecutionResponse converts internal ExportWorkflowExecutionResponse type to thrift
+func FromExportWorkflowExecutionResponse(t *types.ExportWorkflowExecutionResponse) *shared.ExportWorkflowExecutionResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.ExportWorkflowExecutionResponse{
+		Execution:      FromWorkflowExecution(t.Execution),
+		HistoryBatches: FromDataBlobArray(t.HistoryBatches),
+		NextPageToken:  t.NextPageToken,
+		Version:        &t.Version,
+	}
+}
+
+// ToExportWorkflowExecutionResponse converts thrift ExportWorkflowExecutionResponse type to internal
+func ToExportWorkflowExecutionResponse(t *shared.ExportWorkflowExecutionResponse) *types.ExportWorkflowExecutionResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ExportWorkflowExecutionResponse{
+		Execution:      ToWorkflowExecution(t.Execution),
+		HistoryBatches: ToDataBlobArray(t.HistoryBatches),
+		NextPageToken:  t.NextPageToken,
+		Version:        t.GetVersion(),
+	}
 }

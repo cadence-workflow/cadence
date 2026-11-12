@@ -429,6 +429,7 @@ var (
 	FrontendClientOperationUnpauseSchedule                       = clientOperation("frontend-unpause-schedule")
 	FrontendClientOperationBackfillSchedule                      = clientOperation("frontend-backfill-schedule")
 	FrontendClientOperationListSchedules                         = clientOperation("frontend-list-schedules")
+	FrontendClientOperationExportWorkflowExecution               = clientOperation("frontend-export-workflow-execution")
 
 	HistoryClientOperationStartWorkflowExecution            = clientOperation("history-start-wf-execution")
 	HistoryClientOperationDescribeHistoryHost               = clientOperation("history-describe-history-host")
@@ -495,6 +496,7 @@ var (
 	MatchingClientOperationRefreshTaskListPartitionConfig = clientOperation("matching-refresh-task-list-partition-config")
 	MatchingClientOperationAcquireSemaphore               = clientOperation("matching-acquire-semaphore")
 	MatchingClientOperationReleaseSemaphore               = clientOperation("matching-release-semaphore")
+	MatchingClientOperationGetSemaphoreTokenByOwner       = clientOperation("matching-get-semaphore-token-by-owner")
 )
 
 // Pre-defined values for TagIDType

@@ -517,6 +517,7 @@ func TestSemaphoreAcquireFailedCause(t *testing.T) {
 	for _, item := range []*types.SemaphoreAcquireFailedCause{
 		nil,
 		types.SemaphoreAcquireFailedCauseNotFound.Ptr(),
+		types.SemaphoreAcquireFailedCauseTimedOut.Ptr(),
 	} {
 		assert.Equal(t, item, ToSemaphoreAcquireFailedCause(FromSemaphoreAcquireFailedCause(item)))
 	}

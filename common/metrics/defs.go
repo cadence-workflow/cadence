@@ -491,6 +491,8 @@ const (
 	MatchingClientAcquireSemaphoreScope
 	// MatchingClientReleaseSemaphoreScope tracks RPC calls to matching service
 	MatchingClientReleaseSemaphoreScope
+	// MatchingClientGetSemaphoreTokenByOwnerScope tracks RPC calls to matching service
+	MatchingClientGetSemaphoreTokenByOwnerScope
 
 	// FrontendClientDeleteDomainScope tracks RPC calls to frontend service
 	FrontendClientDeleteDomainScope
@@ -592,6 +594,8 @@ const (
 	FrontendClientBackfillScheduleScope
 	// FrontendClientListSchedulesScope tracks RPC calls to frontend service
 	FrontendClientListSchedulesScope
+	// FrontendClientExportWorkflowExecutionScope tracks RPC calls to frontend service
+	FrontendClientExportWorkflowExecutionScope
 	// FrontendClientListWorkflowExecutionsScope tracks RPC calls to frontend service
 	FrontendClientListWorkflowExecutionsScope
 	// FrontendClientScanWorkflowExecutionsScope tracks RPC calls to frontend service
@@ -712,6 +716,8 @@ const (
 	DCRedirectionDescribeWorkflowExecutionScope
 	// DCRedirectionDiagnoseWorkflowExecutionScope tracks RPC calls for dc redirection
 	DCRedirectionDiagnoseWorkflowExecutionScope
+	// DCRedirectionExportWorkflowExecutionScope tracks RPC calls for dc redirection
+	DCRedirectionExportWorkflowExecutionScope
 	// DCRedirectionGetWorkflowExecutionHistoryScope tracks RPC calls for dc redirection
 	DCRedirectionGetWorkflowExecutionHistoryScope
 	// DCRedirectionGetWorkflowExecutionRawHistoryScope tracks RPC calls for dc redirection
@@ -1223,6 +1229,18 @@ const (
 	FrontendListSchedulesScope
 	// FrontendCreateSemaphoreScope is the metric scope for frontend.CreateSemaphore
 	FrontendCreateSemaphoreScope
+	// FrontendStartBatchOperationScope is the metric scope for frontend.StartBatchOperation
+	FrontendStartBatchOperationScope
+	// FrontendDescribeBatchOperationScope is the metric scope for frontend.DescribeBatchOperation
+	FrontendDescribeBatchOperationScope
+	// FrontendListBatchOperationsScope is the metric scope for frontend.ListBatchOperations
+	FrontendListBatchOperationsScope
+	// FrontendStopBatchOperationScope is the metric scope for frontend.StopBatchOperation
+	FrontendStopBatchOperationScope
+	// FrontendUpdateBatchOperationScope is the metric scope for frontend.UpdateBatchOperation
+	FrontendUpdateBatchOperationScope
+	// FrontendExportWorkflowExecutionScope is the metric scope for frontend.ExportWorkflowExecution
+	FrontendExportWorkflowExecutionScope
 
 	NumFrontendScopes
 )
@@ -1401,6 +1419,8 @@ const (
 	TimerActiveTaskActivityRetryTimerScope
 	// TimerActiveTaskWorkflowBackoffTimerScope is the scope used by metric emitted by timer queue processor for processing retry task.
 	TimerActiveTaskWorkflowBackoffTimerScope
+	// TimerActiveTaskSemaphoreAcquireTimeoutScope is the scope used by metric emitted by timer queue processor for processing semaphore acquire timeouts
+	TimerActiveTaskSemaphoreAcquireTimeoutScope
 	// TimerActiveTaskDeleteHistoryEventScope is the scope used by metric emitted by timer queue processor for processing history event cleanup
 	TimerActiveTaskDeleteHistoryEventScope
 	// TimerStandbyTaskActivityTimeoutScope is the scope used by metric emitted by timer queue processor for processing activity timeouts
@@ -1417,6 +1437,8 @@ const (
 	TimerStandbyTaskDeleteHistoryEventScope
 	// TimerStandbyTaskWorkflowBackoffTimerScope is the scope used by metric emitted by timer queue processor for processing retry task.
 	TimerStandbyTaskWorkflowBackoffTimerScope
+	// TimerStandbyTaskSemaphoreAcquireTimeoutScope is the scope used by metric emitted by timer queue processor for processing semaphore acquire timeouts
+	TimerStandbyTaskSemaphoreAcquireTimeoutScope
 	// CrossClusterQueueProcessorScope is the scope used by all metric emitted by cross cluster queue processor in the source cluster
 	CrossClusterQueueProcessorScope
 	// CrossClusterTaskProcessorScope is the scope used by all metric emitted by cross cluster task processor in the target cluster
@@ -1562,6 +1584,8 @@ const (
 	MatchingAcquireSemaphoreScope
 	// MatchingReleaseSemaphoreScope tracks ReleaseSemaphore API calls received by service
 	MatchingReleaseSemaphoreScope
+	// MatchingGetSemaphoreTokenByOwnerScope tracks GetSemaphoreTokenByOwner API calls received by service
+	MatchingGetSemaphoreTokenByOwnerScope
 
 	NumMatchingScopes
 )
@@ -1786,6 +1810,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingClientRefreshTaskListPartitionConfigScope: {operation: "MatchingClientRefreshTaskListPartitionConfig", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientAcquireSemaphoreScope:               {operation: "MatchingClientAcquireSemaphore", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientReleaseSemaphoreScope:               {operation: "MatchingClientReleaseSemaphore", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
+		MatchingClientGetSemaphoreTokenByOwnerScope:       {operation: "MatchingClientGetSemaphoreTokenByOwner", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 
 		FrontendClientDeleteDomainScope:                          {operation: "FrontendClientDeleteDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientDeprecateDomainScope:                       {operation: "FrontendClientDeprecateDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
@@ -1848,6 +1873,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientUnpauseScheduleScope:                       {operation: "FrontendClientUnpauseSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientBackfillScheduleScope:                      {operation: "FrontendClientBackfillSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientListSchedulesScope:                         {operation: "FrontendClientListSchedules", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientExportWorkflowExecutionScope:               {operation: "FrontendClientExportWorkflowExecution", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 
 		AdminClientGetReplicationTasksScope:                   {operation: "AdminClientGetReplicationTasks", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientAddSearchAttributeScope:                    {operation: "AdminClientAddSearchAttribute", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
@@ -1898,6 +1924,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DCRedirectionDescribeTaskListScope:                      {operation: "DCRedirectionDescribeTaskList", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDescribeWorkflowExecutionScope:             {operation: "DCRedirectionDescribeWorkflowExecution", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDiagnoseWorkflowExecutionScope:             {operation: "DCRedirectionDiagnoseWorkflowExecution", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionExportWorkflowExecutionScope:               {operation: "DCRedirectionExportWorkflowExecution", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionGetWorkflowExecutionHistoryScope:           {operation: "DCRedirectionGetWorkflowExecutionHistory", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionGetWorkflowExecutionRawHistoryScope:        {operation: "DCRedirectionGetWorkflowExecutionRawHistoryScope", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionPollForWorklfowExecutionRawHistoryScope:    {operation: "DCRedirectionPollForWorklfowExecutionRawHistory", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
@@ -2146,6 +2173,12 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendBackfillScheduleScope:                      {operation: "BackfillSchedule"},
 		FrontendListSchedulesScope:                         {operation: "ListSchedules"},
 		FrontendCreateSemaphoreScope:                       {operation: "CreateSemaphore"},
+		FrontendStartBatchOperationScope:                   {operation: "StartBatchOperation"},
+		FrontendDescribeBatchOperationScope:                {operation: "DescribeBatchOperation"},
+		FrontendListBatchOperationsScope:                   {operation: "ListBatchOperations"},
+		FrontendStopBatchOperationScope:                    {operation: "StopBatchOperation"},
+		FrontendUpdateBatchOperationScope:                  {operation: "UpdateBatchOperation"},
+		FrontendExportWorkflowExecutionScope:               {operation: "ExportWorkflowExecution"},
 		FrontendGetSearchAttributesScope:                   {operation: "GetSearchAttributes"},
 		FrontendGetClusterInfoScope:                        {operation: "GetClusterInfo"},
 	},
@@ -2240,6 +2273,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TimerActiveTaskWorkflowTimeoutScope:                             {operation: "TimerActiveTaskWorkflowTimeout"},
 		TimerActiveTaskActivityRetryTimerScope:                          {operation: "TimerActiveTaskActivityRetryTimer"},
 		TimerActiveTaskWorkflowBackoffTimerScope:                        {operation: "TimerActiveTaskWorkflowBackoffTimer"},
+		TimerActiveTaskSemaphoreAcquireTimeoutScope:                     {operation: "TimerActiveTaskSemaphoreAcquireTimeout"},
 		TimerActiveTaskDeleteHistoryEventScope:                          {operation: "TimerActiveTaskDeleteHistoryEvent"},
 		TimerStandbyTaskActivityTimeoutScope:                            {operation: "TimerStandbyTaskActivityTimeout"},
 		TimerStandbyTaskDecisionTimeoutScope:                            {operation: "TimerStandbyTaskDecisionTimeout"},
@@ -2247,6 +2281,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TimerStandbyTaskWorkflowTimeoutScope:                            {operation: "TimerStandbyTaskWorkflowTimeout"},
 		TimerStandbyTaskActivityRetryTimerScope:                         {operation: "TimerStandbyTaskActivityRetryTimer"},
 		TimerStandbyTaskWorkflowBackoffTimerScope:                       {operation: "TimerStandbyTaskWorkflowBackoffTimer"},
+		TimerStandbyTaskSemaphoreAcquireTimeoutScope:                    {operation: "TimerStandbyTaskSemaphoreAcquireTimeout"},
 		TimerStandbyTaskDeleteHistoryEventScope:                         {operation: "TimerStandbyTaskDeleteHistoryEvent"},
 		CrossClusterQueueProcessorScope:                                 {operation: "CrossClusterQueueProcessor"},
 		CrossClusterTaskProcessorScope:                                  {operation: "CrossClusterTaskProcessor"},
@@ -2318,6 +2353,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		MatchingRefreshTaskListPartitionConfigScope: {operation: "RefreshTaskListPartitionConfig"},
 		MatchingAcquireSemaphoreScope:               {operation: "AcquireSemaphore"},
 		MatchingReleaseSemaphoreScope:               {operation: "ReleaseSemaphore"},
+		MatchingGetSemaphoreTokenByOwnerScope:       {operation: "GetSemaphoreTokenByOwner"},
 	},
 	// Worker Scope Names
 	Worker: {
@@ -2807,6 +2843,7 @@ const (
 	ConcurrencyUpdateFailureCounter
 	ChildWorkflowCompletionOtherBranchCounter
 	ChildWorkflowStaleBranchReplacedCounter
+	ChildWorkflowStaleBranchNewExecutionCounter
 	ChildWorkflowChainAdoptedCounter
 	ChildWorkflowCompletionRequestedCounter
 	CadenceErrEventAlreadyStartedCounter
@@ -3815,6 +3852,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ConcurrencyUpdateFailureCounter:                               {metricName: "concurrency_update_failure", metricType: Counter},
 		ChildWorkflowCompletionOtherBranchCounter:                     {metricName: "child_workflow_completion_other_branch", metricType: Counter},
 		ChildWorkflowStaleBranchReplacedCounter:                       {metricName: "child_workflow_stale_branch_replaced", metricType: Counter},
+		ChildWorkflowStaleBranchNewExecutionCounter:                   {metricName: "child_workflow_stale_branch_new_execution", metricType: Counter},
 		ChildWorkflowChainAdoptedCounter:                              {metricName: "child_workflow_chain_adopted", metricType: Counter},
 		ChildWorkflowCompletionRequestedCounter:                       {metricName: "child_workflow_completion_requested", metricType: Counter},
 		CadenceErrShardOwnershipLostCounter:                           {metricName: "cadence_errors_shard_ownership_lost", metricType: Counter},

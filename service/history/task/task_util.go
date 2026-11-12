@@ -186,6 +186,11 @@ func GetTimerTaskMetricScope(
 			return metrics.TimerActiveTaskWorkflowBackoffTimerScope
 		}
 		return metrics.TimerStandbyTaskWorkflowBackoffTimerScope
+	case persistence.TaskTypeSemaphoreAcquireTimeout:
+		if isActive {
+			return metrics.TimerActiveTaskSemaphoreAcquireTimeoutScope
+		}
+		return metrics.TimerStandbyTaskSemaphoreAcquireTimeoutScope
 	default:
 		if isActive {
 			return metrics.TimerActiveQueueProcessorScope

@@ -366,6 +366,60 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowClosed(
 	return t.processCloseExecutionTaskHelper(ctx, task, true, false, false)
 }
 
+// getFirstRunStartVersion returns the start version of the first run of the chain of the closed child, so the parent
+// can drop a completion from an initiated event that can not be on its current branch. The first run has the lowest
+// start version of the chain, so the parent drops such a completion sooner. When the first run can not be used, it
+// returns the start version of the closed run.
+func (t *transferActiveTaskExecutor) getFirstRunStartVersion(
+	ctx context.Context,
+	task persistence.Task,
+	domainName string,
+	firstRunID string,
+	closedRunPolicy *types.ActiveClusterSelectionPolicy,
+	closedRunStartVersion int64,
+) (int64, error) {
+	if firstRunID == "" || firstRunID == task.GetRunID() {
+		// the closed run is the first run of its chain, or a run created before the first run ID was stored
+		return closedRunStartVersion, nil
+	}
+
+	// the start version of a run does not change, so the first run is read from the database without its lock
+	resp, err := t.shard.GetWorkflowExecution(ctx, &persistence.GetWorkflowExecutionRequest{
+		DomainID: task.GetDomainID(),
+		Execution: types.WorkflowExecution{
+			WorkflowID: task.GetWorkflowID(),
+			RunID:      firstRunID,
+		},
+		DomainName: domainName,
+	})
+	var notExistsErr *types.EntityNotExistsError
+	if errors.As(err, &notExistsErr) {
+		// for example the retention of the domain deleted the first run. The start version of the closed run is not
+		// lower than the one of the first run, so the parent still never drops a completion from its current branch.
+		return closedRunStartVersion, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	// the parent compares the versions only with the cluster attribute of the closed run, so the first run must have
+	// the same cluster attribute
+	if !resp.State.ExecutionInfo.ActiveClusterSelectionPolicy.Equals(closedRunPolicy) {
+		return closedRunStartVersion, nil
+	}
+	if resp.State.VersionHistories == nil {
+		return closedRunStartVersion, nil
+	}
+	firstRunBranch, err := resp.State.VersionHistories.GetCurrentVersionHistory()
+	if err != nil {
+		return 0, err
+	}
+	firstRunStartItem, err := firstRunBranch.GetFirstItem()
+	if err != nil {
+		return 0, err
+	}
+	return firstRunStartItem.Version, nil
+}
+
 func (t *transferActiveTaskExecutor) processRecordChildExecutionCompleted(
 	ctx context.Context,
 	task *persistence.RecordChildExecutionCompletedTask,
@@ -436,14 +490,15 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 	initiatedID := executionInfo.InitiatedID
 	firstExecutionRunID := executionInfo.FirstExecutionRunID
 	// versions of different domains can not be compared, so the parent gets the start version only in the same domain
-	var childStartVersion *int64
+	var closedRunStartVersion *int64
 	if parentDomainID == task.GetDomainID() {
 		startVersion, err := mutableState.GetStartVersion()
 		if err != nil {
 			return err
 		}
-		childStartVersion = common.Int64Ptr(startVersion)
+		closedRunStartVersion = common.Int64Ptr(startVersion)
 	}
+	closedRunPolicy := executionInfo.ActiveClusterSelectionPolicy
 
 	workflowTypeName := executionInfo.WorkflowTypeName
 	workflowCloseTimestamp := wfCloseTime
@@ -515,6 +570,14 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 	// and parent domain is in the same cluster
 	replyToParentWorkflow := replyToParentWorkflowIfApplicable && mutableState.HasParentExecution() && executionInfo.CloseStatus != persistence.WorkflowCloseStatusContinuedAsNew
 	if replyToParentWorkflow {
+		childStartVersion := closedRunStartVersion
+		if closedRunStartVersion != nil {
+			startVersion, err := t.getFirstRunStartVersion(ctx, task, domainName, firstExecutionRunID, closedRunPolicy, *closedRunStartVersion)
+			if err != nil {
+				return err
+			}
+			childStartVersion = common.Int64Ptr(startVersion)
+		}
 		recordChildCompletionCtx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
 		defer cancel()
 		err := t.historyClient.RecordChildExecutionCompleted(recordChildCompletionCtx, &types.RecordChildExecutionCompletedRequest{
@@ -1280,8 +1343,7 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 
 	semaphoreInfo, ok := mutableState.GetSemaphoreInfo(task.InitiatedID)
 	if !ok {
-		// The hold is gone: a release removed it, or an earlier attempt of this task recorded
-		// SemaphoreAcquireFailed, so there is nothing to acquire.
+		// The hold was released, timed out, or already failed, so there is nothing to acquire.
 		return nil
 	}
 	ok, err = verifyTaskVersion(t.shard, t.logger, task.DomainID, semaphoreInfo.Version, task.Version, task)

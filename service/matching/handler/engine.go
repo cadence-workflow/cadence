@@ -95,6 +95,7 @@ type (
 		semaphoreRegistry              semaphore.SemaphoreRegistry
 		semaphoreTokenManager          persistence.SemaphoreTokenManager
 		semaphoreMetadataManager       persistence.SemaphoreMetadataManager
+		semaphoreTaskManager           persistence.SemaphoreTaskManager
 		shutdownCompletion             *sync.WaitGroup
 		shutdown                       chan struct{}
 		taskManager                    persistence.TaskManager
@@ -152,6 +153,7 @@ func NewEngine(
 	taskManager persistence.TaskManager,
 	semaphoreTokenManager persistence.SemaphoreTokenManager,
 	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
+	semaphoreTaskManager persistence.SemaphoreTaskManager,
 	clusterMetadata cluster.Metadata,
 	historyService history.Client,
 	matchingClient matching.Client,
@@ -178,6 +180,7 @@ func NewEngine(
 		taskManager:                    taskManager,
 		semaphoreTokenManager:          semaphoreTokenManager,
 		semaphoreMetadataManager:       semaphoreMetadataManager,
+		semaphoreTaskManager:           semaphoreTaskManager,
 		clusterMetadata:                clusterMetadata,
 		historyService:                 historyService,
 		tokenSerializer:                common.NewJSONTaskTokenSerializer(),
@@ -502,6 +505,47 @@ func (e *matchingEngineImpl) ReleaseSemaphore(
 	return &types.ReleaseSemaphoreResponse{}, nil
 }
 
+// GetSemaphoreTokenByOwner returns the token an owner holds in a semaphore bucket, or 0 if none.
+func (e *matchingEngineImpl) GetSemaphoreTokenByOwner(
+	hCtx *handlerContext,
+	request *types.GetSemaphoreTokenByOwnerRequest,
+) (*types.GetSemaphoreTokenByOwnerResponse, error) {
+	domainID := request.GetDomainUUID()
+	semaphoreName := request.GetSemaphoreName()
+	bucket := int(request.GetBucket())
+	ownerID := request.GetOwnerID()
+
+	owner, err := semaphore.ParseRequestOwner(ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	e.emitInfoOrDebugLog(
+		domainID,
+		"Received GetSemaphoreTokenByOwner",
+		tag.WorkflowID(owner.WorkflowID),
+		tag.WorkflowRunID(owner.RunID),
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowScheduleID(owner.HoldID),
+	)
+
+	identifier, err := semaphore.NewIdentifier(domainID, semaphoreName, bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	semMgr, err := e.getOrCreateSemaphoreManager(identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenID, err := semMgr.GetTokenByOwner(hCtx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	return &types.GetSemaphoreTokenByOwnerResponse{TokenID: int32(tokenID)}, nil
+}
+
 // getOrCreateSemaphoreManager returns this host's manager for one bucket, building it the first
 // time the bucket is asked for. The manager may still be loading when another request started it;
 // Acquire waits for that under the caller's own deadline.
@@ -527,8 +571,10 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 				ID:         id,
 				Tokens:     e.semaphoreTokenManager,
 				Metadata:   e.semaphoreMetadataManager,
+				Tasks:      e.semaphoreTaskManager,
 				Logger:     e.logger,
-				IdleTTL:    e.config.SemaphoreIdleTime(domainName),
+				Cfg:        e.config,
+				DomainName: domainName,
 				OnStopFn:   e.unregisterSemaphoreManager,
 				TimeSource: e.timeSource,
 			})
@@ -538,9 +584,9 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 		}
 	}
 
-	// Always call Start, even on a manager found in the registry: if the request that registered
-	// it never started it, nothing else will, and the bucket would stay stuck. Start is free when
-	// the manager is already running or loading.
+	// Start runs outside the registry lock, so a slow load does not block other buckets. It also
+	// runs for a manager found in the registry, in case the request that registered it never
+	// started it. Start does nothing if the manager is already loading or running.
 	startCtx, cancel := context.WithTimeout(context.Background(), semaphoreManagerStartTimeout)
 	defer cancel()
 	if err := mgr.Start(startCtx); err != nil {

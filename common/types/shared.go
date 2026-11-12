@@ -1099,6 +1099,7 @@ func (v *CurrentBranchChangedError) GetCurrentBranchToken() (o []byte) {
 type DataBlob struct {
 	EncodingType *EncodingType `json:"EncodingType,omitempty"`
 	Data         []byte        `json:"Data,omitempty"`
+	Checksum     []byte        `json:"Checksum,omitempty"`
 }
 
 // GetEncodingType is an internal getter (TBD...)
@@ -1117,6 +1118,14 @@ func (v *DataBlob) GetData() (o []byte) {
 	return
 }
 
+// GetChecksum is an internal getter
+func (v *DataBlob) GetChecksum() (o []byte) {
+	if v != nil && v.Checksum != nil {
+		return v.Checksum
+	}
+	return
+}
+
 func (v *DataBlob) DeepCopy() *DataBlob {
 	if v == nil {
 		return nil
@@ -1131,6 +1140,11 @@ func (v *DataBlob) DeepCopy() *DataBlob {
 		copy(res.Data, v.Data)
 	}
 
+	if v.Checksum != nil {
+		res.Checksum = make([]byte, len(v.Checksum))
+		copy(res.Checksum, v.Checksum)
+	}
+
 	return res
 }
 
@@ -1143,6 +1157,7 @@ func (v *DataBlob) ByteSize() uint64 {
 	size := uint64(unsafe.Sizeof(*v))
 	size += v.EncodingType.ByteSize()
 	size += uint64(len(v.Data))
+	size += uint64(len(v.Checksum))
 	return size
 }
 
@@ -8426,8 +8441,8 @@ func (v *UpsertWorkflowSearchAttributesEventAttributes) ByteSize() uint64 {
 // AcquireSemaphoreDecisionAttributes asks for a token from the named semaphore.
 type AcquireSemaphoreDecisionAttributes struct {
 	SemaphoreName string `json:"semaphoreName,omitempty"`
-	// WaitTimeoutSeconds is how long this acquire may wait for a token before History fails the
-	// run. When unset or zero, the server's default applies.
+	// WaitTimeoutSeconds is how long this acquire may wait for a token before History records
+	// SemaphoreAcquireFailed. When unset or zero, the server's default applies.
 	WaitTimeoutSeconds *int32 `json:"waitTimeoutSeconds,omitempty"`
 }
 
@@ -8464,7 +8479,8 @@ func (v *ReleaseSemaphoreDecisionAttributes) GetInitiatedEventID() (o int64) {
 type SemaphoreAcquireInitiatedEventAttributes struct {
 	SemaphoreName string `json:"semaphoreName,omitempty"`
 	// WaitTimeoutSeconds is the timeout this acquire actually uses: the decision's value, or the
-	// server's default. Recorded so a replay reads the same value even if the default changes later.
+	// server's default, capped at the server's max. Recorded so a replay reads the same value even
+	// if the default or max changes later.
 	WaitTimeoutSeconds           *int32 `json:"waitTimeoutSeconds,omitempty"`
 	DecisionTaskCompletedEventID int64  `json:"decisionTaskCompletedEventId,omitempty"`
 }
@@ -8576,6 +8592,8 @@ func (e SemaphoreAcquireFailedCause) String() string {
 	switch w {
 	case 0:
 		return "NOT_FOUND"
+	case 1:
+		return "TIMED_OUT"
 	}
 	return fmt.Sprintf("SemaphoreAcquireFailedCause(%d)", w)
 }
@@ -8585,6 +8603,9 @@ func (e *SemaphoreAcquireFailedCause) UnmarshalText(value []byte) error {
 	switch s := strings.ToUpper(string(value)); s {
 	case "NOT_FOUND":
 		*e = SemaphoreAcquireFailedCauseNotFound
+		return nil
+	case "TIMED_OUT":
+		*e = SemaphoreAcquireFailedCauseTimedOut
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -8604,6 +8625,8 @@ func (e SemaphoreAcquireFailedCause) MarshalText() ([]byte, error) {
 const (
 	// SemaphoreAcquireFailedCauseNotFound is an option for SemaphoreAcquireFailedCause
 	SemaphoreAcquireFailedCauseNotFound SemaphoreAcquireFailedCause = iota
+	// SemaphoreAcquireFailedCauseTimedOut is an option for SemaphoreAcquireFailedCause
+	SemaphoreAcquireFailedCauseTimedOut
 )
 
 // SemaphoreAcquireFailedEventAttributes records that the acquire InitiatedEventID started ended
@@ -10171,4 +10194,93 @@ func (v CronOverlapPolicy) String() string {
 // Ptr is a helper function for getting pointer to CronOverlapPolicy
 func (v CronOverlapPolicy) Ptr() *CronOverlapPolicy {
 	return &v
+}
+
+// ExportWorkflowExecutionRequest is an internal type
+type ExportWorkflowExecutionRequest struct {
+	Domain        string             `json:"domain,omitempty"`
+	Execution     *WorkflowExecution `json:"execution,omitempty"`
+	PageSize      int32              `json:"pageSize,omitempty"`
+	NextPageToken []byte             `json:"nextPageToken,omitempty"`
+	LastEventID   *int64             `json:"lastEventID,omitempty"`
+}
+
+// GetDomain is an internal getter
+func (v *ExportWorkflowExecutionRequest) GetDomain() (o string) {
+	if v != nil {
+		return v.Domain
+	}
+	return
+}
+
+// GetWorkflowExecution is an internal getter
+func (v *ExportWorkflowExecutionRequest) GetWorkflowExecution() (o *WorkflowExecution) {
+	if v != nil && v.Execution != nil {
+		return v.Execution
+	}
+	return
+}
+
+// GetPageSize is an internal getter
+func (v *ExportWorkflowExecutionRequest) GetPageSize() (o int32) {
+	if v != nil {
+		return v.PageSize
+	}
+	return
+}
+
+// GetNextPageToken is an internal getter
+func (v *ExportWorkflowExecutionRequest) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// GetLastEventID is an internal getter
+func (v *ExportWorkflowExecutionRequest) GetLastEventID() (o *int64) {
+	if v != nil {
+		return v.LastEventID
+	}
+	return
+}
+
+// ExportWorkflowExecutionResponse is an internal type
+type ExportWorkflowExecutionResponse struct {
+	Execution      *WorkflowExecution `json:"execution,omitempty"`
+	HistoryBatches []*DataBlob        `json:"historyBatches,omitempty"`
+	NextPageToken  []byte             `json:"nextPageToken,omitempty"`
+	Version        int32              `json:"version,omitempty"`
+}
+
+// GetExecution is an internal getter
+func (v *ExportWorkflowExecutionResponse) GetExecution() (o *WorkflowExecution) {
+	if v != nil && v.Execution != nil {
+		return v.Execution
+	}
+	return
+}
+
+// GetHistoryBatches is an internal getter
+func (v *ExportWorkflowExecutionResponse) GetHistoryBatches() (o []*DataBlob) {
+	if v != nil && v.HistoryBatches != nil {
+		return v.HistoryBatches
+	}
+	return
+}
+
+// GetNextPageToken is an internal getter
+func (v *ExportWorkflowExecutionResponse) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// GetVersion is an internal getter
+func (v *ExportWorkflowExecutionResponse) GetVersion() (o int32) {
+	if v != nil {
+		return v.Version
+	}
+	return
 }

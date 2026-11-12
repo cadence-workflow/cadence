@@ -28,6 +28,7 @@ import (
 
 	"github.com/pborman/uuid"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/metrics"
@@ -114,7 +115,7 @@ func (s *ShardScanner) Scan(ctx context.Context) ScanReport {
 			return result
 		}
 		domainName, err := s.domainCache.GetDomainName(*domainID)
-		if err != nil {
+		if err != nil && !common.IsEntityNotExistsError(err) {
 			result.Result.ControlFlowFailure = &ControlFlowFailure{
 				Info:        "failed to get domain name from cache",
 				InfoDetails: err.Error(),
