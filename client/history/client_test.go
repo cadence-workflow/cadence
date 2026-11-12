@@ -163,6 +163,20 @@ func TestClient_withResponse(t *testing.T) {
 			want: &types.RecordActivityTaskStartedResponse{},
 		},
 		{
+			name: "RecordSemaphoreAcquired",
+			op: func(c Client) (any, error) {
+				return c.RecordSemaphoreAcquired(context.Background(), &types.RecordSemaphoreAcquiredRequest{
+					WorkflowExecution: &types.WorkflowExecution{WorkflowID: "test-workflow"},
+				})
+			},
+			mock: func(p *MockPeerResolver, c *MockClient) {
+				p.EXPECT().FromWorkflowID("test-workflow").Return("test-peer", nil).Times(1)
+				c.EXPECT().RecordSemaphoreAcquired(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer")}).
+					Return(&types.RecordSemaphoreAcquiredResponse{}, nil).Times(1)
+			},
+			want: &types.RecordSemaphoreAcquiredResponse{},
+		},
+		{
 			name: "RecordDecisionTaskStarted",
 			op: func(c Client) (any, error) {
 				return c.RecordDecisionTaskStarted(context.Background(), &types.RecordDecisionTaskStartedRequest{

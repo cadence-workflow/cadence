@@ -466,7 +466,7 @@ func TestMatchingGetSemaphoreTokenByOwnerResponse(t *testing.T) {
 }
 
 func SemaphoreAcquireOutcomeFuzzer(e *types.SemaphoreAcquireOutcome, c fuzz.Continue) {
-	*e = types.SemaphoreAcquireOutcome(c.Intn(3)) // 0-2: Invalid, Acquired, NoSlot
+	*e = types.SemaphoreAcquireOutcome(c.Intn(4)) // 0-3: Invalid, Acquired, NoSlot, Queued
 }
 
 func TestMatchingAcquireSemaphoreRequestFuzz(t *testing.T) {

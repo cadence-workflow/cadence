@@ -67,7 +67,6 @@ var (
 	errUnknownTransferTask = errors.New("unknown transfer task")
 	errWorkflowBusy        = errors.New("unable to get workflow execution lock within specified timeout")
 	errWorkflowRateLimited = errors.New("workflow is being rate limited for making too many requests")
-	errSemaphoreNoSlot     = errors.New("semaphore bucket has no free token")
 )
 
 type (
@@ -1375,6 +1374,10 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 	if err != nil {
 		return err
 	}
+	if tokenID == constants.NoSemaphoreTokenID {
+		// Queued: Matching sends the token through RecordSemaphoreAcquired, so this task is done.
+		return nil
+	}
 
 	return recordSemaphoreGranted(ctx, t.logger, wfContext, task.InitiatedID, tokenID, t.shard.GetTimeSource().Now())
 }
@@ -2282,7 +2285,7 @@ func invalidSemaphoreMetadataError(domainID, semaphoreName string, err error) er
 	}
 }
 
-// acquireSemaphoreToken asks the bucket's Matching host for a token and returns it.
+// acquireSemaphoreToken asks the bucket's Matching host for a token and returns it
 func (t *transferActiveTaskExecutor) acquireSemaphoreToken(
 	ctx context.Context,
 	request *types.AcquireSemaphoreRequest,
@@ -2300,17 +2303,9 @@ func (t *transferActiveTaskExecutor) acquireSemaphoreToken(
 	switch {
 	case resp.Outcome == types.SemaphoreAcquireOutcomeAcquired && resp.TokenID > 0:
 		return resp.TokenID, nil
-	case resp.Outcome == types.SemaphoreAcquireOutcomeNoSlot:
-		// No slot and nothing queued, so retry. Today a full bucket answers this.
-		// Once acquires can wait, a full bucket queues instead.
-		// TODO: when the queued outcome is added, complete the task on it: the grant then comes
-		// through RecordSemaphoreAcquired.
-		t.logger.Debug("Semaphore bucket has no free token, retrying the acquire",
-			tag.WorkflowDomainID(request.DomainUUID),
-			tag.SemaphoreName(request.SemaphoreName),
-			tag.SemaphoreBucket(int(request.Bucket)),
-		)
-		return 0, errSemaphoreNoSlot
+	case resp.Outcome == types.SemaphoreAcquireOutcomeQueued:
+		// The acquire waits in Matching, which sends the token through RecordSemaphoreAcquired.
+		return constants.NoSemaphoreTokenID, nil
 	default:
 		return 0, &types.InternalServiceError{
 			Message: fmt.Sprintf("unexpected semaphore acquire response: outcome %v, token %v", resp.Outcome, resp.TokenID),

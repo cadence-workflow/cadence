@@ -2232,10 +2232,10 @@ func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_Success() 
 	}, nil)
 }
 
-func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_NoSlot() {
+func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_Queued() {
 	s.testProcessAcquireSemaphore(func(_ execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
-		s.expectAcquireSemaphoreRequest(semaphoreInfo, &types.AcquireSemaphoreResponse{Outcome: types.SemaphoreAcquireOutcomeNoSlot}, nil)
-	}, errSemaphoreNoSlot)
+		s.expectAcquireSemaphoreRequest(semaphoreInfo, &types.AcquireSemaphoreResponse{Outcome: types.SemaphoreAcquireOutcomeQueued}, nil)
+	}, nil)
 }
 
 func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_MatchingError() {

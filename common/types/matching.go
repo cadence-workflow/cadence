@@ -732,6 +732,7 @@ const (
 	SemaphoreAcquireOutcomeInvalid SemaphoreAcquireOutcome = iota
 	SemaphoreAcquireOutcomeAcquired
 	SemaphoreAcquireOutcomeNoSlot
+	SemaphoreAcquireOutcomeQueued
 )
 
 // AcquireSemaphoreRequest asks the matching host that owns a bucket for a token slot.

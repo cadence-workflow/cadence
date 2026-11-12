@@ -32,6 +32,7 @@ var (
 	ErrWorkflowIDNotSet        = &types.BadRequestError{Message: "WorkflowId is not set on request."}
 	ErrSourceClusterNotSet     = &types.BadRequestError{Message: "Source Cluster not set on request."}
 	ErrTimestampNotSet         = &types.BadRequestError{Message: "Timestamp not set on request."}
+	ErrSemaphoreTokenIDNotSet  = &types.BadRequestError{Message: "Semaphore token id not set on request."}
 	ErrInvalidTaskType         = &types.BadRequestError{Message: "Invalid task type"}
 	ErrHistoryHostThrottle     = &types.ServiceBusyError{Message: "History host rps exceeded"}
 	ErrShuttingDown            = &types.InternalServiceError{Message: "Shutting down"}

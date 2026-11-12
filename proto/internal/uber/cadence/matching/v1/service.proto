@@ -320,30 +320,25 @@ message RefreshTaskListPartitionConfigResponse {
 enum SemaphoreAcquireOutcome {
   SEMAPHORE_ACQUIRE_OUTCOME_INVALID = 0;
   SEMAPHORE_ACQUIRE_OUTCOME_ACQUIRED = 1;
-  // The bucket has no free slot, token_id is 0.
   SEMAPHORE_ACQUIRE_OUTCOME_NO_SLOT = 2;
+  SEMAPHORE_ACQUIRE_OUTCOME_QUEUED = 3;
 }
 
 message AcquireSemaphoreRequest {
   string domain_id = 1;
   string semaphore_name = 2;
-  // Which partition of the semaphore to serve from. History picks it and routes on it; with
-  // domain_id and semaphore_name it names the manager that serves the request.
   int32 bucket = 3;
   string owner_id = 4;
 }
 
 message AcquireSemaphoreResponse {
   SemaphoreAcquireOutcome outcome = 1;
-  // The slot held or 0 when none was granted: slot ids start at 1 and are bounded by the
-  // per-bucket token budget, so 0 is never a real slot.
   int32 token_id = 2;
 }
 
 message ReleaseSemaphoreRequest {
   string domain_id = 1;
   string semaphore_name = 2;
-  // Which partition of the semaphore holds the owner's slot, the same bucket its acquire used.
   int32 bucket = 3;
   string owner_id = 4;
 }
