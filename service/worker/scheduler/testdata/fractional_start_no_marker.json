@@ -1,0 +1,113 @@
+[
+  {
+    "eventId": 1,
+    "timestamp": 1767268740000000000,
+    "eventType": "WorkflowExecutionStarted",
+    "workflowExecutionStartedEventAttributes": {
+      "workflowType": {
+        "name": "cadence-scheduler"
+      },
+      "taskList": {
+        "name": "scheduler"
+      },
+      "input": "eyJkb21haW4iOiJ0ZXN0Iiwic2NoZWR1bGVJZCI6ImV4YW1wbGUiLCJzcGVjIjp7ImNyb25FeHByZXNzaW9uIjoiKiAqICogKiAqIiwic3RhcnRUaW1lIjoiMjAyNi0wMS0wMVQxMjowMDowMC41MDBaIiwiZW5kVGltZSI6IjIwMjYtMDEtMDFUMTI6MDA6MDFaIn0sImFjdGlvbiI6eyJzdGFydFdvcmtmbG93Ijp7IndvcmtmbG93VHlwZSI6eyJuYW1lIjoiZXhhbXBsZSJ9LCJ0YXNrTGlzdCI6eyJuYW1lIjoiZXhhbXBsZSJ9LCJleGVjdXRpb25TdGFydFRvQ2xvc2VUaW1lb3V0U2Vjb25kcyI6NjB9fX0K"
+    }
+  },
+  {
+    "eventId": 2,
+    "timestamp": 1767268740000000000,
+    "eventType": "DecisionTaskScheduled",
+    "decisionTaskScheduledEventAttributes": {}
+  },
+  {
+    "eventId": 3,
+    "timestamp": 1767268740000000000,
+    "eventType": "DecisionTaskStarted",
+    "decisionTaskStartedEventAttributes": {
+      "scheduledEventId": 2
+    }
+  },
+  {
+    "eventId": 4,
+    "timestamp": 1767268740000000000,
+    "eventType": "DecisionTaskCompleted",
+    "decisionTaskCompletedEventAttributes": {
+      "scheduledEventId": 2,
+      "startedEventId": 3
+    }
+  },
+  {
+    "eventId": 5,
+    "timestamp": 1767268740000000000,
+    "eventType": "UpsertWorkflowSearchAttributes",
+    "upsertWorkflowSearchAttributesEventAttributes": {
+      "decisionTaskCompletedEventId": 4,
+      "searchAttributes": {
+        "indexedFields": {
+          "CadenceScheduleState": "ImFjdGl2ZSI=",
+          "CadenceScheduleCron": "IiogKiAqICogKiI=",
+          "CadenceScheduleWorkflowType": "ImV4YW1wbGUi"
+        }
+      }
+    }
+  },
+  {
+    "eventId": 6,
+    "timestamp": 1767268740000000000,
+    "eventType": "TimerStarted",
+    "timerStartedEventAttributes": {
+      "timerId": "1",
+      "startToFireTimeoutSeconds": 60,
+      "decisionTaskCompletedEventId": 4
+    }
+  },
+  {
+    "eventId": 7,
+    "timestamp": 1767268770000000000,
+    "eventType": "WorkflowExecutionSignaled",
+    "workflowExecutionSignaledEventAttributes": {
+      "signalName": "scheduler-delete"
+    }
+  },
+  {
+    "eventId": 8,
+    "timestamp": 1767268770000000000,
+    "eventType": "DecisionTaskScheduled",
+    "decisionTaskScheduledEventAttributes": {}
+  },
+  {
+    "eventId": 9,
+    "timestamp": 1767268770000000000,
+    "eventType": "DecisionTaskStarted",
+    "decisionTaskStartedEventAttributes": {
+      "scheduledEventId": 8
+    }
+  },
+  {
+    "eventId": 10,
+    "timestamp": 1767268770000000000,
+    "eventType": "DecisionTaskCompleted",
+    "decisionTaskCompletedEventAttributes": {
+      "scheduledEventId": 8,
+      "startedEventId": 9
+    }
+  },
+  {
+    "eventId": 11,
+    "timestamp": 1767268770000000000,
+    "eventType": "TimerCanceled",
+    "timerCanceledEventAttributes": {
+      "decisionTaskCompletedEventId": 10,
+      "timerId": "1",
+      "startedEventId": 6
+    }
+  },
+  {
+    "eventId": 12,
+    "timestamp": 1767268770000000000,
+    "eventType": "WorkflowExecutionCompleted",
+    "workflowExecutionCompletedEventAttributes": {
+      "decisionTaskCompletedEventId": 10
+    }
+  }
+]
