@@ -26,10 +26,22 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/service/history/shard"
 )
 
 // TaskReinjector writes DLQ tasks back into the executions table with fresh task IDs.
 // Implemented by shard.Context.ReinjectHistoryTasks.
 type TaskReinjector interface {
 	ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error
+}
+
+// AckLevelIndex is the shard-owned in-memory view of the DLQ ack-level rows the processor reads and
+// advances. Implemented by *shard.DLQAckLevelIndex.
+type AckLevelIndex interface {
+	Seeded() bool
+	Merge(levels []persistence.HistoryDLQAckLevel)
+	All() []shard.IndexedDLQAckLevel
+	Dirty() []shard.IndexedDLQAckLevel
+	Advance(level persistence.HistoryDLQAckLevel)
+	MarkClean(key shard.DLQAckLevelKey, generation uint64)
 }

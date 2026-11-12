@@ -2304,7 +2304,7 @@ func TestShardedHistoryTaskDLQWriterAckLevel(t *testing.T) {
 				}).
 				Times(tc.wantManagerCalls)
 
-			w := &shardedHistoryTaskDLQWriter{writer: dlqMgr, dlqAckLevelsCreated: make(map[dlqAckLevelKey]struct{})}
+			w := &shardedHistoryTaskDLQWriter{writer: dlqMgr, index: NewDLQAckLevelIndex()}
 			for i, want := range tc.wantErrs {
 				err := w.CreateHistoryDLQAckLevelIfNotExists(context.Background(), req)
 				if want == "" {
@@ -2316,4 +2316,152 @@ func TestShardedHistoryTaskDLQWriterAckLevel(t *testing.T) {
 			assert.Equal(t, tc.wantManagerCalls, managerCalls)
 		})
 	}
+}
+
+func TestShardedHistoryTaskDLQWriter_FailedWriteMarksCleanPartitionDirty(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	inner := NewMockTaskDLQWriter(ctrl)
+	index := NewDLQAckLevelIndex()
+	w := &shardedHistoryTaskDLQWriter{writer: inner, index: index}
+
+	level := persistence.HistoryDLQAckLevel{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+		TaskCategory:          persistence.HistoryTaskCategoryTransfer,
+	}
+	key := DLQAckLevelKeyOf(level)
+	index.Merge([]persistence.HistoryDLQAckLevel{level})
+	gen := index.Lookup("d1", "s", "n", false)[0].Generation
+	index.MarkClean(key, gen)
+	require.Empty(t, index.Lookup("d1", "s", "n", true))
+
+	task := persistence.NewMockTask(ctrl)
+	task.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
+	taskReq := persistence.CreateHistoryDLQTaskRequest{
+		ShardID:               1,
+		DomainID:              "d1",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+		Task:                  task,
+	}
+	inner.EXPECT().CreateHistoryDLQTask(gomock.Any(), taskReq).Return(errors.New("persistence write failed"))
+	require.Error(t, w.CreateHistoryDLQTask(context.Background(), taskReq))
+
+	// A failed write may still have landed, so the partition is dirty and an older snapshot cannot clean it.
+	require.Len(t, index.Lookup("d1", "s", "n", true), 1)
+	index.MarkClean(key, gen)
+	require.Len(t, index.Lookup("d1", "s", "n", true), 1)
+}
+
+func TestShardedHistoryTaskDLQWriter_SnapshotTakenDuringWriteCannotBeCleaned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mock := NewMockTaskDLQWriter(ctrl)
+	idx := NewDLQAckLevelIndex()
+	level := persistence.HistoryDLQAckLevel{
+		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
+		TaskCategory: persistence.HistoryTaskCategoryTransfer,
+	}
+	key := DLQAckLevelKeyOf(level)
+	idx.Merge([]persistence.HistoryDLQAckLevel{level})
+	w := &shardedHistoryTaskDLQWriter{writer: mock, index: idx}
+
+	task := persistence.NewMockTask(ctrl)
+	task.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
+	req := persistence.CreateHistoryDLQTaskRequest{
+		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n", Task: task,
+	}
+
+	// A sweep snapshots the entry while the write is in flight, reads an empty partition, and tries
+	// to clean after the write committed. The clean must be refused.
+	var midWrite IndexedDLQAckLevel
+	mock.EXPECT().CreateHistoryDLQTask(gomock.Any(), req).DoAndReturn(
+		func(context.Context, persistence.CreateHistoryDLQTaskRequest) error {
+			midWrite = idx.Lookup("d", "s", "n", true)[0]
+			return nil
+		})
+	require.NoError(t, w.CreateHistoryDLQTask(context.Background(), req))
+
+	idx.MarkClean(key, midWrite.Generation)
+	require.Len(t, idx.Lookup("d", "s", "n", true), 1, "entry must stay dirty: the snapshot predates the commit")
+
+	// A snapshot taken after the write returned is current and may clean.
+	after := idx.Lookup("d", "s", "n", true)[0]
+	idx.MarkClean(key, after.Generation)
+	require.Empty(t, idx.Lookup("d", "s", "n", true))
+}
+
+func TestShardedHistoryTaskDLQWriter_FailedWriteStillMovesGeneration(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mock := NewMockTaskDLQWriter(ctrl)
+	idx := NewDLQAckLevelIndex()
+	level := persistence.HistoryDLQAckLevel{
+		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
+		TaskCategory: persistence.HistoryTaskCategoryTransfer,
+	}
+	idx.Merge([]persistence.HistoryDLQAckLevel{level})
+	before := idx.Lookup("d", "s", "n", false)[0].Generation
+	w := &shardedHistoryTaskDLQWriter{writer: mock, index: idx}
+
+	task := persistence.NewMockTask(ctrl)
+	task.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
+	req := persistence.CreateHistoryDLQTaskRequest{
+		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n", Task: task,
+	}
+	mock.EXPECT().CreateHistoryDLQTask(gomock.Any(), req).Return(errors.New("timeout: may have landed"))
+	require.Error(t, w.CreateHistoryDLQTask(context.Background(), req))
+
+	// One bump, after the write returned, even on error.
+	require.Equal(t, before+1, idx.Lookup("d", "s", "n", false)[0].Generation)
+}
+
+func TestShardedHistoryTaskDLQWriter_AckLevelCreateDedupsThroughIndex(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	inner := NewMockTaskDLQWriter(ctrl)
+	index := NewDLQAckLevelIndex()
+	w := &shardedHistoryTaskDLQWriter{writer: inner, index: index}
+	ctx := context.Background()
+
+	req := persistence.CreateHistoryDLQAckLevelRequest{
+		ShardID:               1,
+		DomainID:              "d2",
+		ClusterAttributeScope: "s",
+		ClusterAttributeName:  "n",
+		TaskCategory:          persistence.HistoryTaskCategoryTimer,
+	}
+	key := DLQAckLevelKey{DomainID: "d2", ClusterAttributeScope: "s", ClusterAttributeName: "n", TaskCategoryID: persistence.HistoryTaskCategoryIDTimer}
+
+	// A failed create is not cached.
+	inner.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), req).Return(errors.New("boom"))
+	require.Error(t, w.CreateHistoryDLQAckLevelIfNotExists(ctx, req))
+	require.False(t, index.Has(key))
+
+	// A successful create adds a dirty entry positioned at the minimum key ...
+	inner.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), req).Return(nil)
+	require.NoError(t, w.CreateHistoryDLQAckLevelIfNotExists(ctx, req))
+	require.True(t, index.Has(key))
+	got := index.Lookup("d2", "s", "n", true)
+	require.Len(t, got, 1)
+	assert.Equal(t, 1, got[0].Level.ShardID)
+	assert.Equal(t, persistence.HistoryTaskCategoryTimer, got[0].Level.TaskCategory)
+	assert.Equal(t, persistence.MinimumHistoryTaskKey.GetTaskID(), got[0].Level.AckLevelTaskID)
+	assert.Equal(t, persistence.MinimumHistoryTaskKey.GetScheduledTime(), got[0].Level.AckLevelVisibilityTS)
+
+	// ... and later calls never reach persistence again (gomock fails on an unexpected call).
+	require.NoError(t, w.CreateHistoryDLQAckLevelIfNotExists(ctx, req))
+
+	// An entry learned from a seed read also suppresses the create.
+	index.Merge([]persistence.HistoryDLQAckLevel{{
+		ShardID: 1, DomainID: "d3", ClusterAttributeScope: "s", ClusterAttributeName: "n",
+		TaskCategory: persistence.HistoryTaskCategoryTransfer,
+	}})
+	require.NoError(t, w.CreateHistoryDLQAckLevelIfNotExists(ctx, persistence.CreateHistoryDLQAckLevelRequest{
+		ShardID: 1, DomainID: "d3", ClusterAttributeScope: "s", ClusterAttributeName: "n",
+		TaskCategory: persistence.HistoryTaskCategoryTransfer,
+	}))
 }
