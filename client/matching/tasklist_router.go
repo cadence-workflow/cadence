@@ -43,6 +43,9 @@ func NewTaskListRouter(
 	logger log.Logger,
 	metricsScope metrics.Scope,
 ) TaskListRouter {
+	if spectator == nil {
+		logger.Warn("No shard distributor client, routing every task list to the hash ring")
+	}
 	return &taskListRouter{
 		resolver:               resolver,
 		taskListDifferentiator: taskListDifferentiator,
@@ -54,19 +57,12 @@ func NewTaskListRouter(
 
 func (r *taskListRouter) FromTaskList(taskListName string) (membership.HostInfo, error) {
 	shard := r.taskListDifferentiator.TaskListShard(taskListName)
-	if !shard.Onboarded {
-		r.emitRoutingPathMetric(routingPathHashRing)
-		return r.resolver.Lookup(service.Matching, taskListName)
-	}
-
-	if r.spectator == nil {
-		r.logger.Warn("No shard distributor client, defaulting to hash ring")
+	if !shard.Onboarded || r.spectator == nil {
 		r.emitRoutingPathMetric(routingPathHashRing)
 		return r.resolver.Lookup(service.Matching, taskListName)
 	}
 
 	r.emitRoutingPathMetric(routingPathShardDistributor)
-
 	return r.lookUpInShardDistributor(shard.ID)
 }
 
