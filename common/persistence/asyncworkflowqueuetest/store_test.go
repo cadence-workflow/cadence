@@ -131,8 +131,8 @@ func TestStoreRoundTrip(t *testing.T) {
 				dup.WorkflowID = "different-workflow"
 				err := m.EnqueueAsyncWorkflowMessage(ctx, dup)
 
-				var internal *types.InternalServiceError
-				require.ErrorAs(t, err, &internal)
+				var conditionFailed *persistence.ConditionFailedError
+				require.ErrorAs(t, err, &conditionFailed)
 				rows := s.Rows(0, "c1")
 				require.Len(t, rows, 1)
 				assert.Equal(t, "wf-7", rows[0].WorkflowID)
