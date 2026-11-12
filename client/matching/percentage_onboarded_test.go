@@ -1,4 +1,4 @@
-package membership
+package matching
 
 import (
 	"testing"

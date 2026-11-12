@@ -181,7 +181,7 @@ func (s *matchingEngineSuite) TearDownTest() {
 func (s *matchingEngineSuite) newMatchingEngine(
 	config *config.Config, taskMgr persistence.TaskManager,
 ) *matchingEngineImpl {
-	pct := membership.NewMockPercentageOnboarded(s.controller)
+	pct := matching.NewMockPercentageOnboarded(s.controller)
 	pct.EXPECT().Value().Return(0).AnyTimes()
 	taskListDifferentiator := matching.NewTaskListDifferentiator(
 		config.ExcludeShortLivedTaskListsFromShardManager,

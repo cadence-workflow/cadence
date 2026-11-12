@@ -679,7 +679,7 @@ func (c *cadenceImpl) GetMatchingClients() []matchingClient.Client {
 func setOperationalDefaults(params *resource.Params) {
 	params.OperationalConfigStore = configstore.NewNopClient()
 	// OperationalDynamicConfig will be set after DynamicConfig is available
-	params.PercentageOnboarded = membership.StaticPercentageOnboarded(0)
+	params.PercentageOnboarded = matchingClient.StaticPercentageOnboarded(0)
 }
 
 // newTaskListDifferentiator reads params.OperationalDynamicConfig, so call it after that is set.

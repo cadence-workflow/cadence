@@ -153,7 +153,7 @@ func (s *server) startService() common.Daemon {
 
 	params.OperationalConfigStore = s.operationalConfigStore
 	params.OperationalDynamicConfig = s.operationalDynamicConfig
-	params.PercentageOnboarded = membership.NewPercentageOnboarded(
+	params.PercentageOnboarded = matchingClient.NewPercentageOnboarded(
 		params.MetricsClient,
 		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 	)

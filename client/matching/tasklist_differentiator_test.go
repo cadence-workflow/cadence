@@ -7,7 +7,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/membership"
 )
 
 func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
@@ -141,7 +140,7 @@ func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
 			differentiator := NewTaskListDifferentiator(
 				dynamicproperties.GetBoolPropertyFn(tt.excludeShortLivedTaskLists),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
-				membership.StaticPercentageOnboarded(tt.percentageOnboarded),
+				StaticPercentageOnboarded(tt.percentageOnboarded),
 				shardCount,
 			)
 
@@ -225,7 +224,7 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 			differentiator := NewTaskListDifferentiator(
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
-				membership.StaticPercentageOnboarded(100),
+				StaticPercentageOnboarded(100),
 				shardCount,
 			)
 
@@ -242,7 +241,7 @@ func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 
 	shardTaskListsByHash := false
 	percentageOnboarded := 0
-	pct := membership.NewMockPercentageOnboarded(gomock.NewController(t))
+	pct := NewMockPercentageOnboarded(gomock.NewController(t))
 	pct.EXPECT().Value().DoAndReturn(func() int { return percentageOnboarded }).AnyTimes()
 
 	differentiator := NewTaskListDifferentiator(

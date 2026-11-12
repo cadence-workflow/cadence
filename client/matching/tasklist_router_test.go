@@ -40,7 +40,7 @@ func TestTaskListRouter_FromTaskList(t *testing.T) {
 			router.taskListDifferentiator = NewTaskListDifferentiator(
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
-				membership.StaticPercentageOnboarded(100),
+				StaticPercentageOnboarded(100),
 				config.DefaultNumMatchingShards,
 			)
 
@@ -67,7 +67,7 @@ func TestTaskListRouter_FromTaskList_ExcludedFallsBackToHashRing(t *testing.T) {
 	router.taskListDifferentiator = NewTaskListDifferentiator(
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
-		membership.StaticPercentageOnboarded(0),
+		StaticPercentageOnboarded(0),
 		config.DefaultNumMatchingShards,
 	)
 
@@ -82,7 +82,7 @@ func TestTaskListRouter_FromTaskList_NilSpectatorFallsBackToHashRing(t *testing.
 	ctrl := gomock.NewController(t)
 	resolver := membership.NewMockResolver(ctrl)
 	logger := log.NewNoop()
-	pct := membership.NewMockPercentageOnboarded(ctrl)
+	pct := NewMockPercentageOnboarded(ctrl)
 	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	taskListDifferentiator := NewTaskListDifferentiator(
@@ -137,7 +137,7 @@ func TestTaskListRouter_FromTaskList_RecordsRoutingPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			resolver := membership.NewMockResolver(ctrl)
-			percentageOnboarded := membership.NewMockPercentageOnboarded(ctrl)
+			percentageOnboarded := NewMockPercentageOnboarded(ctrl)
 			percentageOnboarded.EXPECT().Value().Return(tt.percentageOnboarded)
 
 			var spectator spectatorclient.Spectator
@@ -192,7 +192,7 @@ func newTestTaskListRouter(t *testing.T) (*taskListRouter, *membership.MockResol
 	ctrl := gomock.NewController(t)
 	spectator := spectatorclient.NewMockSpectator(ctrl)
 	excludeShortLivedTaskLists := dynamicproperties.GetBoolPropertyFn(false)
-	percentageOnboarded := membership.NewMockPercentageOnboarded(ctrl)
+	percentageOnboarded := NewMockPercentageOnboarded(ctrl)
 	percentageOnboarded.EXPECT().Value().Return(100).AnyTimes()
 	resolver := membership.NewMockResolver(ctrl)
 	logger := log.NewNoop()

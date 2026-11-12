@@ -156,7 +156,7 @@ func TestStartStop(t *testing.T) {
 	taskListDifferentiator := matching.NewTaskListDifferentiator(
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
-		membership.StaticPercentageOnboarded(0),
+		matching.StaticPercentageOnboarded(0),
 		config.DefaultNumMatchingShards,
 	)
 
@@ -291,7 +291,7 @@ func TestNewFailsWithoutMatchingShards(t *testing.T) {
 	differentiator := matching.NewTaskListDifferentiator(
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
-		membership.StaticPercentageOnboarded(0),
+		matching.StaticPercentageOnboarded(0),
 		0,
 	)
 	params := &Params{Logger: testlogger.New(t), TaskListDifferentiator: differentiator}

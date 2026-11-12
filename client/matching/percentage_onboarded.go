@@ -1,11 +1,11 @@
-package membership
+package matching
 
 import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 )
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination percentage_onboarded_mock.go -self_package github.com/uber/cadence/common/membership
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination percentage_onboarded_mock.go -self_package github.com/uber/cadence/client/matching
 
 // PercentageOnboarded is the shared read path for the shard-manager onboarding
 // percentage.

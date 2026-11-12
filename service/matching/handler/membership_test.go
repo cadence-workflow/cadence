@@ -116,7 +116,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			// testing. With the onboarding percentage at 0, no task list name is below the
 			// percentage threshold, so every name is considered excluded regardless of whether it
 			// contains a UUID.
-			pct := membership.NewMockPercentageOnboarded(ctrl)
+			pct := matching.NewMockPercentageOnboarded(ctrl)
 			pct.EXPECT().Value().Return(0).AnyTimes()
 			taskListDifferentiator := matching.NewTaskListDifferentiator(
 				dynamicproperties.GetBoolPropertyFn(true),
@@ -354,7 +354,7 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
-	pct := membership.NewMockPercentageOnboarded(ctrl)
+	pct := matching.NewMockPercentageOnboarded(ctrl)
 	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	engine := matchingEngineImpl{

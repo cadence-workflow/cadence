@@ -28,7 +28,6 @@ import (
 
 	matchingClient "github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/service/matching/config"
@@ -48,7 +47,7 @@ type Service struct {
 	ShardDistributorMatchingConfig clientcommon.Config
 	taskListDifferentiator         *matchingClient.TaskListDifferentiator
 	drainObserver                  clientcommon.DrainSignalObserver
-	percentageOnboarded            membership.PercentageOnboarded
+	percentageOnboarded            matchingClient.PercentageOnboarded
 }
 
 // NewService builds a new cadence-matching service

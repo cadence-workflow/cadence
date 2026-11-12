@@ -201,7 +201,7 @@ func newOnboardingTestData(
 
 	// SD gives out every shard, so shardOwners names them all.
 	shardCount := len(shardOwners)
-	percentageOnboarded := membership.NewPercentageOnboarded(
+	percentageOnboarded := matching.NewPercentageOnboarded(
 		metrics.NewNoopMetricsClient(),
 		func(...dynamicproperties.FilterOption) int { return td.percentageOnboarded },
 	)
@@ -277,7 +277,7 @@ func (td *onboardingTestData) newTaskListRouter(t *testing.T, hostCount int) mat
 
 // newHost starts a matching engine that knows itself as hostName and routes task lists with the
 // shared router.
-func (td *onboardingTestData) newHost(t *testing.T, hostName string, percentageOnboarded membership.PercentageOnboarded) *onboardingHost {
+func (td *onboardingTestData) newHost(t *testing.T, hostName string, percentageOnboarded matching.PercentageOnboarded) *onboardingHost {
 	peerProvider := membership.NewMockPeerProvider(td.ctrl)
 	self := membership.NewDetailedHostInfo("", hostName, nil)
 	peerProvider.EXPECT().WhoAmI().Return(self, nil).AnyTimes()

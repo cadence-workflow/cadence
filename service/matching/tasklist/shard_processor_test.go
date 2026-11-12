@@ -12,7 +12,6 @@ import (
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -41,7 +40,7 @@ func newShardProcessorTestData(t *testing.T, taskListID *Identifier) shardProces
 	taskListDifferentiator := matching.NewTaskListDifferentiator(
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
-		membership.StaticPercentageOnboarded(100),
+		matching.StaticPercentageOnboarded(100),
 		shardCount,
 	)
 
@@ -122,7 +121,7 @@ func TestShardProcessor_ShardByHashSkipsTaskListsOwnedByHashRing(t *testing.T) {
 	taskListDifferentiator := matching.NewTaskListDifferentiator(
 		dynamicproperties.GetBoolPropertyFn(true),
 		dynamicproperties.GetBoolPropertyFn(true),
-		membership.StaticPercentageOnboarded(100),
+		matching.StaticPercentageOnboarded(100),
 		shardCount,
 	)
 

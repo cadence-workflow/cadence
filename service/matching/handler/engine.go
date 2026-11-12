@@ -120,7 +120,7 @@ type (
 		failoverNotificationVersion    int64
 		ShardDistributorMatchingConfig clientcommon.Config
 		drainObserver                  clientcommon.DrainSignalObserver
-		percentageOnboarded            membership.PercentageOnboarded
+		percentageOnboarded            matching.PercentageOnboarded
 		taskListDifferentiator         *matching.TaskListDifferentiator
 	}
 )
@@ -172,7 +172,7 @@ func NewEngine(
 	ShardDistributorMatchingConfig clientcommon.Config,
 	taskListDifferentiator *matching.TaskListDifferentiator,
 	drainObserver clientcommon.DrainSignalObserver,
-	percentageOnboarded membership.PercentageOnboarded,
+	percentageOnboarded matching.PercentageOnboarded,
 ) Engine {
 	e := &matchingEngineImpl{
 		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient, taskListDifferentiator.ShardCount()),
