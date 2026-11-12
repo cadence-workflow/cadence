@@ -25,6 +25,7 @@ package taskdlq
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -726,6 +727,82 @@ func TestProcessPartitions_ReadsAckLevelsOncePerBatch(t *testing.T) {
 		{DomainID: "d1", ClusterAttributeScope: "region", ClusterAttributeName: "r2"}: 1,
 		{DomainID: "d2"}: 1,
 	}, read)
+}
+
+func TestProcessPartitions_DefaultPartitionMatchesEveryRowOfItsDomain(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, mgr, _ := setupProcessor(t, ctrl)
+
+	level := func(domainID, scope, name string) persistence.HistoryDLQAckLevel {
+		return persistence.HistoryDLQAckLevel{
+			ShardID: 1, DomainID: domainID, ClusterAttributeScope: scope, ClusterAttributeName: name,
+			TaskCategory:         persistence.HistoryTaskCategoryTransfer,
+			AckLevelVisibilityTS: time.Unix(0, 0).UTC(), AckLevelTaskID: -1,
+		}
+	}
+	mgr.EXPECT().
+		GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{
+			level("ap", "", ""),
+			level("ap", "region", "r1"), // left over from when the domain was active-active
+			level("aa", "region", "r1"),
+			level("aa", "region", "r2"), // not in the batch
+		}, nil).
+		Times(1)
+
+	read := make(map[Partition]int)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req persistence.HistoryDLQGetTasksRequest) (persistence.HistoryDLQGetTasksResponse, error) {
+			read[Partition{DomainID: req.DomainID, ClusterAttributeScope: req.ClusterAttributeScope, ClusterAttributeName: req.ClusterAttributeName}]++
+			return persistence.HistoryDLQGetTasksResponse{}, nil
+		}).Times(3)
+
+	// The active-passive failover callback enqueues Partition{DomainID} with no attribute. Like the
+	// by-domain read it replaces, it covers every row of the domain.
+	require.NoError(t, proc.ProcessPartitions(context.Background(), []Partition{
+		{DomainID: "ap"},
+		{DomainID: "aa", ClusterAttributeScope: "region", ClusterAttributeName: "r1"},
+	}))
+	assert.Equal(t, map[Partition]int{
+		{DomainID: "ap"}: 1,
+		{DomainID: "ap", ClusterAttributeScope: "region", ClusterAttributeName: "r1"}: 1,
+		{DomainID: "aa", ClusterAttributeScope: "region", ClusterAttributeName: "r1"}: 1,
+	}, read)
+}
+
+func TestProcessPartitions_ChecksDomainModeOncePerDomain(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	modeChecks := make(map[string]int)
+	proc := NewProcessor(ProcessorParams{
+		ShardID:    1,
+		Manager:    mgr,
+		DomainName: func(id string) (string, error) { return id, nil },
+		Reinjector: NewMockTaskReinjector(ctrl),
+		PageSize:   10,
+		Interval:   dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
+		DomainMode: func(domain string) string {
+			modeChecks[domain]++
+			return constants.HistoryTaskDLQModeDisabled
+		},
+		Enabled:       dynamicproperties.GetBoolPropertyFn(true),
+		TimeSource:    clock.NewMockedTimeSource(),
+		MetricsClient: metrics.NewNoopMetricsClient(),
+		Logger:        testlogger.New(t),
+	})
+
+	var parts []Partition
+	for i := 0; i < 50; i++ {
+		parts = append(parts, Partition{DomainID: "d", ClusterAttributeScope: "region", ClusterAttributeName: fmt.Sprintf("r%d", i)})
+	}
+	parts = append(parts, Partition{DomainID: "e"})
+
+	require.NoError(t, proc.ProcessPartitions(context.Background(), parts))
+	assert.Equal(t, map[string]int{"d": 1, "e": 1}, modeChecks)
 }
 
 func TestProcessPartitions_DomainMode(t *testing.T) {
