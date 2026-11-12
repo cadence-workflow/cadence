@@ -89,6 +89,17 @@ func (c *frontendClient) DeprecateDomain(ctx context.Context, dp1 *types.Depreca
 	return c.throttleRetry.Do(ctx, op)
 }
 
+func (c *frontendClient) DescribeBatchOperation(ctx context.Context, dp1 *types.DescribeBatchOperationRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeBatchOperationResponse, err error) {
+	var resp *types.DescribeBatchOperationResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.DescribeBatchOperation(ctx, dp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeDomainResponse, err error) {
 	var resp *types.DescribeDomainResponse
 	op := func(ctx context.Context) error {
@@ -215,6 +226,17 @@ func (c *frontendClient) ListArchivedWorkflowExecutions(ctx context.Context, lp1
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.ListArchivedWorkflowExecutions(ctx, lp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
+func (c *frontendClient) ListBatchOperations(ctx context.Context, lp1 *types.ListBatchOperationsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListBatchOperationsResponse, err error) {
+	var resp *types.ListBatchOperationsResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.ListBatchOperations(ctx, lp1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
@@ -525,6 +547,17 @@ func (c *frontendClient) SignalWorkflowExecution(ctx context.Context, sp1 *types
 	return c.throttleRetry.Do(ctx, op)
 }
 
+func (c *frontendClient) StartBatchOperation(ctx context.Context, sp1 *types.StartBatchOperationRequest, p1 ...yarpc.CallOption) (sp2 *types.StartBatchOperationResponse, err error) {
+	var resp *types.StartBatchOperationResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.StartBatchOperation(ctx, sp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) StartWorkflowExecution(ctx context.Context, sp1 *types.StartWorkflowExecutionRequest, p1 ...yarpc.CallOption) (sp2 *types.StartWorkflowExecutionResponse, err error) {
 	var resp *types.StartWorkflowExecutionResponse
 	op := func(ctx context.Context) error {
@@ -541,6 +574,17 @@ func (c *frontendClient) StartWorkflowExecutionAsync(ctx context.Context, sp1 *t
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.StartWorkflowExecutionAsync(ctx, sp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
+func (c *frontendClient) StopBatchOperation(ctx context.Context, sp1 *types.StopBatchOperationRequest, p1 ...yarpc.CallOption) (sp2 *types.StopBatchOperationResponse, err error) {
+	var resp *types.StopBatchOperationResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.StopBatchOperation(ctx, sp1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)

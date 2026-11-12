@@ -72,6 +72,12 @@ func (c *frontendClient) DeprecateDomain(ctx context.Context, dp1 *types.Depreca
 	return c.client.DeprecateDomain(ctx, dp1, p1...)
 }
 
+func (c *frontendClient) DescribeBatchOperation(ctx context.Context, dp1 *types.DescribeBatchOperationRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeBatchOperationResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.DescribeBatchOperation(ctx, dp1, p1...)
+}
+
 func (c *frontendClient) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeDomainResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
@@ -142,6 +148,12 @@ func (c *frontendClient) ListArchivedWorkflowExecutions(ctx context.Context, lp1
 	ctx, cancel := createContext(ctx, c.longPollTimeout)
 	defer cancel()
 	return c.client.ListArchivedWorkflowExecutions(ctx, lp1, p1...)
+}
+
+func (c *frontendClient) ListBatchOperations(ctx context.Context, lp1 *types.ListBatchOperationsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListBatchOperationsResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.ListBatchOperations(ctx, lp1, p1...)
 }
 
 func (c *frontendClient) ListClosedWorkflowExecutions(ctx context.Context, lp1 *types.ListClosedWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListClosedWorkflowExecutionsResponse, err error) {
@@ -336,6 +348,12 @@ func (c *frontendClient) SignalWorkflowExecution(ctx context.Context, sp1 *types
 	return c.client.SignalWorkflowExecution(ctx, sp1, p1...)
 }
 
+func (c *frontendClient) StartBatchOperation(ctx context.Context, sp1 *types.StartBatchOperationRequest, p1 ...yarpc.CallOption) (sp2 *types.StartBatchOperationResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.StartBatchOperation(ctx, sp1, p1...)
+}
+
 func (c *frontendClient) StartWorkflowExecution(ctx context.Context, sp1 *types.StartWorkflowExecutionRequest, p1 ...yarpc.CallOption) (sp2 *types.StartWorkflowExecutionResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
@@ -346,6 +364,12 @@ func (c *frontendClient) StartWorkflowExecutionAsync(ctx context.Context, sp1 *t
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.StartWorkflowExecutionAsync(ctx, sp1, p1...)
+}
+
+func (c *frontendClient) StopBatchOperation(ctx context.Context, sp1 *types.StopBatchOperationRequest, p1 ...yarpc.CallOption) (sp2 *types.StopBatchOperationResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.StopBatchOperation(ctx, sp1, p1...)
 }
 
 func (c *frontendClient) TerminateWorkflowExecution(ctx context.Context, tp1 *types.TerminateWorkflowExecutionRequest, p1 ...yarpc.CallOption) (err error) {

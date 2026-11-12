@@ -95,4 +95,9 @@ type Client interface {
 	BackfillSchedule(context.Context, *types.BackfillScheduleRequest, ...yarpc.CallOption) (*types.BackfillScheduleResponse, error)
 	ListSchedules(context.Context, *types.ListSchedulesRequest, ...yarpc.CallOption) (*types.ListSchedulesResponse, error)
 	ExportWorkflowExecution(context.Context, *types.ExportWorkflowExecutionRequest, ...yarpc.CallOption) (*types.ExportWorkflowExecutionResponse, error)
+
+	StartBatchOperation(context.Context, *types.StartBatchOperationRequest, ...yarpc.CallOption) (*types.StartBatchOperationResponse, error)
+	StopBatchOperation(context.Context, *types.StopBatchOperationRequest, ...yarpc.CallOption) (*types.StopBatchOperationResponse, error)
+	DescribeBatchOperation(context.Context, *types.DescribeBatchOperationRequest, ...yarpc.CallOption) (*types.DescribeBatchOperationResponse, error)
+	ListBatchOperations(context.Context, *types.ListBatchOperationsRequest, ...yarpc.CallOption) (*types.ListBatchOperationsResponse, error)
 }

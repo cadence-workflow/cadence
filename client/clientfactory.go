@@ -224,6 +224,7 @@ func (cf *rpcClientFactory) NewFrontendClientWithTimeoutAndConfig(
 			apiv1.NewWorkerAPIYARPCClient(config),
 			apiv1.NewVisibilityAPIYARPCClient(config),
 			apiv1.NewScheduleAPIYARPCClient(config),
+			apiv1.NewBatchAPIYARPCClient(config),
 		)
 	} else {
 		client = thrift.NewFrontendClient(workflowserviceclient.New(config))

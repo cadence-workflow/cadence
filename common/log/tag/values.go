@@ -431,6 +431,10 @@ var (
 	FrontendClientOperationBackfillSchedule                      = clientOperation("frontend-backfill-schedule")
 	FrontendClientOperationListSchedules                         = clientOperation("frontend-list-schedules")
 	FrontendClientOperationExportWorkflowExecution               = clientOperation("frontend-export-workflow-execution")
+	FrontendClientOperationStartBatchOperation                   = clientOperation("frontend-start-batch-operation")
+	FrontendClientOperationStopBatchOperation                    = clientOperation("frontend-stop-batch-operation")
+	FrontendClientOperationDescribeBatchOperation                = clientOperation("frontend-describe-batch-operation")
+	FrontendClientOperationListBatchOperations                   = clientOperation("frontend-list-batch-operations")
 
 	HistoryClientOperationStartWorkflowExecution            = clientOperation("history-start-wf-execution")
 	HistoryClientOperationDescribeHistoryHost               = clientOperation("history-describe-history-host")

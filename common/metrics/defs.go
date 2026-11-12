@@ -600,6 +600,14 @@ const (
 	FrontendClientListSchedulesScope
 	// FrontendClientExportWorkflowExecutionScope tracks RPC calls to frontend service
 	FrontendClientExportWorkflowExecutionScope
+	// FrontendClientStartBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientStartBatchOperationScope
+	// FrontendClientStopBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientStopBatchOperationScope
+	// FrontendClientDescribeBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientDescribeBatchOperationScope
+	// FrontendClientListBatchOperationsScope tracks RPC calls to frontend service
+	FrontendClientListBatchOperationsScope
 	// FrontendClientListWorkflowExecutionsScope tracks RPC calls to frontend service
 	FrontendClientListWorkflowExecutionsScope
 	// FrontendClientScanWorkflowExecutionsScope tracks RPC calls to frontend service
@@ -1888,6 +1896,10 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientBackfillScheduleScope:                      {operation: "FrontendClientBackfillSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientListSchedulesScope:                         {operation: "FrontendClientListSchedules", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientExportWorkflowExecutionScope:               {operation: "FrontendClientExportWorkflowExecution", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientStartBatchOperationScope:                   {operation: "FrontendClientStartBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientStopBatchOperationScope:                    {operation: "FrontendClientStopBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientDescribeBatchOperationScope:                {operation: "FrontendClientDescribeBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientListBatchOperationsScope:                   {operation: "FrontendClientListBatchOperations", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 
 		AdminClientGetReplicationTasksScope:                   {operation: "AdminClientGetReplicationTasks", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientAddSearchAttributeScope:                    {operation: "AdminClientAddSearchAttribute", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},

@@ -160,6 +160,26 @@ func (c *frontendClient) DeprecateDomain(ctx context.Context, dp1 *types.Depreca
 	return
 }
 
+func (c *frontendClient) DescribeBatchOperation(ctx context.Context, dp1 *types.DescribeBatchOperationRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeBatchOperationResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		dp2, err = c.client.DescribeBatchOperation(ctx, dp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationDescribeBatchOperation,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *frontendClient) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeDomainResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -390,6 +410,26 @@ func (c *frontendClient) ListArchivedWorkflowExecutions(ctx context.Context, lp1
 	if fakeErr != nil {
 		c.logger.Error(msgFrontendInjectedFakeErr,
 			tag.FrontendClientOperationListArchivedWorkflowExecutions,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *frontendClient) ListBatchOperations(ctx context.Context, lp1 *types.ListBatchOperationsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListBatchOperationsResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		lp2, err = c.client.ListBatchOperations(ctx, lp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationListBatchOperations,
 			tag.Error(fakeErr),
 			tag.Bool(forwardCall),
 			tag.ClientError(err),
@@ -1040,6 +1080,26 @@ func (c *frontendClient) SignalWorkflowExecution(ctx context.Context, sp1 *types
 	return
 }
 
+func (c *frontendClient) StartBatchOperation(ctx context.Context, sp1 *types.StartBatchOperationRequest, p1 ...yarpc.CallOption) (sp2 *types.StartBatchOperationResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		sp2, err = c.client.StartBatchOperation(ctx, sp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationStartBatchOperation,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *frontendClient) StartWorkflowExecution(ctx context.Context, sp1 *types.StartWorkflowExecutionRequest, p1 ...yarpc.CallOption) (sp2 *types.StartWorkflowExecutionResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -1070,6 +1130,26 @@ func (c *frontendClient) StartWorkflowExecutionAsync(ctx context.Context, sp1 *t
 	if fakeErr != nil {
 		c.logger.Error(msgFrontendInjectedFakeErr,
 			tag.FrontendClientOperationStartWorkflowExecutionAsync,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *frontendClient) StopBatchOperation(ctx context.Context, sp1 *types.StopBatchOperationRequest, p1 ...yarpc.CallOption) (sp2 *types.StopBatchOperationResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		sp2, err = c.client.StopBatchOperation(ctx, sp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationStopBatchOperation,
 			tag.Error(fakeErr),
 			tag.Bool(forwardCall),
 			tag.ClientError(err),
