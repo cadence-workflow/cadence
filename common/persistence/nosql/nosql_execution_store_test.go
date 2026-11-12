@@ -1177,6 +1177,48 @@ func TestCreateHistoryTasks(t *testing.T) {
 		require.Equal(t, runA, timers[0].Timer.RunID)
 	})
 
+	t.Run("when visibility tasks are provided it should write them as blobs with their task IDs", func(t *testing.T) {
+		controller := gomock.NewController(t)
+		mockDB := nosqlplugin.NewMockDB(controller)
+		parser, err := serialization.NewParser(persistence.NewDefaultDynamicConfiguration())
+		require.NoError(t, err)
+		taskSerializer := serialization.NewTaskSerializer(parser)
+		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), taskSerializer, persistence.NewDefaultDynamicConfiguration())
+
+		visibilityTask := &persistence.RecordWorkflowClosedTask{
+			WorkflowIdentifier: persistence.WorkflowIdentifier{
+				DomainID:   "8be8a310-7d20-483e-a5d2-48659dc47602",
+				WorkflowID: workflowA,
+				RunID:      "4be8a310-7d20-483e-a5d2-48659dc47609",
+			},
+			TaskData: persistence.TaskData{TaskID: 5, Version: 1, VisibilityTimestamp: time.Unix(1, 0)},
+		}
+
+		var captured map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
+		mockDB.EXPECT().
+			InsertHistoryTasks(ctx, gomock.Any(), gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 3}).
+			DoAndReturn(func(_ context.Context, tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask, _ time.Time, _ nosqlplugin.ShardCondition) error {
+				captured = tasksByCategory
+				return nil
+			})
+
+		require.NoError(t, store.CreateHistoryTasks(ctx, &persistence.CreateHistoryTasksRequest{
+			ShardID: common.IntPtr(testExecutionShardID),
+			RangeID: 3,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryVisibility: {visibilityTask},
+			},
+		}))
+
+		visibilityTasks := captured[persistence.HistoryTaskCategoryVisibility]
+		require.Len(t, visibilityTasks, 1)
+		require.Equal(t, int64(5), visibilityTasks[0].TaskID)
+		got, err := taskSerializer.DeserializeTask(persistence.HistoryTaskCategoryVisibility, visibilityTasks[0].Task)
+		require.NoError(t, err)
+		got.SetTaskID(visibilityTasks[0].TaskID)
+		require.Equal(t, visibilityTask, got)
+	})
+
 	t.Run("when the request has no tasks it should not error", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
@@ -1190,7 +1232,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 		}))
 	})
 
-	t.Run("when a category other than transfer or timer is provided it should return a BadRequestError without writing", func(t *testing.T) {
+	t.Run("when a category other than transfer, timer or visibility is provided it should return a BadRequestError without writing", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
 		store := newTestNosqlExecutionStoreWithOptions(mockDB, log.NewNoop(), nil, persistence.NewDefaultDynamicConfiguration())
@@ -1595,6 +1637,33 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 				mockDB.EXPECT().RangeDeleteReplicationTasks(ctx, shardID, int64(200)).Return(nil)
 			},
 			expectedError: nil,
+		},
+		{
+			name: "success - immediate visibility task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:             common.IntPtr(testExecutionShardID),
+				TaskCategory:        persistence.HistoryTaskCategoryVisibility,
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteVisibilityTasks(ctx, shardID, int64(100), int64(200)).Return(nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "database error on visibility task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:             common.IntPtr(testExecutionShardID),
+				TaskCategory:        persistence.HistoryTaskCategoryVisibility,
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteVisibilityTasks(ctx, shardID, int64(100), int64(200)).Return(errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
 		},
 		{
 			name: "unknown task category error",
@@ -2015,6 +2084,85 @@ func TestGetHistoryTasks(t *testing.T) {
 			expectedError: errors.New("db error"),
 		},
 		{
+			name: "success - get immediate visibility tasks always from data blob",
+			request: &persistence.GetHistoryTasksRequest{
+				ShardID:             common.IntPtr(testExecutionShardID),
+				TaskCategory:        persistence.HistoryTaskCategoryVisibility,
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+				PageSize:            10,
+				NextPageToken:       []byte("next-page-token"),
+			},
+			// visibility tasks are blob-only, so they are read from the blob even when this is off
+			readNoSQLHistoryTaskFromDataBlob: false,
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectVisibilityTasksOrderByTaskID(ctx, shardID, 10, []byte("next-page-token"), int64(100), int64(200)).Return([]*nosqlplugin.HistoryMigrationTask{
+					{
+						Task:   &persistence.DataBlob{Data: []byte("task"), Encoding: "thriftrw"},
+						TaskID: 7,
+					},
+				}, nil, nil)
+				mockTaskSerializer.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryVisibility, &persistence.DataBlob{Data: []byte("task"), Encoding: "thriftrw"}).Return(&persistence.RecordWorkflowStartedTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "testDomainID",
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						Version:             1,
+						VisibilityTimestamp: time.Unix(0, 0),
+					},
+				}, nil)
+			},
+			expectedError: nil,
+			expectedTasks: []persistence.Task{
+				&persistence.RecordWorkflowStartedTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "testDomainID",
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						TaskID:              7,
+						Version:             1,
+						VisibilityTimestamp: time.Unix(0, 0),
+					},
+				},
+			},
+		},
+		{
+			name: "deserialize error on visibility task retrieval",
+			request: &persistence.GetHistoryTasksRequest{
+				ShardID:      common.IntPtr(testExecutionShardID),
+				TaskCategory: persistence.HistoryTaskCategoryVisibility,
+				PageSize:     10,
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectVisibilityTasksOrderByTaskID(ctx, shardID, 10, gomock.Any(), gomock.Any(), gomock.Any()).Return([]*nosqlplugin.HistoryMigrationTask{
+					{
+						Task:   &persistence.DataBlob{Data: []byte("task"), Encoding: "thriftrw"},
+						TaskID: 7,
+					},
+				}, nil, nil)
+				mockTaskSerializer.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryVisibility, gomock.Any()).Return(nil, errors.New("deserialize error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("deserialize error"),
+		},
+		{
+			name: "database error on visibility task retrieval",
+			request: &persistence.GetHistoryTasksRequest{
+				ShardID:      common.IntPtr(testExecutionShardID),
+				TaskCategory: persistence.HistoryTaskCategoryVisibility,
+				PageSize:     10,
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectVisibilityTasksOrderByTaskID(ctx, shardID, 10, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
 			name: "unknown task category error",
 			request: &persistence.GetHistoryTasksRequest{
 				ShardID:      common.IntPtr(testExecutionShardID),
@@ -2096,6 +2244,31 @@ func TestCompleteHistoryTask(t *testing.T) {
 				mockDB.EXPECT().DeleteReplicationTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)}).Return(nil)
 			},
 			expectedError: nil,
+		},
+		{
+			name: "success - complete immediate visibility task",
+			request: &persistence.CompleteHistoryTaskRequest{
+				ShardID:      common.IntPtr(testExecutionShardID),
+				TaskCategory: persistence.HistoryTaskCategoryVisibility,
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(4)},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
+				mockDB.EXPECT().DeleteVisibilityTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(4)}).Return(nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "delete visibility task error",
+			request: &persistence.CompleteHistoryTaskRequest{
+				ShardID:      common.IntPtr(testExecutionShardID),
+				TaskCategory: persistence.HistoryTaskCategoryVisibility,
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(4)},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
+				mockDB.EXPECT().DeleteVisibilityTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(4)}).Return(errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
 		},
 		{
 			name: "unknown task category type",

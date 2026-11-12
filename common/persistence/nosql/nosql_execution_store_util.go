@@ -359,6 +359,12 @@ func (d *nosqlExecutionStore) prepareNoSQLTasksForWorkflowTxn(
 				return err
 			}
 			outputTasks[c] = append(outputTasks[c], replicationTasks...)
+		case persistence.HistoryTaskCategoryIDVisibility:
+			visibilityTasks, err := d.prepareVisibilityTasksForWorkflowTxn(tasks)
+			if err != nil {
+				return err
+			}
+			outputTasks[c] = append(outputTasks[c], visibilityTasks...)
 		}
 	}
 	// TODO: implementing logic for other categories
@@ -384,6 +390,23 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(_, _, _ string,
 		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
 			Transfer: t,
 			Task:     blob,
+		})
+	}
+	return tasks, nil
+}
+
+// prepareVisibilityTasksForWorkflowTxn always serializes visibility tasks into a blob, regardless of
+// EnableHistoryTaskDualWriteMode, because visibility task rows have no typed columns.
+func (d *nosqlExecutionStore) prepareVisibilityTasksForWorkflowTxn(visibilityTasks []persistence.Task) ([]*nosqlplugin.HistoryMigrationTask, error) {
+	var tasks []*nosqlplugin.HistoryMigrationTask
+	for _, task := range visibilityTasks {
+		data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryVisibility, task)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
+			Task:   &data,
+			TaskID: task.GetTaskID(),
 		})
 	}
 	return tasks, nil

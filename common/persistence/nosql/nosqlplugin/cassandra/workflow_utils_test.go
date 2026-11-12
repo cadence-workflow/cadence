@@ -1287,6 +1287,80 @@ func TestTransferTasks(t *testing.T) {
 	}
 }
 
+func TestVisibilityTasks(t *testing.T) {
+	tests := []struct {
+		desc            string
+		shardID         int
+		visibilityTasks []*nosqlplugin.HistoryMigrationTask
+		// expectations
+		wantQueries []string
+	}{
+		{
+			desc:    "ok",
+			shardID: 1000,
+			visibilityTasks: []*nosqlplugin.HistoryMigrationTask{
+				{
+					Task: &persistence.DataBlob{
+						Data:     []byte("vis1"),
+						Encoding: constants.EncodingTypeThriftRW,
+					},
+					TaskID: 355,
+				},
+				{
+					Task: &persistence.DataBlob{
+						Data:     []byte("vis2"),
+						Encoding: constants.EncodingTypeThriftRW,
+					},
+					TaskID: 356,
+				},
+			},
+			wantQueries: []string{
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, data, data_encoding, visibility_ts, task_id, created_time) ` +
+					`VALUES(1000, 12, 10000000-d000-f000-f000-000000000000, 20000000-d000-f000-f000-000000000000, 30000000-d000-f000-f000-000000000000, ` +
+					`[118 105 115 49], thriftrw, 946684800000, 355, 2025-01-06T15:00:00Z)`,
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, data, data_encoding, visibility_ts, task_id, created_time) ` +
+					`VALUES(1000, 12, 10000000-d000-f000-f000-000000000000, 20000000-d000-f000-f000-000000000000, 30000000-d000-f000-f000-000000000000, ` +
+					`[118 105 115 50], thriftrw, 946684800000, 356, 2025-01-06T15:00:00Z)`,
+			},
+		},
+		{
+			desc:    "no tasks",
+			shardID: 1000,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			batch := &fakeBatch{}
+			createVisibilityTasks(batch, tc.shardID, tc.visibilityTasks, FixedTime)
+			if diff := cmp.Diff(tc.wantQueries, batch.queries); diff != "" {
+				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestCreateTasksByCategory_Visibility(t *testing.T) {
+	batch := &fakeBatch{}
+	createTasksByCategory(batch, 1000, "domain_xyz", "workflow_xyz", FixedTime,
+		map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask{
+			persistence.HistoryTaskCategoryVisibility: {
+				{
+					Task:   &persistence.DataBlob{Data: []byte("vis1"), Encoding: constants.EncodingTypeThriftRW},
+					TaskID: 355,
+				},
+			},
+		})
+	want := []string{
+		`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, data, data_encoding, visibility_ts, task_id, created_time) ` +
+			`VALUES(1000, 12, 10000000-d000-f000-f000-000000000000, 20000000-d000-f000-f000-000000000000, 30000000-d000-f000-f000-000000000000, ` +
+			`[118 105 115 49], thriftrw, 946684800000, 355, 2025-01-06T15:00:00Z)`,
+	}
+	if diff := cmp.Diff(want, batch.queries); diff != "" {
+		t.Fatalf("Query mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestResetSignalsRequested(t *testing.T) {
 	tests := []struct {
 		desc         string

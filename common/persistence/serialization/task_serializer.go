@@ -58,6 +58,8 @@ func (s *taskSerializerImpl) SerializeTask(category persistence.HistoryTaskCateg
 		return s.serializeTimerTask(task)
 	case persistence.HistoryTaskCategoryIDReplication:
 		return s.serializeReplicationTask(task)
+	case persistence.HistoryTaskCategoryIDVisibility:
+		return s.serializeVisibilityTask(task)
 	default:
 		return persistence.DataBlob{}, fmt.Errorf("unknown category ID: %v", category.ID())
 	}
@@ -71,6 +73,8 @@ func (s *taskSerializerImpl) DeserializeTask(category persistence.HistoryTaskCat
 		return s.deserializeTimerTask(blob)
 	case persistence.HistoryTaskCategoryIDReplication:
 		return s.deserializeReplicationTask(blob)
+	case persistence.HistoryTaskCategoryIDVisibility:
+		return s.deserializeVisibilityTask(blob)
 	default:
 		return nil, fmt.Errorf("unknown category ID: %v", category.ID())
 	}
@@ -311,6 +315,38 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 		return nil, fmt.Errorf("unknown transfer task type: %v", info.GetTaskType())
 	}
 	return task, nil
+}
+
+// Visibility tasks reuse the transfer task blob format, restricted to the visibility task types.
+func (s *taskSerializerImpl) serializeVisibilityTask(task persistence.Task) (persistence.DataBlob, error) {
+	if !isVisibilityTaskType(task.GetTaskType()) {
+		return persistence.DataBlob{}, &types.InternalServiceError{
+			Message: fmt.Sprintf("Unknown visibility type: %v", task.GetTaskType()),
+		}
+	}
+	return s.serializeTransferTask(task)
+}
+
+func (s *taskSerializerImpl) deserializeVisibilityTask(blob *persistence.DataBlob) (persistence.Task, error) {
+	task, err := s.deserializeTransferTask(blob)
+	if err != nil {
+		return nil, err
+	}
+	if !isVisibilityTaskType(task.GetTaskType()) {
+		return nil, fmt.Errorf("unknown visibility task type: %v", task.GetTaskType())
+	}
+	return task, nil
+}
+
+func isVisibilityTaskType(taskType int) bool {
+	switch taskType {
+	case persistence.TransferTaskTypeRecordWorkflowStarted,
+		persistence.TransferTaskTypeUpsertWorkflowSearchAttributes,
+		persistence.TransferTaskTypeRecordWorkflowClosed:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *taskSerializerImpl) serializeTimerTask(task persistence.Task) (persistence.DataBlob, error) {
