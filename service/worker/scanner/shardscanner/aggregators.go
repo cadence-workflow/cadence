@@ -413,6 +413,9 @@ func (a *ShardScanResultAggregator) insertReportIntoSizes(report ScanReport) {
 
 // GetShardDistributionStats returns aggregated size statistics
 func (a *ShardScanResultAggregator) GetShardDistributionStats() ShardDistributionStats {
+	if len(a.shardSizes) == 0 {
+		return ShardDistributionStats{}
+	}
 	return ShardDistributionStats{
 		Max:    a.shardSizes[0].EntitiesCount,
 		Median: a.shardSizes[int(float64(len(a.shardSizes))*.5)].EntitiesCount,
