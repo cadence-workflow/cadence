@@ -1687,6 +1687,71 @@ func TestProcessShard_RetriesServiceBusyWithBackoff(t *testing.T) {
 	assert.Equal(t, int64(2), busyResponses(testScope))
 }
 
+// TestFailoverPreemptsSweepSleepingInBusyBackoff pins that a failover arriving while the
+// periodic sweep sleeps in a ServiceBusy backoff does not wait for the backoff to elapse:
+// FailoverPartitions cancels the sweep context, the retrier's sleep selects on it, and the
+// failover batch is processed without the clock advancing.
+func TestFailoverPreemptsSweepSleepingInBusyBackoff(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ts := clock.NewMockedTimeSource()
+	testScope := tally.NewTestScope("", nil)
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	proc := NewProcessor(ProcessorParams{
+		ShardID:                1,
+		Manager:                mgr,
+		DomainName:             func(id string) (string, error) { return id, nil },
+		Reinjector:             NewMockTaskReinjector(ctrl),
+		PageSize:               10,
+		Interval:               dynamicproperties.GetDurationPropertyFnFilteredByShardID(time.Hour),
+		FailoverJitterMaxDelay: dynamicproperties.GetDurationPropertyFn(0),
+		DomainMode:             dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		Enabled:                dynamicproperties.GetBoolPropertyFn(true),
+		HostBudget:             &countingBudget{},
+		TimeSource:             ts,
+		MetricsClient:          metrics.NewClient(testScope, metrics.History, metrics.MigrationConfig{}),
+		Logger:                 testlogger.New(t),
+	})
+
+	al := baseAckLevel(1)
+	// One ack-level read for the sweep, one for the failover batch.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+		Return([]persistence.HistoryDLQAckLevel{al}, nil).Times(2)
+	failoverRead := make(chan struct{})
+	busy := &types.ServiceBusyError{Message: "Persistence Max QPS Reached."}
+	gomock.InOrder(
+		// The sweep's task read is busy exactly once: a second call would mean the backoff
+		// sleep ran to completion instead of being cut short by the failover.
+		mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, busy).Times(1),
+		// The failover's task read.
+		mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).DoAndReturn(func(context.Context, persistence.HistoryDLQGetTasksRequest) (persistence.HistoryDLQGetTasksResponse, error) {
+			close(failoverRead)
+			return persistence.HistoryDLQGetTasksResponse{}, nil
+		}),
+	)
+
+	require.NoError(t, proc.Start(context.Background()))
+	defer proc.Stop(context.Background())
+
+	// Fire the sweep timer (interval 1h plus jitter).
+	ts.BlockUntil(1)
+	ts.Advance(2 * time.Hour)
+	// The sweep timer is reset only after runSweep returns, so the one pending timer now is
+	// the busy backoff sleep.
+	ts.BlockUntil(1)
+
+	proc.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+	// Deliberately no ts.Advance: the failover must not wait for the backoff.
+	select {
+	case <-failoverRead:
+	case <-time.After(5 * time.Second):
+		t.Fatal("failover waited on the sweep's busy backoff instead of preempting it")
+	}
+
+	assert.Equal(t, int64(1), busyResponses(testScope))
+}
+
 // busyResponses sums the busy-responses counter across every tag set in the scope.
 func busyResponses(scope tally.TestScope) int64 {
 	var n int64

@@ -1651,6 +1651,10 @@ const (
 
 	// HistoryTaskDLQProcessorHostMaxQPS is the maximum persistence calls per second the History Task DLQ processor
 	// may issue per history host, shared across all shards on that host.
+	// The default 100 is about 1% of history.persistenceMaxQPS (9000), so DLQ work alone cannot trip the host
+	// persistence limiter. Sizing: a failover drains in roughly
+	// shards_per_host x (1 + DLQ ack-level rows per shard) / QPS seconds; raise it if
+	// history_task_dlq_ack_level_rows shows shards carrying thousands of rows.
 	// KeyName: history.historyTaskDLQProcessorHostMaxQPS
 	// Value type: Int
 	// Default value: 100
@@ -4753,7 +4757,7 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	HistoryTaskDLQProcessorHostMaxQPS: {
 		KeyName:      "history.historyTaskDLQProcessorHostMaxQPS",
-		Description:  "HistoryTaskDLQProcessorHostMaxQPS is the maximum persistence calls per second the History Task DLQ processor may issue per history host, shared across all shards on that host. Values below 1 are treated as 1. Re-read every few seconds; no restart needed",
+		Description:  "HistoryTaskDLQProcessorHostMaxQPS is the maximum persistence calls per second the History Task DLQ processor may issue per history host, shared across all shards on that host. Values below 1 are treated as 1. Default 100 is about 1% of history.persistenceMaxQPS (9000). Sizing: a failover drains in roughly shards_per_host x (1 + DLQ ack-level rows per shard) / QPS seconds; raise it if history_task_dlq_ack_level_rows shows shards carrying thousands of rows. Re-read every few seconds; no restart needed",
 		DefaultValue: 100,
 	},
 	HistoryTaskListNiceValue: {
