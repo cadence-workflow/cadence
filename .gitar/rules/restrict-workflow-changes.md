@@ -15,7 +15,7 @@ When evaluating a pull request:
 
 1. **Identify the PR author**
 2. **Check if any file under `.github/workflows/` is modified**
-3. **Check if the author is a maintainer** (listed in `.github/CODEOWNERS`)
+3. **Check if the author is a maintainer** (listed in `.github/CODEOWNERS`, directly or as a member of a listed team)
 4. **If a non-maintainer modifies workflow files, request removal**
 
 ## Detection Logic
@@ -29,9 +29,17 @@ If no workflow files are modified, skip this rule.
 
 ### Step 2: Check author against CODEOWNERS
 
-Read `.github/CODEOWNERS` and extract the maintainer usernames from the global `*` ownership line.
+Read `.github/CODEOWNERS` from the **base branch**, not from the PR head, so that a PR cannot add its own author. Extract the owners from the global `*` ownership line. An owner is either:
+- a user, in the format `@<username>`
+- a team, in the format `@<org>/<team-slug>` (for example `@cadence-workflow/cadence-dev`)
 
-If the PR author username is in that list, the change is allowed — skip and approve.
+The PR author is a maintainer if **either** is true:
+- The author's username is one of the user owners (case-insensitive)
+- The author is a member of one of the team owners. Check the membership with the GitHub API: `GET /orgs/<org>/teams/<team-slug>/memberships/<username>`. The author is a member only when the response has `"state": "active"`. A `404` response means that the author is not a member.
+
+If the PR author is a maintainer, the change is allowed. Skip and approve.
+
+If you cannot read the team membership (for example, the API returns `403`), do not post the removal comment. Instead, post a short comment that says the membership check failed and that a maintainer must review the workflow changes.
 
 ### Step 3: Report when a non-maintainer touches workflow files
 
@@ -47,7 +55,7 @@ Include the list of workflow files that were modified.
 The rule is automatically skipped when **ANY** of these is true:
 
 ### 1. PR author is a maintainer
-- Listed in `.github/CODEOWNERS`
+- Listed in `.github/CODEOWNERS` on the base branch, directly or as a member of a listed team
 
 ### 2. No workflow files changed
 - Diff does not touch `.github/workflows/`
