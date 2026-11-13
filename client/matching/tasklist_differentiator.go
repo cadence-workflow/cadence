@@ -15,8 +15,7 @@ const uuidRegex = `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[
 var uuidRegexp = regexp.MustCompile(uuidRegex)
 
 // TaskListDifferentiator decides which shard holds a task list and whether the shard distributor
-// manages it. It reads the dynamic config on every call, so changes take effect without
-// rebuilding it.
+// manages it.
 type TaskListDifferentiator struct {
 	metricsClient              metrics.Client
 	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn
@@ -43,9 +42,8 @@ func NewTaskListDifferentiator(
 
 // TaskListShard is the shard that holds a task list, and whether the shard distributor manages it.
 type TaskListShard struct {
-	// ID is one of shardCount shards when task lists are sharded by hash, formatted the way the shard
-	// manager formats the shard IDs of a fixed namespace. Otherwise each task list has its own shard,
-	// named after it.
+	// ID is one of shardCount shards when task lists are sharded by hash. Otherwise each task list has
+	// its own shard, named after it.
 	ID string
 	// Onboarded is true when the shard distributor manages the task list, and false when the hash
 	// ring does.
@@ -79,9 +77,8 @@ func (d *TaskListDifferentiator) TaskListShard(taskListName string) TaskListShar
 	}
 }
 
-// ShardDistributorEnabled reports whether the shard distributor manages any task lists, that is
-// whether the onboarding percentage is above 0. Matching hosts heartbeat to the shard distributor
-// only while it is, so driving the percentage to 0 offboards them.
+// ShardDistributorEnabled reports whether the onboarding percentage is above 0. Matching hosts
+// heartbeat to the shard distributor only while it is, so setting it to 0 offboards them.
 func (d *TaskListDifferentiator) ShardDistributorEnabled() bool {
 	return d.currentPercentageOnboarded() > 0
 }
@@ -96,15 +93,13 @@ func (d *TaskListDifferentiator) ShardCount() int {
 	return d.shardCount
 }
 
-// TaskListNameToShard returns which of shardCount shards a task list name hashes to, formatted the
-// way the shard manager formats the shard IDs of a fixed namespace.
+// TaskListNameToShard returns which of shardCount shards a task list name hashes to.
 func TaskListNameToShard(taskListName string, shardCount int) string {
 	shardIndex := taskListShardIndex(taskListName, shardCount)
 	return formatShardID(shardIndex)
 }
 
-// currentPercentageOnboarded reads the onboarding percentage and reports it as a gauge, so
-// dashboards show the value each host acts on.
+// currentPercentageOnboarded reads the onboarding percentage and emits it as a gauge on every read.
 func (d *TaskListDifferentiator) currentPercentageOnboarded() int {
 	percentageOnboarded := d.percentageOnboarded()
 	d.metricsClient.Scope(metrics.ShardManagerOnboardingScope).
@@ -118,7 +113,7 @@ func taskListShardIndex(taskListName string, shardCount int) uint64 {
 }
 
 // formatShardID formats a shard index the way the shard manager formats the shard IDs of a fixed
-// namespace. The registry and the routing decision must agree on it.
+// namespace.
 func formatShardID(shardIndex uint64) string {
 	return strconv.FormatUint(shardIndex, 10)
 }

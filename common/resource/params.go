@@ -120,7 +120,7 @@ type (
 		DrainObserver clientcommon.DrainSignalObserver
 
 		// TaskListDifferentiator decides which task lists the shard distributor owns and which shard each
-		// one belongs to. Every service's task list router and the matching service share it, so they agree.
+		// one belongs to. The task list router and the matching service share it.
 		TaskListDifferentiator *matching.TaskListDifferentiator
 	}
 )
