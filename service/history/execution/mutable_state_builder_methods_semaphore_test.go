@@ -73,7 +73,9 @@ func Test__GetPendingSemaphoreInfos(t *testing.T) {
 func Test__DeleteSemaphoreInfo(t *testing.T) {
 	t.Run("hold found", func(t *testing.T) {
 		mb := testMutableStateBuilder(t)
-		mb.pendingSemaphoreInfoIDs[2] = testSemaphoreInfo(2)
+		info := testSemaphoreInfo(2)
+		mb.pendingSemaphoreInfoIDs[2] = info
+		mb.updateSemaphoreInfos[2] = info
 		err := mb.DeleteSemaphoreInfo(2)
 		assert.NoError(t, err)
 		assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
