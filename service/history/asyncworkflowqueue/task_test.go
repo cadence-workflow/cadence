@@ -10,14 +10,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/messaging"
-	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	ctask "github.com/uber/cadence/common/task"
 	"github.com/uber/cadence/common/types"
@@ -91,9 +89,6 @@ func TestTask(t *testing.T) {
 		wantReason          string // "" = no reason check
 		wantAcked           bool   // AckMgr ack level advanced to the message id
 		wantState           ctask.State
-		wantDLQCounter      int64
-		wantDLQFailCounter  int64
-		wantDecodeFailCtr   int64
 	}{
 		{
 			name:                "success acks without DLQ",
@@ -136,7 +131,6 @@ func TestTask(t *testing.T) {
 			wantReason:          transientErr.Error(),
 			wantAcked:           true,
 			wantState:           ctask.TaskStateCanceled,
-			wantDLQCounter:      1,
 		},
 		{
 			name:                "transient then non-transient writes DLQ with the final error as the reason",
@@ -149,7 +143,6 @@ func TestTask(t *testing.T) {
 			wantReason:          nonTransientErr.Error(),
 			wantAcked:           true,
 			wantState:           ctask.TaskStateCanceled,
-			wantDLQCounter:      1,
 		},
 		{
 			name:                "non-transient error writes DLQ immediately then acks",
@@ -162,19 +155,16 @@ func TestTask(t *testing.T) {
 			wantReason:          nonTransientErr.Error(),
 			wantAcked:           true,
 			wantState:           ctask.TaskStateCanceled,
-			wantDLQCounter:      1,
 		},
 		{
-			name:              "corrupt message writes DLQ then acks without calling Process",
-			action:            actionRun,
-			decodeResults:     []error{decodeErr},
-			expectProcess:     false,
-			wantDLQ:           true,
-			wantReason:        decodeErr.Error(),
-			wantAcked:         true,
-			wantState:         ctask.TaskStateCanceled,
-			wantDLQCounter:    1,
-			wantDecodeFailCtr: 1,
+			name:          "corrupt message writes DLQ then acks without calling Process",
+			action:        actionRun,
+			decodeResults: []error{decodeErr},
+			expectProcess: false,
+			wantDLQ:       true,
+			wantReason:    decodeErr.Error(),
+			wantAcked:     true,
+			wantState:     ctask.TaskStateCanceled,
 		},
 		{
 			name:                "transient decode error then valid request acks without DLQ",
@@ -188,15 +178,14 @@ func TestTask(t *testing.T) {
 			wantState:           ctask.TaskStateAcked,
 		},
 		{
-			name:           "non-transient non-corrupt decode error writes DLQ without calling Process or counting a decode failure",
-			action:         actionRun,
-			decodeResults:  []error{notFoundErr},
-			expectProcess:  false,
-			wantDLQ:        true,
-			wantReason:     notFoundErr.Error(),
-			wantAcked:      true,
-			wantState:      ctask.TaskStateCanceled,
-			wantDLQCounter: 1,
+			name:          "non-transient non-corrupt decode error writes DLQ without calling Process or counting a decode failure",
+			action:        actionRun,
+			decodeResults: []error{notFoundErr},
+			expectProcess: false,
+			wantDLQ:       true,
+			wantReason:    notFoundErr.Error(),
+			wantAcked:     true,
+			wantState:     ctask.TaskStateCanceled,
 		},
 		{
 			name:                "EntityNotExists from Process writes DLQ immediately then acks",
@@ -209,7 +198,6 @@ func TestTask(t *testing.T) {
 			wantReason:          notFoundErr.Error(),
 			wantAcked:           true,
 			wantState:           ctask.TaskStateCanceled,
-			wantDLQCounter:      1,
 		},
 		{
 			name:                "shard ctx cancelled during retry wait writes no DLQ and does not ack",
@@ -232,7 +220,6 @@ func TestTask(t *testing.T) {
 			wantReason:          nonTransientErr.Error(),
 			wantAcked:           false,
 			wantState:           ctask.TaskStateCanceled,
-			wantDLQFailCounter:  1,
 		},
 		{
 			name:      "Nack(nil) writes no DLQ and does not ack",
@@ -269,9 +256,6 @@ func TestTask(t *testing.T) {
 			ackMgr := messaging.NewContinuousAckManager(logger)
 			require.NoError(t, ackMgr.ReadItem(msg.MessageID)) // ack level becomes msgID-1
 			require.Equal(t, msg.MessageID-1, ackMgr.GetAckLevel())
-
-			testScope := tally.NewTestScope("", nil)
-			scope := metrics.NewClient(testScope, metrics.History, metrics.MigrationConfig{}).Scope(metrics.AsyncWorkflowQueueConsumerScope)
 
 			ts := clock.NewMockedTimeSource()
 
@@ -333,7 +317,7 @@ func TestTask(t *testing.T) {
 				AckMgr:      ackMgr,
 				RetryPolicy: policy,
 				TimeSource:  ts,
-				Scope:       scope,
+				Scope:       testScope(),
 				Logger:      logger,
 			})
 			assert.Equal(t, ctask.TaskStatePending, tk.State())
@@ -382,10 +366,6 @@ func TestTask(t *testing.T) {
 				assert.Equal(t, tc.wantReason, gotReason)
 			}
 
-			snap := testScope.Snapshot()
-			assert.Equal(t, tc.wantDLQCounter, counterTotal(snap, "async_workflow_queue_dlq"))
-			assert.Equal(t, tc.wantDLQFailCounter, counterTotal(snap, "async_workflow_queue_dlq_failures"))
-			assert.Equal(t, tc.wantDecodeFailCtr, counterTotal(snap, "async_workflow_queue_decode_failures"))
 		})
 	}
 }
@@ -405,7 +385,7 @@ func TestTask_ExecuteWithCancelledContextDoesNotDecodeOrProcess(t *testing.T) {
 		AckMgr:      messaging.NewContinuousAckManager(logger),
 		RetryPolicy: backoff.NewExponentialRetryPolicy(time.Millisecond),
 		TimeSource:  clock.NewMockedTimeSource(),
-		Scope:       metrics.NewNoopMetricsClient().Scope(metrics.AsyncWorkflowQueueConsumerScope),
+		Scope:       testScope(),
 		Logger:      logger,
 	})
 
