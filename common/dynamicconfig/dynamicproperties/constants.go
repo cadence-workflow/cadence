@@ -1649,12 +1649,8 @@ const (
 	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
 
-	// HistoryTaskDLQProcessorGlobalMaxQPS is the maximum persistence calls per second the History Task DLQ
-	// processor may issue across the whole history cluster. Each history host gets the value divided by the
-	// number of history hosts, at least 1; a host that cannot read the member count uses 1.
-	// Sizing: a full failover drains in roughly shard_count x (1 + DLQ ack-level rows per shard) / QPS seconds,
-	// independent of host count; raise it if history_task_dlq_ack_level_rows shows shards carrying thousands
-	// of rows.
+	// HistoryTaskDLQProcessorGlobalMaxQPS is the cluster-wide cap on History Task DLQ processor persistence
+	// calls per second, split evenly across history hosts (at least 1 per host).
 	// KeyName: history.historyTaskDLQProcessorGlobalMaxQPS
 	// Value type: Int
 	// Default value: 1000
@@ -4757,7 +4753,7 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	HistoryTaskDLQProcessorGlobalMaxQPS: {
 		KeyName:      "history.historyTaskDLQProcessorGlobalMaxQPS",
-		Description:  "HistoryTaskDLQProcessorGlobalMaxQPS is the maximum persistence calls per second the History Task DLQ processor may issue across the whole history cluster. Each history host gets the value divided by the number of history hosts, at least 1; a host that cannot read the member count uses 1. Sizing: a full failover drains in roughly shard_count x (1 + DLQ ack-level rows per shard) / QPS seconds, independent of host count; raise it if history_task_dlq_ack_level_rows shows shards carrying thousands of rows. Re-read every few seconds; no restart needed",
+		Description:  "HistoryTaskDLQProcessorGlobalMaxQPS is the cluster-wide cap on History Task DLQ processor persistence calls per second, split evenly across history hosts (at least 1 per host). Raise it if DLQ reprocessing after a failover is too slow; lower it if DLQ calls contribute to persistence rate limiting",
 		DefaultValue: 1000,
 	},
 	HistoryTaskListNiceValue: {

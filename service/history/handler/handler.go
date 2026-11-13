@@ -119,10 +119,8 @@ func NewHandler(
 	return handler
 }
 
-// dlqHostQPS returns this host's share of the cluster-wide DLQ persistence budget: the global
-// value divided evenly across history hosts. The share is at least 1 because a zero rate makes
-// Wait fail every call. If the member count is unavailable the host runs at 1, since slow is
-// the safe failure for background work.
+// dlqHostQPS returns this host's share of the cluster-wide DLQ persistence budget: the global value
+// divided across history hosts, at least 1. It is 1 when the member count is unavailable.
 func dlqHostQPS(globalQPS int, resolver membership.Resolver) float64 {
 	members, err := resolver.MemberCount(service.History)
 	if err != nil || members < 1 {
