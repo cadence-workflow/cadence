@@ -83,7 +83,6 @@ func (s *FixerSuite) TestFix_Failure_FirstIteratorError() {
 				InfoDetails: "iterator error",
 			},
 		},
-		DomainStats: map[string]*FixStats{},
 	}, result)
 }
 
@@ -139,14 +138,6 @@ func (s *FixerSuite) TestFix_Failure_NonFirstError() {
 				InfoDetails: "iterator got error on: 4",
 			},
 		},
-		DomainStats: map[string]*FixStats{
-			"test_domain": {
-				EntitiesCount: 4,
-				FixedCount:    4,
-				SkippedCount:  0,
-				FailedCount:   0,
-			},
-		},
 	}, result)
 }
 
@@ -188,14 +179,6 @@ func (s *FixerSuite) TestFix_Failure_SkippedWriterError() {
 			ControlFlowFailure: &ControlFlowFailure{
 				Info:        "blobstore add failed for skipped execution fix",
 				InfoDetails: "skipped writer error",
-			},
-		},
-		DomainStats: map[string]*FixStats{
-			"test_domain": {
-				EntitiesCount: 1,
-				FixedCount:    0,
-				SkippedCount:  0,
-				FailedCount:   0,
 			},
 		},
 	}, result)
@@ -241,14 +224,6 @@ func (s *FixerSuite) TestFix_Failure_FailedWriterError() {
 				InfoDetails: "failed writer error",
 			},
 		},
-		DomainStats: map[string]*FixStats{
-			"test_domain": {
-				EntitiesCount: 1,
-				FixedCount:    0,
-				SkippedCount:  0,
-				FailedCount:   0,
-			},
-		},
 	}, result)
 }
 
@@ -292,14 +267,6 @@ func (s *FixerSuite) TestFix_Failure_FixedWriterError() {
 				InfoDetails: "fixed writer error",
 			},
 		},
-		DomainStats: map[string]*FixStats{
-			"test_domain": {
-				EntitiesCount: 1,
-				FixedCount:    0,
-				SkippedCount:  0,
-				FailedCount:   0,
-			},
-		},
 	}, result)
 }
 
@@ -323,7 +290,6 @@ func (s *FixerSuite) TestFix_Failure_FixedWriterFlushError() {
 				InfoDetails: "fix writer flush failed",
 			},
 		},
-		DomainStats: map[string]*FixStats{},
 	}, result)
 }
 
@@ -350,7 +316,6 @@ func (s *FixerSuite) TestFix_Failure_SkippedWriterFlushError() {
 				InfoDetails: "skip writer flush failed",
 			},
 		},
-		DomainStats: map[string]*FixStats{},
 	}, result)
 }
 
@@ -380,7 +345,6 @@ func (s *FixerSuite) TestFix_Failure_FailedWriterFlushError() {
 				InfoDetails: "fail writer flush failed",
 			},
 		},
-		DomainStats: map[string]*FixStats{},
 	}, result)
 }
 
@@ -737,72 +701,27 @@ func (s *FixerSuite) TestFix_Success() {
 				Skipped: &store.Keys{UUID: "skipped_keys_uuid"},
 			},
 		},
-		DomainStats: map[string]*FixStats{
-			"disallow_domain": {
-				EntitiesCount: 2,
-				FixedCount:    0,
-				SkippedCount:  2,
-				FailedCount:   0,
-			},
-			"failed": {
-				EntitiesCount: 2,
-				FixedCount:    0,
-				SkippedCount:  0,
-				FailedCount:   2,
-			},
-			"first_history_event": {
-				EntitiesCount: 1,
-				FixedCount:    1,
-				SkippedCount:  0,
-				FailedCount:   0,
-			},
-			"history_missing": {
-				EntitiesCount: 2,
-				FixedCount:    2,
-				SkippedCount:  0,
-				FailedCount:   0,
-			},
-			"orphan_execution": {
-				EntitiesCount: 1,
-				FixedCount:    1,
-				SkippedCount:  0,
-				FailedCount:   0,
-			},
-			"skipped": {
-				EntitiesCount: 4,
-				FixedCount:    0,
-				SkippedCount:  4,
-				FailedCount:   0,
-			},
-		},
 	}, result)
 }
 
 func TestFix_DomainLookupError(t *testing.T) {
 	tests := map[string]struct {
-		domainErr       error
-		allowDomain     dynamicproperties.BoolPropertyFnWithDomainFilter
-		wantRunFixes    int
-		wantFailure     *ControlFlowFailure
-		wantStats       FixStats
-		wantDomainStats map[string]*FixStats
+		domainErr    error
+		allowDomain  dynamicproperties.BoolPropertyFnWithDomainFilter
+		wantRunFixes int
+		wantFailure  *ControlFlowFailure
+		wantStats    FixStats
 	}{
 		"domain not found runs fixes when all domains are allowed": {
 			domainErr:    &types.EntityNotExistsError{Message: "domain not found"},
 			allowDomain:  dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 			wantRunFixes: 2,
 			wantStats:    FixStats{EntitiesCount: 2, FailedCount: 2},
-			wantDomainStats: map[string]*FixStats{
-				"missing": {EntitiesCount: 2, FailedCount: 2},
-			},
 		},
 		"domain not found is skipped by a per-domain allowlist": {
 			domainErr:   &types.EntityNotExistsError{Message: "domain not found"},
 			allowDomain: func(domain string) bool { return domain == "allowed-domain" },
 			wantStats:   FixStats{EntitiesCount: 2, SkippedCount: 2},
-			wantDomainStats: map[string]*FixStats{
-				"missing": {EntitiesCount: 2, SkippedCount: 2},
-			},
 		},
 		"other errors abort the fix": {
 			domainErr:   errors.New("timeout"),
@@ -811,7 +730,6 @@ func TestFix_DomainLookupError(t *testing.T) {
 				Info:        "failed to get domain name",
 				InfoDetails: "timeout",
 			},
-			wantDomainStats: make(map[string]*FixStats),
 		},
 	}
 
@@ -858,7 +776,6 @@ func TestFix_DomainLookupError(t *testing.T) {
 
 			require.Equal(t, tc.wantFailure, result.Result.ControlFlowFailure)
 			require.Equal(t, tc.wantStats, result.Stats)
-			require.Equal(t, tc.wantDomainStats, result.DomainStats)
 		})
 	}
 }
