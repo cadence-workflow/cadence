@@ -21,12 +21,12 @@ import (
 )
 
 const (
-	// maxGrantAttempts caps how many tokens one acquire tries, so badly stale free tokens cannot
-	// turn one acquire into hundreds of conditional writes.
-	maxGrantAttempts = 3
-
 	// emptyTokenID means no token. Token ids start at 1, so it is never a real token.
 	emptyTokenID = -1
+
+	// minBucketReloadInterval is the minimum time between two bucket reloads. Each reload scans the
+	// bucket under the bucket lock.
+	minBucketReloadInterval = time.Second
 )
 
 // AcquireResult is the answer to one acquire. TokenID names a token only when Outcome is
@@ -90,6 +90,9 @@ type semaphoreManagerImpl struct {
 
 	// bucketLock lets one token write run at a time.
 	bucketLock locks.Mutex
+	// lastReload is when the cache was last built from the database. Set by the load before any
+	// grant runs, then guarded by bucketLock.
+	lastReload time.Time
 
 	// stateMu guards state and cache.
 	stateMu sync.Mutex
@@ -288,6 +291,7 @@ func (m *semaphoreManagerImpl) load(ctx context.Context) error {
 		return fmt.Errorf("semaphore manager %v was stopped while it was loading: %w", m.id, ErrNotReady)
 	}
 	m.cache = cache
+	m.lastReload = m.timeSource.Now()
 	m.state = managerStateRunning
 	// Started under the lock, after the stopped check, so a concurrent Stop either sees them
 	// started or prevents them. The idle clock starts only now, so a slow scan is not idle time.
@@ -409,6 +413,7 @@ func (m *semaphoreManagerImpl) Acquire(ctx context.Context, ownerID string, acqu
 	if tokenID != emptyTokenID {
 		return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: tokenID}, nil
 	}
+	// No token was granted: none is free, or the grant was refused.
 	if err := m.enqueue(ctx, ownerID, acquireDeadline); err != nil {
 		return AcquireResult{}, err
 	}
@@ -435,33 +440,36 @@ func (m *semaphoreManagerImpl) enqueue(ctx context.Context, ownerID string, acqu
 	return nil
 }
 
-// grant returns the token ownerID holds, or grants a free one, or returns emptyTokenID if no token
-// is free.
+// grant returns ownerID's token, or emptyTokenID if none could be granted:
+//   - Check the owner's token without the lock.
+//   - Take the lock and check again: the owner may have been granted while waiting, and only
+//     under the lock can a wrong cache entry be fixed.
+//   - Grant a free token.
 func (m *semaphoreManagerImpl) grant(ctx context.Context, ownerID string) (int, error) {
-	// Fast path: a retried acquire whose token is cached and confirmed. No lock.
-	heldTokenID, err := m.confirmCachedToken(ctx, ownerID)
+	// 1. Confirm the held token, without the lock.
+	heldTokenID, err := m.confirmHeldToken(ctx, ownerID)
 	if err != nil || heldTokenID != emptyTokenID {
 		return heldTokenID, err
 	}
 
-	// Slow path: under the bucket lock, check again (a grant for ownerID may have landed while
-	// waiting, and only here can the cache be fixed), then try free tokens.
 	if err := m.bucketLock.Lock(ctx); err != nil {
 		return emptyTokenID, err
 	}
 	defer m.bucketLock.Unlock()
 	cache := m.currentCache()
 
-	heldTokenID, err = m.refreshCachedTokenLocked(ctx, cache, ownerID)
+	// 2. Confirm again under the lock, and sync the cache.
+	heldTokenID, err = m.syncHeldTokenLocked(ctx, cache, ownerID)
 	if err != nil || heldTokenID != emptyTokenID {
 		return heldTokenID, err
 	}
+	// 3. Grant a free token.
 	return m.grantFreeTokenLocked(ctx, cache, ownerID)
 }
 
-// confirmCachedToken returns ownerID's cached token if the database confirms it, or
-// emptyTokenID. It takes no lock, so it never writes the cache.
-func (m *semaphoreManagerImpl) confirmCachedToken(ctx context.Context, ownerID string) (int, error) {
+// confirmHeldToken returns ownerID's cached token if the database confirms it.
+// Read-only, no lock.
+func (m *semaphoreManagerImpl) confirmHeldToken(ctx context.Context, ownerID string) (int, error) {
 	tokenID, ok := m.currentCache().lookupHeldToken(ownerID)
 	if !ok {
 		return emptyTokenID, nil
@@ -476,9 +484,9 @@ func (m *semaphoreManagerImpl) confirmCachedToken(ctx context.Context, ownerID s
 	return tokenID, nil
 }
 
-// refreshCachedTokenLocked returns ownerID's cached token if the database confirms it, or
-// emptyTokenID. It fixes the cache from the database. The caller holds the bucket lock.
-func (m *semaphoreManagerImpl) refreshCachedTokenLocked(ctx context.Context, cache *bucketCache, ownerID string) (int, error) {
+// syncHeldTokenLocked confirms ownerID's cached token against the database and fixes the cache
+// from it. The caller holds the bucket lock.
+func (m *semaphoreManagerImpl) syncHeldTokenLocked(ctx context.Context, cache *bucketCache, ownerID string) (int, error) {
 	tokenID, ok := cache.lookupHeldToken(ownerID)
 	if !ok {
 		return emptyTokenID, nil
@@ -509,26 +517,68 @@ func (m *semaphoreManagerImpl) refreshCachedTokenLocked(ctx context.Context, cac
 	}
 }
 
-// grantFreeTokenLocked grants ownerID a free token, trying up to maxGrantAttempts tokens, or
-// returns emptyTokenID. The caller holds the bucket lock.
+// grantFreeTokenLocked grants ownerID a free token, or returns emptyTokenID if none is free.
+// If the grant is refused, it reloads the bucket and tries once more, unless the bucket was
+// reloaded within minBucketReloadInterval. The caller holds the bucket lock.
 func (m *semaphoreManagerImpl) grantFreeTokenLocked(ctx context.Context, cache *bucketCache, ownerID string) (int, error) {
-	for range maxGrantAttempts {
-		// Stop if the caller gave up. The write would fail with a persistence.TimeoutError
-		// (deadline) or an InternalServiceError (cancel), and neither says the caller gave up.
-		if err := ctx.Err(); err != nil {
-			return emptyTokenID, err
-		}
+	// Stop if the caller gave up, so it gets the ctx error instead of a persistence error.
+	if err := ctx.Err(); err != nil {
+		return emptyTokenID, err
+	}
+	pickedTokenID, ok := cache.pickFreeToken()
+	if !ok {
+		return emptyTokenID, nil
+	}
+	heldTokenID, err := m.tryGrantTokenLocked(ctx, cache, pickedTokenID, ownerID)
+	if err != nil {
+		return emptyTokenID, err
+	}
+	// Granted, or the owner already held a token.
+	if heldTokenID != emptyTokenID {
+		return heldTokenID, nil
+	}
 
-		pickedTokenID, ok := cache.pickFreeToken()
-		if !ok {
-			return emptyTokenID, nil
-		}
-		heldTokenID, err := m.tryGrantTokenLocked(ctx, cache, pickedTokenID, ownerID)
-		if err != nil || heldTokenID != emptyTokenID {
-			return heldTokenID, err
-		}
+	// Refused: the cache is stale. Skip the reload if the bucket was just reloaded.
+	if m.timeSource.Now().Sub(m.lastReload) < minBucketReloadInterval {
+		return emptyTokenID, nil
+	}
+	// Reload and try once more. The reload checks ctx first.
+	if cache, err = m.reloadBucketLocked(ctx, cache.tokenRange); err != nil {
+		return emptyTokenID, err
+	}
+	pickedTokenID, ok = cache.pickFreeToken()
+	if !ok {
+		return emptyTokenID, nil
+	}
+	heldTokenID, err = m.tryGrantTokenLocked(ctx, cache, pickedTokenID, ownerID)
+	if err != nil {
+		return emptyTokenID, err
+	}
+	if heldTokenID != emptyTokenID {
+		return heldTokenID, nil
 	}
 	return emptyTokenID, nil
+}
+
+// reloadBucketLocked rebuilds the cache from the database and swaps it in. The caller holds the
+// bucket lock, so no grant or release on this host runs during the scan.
+func (m *semaphoreManagerImpl) reloadBucketLocked(ctx context.Context, tokenRange commonsemaphore.TokenRange) (*bucketCache, error) {
+	// Skip the scan if the caller gave up.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	cache, err := m.buildCache(ctx, tokenRange)
+	if err != nil {
+		return nil, err
+	}
+	m.stateMu.Lock()
+	m.cache = cache
+	m.stateMu.Unlock()
+	m.lastReload = m.timeSource.Now()
+	m.logger.Info("Semaphore bucket cache reloaded after a refused grant",
+		tag.Dynamic("free-tokens", cache.freeTokenCount()),
+		tag.Dynamic("held-tokens", cache.heldTokenCount()))
+	return cache, nil
 }
 
 // tryGrantTokenLocked writes ownerID's grant of tokenID and returns the token ownerID now holds, or
