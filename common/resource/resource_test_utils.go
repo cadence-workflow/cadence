@@ -91,6 +91,7 @@ type (
 		SDKClient                      *publicservicetest.MockClient
 		FrontendClient                 *frontend.MockClient
 		MatchingClient                 *matching.MockClient
+		MatchingPollerDisconnector     *matching.MockPollerDisconnector
 		HistoryClient                  *history.MockClient
 		ShardDistributorExecutorClient *sharddistributorexecutor.MockClient
 		RemoteAdminClient              *admin.MockClient
@@ -147,12 +148,14 @@ func NewTest(
 
 	frontendClient := frontend.NewMockClient(controller)
 	matchingClient := matching.NewMockClient(controller)
+	matchingPollerDisconnector := matching.NewMockPollerDisconnector(controller)
 	historyClient := history.NewMockClient(controller)
 	remoteAdminClient := admin.NewMockClient(controller)
 	remoteFrontendClient := frontend.NewMockClient(controller)
 	clientBean := client.NewMockBean(controller)
 	clientBean.EXPECT().GetFrontendClient().Return(frontendClient).AnyTimes()
 	clientBean.EXPECT().GetMatchingClient(gomock.Any()).Return(matchingClient, nil).AnyTimes()
+	clientBean.EXPECT().GetMatchingPollerDisconnector(gomock.Any()).Return(matchingPollerDisconnector, nil).AnyTimes()
 	clientBean.EXPECT().GetHistoryClient().Return(historyClient).AnyTimes()
 	clientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(remoteAdminClient, nil).AnyTimes()
 	clientBean.EXPECT().GetRemoteFrontendClient(gomock.Any()).Return(remoteFrontendClient, nil).AnyTimes()
@@ -227,6 +230,7 @@ func NewTest(
 		SDKClient:                      publicservicetest.NewMockClient(oldgomock.NewController(t)),
 		FrontendClient:                 frontendClient,
 		MatchingClient:                 matchingClient,
+		MatchingPollerDisconnector:     matchingPollerDisconnector,
 		HistoryClient:                  historyClient,
 		RemoteAdminClient:              remoteAdminClient,
 		RemoteFrontendClient:           remoteFrontendClient,
@@ -384,6 +388,11 @@ func (s *Test) GetMatchingRawClient() matching.Client {
 // GetMatchingClient for testing
 func (s *Test) GetMatchingClient() matching.Client {
 	return s.MatchingClient
+}
+
+// GetMatchingPollerDisconnector for testing
+func (s *Test) GetMatchingPollerDisconnector() matching.PollerDisconnector {
+	return s.MatchingPollerDisconnector
 }
 
 // GetHistoryRawClient for testing

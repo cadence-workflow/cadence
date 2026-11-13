@@ -66,6 +66,7 @@ type Config struct {
 	MaxWorkerPollDelay                dynamicproperties.DurationPropertyFnWithDomainFilter
 	RateLimiterBypassCallerTypes      dynamicproperties.ListPropertyFn
 	EnableClientVersionCheck          dynamicproperties.BoolPropertyFn
+	CancelOutstandingPollsOnShutdown  dynamicproperties.BoolPropertyFn
 	EnableQueryAttributeValidation    dynamicproperties.BoolPropertyFn
 	DisallowQuery                     dynamicproperties.BoolPropertyFnWithDomainFilter
 	ShutdownDrainDuration             dynamicproperties.DurationPropertyFn
@@ -201,6 +202,7 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		DomainFailoverRefreshTimerJitterCoefficient:       dc.GetFloat64Property(dynamicproperties.DomainFailoverRefreshTimerJitterCoefficient),
 		EnableActiveClusterSelectionPolicyInStartWorkflow: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableActiveClusterSelectionPolicyInStartWorkflow),
 		EnableClientVersionCheck:                          dc.GetBoolProperty(dynamicproperties.EnableClientVersionCheck),
+		CancelOutstandingPollsOnShutdown:                  dc.GetBoolProperty(dynamicproperties.FrontendCancelOutstandingPollsOnShutdown),
 		EnableQueryAttributeValidation:                    dc.GetBoolProperty(dynamicproperties.EnableQueryAttributeValidation),
 		ValidSearchAttributes:                             dc.GetMapProperty(dynamicproperties.ValidSearchAttributes),
 		SearchAttributesNumberOfKeysLimit:                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.SearchAttributesNumberOfKeysLimit),

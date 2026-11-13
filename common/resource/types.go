@@ -98,6 +98,7 @@ type Resource interface {
 	GetFrontendClient() frontend.Client
 	GetMatchingRawClient() matching.Client
 	GetMatchingClient() matching.Client
+	GetMatchingPollerDisconnector() matching.PollerDisconnector
 	GetHistoryRawClient() history.Client
 	GetHistoryClient() history.Client
 	GetRatelimiterAggregatorsClient() qrpc.Client
