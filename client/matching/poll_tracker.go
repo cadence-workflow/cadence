@@ -10,8 +10,11 @@ type PollTracker interface {
 	PollStarted(cancelRequest *types.CancelOutstandingPollRequest) (done func())
 }
 
-// NoopPollTracker is a PollTracker which tracks nothing
-type NoopPollTracker struct{}
+type noopPollTracker struct{}
 
-// PollStarted does nothing
-func (NoopPollTracker) PollStarted(*types.CancelOutstandingPollRequest) func() { return func() {} }
+// NewNoopPollTracker creates a PollTracker which tracks nothing
+func NewNoopPollTracker() PollTracker {
+	return noopPollTracker{}
+}
+
+func (noopPollTracker) PollStarted(*types.CancelOutstandingPollRequest) func() { return func() {} }

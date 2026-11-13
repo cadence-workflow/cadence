@@ -31,6 +31,17 @@ func TestPollTrackerCancelsEveryPollInFlight(t *testing.T) {
 	tracker.cancelAll(context.Background(), client)
 }
 
+func TestPollTrackerForgetsFinishedPolls(t *testing.T) {
+	client := matching.NewMockClient(gomock.NewController(t))
+	tracker := NewPollTracker(log.NewNoop())
+	done := tracker.PollStarted(newCancelRequest("poller-1"))
+
+	done()
+
+	client.EXPECT().CancelOutstandingPoll(gomock.Any(), gomock.Any()).Times(0)
+	tracker.cancelAll(context.Background(), client)
+}
+
 func TestPollTrackerIgnoresPollWithoutPollerID(t *testing.T) {
 	logger, logs := testlogger.NewObserved(t)
 	tracker := NewPollTracker(logger)
