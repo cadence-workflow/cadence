@@ -17,4 +17,4 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Run validator unit tests
-        run: node --test .github/scripts/validate-issue.test.js
+        run: node --test .github/scripts/validate-issue.test.js .github/scripts/restrict-workflow-changes.test.js
