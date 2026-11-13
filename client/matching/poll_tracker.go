@@ -7,9 +7,11 @@ import "github.com/uber/cadence/common/types"
 // PollTracker is told about every poll in flight, with the request which cancels it
 type PollTracker interface {
 	// PollStarted is called before the poll is sent to matching; the returned function is called when the poll ends
-	PollStarted(cancel *types.CancelOutstandingPollRequest) (done func())
+	PollStarted(cancelRequest *types.CancelOutstandingPollRequest) (done func())
 }
 
-type noopPollTracker struct{}
+// NoopPollTracker is a PollTracker which tracks nothing
+type NoopPollTracker struct{}
 
-func (noopPollTracker) PollStarted(*types.CancelOutstandingPollRequest) func() { return func() {} }
+// PollStarted does nothing
+func (NoopPollTracker) PollStarted(*types.CancelOutstandingPollRequest) func() { return func() {} }

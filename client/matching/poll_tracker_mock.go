@@ -42,15 +42,15 @@ func (m *MockPollTracker) EXPECT() *MockPollTrackerMockRecorder {
 }
 
 // PollStarted mocks base method.
-func (m *MockPollTracker) PollStarted(cancel *types.CancelOutstandingPollRequest) func() {
+func (m *MockPollTracker) PollStarted(cancelRequest *types.CancelOutstandingPollRequest) func() {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PollStarted", cancel)
+	ret := m.ctrl.Call(m, "PollStarted", cancelRequest)
 	ret0, _ := ret[0].(func())
 	return ret0
 }
 
 // PollStarted indicates an expected call of PollStarted.
-func (mr *MockPollTrackerMockRecorder) PollStarted(cancel any) *gomock.Call {
+func (mr *MockPollTrackerMockRecorder) PollStarted(cancelRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PollStarted", reflect.TypeOf((*MockPollTracker)(nil).PollStarted), cancel)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PollStarted", reflect.TypeOf((*MockPollTracker)(nil).PollStarted), cancelRequest)
 }

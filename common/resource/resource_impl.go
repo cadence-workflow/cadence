@@ -175,6 +175,11 @@ func New(
 
 	ensureGetAllIsolationGroupsFnIsSet(params)
 
+	matchingPollTracker := params.MatchingPollTracker
+	if matchingPollTracker == nil {
+		matchingPollTracker = matching.NoopPollTracker{}
+	}
+
 	dynamicCollection := params.DynamicCollection
 	clientBean, err := client.NewClientBean(
 		client.NewRPCClientFactory(
@@ -184,7 +189,7 @@ func New(
 			dynamicCollection,
 			numShards,
 			params.GetIsolationGroups,
-			params.MatchingPollTracker,
+			matchingPollTracker,
 			logger,
 		),
 		params.RPCFactory.GetDispatcher(),

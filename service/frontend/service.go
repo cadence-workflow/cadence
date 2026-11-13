@@ -78,7 +78,7 @@ func NewService(
 		params.Logger,
 	)
 
-	pollTracker := api.NewPollTracker()
+	pollTracker := api.NewPollTracker(params.Logger)
 	params.MatchingPollTracker = pollTracker
 
 	serviceResource, err := resource.New(

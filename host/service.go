@@ -29,6 +29,7 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -167,7 +168,7 @@ func (h *serviceImpl) Start() {
 	h.hostInfo = hostInfo
 
 	h.clientBean, err = client.NewClientBean(
-		client.NewRPCClientFactory(h.rpcFactory, h.membershipResolver, h.metricsClient, h.dynamicCollection, h.numberOfHistoryShards, h.allIsolationGroups, nil, h.logger),
+		client.NewRPCClientFactory(h.rpcFactory, h.membershipResolver, h.metricsClient, h.dynamicCollection, h.numberOfHistoryShards, h.allIsolationGroups, matching.NoopPollTracker{}, h.logger),
 		h.rpcFactory.GetDispatcher(),
 		h.clusterMetadata,
 	)

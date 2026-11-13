@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/resource"
@@ -129,7 +130,7 @@ func (s *clusterRedirectionHandlerSuite) SetupTest() {
 		s.mockResource.GetLogger(),
 	)
 	dh := domain.NewMockHandler(s.controller)
-	frontendHandler := api.NewWorkflowHandler(s.mockResource, s.config, client.NewVersionChecker(), nil, dh)
+	frontendHandler := api.NewWorkflowHandler(s.mockResource, s.config, client.NewVersionChecker(), api.NewPollTracker(log.NewNoop()), dh)
 
 	s.mockFrontendHandler = api.NewMockHandler(s.controller)
 	s.handler = NewAPIHandler(frontendHandler, s.mockResource, s.config, config.ClusterRedirectionPolicy{}).(*clusterRedirectionHandler)

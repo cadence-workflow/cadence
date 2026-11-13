@@ -17,24 +17,32 @@ var _ matching.PollTracker = (*PollTracker)(nil)
 
 // PollTracker keeps the polls frontend has sent to matching and not finished yet, by their poller ID
 type PollTracker struct {
-	mu    sync.Mutex
-	polls map[string]*types.CancelOutstandingPollRequest
+	logger log.Logger
+	mu     sync.Mutex
+	polls  map[string]*types.CancelOutstandingPollRequest
 }
 
 // NewPollTracker creates an empty PollTracker
-func NewPollTracker() *PollTracker {
-	return &PollTracker{polls: make(map[string]*types.CancelOutstandingPollRequest)}
+func NewPollTracker(logger log.Logger) *PollTracker {
+	return &PollTracker{
+		logger: logger,
+		polls:  make(map[string]*types.CancelOutstandingPollRequest),
+	}
 }
 
 // PollStarted tracks the poll until the returned function is called
-func (t *PollTracker) PollStarted(cancel *types.CancelOutstandingPollRequest) func() {
-	pollerID := cancel.GetPollerID()
+func (t *PollTracker) PollStarted(cancelRequest *types.CancelOutstandingPollRequest) func() {
+	pollerID := cancelRequest.GetPollerID()
 	if pollerID == "" {
+		t.logger.Warn("Poll without poller ID is not tracked, it can't be cancelled on shutdown",
+			tag.WorkflowDomainID(cancelRequest.GetDomainUUID()),
+			tag.WorkflowTaskListName(cancelRequest.GetTaskList().GetName()),
+		)
 		return func() {}
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.polls[pollerID] = cancel
+	t.polls[pollerID] = cancelRequest
 	return func() { t.remove(pollerID) }
 }
 
@@ -46,7 +54,7 @@ func (t *PollTracker) remove(pollerID string) {
 
 // cancelAll cancels every poll in flight. It is best-effort:
 // a poll which fails to cancel is logged and finishes on its own timeout.
-func (t *PollTracker) cancelAll(ctx context.Context, client matching.Client, logger log.Logger) {
+func (t *PollTracker) cancelAll(ctx context.Context, client matching.Client) {
 	t.mu.Lock()
 	polls := maps.Clone(t.polls)
 	t.mu.Unlock()
@@ -58,7 +66,7 @@ func (t *PollTracker) cancelAll(ctx context.Context, client matching.Client, log
 		wg.Go(func() {
 			defer func() { <-limiter }()
 			if err := client.CancelOutstandingPoll(ctx, poll); err != nil {
-				logger.Warn("Failed to cancel outstanding poll",
+				t.logger.Warn("Failed to cancel outstanding poll",
 					tag.WorkflowDomainID(poll.GetDomainUUID()),
 					tag.WorkflowTaskListName(poll.GetTaskList().GetName()),
 					tag.Error(err),
