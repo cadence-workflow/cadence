@@ -3368,3 +3368,9 @@ func (c *DomainReplicationConfig) IsActiveActive() bool {
 func IsWorkflowRunning(state int) bool {
 	return state == WorkflowStateRunning || state == WorkflowStateCreated
 }
+
+// IsWorkflowStateFinal returns true if a workflow in this state can never run again:
+// UpdateWorkflowStateCloseStatus rejects every transition out of it to a non-final state.
+func IsWorkflowStateFinal(state int) bool {
+	return state == WorkflowStateCompleted || state == WorkflowStateCorrupted
+}
