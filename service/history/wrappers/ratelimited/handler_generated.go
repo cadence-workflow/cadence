@@ -169,6 +169,10 @@ func (h *historyHandler) RecordDecisionTaskStarted(ctx context.Context, rp1 *typ
 	return h.wrapped.RecordDecisionTaskStarted(ctx, rp1)
 }
 
+func (h *historyHandler) RecordSemaphoreAcquired(ctx context.Context, rp1 *types.RecordSemaphoreAcquiredRequest) (rp2 *types.RecordSemaphoreAcquiredResponse, err error) {
+	return h.wrapped.RecordSemaphoreAcquired(ctx, rp1)
+}
+
 func (h *historyHandler) RefreshWorkflowTasks(ctx context.Context, hp1 *types.HistoryRefreshWorkflowTasksRequest) (err error) {
 	return h.wrapped.RefreshWorkflowTasks(ctx, hp1)
 }

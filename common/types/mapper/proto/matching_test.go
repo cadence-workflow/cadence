@@ -429,28 +429,68 @@ func TestMatchingRefreshTaskListPartitionConfigResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromMatchingRefreshTaskListPartitionConfigResponse, ToMatchingRefreshTaskListPartitionConfigResponse)
 }
 
-func TestMatchingAddSemaphoreTaskRequest(t *testing.T) {
-	for _, item := range []*types.AddSemaphoreTaskRequest{nil, {}, &testdata.MatchingAddSemaphoreTaskRequest} {
-		assert.Equal(t, item, ToMatchingAddSemaphoreTaskRequest(FromMatchingAddSemaphoreTaskRequest(item)))
+func TestMatchingAcquireSemaphoreRequest(t *testing.T) {
+	for _, item := range []*types.AcquireSemaphoreRequest{nil, {}, &testdata.MatchingAcquireSemaphoreRequest} {
+		assert.Equal(t, item, ToMatchingAcquireSemaphoreRequest(FromMatchingAcquireSemaphoreRequest(item)))
 	}
 }
 
-func TestMatchingAddSemaphoreTaskResponse(t *testing.T) {
-	for _, item := range []*types.AddSemaphoreTaskResponse{nil, {}, &testdata.MatchingAddSemaphoreTaskResponse} {
-		assert.Equal(t, item, ToMatchingAddSemaphoreTaskResponse(FromMatchingAddSemaphoreTaskResponse(item)))
+func TestMatchingAcquireSemaphoreResponse(t *testing.T) {
+	for _, item := range []*types.AcquireSemaphoreResponse{nil, {}, &testdata.MatchingAcquireSemaphoreResponse} {
+		assert.Equal(t, item, ToMatchingAcquireSemaphoreResponse(FromMatchingAcquireSemaphoreResponse(item)))
+	}
+}
+
+func TestMatchingReleaseSemaphoreRequest(t *testing.T) {
+	for _, item := range []*types.ReleaseSemaphoreRequest{nil, {}, &testdata.MatchingReleaseSemaphoreRequest} {
+		assert.Equal(t, item, ToMatchingReleaseSemaphoreRequest(FromMatchingReleaseSemaphoreRequest(item)))
+	}
+}
+
+func TestMatchingReleaseSemaphoreResponse(t *testing.T) {
+	for _, item := range []*types.ReleaseSemaphoreResponse{nil, {}} {
+		assert.Equal(t, item, ToMatchingReleaseSemaphoreResponse(FromMatchingReleaseSemaphoreResponse(item)))
+	}
+}
+
+func TestMatchingGetSemaphoreTokenByOwnerRequest(t *testing.T) {
+	for _, item := range []*types.GetSemaphoreTokenByOwnerRequest{nil, {}, &testdata.MatchingGetSemaphoreTokenByOwnerRequest} {
+		assert.Equal(t, item, ToMatchingGetSemaphoreTokenByOwnerRequest(FromMatchingGetSemaphoreTokenByOwnerRequest(item)))
+	}
+}
+
+func TestMatchingGetSemaphoreTokenByOwnerResponse(t *testing.T) {
+	for _, item := range []*types.GetSemaphoreTokenByOwnerResponse{nil, {}, &testdata.MatchingGetSemaphoreTokenByOwnerResponse} {
+		assert.Equal(t, item, ToMatchingGetSemaphoreTokenByOwnerResponse(FromMatchingGetSemaphoreTokenByOwnerResponse(item)))
 	}
 }
 
 func SemaphoreAcquireOutcomeFuzzer(e *types.SemaphoreAcquireOutcome, c fuzz.Continue) {
-	*e = types.SemaphoreAcquireOutcome(c.Intn(3)) // 0-2: Invalid, Acquired, NoSlot
+	*e = types.SemaphoreAcquireOutcome(c.Intn(4)) // 0-3: Invalid, Acquired, NoSlot, Queued
 }
 
-func TestMatchingAddSemaphoreTaskRequestFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromMatchingAddSemaphoreTaskRequest, ToMatchingAddSemaphoreTaskRequest)
+func TestMatchingAcquireSemaphoreRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingAcquireSemaphoreRequest, ToMatchingAcquireSemaphoreRequest)
 }
 
-func TestMatchingAddSemaphoreTaskResponseFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromMatchingAddSemaphoreTaskResponse, ToMatchingAddSemaphoreTaskResponse,
+func TestMatchingAcquireSemaphoreResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingAcquireSemaphoreResponse, ToMatchingAcquireSemaphoreResponse,
 		testutils.WithCustomFuncs(SemaphoreAcquireOutcomeFuzzer),
 	)
+}
+
+func TestMatchingReleaseSemaphoreRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingReleaseSemaphoreRequest, ToMatchingReleaseSemaphoreRequest)
+}
+
+func TestMatchingReleaseSemaphoreResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingReleaseSemaphoreResponse, ToMatchingReleaseSemaphoreResponse)
+}
+
+func TestMatchingGetSemaphoreTokenByOwnerRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingGetSemaphoreTokenByOwnerRequest, ToMatchingGetSemaphoreTokenByOwnerRequest)
+}
+
+func TestMatchingGetSemaphoreTokenByOwnerResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingGetSemaphoreTokenByOwnerResponse, ToMatchingGetSemaphoreTokenByOwnerResponse)
 }

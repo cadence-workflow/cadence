@@ -31,6 +31,17 @@ func NewMatchingClient(client _sourceMatching.Client, policy backoff.RetryPolicy
 	}
 }
 
+func (c *matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest, p1 ...yarpc.CallOption) (ap2 *types.AcquireSemaphoreResponse, err error) {
+	var resp *types.AcquireSemaphoreResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.AcquireSemaphore(ctx, ap1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
 	var resp *types.AddActivityTaskResponse
 	op := func(ctx context.Context) error {
@@ -53,17 +64,6 @@ func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDeci
 	return resp, err
 }
 
-func (c *matchingClient) AddSemaphoreTask(ctx context.Context, ap1 *types.AddSemaphoreTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddSemaphoreTaskResponse, err error) {
-	var resp *types.AddSemaphoreTaskResponse
-	op := func(ctx context.Context) error {
-		var err error
-		resp, err = c.client.AddSemaphoreTask(ctx, ap1, p1...)
-		return err
-	}
-	err = c.throttleRetry.Do(ctx, op)
-	return resp, err
-}
-
 func (c *matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
 	op := func(ctx context.Context) error {
 		return c.client.CancelOutstandingPoll(ctx, cp1, p1...)
@@ -76,6 +76,17 @@ func (c *matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.Matchi
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.DescribeTaskList(ctx, mp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
+func (c *matchingClient) GetSemaphoreTokenByOwner(ctx context.Context, gp1 *types.GetSemaphoreTokenByOwnerRequest, p1 ...yarpc.CallOption) (gp2 *types.GetSemaphoreTokenByOwnerResponse, err error) {
+	var resp *types.GetSemaphoreTokenByOwnerResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.GetSemaphoreTokenByOwner(ctx, gp1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
@@ -142,6 +153,17 @@ func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.RefreshTaskListPartitionConfig(ctx, mp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
+func (c *matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	var resp *types.ReleaseSemaphoreResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.ReleaseSemaphore(ctx, rp1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)

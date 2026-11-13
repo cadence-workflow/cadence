@@ -522,11 +522,11 @@ func (h *handlerImpl) RefreshTaskListPartitionConfig(
 	return response, hCtx.handleErr(err)
 }
 
-// AddSemaphoreTask claims a token slot in one semaphore bucket for one owner.
-func (h *handlerImpl) AddSemaphoreTask(
+// AcquireSemaphore claims a token slot in one semaphore bucket for one owner.
+func (h *handlerImpl) AcquireSemaphore(
 	ctx context.Context,
-	request *types.AddSemaphoreTaskRequest,
-) (resp *types.AddSemaphoreTaskResponse, retError error) {
+	request *types.AcquireSemaphoreRequest,
+) (resp *types.AcquireSemaphoreResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
 	domainName := h.domainName(request.DomainUUID)
@@ -535,7 +535,7 @@ func (h *handlerImpl) AddSemaphoreTask(
 		SemaphoreName: request.SemaphoreName,
 		Bucket:        int(request.Bucket),
 	}
-	hCtx := h.newSemaphoreHandlerContext(ctx, domainName, id, metrics.MatchingAddSemaphoreTaskScope)
+	hCtx := h.newSemaphoreHandlerContext(ctx, domainName, id, metrics.MatchingAcquireSemaphoreScope)
 
 	sw, swStart := hCtx.startProfiling(&h.startWG)
 	defer func() {
@@ -547,7 +547,75 @@ func (h *handlerImpl) AddSemaphoreTask(
 		return nil, hCtx.handleErr(errMatchingHostThrottle)
 	}
 
-	response, err := h.engine.AddSemaphoreTask(hCtx, request)
+	response, err := h.engine.AcquireSemaphore(hCtx, request)
+	if err != nil && hCtx.Err() != nil {
+		// The caller's deadline passed or it cancelled: counted, not logged as a failure.
+		hCtx.scope.IncCounter(metrics.CadenceErrSemaphoreContextTimeoutCounter)
+		return nil, &types.InternalServiceError{Message: hCtx.Err().Error()}
+	}
+	return response, hCtx.handleErr(err)
+}
+
+// ReleaseSemaphore frees the token slot one owner holds in one semaphore bucket.
+func (h *handlerImpl) ReleaseSemaphore(
+	ctx context.Context,
+	request *types.ReleaseSemaphoreRequest,
+) (resp *types.ReleaseSemaphoreResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
+
+	domainName := h.domainName(request.DomainUUID)
+	id := semaphore.Identifier{
+		DomainID:      request.DomainUUID,
+		SemaphoreName: request.SemaphoreName,
+		Bucket:        int(request.Bucket),
+	}
+	hCtx := h.newSemaphoreHandlerContext(ctx, domainName, id, metrics.MatchingReleaseSemaphoreScope)
+
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
+
+	if ok := h.userRateLimiter.Allow(quotas.Info{Domain: domainName}); !ok {
+		return nil, hCtx.handleErr(errMatchingHostThrottle)
+	}
+
+	response, err := h.engine.ReleaseSemaphore(hCtx, request)
+	if err != nil && hCtx.Err() != nil {
+		// The caller's deadline passed or it cancelled: counted, not logged as a failure.
+		hCtx.scope.IncCounter(metrics.CadenceErrSemaphoreContextTimeoutCounter)
+		return nil, &types.InternalServiceError{Message: hCtx.Err().Error()}
+	}
+	return response, hCtx.handleErr(err)
+}
+
+// GetSemaphoreTokenByOwner looks up the token slot one owner holds in one semaphore bucket.
+func (h *handlerImpl) GetSemaphoreTokenByOwner(
+	ctx context.Context,
+	request *types.GetSemaphoreTokenByOwnerRequest,
+) (resp *types.GetSemaphoreTokenByOwnerResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
+
+	domainName := h.domainName(request.DomainUUID)
+	id := semaphore.Identifier{
+		DomainID:      request.DomainUUID,
+		SemaphoreName: request.SemaphoreName,
+		Bucket:        int(request.Bucket),
+	}
+	hCtx := h.newSemaphoreHandlerContext(ctx, domainName, id, metrics.MatchingGetSemaphoreTokenByOwnerScope)
+
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
+
+	if ok := h.userRateLimiter.Allow(quotas.Info{Domain: domainName}); !ok {
+		return nil, hCtx.handleErr(errMatchingHostThrottle)
+	}
+
+	response, err := h.engine.GetSemaphoreTokenByOwner(hCtx, request)
 	if err != nil && hCtx.Err() != nil {
 		// The caller's deadline passed or it cancelled: counted, not logged as a failure.
 		hCtx.scope.IncCounter(metrics.CadenceErrSemaphoreContextTimeoutCounter)

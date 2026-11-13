@@ -20,6 +20,11 @@ func NewGRPCHandler(h _sourceHandler.Handler) GRPCHandler {
 	return GRPCHandler{h}
 }
 
+func (g GRPCHandler) AcquireSemaphore(ctx context.Context, request *matchingv1.AcquireSemaphoreRequest) (*matchingv1.AcquireSemaphoreResponse, error) {
+	response, err := g.h.AcquireSemaphore(ctx, proto.ToMatchingAcquireSemaphoreRequest(request))
+	return proto.FromMatchingAcquireSemaphoreResponse(response), proto.FromError(err)
+}
+
 func (g GRPCHandler) AddActivityTask(ctx context.Context, request *matchingv1.AddActivityTaskRequest) (*matchingv1.AddActivityTaskResponse, error) {
 	response, err := g.h.AddActivityTask(ctx, proto.ToMatchingAddActivityTaskRequest(request))
 	return proto.FromMatchingAddActivityTaskResponse(response), proto.FromError(err)
@@ -30,11 +35,6 @@ func (g GRPCHandler) AddDecisionTask(ctx context.Context, request *matchingv1.Ad
 	return proto.FromMatchingAddDecisionTaskResponse(response), proto.FromError(err)
 }
 
-func (g GRPCHandler) AddSemaphoreTask(ctx context.Context, request *matchingv1.AddSemaphoreTaskRequest) (*matchingv1.AddSemaphoreTaskResponse, error) {
-	response, err := g.h.AddSemaphoreTask(ctx, proto.ToMatchingAddSemaphoreTaskRequest(request))
-	return proto.FromMatchingAddSemaphoreTaskResponse(response), proto.FromError(err)
-}
-
 func (g GRPCHandler) CancelOutstandingPoll(ctx context.Context, request *matchingv1.CancelOutstandingPollRequest) (*matchingv1.CancelOutstandingPollResponse, error) {
 	err := g.h.CancelOutstandingPoll(ctx, proto.ToMatchingCancelOutstandingPollRequest(request))
 	return &matchingv1.CancelOutstandingPollResponse{}, proto.FromError(err)
@@ -43,6 +43,11 @@ func (g GRPCHandler) CancelOutstandingPoll(ctx context.Context, request *matchin
 func (g GRPCHandler) DescribeTaskList(ctx context.Context, request *matchingv1.DescribeTaskListRequest) (*matchingv1.DescribeTaskListResponse, error) {
 	response, err := g.h.DescribeTaskList(ctx, proto.ToMatchingDescribeTaskListRequest(request))
 	return proto.FromMatchingDescribeTaskListResponse(response), proto.FromError(err)
+}
+
+func (g GRPCHandler) GetSemaphoreTokenByOwner(ctx context.Context, request *matchingv1.GetSemaphoreTokenByOwnerRequest) (*matchingv1.GetSemaphoreTokenByOwnerResponse, error) {
+	response, err := g.h.GetSemaphoreTokenByOwner(ctx, proto.ToMatchingGetSemaphoreTokenByOwnerRequest(request))
+	return proto.FromMatchingGetSemaphoreTokenByOwnerResponse(response), proto.FromError(err)
 }
 
 func (g GRPCHandler) GetTaskListsByDomain(ctx context.Context, request *matchingv1.GetTaskListsByDomainRequest) (*matchingv1.GetTaskListsByDomainResponse, error) {
@@ -73,6 +78,11 @@ func (g GRPCHandler) QueryWorkflow(ctx context.Context, request *matchingv1.Quer
 func (g GRPCHandler) RefreshTaskListPartitionConfig(ctx context.Context, request *matchingv1.RefreshTaskListPartitionConfigRequest) (*matchingv1.RefreshTaskListPartitionConfigResponse, error) {
 	response, err := g.h.RefreshTaskListPartitionConfig(ctx, proto.ToMatchingRefreshTaskListPartitionConfigRequest(request))
 	return proto.FromMatchingRefreshTaskListPartitionConfigResponse(response), proto.FromError(err)
+}
+
+func (g GRPCHandler) ReleaseSemaphore(ctx context.Context, request *matchingv1.ReleaseSemaphoreRequest) (*matchingv1.ReleaseSemaphoreResponse, error) {
+	response, err := g.h.ReleaseSemaphore(ctx, proto.ToMatchingReleaseSemaphoreRequest(request))
+	return proto.FromMatchingReleaseSemaphoreResponse(response), proto.FromError(err)
 }
 
 func (g GRPCHandler) RespondQueryTaskCompleted(ctx context.Context, request *matchingv1.RespondQueryTaskCompletedRequest) (*matchingv1.RespondQueryTaskCompletedResponse, error) {

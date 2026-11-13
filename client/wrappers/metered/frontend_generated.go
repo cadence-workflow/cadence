@@ -293,6 +293,30 @@ func (c *frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *typ
 	return dp2, err
 }
 
+func (c *frontendClient) ExportWorkflowExecution(ctx context.Context, ep1 *types.ExportWorkflowExecutionRequest, p1 ...yarpc.CallOption) (ep2 *types.ExportWorkflowExecutionResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.FrontendClientExportWorkflowExecutionScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.FrontendClientExportWorkflowExecutionScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	ep2, err = c.client.ExportWorkflowExecution(ctx, ep1, p1...)
+	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return ep2, err
+}
+
 func (c *frontendClient) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest, p1 ...yarpc.CallOption) (fp2 *types.FailoverDomainResponse, err error) {
 	retryCount := getRetryCountFromContext(ctx)
 

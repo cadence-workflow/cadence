@@ -256,6 +256,7 @@ const (
 	HistoryTaskCategoryIDTransfer    = 1
 	HistoryTaskCategoryIDTimer       = 2
 	HistoryTaskCategoryIDReplication = 3
+	HistoryTaskCategoryIDVisibility  = 4
 )
 
 var (
@@ -274,6 +275,11 @@ var (
 		categoryID:   HistoryTaskCategoryIDReplication,
 		categoryName: "replication",
 	}
+	HistoryTaskCategoryVisibility = HistoryTaskCategory{
+		categoryType: HistoryTaskCategoryTypeImmediate,
+		categoryID:   HistoryTaskCategoryIDVisibility,
+		categoryName: "visibility",
+	}
 )
 
 // HistoryTaskCategoryFromID converts a stored category ID back to the corresponding HistoryTaskCategory.
@@ -285,6 +291,8 @@ func HistoryTaskCategoryFromID(id int) (HistoryTaskCategory, error) {
 		return HistoryTaskCategoryTimer, nil
 	case HistoryTaskCategoryIDReplication:
 		return HistoryTaskCategoryReplication, nil
+	case HistoryTaskCategoryIDVisibility:
+		return HistoryTaskCategoryVisibility, nil
 	default:
 		return HistoryTaskCategory{}, fmt.Errorf("unknown task category ID: %d", id)
 	}
@@ -304,6 +312,8 @@ const (
 	TransferTaskTypeRecordWorkflowClosed
 	TransferTaskTypeRecordChildExecutionCompleted
 	TransferTaskTypeApplyParentClosePolicy // Deprecated: this is related to cross-cluster tasks
+	TransferTaskTypeAcquireSemaphore
+	TransferTaskTypeReleaseSemaphore
 )
 
 // Types of replication tasks
@@ -322,6 +332,7 @@ const (
 	TaskTypeDeleteHistoryEvent
 	TaskTypeActivityRetryTimer
 	TaskTypeWorkflowBackoffTimer
+	TaskTypeSemaphoreAcquireTimeout
 )
 
 // WorkflowRequestType is the type of workflow request
@@ -555,6 +566,7 @@ type (
 		RecordVisibility        bool
 		OriginalTaskList        string
 		OriginalTaskListKind    types.TaskListKind
+		SemaphoreName           string
 	}
 
 	// CrossClusterTaskInfo describes a cross-cluster task
@@ -968,8 +980,10 @@ type (
 
 		UpsertActivityInfos       []*ActivityInfo
 		DeleteActivityInfos       []int64
+		RewriteActivityInfos      []*ActivityInfo
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		RewriteTimerInfos         []*TimerInfo
 		UpsertChildExecutionInfos []*ChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -2661,6 +2675,21 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 			TargetChildWorkflowOnly: t.TargetChildWorkflowOnly,
 			TaskList:                t.TaskList,
 		}, nil
+	case TransferTaskTypeAcquireSemaphore:
+		return &AcquireSemaphoreTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			InitiatedID:        t.ScheduleID,
+			TaskList:           t.TaskList,
+		}, nil
+	case TransferTaskTypeReleaseSemaphore:
+		return &ReleaseSemaphoreTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			InitiatedID:        t.ScheduleID,
+			SemaphoreName:      t.SemaphoreName,
+			TaskList:           t.TaskList,
+		}, nil
 	default:
 		return nil, fmt.Errorf("unknown task type: %d", t.TaskType)
 	}
@@ -2818,6 +2847,13 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TimeoutType:        t.TimeoutType,
+			TaskList:           t.TaskList,
+		}, nil
+	case TaskTypeSemaphoreAcquireTimeout:
+		return &SemaphoreAcquireTimeoutTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			EventID:            t.EventID,
 			TaskList:           t.TaskList,
 		}, nil
 	default:
@@ -3269,6 +3305,11 @@ func (e *WorkflowExecutionInfo) CopyPartitionConfig() map[string]string {
 		partitionConfig[k] = v
 	}
 	return partitionConfig
+}
+
+// HasToken reports whether the hold has been granted.
+func (s *SemaphoreInfo) HasToken() bool {
+	return s.TokenID > constants.NoSemaphoreTokenID
 }
 
 func (p *TaskListPartitionConfig) ToInternalType() *types.TaskListPartitionConfig {

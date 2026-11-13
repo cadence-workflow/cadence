@@ -13,6 +13,11 @@ import (
 	"github.com/uber/cadence/common/types/mapper/proto"
 )
 
+func (g matchingClient) AcquireSemaphore(ctx context.Context, ap1 *types.AcquireSemaphoreRequest, p1 ...yarpc.CallOption) (ap2 *types.AcquireSemaphoreResponse, err error) {
+	response, err := g.c.AcquireSemaphore(ctx, proto.FromMatchingAcquireSemaphoreRequest(ap1), p1...)
+	return proto.ToMatchingAcquireSemaphoreResponse(response), proto.ToError(err)
+}
+
 func (g matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
 	response, err := g.c.AddActivityTask(ctx, proto.FromMatchingAddActivityTaskRequest(ap1), p1...)
 	return proto.ToMatchingAddActivityTaskResponse(response), proto.ToError(err)
@@ -23,11 +28,6 @@ func (g matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecis
 	return proto.ToMatchingAddDecisionTaskResponse(response), proto.ToError(err)
 }
 
-func (g matchingClient) AddSemaphoreTask(ctx context.Context, ap1 *types.AddSemaphoreTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddSemaphoreTaskResponse, err error) {
-	response, err := g.c.AddSemaphoreTask(ctx, proto.FromMatchingAddSemaphoreTaskRequest(ap1), p1...)
-	return proto.ToMatchingAddSemaphoreTaskResponse(response), proto.ToError(err)
-}
-
 func (g matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
 	_, err = g.c.CancelOutstandingPoll(ctx, proto.FromMatchingCancelOutstandingPollRequest(cp1), p1...)
 	return proto.ToError(err)
@@ -36,6 +36,11 @@ func (g matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.Ca
 func (g matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.MatchingDescribeTaskListRequest, p1 ...yarpc.CallOption) (dp1 *types.DescribeTaskListResponse, err error) {
 	response, err := g.c.DescribeTaskList(ctx, proto.FromMatchingDescribeTaskListRequest(mp1), p1...)
 	return proto.ToMatchingDescribeTaskListResponse(response), proto.ToError(err)
+}
+
+func (g matchingClient) GetSemaphoreTokenByOwner(ctx context.Context, gp1 *types.GetSemaphoreTokenByOwnerRequest, p1 ...yarpc.CallOption) (gp2 *types.GetSemaphoreTokenByOwnerResponse, err error) {
+	response, err := g.c.GetSemaphoreTokenByOwner(ctx, proto.FromMatchingGetSemaphoreTokenByOwnerRequest(gp1), p1...)
+	return proto.ToMatchingGetSemaphoreTokenByOwnerResponse(response), proto.ToError(err)
 }
 
 func (g matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest, p1 ...yarpc.CallOption) (gp2 *types.GetTaskListsByDomainResponse, err error) {
@@ -66,6 +71,11 @@ func (g matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQu
 func (g matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
 	response, err := g.c.RefreshTaskListPartitionConfig(ctx, proto.FromMatchingRefreshTaskListPartitionConfigRequest(mp1), p1...)
 	return proto.ToMatchingRefreshTaskListPartitionConfigResponse(response), proto.ToError(err)
+}
+
+func (g matchingClient) ReleaseSemaphore(ctx context.Context, rp1 *types.ReleaseSemaphoreRequest, p1 ...yarpc.CallOption) (rp2 *types.ReleaseSemaphoreResponse, err error) {
+	response, err := g.c.ReleaseSemaphore(ctx, proto.FromMatchingReleaseSemaphoreRequest(rp1), p1...)
+	return proto.ToMatchingReleaseSemaphoreResponse(response), proto.ToError(err)
 }
 
 func (g matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {

@@ -885,3 +885,52 @@ func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
 		})
 	}
 }
+
+func TestSemaphoreInfoHasToken(t *testing.T) {
+	tests := []struct {
+		name    string
+		tokenID int
+		want    bool
+	}{
+		{name: "token id 1 is granted", tokenID: 1, want: true},
+		{name: "zero is waiting", tokenID: 0, want: false},
+		{name: "negative is waiting", tokenID: -1, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, (&SemaphoreInfo{TokenID: tt.tokenID}).HasToken())
+		})
+	}
+}
+
+func TestHistoryTaskCategoryFromID(t *testing.T) {
+	tests := []struct {
+		name    string
+		id      int
+		want    HistoryTaskCategory
+		wantErr bool
+	}{
+		{name: "transfer", id: HistoryTaskCategoryIDTransfer, want: HistoryTaskCategoryTransfer},
+		{name: "timer", id: HistoryTaskCategoryIDTimer, want: HistoryTaskCategoryTimer},
+		{name: "replication", id: HistoryTaskCategoryIDReplication, want: HistoryTaskCategoryReplication},
+		{name: "visibility", id: HistoryTaskCategoryIDVisibility, want: HistoryTaskCategoryVisibility},
+		{name: "unknown", id: 100, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := HistoryTaskCategoryFromID(tt.id)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.id, got.ID())
+		})
+	}
+}
+
+func TestHistoryTaskCategoryVisibility(t *testing.T) {
+	assert.Equal(t, HistoryTaskCategoryTypeImmediate, HistoryTaskCategoryVisibility.Type())
+	assert.Equal(t, "visibility", HistoryTaskCategoryVisibility.Name())
+}

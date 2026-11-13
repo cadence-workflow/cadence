@@ -605,6 +605,30 @@ func (c *historyClient) RecordDecisionTaskStarted(ctx context.Context, rp1 *type
 	return rp2, err
 }
 
+func (c *historyClient) RecordSemaphoreAcquired(ctx context.Context, rp1 *types.RecordSemaphoreAcquiredRequest, p1 ...yarpc.CallOption) (rp2 *types.RecordSemaphoreAcquiredResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRecordSemaphoreAcquiredScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRecordSemaphoreAcquiredScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	rp2, err = c.client.RecordSemaphoreAcquired(ctx, rp1, p1...)
+	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return rp2, err
+}
+
 func (c *historyClient) RefreshWorkflowTasks(ctx context.Context, hp1 *types.HistoryRefreshWorkflowTasksRequest, p1 ...yarpc.CallOption) (err error) {
 	retryCount := getRetryCountFromContext(ctx)
 

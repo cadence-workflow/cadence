@@ -216,6 +216,16 @@ func TestHistoryRefreshWorkflowTasksRequest(t *testing.T) {
 	}
 	assert.Nil(t, FromHistoryRefreshWorkflowTasksRequest(&types.HistoryRefreshWorkflowTasksRequest{}))
 }
+func TestHistoryRecordSemaphoreAcquiredRequest(t *testing.T) {
+	for _, item := range []*types.RecordSemaphoreAcquiredRequest{nil, {}, &testdata.HistoryRecordSemaphoreAcquiredRequest} {
+		assert.Equal(t, item, ToHistoryRecordSemaphoreAcquiredRequest(FromHistoryRecordSemaphoreAcquiredRequest(item)))
+	}
+}
+func TestHistoryRecordSemaphoreAcquiredResponse(t *testing.T) {
+	for _, item := range []*types.RecordSemaphoreAcquiredResponse{nil, {}} {
+		assert.Equal(t, item, ToHistoryRecordSemaphoreAcquiredResponse(FromHistoryRecordSemaphoreAcquiredResponse(item)))
+	}
+}
 func TestHistoryRemoveSignalMutableStateRequest(t *testing.T) {
 	for _, item := range []*types.RemoveSignalMutableStateRequest{nil, {}, &testdata.HistoryRemoveSignalMutableStateRequest} {
 		assert.Equal(t, item, ToHistoryRemoveSignalMutableStateRequest(FromHistoryRemoveSignalMutableStateRequest(item)))
@@ -583,6 +593,14 @@ func TestHistoryRecordDecisionTaskStartedRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromHistoryRecordDecisionTaskStartedRequest, ToHistoryRecordDecisionTaskStartedRequest,
 		testutils.WithCommonEnumFuzzers(),
 	)
+}
+
+func TestHistoryRecordSemaphoreAcquiredRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRecordSemaphoreAcquiredRequest, ToHistoryRecordSemaphoreAcquiredRequest)
+}
+
+func TestHistoryRecordSemaphoreAcquiredResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRecordSemaphoreAcquiredResponse, ToHistoryRecordSemaphoreAcquiredResponse)
 }
 
 func TestHistoryRemoveSignalMutableStateRequestFuzz(t *testing.T) {

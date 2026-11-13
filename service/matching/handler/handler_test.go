@@ -918,8 +918,8 @@ func partitions(num int) map[int]*types.TaskListPartition {
 
 // Whether the caller gave up is read from its own context, not from the shape of the error:
 // only then is the error counted as a semaphore timeout instead of a failure.
-func TestHandlerAddSemaphoreTask(t *testing.T) {
-	request := &types.AddSemaphoreTaskRequest{
+func TestHandlerAcquireSemaphore(t *testing.T) {
+	request := &types.AcquireSemaphoreRequest{
 		DomainUUID:    "test-domain-id",
 		SemaphoreName: "test-semaphore",
 		Bucket:        0,
@@ -937,7 +937,7 @@ func TestHandlerAddSemaphoreTask(t *testing.T) {
 		name       string
 		ctx        func(t *testing.T) context.Context
 		setupMocks func(engine *MockEngine, limiter *quotas.MockLimiter)
-		want       *types.AddSemaphoreTaskResponse
+		want       *types.AcquireSemaphoreResponse
 		err        error
 
 		wantTimeouts int64
@@ -949,12 +949,12 @@ func TestHandlerAddSemaphoreTask(t *testing.T) {
 			ctx:  live,
 			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
 				limiter.EXPECT().Allow().Return(true).Times(1)
-				engine.EXPECT().AddSemaphoreTask(gomock.Any(), request).Return(&types.AddSemaphoreTaskResponse{
+				engine.EXPECT().AcquireSemaphore(gomock.Any(), request).Return(&types.AcquireSemaphoreResponse{
 					Outcome: types.SemaphoreAcquireOutcomeAcquired,
 					TokenID: 3,
 				}, nil).Times(1)
 			},
-			want: &types.AddSemaphoreTaskResponse{
+			want: &types.AcquireSemaphoreResponse{
 				Outcome: types.SemaphoreAcquireOutcomeAcquired,
 				TokenID: 3,
 			},
@@ -968,11 +968,11 @@ func TestHandlerAddSemaphoreTask(t *testing.T) {
 			err: &types.ServiceBusyError{Message: "Matching host rps exceeded"},
 		},
 		{
-			name: "Error case - AddSemaphoreTask failed",
+			name: "Error case - AcquireSemaphore failed",
 			ctx:  live,
 			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
 				limiter.EXPECT().Allow().Return(true).Times(1)
-				engine.EXPECT().AddSemaphoreTask(gomock.Any(), request).Return(nil, errors.New("add-semaphore-error")).Times(1)
+				engine.EXPECT().AcquireSemaphore(gomock.Any(), request).Return(nil, errors.New("add-semaphore-error")).Times(1)
 			},
 			err:          &types.InternalServiceError{Message: "add-semaphore-error"},
 			wantFailures: 1,
@@ -987,7 +987,7 @@ func TestHandlerAddSemaphoreTask(t *testing.T) {
 			ctx:  expired,
 			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
 				limiter.EXPECT().Allow().Return(true).Times(1)
-				engine.EXPECT().AddSemaphoreTask(gomock.Any(), request).Return(nil, &persistence.TimeoutError{Msg: "write timed out"}).Times(1)
+				engine.EXPECT().AcquireSemaphore(gomock.Any(), request).Return(nil, &persistence.TimeoutError{Msg: "write timed out"}).Times(1)
 			},
 			err:          &types.InternalServiceError{Message: context.DeadlineExceeded.Error()},
 			wantTimeouts: 1,
@@ -999,10 +999,10 @@ func TestHandlerAddSemaphoreTask(t *testing.T) {
 			ctx:  live,
 			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
 				limiter.EXPECT().Allow().Return(true).Times(1)
-				engine.EXPECT().AddSemaphoreTask(gomock.Any(), request).
-					Return(nil, fmt.Errorf("load semaphore bucket: %w", context.DeadlineExceeded)).Times(1)
+				engine.EXPECT().AcquireSemaphore(gomock.Any(), request).
+					Return(nil, fmt.Errorf("failed to load semaphore bucket: %w", context.DeadlineExceeded)).Times(1)
 			},
-			err:          &types.InternalServiceError{Message: "load semaphore bucket: context deadline exceeded"},
+			err:          &types.InternalServiceError{Message: "failed to load semaphore bucket: context deadline exceeded"},
 			wantFailures: 1,
 			wantErrorLog: true,
 		},
@@ -1031,7 +1031,238 @@ func TestHandlerAddSemaphoreTask(t *testing.T) {
 				domainCache: domainCache,
 			}
 
-			resp, err := h.AddSemaphoreTask(tc.ctx(t), request)
+			resp, err := h.AcquireSemaphore(tc.ctx(t), request)
+
+			if tc.err != nil {
+				require.Error(t, err)
+				assert.Equal(t, tc.err, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, resp)
+			}
+
+			var timeouts, failures int64
+			for _, c := range testScope.Snapshot().Counters() {
+				switch c.Name() {
+				case "test.cadence_errors_semaphore_context_timeout":
+					timeouts += c.Value()
+				case "test.cadence_errors_per_tl":
+					failures += c.Value()
+				}
+			}
+			assert.Equal(t, tc.wantTimeouts, timeouts)
+			assert.Equal(t, tc.wantFailures, failures)
+			assert.Equal(t, tc.wantErrorLog, logs.FilterLevelExact(zapcore.ErrorLevel).Len() > 0)
+		})
+	}
+}
+
+// Release counts a caller that gave up the same way acquire does: from the caller's own context.
+func TestHandlerReleaseSemaphore(t *testing.T) {
+	request := &types.ReleaseSemaphoreRequest{
+		DomainUUID:    "test-domain-id",
+		SemaphoreName: "test-semaphore",
+		Bucket:        0,
+		OwnerID:       "test-owner",
+	}
+	// A context whose deadline has already passed, as the caller's is once it gives up.
+	expired := func(t *testing.T) context.Context {
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		t.Cleanup(cancel)
+		return ctx
+	}
+	live := func(*testing.T) context.Context { return context.Background() }
+
+	testCases := []struct {
+		name       string
+		ctx        func(t *testing.T) context.Context
+		setupMocks func(engine *MockEngine, limiter *quotas.MockLimiter)
+		want       *types.ReleaseSemaphoreResponse
+		err        error
+
+		wantTimeouts int64
+		wantFailures int64
+		wantErrorLog bool
+	}{
+		{
+			name: "Success case",
+			ctx:  live,
+			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
+				limiter.EXPECT().Allow().Return(true).Times(1)
+				engine.EXPECT().ReleaseSemaphore(gomock.Any(), request).Return(&types.ReleaseSemaphoreResponse{}, nil).Times(1)
+			},
+			want: &types.ReleaseSemaphoreResponse{},
+		},
+		{
+			name: "Error case - rate limiter not allowed",
+			ctx:  live,
+			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
+				limiter.EXPECT().Allow().Return(false).Times(1)
+			},
+			err: &types.ServiceBusyError{Message: "Matching host rps exceeded"},
+		},
+		{
+			name: "Error case - ReleaseSemaphore failed",
+			ctx:  live,
+			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
+				limiter.EXPECT().Allow().Return(true).Times(1)
+				engine.EXPECT().ReleaseSemaphore(gomock.Any(), request).Return(nil, errors.New("release-semaphore-error")).Times(1)
+			},
+			err:          &types.InternalServiceError{Message: "release-semaphore-error"},
+			wantFailures: 1,
+			wantErrorLog: true,
+		},
+		{
+			name: "Error case - caller deadline passed",
+			ctx:  expired,
+			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
+				limiter.EXPECT().Allow().Return(true).Times(1)
+				engine.EXPECT().ReleaseSemaphore(gomock.Any(), request).Return(nil, &persistence.TimeoutError{Msg: "write timed out"}).Times(1)
+			},
+			err:          &types.InternalServiceError{Message: context.DeadlineExceeded.Error()},
+			wantTimeouts: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			engine := NewMockEngine(ctrl)
+			limiter := quotas.NewMockLimiter(ctrl)
+			tc.setupMocks(engine, limiter)
+			domainCache := cache.NewMockDomainCache(ctrl)
+			domainCache.EXPECT().GetDomainName(request.DomainUUID).Return(testDomain, nil).Times(1)
+
+			testScope := tally.NewTestScope("test", nil)
+			logger, logs := testlogger.NewObserved(t)
+			h := &handlerImpl{
+				engine:        engine,
+				metricsClient: metrics.NewClient(testScope, metrics.Matching, metrics.MigrationConfig{}),
+				userRateLimiter: quotas.NewMultiStageRateLimiter(
+					limiter,
+					quotas.NewCollection(dynamicquotas.NewSimpleDynamicRateLimiterFactory(func(string) int { return 10 })),
+					nil,
+				),
+				logger:      logger,
+				domainCache: domainCache,
+			}
+
+			resp, err := h.ReleaseSemaphore(tc.ctx(t), request)
+
+			if tc.err != nil {
+				require.Error(t, err)
+				assert.Equal(t, tc.err, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, resp)
+			}
+
+			var timeouts, failures int64
+			for _, c := range testScope.Snapshot().Counters() {
+				switch c.Name() {
+				case "test.cadence_errors_semaphore_context_timeout":
+					timeouts += c.Value()
+				case "test.cadence_errors_per_tl":
+					failures += c.Value()
+				}
+			}
+			assert.Equal(t, tc.wantTimeouts, timeouts)
+			assert.Equal(t, tc.wantFailures, failures)
+			assert.Equal(t, tc.wantErrorLog, logs.FilterLevelExact(zapcore.ErrorLevel).Len() > 0)
+		})
+	}
+}
+
+func TestHandlerGetSemaphoreTokenByOwner(t *testing.T) {
+	request := &types.GetSemaphoreTokenByOwnerRequest{
+		DomainUUID:    "test-domain-id",
+		SemaphoreName: "test-semaphore",
+		Bucket:        0,
+		OwnerID:       "test-owner",
+	}
+	// A context whose deadline has already passed, as the caller's is once it gives up.
+	expired := func(t *testing.T) context.Context {
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		t.Cleanup(cancel)
+		return ctx
+	}
+	live := func(*testing.T) context.Context { return context.Background() }
+
+	testCases := []struct {
+		name       string
+		ctx        func(t *testing.T) context.Context
+		setupMocks func(engine *MockEngine, limiter *quotas.MockLimiter)
+		want       *types.GetSemaphoreTokenByOwnerResponse
+		err        error
+
+		wantTimeouts int64
+		wantFailures int64
+		wantErrorLog bool
+	}{
+		{
+			name: "Success case",
+			ctx:  live,
+			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
+				limiter.EXPECT().Allow().Return(true).Times(1)
+				engine.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), request).Return(&types.GetSemaphoreTokenByOwnerResponse{TokenID: 3}, nil).Times(1)
+			},
+			want: &types.GetSemaphoreTokenByOwnerResponse{TokenID: 3},
+		},
+		{
+			name: "Error case - rate limiter not allowed",
+			ctx:  live,
+			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
+				limiter.EXPECT().Allow().Return(false).Times(1)
+			},
+			err: &types.ServiceBusyError{Message: "Matching host rps exceeded"},
+		},
+		{
+			name: "Error case - GetSemaphoreTokenByOwner failed",
+			ctx:  live,
+			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
+				limiter.EXPECT().Allow().Return(true).Times(1)
+				engine.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), request).Return(nil, errors.New("get-semaphore-token-error")).Times(1)
+			},
+			err:          &types.InternalServiceError{Message: "get-semaphore-token-error"},
+			wantFailures: 1,
+			wantErrorLog: true,
+		},
+		{
+			name: "Error case - caller deadline passed",
+			ctx:  expired,
+			setupMocks: func(engine *MockEngine, limiter *quotas.MockLimiter) {
+				limiter.EXPECT().Allow().Return(true).Times(1)
+				engine.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), request).Return(nil, &persistence.TimeoutError{Msg: "read timed out"}).Times(1)
+			},
+			err:          &types.InternalServiceError{Message: context.DeadlineExceeded.Error()},
+			wantTimeouts: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			engine := NewMockEngine(ctrl)
+			limiter := quotas.NewMockLimiter(ctrl)
+			tc.setupMocks(engine, limiter)
+			domainCache := cache.NewMockDomainCache(ctrl)
+			domainCache.EXPECT().GetDomainName(request.DomainUUID).Return(testDomain, nil).Times(1)
+
+			testScope := tally.NewTestScope("test", nil)
+			logger, logs := testlogger.NewObserved(t)
+			h := &handlerImpl{
+				engine:        engine,
+				metricsClient: metrics.NewClient(testScope, metrics.Matching, metrics.MigrationConfig{}),
+				userRateLimiter: quotas.NewMultiStageRateLimiter(
+					limiter,
+					quotas.NewCollection(dynamicquotas.NewSimpleDynamicRateLimiterFactory(func(string) int { return 10 })),
+					nil,
+				),
+				logger:      logger,
+				domainCache: domainCache,
+			}
+
+			resp, err := h.GetSemaphoreTokenByOwner(tc.ctx(t), request)
 
 			if tc.err != nil {
 				require.Error(t, err)

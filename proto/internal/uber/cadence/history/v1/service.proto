@@ -168,6 +168,10 @@ service HistoryAPI {
   // This is mainly called by transfer queue processor during the processing of DeleteExecution task.
   rpc RecordChildExecutionCompleted(RecordChildExecutionCompletedRequest) returns (RecordChildExecutionCompletedResponse);
 
+  // RecordSemaphoreAcquired records a semaphore token that Matching granted to a queued acquire.
+  // It's called by Matching when a slot frees up for the acquire.
+  rpc RecordSemaphoreAcquired(RecordSemaphoreAcquiredRequest) returns (RecordSemaphoreAcquiredResponse);
+
   rpc ReplicateEventsV2(ReplicateEventsV2Request) returns (ReplicateEventsV2Response);
 
   // SyncShardStatus sync the status between shards.
@@ -257,6 +261,9 @@ message StartWorkflowExecutionRequest {
   api.v1.Payload last_completion_result = 8;
   google.protobuf.Duration first_decision_task_backoff = 9;
   map<string, string> partition_config = 10;
+  // version history items of the current branch of the parent, set only for a child start, to find out if an existing
+  // child run was started by an initiated event that is not on that branch
+  repeated admin.v1.VersionHistoryItem parent_version_history_items = 11;
 }
 
 message StartWorkflowExecutionResponse {
@@ -536,9 +543,25 @@ message RecordChildExecutionCompletedRequest {
   api.v1.WorkflowExecution completed_execution = 4;
   api.v1.HistoryEvent completion_event = 5;
   int64 started_id = 6;
+  // first run of the chain of the completed child, so the parent accepts only the completion of the child run it started
+  string first_execution_run_id = 7;
+  // version of the started event of the first run of the chain of the completed child, set only when the parent is in
+  // the same domain, so the parent can drop a completion from an initiated event that can not be on its current branch
+  google.protobuf.Int64Value child_start_version = 8;
 }
 
 message RecordChildExecutionCompletedResponse {
+}
+
+message RecordSemaphoreAcquiredRequest {
+  string domain_id = 1;
+  api.v1.WorkflowExecution workflow_execution = 2;
+  int64 initiated_id = 3;
+  int32 token_id = 4;
+  string semaphore_name = 5;
+}
+
+message RecordSemaphoreAcquiredResponse {
 }
 
 message ReplicateEventsV2Request {

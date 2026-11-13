@@ -275,6 +275,17 @@ func (c *historyClient) RecordDecisionTaskStarted(ctx context.Context, rp1 *type
 	return resp, err
 }
 
+func (c *historyClient) RecordSemaphoreAcquired(ctx context.Context, rp1 *types.RecordSemaphoreAcquiredRequest, p1 ...yarpc.CallOption) (rp2 *types.RecordSemaphoreAcquiredResponse, err error) {
+	var resp *types.RecordSemaphoreAcquiredResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.RecordSemaphoreAcquired(ctx, rp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *historyClient) RefreshWorkflowTasks(ctx context.Context, hp1 *types.HistoryRefreshWorkflowTasksRequest, p1 ...yarpc.CallOption) (err error) {
 	op := func(ctx context.Context) error {
 		return c.client.RefreshWorkflowTasks(ctx, hp1, p1...)

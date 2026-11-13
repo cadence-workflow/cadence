@@ -7090,14 +7090,15 @@ func (v *ReplicationMessages) IsSetSyncShardStatus() bool {
 }
 
 type ReplicationTask struct {
-	TaskType                      *ReplicationTaskType           `json:"taskType,omitempty"`
-	SourceTaskId                  *int64                         `json:"sourceTaskId,omitempty"`
-	DomainTaskAttributes          *DomainTaskAttributes          `json:"domainTaskAttributes,omitempty"`
-	SyncShardStatusTaskAttributes *SyncShardStatusTaskAttributes `json:"syncShardStatusTaskAttributes,omitempty"`
-	SyncActivityTaskAttributes    *SyncActivityTaskAttributes    `json:"syncActivityTaskAttributes,omitempty"`
-	HistoryTaskV2Attributes       *HistoryTaskV2Attributes       `json:"historyTaskV2Attributes,omitempty"`
-	FailoverMarkerAttributes      *FailoverMarkerAttributes      `json:"failoverMarkerAttributes,omitempty"`
-	CreationTime                  *int64                         `json:"creationTime,omitempty"`
+	TaskType                        *ReplicationTaskType             `json:"taskType,omitempty"`
+	SourceTaskId                    *int64                           `json:"sourceTaskId,omitempty"`
+	DomainTaskAttributes            *DomainTaskAttributes            `json:"domainTaskAttributes,omitempty"`
+	SyncShardStatusTaskAttributes   *SyncShardStatusTaskAttributes   `json:"syncShardStatusTaskAttributes,omitempty"`
+	SyncActivityTaskAttributes      *SyncActivityTaskAttributes      `json:"syncActivityTaskAttributes,omitempty"`
+	HistoryTaskV2Attributes         *HistoryTaskV2Attributes         `json:"historyTaskV2Attributes,omitempty"`
+	FailoverMarkerAttributes        *FailoverMarkerAttributes        `json:"failoverMarkerAttributes,omitempty"`
+	CreationTime                    *int64                           `json:"creationTime,omitempty"`
+	SemaphoreMetadataTaskAttributes *SemaphoreMetadataTaskAttributes `json:"semaphoreMetadataTaskAttributes,omitempty"`
 }
 
 // ToWire translates a ReplicationTask struct into a Thrift-level intermediate
@@ -7117,7 +7118,7 @@ type ReplicationTask struct {
 //	}
 func (v *ReplicationTask) ToWire() (wire.Value, error) {
 	var (
-		fields [8]wire.Field
+		fields [9]wire.Field
 		i      int = 0
 		w      wire.Value
 		err    error
@@ -7187,6 +7188,14 @@ func (v *ReplicationTask) ToWire() (wire.Value, error) {
 		fields[i] = wire.Field{ID: 90, Value: w}
 		i++
 	}
+	if v.SemaphoreMetadataTaskAttributes != nil {
+		w, err = v.SemaphoreMetadataTaskAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 100, Value: w}
+		i++
+	}
 
 	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
 }
@@ -7217,6 +7226,12 @@ func _SyncActivityTaskAttributes_Read(w wire.Value) (*SyncActivityTaskAttributes
 
 func _HistoryTaskV2Attributes_Read(w wire.Value) (*HistoryTaskV2Attributes, error) {
 	var v HistoryTaskV2Attributes
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _SemaphoreMetadataTaskAttributes_Read(w wire.Value) (*SemaphoreMetadataTaskAttributes, error) {
+	var v SemaphoreMetadataTaskAttributes
 	err := v.FromWire(w)
 	return &v, err
 }
@@ -7308,6 +7323,14 @@ func (v *ReplicationTask) FromWire(w wire.Value) error {
 				var x int64
 				x, err = field.Value.GetI64(), error(nil)
 				v.CreationTime = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 100:
+			if field.Value.Type() == wire.TStruct {
+				v.SemaphoreMetadataTaskAttributes, err = _SemaphoreMetadataTaskAttributes_Read(field.Value)
 				if err != nil {
 					return err
 				}
@@ -7424,6 +7447,18 @@ func (v *ReplicationTask) Encode(sw stream.Writer) error {
 		}
 	}
 
+	if v.SemaphoreMetadataTaskAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 100, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.SemaphoreMetadataTaskAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
 	return sw.WriteStructEnd()
 }
 
@@ -7453,6 +7488,12 @@ func _SyncActivityTaskAttributes_Decode(sr stream.Reader) (*SyncActivityTaskAttr
 
 func _HistoryTaskV2Attributes_Decode(sr stream.Reader) (*HistoryTaskV2Attributes, error) {
 	var v HistoryTaskV2Attributes
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _SemaphoreMetadataTaskAttributes_Decode(sr stream.Reader) (*SemaphoreMetadataTaskAttributes, error) {
+	var v SemaphoreMetadataTaskAttributes
 	err := v.Decode(sr)
 	return &v, err
 }
@@ -7529,6 +7570,12 @@ func (v *ReplicationTask) Decode(sr stream.Reader) error {
 				return err
 			}
 
+		case fh.ID == 100 && fh.Type == wire.TStruct:
+			v.SemaphoreMetadataTaskAttributes, err = _SemaphoreMetadataTaskAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
 		default:
 			if err := sr.Skip(fh.Type); err != nil {
 				return err
@@ -7558,7 +7605,7 @@ func (v *ReplicationTask) String() string {
 		return "<nil>"
 	}
 
-	var fields [8]string
+	var fields [9]string
 	i := 0
 	if v.TaskType != nil {
 		fields[i] = fmt.Sprintf("TaskType: %v", *(v.TaskType))
@@ -7590,6 +7637,10 @@ func (v *ReplicationTask) String() string {
 	}
 	if v.CreationTime != nil {
 		fields[i] = fmt.Sprintf("CreationTime: %v", *(v.CreationTime))
+		i++
+	}
+	if v.SemaphoreMetadataTaskAttributes != nil {
+		fields[i] = fmt.Sprintf("SemaphoreMetadataTaskAttributes: %v", v.SemaphoreMetadataTaskAttributes)
 		i++
 	}
 
@@ -7640,6 +7691,9 @@ func (v *ReplicationTask) Equals(rhs *ReplicationTask) bool {
 	if !_I64_EqualsPtr(v.CreationTime, rhs.CreationTime) {
 		return false
 	}
+	if !((v.SemaphoreMetadataTaskAttributes == nil && rhs.SemaphoreMetadataTaskAttributes == nil) || (v.SemaphoreMetadataTaskAttributes != nil && rhs.SemaphoreMetadataTaskAttributes != nil && v.SemaphoreMetadataTaskAttributes.Equals(rhs.SemaphoreMetadataTaskAttributes))) {
+		return false
+	}
 
 	return true
 }
@@ -7673,6 +7727,9 @@ func (v *ReplicationTask) MarshalLogObject(enc zapcore.ObjectEncoder) (err error
 	}
 	if v.CreationTime != nil {
 		enc.AddInt64("creationTime", *v.CreationTime)
+	}
+	if v.SemaphoreMetadataTaskAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("semaphoreMetadataTaskAttributes", v.SemaphoreMetadataTaskAttributes))
 	}
 	return err
 }
@@ -7795,6 +7852,21 @@ func (v *ReplicationTask) GetCreationTime() (o int64) {
 // IsSetCreationTime returns true if CreationTime is not nil.
 func (v *ReplicationTask) IsSetCreationTime() bool {
 	return v != nil && v.CreationTime != nil
+}
+
+// GetSemaphoreMetadataTaskAttributes returns the value of SemaphoreMetadataTaskAttributes if it is set or its
+// zero value if it is unset.
+func (v *ReplicationTask) GetSemaphoreMetadataTaskAttributes() (o *SemaphoreMetadataTaskAttributes) {
+	if v != nil && v.SemaphoreMetadataTaskAttributes != nil {
+		return v.SemaphoreMetadataTaskAttributes
+	}
+
+	return
+}
+
+// IsSetSemaphoreMetadataTaskAttributes returns true if SemaphoreMetadataTaskAttributes is not nil.
+func (v *ReplicationTask) IsSetSemaphoreMetadataTaskAttributes() bool {
+	return v != nil && v.SemaphoreMetadataTaskAttributes != nil
 }
 
 type ReplicationTaskInfo struct {
@@ -8532,13 +8604,14 @@ func (v *ReplicationTaskInfo) IsSetScheduledID() bool {
 type ReplicationTaskType int32
 
 const (
-	ReplicationTaskTypeDomain          ReplicationTaskType = 0
-	ReplicationTaskTypeHistory         ReplicationTaskType = 1
-	ReplicationTaskTypeSyncShardStatus ReplicationTaskType = 2
-	ReplicationTaskTypeSyncActivity    ReplicationTaskType = 3
-	ReplicationTaskTypeHistoryMetadata ReplicationTaskType = 4
-	ReplicationTaskTypeHistoryV2       ReplicationTaskType = 5
-	ReplicationTaskTypeFailoverMarker  ReplicationTaskType = 6
+	ReplicationTaskTypeDomain            ReplicationTaskType = 0
+	ReplicationTaskTypeHistory           ReplicationTaskType = 1
+	ReplicationTaskTypeSyncShardStatus   ReplicationTaskType = 2
+	ReplicationTaskTypeSyncActivity      ReplicationTaskType = 3
+	ReplicationTaskTypeHistoryMetadata   ReplicationTaskType = 4
+	ReplicationTaskTypeHistoryV2         ReplicationTaskType = 5
+	ReplicationTaskTypeFailoverMarker    ReplicationTaskType = 6
+	ReplicationTaskTypeSemaphoreMetadata ReplicationTaskType = 7
 )
 
 // ReplicationTaskType_Values returns all recognized values of ReplicationTaskType.
@@ -8551,6 +8624,7 @@ func ReplicationTaskType_Values() []ReplicationTaskType {
 		ReplicationTaskTypeHistoryMetadata,
 		ReplicationTaskTypeHistoryV2,
 		ReplicationTaskTypeFailoverMarker,
+		ReplicationTaskTypeSemaphoreMetadata,
 	}
 }
 
@@ -8581,6 +8655,9 @@ func (v *ReplicationTaskType) UnmarshalText(value []byte) error {
 		return nil
 	case "FailoverMarker":
 		*v = ReplicationTaskTypeFailoverMarker
+		return nil
+	case "SemaphoreMetadata":
+		*v = ReplicationTaskTypeSemaphoreMetadata
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -8614,6 +8691,8 @@ func (v ReplicationTaskType) MarshalText() ([]byte, error) {
 		return []byte("HistoryV2"), nil
 	case 6:
 		return []byte("FailoverMarker"), nil
+	case 7:
+		return []byte("SemaphoreMetadata"), nil
 	}
 	return []byte(strconv.FormatInt(int64(v), 10)), nil
 }
@@ -8639,6 +8718,8 @@ func (v ReplicationTaskType) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 		enc.AddString("name", "HistoryV2")
 	case 6:
 		enc.AddString("name", "FailoverMarker")
+	case 7:
+		enc.AddString("name", "SemaphoreMetadata")
 	}
 	return nil
 }
@@ -8721,6 +8802,8 @@ func (v ReplicationTaskType) String() string {
 		return "HistoryV2"
 	case 6:
 		return "FailoverMarker"
+	case 7:
+		return "SemaphoreMetadata"
 	}
 	return fmt.Sprintf("ReplicationTaskType(%d)", w)
 }
@@ -8753,6 +8836,8 @@ func (v ReplicationTaskType) MarshalJSON() ([]byte, error) {
 		return ([]byte)("\"HistoryV2\""), nil
 	case 6:
 		return ([]byte)("\"FailoverMarker\""), nil
+	case 7:
+		return ([]byte)("\"SemaphoreMetadata\""), nil
 	}
 	return ([]byte)(strconv.FormatInt(int64(v), 10)), nil
 }
@@ -9129,6 +9214,408 @@ func (v *ReplicationToken) GetLastProcessedMessageId() (o int64) {
 // IsSetLastProcessedMessageId returns true if LastProcessedMessageId is not nil.
 func (v *ReplicationToken) IsSetLastProcessedMessageId() bool {
 	return v != nil && v.LastProcessedMessageId != nil
+}
+
+type SemaphoreMetadataTaskAttributes struct {
+	DomainId       *string `json:"domainId,omitempty"`
+	SemaphoreName  *string `json:"semaphoreName,omitempty"`
+	Capacity       *int32  `json:"capacity,omitempty"`
+	BucketCapacity *int32  `json:"bucketCapacity,omitempty"`
+}
+
+// ToWire translates a SemaphoreMetadataTaskAttributes struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *SemaphoreMetadataTaskAttributes) ToWire() (wire.Value, error) {
+	var (
+		fields [4]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.DomainId != nil {
+		w, err = wire.NewValueString(*(v.DomainId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.SemaphoreName != nil {
+		w, err = wire.NewValueString(*(v.SemaphoreName)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.Capacity != nil {
+		w, err = wire.NewValueI32(*(v.Capacity)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.BucketCapacity != nil {
+		w, err = wire.NewValueI32(*(v.BucketCapacity)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a SemaphoreMetadataTaskAttributes struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a SemaphoreMetadataTaskAttributes struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v SemaphoreMetadataTaskAttributes
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *SemaphoreMetadataTaskAttributes) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.DomainId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.SemaphoreName = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TI32 {
+				var x int32
+				x, err = field.Value.GetI32(), error(nil)
+				v.Capacity = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TI32 {
+				var x int32
+				x, err = field.Value.GetI32(), error(nil)
+				v.BucketCapacity = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a SemaphoreMetadataTaskAttributes struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a SemaphoreMetadataTaskAttributes struct could not be encoded.
+func (v *SemaphoreMetadataTaskAttributes) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.DomainId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.DomainId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.SemaphoreName != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.SemaphoreName)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Capacity != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt32(*(v.Capacity)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.BucketCapacity != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt32(*(v.BucketCapacity)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a SemaphoreMetadataTaskAttributes struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a SemaphoreMetadataTaskAttributes struct could not be generated from the wire
+// representation.
+func (v *SemaphoreMetadataTaskAttributes) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.DomainId = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.SemaphoreName = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TI32:
+			var x int32
+			x, err = sr.ReadInt32()
+			v.Capacity = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TI32:
+			var x int32
+			x, err = sr.ReadInt32()
+			v.BucketCapacity = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a SemaphoreMetadataTaskAttributes
+// struct.
+func (v *SemaphoreMetadataTaskAttributes) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [4]string
+	i := 0
+	if v.DomainId != nil {
+		fields[i] = fmt.Sprintf("DomainId: %v", *(v.DomainId))
+		i++
+	}
+	if v.SemaphoreName != nil {
+		fields[i] = fmt.Sprintf("SemaphoreName: %v", *(v.SemaphoreName))
+		i++
+	}
+	if v.Capacity != nil {
+		fields[i] = fmt.Sprintf("Capacity: %v", *(v.Capacity))
+		i++
+	}
+	if v.BucketCapacity != nil {
+		fields[i] = fmt.Sprintf("BucketCapacity: %v", *(v.BucketCapacity))
+		i++
+	}
+
+	return fmt.Sprintf("SemaphoreMetadataTaskAttributes{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this SemaphoreMetadataTaskAttributes match the
+// provided SemaphoreMetadataTaskAttributes.
+//
+// This function performs a deep comparison.
+func (v *SemaphoreMetadataTaskAttributes) Equals(rhs *SemaphoreMetadataTaskAttributes) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.DomainId, rhs.DomainId) {
+		return false
+	}
+	if !_String_EqualsPtr(v.SemaphoreName, rhs.SemaphoreName) {
+		return false
+	}
+	if !_I32_EqualsPtr(v.Capacity, rhs.Capacity) {
+		return false
+	}
+	if !_I32_EqualsPtr(v.BucketCapacity, rhs.BucketCapacity) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of SemaphoreMetadataTaskAttributes.
+func (v *SemaphoreMetadataTaskAttributes) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.DomainId != nil {
+		enc.AddString("domainId", *v.DomainId)
+	}
+	if v.SemaphoreName != nil {
+		enc.AddString("semaphoreName", *v.SemaphoreName)
+	}
+	if v.Capacity != nil {
+		enc.AddInt32("capacity", *v.Capacity)
+	}
+	if v.BucketCapacity != nil {
+		enc.AddInt32("bucketCapacity", *v.BucketCapacity)
+	}
+	return err
+}
+
+// GetDomainId returns the value of DomainId if it is set or its
+// zero value if it is unset.
+func (v *SemaphoreMetadataTaskAttributes) GetDomainId() (o string) {
+	if v != nil && v.DomainId != nil {
+		return *v.DomainId
+	}
+
+	return
+}
+
+// IsSetDomainId returns true if DomainId is not nil.
+func (v *SemaphoreMetadataTaskAttributes) IsSetDomainId() bool {
+	return v != nil && v.DomainId != nil
+}
+
+// GetSemaphoreName returns the value of SemaphoreName if it is set or its
+// zero value if it is unset.
+func (v *SemaphoreMetadataTaskAttributes) GetSemaphoreName() (o string) {
+	if v != nil && v.SemaphoreName != nil {
+		return *v.SemaphoreName
+	}
+
+	return
+}
+
+// IsSetSemaphoreName returns true if SemaphoreName is not nil.
+func (v *SemaphoreMetadataTaskAttributes) IsSetSemaphoreName() bool {
+	return v != nil && v.SemaphoreName != nil
+}
+
+// GetCapacity returns the value of Capacity if it is set or its
+// zero value if it is unset.
+func (v *SemaphoreMetadataTaskAttributes) GetCapacity() (o int32) {
+	if v != nil && v.Capacity != nil {
+		return *v.Capacity
+	}
+
+	return
+}
+
+// IsSetCapacity returns true if Capacity is not nil.
+func (v *SemaphoreMetadataTaskAttributes) IsSetCapacity() bool {
+	return v != nil && v.Capacity != nil
+}
+
+// GetBucketCapacity returns the value of BucketCapacity if it is set or its
+// zero value if it is unset.
+func (v *SemaphoreMetadataTaskAttributes) GetBucketCapacity() (o int32) {
+	if v != nil && v.BucketCapacity != nil {
+		return *v.BucketCapacity
+	}
+
+	return
+}
+
+// IsSetBucketCapacity returns true if BucketCapacity is not nil.
+func (v *SemaphoreMetadataTaskAttributes) IsSetBucketCapacity() bool {
+	return v != nil && v.BucketCapacity != nil
 }
 
 type SyncActivityTaskAttributes struct {
@@ -10862,11 +11349,11 @@ var ThriftModule = &thriftreflect.ThriftModule{
 	Name:     "replicator",
 	Package:  "github.com/uber/cadence/.gen/go/replicator",
 	FilePath: "replicator.thrift",
-	SHA1:     "3ec11471346b90a0b3295914ddfd0627f0c4afc6",
+	SHA1:     "049953030de67a9df14dfd9b10b2dc4f822b43b3",
 	Includes: []*thriftreflect.ThriftModule{
 		shared.ThriftModule,
 	},
 	Raw: rawIDL,
 }
 
-const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\nnamespace java com.uber.cadence.replicator\n\ninclude \"shared.thrift\"\n\nenum ReplicationTaskType {\n  Domain\n  History\n  SyncShardStatus\n  SyncActivity\n  HistoryMetadata\n  HistoryV2\n  FailoverMarker\n}\n\nenum DomainOperation {\n  Create\n  Update\n  Delete\n}\n\nstruct DomainTaskAttributes {\n  05: optional DomainOperation domainOperation\n  10: optional string id\n  20: optional shared.DomainInfo info\n  30: optional shared.DomainConfiguration config\n  40: optional shared.DomainReplicationConfiguration replicationConfig\n  50: optional i64 (js.type = \"Long\") configVersion\n  60: optional i64 (js.type = \"Long\") failoverVersion\n  70: optional i64 (js.type = \"Long\") previousFailoverVersion\n}\n\nstruct SyncShardStatusTaskAttributes {\n  10: optional string sourceCluster\n  20: optional i64 (js.type = \"Long\") shardId\n  30: optional i64 (js.type = \"Long\") timestamp\n}\n\nstruct SyncActivityTaskAttributes {\n  10: optional string domainId\n  20: optional string workflowId\n  30: optional string runId\n  40: optional i64 (js.type = \"Long\") version\n  50: optional i64 (js.type = \"Long\") scheduledId\n  60: optional i64 (js.type = \"Long\") scheduledTime\n  70: optional i64 (js.type = \"Long\") startedId\n  80: optional i64 (js.type = \"Long\") startedTime\n  90: optional i64 (js.type = \"Long\") lastHeartbeatTime\n  100: optional binary details\n  110: optional i32 attempt\n  120: optional string lastFailureReason\n  130: optional string lastWorkerIdentity\n  140: optional binary lastFailureDetails\n  145: optional shared.FailureOptions lastFailureOptions\n  150: optional shared.VersionHistory versionHistory\n}\n\nstruct HistoryTaskV2Attributes {\n  05: optional i64 (js.type = \"Long\") taskId\n  10: optional string domainId\n  20: optional string workflowId\n  30: optional string runId\n  40: optional list<shared.VersionHistoryItem> versionHistoryItems\n  50: optional shared.DataBlob events\n  // new run events does not need version history since there is no prior events\n  70: optional shared.DataBlob newRunEvents\n}\n\nstruct FailoverMarkerAttributes{\n\t10: optional string domainID\n\t20: optional i64 (js.type = \"Long\") failoverVersion\n\t30: optional i64 (js.type = \"Long\") creationTime\n}\n\nstruct FailoverMarkers{\n\t10: optional list<FailoverMarkerAttributes> failoverMarkers\n}\n\nstruct ReplicationTask {\n  10: optional ReplicationTaskType taskType\n  11: optional i64 (js.type = \"Long\") sourceTaskId\n  20: optional DomainTaskAttributes domainTaskAttributes\n  40: optional SyncShardStatusTaskAttributes syncShardStatusTaskAttributes\n  50: optional SyncActivityTaskAttributes syncActivityTaskAttributes\n  70: optional HistoryTaskV2Attributes historyTaskV2Attributes\n  80: optional FailoverMarkerAttributes failoverMarkerAttributes\n  90: optional i64 (js.type = \"Long\") creationTime\n}\n\nstruct ReplicationToken {\n  10: optional i32 shardID\n  // lastRetrivedMessageId is where the next fetch should begin with\n  20: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  // lastProcessedMessageId is the last messageId that is processed on the passive side.\n  // This can be different than lastRetrievedMessageId if passive side supports prefetching messages.\n  30: optional i64 (js.type = \"Long\") lastProcessedMessageId\n}\n\nstruct SyncShardStatus {\n  10: optional i64 (js.type = \"Long\") timestamp\n}\n\nstruct ReplicationMessages {\n  10: optional list<ReplicationTask> replicationTasks\n  // This can be different than the last taskId in the above list, because sender can decide to skip tasks (e.g. for completed workflows).\n  20: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  30: optional bool hasMore // Hint for flow control\n  40: optional SyncShardStatus syncShardStatus\n}\n\nstruct ReplicationTaskInfo {\n  10: optional string domainID\n  20: optional string workflowID\n  30: optional string runID\n  40: optional i16 taskType\n  50: optional i64 (js.type = \"Long\") taskID\n  60: optional i64 (js.type = \"Long\") version\n  70: optional i64 (js.type = \"Long\") firstEventID\n  80: optional i64 (js.type = \"Long\") nextEventID\n  90: optional i64 (js.type = \"Long\") scheduledID\n}\n\nstruct GetReplicationMessagesRequest {\n  10: optional list<ReplicationToken> tokens\n  20: optional string clusterName\n}\n\nstruct GetReplicationMessagesResponse {\n  10: optional map<i32, ReplicationMessages> messagesByShard\n}\n\nstruct GetDomainReplicationMessagesRequest {\n  // lastRetrievedMessageId is where the next fetch should begin with\n  10: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  // lastProcessedMessageId is the last messageId that is processed on the passive side.\n  // This can be different than lastRetrievedMessageId if passive side supports prefetching messages.\n  20: optional i64 (js.type = \"Long\") lastProcessedMessageId\n  // clusterName is the name of the pulling cluster\n  30: optional string clusterName\n}\n\nstruct GetDomainReplicationMessagesResponse {\n  10: optional ReplicationMessages messages\n}\n\nstruct GetDLQReplicationMessagesRequest {\n  10: optional list<ReplicationTaskInfo> taskInfos\n}\n\nstruct GetDLQReplicationMessagesResponse {\n  10: optional list<ReplicationTask> replicationTasks\n}\n\nenum DLQType {\n  Replication,\n  Domain,\n}\n\nstruct ReadDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n  50: optional i32 maximumPageSize\n  60: optional binary nextPageToken\n}\n\nstruct ReadDLQMessagesResponse{\n  10: optional DLQType type\n  20: optional list<ReplicationTask> replicationTasks\n  30: optional binary nextPageToken\n  40: optional list<ReplicationTaskInfo> replicationTasksInfo\n}\n\nstruct PurgeDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n}\n\nstruct MergeDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n  50: optional i32 maximumPageSize\n  60: optional binary nextPageToken\n}\n\nstruct MergeDLQMessagesResponse{\n  10: optional binary nextPageToken\n}\n"
+const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\nnamespace java com.uber.cadence.replicator\n\ninclude \"shared.thrift\"\n\nenum ReplicationTaskType {\n  Domain\n  History\n  SyncShardStatus\n  SyncActivity\n  HistoryMetadata\n  HistoryV2\n  FailoverMarker\n  SemaphoreMetadata\n}\n\nenum DomainOperation {\n  Create\n  Update\n  Delete\n}\n\nstruct DomainTaskAttributes {\n  05: optional DomainOperation domainOperation\n  10: optional string id\n  20: optional shared.DomainInfo info\n  30: optional shared.DomainConfiguration config\n  40: optional shared.DomainReplicationConfiguration replicationConfig\n  50: optional i64 (js.type = \"Long\") configVersion\n  60: optional i64 (js.type = \"Long\") failoverVersion\n  70: optional i64 (js.type = \"Long\") previousFailoverVersion\n}\n\nstruct SemaphoreMetadataTaskAttributes {\n  10: optional string domainId\n  20: optional string semaphoreName\n  30: optional i32 capacity\n  40: optional i32 bucketCapacity\n}\n\nstruct SyncShardStatusTaskAttributes {\n  10: optional string sourceCluster\n  20: optional i64 (js.type = \"Long\") shardId\n  30: optional i64 (js.type = \"Long\") timestamp\n}\n\nstruct SyncActivityTaskAttributes {\n  10: optional string domainId\n  20: optional string workflowId\n  30: optional string runId\n  40: optional i64 (js.type = \"Long\") version\n  50: optional i64 (js.type = \"Long\") scheduledId\n  60: optional i64 (js.type = \"Long\") scheduledTime\n  70: optional i64 (js.type = \"Long\") startedId\n  80: optional i64 (js.type = \"Long\") startedTime\n  90: optional i64 (js.type = \"Long\") lastHeartbeatTime\n  100: optional binary details\n  110: optional i32 attempt\n  120: optional string lastFailureReason\n  130: optional string lastWorkerIdentity\n  140: optional binary lastFailureDetails\n  145: optional shared.FailureOptions lastFailureOptions\n  150: optional shared.VersionHistory versionHistory\n}\n\nstruct HistoryTaskV2Attributes {\n  05: optional i64 (js.type = \"Long\") taskId\n  10: optional string domainId\n  20: optional string workflowId\n  30: optional string runId\n  40: optional list<shared.VersionHistoryItem> versionHistoryItems\n  50: optional shared.DataBlob events\n  // new run events does not need version history since there is no prior events\n  70: optional shared.DataBlob newRunEvents\n}\n\nstruct FailoverMarkerAttributes{\n\t10: optional string domainID\n\t20: optional i64 (js.type = \"Long\") failoverVersion\n\t30: optional i64 (js.type = \"Long\") creationTime\n}\n\nstruct FailoverMarkers{\n\t10: optional list<FailoverMarkerAttributes> failoverMarkers\n}\n\nstruct ReplicationTask {\n  10: optional ReplicationTaskType taskType\n  11: optional i64 (js.type = \"Long\") sourceTaskId\n  20: optional DomainTaskAttributes domainTaskAttributes\n  40: optional SyncShardStatusTaskAttributes syncShardStatusTaskAttributes\n  50: optional SyncActivityTaskAttributes syncActivityTaskAttributes\n  70: optional HistoryTaskV2Attributes historyTaskV2Attributes\n  80: optional FailoverMarkerAttributes failoverMarkerAttributes\n  90: optional i64 (js.type = \"Long\") creationTime\n  100: optional SemaphoreMetadataTaskAttributes semaphoreMetadataTaskAttributes\n}\n\nstruct ReplicationToken {\n  10: optional i32 shardID\n  // lastRetrivedMessageId is where the next fetch should begin with\n  20: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  // lastProcessedMessageId is the last messageId that is processed on the passive side.\n  // This can be different than lastRetrievedMessageId if passive side supports prefetching messages.\n  30: optional i64 (js.type = \"Long\") lastProcessedMessageId\n}\n\nstruct SyncShardStatus {\n  10: optional i64 (js.type = \"Long\") timestamp\n}\n\nstruct ReplicationMessages {\n  10: optional list<ReplicationTask> replicationTasks\n  // This can be different than the last taskId in the above list, because sender can decide to skip tasks (e.g. for completed workflows).\n  20: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  30: optional bool hasMore // Hint for flow control\n  40: optional SyncShardStatus syncShardStatus\n}\n\nstruct ReplicationTaskInfo {\n  10: optional string domainID\n  20: optional string workflowID\n  30: optional string runID\n  40: optional i16 taskType\n  50: optional i64 (js.type = \"Long\") taskID\n  60: optional i64 (js.type = \"Long\") version\n  70: optional i64 (js.type = \"Long\") firstEventID\n  80: optional i64 (js.type = \"Long\") nextEventID\n  90: optional i64 (js.type = \"Long\") scheduledID\n}\n\nstruct GetReplicationMessagesRequest {\n  10: optional list<ReplicationToken> tokens\n  20: optional string clusterName\n}\n\nstruct GetReplicationMessagesResponse {\n  10: optional map<i32, ReplicationMessages> messagesByShard\n}\n\nstruct GetDomainReplicationMessagesRequest {\n  // lastRetrievedMessageId is where the next fetch should begin with\n  10: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  // lastProcessedMessageId is the last messageId that is processed on the passive side.\n  // This can be different than lastRetrievedMessageId if passive side supports prefetching messages.\n  20: optional i64 (js.type = \"Long\") lastProcessedMessageId\n  // clusterName is the name of the pulling cluster\n  30: optional string clusterName\n}\n\nstruct GetDomainReplicationMessagesResponse {\n  10: optional ReplicationMessages messages\n}\n\nstruct GetDLQReplicationMessagesRequest {\n  10: optional list<ReplicationTaskInfo> taskInfos\n}\n\nstruct GetDLQReplicationMessagesResponse {\n  10: optional list<ReplicationTask> replicationTasks\n}\n\nenum DLQType {\n  Replication,\n  Domain,\n}\n\nstruct ReadDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n  50: optional i32 maximumPageSize\n  60: optional binary nextPageToken\n}\n\nstruct ReadDLQMessagesResponse{\n  10: optional DLQType type\n  20: optional list<ReplicationTask> replicationTasks\n  30: optional binary nextPageToken\n  40: optional list<ReplicationTaskInfo> replicationTasksInfo\n}\n\nstruct PurgeDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n}\n\nstruct MergeDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n  50: optional i32 maximumPageSize\n  60: optional binary nextPageToken\n}\n\nstruct MergeDLQMessagesResponse{\n  10: optional binary nextPageToken\n}\n"

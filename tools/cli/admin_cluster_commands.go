@@ -153,7 +153,7 @@ func AdminRebalanceStart(c *cli.Context) error {
 		RequestID:                           uuid.New(),
 		Identity:                            getCliIdentity(),
 		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
-		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(60),
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(getFailoverWorkflowTimeout(c)),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(int32(defaultDecisionTimeoutInSeconds)),
 		Input:                               input,
 		TaskList: &types.TaskList{

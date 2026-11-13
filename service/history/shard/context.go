@@ -113,9 +113,10 @@ type (
 		AppendHistoryV2Events(ctx context.Context, request *persistence.AppendHistoryNodesRequest, domainID string, execution types.WorkflowExecution) (*persistence.AppendHistoryNodesResponse, error)
 
 		ReplicateFailoverMarkers(ctx context.Context, markers []*persistence.FailoverMarkerTask) error
-		// EnqueueAsyncWorkflowMessage allocates the message id and writes the queue row under the shard
-		// lock, so message ids become visible to the consumer in allocation order (the same rule transfer
-		// and timer tasks follow). request.MessageID is overwritten with the allocated id, which is returned.
+		// EnqueueAsyncWorkflowMessage allocates the message id and writes the queue row while holding a
+		// per-shard enqueue lock, so message ids become visible to the consumer in allocation order (the same
+		// rule transfer and timer tasks follow). The shard lock is held only for the allocation, not the write.
+		// request.MessageID is overwritten with the allocated id, which is returned.
 		EnqueueAsyncWorkflowMessage(ctx context.Context, request *persistence.EnqueueAsyncWorkflowMessageRequest) (int64, error)
 		ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error
 		AddingPendingFailoverMarker(*types.FailoverMarkerAttributes) error
@@ -141,6 +142,11 @@ type (
 		replicationBudgetManager cache.Manager
 
 		sync.RWMutex
+		// asyncEnqueueMu serializes async workflow enqueues on this shard so message ids reach the store in
+		// allocation order. It is held across id allocation and the queue write; the shard lock is taken only
+		// for allocation, so a slow queue write does not block workflow updates. Lock order: asyncEnqueueMu
+		// before the shard lock, never the reverse.
+		asyncEnqueueMu               sync.Mutex
 		lastUpdated                  time.Time
 		shardInfo                    *persistence.ShardInfo
 		taskSequenceNumber           int64
@@ -1556,6 +1562,24 @@ func (s *contextImpl) EnqueueAsyncWorkflowMessage(
 		return 0, err
 	}
 
+	s.asyncEnqueueMu.Lock()
+	defer s.asyncEnqueueMu.Unlock()
+
+	messageID, err := s.allocateAsyncWorkflowMessageID()
+	if err != nil {
+		return 0, err
+	}
+	request.MessageID = messageID
+
+	if err := s.GetService().GetPersistenceBean().GetAsyncWorkflowQueueManager().EnqueueAsyncWorkflowMessage(ctx, request); err != nil {
+		return 0, err
+	}
+	return messageID, nil
+}
+
+// allocateAsyncWorkflowMessageID takes the shard lock only long enough to allocate the id and confirm
+// the shard is still open. Callers must hold asyncEnqueueMu so the write that follows keeps allocation order.
+func (s *contextImpl) allocateAsyncWorkflowMessageID() (int64, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -1563,12 +1587,7 @@ func (s *contextImpl) EnqueueAsyncWorkflowMessage(
 	if err != nil {
 		return 0, err
 	}
-	request.MessageID = messageID
-
 	if err := s.closedError(); err != nil {
-		return 0, err
-	}
-	if err := s.GetService().GetPersistenceBean().GetAsyncWorkflowQueueManager().EnqueueAsyncWorkflowMessage(ctx, request); err != nil {
 		return 0, err
 	}
 	return messageID, nil

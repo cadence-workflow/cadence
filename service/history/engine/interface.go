@@ -58,6 +58,7 @@ type (
 		ResetWorkflowExecution(ctx context.Context, request *types.HistoryResetWorkflowExecutionRequest) (*types.ResetWorkflowExecutionResponse, error)
 		ScheduleDecisionTask(ctx context.Context, request *types.ScheduleDecisionTaskRequest) error
 		RecordChildExecutionCompleted(ctx context.Context, request *types.RecordChildExecutionCompletedRequest) error
+		RecordSemaphoreAcquired(ctx context.Context, request *types.RecordSemaphoreAcquiredRequest) (*types.RecordSemaphoreAcquiredResponse, error)
 		ReplicateEventsV2(ctx context.Context, request *types.ReplicateEventsV2Request) error
 		SyncShardStatus(ctx context.Context, request *types.SyncShardStatusRequest) error
 		SyncActivity(ctx context.Context, request *types.SyncActivityRequest) error

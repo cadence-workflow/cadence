@@ -58,6 +58,7 @@ type Client interface {
 	RecordActivityTaskHeartbeat(context.Context, *types.HistoryRecordActivityTaskHeartbeatRequest, ...yarpc.CallOption) (*types.RecordActivityTaskHeartbeatResponse, error)
 	RecordActivityTaskStarted(context.Context, *types.RecordActivityTaskStartedRequest, ...yarpc.CallOption) (*types.RecordActivityTaskStartedResponse, error)
 	RecordChildExecutionCompleted(context.Context, *types.RecordChildExecutionCompletedRequest, ...yarpc.CallOption) error
+	RecordSemaphoreAcquired(context.Context, *types.RecordSemaphoreAcquiredRequest, ...yarpc.CallOption) (*types.RecordSemaphoreAcquiredResponse, error)
 	RecordDecisionTaskStarted(context.Context, *types.RecordDecisionTaskStartedRequest, ...yarpc.CallOption) (*types.RecordDecisionTaskStartedResponse, error)
 	RefreshWorkflowTasks(context.Context, *types.HistoryRefreshWorkflowTasksRequest, ...yarpc.CallOption) error
 	RemoveSignalMutableState(context.Context, *types.RemoveSignalMutableStateRequest, ...yarpc.CallOption) error

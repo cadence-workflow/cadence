@@ -8,12 +8,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/proto"
 	"github.com/uber/cadence/service/history/engine/testdata"
 )
 
@@ -150,6 +152,23 @@ func TestEnqueueAsyncWorkflowMessage(t *testing.T) {
 			name: "empty payload data: BadRequestError, nothing written",
 			request: withRequest(func(r *types.EnqueueAsyncWorkflowMessageRequest) {
 				r.Payload = &types.DataBlob{EncodingType: types.EncodingTypeThriftRW.Ptr(), Data: []byte{}}
+			}),
+			wantBadRequest: true,
+		},
+		{
+			name: "nil payload encoding: BadRequestError, nothing written",
+			request: withRequest(func(r *types.EnqueueAsyncWorkflowMessageRequest) {
+				r.Payload = &types.DataBlob{EncodingType: nil, Data: []byte("envelope")}
+			}),
+			wantBadRequest: true,
+		},
+		{
+			name: "proto INVALID encoding maps to nil and is rejected: BadRequestError, nothing written",
+			request: withRequest(func(r *types.EnqueueAsyncWorkflowMessageRequest) {
+				r.Payload = proto.ToDataBlob(&apiv1.DataBlob{
+					EncodingType: apiv1.EncodingType_ENCODING_TYPE_INVALID,
+					Data:         []byte("envelope"),
+				})
 			}),
 			wantBadRequest: true,
 		},

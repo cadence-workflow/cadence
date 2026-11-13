@@ -1081,6 +1081,7 @@ func FromDataBlob(t *types.DataBlob) *shared.DataBlob {
 	return &shared.DataBlob{
 		EncodingType: FromEncodingType(t.EncodingType),
 		Data:         t.Data,
+		Checksum:     t.Checksum,
 	}
 }
 
@@ -1092,6 +1093,7 @@ func ToDataBlob(t *shared.DataBlob) *types.DataBlob {
 	return &types.DataBlob{
 		EncodingType: ToEncodingType(t.EncodingType),
 		Data:         t.Data,
+		Checksum:     t.Checksum,
 	}
 }
 
@@ -1248,6 +1250,12 @@ func FromDecisionTaskFailedCause(t *types.DecisionTaskFailedCause) *shared.Decis
 	case types.DecisionTaskFailedCauseBadSearchAttributes:
 		v := shared.DecisionTaskFailedCauseBadSearchAttributes
 		return &v
+	case types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes:
+		v := shared.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes
+		return &v
+	case types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes:
+		v := shared.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes
+		return &v
 	}
 	panic("unexpected enum value")
 }
@@ -1326,6 +1334,12 @@ func ToDecisionTaskFailedCause(t *shared.DecisionTaskFailedCause) *types.Decisio
 		return &v
 	case shared.DecisionTaskFailedCauseBadSearchAttributes:
 		v := types.DecisionTaskFailedCauseBadSearchAttributes
+		return &v
+	case shared.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes:
+		v := types.DecisionTaskFailedCauseBadAcquireSemaphoreAttributes
+		return &v
+	case shared.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes:
+		v := types.DecisionTaskFailedCauseBadReleaseSemaphoreAttributes
 		return &v
 	}
 	panic("unexpected enum value")
@@ -2570,6 +2584,9 @@ func FromEventType(t *types.EventType) *shared.EventType {
 	case types.EventTypeSemaphoreReleased:
 		v := shared.EventTypeSemaphoreReleased
 		return &v
+	case types.EventTypeSemaphoreAcquireFailed:
+		v := shared.EventTypeSemaphoreAcquireFailed
+		return &v
 	}
 	panic("unexpected enum value")
 }
@@ -2714,6 +2731,9 @@ func ToEventType(t *shared.EventType) *types.EventType {
 		return &v
 	case shared.EventTypeSemaphoreReleased:
 		v := types.EventTypeSemaphoreReleased
+		return &v
+	case shared.EventTypeSemaphoreAcquireFailed:
+		v := types.EventTypeSemaphoreAcquireFailed
 		return &v
 	}
 	panic("unexpected enum value")
@@ -3015,6 +3035,7 @@ func FromHistoryEvent(t *types.HistoryEvent) *shared.HistoryEvent {
 		SemaphoreAcquireInitiatedEventAttributes:                       FromSemaphoreAcquireInitiatedEventAttributes(t.SemaphoreAcquireInitiatedEventAttributes),
 		SemaphoreAcquiredEventAttributes:                               FromSemaphoreAcquiredEventAttributes(t.SemaphoreAcquiredEventAttributes),
 		SemaphoreReleasedEventAttributes:                               FromSemaphoreReleasedEventAttributes(t.SemaphoreReleasedEventAttributes),
+		SemaphoreAcquireFailedEventAttributes:                          FromSemaphoreAcquireFailedEventAttributes(t.SemaphoreAcquireFailedEventAttributes),
 	}
 }
 
@@ -3074,6 +3095,7 @@ func ToHistoryEvent(t *shared.HistoryEvent) *types.HistoryEvent {
 		SemaphoreAcquireInitiatedEventAttributes:                       ToSemaphoreAcquireInitiatedEventAttributes(t.SemaphoreAcquireInitiatedEventAttributes),
 		SemaphoreAcquiredEventAttributes:                               ToSemaphoreAcquiredEventAttributes(t.SemaphoreAcquiredEventAttributes),
 		SemaphoreReleasedEventAttributes:                               ToSemaphoreReleasedEventAttributes(t.SemaphoreReleasedEventAttributes),
+		SemaphoreAcquireFailedEventAttributes:                          ToSemaphoreAcquireFailedEventAttributes(t.SemaphoreAcquireFailedEventAttributes),
 	}
 }
 
@@ -6712,6 +6734,60 @@ func ToSemaphoreReleasedEventAttributes(t *shared.SemaphoreReleasedEventAttribut
 	}
 }
 
+// FromSemaphoreAcquireFailedCause converts internal SemaphoreAcquireFailedCause type to thrift
+func FromSemaphoreAcquireFailedCause(t *types.SemaphoreAcquireFailedCause) *shared.SemaphoreAcquireFailedCause {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case types.SemaphoreAcquireFailedCauseNotFound:
+		v := shared.SemaphoreAcquireFailedCauseNotFound
+		return &v
+	case types.SemaphoreAcquireFailedCauseTimedOut:
+		v := shared.SemaphoreAcquireFailedCauseTimedOut
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
+// ToSemaphoreAcquireFailedCause converts thrift SemaphoreAcquireFailedCause type to internal
+func ToSemaphoreAcquireFailedCause(t *shared.SemaphoreAcquireFailedCause) *types.SemaphoreAcquireFailedCause {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case shared.SemaphoreAcquireFailedCauseNotFound:
+		v := types.SemaphoreAcquireFailedCauseNotFound
+		return &v
+	case shared.SemaphoreAcquireFailedCauseTimedOut:
+		v := types.SemaphoreAcquireFailedCauseTimedOut
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
+// FromSemaphoreAcquireFailedEventAttributes converts internal SemaphoreAcquireFailedEventAttributes type to thrift
+func FromSemaphoreAcquireFailedEventAttributes(t *types.SemaphoreAcquireFailedEventAttributes) *shared.SemaphoreAcquireFailedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &shared.SemaphoreAcquireFailedEventAttributes{
+		Cause:            FromSemaphoreAcquireFailedCause(t.Cause),
+		InitiatedEventId: &t.InitiatedEventID,
+	}
+}
+
+// ToSemaphoreAcquireFailedEventAttributes converts thrift SemaphoreAcquireFailedEventAttributes type to internal
+func ToSemaphoreAcquireFailedEventAttributes(t *shared.SemaphoreAcquireFailedEventAttributes) *types.SemaphoreAcquireFailedEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreAcquireFailedEventAttributes{
+		Cause:            ToSemaphoreAcquireFailedCause(t.Cause),
+		InitiatedEventID: t.GetInitiatedEventId(),
+	}
+}
+
 // FromUpsertWorkflowSearchAttributesEventAttributes converts internal UpsertWorkflowSearchAttributesEventAttributes type to thrift
 func FromUpsertWorkflowSearchAttributesEventAttributes(t *types.UpsertWorkflowSearchAttributesEventAttributes) *shared.UpsertWorkflowSearchAttributesEventAttributes {
 	if t == nil {
@@ -9196,4 +9272,58 @@ func ToCronOverlapPolicy(t *shared.CronOverlapPolicy) *types.CronOverlapPolicy {
 		return types.CronOverlapPolicySkipped.Ptr()
 	}
 	panic("unexpected enum value")
+}
+
+// FromExportWorkflowExecutionRequest converts internal ExportWorkflowExecutionRequest type to thrift
+func FromExportWorkflowExecutionRequest(t *types.ExportWorkflowExecutionRequest) *shared.ExportWorkflowExecutionRequest {
+	if t == nil {
+		return nil
+	}
+	return &shared.ExportWorkflowExecutionRequest{
+		Domain:        &t.Domain,
+		Execution:     FromWorkflowExecution(t.Execution),
+		PageSize:      &t.PageSize,
+		NextPageToken: t.NextPageToken,
+		LastEventID:   t.LastEventID,
+	}
+}
+
+// ToExportWorkflowExecutionRequest converts thrift ExportWorkflowExecutionRequest type to internal
+func ToExportWorkflowExecutionRequest(t *shared.ExportWorkflowExecutionRequest) *types.ExportWorkflowExecutionRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ExportWorkflowExecutionRequest{
+		Domain:        t.GetDomain(),
+		Execution:     ToWorkflowExecution(t.Execution),
+		PageSize:      t.GetPageSize(),
+		NextPageToken: t.NextPageToken,
+		LastEventID:   t.LastEventID,
+	}
+}
+
+// FromExportWorkflowExecutionResponse converts internal ExportWorkflowExecutionResponse type to thrift
+func FromExportWorkflowExecutionResponse(t *types.ExportWorkflowExecutionResponse) *shared.ExportWorkflowExecutionResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.ExportWorkflowExecutionResponse{
+		Execution:      FromWorkflowExecution(t.Execution),
+		HistoryBatches: FromDataBlobArray(t.HistoryBatches),
+		NextPageToken:  t.NextPageToken,
+		Version:        &t.Version,
+	}
+}
+
+// ToExportWorkflowExecutionResponse converts thrift ExportWorkflowExecutionResponse type to internal
+func ToExportWorkflowExecutionResponse(t *shared.ExportWorkflowExecutionResponse) *types.ExportWorkflowExecutionResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ExportWorkflowExecutionResponse{
+		Execution:      ToWorkflowExecution(t.Execution),
+		HistoryBatches: ToDataBlobArray(t.HistoryBatches),
+		NextPageToken:  t.NextPageToken,
+		Version:        t.GetVersion(),
+	}
 }

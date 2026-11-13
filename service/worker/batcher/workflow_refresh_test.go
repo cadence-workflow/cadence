@@ -277,7 +277,7 @@ func TestValidateRefreshBatchParams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateParams(tt.params)
+			err := ValidateParams(tt.params)
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Fatalf("validateParams() error = %v", err)

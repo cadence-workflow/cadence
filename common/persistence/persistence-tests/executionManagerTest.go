@@ -2847,6 +2847,33 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 			TargetWorkflowID: targetWorkflowID,
 			TargetRunID:      targetRunID,
 			TaskList:         tasklist,
+		}, &p.AcquireSemaphoreTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
+			TaskData: p.TaskData{
+				VisibilityTimestamp: now,
+				TaskID:              currentTransferID + 10009,
+				Version:             999,
+			},
+			InitiatedID: scheduleID,
+			TaskList:    tasklist,
+		}, &p.ReleaseSemaphoreTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
+			TaskData: p.TaskData{
+				VisibilityTimestamp: now,
+				TaskID:              currentTransferID + 10010,
+				Version:             1110,
+			},
+			InitiatedID:   scheduleID,
+			SemaphoreName: "semaphore",
+			TaskList:      tasklist,
 		},
 	}
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
@@ -2898,6 +2925,13 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 	s.Equal(tasklist, txTasks[7].GetTaskList())
 	s.Equal(tasklist, txTasks[7].GetOriginalTaskList())
 	s.Equal(types.TaskListKindNormal, txTasks[7].GetOriginalTaskListKind())
+	s.Equal(p.TransferTaskTypeAcquireSemaphore, txTasks[8].GetTaskType())
+	s.Equal(tasklist, txTasks[8].GetTaskList())
+	s.Equal(scheduleID, txTasks[8].(*p.AcquireSemaphoreTask).InitiatedID)
+	s.Equal(p.TransferTaskTypeReleaseSemaphore, txTasks[9].GetTaskType())
+	s.Equal(tasklist, txTasks[9].GetTaskList())
+	s.Equal(scheduleID, txTasks[9].(*p.ReleaseSemaphoreTask).InitiatedID)
+	s.Equal("semaphore", txTasks[9].(*p.ReleaseSemaphoreTask).SemaphoreName)
 
 	for idx := range txTasks {
 		// TODO: add a check similar to validateCrossClusterTasks

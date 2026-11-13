@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -83,7 +84,11 @@ func TestContext_EnqueueAsyncWorkflowMessage(t *testing.T) {
 	}
 }
 
-func TestContext_EnqueueAsyncWorkflowMessage_ClosedWhileWaitingForLock(t *testing.T) {
+// TestContext_EnqueueAsyncWorkflowMessage_ClosedDuringAllocation proves the closure re-check runs under the
+// shard lock after the id is allocated. The task-id range is exhausted so allocation must renew it through
+// ShardManager.UpdateShard; the mocked UpdateShard closes the shard before returning success. Allocation
+// then succeeds, the re-check must reject, and the queue manager must never be called.
+func TestContext_EnqueueAsyncWorkflowMessage_ClosedDuringAllocation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	s := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
 	t.Cleanup(func() { s.Finish(t) })
@@ -92,40 +97,56 @@ func TestContext_EnqueueAsyncWorkflowMessage_ClosedWhileWaitingForLock(t *testin
 	s.Resource.PersistenceBean.EXPECT().GetAsyncWorkflowQueueManager().Return(manager).AnyTimes()
 	s.closeCallback = func(int, *historyShardsItem) {}
 
-	var (
-		id  int64
-		err error
-	)
-	started := make(chan struct{})
-	done := make(chan struct{})
 	s.Lock()
-	go func() {
-		defer close(done)
-		close(started)
-		id, err = s.EnqueueAsyncWorkflowMessage(context.Background(), newEnqueueRequest(s.GetShardID()))
-	}()
-
-	select {
-	case <-started:
-	case <-time.After(time.Second):
-		s.Unlock()
-		t.Fatal("enqueue did not start")
-	}
-	// Give the goroutine a chance to pass the pre-lock closure check and block on Lock().
-	runtime.Gosched()
-	s.closeShard()
+	s.taskSequenceNumber = s.maxTaskSequenceNumber
 	s.Unlock()
-	<-done
+	s.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Run(func(mock.Arguments) {
+		s.closeShard()
+	}).Return(nil).Once()
 
-	require.Error(t, err)
+	id, err := s.EnqueueAsyncWorkflowMessage(context.Background(), newEnqueueRequest(s.GetShardID()))
+
+	var closed *ErrShardClosed
+	require.ErrorAs(t, err, &closed)
 	assert.Zero(t, id)
 }
 
-// TestContext_EnqueueAsyncWorkflowMessage_OrderedUnderLock proves the row is written while the shard
-// lock is still held: with many concurrent enqueues, the manager must observe message ids in strictly
-// increasing order. The manager mock yields between reading the id and returning so that an
-// implementation which releases the lock between allocation and write would interleave.
-func TestContext_EnqueueAsyncWorkflowMessage_OrderedUnderLock(t *testing.T) {
+// TestContext_EnqueueAsyncWorkflowMessage_ShardLockFreeDuringWrite proves the shard lock is not held while
+// the queue manager writes: the manager mock takes and releases the shard lock itself, which would deadlock
+// if the enqueue path still held it.
+func TestContext_EnqueueAsyncWorkflowMessage_ShardLockFreeDuringWrite(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+	t.Cleanup(func() { s.Finish(t) })
+
+	manager := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
+	s.Resource.PersistenceBean.EXPECT().GetAsyncWorkflowQueueManager().Return(manager).AnyTimes()
+	manager.EXPECT().EnqueueAsyncWorkflowMessage(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(context.Context, *persistence.EnqueueAsyncWorkflowMessageRequest) error {
+			locked := make(chan struct{})
+			go func() {
+				s.Lock()
+				s.Unlock()
+				close(locked)
+			}()
+			select {
+			case <-locked:
+				return nil
+			case <-time.After(5 * time.Second):
+				return errors.New("shard lock is held during the queue write")
+			}
+		}).Times(1)
+
+	id, err := s.EnqueueAsyncWorkflowMessage(context.Background(), newEnqueueRequest(s.GetShardID()))
+	require.NoError(t, err)
+	assert.Greater(t, id, int64(0))
+}
+
+// TestContext_EnqueueAsyncWorkflowMessage_OrderedUnderEnqueueLock proves the per-shard enqueue lock
+// keeps message ids in allocation order: with many concurrent enqueues, the manager must observe ids in
+// strictly increasing order. The mock yields between reading the id and returning so an implementation
+// that released the enqueue lock between allocation and write would interleave.
+func TestContext_EnqueueAsyncWorkflowMessage_OrderedUnderEnqueueLock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	s := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
 	t.Cleanup(func() { s.Finish(t) })

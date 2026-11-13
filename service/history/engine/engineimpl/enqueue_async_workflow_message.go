@@ -11,8 +11,8 @@ import (
 )
 
 // EnqueueAsyncWorkflowMessage writes one accepted async workflow request onto this shard's queue.
-// The shard context allocates the message id and writes the row under the shard lock, so message ids
-// become visible to the consumer in allocation order.
+// The shard context allocates the message id and writes the row under a per-shard enqueue lock, so
+// message ids become visible to the consumer in allocation order.
 func (e *historyEngineImpl) EnqueueAsyncWorkflowMessage(
 	ctx context.Context,
 	request *types.EnqueueAsyncWorkflowMessageRequest,
@@ -29,7 +29,10 @@ func (e *historyEngineImpl) EnqueueAsyncWorkflowMessage(
 	if payload == nil || len(payload.Data) == 0 {
 		return nil, &types.BadRequestError{Message: "payload is required"}
 	}
-	payloadEncoding, err := asyncWorkflowPayloadEncoding(payload.GetEncodingType())
+	if payload.EncodingType == nil {
+		return nil, &types.BadRequestError{Message: "payload encoding is missing or unsupported"}
+	}
+	payloadEncoding, err := asyncWorkflowPayloadEncoding(*payload.EncodingType)
 	if err != nil {
 		return nil, err
 	}

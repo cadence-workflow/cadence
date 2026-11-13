@@ -133,6 +133,11 @@ func (g historyClient) RecordDecisionTaskStarted(ctx context.Context, rp1 *types
 	return proto.ToHistoryRecordDecisionTaskStartedResponse(response), proto.ToError(err)
 }
 
+func (g historyClient) RecordSemaphoreAcquired(ctx context.Context, rp1 *types.RecordSemaphoreAcquiredRequest, p1 ...yarpc.CallOption) (rp2 *types.RecordSemaphoreAcquiredResponse, err error) {
+	response, err := g.c.RecordSemaphoreAcquired(ctx, proto.FromHistoryRecordSemaphoreAcquiredRequest(rp1), p1...)
+	return proto.ToHistoryRecordSemaphoreAcquiredResponse(response), proto.ToError(err)
+}
+
 func (g historyClient) RefreshWorkflowTasks(ctx context.Context, hp1 *types.HistoryRefreshWorkflowTasksRequest, p1 ...yarpc.CallOption) (err error) {
 	_, err = g.c.RefreshWorkflowTasks(ctx, proto.FromHistoryRefreshWorkflowTasksRequest(hp1), p1...)
 	return proto.ToError(err)
