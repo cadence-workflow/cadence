@@ -50,8 +50,7 @@ func TestContext_EnqueueAsyncWorkflowMessage(t *testing.T) {
 			s := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
 			t.Cleanup(func() { s.Finish(t) })
 
-			manager := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
-			s.Resource.PersistenceBean.EXPECT().GetAsyncWorkflowQueueManager().Return(manager).AnyTimes()
+			manager := s.Resource.AsyncWorkflowQueueMgr
 			var persisted *persistence.EnqueueAsyncWorkflowMessageRequest
 			if tc.wantCall {
 				manager.EXPECT().EnqueueAsyncWorkflowMessage(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -93,8 +92,7 @@ func TestContext_EnqueueAsyncWorkflowMessage_ClosedDuringAllocation(t *testing.T
 	s := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
 	t.Cleanup(func() { s.Finish(t) })
 
-	manager := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
-	s.Resource.PersistenceBean.EXPECT().GetAsyncWorkflowQueueManager().Return(manager).AnyTimes()
+	// No expectation is set on s.Resource.AsyncWorkflowQueueMgr, so any queue write fails the test.
 	s.closeCallback = func(int, *historyShardsItem) {}
 
 	s.Lock()
@@ -119,8 +117,7 @@ func TestContext_EnqueueAsyncWorkflowMessage_ShardLockFreeDuringWrite(t *testing
 	s := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
 	t.Cleanup(func() { s.Finish(t) })
 
-	manager := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
-	s.Resource.PersistenceBean.EXPECT().GetAsyncWorkflowQueueManager().Return(manager).AnyTimes()
+	manager := s.Resource.AsyncWorkflowQueueMgr
 	manager.EXPECT().EnqueueAsyncWorkflowMessage(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(context.Context, *persistence.EnqueueAsyncWorkflowMessageRequest) error {
 			locked := make(chan struct{})
@@ -156,8 +153,7 @@ func TestContext_EnqueueAsyncWorkflowMessage_OrderedUnderEnqueueLock(t *testing.
 		mu       sync.Mutex
 		observed []int64
 	)
-	manager := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
-	s.Resource.PersistenceBean.EXPECT().GetAsyncWorkflowQueueManager().Return(manager).AnyTimes()
+	manager := s.Resource.AsyncWorkflowQueueMgr
 	manager.EXPECT().EnqueueAsyncWorkflowMessage(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, req *persistence.EnqueueAsyncWorkflowMessageRequest) error {
 			id := req.MessageID

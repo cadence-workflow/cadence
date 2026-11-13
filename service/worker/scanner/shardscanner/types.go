@@ -122,22 +122,9 @@ type (
 
 	// ScanReport is the report of running Scan on a single shard.
 	ScanReport struct {
-		ShardID     int
-		Stats       ScanStats
-		Result      ScanResult
-		DomainStats map[string]*ScanStats
-	}
-
-	// DomainStats is the report of stats for one domain
-	DomainScanStats struct {
-		DomainID string
-		Stats    ScanStats
-	}
-
-	// DomainStats is the report of stats for one domain
-	DomainFixStats struct {
-		DomainID string
-		Stats    FixStats
+		ShardID int
+		Stats   ScanStats
+		Result  ScanResult
 	}
 
 	// ScanStats indicates the stats of entities which were handled by shard Scan.
@@ -164,10 +151,9 @@ type (
 
 	// FixReport is the report of running Fix on a single shard
 	FixReport struct {
-		ShardID     int
-		Stats       FixStats
-		Result      FixResult
-		DomainStats map[string]*FixStats
+		ShardID int
+		Stats   FixStats
+		Result  FixResult
 	}
 
 	// FixStats indicates the stats of executions that were handled by shard Fix.

@@ -80,6 +80,7 @@ var (
 		&HistoryEvent_SemaphoreAcquired,
 		&HistoryEvent_SemaphoreReleased,
 		&HistoryEvent_SemaphoreAcquireFailed,
+		&HistoryEvent_SemaphoreTokenLost,
 	}
 
 	HistoryEvent_WorkflowExecutionStarted = generateEvent(func(e *types.HistoryEvent) {
@@ -265,6 +266,10 @@ var (
 	HistoryEvent_SemaphoreAcquireFailed = generateEvent(func(e *types.HistoryEvent) {
 		e.EventType = types.EventTypeSemaphoreAcquireFailed.Ptr()
 		e.SemaphoreAcquireFailedEventAttributes = &SemaphoreAcquireFailedEventAttributes
+	})
+	HistoryEvent_SemaphoreTokenLost = generateEvent(func(e *types.HistoryEvent) {
+		e.EventType = types.EventTypeSemaphoreTokenLost.Ptr()
+		e.SemaphoreTokenLostEventAttributes = &SemaphoreTokenLostEventAttributes
 	})
 
 	WorkflowExecutionStartedEventAttributes = types.WorkflowExecutionStartedEventAttributes{
@@ -623,6 +628,10 @@ var (
 	}
 	SemaphoreAcquireFailedEventAttributes = types.SemaphoreAcquireFailedEventAttributes{
 		Cause:            types.SemaphoreAcquireFailedCauseNotFound.Ptr(),
+		InitiatedEventID: EventID2,
+	}
+	SemaphoreTokenLostEventAttributes = types.SemaphoreTokenLostEventAttributes{
+		TokenID:          17,
 		InitiatedEventID: EventID2,
 	}
 	GetFailoverInfoRequest = types.GetFailoverInfoRequest{

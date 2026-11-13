@@ -29,7 +29,10 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/shared"
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/testsuite"
@@ -503,4 +506,42 @@ func (s *activitiesSuite) getFixerActivityEnvironment() *testsuite.TestActivityE
 		BackgroundActivityContext: NewFixerContext(context.Background(), testWorkflowName, fc),
 	})
 	return env
+}
+
+func TestScannerEmitMetricsActivity(t *testing.T) {
+	tests := map[string]struct {
+		shardSuccessCount int
+		expectShardSize   bool
+	}{
+		"no shard finished": {shardSuccessCount: 0, expectShardSize: false},
+		"shards finished":   {shardSuccessCount: 1, expectShardSize: true},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			testScope := tally.NewTestScope("", nil)
+			metricsClient := metrics.NewClient(testScope, metrics.Worker, metrics.MigrationConfig{})
+			var ts testsuite.WorkflowTestSuite
+			env := ts.NewTestActivityEnvironment()
+			env.SetWorkerOptions(worker.Options{
+				BackgroundActivityContext: NewScannerContext(
+					context.Background(),
+					testWorkflowName,
+					ScannerContext{Scope: metricsClient.Scope(metrics.ExecutionsScannerScope)},
+				),
+			})
+
+			_, err := env.ExecuteActivity(ActivityScannerEmitMetrics, ScannerEmitMetricsActivityParams{
+				ShardSuccessCount:      tc.shardSuccessCount,
+				ShardDistributionStats: ShardDistributionStats{Max: 10},
+			})
+			require.NoError(t, err)
+
+			emitted := map[string]bool{}
+			for _, g := range testScope.Snapshot().Gauges() {
+				emitted[g.Name()] = true
+			}
+			assert.True(t, emitted["cadence_shard_success"])
+			assert.Equal(t, tc.expectShardSize, emitted["scanner_shard_size_max"])
+		})
+	}
 }

@@ -438,6 +438,9 @@ func scannerEmitMetricsActivity(
 		scope.Tagged(metrics.InvariantTypeTag(string(k))).UpdateGauge(metrics.ScannerCorruptionByTypeGauge, float64(v))
 	}
 	shardStats := params.ShardDistributionStats
+	if params.ShardSuccessCount == 0 {
+		return nil
+	}
 	scope.UpdateGauge(metrics.ScannerShardSizeMaxGauge, float64(shardStats.Max))
 	scope.UpdateGauge(metrics.ScannerShardSizeMedianGauge, float64(shardStats.Median))
 	scope.UpdateGauge(metrics.ScannerShardSizeMinGauge, float64(shardStats.Min))

@@ -1485,6 +1485,7 @@ func TestEventTypeConversion(t *testing.T) {
 		types.EventTypeSemaphoreAcquired.Ptr(),
 		types.EventTypeSemaphoreReleased.Ptr(),
 		types.EventTypeSemaphoreAcquireFailed.Ptr(),
+		types.EventTypeSemaphoreTokenLost.Ptr(),
 	}
 
 	for _, original := range testCases {
@@ -1640,6 +1641,7 @@ func TestHistoryEventConversion(t *testing.T) {
 		&testdata.HistoryEvent_SemaphoreAcquired,
 		&testdata.HistoryEvent_SemaphoreReleased,
 		&testdata.HistoryEvent_SemaphoreAcquireFailed,
+		&testdata.HistoryEvent_SemaphoreTokenLost,
 	}
 
 	for _, original := range testCases {
@@ -2832,6 +2834,20 @@ func TestSemaphoreAcquireFailedEventAttributesConversion(t *testing.T) {
 	}
 }
 
+func TestSemaphoreTokenLostEventAttributesConversion(t *testing.T) {
+	testCases := []*types.SemaphoreTokenLostEventAttributes{
+		nil,
+		{},
+		&testdata.SemaphoreTokenLostEventAttributes,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromSemaphoreTokenLostEventAttributes(original)
+		roundTripObj := ToSemaphoreTokenLostEventAttributes(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
 func TestSemaphoreAcquireFailedCauseConversion(t *testing.T) {
 	testCases := []*types.SemaphoreAcquireFailedCause{
 		nil,
@@ -3912,6 +3928,10 @@ func TestSemaphoreAcquireFailedEventAttributesFuzz(t *testing.T) {
 			},
 		),
 	)
+}
+
+func TestSemaphoreTokenLostEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreTokenLostEventAttributes, ToSemaphoreTokenLostEventAttributes)
 }
 
 func TestExportWorkflowExecutionRequest(t *testing.T) {

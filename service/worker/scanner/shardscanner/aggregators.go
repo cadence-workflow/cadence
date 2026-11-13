@@ -24,7 +24,6 @@ package shardscanner
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/reconciliation/store"
@@ -170,7 +169,6 @@ type (
 		maxShard int
 
 		reports       map[int]FixReport
-		domainStats   map[string]*FixStats
 		status        ShardStatusResult
 		statusSummary ShardStatusSummaryResult
 		aggregation   AggregateFixReportResult
@@ -182,29 +180,11 @@ type (
 		maxShard int
 
 		reports        map[int]ScanReport
-		domainStats    map[string]*ScanStats
 		status         ShardStatusResult
 		statusSummary  ShardStatusSummaryResult
 		aggregation    AggregateScanReportResult
 		shardSizes     ShardSizeQueryResult
 		corruptionKeys map[int]store.Keys
-	}
-
-	// DomainReportQueryRequest is the request used for queries which return stats broken by domains
-	DomainReportQueryRequest struct {
-		// DomainID specifies a single domain for which the stats are requested
-		// Setting to nil indicates stats for all domains are requested
-		DomainID *string
-	}
-
-	// DomainReportQueryResult is the query result for DomainReportQuery in the scanner workflow
-	DomainScanReportQueryResult struct {
-		Reports []DomainScanStats
-	}
-
-	// DomainFixReportQueryResult is the query result for DomainReportQuery in the fixer workflow
-	DomainFixReportQueryResult struct {
-		Reports []DomainFixStats
 	}
 )
 
@@ -228,7 +208,6 @@ func NewShardFixResultAggregator(
 		maxShard: maxShard,
 
 		reports:       make(map[int]FixReport),
-		domainStats:   make(map[string]*FixStats),
 		status:        status,
 		statusSummary: statusSummary,
 		aggregation:   AggregateFixReportResult{},
@@ -255,38 +234,6 @@ func (a *ShardFixResultAggregator) GetStatusResult(req PaginatedShardQueryReques
 	return getStatusResult(a.minShard, a.maxShard, req, a.status)
 }
 
-// GetStatusResult returns stats broken by domain IDs
-func (a *ShardFixResultAggregator) GetDomainStatus(req DomainReportQueryRequest) (*DomainFixReportQueryResult, error) {
-	responseStats := []DomainFixStats{}
-
-	if req.DomainID == nil {
-		domainIDs := make([]string, 0)
-		for domainID := range a.domainStats {
-			domainIDs = append(domainIDs, domainID)
-		}
-		sort.Strings(domainIDs)
-		for _, domainID := range domainIDs {
-			responseStats = append(responseStats, DomainFixStats{
-				DomainID: domainID,
-				Stats:    *a.domainStats[domainID],
-			})
-		}
-	} else if domainStats, ok := a.domainStats[*req.DomainID]; ok {
-		responseStats = append(responseStats, DomainFixStats{
-			DomainID: *req.DomainID,
-			Stats:    *domainStats,
-		})
-	} else {
-		return nil, fmt.Errorf("domain %v does not exist or relevant stats have not been reported yet", req.DomainID)
-	}
-
-	result := &DomainFixReportQueryResult{
-		Reports: responseStats,
-	}
-
-	return result, nil
-}
-
 // AddReport adds fix report for a shard.
 func (a *ShardFixResultAggregator) AddReport(report FixReport) {
 	a.reports[report.ShardID] = report
@@ -300,22 +247,6 @@ func (a *ShardFixResultAggregator) AddReport(report FixReport) {
 	}
 	if report.Result.ShardFixKeys != nil {
 		a.adjustAggregation(report.Stats, func(a, b int64) int64 { return a + b })
-	}
-	if report.DomainStats != nil {
-		a.updateDomainStats(report)
-	}
-}
-
-func (a *ShardFixResultAggregator) updateDomainStats(report FixReport) {
-	for domainID, domainStats := range report.DomainStats {
-		if _, ok := a.domainStats[domainID]; !ok {
-			a.domainStats[domainID] = &FixStats{}
-		}
-		aggregateStats := a.domainStats[domainID]
-		aggregateStats.EntitiesCount += domainStats.EntitiesCount
-		aggregateStats.FixedCount += domainStats.FixedCount
-		aggregateStats.SkippedCount += domainStats.SkippedCount
-		aggregateStats.FailedCount += domainStats.FailedCount
 	}
 }
 
@@ -368,7 +299,6 @@ func NewShardScanResultAggregator(
 		maxShard: maxShard,
 
 		reports:       make(map[int]ScanReport),
-		domainStats:   map[string]*ScanStats{},
 		status:        status,
 		statusSummary: statusSummary,
 		shardSizes:    nil,
@@ -462,27 +392,6 @@ func (a *ShardScanResultAggregator) AddReport(report ScanReport) {
 			a.corruptionKeys[report.ShardID] = *report.Result.ShardScanKeys.Corrupt
 		}
 	}
-	if report.DomainStats != nil {
-		a.updateDomainStats(report)
-	}
-}
-
-func (a *ShardScanResultAggregator) updateDomainStats(report ScanReport) {
-	for domainID, domainStats := range report.DomainStats {
-		if _, ok := a.domainStats[domainID]; !ok {
-			a.domainStats[domainID] = &ScanStats{
-				CorruptionByType: make(map[invariant.Name]int64),
-			}
-		}
-		aggregateStats := a.domainStats[domainID]
-		aggregateStats.CorruptedCount += domainStats.CorruptedCount
-		aggregateStats.CheckFailedCount += domainStats.CheckFailedCount
-		aggregateStats.EntitiesCount += domainStats.EntitiesCount
-		for corruptionType, count := range domainStats.CorruptionByType {
-			aggregateStats.CorruptionByType[corruptionType] += count
-		}
-
-	}
 }
 
 func (a *ShardScanResultAggregator) insertReportIntoSizes(report ScanReport) {
@@ -504,6 +413,9 @@ func (a *ShardScanResultAggregator) insertReportIntoSizes(report ScanReport) {
 
 // GetShardDistributionStats returns aggregated size statistics
 func (a *ShardScanResultAggregator) GetShardDistributionStats() ShardDistributionStats {
+	if len(a.shardSizes) == 0 {
+		return ShardDistributionStats{}
+	}
 	return ShardDistributionStats{
 		Max:    a.shardSizes[0].EntitiesCount,
 		Median: a.shardSizes[int(float64(len(a.shardSizes))*.5)].EntitiesCount,
@@ -524,38 +436,6 @@ func (a *ShardScanResultAggregator) GetReport(shardID int) (*ScanReport, error) 
 		return &report, nil
 	}
 	return nil, fmt.Errorf("shard %v has not finished yet, check back later for report", shardID)
-}
-
-// GetDomainStatus returns stats broken by domain IDs
-func (a *ShardScanResultAggregator) GetDomainStatus(req DomainReportQueryRequest) (*DomainScanReportQueryResult, error) {
-	responseStats := []DomainScanStats{}
-
-	if req.DomainID == nil {
-		domainIDs := make([]string, 0)
-		for domainID := range a.domainStats {
-			domainIDs = append(domainIDs, domainID)
-		}
-		sort.Strings(domainIDs)
-		for _, domainID := range domainIDs {
-			responseStats = append(responseStats, DomainScanStats{
-				DomainID: domainID,
-				Stats:    *a.domainStats[domainID],
-			})
-		}
-	} else if domainStats, ok := a.domainStats[*req.DomainID]; ok {
-		responseStats = append(responseStats, DomainScanStats{
-			DomainID: *req.DomainID,
-			Stats:    *domainStats,
-		})
-	} else {
-		return nil, fmt.Errorf("domain %v does not exist or relevant stats have not been reported yet", req.DomainID)
-	}
-
-	result := &DomainScanReportQueryResult{
-		Reports: responseStats,
-	}
-
-	return result, nil
 }
 
 func (a *ShardScanResultAggregator) adjustAggregation(stats ScanStats, fn func(a, b int64) int64) {

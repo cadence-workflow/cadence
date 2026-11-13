@@ -668,6 +668,11 @@ func TestSemaphoreAcquireFailedEventAttributes(t *testing.T) {
 		assert.Equal(t, item, ToSemaphoreAcquireFailedEventAttributes(FromSemaphoreAcquireFailedEventAttributes(item)))
 	}
 }
+func TestSemaphoreTokenLostEventAttributes(t *testing.T) {
+	for _, item := range []*types.SemaphoreTokenLostEventAttributes{nil, {}, &testdata.SemaphoreTokenLostEventAttributes} {
+		assert.Equal(t, item, ToSemaphoreTokenLostEventAttributes(FromSemaphoreTokenLostEventAttributes(item)))
+	}
+}
 func TestSignalExternalWorkflowExecutionDecisionAttributes(t *testing.T) {
 	for _, item := range []*types.SignalExternalWorkflowExecutionDecisionAttributes{nil, {}, &testdata.SignalExternalWorkflowExecutionDecisionAttributes} {
 		assert.Equal(t, item, ToSignalExternalWorkflowExecutionDecisionAttributes(FromSignalExternalWorkflowExecutionDecisionAttributes(item)))
@@ -1255,6 +1260,7 @@ func TestHistoryEvent(t *testing.T) {
 		&testdata.HistoryEvent_SemaphoreAcquired,
 		&testdata.HistoryEvent_SemaphoreReleased,
 		&testdata.HistoryEvent_SemaphoreAcquireFailed,
+		&testdata.HistoryEvent_SemaphoreTokenLost,
 	} {
 		assert.Equal(t, item, ToHistoryEvent(FromHistoryEvent(item)))
 	}
@@ -3199,6 +3205,10 @@ func TestSemaphoreAcquireFailedEventAttributesFuzz(t *testing.T) {
 			},
 		),
 	)
+}
+
+func TestSemaphoreTokenLostEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSemaphoreTokenLostEventAttributes, ToSemaphoreTokenLostEventAttributes)
 }
 
 func TestExportWorkflowExecutionRequest(t *testing.T) {
