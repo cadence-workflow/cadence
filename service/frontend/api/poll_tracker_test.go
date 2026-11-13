@@ -7,17 +7,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
 func TestPollTrackerCancelsEveryPollInFlight(t *testing.T) {
 	client := matching.NewMockClient(gomock.NewController(t))
-	tracker := NewPollTracker()
+	tracker := NewPollTracker(log.NewNoop())
 	failedPoll := newCancelRequest("poller-1")
 	cancelledPoll := newCancelRequest("poller-2")
 	tracker.PollStarted(failedPoll)
@@ -26,19 +28,17 @@ func TestPollTrackerCancelsEveryPollInFlight(t *testing.T) {
 	client.EXPECT().CancelOutstandingPoll(gomock.Any(), failedPoll).Return(errors.New("matching is restarting"))
 	client.EXPECT().CancelOutstandingPoll(gomock.Any(), cancelledPoll).Return(nil)
 
-	tracker.cancelAll(context.Background(), client, log.NewNoop())
+	tracker.cancelAll(context.Background(), client)
 }
 
-func TestPollTrackerForgetsFinishedPolls(t *testing.T) {
-	client := matching.NewMockClient(gomock.NewController(t))
-	tracker := NewPollTracker()
-	done := tracker.PollStarted(newCancelRequest("poller-1"))
+func TestPollTrackerIgnoresPollWithoutPollerID(t *testing.T) {
+	logger, logs := testlogger.NewObserved(t)
+	tracker := NewPollTracker(logger)
+
 	tracker.PollStarted(newCancelRequest(""))
 
-	done()
-
-	tracker.cancelAll(context.Background(), client, log.NewNoop())
 	assert.Empty(t, tracker.polls)
+	assert.Equal(t, 1, logs.FilterLevelExact(zapcore.WarnLevel).Len())
 }
 
 func newCancelRequest(pollerID string) *types.CancelOutstandingPollRequest {

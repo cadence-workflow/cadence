@@ -177,7 +177,7 @@ func (h *serviceImpl) Start() {
 	h.hostInfo = hostInfo
 
 	h.clientBean, err = client.NewClientBean(
-		client.NewRPCClientFactory(h.rpcFactory, h.membershipResolver, h.taskListRouter, h.metricsClient, h.dynamicCollection, h.numberOfHistoryShards, h.allIsolationGroups, nil, h.logger),
+		client.NewRPCClientFactory(h.rpcFactory, h.membershipResolver, h.taskListRouter, h.metricsClient, h.dynamicCollection, h.numberOfHistoryShards, h.allIsolationGroups, matching.NoopPollTracker{}, h.logger),
 		h.rpcFactory.GetDispatcher(),
 		h.clusterMetadata,
 	)

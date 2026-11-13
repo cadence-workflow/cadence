@@ -44,7 +44,7 @@ type clientImpl struct {
 }
 
 // NewClient creates a new history service TChannel client.
-// pollTracker is told about every poll in flight; it can be nil.
+// pollTracker is told about every poll in flight.
 func NewClient(
 	client Client,
 	peerResolver PeerResolver,
@@ -52,9 +52,6 @@ func NewClient(
 	provider PartitionConfigProvider,
 	pollTracker PollTracker,
 ) Client {
-	if pollTracker == nil {
-		pollTracker = noopPollTracker{}
-	}
 	return &clientImpl{
 		client:       client,
 		peerResolver: peerResolver,

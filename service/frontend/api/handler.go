@@ -116,7 +116,7 @@ var (
 )
 
 // NewWorkflowHandler creates a thrift handler for the cadence service.
-// pollTracker must be the one given to the matching client of the resource; nil means no polls are tracked.
+// pollTracker must be the one given to the matching client of the resource.
 func NewWorkflowHandler(
 	resource resource.Resource,
 	config *config.Config,
@@ -124,9 +124,6 @@ func NewWorkflowHandler(
 	pollTracker *PollTracker,
 	domainHandler domain.Handler,
 ) *WorkflowHandler {
-	if pollTracker == nil {
-		pollTracker = NewPollTracker()
-	}
 	return &WorkflowHandler{
 		Resource:        resource,
 		config:          config,
@@ -185,7 +182,7 @@ func (wh *WorkflowHandler) Stop() {
 		wh.GetLogger().Info("ShutdownHandler: Cancelling outstanding polls to matching")
 		ctx, cancel := context.WithTimeout(context.Background(), cancelPollsTimeout)
 		defer cancel()
-		wh.pollTracker.cancelAll(ctx, wh.GetMatchingRawClient(), wh.GetLogger())
+		wh.pollTracker.cancelAll(ctx, wh.GetMatchingRawClient())
 	}
 }
 

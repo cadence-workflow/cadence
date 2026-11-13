@@ -42,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/resource"
@@ -79,7 +80,7 @@ func newScheduleTestFixture(t *testing.T) *scheduleTestFixture {
 	config.EmitSignalNameMetricsTag = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 	config.EnableScheduler = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 
-	handler := NewWorkflowHandler(mockResource, config, versionChecker, nil, nil)
+	handler := NewWorkflowHandler(mockResource, config, versionChecker, NewPollTracker(log.NewNoop()), nil)
 
 	return &scheduleTestFixture{
 		t:              t,
