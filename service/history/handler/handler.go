@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -46,6 +47,7 @@ import (
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/quotas/global/algorithm"
 	"github.com/uber/cadence/common/quotas/global/rpc"
+	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/proto"
 	"github.com/uber/cadence/service/history/config"
@@ -108,18 +110,25 @@ func NewHandler(
 		workflowIDCache:     wfCache,
 		ratelimitAggregator: resource.GetRatelimiterAlgorithm(),
 		dlqHostBudget: quotas.NewDynamicRateLimiter(func() float64 {
-			// DynamicRateLimiter zeroes burst at 0 and Wait would then fail every call; floor at 1.
-			qps := config.HistoryTaskDLQProcessorHostMaxQPS()
-			if qps < 1 {
-				qps = 1
-			}
-			return float64(qps)
+			return dlqHostQPS(config.HistoryTaskDLQProcessorGlobalMaxQPS(), resource.GetMembershipResolver())
 		}),
 	}
 
 	// prevent us from trying to serve requests before shard controller is started and ready
 	handler.startWG.Add(1)
 	return handler
+}
+
+// dlqHostQPS returns this host's share of the cluster-wide DLQ persistence budget: the global
+// value divided evenly across history hosts. The share is at least 1 because a zero rate makes
+// Wait fail every call. If the member count is unavailable the host runs at 1, since slow is
+// the safe failure for background work.
+func dlqHostQPS(globalQPS int, resolver membership.Resolver) float64 {
+	members, err := resolver.MemberCount(service.History)
+	if err != nil || members < 1 {
+		return 1
+	}
+	return math.Max(float64(globalQPS)/float64(members), 1)
 }
 
 // Start starts the handler

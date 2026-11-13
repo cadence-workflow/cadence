@@ -1649,17 +1649,17 @@ const (
 	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
 
-	// HistoryTaskDLQProcessorHostMaxQPS is the maximum persistence calls per second the History Task DLQ processor
-	// may issue per history host, shared across all shards on that host.
-	// The default 100 is about 1% of history.persistenceMaxQPS (9000), so DLQ work alone cannot trip the host
-	// persistence limiter. Sizing: a failover drains in roughly
-	// shards_per_host x (1 + DLQ ack-level rows per shard) / QPS seconds; raise it if
-	// history_task_dlq_ack_level_rows shows shards carrying thousands of rows.
-	// KeyName: history.historyTaskDLQProcessorHostMaxQPS
+	// HistoryTaskDLQProcessorGlobalMaxQPS is the maximum persistence calls per second the History Task DLQ
+	// processor may issue across the whole history cluster. Each history host gets the value divided by the
+	// number of history hosts, at least 1; a host that cannot read the member count uses 1.
+	// Sizing: a full failover drains in roughly shard_count x (1 + DLQ ack-level rows per shard) / QPS seconds,
+	// independent of host count; raise it if history_task_dlq_ack_level_rows shows shards carrying thousands
+	// of rows.
+	// KeyName: history.historyTaskDLQProcessorGlobalMaxQPS
 	// Value type: Int
-	// Default value: 100
+	// Default value: 1000
 	// Allowed filters: N/A
-	HistoryTaskDLQProcessorHostMaxQPS
+	HistoryTaskDLQProcessorGlobalMaxQPS
 
 	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
 	// KeyName: history.taskListNiceValue
@@ -4755,10 +4755,10 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
 	},
-	HistoryTaskDLQProcessorHostMaxQPS: {
-		KeyName:      "history.historyTaskDLQProcessorHostMaxQPS",
-		Description:  "HistoryTaskDLQProcessorHostMaxQPS is the maximum persistence calls per second the History Task DLQ processor may issue per history host, shared across all shards on that host. Values below 1 are treated as 1. Default 100 is about 1% of history.persistenceMaxQPS (9000). Sizing: a failover drains in roughly shards_per_host x (1 + DLQ ack-level rows per shard) / QPS seconds; raise it if history_task_dlq_ack_level_rows shows shards carrying thousands of rows. Re-read every few seconds; no restart needed",
-		DefaultValue: 100,
+	HistoryTaskDLQProcessorGlobalMaxQPS: {
+		KeyName:      "history.historyTaskDLQProcessorGlobalMaxQPS",
+		Description:  "HistoryTaskDLQProcessorGlobalMaxQPS is the maximum persistence calls per second the History Task DLQ processor may issue across the whole history cluster. Each history host gets the value divided by the number of history hosts, at least 1; a host that cannot read the member count uses 1. Sizing: a full failover drains in roughly shard_count x (1 + DLQ ack-level rows per shard) / QPS seconds, independent of host count; raise it if history_task_dlq_ack_level_rows shows shards carrying thousands of rows. Re-read every few seconds; no restart needed",
+		DefaultValue: 1000,
 	},
 	HistoryTaskListNiceValue: {
 		KeyName:      "history.taskListNiceValue",
