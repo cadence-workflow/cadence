@@ -22,6 +22,8 @@ package resource
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -114,6 +116,7 @@ type Impl struct {
 	membershipResolver membership.Resolver
 	hashRings          map[string]membership.Ring
 	spectator          spectatorclient.Spectator
+	taskListRouter     matching.TaskListRouter
 
 	// internal services clients
 
@@ -163,6 +166,12 @@ func New(
 	serviceName string,
 	serviceConfig *service.Config,
 ) (impl *Impl, retError error) {
+	if params.TaskListDifferentiator == nil {
+		return nil, errors.New("creating resource: resource.Params.TaskListDifferentiator must be set")
+	}
+	if shardCount := params.TaskListDifferentiator.ShardCount(); shardCount <= 0 {
+		return nil, fmt.Errorf("creating resource: numMatchingShards must be positive, got %d", shardCount)
+	}
 
 	hostname := params.HostName
 
@@ -173,6 +182,14 @@ func New(
 	dispatcher := params.RPCFactory.GetDispatcher()
 	membershipResolver := params.MembershipResolver
 
+	taskListRouter := matching.NewTaskListRouter(
+		membershipResolver,
+		params.TaskListDifferentiator,
+		params.Spectator,
+		logger,
+		params.MetricsClient.Scope(metrics.ShardDistributorResolverScope),
+	)
+
 	ensureGetAllIsolationGroupsFnIsSet(params)
 
 	dynamicCollection := params.DynamicCollection
@@ -180,6 +197,7 @@ func New(
 		client.NewRPCClientFactory(
 			params.RPCFactory,
 			membershipResolver,
+			taskListRouter,
 			params.MetricsClient,
 			dynamicCollection,
 			numShards,
@@ -368,6 +386,7 @@ func New(
 		// membership infos
 		membershipResolver: membershipResolver,
 		spectator:          params.Spectator,
+		taskListRouter:     taskListRouter,
 
 		// internal services clients
 
@@ -571,6 +590,11 @@ func (h *Impl) GetDomainReplicationQueue() domain.ReplicationQueue {
 // GetMembershipResolver return the membership resolver
 func (h *Impl) GetMembershipResolver() membership.Resolver {
 	return h.membershipResolver
+}
+
+// GetTaskListRouter return the router that finds the matching host owning a task list
+func (h *Impl) GetTaskListRouter() matching.TaskListRouter {
+	return h.taskListRouter
 }
 
 // internal services clients

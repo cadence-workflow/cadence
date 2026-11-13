@@ -3,8 +3,8 @@ package tasklist
 import (
 	"time"
 
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/membership"
 )
 
 // ShardProcessorFactory is a generic factory for creating ShardProcessor instances.
@@ -12,7 +12,7 @@ type ShardProcessorFactory struct {
 	TaskListsRegistry      TaskListRegistry
 	ReportTTL              time.Duration
 	TimeSource             clock.TimeSource
-	TaskListDifferentiator *membership.TaskListDifferentiator
+	TaskListDifferentiator *matching.TaskListDifferentiator
 }
 
 func (spf ShardProcessorFactory) NewShardProcessor(shardID string) (ShardProcessor, error) {

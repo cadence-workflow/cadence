@@ -85,6 +85,7 @@ type (
 
 		// membership infos
 		MembershipResolver *membership.MockResolver
+		TaskListRouter     *matching.MockTaskListRouter
 
 		// internal services clients
 
@@ -221,6 +222,7 @@ func NewTest(
 
 		// membership infos
 		MembershipResolver: membership.NewMockResolver(controller),
+		TaskListRouter:     matching.NewMockTaskListRouter(controller),
 
 		// internal services clients
 
@@ -357,6 +359,11 @@ func (s *Test) GetArchiverProvider() provider.ArchiverProvider {
 // GetMembershipResolver for testing
 func (s *Test) GetMembershipResolver() membership.Resolver {
 	return s.MembershipResolver
+}
+
+// GetTaskListRouter for testing
+func (s *Test) GetTaskListRouter() matching.TaskListRouter {
+	return s.TaskListRouter
 }
 
 // internal services clients

@@ -29,6 +29,7 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -76,6 +77,7 @@ type (
 		hostInfo              membership.HostInfo
 		dispatcher            *yarpc.Dispatcher
 		membershipResolver    membership.Resolver
+		taskListRouter        matching.TaskListRouter
 		rpcFactory            rpc.Factory
 		pprofInitializer      common.PProfInitializer
 		clientBean            client.Bean
@@ -104,6 +106,13 @@ var _ Service = (*serviceImpl)(nil)
 // NewService instantiates a Service Instance
 // TODO: have a better name for Service.
 func NewService(params *resource.Params) Service {
+	taskListRouter := matching.NewTaskListRouter(
+		params.MembershipResolver,
+		params.TaskListDifferentiator,
+		params.Spectator,
+		params.Logger,
+		params.MetricsClient.Scope(metrics.ShardDistributorResolverScope),
+	)
 	sVice := &serviceImpl{
 		status:                common.DaemonStatusInitialized,
 		sName:                 params.Name,
@@ -111,6 +120,7 @@ func NewService(params *resource.Params) Service {
 		throttledLogger:       params.ThrottledLogger,
 		rpcFactory:            params.RPCFactory,
 		membershipResolver:    params.MembershipResolver,
+		taskListRouter:        taskListRouter,
 		pprofInitializer:      params.PProfInitializer,
 		timeSource:            clock.NewRealTimeSource(),
 		metricsScope:          params.MetricScope,
@@ -167,7 +177,7 @@ func (h *serviceImpl) Start() {
 	h.hostInfo = hostInfo
 
 	h.clientBean, err = client.NewClientBean(
-		client.NewRPCClientFactory(h.rpcFactory, h.membershipResolver, h.metricsClient, h.dynamicCollection, h.numberOfHistoryShards, h.allIsolationGroups, h.logger),
+		client.NewRPCClientFactory(h.rpcFactory, h.membershipResolver, h.taskListRouter, h.metricsClient, h.dynamicCollection, h.numberOfHistoryShards, h.allIsolationGroups, h.logger),
 		h.rpcFactory.GetDispatcher(),
 		h.clusterMetadata,
 	)

@@ -38,6 +38,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
@@ -335,6 +336,7 @@ func TestListTaskListPartitions(t *testing.T) {
 			engine := &matchingEngineImpl{
 				domainCache:        mockDomainCache,
 				membershipResolver: mockResolver,
+				taskListRouter:     newTestTaskListRouter(mockResolver),
 				config: &config.Config{
 					NumTasklistWritePartitions: dynamicproperties.GetIntPropertyFilteredByTaskListInfo(3),
 				},
@@ -395,13 +397,10 @@ func TestCancelOutstandingPoll(t *testing.T) {
 			executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockCtrl, mockManager, executor)
 			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
-			pct := membership.NewMockPercentageOnboarded(mockCtrl)
-			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
 				taskListRegistry:       taskListRegistry,
 				executor:               executor,
 				metricsClient:          metrics.NewNoopMetricsClient(),
-				percentageOnboarded:    pct,
 				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
@@ -425,19 +424,24 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
 		resolver := membership.NewMockResolver(ctrl)
 		resolver.EXPECT().WhoAmI().Return(membership.NewDetailedHostInfo("self", "self", nil), nil).AnyTimes()
-		pct := membership.NewMockPercentageOnboarded(ctrl)
-		pct.EXPECT().Value().Return(100).AnyTimes()
 
 		engine := &matchingEngineImpl{
 			executor:               executor,
 			membershipResolver:     resolver,
+			taskListRouter:         newTestTaskListRouter(resolver),
 			metricsClient:          metrics.NewNoopMetricsClient(),
-			percentageOnboarded:    pct,
 			taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			shutdown:               make(chan struct{}),
 			logger:                 log.NewNoop(),
 		}
 		return engine, executor, resolver
+	}
+
+	// checkOwnership computes the task list's shard the way getOrCreateTaskListManager does, then
+	// checks ownership with it.
+	checkOwnership := func(engine *matchingEngineImpl, taskListID *tasklist.Identifier) error {
+		shard := engine.taskListDifferentiator.TaskListShard(taskListID.GetName())
+		return engine.errIfShardOwnershipLost(context.Background(), taskListID, shard)
 	}
 
 	assertTypedOwnershipErr := func(t *testing.T, err error, ownedBy, me string) {
@@ -453,7 +457,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		engine, executor, _ := newEngine(t)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, errors.New("sd lookup failed"))
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		err := checkOwnership(engine, taskListID)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "failed to lookup ownership in SD")
 	})
@@ -462,7 +466,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		engine, executor, _ := newEngine(t)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, executorclient.ErrShardProcessNotFound)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		err := checkOwnership(engine, taskListID)
 		assertTypedOwnershipErr(t, err, "not known", "self")
 	})
 
@@ -470,7 +474,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		engine, executor, _ := newEngine(t)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		err := checkOwnership(engine, taskListID)
 		assertTypedOwnershipErr(t, err, "not known", "self")
 	})
 
@@ -480,7 +484,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 			Return(&tasklist.MockShardProcessor{}, nil). // not nil being returned because the shard is still owned by this host
 			AnyTimes()
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		err := checkOwnership(engine, taskListID)
 		require.NoError(t, err)
 	})
 
@@ -507,7 +511,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 				engine.taskListDifferentiator = newTestTaskListDifferentiator(false, tt.shardTaskListsByHash)
 				executor.EXPECT().GetShardProcess(gomock.Any(), tt.wantShardID).Return(&tasklist.MockShardProcessor{}, nil)
 
-				err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+				err := checkOwnership(engine, taskListID)
 				require.NoError(t, err)
 			})
 		}
@@ -517,7 +521,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		engine, _, _ := newEngine(t)
 		close(engine.shutdown)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		err := checkOwnership(engine, taskListID)
 		assertTypedOwnershipErr(t, err, "not known", "self")
 	})
 
@@ -527,7 +531,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("owner", "owner", nil), nil)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), excludedID)
+		err := checkOwnership(engine, excludedID)
 		assertTypedOwnershipErr(t, err, "owner", "self")
 	})
 
@@ -537,7 +541,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("self", "self", nil), nil)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), excludedID)
+		err := checkOwnership(engine, excludedID)
 		require.NoError(t, err)
 	})
 
@@ -547,7 +551,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		uuidID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(&tasklist.MockShardProcessor{}, nil)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), uuidID)
+		err := checkOwnership(engine, uuidID)
 		require.NoError(t, err)
 	})
 }
@@ -721,15 +725,12 @@ func TestQueryWorkflow(t *testing.T) {
 			mockManager := newMockManagerWithTaskListID(mockCtrl, tasklistID)
 			executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
-			pct := membership.NewMockPercentageOnboarded(mockCtrl)
-			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
 				taskListRegistry:       taskListRegistry,
 				timeSource:             clock.NewRealTimeSource(),
 				lockableQueryTaskMap:   lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
 				executor:               executor,
 				metricsClient:          metrics.NewNoopMetricsClient(),
-				percentageOnboarded:    pct,
 				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
@@ -929,6 +930,7 @@ func TestGetTasklistsNotOwned(t *testing.T) {
 	e := matchingEngineImpl{
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
+		taskListRouter:     newTestTaskListRouter(resolver),
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		config:             &config.Config{},
 		logger:             log.NewNoop(),
@@ -965,6 +967,7 @@ func TestShutDownTasklistsNotOwned(t *testing.T) {
 	e := matchingEngineImpl{
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
+		taskListRouter:     newTestTaskListRouter(resolver),
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		config:             &config.Config{},
 		metricsClient:      metrics.NewNoopMetricsClient(),
@@ -1189,14 +1192,11 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockManager, mockCtrl, mockExecutor)
 			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
-			pct := membership.NewMockPercentageOnboarded(mockCtrl)
-			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
-				taskListRegistry:    taskListRegistry,
-				timeSource:          clock.NewRealTimeSource(),
-				domainCache:         mockDomainCache,
-				metricsClient:       metrics.NewNoopMetricsClient(),
-				percentageOnboarded: pct,
+				taskListRegistry: taskListRegistry,
+				timeSource:       clock.NewRealTimeSource(),
+				domainCache:      mockDomainCache,
+				metricsClient:    metrics.NewNoopMetricsClient(),
 				config: &config.Config{
 					EnableAdaptiveScaler: dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
 				},
@@ -1375,14 +1375,11 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tc.mockSetup(mockManager, mockCtrl, mockExecutor)
 			taskListRegistry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
-			pct := membership.NewMockPercentageOnboarded(mockCtrl)
-			pct.EXPECT().Value().Return(100).AnyTimes()
 			engine := &matchingEngineImpl{
 				taskListRegistry:       taskListRegistry,
 				timeSource:             clock.NewRealTimeSource(),
 				executor:               mockExecutor,
 				metricsClient:          metrics.NewNoopMetricsClient(),
-				percentageOnboarded:    pct,
 				taskListDifferentiator: newTestTaskListDifferentiator(false, false),
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
@@ -1444,8 +1441,6 @@ func Test_domainChangeCallback(t *testing.T) {
 
 	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(tasklist.NewMockShardProcessor(mockCtrl), nil).AnyTimes()
-	pct := membership.NewMockPercentageOnboarded(mockCtrl)
-	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	engine := &matchingEngineImpl{
 		domainCache:                 mockDomainCache,
@@ -1455,7 +1450,6 @@ func Test_domainChangeCallback(t *testing.T) {
 		taskListRegistry:            tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		executor:                    mockExecutor,
 		metricsClient:               metrics.NewNoopMetricsClient(),
-		percentageOnboarded:         pct,
 		taskListDifferentiator:      newTestTaskListDifferentiator(false, false),
 	}
 	engine.taskListRegistry.Register(*tlGlobalDecision1, mockGlobalDecision1)
@@ -1899,27 +1893,6 @@ func TestSetupExecutorWithEmptyConfig(t *testing.T) {
 	assert.ErrorIs(t, err, executorclient.ErrShardProcessNotFound)
 }
 
-func TestShardDistributorOnboarded(t *testing.T) {
-	tests := []struct {
-		name       string
-		percentage int
-		want       bool
-	}{
-		{name: "offboarded at zero", percentage: 0, want: false},
-		{name: "onboarded above zero", percentage: 1, want: true},
-		{name: "onboarded at full", percentage: 100, want: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			pct := membership.NewMockPercentageOnboarded(ctrl)
-			pct.EXPECT().Value().Return(tt.percentage)
-			engine := &matchingEngineImpl{percentageOnboarded: pct}
-			assert.Equal(t, tt.want, engine.shardDistributorOnboarded())
-		})
-	}
-}
-
 const (
 	testSemaphoreDomainID = "domain-id-1"
 	testSemaphoreName     = "sem-1"
@@ -1986,6 +1959,7 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 		semaphoreTaskManager:     newSemaphoreTasks(t),
 		domainCache:              domainCache,
 		membershipResolver:       resolver,
+		taskListRouter:           newTestTaskListRouter(resolver),
 		metricsClient:            metrics.NewNoopMetricsClient(),
 		logger:                   log.NewNoop(),
 		// A clock that only moves when a test moves it, so no bucket is evicted mid-test.
@@ -2451,11 +2425,24 @@ func TestGetSemaphoreTokenByOwner(t *testing.T) {
 	}
 }
 
-func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByHash bool) *membership.TaskListDifferentiator {
-	return membership.NewTaskListDifferentiator(
+func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByHash bool) *matching.TaskListDifferentiator {
+	return matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(excludeShortLivedTaskLists),
 		dynamicproperties.GetBoolPropertyFn(shardTaskListsByHash),
-		membership.StaticPercentageOnboarded(100),
+		dynamicproperties.GetIntPropertyFn(100),
 		commonConfig.DefaultNumMatchingShards,
 	)
+}
+
+// newTestTaskListRouter returns a router that looks up every task list on the resolver's hash ring.
+func newTestTaskListRouter(resolver membership.Resolver) matching.TaskListRouter {
+	taskListDifferentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetIntPropertyFn(0),
+		commonConfig.DefaultNumMatchingShards,
+	)
+	return matching.NewTaskListRouter(resolver, taskListDifferentiator, nil, log.NewNoop(), metrics.NoopScope)
 }

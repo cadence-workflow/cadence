@@ -181,12 +181,11 @@ func (s *matchingEngineSuite) TearDownTest() {
 func (s *matchingEngineSuite) newMatchingEngine(
 	config *config.Config, taskMgr persistence.TaskManager,
 ) *matchingEngineImpl {
-	pct := membership.NewMockPercentageOnboarded(s.controller)
-	pct.EXPECT().Value().Return(0).AnyTimes()
-	taskListDifferentiator := membership.NewTaskListDifferentiator(
+	taskListDifferentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		config.ExcludeShortLivedTaskListsFromShardManager,
 		dynamicproperties.GetBoolPropertyFn(false),
-		pct,
+		dynamicproperties.GetIntPropertyFn(0),
 		commonConfig.DefaultNumMatchingShards,
 	)
 	e := NewEngine(
@@ -204,13 +203,13 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		tally.NoopScope,
 		s.mockDomainCache,
 		s.mockMembershipResolver,
+		newTestTaskListRouter(s.mockMembershipResolver),
 		s.isolationState,
 		s.mockTimeSource,
 		s.mockShardExecutorClient,
 		defaultSDExecutorConfig(),
 		taskListDifferentiator,
 		nil,
-		pct,
 	).(*matchingEngineImpl)
 	// Replace the real executor with a mock that behaves as a fully onboarded SD executor.
 	mockExec := executorclient.NewMockExecutor[tasklist.ShardProcessor](s.controller)
