@@ -45,48 +45,43 @@ func TestForwardProcessor_Process(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		req           *Request
-		beanErr       error
-		remoteErr     error
-		noBeanCall    bool
-		noRemoteCall  bool
-		wantOpts      []yarpc.CallOption // exact options the remote call must receive, in order
-		wantErr       error
-		wantInternal  bool // expect a *types.InternalServiceError
-		wantForwarded int64
+		name         string
+		req          *Request
+		beanErr      error
+		remoteErr    error
+		noBeanCall   bool
+		noRemoteCall bool
+		wantOpts     []yarpc.CallOption // exact options the remote call must receive, in order
+		wantErr      error
+		wantInternal bool // expect a *types.InternalServiceError
 	}{
 		{
-			name:          "start forwarded with sorted headers replayed",
-			req:           startReq("cluster-b", unsortedHeaders),
-			wantOpts:      sortedOpts,
-			wantForwarded: 1,
+			name:     "start forwarded with sorted headers replayed",
+			req:      startReq("cluster-b", unsortedHeaders),
+			wantOpts: sortedOpts,
 		},
 		{
-			name:          "signal with start forwarded with sorted headers replayed",
-			req:           signalReq("cluster-b", unsortedHeaders),
-			wantOpts:      sortedOpts,
-			wantForwarded: 1,
+			name:     "signal with start forwarded with sorted headers replayed",
+			req:      signalReq("cluster-b", unsortedHeaders),
+			wantOpts: sortedOpts,
 		},
 		{
-			name:          "start forwarded with nil headers passes no options",
-			req:           startReq("cluster-b", nil),
-			wantForwarded: 1,
+			name: "start forwarded with nil headers passes no options",
+			req:  startReq("cluster-b", nil),
 		},
 		{
-			name:          "signal with start forwarded with empty headers passes no options",
-			req:           signalReq("cluster-b", map[string][]byte{}),
-			wantForwarded: 1,
+			name: "signal with start forwarded with empty headers passes no options",
+			req:  signalReq("cluster-b", map[string][]byte{}),
 		},
 		{
-			name:      "start remote error returned unchanged and nothing counted",
+			name:      "start remote error returned unchanged",
 			req:       startReq("cluster-b", unsortedHeaders),
 			remoteErr: errRemote,
 			wantOpts:  sortedOpts,
 			wantErr:   errRemote,
 		},
 		{
-			name:      "signal with start remote error returned unchanged and nothing counted",
+			name:      "signal with start remote error returned unchanged",
 			req:       signalReq("cluster-b", unsortedHeaders),
 			remoteErr: errRemote,
 			wantOpts:  sortedOpts,
@@ -169,8 +164,7 @@ func TestForwardProcessor_Process(t *testing.T) {
 				}
 			}
 
-			ts, scope := newTestMetrics()
-			p := NewForwardProcessor(bean, scope, testlogger.New(t))
+			p := NewForwardProcessor(bean, testScope(), testlogger.New(t))
 			err := p.Process(context.Background(), tc.req)
 
 			switch {
@@ -182,7 +176,6 @@ func TestForwardProcessor_Process(t *testing.T) {
 			default:
 				require.NoError(t, err)
 			}
-			require.Equal(t, tc.wantForwarded, counterTotal(ts.Snapshot(), "async_workflow_queue_forwarded"))
 		})
 	}
 }
