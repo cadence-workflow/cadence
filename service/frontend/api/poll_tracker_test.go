@@ -49,7 +49,7 @@ func TestPollTrackerIgnoresPollWithoutPollerID(t *testing.T) {
 	tracker.PollStarted(newCancelRequest(""))
 
 	assert.Empty(t, tracker.polls)
-	assert.Equal(t, 1, logs.FilterLevelExact(zapcore.WarnLevel).Len())
+	assert.Equal(t, 1, logs.FilterMessage("Poll without poller ID is not tracked, it can't be cancelled on shutdown").FilterLevelExact(zapcore.WarnLevel).Len())
 }
 
 func newCancelRequest(pollerID string) *types.CancelOutstandingPollRequest {
