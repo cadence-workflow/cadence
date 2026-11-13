@@ -927,8 +927,8 @@ func (t *timerActiveTaskExecutor) executeSemaphoreAcquireTimeoutTask(
 	if semaphoreInfo.HasToken() {
 		return nil
 	}
-	// After SemaphoreTokenLost the hold waits again with no deadline, so a timer from the
-	// first acquire must not end it.
+	// After SemaphoreTokenLost the hold waits again with no deadline. A timer created for the
+	// first acquire still fires, and must not end the re-acquire.
 	if semaphoreInfo.AcquireDeadline.IsZero() {
 		return nil
 	}

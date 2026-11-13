@@ -461,8 +461,8 @@ func (t *timerStandbyTaskExecutor) executeSemaphoreAcquireTimeoutTask(
 		if semaphoreInfo.HasToken() {
 			return nil, nil
 		}
-		// After SemaphoreTokenLost the hold waits again with no deadline, so a timer from the
-		// first acquire has nothing to wait for.
+		// After SemaphoreTokenLost the hold waits again with no deadline. The active side skips
+		// this timer and writes no timeout, so there is no result to wait for.
 		if semaphoreInfo.AcquireDeadline.IsZero() {
 			return nil, nil
 		}

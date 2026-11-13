@@ -291,12 +291,12 @@ func Test__AddSemaphoreAcquiredEvent(t *testing.T) {
 	errRefused := &types.InternalServiceError{Message: "add-semaphore-acquired-event operation failed"}
 
 	tests := []struct {
-		name          string
-		holdTokenID   *int // nil means no hold is recorded
-		finished      bool
-		grantTokenID  int32
-		wantErr       error
-		wantHoldToken int
+		name           string
+		holdTokenID    *int // nil means no hold is recorded
+		workflowClosed bool
+		grantTokenID   int32
+		wantErr        error
+		wantHoldToken  int
 	}{
 		{
 			name:          "a hold still waiting gets the token",
@@ -324,12 +324,12 @@ func Test__AddSemaphoreAcquiredEvent(t *testing.T) {
 			wantErr:      errRefused,
 		},
 		{
-			name:          "a closed run cannot record a grant",
-			holdTokenID:   common.IntPtr(constants.NoSemaphoreTokenID),
-			finished:      true,
-			grantTokenID:  7,
-			wantErr:       ErrWorkflowFinished,
-			wantHoldToken: 0,
+			name:           "a closed run cannot record a grant",
+			holdTokenID:    common.IntPtr(constants.NoSemaphoreTokenID),
+			workflowClosed: true,
+			grantTokenID:   7,
+			wantErr:        ErrWorkflowFinished,
+			wantHoldToken:  0,
 		},
 	}
 
@@ -341,7 +341,7 @@ func Test__AddSemaphoreAcquiredEvent(t *testing.T) {
 				hold.TokenID = *tc.holdTokenID
 				mb.pendingSemaphoreInfoIDs[2] = hold
 			}
-			if tc.finished {
+			if tc.workflowClosed {
 				mb.executionInfo.State = persistence.WorkflowStateCompleted
 			}
 
@@ -408,10 +408,10 @@ func Test__AddSemaphoreTokenLostEvent(t *testing.T) {
 	errRefused := &types.InternalServiceError{Message: "add-semaphore-token-lost-event operation failed"}
 
 	tests := []struct {
-		name        string
-		holdTokenID *int // nil: no hold for event 2; NoSemaphoreTokenID: the hold has no token yet; >0: the hold has that token
-		finished    bool
-		wantErr     error
+		name           string
+		holdTokenID    *int // nil: no hold for event 2; NoSemaphoreTokenID: the hold has no token yet; >0: the hold has that token
+		workflowClosed bool
+		wantErr        error
 	}{
 		{
 			name:        "the hold has a token: the loss is recorded and the token is cleared",
@@ -427,10 +427,10 @@ func Test__AddSemaphoreTokenLostEvent(t *testing.T) {
 			wantErr: errRefused,
 		},
 		{
-			name:        "the run is closed: refused",
-			holdTokenID: common.IntPtr(7),
-			finished:    true,
-			wantErr:     ErrWorkflowFinished,
+			name:           "the run is closed: refused",
+			holdTokenID:    common.IntPtr(7),
+			workflowClosed: true,
+			wantErr:        ErrWorkflowFinished,
 		},
 	}
 
@@ -442,7 +442,7 @@ func Test__AddSemaphoreTokenLostEvent(t *testing.T) {
 				hold.TokenID = *tc.holdTokenID
 				mb.pendingSemaphoreInfoIDs[2] = hold
 			}
-			if tc.finished {
+			if tc.workflowClosed {
 				mb.executionInfo.State = persistence.WorkflowStateCompleted
 			}
 
@@ -545,10 +545,10 @@ func Test__AddSemaphoreAcquireFailedEvent(t *testing.T) {
 	errRefused := &types.InternalServiceError{Message: "add-semaphore-acquire-failed-event operation failed"}
 
 	tests := []struct {
-		name        string
-		holdTokenID *int // nil: no hold for event 2; NoSemaphoreTokenID: the hold has no token yet; >0: the hold has that token
-		finished    bool
-		wantErr     error
+		name           string
+		holdTokenID    *int // nil: no hold for event 2; NoSemaphoreTokenID: the hold has no token yet; >0: the hold has that token
+		workflowClosed bool
+		wantErr        error
 	}{
 		{
 			name:        "the hold has no token yet: the failure is recorded and the hold is removed",
@@ -564,10 +564,10 @@ func Test__AddSemaphoreAcquireFailedEvent(t *testing.T) {
 			wantErr: errRefused,
 		},
 		{
-			name:        "the run is closed: refused",
-			holdTokenID: common.IntPtr(constants.NoSemaphoreTokenID),
-			finished:    true,
-			wantErr:     ErrWorkflowFinished,
+			name:           "the run is closed: refused",
+			holdTokenID:    common.IntPtr(constants.NoSemaphoreTokenID),
+			workflowClosed: true,
+			wantErr:        ErrWorkflowFinished,
 		},
 	}
 
@@ -579,7 +579,7 @@ func Test__AddSemaphoreAcquireFailedEvent(t *testing.T) {
 				hold.TokenID = *tc.holdTokenID
 				mb.pendingSemaphoreInfoIDs[2] = hold
 			}
-			if tc.finished {
+			if tc.workflowClosed {
 				mb.executionInfo.State = persistence.WorkflowStateCompleted
 			}
 
