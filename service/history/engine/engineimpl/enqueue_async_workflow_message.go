@@ -29,12 +29,10 @@ func (e *historyEngineImpl) EnqueueAsyncWorkflowMessage(
 	if payload == nil || len(payload.Data) == 0 {
 		return nil, &types.BadRequestError{Message: "payload is required"}
 	}
-	if payload.EncodingType == nil {
-		return nil, &types.BadRequestError{Message: "payload encoding is missing or unsupported"}
-	}
-	payloadEncoding, err := asyncWorkflowPayloadEncoding(*payload.EncodingType)
-	if err != nil {
-		return nil, err
+	// The payload is always the ThriftRW-encoded sqlblobs.AsyncRequestMessage envelope, and the queue
+	// consumer treats any other encoding as corrupt, so nothing else is accepted here.
+	if payload.EncodingType == nil || *payload.EncodingType != types.EncodingTypeThriftRW {
+		return nil, &types.BadRequestError{Message: "payload encoding must be ThriftRW"}
 	}
 	requestType, err := asyncWorkflowRequestType(request.RequestType)
 	if err != nil {
@@ -49,7 +47,7 @@ func (e *historyEngineImpl) EnqueueAsyncWorkflowMessage(
 		RequestID:       request.GetRequestID(),
 		RequestType:     requestType,
 		Payload:         payload.Data,
-		PayloadEncoding: payloadEncoding,
+		PayloadEncoding: constants.EncodingTypeThriftRW,
 	}
 	messageID, err := e.shard.EnqueueAsyncWorkflowMessage(ctx, enqueueRequest)
 	if err != nil {
@@ -57,17 +55,6 @@ func (e *historyEngineImpl) EnqueueAsyncWorkflowMessage(
 	}
 
 	return &types.EnqueueAsyncWorkflowMessageResponse{MessageID: messageID}, nil
-}
-
-func asyncWorkflowPayloadEncoding(encoding types.EncodingType) (constants.EncodingType, error) {
-	switch encoding {
-	case types.EncodingTypeThriftRW:
-		return constants.EncodingTypeThriftRW, nil
-	case types.EncodingTypeJSON:
-		return constants.EncodingTypeJSON, nil
-	default:
-		return "", &types.BadRequestError{Message: fmt.Sprintf("unsupported payload encoding: %s", encoding.String())}
-	}
 }
 
 func asyncWorkflowRequestType(requestType *types.AsyncWorkflowRequestType) (persistence.AsyncWorkflowRequestType, error) {
