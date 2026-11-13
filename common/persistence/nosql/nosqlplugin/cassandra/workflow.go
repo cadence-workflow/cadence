@@ -536,6 +536,87 @@ func (db *CDB) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclus
 	return db.executeWithConsistencyAll(query)
 }
 
+func (db *CDB) SelectVisibilityTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
+	// Reading visibility tasks need to be quorum level consistent, otherwise we could loose task
+	query := db.session.Query(templateGetVisibilityTasksQuery,
+		shardID,
+		rowTypeVisibilityTask,
+		rowTypeVisibilityDomainID,
+		rowTypeVisibilityWorkflowID,
+		rowTypeVisibilityRunID,
+		defaultVisibilityTimestamp,
+		inclusiveMinTaskID,
+		exclusiveMaxTaskID,
+	).PageSize(pageSize).PageState(pageToken).WithContext(ctx)
+
+	iter := query.Iter()
+	if iter == nil {
+		return nil, nil, &types.InternalServiceError{
+			Message: "SelectVisibilityTasksOrderByTaskID operation failed.  Not able to create query iterator.",
+		}
+	}
+
+	var tasks []*nosqlplugin.HistoryMigrationTask
+	task := make(map[string]interface{})
+	for iter.MapScan(task) {
+		taskID := task["task_id"].(int64)
+		data := task["data"].([]byte)
+		encoding := task["data_encoding"].(string)
+
+		// Reset task map to get it ready for next scan
+		task = make(map[string]interface{})
+
+		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
+			Task:   persistence.NewDataBlob(data, constants.EncodingType(encoding)),
+			TaskID: taskID,
+		})
+	}
+	nextPageToken := getNextPageToken(iter)
+
+	err := iter.Close()
+	return tasks, nextPageToken, err
+}
+
+func (db *CDB) DeleteVisibilityTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
+	for start := 0; start < len(keys); start += deleteTaskBatchChunkSize {
+		end := start + deleteTaskBatchChunkSize
+		if end > len(keys) {
+			end = len(keys)
+		}
+		batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+		for _, key := range keys[start:end] {
+			batch.Query(templateCompleteVisibilityTaskQuery,
+				shardID,
+				rowTypeVisibilityTask,
+				rowTypeVisibilityDomainID,
+				rowTypeVisibilityWorkflowID,
+				rowTypeVisibilityRunID,
+				defaultVisibilityTimestamp,
+				key.GetTaskID(),
+			)
+		}
+		if err := db.executeBatchWithConsistencyAll(batch); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (db *CDB) RangeDeleteVisibilityTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
+	query := db.session.Query(templateRangeCompleteVisibilityTaskQuery,
+		shardID,
+		rowTypeVisibilityTask,
+		rowTypeVisibilityDomainID,
+		rowTypeVisibilityWorkflowID,
+		rowTypeVisibilityRunID,
+		defaultVisibilityTimestamp,
+		inclusiveBeginTaskID,
+		exclusiveEndTaskID,
+	).WithContext(ctx)
+
+	return db.executeWithConsistencyAll(query)
+}
+
 func (db *CDB) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	// Reading timer tasks need to be quorum level consistent, otherwise we could loose task
 	minTimestamp := persistence.UnixNanoToDBTimestamp(inclusiveMinTime.UnixNano())

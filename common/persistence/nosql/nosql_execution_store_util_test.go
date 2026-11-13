@@ -1354,3 +1354,56 @@ func (d *dummyTaskType) ToTimerTaskInfo() (*persistence.TimerTaskInfo, error) {
 func (d *dummyTaskType) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
 	return nil, errors.New("not implemented")
 }
+
+func TestPrepareNoSQLTasksForWorkflowTxn_Visibility(t *testing.T) {
+	visibilityTask := &persistence.UpsertWorkflowSearchAttributesTask{
+		TaskData: persistence.TaskData{TaskID: 11},
+	}
+	blob := persistence.DataBlob{Data: []byte("visibility"), Encoding: constants.EncodingTypeThriftRW}
+
+	testCases := []struct {
+		name       string
+		setupMocks func(*serialization.MockTaskSerializer)
+		wantTasks  []*nosqlplugin.HistoryMigrationTask
+		wantErr    bool
+	}{
+		{
+			name: "visibility tasks are always serialized into a blob",
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryVisibility, visibilityTask).Return(blob, nil)
+			},
+			wantTasks: []*nosqlplugin.HistoryMigrationTask{
+				{Task: &blob, TaskID: 11},
+			},
+		},
+		{
+			name: "serialization error",
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryVisibility, visibilityTask).Return(persistence.DataBlob{}, errors.New("serialize error"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			mockTaskSerializer := serialization.NewMockTaskSerializer(mockCtrl)
+			// dual write mode is off by default, visibility tasks must still carry a blob
+			store := newTestNosqlExecutionStoreWithTaskSerializer(nosqlplugin.NewMockDB(mockCtrl), log.NewNoop(), mockTaskSerializer)
+			tc.setupMocks(mockTaskSerializer)
+
+			outputTasks := make(map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask)
+			err := store.prepareNoSQLTasksForWorkflowTxn("domainID", "workflowID", "runID",
+				map[persistence.HistoryTaskCategory][]persistence.Task{persistence.HistoryTaskCategoryVisibility: {visibilityTask}},
+				outputTasks)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantTasks, outputTasks[persistence.HistoryTaskCategoryVisibility])
+		})
+	}
+}
