@@ -369,7 +369,9 @@ func overrideSQLDataStore(c *cli.Context, cfg *config.SQL) {
 }
 
 func overrideTLS(c *cli.Context, tls *config.TLS) {
-	tls.Enabled = c.Bool(FlagEnableTLS)
+	if c.IsSet(FlagEnableTLS) {
+		tls.Enabled = c.Bool(FlagEnableTLS)
+	}
 
 	if c.IsSet(FlagTLSCertPath) {
 		tls.CertFile = c.String(FlagTLSCertPath)
