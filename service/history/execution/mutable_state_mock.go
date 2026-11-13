@@ -2763,15 +2763,3 @@ func (mr *MockMutableStateMockRecorder) UpdateWorkflowStateCloseStatus(state, cl
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkflowStateCloseStatus", reflect.TypeOf((*MockMutableState)(nil).UpdateWorkflowStateCloseStatus), state, closeStatus)
 }
-
-// UpsertSemaphoreInfo mocks base method.
-func (m *MockMutableState) UpsertSemaphoreInfo(arg0 *persistence.SemaphoreInfo) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpsertSemaphoreInfo", arg0)
-}
-
-// UpsertSemaphoreInfo indicates an expected call of UpsertSemaphoreInfo.
-func (mr *MockMutableStateMockRecorder) UpsertSemaphoreInfo(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertSemaphoreInfo", reflect.TypeOf((*MockMutableState)(nil).UpsertSemaphoreInfo), arg0)
-}
