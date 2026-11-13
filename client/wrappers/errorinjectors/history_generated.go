@@ -160,6 +160,26 @@ func (c *historyClient) DescribeWorkflowExecution(ctx context.Context, hp1 *type
 	return
 }
 
+func (c *historyClient) EnqueueAsyncWorkflowMessage(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageRequest, p1 ...yarpc.CallOption) (ep2 *types.EnqueueAsyncWorkflowMessageResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		ep2, err = c.client.EnqueueAsyncWorkflowMessage(ctx, ep1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgHistoryInjectedFakeErr,
+			tag.HistoryClientOperationEnqueueAsyncWorkflowMessage,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *historyClient) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetCrossClusterTasksRequest, p1 ...yarpc.CallOption) (gp2 *types.GetCrossClusterTasksResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool

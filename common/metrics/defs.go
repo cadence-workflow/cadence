@@ -464,6 +464,8 @@ const (
 	HistoryClientWfIDCacheScope
 	// HistoryClientRatelimitUpdateScope tracks global ratelimiter related calls to history service
 	HistoryClientRatelimitUpdateScope
+	// HistoryClientEnqueueAsyncWorkflowMessageScope tracks EnqueueAsyncWorkflowMessage calls to history service
+	HistoryClientEnqueueAsyncWorkflowMessageScope
 
 	// MatchingClientPollForDecisionTaskScope tracks RPC calls to matching service
 	MatchingClientPollForDecisionTaskScope
@@ -1337,6 +1339,8 @@ const (
 	HistoryGetFailoverInfoScope
 	// HistoryRatelimitUpdateScope tracks RatelimitUpdate API calls received by the history service
 	HistoryRatelimitUpdateScope
+	// HistoryEnqueueAsyncWorkflowMessageScope tracks EnqueueAsyncWorkflowMessage API calls received by the history service
+	HistoryEnqueueAsyncWorkflowMessageScope
 	// TaskPriorityAssignerScope is the scope used by all metric emitted by task priority assigner
 	TaskPriorityAssignerScope
 	// TransferQueueProcessorScope is the scope used by all metric emitted by transfer queue processor
@@ -1804,6 +1808,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryClientGetReplicationMessagesScope:            {operation: "HistoryClientGetReplicationMessages", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientWfIDCacheScope:                         {operation: "HistoryClientWfIDCache", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientRatelimitUpdateScope:                   {operation: "HistoryClientRatelimitUpdate", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
+		HistoryClientEnqueueAsyncWorkflowMessageScope:       {operation: "HistoryClientEnqueueAsyncWorkflowMessage", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 
 		MatchingClientPollForDecisionTaskScope:            {operation: "MatchingClientPollForDecisionTask", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientPollForActivityTaskScope:            {operation: "MatchingClientPollForActivityTask", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
@@ -2240,6 +2245,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryRespondCrossClusterTasksCompletedScope:                   {operation: "RespondCrossClusterTasksCompleted"},
 		HistoryGetFailoverInfoScope:                                     {operation: "GetFailoverInfo"},
 		HistoryRatelimitUpdateScope:                                     {operation: "RatelimitUpdate"},
+		HistoryEnqueueAsyncWorkflowMessageScope:                         {operation: "EnqueueAsyncWorkflowMessage"},
 		TaskPriorityAssignerScope:                                       {operation: "TaskPriorityAssigner"},
 		TransferQueueProcessorScope:                                     {operation: "TransferQueueProcessor"},
 		TransferQueueProcessorV2Scope:                                   {operation: "TransferQueueProcessorV2"},
