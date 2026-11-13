@@ -77,8 +77,11 @@ type (
 	PrepareCallbackFn func()
 
 	// CallbackFn is function to be called when the domain cache entries are changed
-	// it is guaranteed that  CallbackFn pair will be both called or non will be called
-	CallbackFn func(updatedDomains []*DomainCacheEntry)
+	// it is guaranteed that  CallbackFn pair will be both called or non will be called.
+	// prevDomains and nextDomains are index-aligned and the same length; prevDomains[i] is the entry as it
+	// was before this refresh, or nil when the cache had no initialized entry to diff against
+	// (first sight / catch-up).
+	CallbackFn func(prevDomains, nextDomains []*DomainCacheEntry)
 
 	// CatchUpFn is a function to execute PrepareCallbackFn and/or CallbackFn during domain callback registration,
 	// allowing the caller to catch up with the latest domain changes
@@ -475,7 +478,7 @@ func (c *DefaultDomainCache) refreshDomainsLocked(ctx context.Context) error {
 	// since history shard have to update the shard info
 	// with domain change version.
 	sort.Sort(domains)
-	var updatedEntries []*DomainCacheEntry
+	var prevEntries, updatedEntries []*DomainCacheEntry
 
 	// make a copy of the existing domain cache, so we can calculate diff and do compare and swap
 	newCacheNameToID := newDomainCache()
@@ -496,7 +499,7 @@ UpdateLoop:
 			c.logger.Info("Domain notification is not less than than metadata notification version", tag.WorkflowDomainName(domain.GetInfo().Name))
 			break UpdateLoop
 		}
-		triggerCallback, nextEntry, err := c.updateIDToDomainCache(newCacheByID, domain.info.ID, domain)
+		triggerCallback, prevEntry, nextEntry, err := c.updateIDToDomainCache(newCacheByID, domain.info.ID, domain)
 		if err != nil {
 			return err
 		}
@@ -512,6 +515,7 @@ UpdateLoop:
 		c.updateNameToIDCache(newCacheNameToID, nextEntry.info.Name, nextEntry.info.ID)
 
 		if triggerCallback {
+			prevEntries = append(prevEntries, prevEntry)
 			updatedEntries = append(updatedEntries, nextEntry)
 		}
 	}
@@ -523,7 +527,7 @@ UpdateLoop:
 	c.triggerDomainChangePrepareCallbackLocked()
 	c.cacheByID.Store(newCacheByID)
 	c.cacheNameToID.Store(newCacheNameToID)
-	c.triggerDomainChangeCallbackLocked(updatedEntries)
+	c.triggerDomainChangeCallbackLocked(prevEntries, updatedEntries)
 
 	// only update last refresh time when refresh succeeded
 	c.lastRefreshTime = now
@@ -560,10 +564,10 @@ func (c *DefaultDomainCache) updateIDToDomainCache(
 	cacheByID Cache,
 	id string,
 	record *DomainCacheEntry,
-) (bool, *DomainCacheEntry, error) {
+) (triggerCallback bool, prev, next *DomainCacheEntry, err error) {
 	elem, err := cacheByID.PutIfNotExist(id, &DomainCacheEntry{})
 	if err != nil {
-		return false, nil, err
+		return false, nil, nil, err
 	}
 	entry := elem.(*DomainCacheEntry)
 
@@ -571,7 +575,12 @@ func (c *DefaultDomainCache) updateIDToDomainCache(
 	defer entry.mu.Unlock()
 
 	// initialized will be true when the entry contains valid data
-	triggerCallback := entry.initialized && record.notificationVersion > entry.notificationVersion
+	triggerCallback = entry.initialized && record.notificationVersion > entry.notificationVersion
+
+	// capture the entry as it was before any field is overwritten
+	if entry.initialized {
+		prev = entry.duplicate()
+	}
 
 	entry.info = record.info
 	entry.config = record.config
@@ -585,7 +594,7 @@ func (c *DefaultDomainCache) updateIDToDomainCache(
 	entry.notificationVersion = record.notificationVersion
 	entry.initialized = record.initialized
 	entry.activeClusters = record.activeClusters
-	return triggerCallback, entry.duplicate(), nil
+	return triggerCallback, prev, entry.duplicate(), nil
 }
 
 // getDomain retrieves the information from the cache if it exists, otherwise retrieves the information from metadata
@@ -690,7 +699,8 @@ func (c *DefaultDomainCache) triggerDomainChangePrepareCallbackLocked() {
 	}
 }
 
-func (c *DefaultDomainCache) triggerDomainChangeCallbackLocked(nextDomains []*DomainCacheEntry) {
+// prevDomains and nextDomains are index-aligned and equal length.
+func (c *DefaultDomainCache) triggerDomainChangeCallbackLocked(prevDomains, nextDomains []*DomainCacheEntry) {
 	start := time.Now()
 	sw := c.scope.StartTimer(metrics.DomainCacheCallbacksLatency)
 	defer func() {
@@ -700,7 +710,7 @@ func (c *DefaultDomainCache) triggerDomainChangeCallbackLocked(nextDomains []*Do
 
 	c.logger.Debug("Domain change callbacks are going to triggered", tag.Number(int64(len(nextDomains))))
 	for _, callback := range c.callbacks {
-		callback(nextDomains)
+		callback(prevDomains, nextDomains)
 	}
 	c.logger.Debug("Domain change callbacks are completed", tag.Number(int64(len(nextDomains))))
 }
