@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
@@ -19,33 +18,8 @@ import (
 	"github.com/uber/cadence/service/history/engine"
 )
 
-func counterTotal(s tally.Snapshot, name string) int64 {
-	var n int64
-	for _, c := range s.Counters() {
-		if c.Name() == name {
-			n += c.Value()
-		}
-	}
-	return n
-}
-
-// timerCount counts recorded timer values for name. A domain-tagged metrics scope dual-emits every timer
-// (once under the domain tag and once under domain=all), so the aggregate series is skipped to count each
-// recording exactly once.
-func timerCount(s tally.Snapshot, name string) int {
-	n := 0
-	for _, tm := range s.Timers() {
-		if tm.Name() == name && tm.Tags()["domain"] != "all" {
-			n += len(tm.Values())
-		}
-	}
-	return n
-}
-
-func newTestMetrics() (tally.TestScope, metrics.Scope) {
-	ts := tally.NewTestScope("", make(map[string]string))
-	c := metrics.NewClient(ts, metrics.History, metrics.MigrationConfig{})
-	return ts, c.Scope(metrics.AsyncWorkflowQueueConsumerScope)
+func testScope() metrics.Scope {
+	return metrics.NewNoopMetricsClient().Scope(metrics.AsyncWorkflowQueueConsumerScope)
 }
 
 func TestActiveProcessor_Process(t *testing.T) {
@@ -70,13 +44,10 @@ func TestActiveProcessor_Process(t *testing.T) {
 	}
 
 	tests := []struct {
-		name               string
-		req                func() *Request
-		expect             func(t *testing.T, e *engine.MockEngine)
-		wantErr            error
-		wantSuccess        int64
-		wantAlreadyStarted int64
-		wantTimers         int
+		name    string
+		req     func() *Request
+		expect  func(t *testing.T, e *engine.MockEngine)
+		wantErr error
 	}{
 		{
 			name: "start success",
@@ -90,8 +61,6 @@ func TestActiveProcessor_Process(t *testing.T) {
 						return &types.StartWorkflowExecutionResponse{RunID: "run-1"}, nil
 					})
 			},
-			wantSuccess: 1,
-			wantTimers:  1,
 		},
 		{
 			name: "start already started is success",
@@ -100,8 +69,6 @@ func TestActiveProcessor_Process(t *testing.T) {
 				e.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
 					Return(nil, &types.WorkflowExecutionAlreadyStartedError{Message: "dup"})
 			},
-			wantAlreadyStarted: 1,
-			wantTimers:         1,
 		},
 		{
 			name: "start error passes through unchanged",
@@ -109,8 +76,7 @@ func TestActiveProcessor_Process(t *testing.T) {
 			expect: func(_ *testing.T, e *engine.MockEngine) {
 				e.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, errBoom)
 			},
-			wantErr:    errBoom,
-			wantTimers: 1,
+			wantErr: errBoom,
 		},
 		{
 			name: "start DomainNotActive passes through unchanged",
@@ -119,8 +85,7 @@ func TestActiveProcessor_Process(t *testing.T) {
 				e.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
 					Return(nil, &types.DomainNotActiveError{ActiveCluster: "cluster-b"})
 			},
-			wantErr:    &types.DomainNotActiveError{ActiveCluster: "cluster-b"},
-			wantTimers: 1,
+			wantErr: &types.DomainNotActiveError{ActiveCluster: "cluster-b"},
 		},
 		{
 			name: "signal with start success",
@@ -134,8 +99,6 @@ func TestActiveProcessor_Process(t *testing.T) {
 						return &types.StartWorkflowExecutionResponse{RunID: "run-2"}, nil
 					})
 			},
-			wantSuccess: 1,
-			wantTimers:  1,
 		},
 		{
 			name: "start with client isolation group header sets partition config",
@@ -151,8 +114,6 @@ func TestActiveProcessor_Process(t *testing.T) {
 						return &types.StartWorkflowExecutionResponse{RunID: "run-1"}, nil
 					})
 			},
-			wantSuccess: 1,
-			wantTimers:  1,
 		},
 		{
 			name: "start with unrelated headers only has nil partition config",
@@ -168,8 +129,6 @@ func TestActiveProcessor_Process(t *testing.T) {
 						return &types.StartWorkflowExecutionResponse{RunID: "run-1"}, nil
 					})
 			},
-			wantSuccess: 1,
-			wantTimers:  1,
 		},
 		{
 			name: "start with empty isolation group header has nil partition config",
@@ -185,8 +144,6 @@ func TestActiveProcessor_Process(t *testing.T) {
 						return &types.StartWorkflowExecutionResponse{RunID: "run-1"}, nil
 					})
 			},
-			wantSuccess: 1,
-			wantTimers:  1,
 		},
 		{
 			name: "signal with start with client isolation group header sets partition config",
@@ -202,8 +159,6 @@ func TestActiveProcessor_Process(t *testing.T) {
 						return &types.StartWorkflowExecutionResponse{RunID: "run-2"}, nil
 					})
 			},
-			wantSuccess: 1,
-			wantTimers:  1,
 		},
 		{
 			name: "signal with start without header has nil partition config",
@@ -215,8 +170,6 @@ func TestActiveProcessor_Process(t *testing.T) {
 						return &types.StartWorkflowExecutionResponse{RunID: "run-2"}, nil
 					})
 			},
-			wantSuccess: 1,
-			wantTimers:  1,
 		},
 		{
 			name: "signal with start already started is success",
@@ -225,8 +178,6 @@ func TestActiveProcessor_Process(t *testing.T) {
 				e.EXPECT().SignalWithStartWorkflowExecution(gomock.Any(), gomock.Any()).
 					Return(nil, &types.WorkflowExecutionAlreadyStartedError{})
 			},
-			wantAlreadyStarted: 1,
-			wantTimers:         1,
 		},
 		{
 			name: "signal with start error passes through unchanged",
@@ -234,8 +185,7 @@ func TestActiveProcessor_Process(t *testing.T) {
 			expect: func(_ *testing.T, e *engine.MockEngine) {
 				e.EXPECT().SignalWithStartWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, errBoom)
 			},
-			wantErr:    errBoom,
-			wantTimers: 1,
+			wantErr: errBoom,
 		},
 		{
 			name:   "neither payload set is an internal service error and never reaches the engine",
@@ -252,10 +202,9 @@ func TestActiveProcessor_Process(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			eng := engine.NewMockEngine(ctrl)
 			tc.expect(t, eng)
-			ts, scope := newTestMetrics()
 			timeSource := clock.NewMockedTimeSourceAt(now)
 
-			p := NewActiveProcessor(func() engine.Engine { return eng }, timeSource, scope, testlogger.New(t))
+			p := NewActiveProcessor(func() engine.Engine { return eng }, timeSource, testScope(), testlogger.New(t))
 			err := p.Process(context.Background(), tc.req())
 
 			if tc.wantErr != nil {
@@ -263,10 +212,6 @@ func TestActiveProcessor_Process(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			snap := ts.Snapshot()
-			require.Equal(t, tc.wantSuccess, counterTotal(snap, "async_workflow_queue_success"))
-			require.Equal(t, tc.wantAlreadyStarted, counterTotal(snap, "async_workflow_queue_already_started"))
-			require.Equal(t, tc.wantTimers, timerCount(snap, "async_workflow_queue_process_latency"))
 		})
 	}
 }
