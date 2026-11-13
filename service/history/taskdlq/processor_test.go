@@ -32,6 +32,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
@@ -1655,4 +1656,51 @@ func TestProcessShard_ChecksDomainModeByDomainName(t *testing.T) {
 
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 	assert.Equal(t, "domain-name-2", capturedDomain)
+}
+
+func TestProcessShard_RecordsAckLevelRowCount(t *testing.T) {
+	tests := []struct {
+		name       string
+		rows       int
+		wantBucket float64 // TaskCountBuckets upper bound the recorded value lands in
+	}{
+		{name: "empty shard records zero", rows: 0, wantBucket: 0},
+		{name: "three rows land in the 4 bucket", rows: 3, wantBucket: 4},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			proc, mgr, _ := setupProcessor(t, ctrl)
+			testScope := tally.NewTestScope("", nil)
+			proc.metricsClient = metrics.NewClient(testScope, metrics.History, metrics.MigrationConfig{})
+
+			var ackLevels []persistence.HistoryDLQAckLevel
+			for i := 0; i < tc.rows; i++ {
+				al := baseAckLevel(1)
+				al.ClusterAttributeName = fmt.Sprintf("name-%d", i)
+				ackLevels = append(ackLevels, al)
+			}
+			mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).
+				Return(ackLevels, nil)
+			mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).
+				Return(persistence.HistoryDLQGetTasksResponse{}, nil).Times(tc.rows)
+
+			require.NoError(t, proc.ProcessShard(context.Background()))
+
+			var recorded []float64
+			for _, h := range testScope.Snapshot().Histograms() {
+				if h.Name() != "history_task_dlq_ack_level_rows" {
+					continue
+				}
+				for upperBound, count := range h.Values() {
+					for i := int64(0); i < count; i++ {
+						recorded = append(recorded, upperBound)
+					}
+				}
+			}
+			require.Equal(t, []float64{tc.wantBucket}, recorded, "exactly one sample, in the bucket for %d rows", tc.rows)
+		})
+	}
 }

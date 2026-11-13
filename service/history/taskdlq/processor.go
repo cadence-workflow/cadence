@@ -384,6 +384,7 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for shard %d: %w", p.shardID, err)
 	}
+	p.metricsClient.Scope(metrics.HistoryTaskDLQProcessorScope).RecordHistogramValue(metrics.HistoryTaskDLQAckLevelRows, float64(len(ackLevels)))
 	return p.processAckLevels(ctx, ackLevels)
 }
 
