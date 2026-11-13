@@ -1188,6 +1188,26 @@ func (mr *MockClientMockRecorder) UnpauseSchedule(arg0, arg1 any, arg2 ...any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnpauseSchedule", reflect.TypeOf((*MockClient)(nil).UnpauseSchedule), varargs...)
 }
 
+// UpdateBatchOperation mocks base method.
+func (m *MockClient) UpdateBatchOperation(arg0 context.Context, arg1 *types.UpdateBatchOperationRequest, arg2 ...yarpc.CallOption) (*types.UpdateBatchOperationResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "UpdateBatchOperation", varargs...)
+	ret0, _ := ret[0].(*types.UpdateBatchOperationResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateBatchOperation indicates an expected call of UpdateBatchOperation.
+func (mr *MockClientMockRecorder) UpdateBatchOperation(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBatchOperation", reflect.TypeOf((*MockClient)(nil).UpdateBatchOperation), varargs...)
+}
+
 // UpdateDomain mocks base method.
 func (m *MockClient) UpdateDomain(arg0 context.Context, arg1 *types.UpdateDomainRequest, arg2 ...yarpc.CallOption) (*types.UpdateDomainResponse, error) {
 	m.ctrl.T.Helper()

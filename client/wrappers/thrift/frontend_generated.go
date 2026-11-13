@@ -292,6 +292,10 @@ func (g frontendClient) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseS
 	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 
+func (g frontendClient) UpdateBatchOperation(ctx context.Context, up1 *types.UpdateBatchOperationRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateBatchOperationResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainResponse, err error) {
 	response, err := g.c.UpdateDomain(ctx, thrift.FromUpdateDomainRequest(up1), p1...)
 	return thrift.ToUpdateDomainResponse(response), thrift.ToError(err)

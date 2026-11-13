@@ -100,4 +100,5 @@ type Client interface {
 	StopBatchOperation(context.Context, *types.StopBatchOperationRequest, ...yarpc.CallOption) (*types.StopBatchOperationResponse, error)
 	DescribeBatchOperation(context.Context, *types.DescribeBatchOperationRequest, ...yarpc.CallOption) (*types.DescribeBatchOperationResponse, error)
 	ListBatchOperations(context.Context, *types.ListBatchOperationsRequest, ...yarpc.CallOption) (*types.ListBatchOperationsResponse, error)
+	UpdateBatchOperation(context.Context, *types.UpdateBatchOperationRequest, ...yarpc.CallOption) (*types.UpdateBatchOperationResponse, error)
 }

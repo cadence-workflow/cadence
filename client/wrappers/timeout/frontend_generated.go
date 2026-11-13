@@ -384,6 +384,12 @@ func (c *frontendClient) UnpauseSchedule(ctx context.Context, up1 *types.Unpause
 	return c.client.UnpauseSchedule(ctx, up1, p1...)
 }
 
+func (c *frontendClient) UpdateBatchOperation(ctx context.Context, up1 *types.UpdateBatchOperationRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateBatchOperationResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.UpdateBatchOperation(ctx, up1, p1...)
+}
+
 func (c *frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()

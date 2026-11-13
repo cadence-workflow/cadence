@@ -304,6 +304,11 @@ func (g frontendClient) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseS
 	return proto.ToUnpauseScheduleResponse(response), proto.ToError(err)
 }
 
+func (g frontendClient) UpdateBatchOperation(ctx context.Context, up1 *types.UpdateBatchOperationRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateBatchOperationResponse, err error) {
+	response, err := g.c.UpdateBatchOperation(ctx, proto.FromUpdateBatchOperationRequest(up1), p1...)
+	return proto.ToUpdateBatchOperationResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainResponse, err error) {
 	response, err := g.c.UpdateDomain(ctx, proto.FromUpdateDomainRequest(up1), p1...)
 	return proto.ToUpdateDomainResponse(response), proto.ToError(err)

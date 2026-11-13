@@ -609,6 +609,17 @@ func (c *frontendClient) UnpauseSchedule(ctx context.Context, up1 *types.Unpause
 	return resp, err
 }
 
+func (c *frontendClient) UpdateBatchOperation(ctx context.Context, up1 *types.UpdateBatchOperationRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateBatchOperationResponse, err error) {
+	var resp *types.UpdateBatchOperationResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.UpdateBatchOperation(ctx, up1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainResponse, err error) {
 	var resp *types.UpdateDomainResponse
 	op := func(ctx context.Context) error {
