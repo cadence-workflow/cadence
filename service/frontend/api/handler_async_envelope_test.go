@@ -112,8 +112,8 @@ func TestAsyncHandlersPublishEnvelopeIdentity(t *testing.T) {
 
 			require.Len(t, published, 1)
 			msg := published[0]
-			assert.Equal(t, domainName, msg.GetDomain())
-			assert.Equal(t, requestID, msg.GetRequestId())
+			assert.Equal(t, domainName, msg.GetDomainName())
+			assert.Equal(t, requestID, msg.GetRequestID())
 			assert.Equal(t, workflowID, msg.GetPartitionKey())
 			assert.Equal(t, tc.wantType, msg.GetType())
 			assert.NotEmpty(t, msg.GetPayload())

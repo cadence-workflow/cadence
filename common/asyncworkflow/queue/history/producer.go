@@ -36,11 +36,11 @@ func (p *producerImpl) Publish(ctx context.Context, message interface{}) error {
 	}
 
 	workflowID := msg.GetPartitionKey()
-	if msg.GetDomain() == "" {
-		return &types.BadRequestError{Message: "async request envelope is missing domain"}
+	if msg.GetDomainName() == "" {
+		return &types.BadRequestError{Message: "async request envelope is missing domainName"}
 	}
-	if msg.GetRequestId() == "" {
-		return &types.BadRequestError{Message: "async request envelope is missing requestId"}
+	if msg.GetRequestID() == "" {
+		return &types.BadRequestError{Message: "async request envelope is missing requestID"}
 	}
 
 	requestType, err := asyncRequestType(msg.GetType())
@@ -55,9 +55,9 @@ func (p *producerImpl) Publish(ctx context.Context, message interface{}) error {
 	shardID := common.WorkflowIDToHistoryShard(workflowID, p.numHistoryShards)
 	_, err = p.historyClient.EnqueueAsyncWorkflowMessage(ctx, &types.EnqueueAsyncWorkflowMessageRequest{
 		ShardID:     int32(shardID),
-		DomainName:  msg.GetDomain(),
+		DomainName:  msg.GetDomainName(),
 		WorkflowID:  workflowID,
-		RequestID:   msg.GetRequestId(),
+		RequestID:   msg.GetRequestID(),
 		RequestType: requestType.Ptr(),
 		Payload: &types.DataBlob{
 			EncodingType: types.EncodingTypeThriftRW.Ptr(),

@@ -33,8 +33,8 @@ func newEnvelope(t *testing.T, msgType sqlblobs.AsyncRequestType, workflowID str
 		Header:       &shared.Header{Fields: map[string][]byte{"k": []byte("v")}},
 		Encoding:     common.StringPtr("thriftrw"),
 		Payload:      []byte("opaque-inner-request"),
-		Domain:       opts.domain,
-		RequestId:    opts.requestID,
+		DomainName:   opts.domain,
+		RequestID:    opts.requestID,
 	}
 }
 
@@ -66,8 +66,8 @@ func TestProducerPublish(t *testing.T) {
 						var envelope sqlblobs.AsyncRequestMessage
 						require.NoError(t, codec.NewThriftRWEncoder().Decode(req.Payload.Data, &envelope))
 						assert.Equal(t, "wf-start", envelope.GetPartitionKey())
-						assert.Equal(t, "domain-a", envelope.GetDomain())
-						assert.Equal(t, "req-start", envelope.GetRequestId())
+						assert.Equal(t, "domain-a", envelope.GetDomainName())
+						assert.Equal(t, "req-start", envelope.GetRequestID())
 						assert.Equal(t, []byte("v"), envelope.GetHeader().GetFields()["k"])
 						assert.Equal(t, []byte("opaque-inner-request"), envelope.GetPayload())
 						return &types.EnqueueAsyncWorkflowMessageResponse{MessageID: 1}, nil
@@ -95,7 +95,7 @@ func TestProducerPublish(t *testing.T) {
 			message: newEnvelope(t, sqlblobs.AsyncRequestTypeStartWorkflowExecutionAsyncRequest, "wf-nodomain",
 				envelopeOpts{requestID: common.StringPtr("req-1")}),
 			setupClient:    func(t *testing.T, m *historyclient.MockClient) {},
-			wantErr:        "domain",
+			wantErr:        "domainName",
 			wantBadRequest: true,
 		},
 		{
@@ -103,7 +103,7 @@ func TestProducerPublish(t *testing.T) {
 			message: newEnvelope(t, sqlblobs.AsyncRequestTypeStartWorkflowExecutionAsyncRequest, "wf-noreq",
 				envelopeOpts{domain: common.StringPtr("domain-a")}),
 			setupClient:    func(t *testing.T, m *historyclient.MockClient) {},
-			wantErr:        "requestId",
+			wantErr:        "requestID",
 			wantBadRequest: true,
 		},
 		{
