@@ -59,7 +59,7 @@ func TestNewClient(t *testing.T) {
 	loadbalancer := NewMockLoadBalancer(ctrl)
 	provider := NewMockPartitionConfigProvider(ctrl)
 
-	c := NewClient(client, peerResolver, loadbalancer, provider, NoopPollTracker{})
+	c := NewClient(client, peerResolver, loadbalancer, provider, NewNoopPollTracker())
 	assert.NotNil(t, c)
 }
 
@@ -144,7 +144,7 @@ func TestClient_withoutResponse(t *testing.T) {
 			loadbalancerMock := NewMockLoadBalancer(ctrl)
 			providerMock := NewMockPartitionConfigProvider(ctrl)
 			tt.mock(peerResolverMock, loadbalancerMock, client)
-			c := NewClient(client, peerResolverMock, loadbalancerMock, providerMock, NoopPollTracker{})
+			c := NewClient(client, peerResolverMock, loadbalancerMock, providerMock, NewNoopPollTracker())
 
 			err := tt.op(c)
 			if tt.wantError {
@@ -648,7 +648,7 @@ func TestClient_withResponse(t *testing.T) {
 			loadbalancerMock := NewMockLoadBalancer(ctrl)
 			providerMock := NewMockPartitionConfigProvider(ctrl)
 			tt.mock(peerResolverMock, loadbalancerMock, client, providerMock)
-			c := NewClient(client, peerResolverMock, loadbalancerMock, providerMock, NoopPollTracker{})
+			c := NewClient(client, peerResolverMock, loadbalancerMock, providerMock, NewNoopPollTracker())
 
 			res, err := tt.op(c)
 			if tt.wantError {

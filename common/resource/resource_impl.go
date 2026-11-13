@@ -177,7 +177,7 @@ func New(
 
 	matchingPollTracker := params.MatchingPollTracker
 	if matchingPollTracker == nil {
-		matchingPollTracker = matching.NoopPollTracker{}
+		matchingPollTracker = matching.NewNoopPollTracker()
 	}
 
 	dynamicCollection := params.DynamicCollection

@@ -28,6 +28,7 @@ func TestStop(t *testing.T) {
 		res := resource.NewTest(t, gomock.NewController(t), metrics.Frontend)
 		wh := newHandlerWithPoll(res, false)
 
+		res.MatchingClient.EXPECT().CancelOutstandingPoll(gomock.Any(), gomock.Any()).Times(0)
 		wh.Stop()
 
 		assert.True(t, wh.isShuttingDown())
