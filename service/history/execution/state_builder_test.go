@@ -1650,7 +1650,7 @@ func (s *stateBuilderSuite) TestApplyEvents_EventTypeExternalWorkflowExecutionSi
 
 func (s *stateBuilderSuite) TestApplyEventsNewEventsNotHandled() {
 	eventTypes := types.EventTypeValues()
-	s.Equal(46, len(eventTypes), "If you see this error, you are adding new event type. "+
+	s.Equal(47, len(eventTypes), "If you see this error, you are adding new event type. "+
 		"Before updating the number to make this test pass, please make sure you update stateBuilderImpl.ApplyEvents method "+
 		"to handle the new decision type. Otherwise cross dc will not work on the new event.")
 }

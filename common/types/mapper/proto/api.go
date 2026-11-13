@@ -5045,6 +5045,26 @@ func ToSemaphoreAcquireFailedEventAttributes(t *apiv1.SemaphoreAcquireFailedEven
 	}
 }
 
+func FromSemaphoreTokenLostEventAttributes(t *types.SemaphoreTokenLostEventAttributes) *apiv1.SemaphoreTokenLostEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.SemaphoreTokenLostEventAttributes{
+		TokenId:          t.TokenID,
+		InitiatedEventId: t.InitiatedEventID,
+	}
+}
+
+func ToSemaphoreTokenLostEventAttributes(t *apiv1.SemaphoreTokenLostEventAttributes) *types.SemaphoreTokenLostEventAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.SemaphoreTokenLostEventAttributes{
+		TokenID:          t.TokenId,
+		InitiatedEventID: t.InitiatedEventId,
+	}
+}
+
 func FromUpsertWorkflowSearchAttributesEventAttributes(t *types.UpsertWorkflowSearchAttributesEventAttributes) *apiv1.UpsertWorkflowSearchAttributesEventAttributes {
 	if t == nil {
 		return nil
@@ -6584,6 +6604,10 @@ func FromHistoryEvent(e *types.HistoryEvent) *apiv1.HistoryEvent {
 		event.Attributes = &apiv1.HistoryEvent_SemaphoreAcquireFailedEventAttributes{
 			SemaphoreAcquireFailedEventAttributes: FromSemaphoreAcquireFailedEventAttributes(e.SemaphoreAcquireFailedEventAttributes),
 		}
+	case types.EventTypeSemaphoreTokenLost:
+		event.Attributes = &apiv1.HistoryEvent_SemaphoreTokenLostEventAttributes{
+			SemaphoreTokenLostEventAttributes: FromSemaphoreTokenLostEventAttributes(e.SemaphoreTokenLostEventAttributes),
+		}
 	}
 	return &event
 }
@@ -6737,6 +6761,9 @@ func ToHistoryEvent(e *apiv1.HistoryEvent) *types.HistoryEvent {
 	case *apiv1.HistoryEvent_SemaphoreAcquireFailedEventAttributes:
 		event.EventType = types.EventTypeSemaphoreAcquireFailed.Ptr()
 		event.SemaphoreAcquireFailedEventAttributes = ToSemaphoreAcquireFailedEventAttributes(attr.SemaphoreAcquireFailedEventAttributes)
+	case *apiv1.HistoryEvent_SemaphoreTokenLostEventAttributes:
+		event.EventType = types.EventTypeSemaphoreTokenLost.Ptr()
+		event.SemaphoreTokenLostEventAttributes = ToSemaphoreTokenLostEventAttributes(attr.SemaphoreTokenLostEventAttributes)
 	}
 	return &event
 }

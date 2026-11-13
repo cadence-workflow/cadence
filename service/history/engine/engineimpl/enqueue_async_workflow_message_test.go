@@ -226,8 +226,7 @@ func TestEnqueueAsyncWorkflowMessage(t *testing.T) {
 			eft.Engine.Start()
 			defer eft.Engine.Stop()
 
-			manager := persistence.NewMockAsyncWorkflowQueueManager(gomock.NewController(t))
-			eft.ShardCtx.Resource.PersistenceBean.EXPECT().GetAsyncWorkflowQueueManager().Return(manager).AnyTimes()
+			manager := eft.ShardCtx.Resource.AsyncWorkflowQueueMgr
 
 			var persisted *persistence.EnqueueAsyncWorkflowMessageRequest
 			if tc.wantPersisted != nil {
