@@ -113,21 +113,6 @@ func TestEnqueueAsyncWorkflowMessage(t *testing.T) {
 			},
 		},
 		{
-			name: "success: json payload encoding maps to the persistence json encoding",
-			request: withRequest(func(r *types.EnqueueAsyncWorkflowMessageRequest) {
-				r.Payload = jsonPayload
-			}),
-			wantPersisted: &persistence.EnqueueAsyncWorkflowMessageRequest{
-				ShardID:         ownShardID,
-				DomainName:      "test-domain",
-				WorkflowID:      ownedWorkflowID,
-				RequestID:       "req-1",
-				RequestType:     persistence.AsyncWorkflowRequestTypeSignalWithStartWorkflow,
-				Payload:         []byte(`{"k":"v"}`),
-				PayloadEncoding: constants.EncodingTypeJSON,
-			},
-		},
-		{
 			name: "request shard id is not this shard: BadRequestError, nothing written",
 			request: withRequest(func(r *types.EnqueueAsyncWorkflowMessageRequest) {
 				r.ShardID = ownShardID + 1
@@ -169,6 +154,13 @@ func TestEnqueueAsyncWorkflowMessage(t *testing.T) {
 					EncodingType: apiv1.EncodingType_ENCODING_TYPE_INVALID,
 					Data:         []byte("envelope"),
 				})
+			}),
+			wantBadRequest: true,
+		},
+		{
+			name: "json payload encoding is not accepted: BadRequestError, nothing written",
+			request: withRequest(func(r *types.EnqueueAsyncWorkflowMessageRequest) {
+				r.Payload = jsonPayload
 			}),
 			wantBadRequest: true,
 		},
