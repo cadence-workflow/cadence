@@ -927,6 +927,11 @@ func (t *timerActiveTaskExecutor) executeSemaphoreAcquireTimeoutTask(
 	if semaphoreInfo.HasToken() {
 		return nil
 	}
+	// After SemaphoreTokenLost the hold waits again with no deadline, so a timer from the
+	// first acquire must not end it.
+	if semaphoreInfo.AcquireDeadline.IsZero() {
+		return nil
+	}
 
 	if _, err := mutableState.AddSemaphoreAcquireFailedEvent(task.EventID, types.SemaphoreAcquireFailedCauseTimedOut); err != nil {
 		return err

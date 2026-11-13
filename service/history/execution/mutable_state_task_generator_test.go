@@ -1719,6 +1719,12 @@ func TestGenerateSemaphoreAcquireTimeoutTasks(t *testing.T) {
 			},
 		},
 		{
+			name: "Success case - no deadline, no timer",
+			setupMock: func(mockMutableState *MockMutableState) {
+				mockMutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{Version: 3, InitiatedID: 5}, true)
+			},
+		},
+		{
 			name: "Error case - GetSemaphoreInfo error",
 			setupMock: func(mockMutableState *MockMutableState) {
 				mockMutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(nil, false)

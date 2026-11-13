@@ -94,6 +94,7 @@ type (
 		AddSemaphoreAcquiredEvent(int64, int32) (*types.HistoryEvent, error)
 		AddSemaphoreAcquireFailedEvent(int64, types.SemaphoreAcquireFailedCause) (*types.HistoryEvent, error)
 		AddSemaphoreReleasedEvent(int64, int64) (*types.HistoryEvent, error)
+		AddSemaphoreTokenLostEvent(int64) (*types.HistoryEvent, error)
 		AddSignalExternalWorkflowExecutionFailedEvent(int64, int64, string, string, string, []uint8, types.SignalExternalWorkflowExecutionFailedCause) (*types.HistoryEvent, error)
 		AddSignalExternalWorkflowExecutionInitiatedEvent(int64, string, *types.SignalExternalWorkflowExecutionDecisionAttributes) (*types.HistoryEvent, *persistence.SignalInfo, error)
 		AddSignalRequested(requestID string)
@@ -204,6 +205,7 @@ type (
 		ReplicateSemaphoreAcquiredEvent(*types.HistoryEvent) error
 		ReplicateSemaphoreAcquireFailedEvent(*types.HistoryEvent) error
 		ReplicateSemaphoreReleasedEvent(*types.HistoryEvent) error
+		ReplicateSemaphoreTokenLostEvent(*types.HistoryEvent) error
 		ReplicateSignalExternalWorkflowExecutionFailedEvent(*types.HistoryEvent) error
 		ReplicateSignalExternalWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent, string) (*persistence.SignalInfo, error)
 		ReplicateStartChildWorkflowExecutionFailedEvent(*types.HistoryEvent) error

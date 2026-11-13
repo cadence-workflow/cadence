@@ -1755,6 +1755,30 @@ func TestApplyEventsSemaphoreEvents(t *testing.T) {
 			},
 			wantErr: errReplicate,
 		},
+		{
+			name: "a token lost event goes to ReplicateSemaphoreTokenLostEvent",
+			event: &types.HistoryEvent{
+				EventType: types.EventTypeSemaphoreTokenLost.Ptr(),
+				SemaphoreTokenLostEventAttributes: &types.SemaphoreTokenLostEventAttributes{
+					TokenID:          7,
+					InitiatedEventID: 2,
+				},
+			},
+			expectFn: func(ms *MockMutableState, event *types.HistoryEvent) {
+				ms.EXPECT().ReplicateSemaphoreTokenLostEvent(event).Return(nil)
+			},
+		},
+		{
+			name: "an error from ReplicateSemaphoreTokenLostEvent stops the apply",
+			event: &types.HistoryEvent{
+				EventType:                         types.EventTypeSemaphoreTokenLost.Ptr(),
+				SemaphoreTokenLostEventAttributes: &types.SemaphoreTokenLostEventAttributes{},
+			},
+			expectFn: func(ms *MockMutableState, event *types.HistoryEvent) {
+				ms.EXPECT().ReplicateSemaphoreTokenLostEvent(event).Return(errReplicate)
+			},
+			wantErr: errReplicate,
+		},
 	}
 
 	for _, tc := range tests {

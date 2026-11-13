@@ -680,6 +680,20 @@ func (b *HistoryBuilder) AddSemaphoreReleasedEvent(
 	return b.addEventToHistory(event)
 }
 
+// AddSemaphoreTokenLostEvent adds SemaphoreTokenLost event to history
+func (b *HistoryBuilder) AddSemaphoreTokenLostEvent(
+	initiatedEventID int64,
+	tokenID int32,
+) *types.HistoryEvent {
+	event := b.msBuilder.CreateNewHistoryEvent(types.EventTypeSemaphoreTokenLost)
+	event.SemaphoreTokenLostEventAttributes = &types.SemaphoreTokenLostEventAttributes{
+		TokenID:          tokenID,
+		InitiatedEventID: initiatedEventID,
+	}
+
+	return b.addEventToHistory(event)
+}
+
 // AddSignalExternalWorkflowExecutionFailedEvent adds SignalExternalWorkflowExecutionFailed event to history
 func (b *HistoryBuilder) AddSignalExternalWorkflowExecutionFailedEvent(decisionTaskCompletedEventID, initiatedEventID int64,
 	domain, workflowID, runID string, control []byte, cause types.SignalExternalWorkflowExecutionFailedCause) *types.HistoryEvent {
