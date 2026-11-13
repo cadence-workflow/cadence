@@ -10,8 +10,8 @@ import (
 	smtypes "github.com/cadence-workflow/shard-manager/common/types"
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/membership"
 )
 
 type ShardProcessorParams struct {
@@ -21,7 +21,7 @@ type ShardProcessorParams struct {
 	TimeSource        clock.TimeSource
 	// TaskListDifferentiator decides whether ShardID is a hashed shard or the name of a single task
 	// list, and which task lists the hash ring owns instead of the shard distributor.
-	TaskListDifferentiator *membership.TaskListDifferentiator
+	TaskListDifferentiator *matching.TaskListDifferentiator
 }
 
 type shardProcessorImpl struct {
@@ -34,7 +34,7 @@ type shardProcessorImpl struct {
 	reportTTL         time.Duration
 	timeSource        clock.TimeSource
 
-	taskListDifferentiator *membership.TaskListDifferentiator
+	taskListDifferentiator *matching.TaskListDifferentiator
 }
 
 func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
@@ -108,7 +108,7 @@ func (sp *shardProcessorImpl) SetShardStatus(status smtypes.ShardStatus) {
 func (sp *shardProcessorImpl) getShardLoad() float64 {
 	var load float64
 
-	// We assign a shard only based on the task list name
+	// We assign a shard based on the task list name, plus the domain ID when task lists are sharded by hash,
 	// so task lists of different task type (decisions/activities) or of different kind (normal, sticky, ephemeral)
 	// will be assigned all to the same matching instance (executor)
 	// we need to sum the rps for each of the tasklist to calculate the load.
@@ -137,8 +137,8 @@ func (sp *shardProcessorImpl) ownedManagers() []Manager {
 
 // ownsTaskList is false for task lists the hash ring owns, such as short-lived ones.
 func (sp *shardProcessorImpl) ownsTaskList(tlMgr Manager) bool {
-	taskListName := tlMgr.TaskListID().GetName()
-	return !sp.taskListDifferentiator.TaskListExcludedFromShardDistributor(taskListName)
+	id := tlMgr.TaskListID()
+	return sp.taskListDifferentiator.TaskListShard(id.GetDomainID(), id.GetName()).Onboarded
 }
 
 func validateSPParams(params ShardProcessorParams) error {

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/metrics"
 	metricsmocks "github.com/uber/cadence/common/metrics/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -58,7 +58,7 @@ func TestTaskListRegistry_RegisterLookupAndUnregister(t *testing.T) {
 	got, ok = registry.ManagerByTaskListIdentifier(*id)
 	require.True(t, ok)
 	assert.Equal(t, updatedMgr, got)
-	shardID := membership.TaskListNameToShard(id.GetName(), shardCount)
+	shardID := matching.TaskListToShard(id.GetDomainID(), id.GetName(), shardCount)
 	assert.ElementsMatch(t, []Manager{updatedMgr}, registry.ManagersByShard(shardID))
 
 	// Unregistering the current manager should remove the entry.
@@ -114,11 +114,15 @@ func TestTaskListRegistry_Filters(t *testing.T) {
 	})
 
 	t.Run("managers by shard", func(t *testing.T) {
-		sharedNameShardID := membership.TaskListNameToShard("shared-name", shardCount)
-		otherNameShardID := membership.TaskListNameToShard("other-name", shardCount)
-		require.NotEqual(t, sharedNameShardID, otherNameShardID)
+		domainASharedNameShardID := matching.TaskListToShard("domain-a", "shared-name", shardCount)
+		domainAOtherNameShardID := matching.TaskListToShard("domain-a", "other-name", shardCount)
+		domainBSharedNameShardID := matching.TaskListToShard("domain-b", "shared-name", shardCount)
+		require.NotEqual(t, domainASharedNameShardID, domainAOtherNameShardID)
+		require.NotEqual(t, domainASharedNameShardID, domainBSharedNameShardID, "the same name in two domains should hash to different shards")
+		require.NotEqual(t, domainAOtherNameShardID, domainBSharedNameShardID)
 
-		assert.ElementsMatch(t, []Manager{mgrA1, mgrB1}, registry.ManagersByShard(sharedNameShardID))
-		assert.ElementsMatch(t, []Manager{mgrA2}, registry.ManagersByShard(otherNameShardID))
+		assert.ElementsMatch(t, []Manager{mgrA1}, registry.ManagersByShard(domainASharedNameShardID))
+		assert.ElementsMatch(t, []Manager{mgrA2}, registry.ManagersByShard(domainAOtherNameShardID))
+		assert.ElementsMatch(t, []Manager{mgrB1}, registry.ManagersByShard(domainBSharedNameShardID))
 	})
 }

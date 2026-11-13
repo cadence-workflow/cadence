@@ -25,7 +25,7 @@ package tasklist
 import (
 	"sync"
 
-	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/metrics"
 )
 
@@ -33,7 +33,7 @@ type taskListRegistryImpl struct {
 	sync.RWMutex
 	taskLists map[Identifier]Manager
 
-	// task lists indexed by domain ID, task list name and the shard the name hashes to
+	// task lists indexed by domain ID, task list name and the shard the task list hashes to
 	// to quickly get all task lists for a domain, a task list name or a shard
 	// they are always in sync with the taskLists map
 	taskListsByDomainID     map[string]map[Identifier]Manager
@@ -41,7 +41,7 @@ type taskListRegistryImpl struct {
 	taskListsByShard        map[string]map[Identifier]Manager
 
 	metricsClient metrics.Client
-	// shardCount is the number of shards task list names hash to in taskListsByShard.
+	// shardCount is the number of shards task lists hash to in taskListsByShard.
 	shardCount int
 }
 
@@ -70,7 +70,7 @@ func (r *taskListRegistryImpl) Register(id Identifier, mgr Manager) {
 	if _, ok := r.taskListsByTaskListName[id.GetName()]; !ok {
 		r.taskListsByTaskListName[id.GetName()] = make(map[Identifier]Manager)
 	}
-	shardID := membership.TaskListNameToShard(id.GetName(), r.shardCount)
+	shardID := matching.TaskListToShard(id.GetDomainID(), id.GetName(), r.shardCount)
 	if _, ok := r.taskListsByShard[shardID]; !ok {
 		r.taskListsByShard[shardID] = make(map[Identifier]Manager)
 	}
@@ -101,7 +101,7 @@ func (r *taskListRegistryImpl) Unregister(mgr Manager) bool {
 			delete(r.taskListsByTaskListName, id.GetName())
 		}
 
-		shardID := membership.TaskListNameToShard(id.GetName(), r.shardCount)
+		shardID := matching.TaskListToShard(id.GetDomainID(), id.GetName(), r.shardCount)
 		delete(r.taskListsByShard[shardID], *id)
 		if len(r.taskListsByShard[shardID]) == 0 {
 			delete(r.taskListsByShard, shardID)

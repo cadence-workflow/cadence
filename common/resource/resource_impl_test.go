@@ -32,6 +32,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
@@ -153,6 +154,14 @@ func TestStartStop(t *testing.T) {
 	archiveProvider := provider.NewMockArchiverProvider(ctrl)
 	archiveProvider.EXPECT().RegisterBootstrapContainer(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
+	taskListDifferentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetIntPropertyFn(0),
+		config.DefaultNumMatchingShards,
+	)
+
 	// params
 	params := &Params{
 		Name:     serviceName,
@@ -166,13 +175,14 @@ func TestStartStop(t *testing.T) {
 				},
 			},
 		},
-		ClusterMetadata:    clusterMetadata,
-		Logger:             logger,
-		MetricScope:        tally.NoopScope,
-		MetricsClient:      metricsCl,
-		RPCFactory:         rpcFac,
-		MembershipResolver: memberRes,
-		DynamicConfig:      dc,
+		ClusterMetadata:        clusterMetadata,
+		Logger:                 logger,
+		MetricScope:            tally.NoopScope,
+		MetricsClient:          metricsCl,
+		RPCFactory:             rpcFac,
+		MembershipResolver:     memberRes,
+		TaskListDifferentiator: taskListDifferentiator,
+		DynamicConfig:          dc,
 		DynamicCollection: dynamicconfig.NewCollection(
 			dc,
 			logger,
@@ -237,6 +247,7 @@ func TestStartStop(t *testing.T) {
 	assert.Equal(t, archiveProvider, i.GetArchiverProvider())
 	assert.NotNil(t, i.GetDomainReplicationQueue())
 	assert.Equal(t, memberRes, i.GetMembershipResolver())
+	assert.NotNil(t, i.GetTaskListRouter())
 	assert.Equal(t, params.PublicClient, i.GetSDKClient())
 	assert.NotNil(t, i.GetFrontendRawClient())
 	assert.NotNil(t, i.GetFrontendClient())
@@ -269,4 +280,25 @@ func TestStartStop(t *testing.T) {
 	assert.NotNil(t, i.GetOperationalConfigStore())
 	assert.NotNil(t, i.GetOperationalDynamicConfig())
 	assert.Equal(t, params.AsyncWorkflowQueueProvider, i.GetAsyncWorkflowQueueProvider())
+}
+
+func TestNewFailsWithoutTaskListDifferentiator(t *testing.T) {
+	params := &Params{Logger: testlogger.New(t)}
+
+	_, err := New(params, "test-service", &service.Config{})
+	assert.ErrorContains(t, err, "resource.Params.TaskListDifferentiator must be set")
+}
+
+func TestNewFailsWithoutMatchingShards(t *testing.T) {
+	differentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetIntPropertyFn(0),
+		0,
+	)
+	params := &Params{Logger: testlogger.New(t), TaskListDifferentiator: differentiator}
+
+	_, err := New(params, "test-service", &service.Config{})
+	assert.ErrorContains(t, err, "numMatchingShards must be positive, got 0")
 }

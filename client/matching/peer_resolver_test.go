@@ -50,10 +50,11 @@ func TestPeerResolver(t *testing.T) {
 			membership.PortGRPC:     1245,
 		},
 	)
-	serviceResolver.EXPECT().Lookup(service.Matching, "taskListA").Return(
+	taskListRouter := NewMockTaskListRouter(controller)
+	taskListRouter.EXPECT().FromTaskList("domainA", "taskListA").Return(
 		host1,
 		nil)
-	serviceResolver.EXPECT().Lookup(service.Matching, "invalid").Return(membership.HostInfo{}, assert.AnError)
+	taskListRouter.EXPECT().FromTaskList("domainA", "invalid").Return(membership.HostInfo{}, assert.AnError)
 	serviceResolver.EXPECT().LookupByAddress(service.Matching, "invalid address").Return(membership.HostInfo{}, assert.AnError)
 
 	serviceResolver.EXPECT().Members(service.Matching).Return([]membership.HostInfo{
@@ -69,13 +70,13 @@ func TestPeerResolver(t *testing.T) {
 		host1,
 		nil,
 	).AnyTimes()
-	r := NewPeerResolver(serviceResolver, membership.PortGRPC)
+	r := NewPeerResolver(serviceResolver, taskListRouter, membership.PortGRPC)
 
-	peer, err := r.FromTaskList("taskListA")
+	peer, err := r.FromTaskList("domainA", "taskListA")
 	assert.NoError(t, err)
 	assert.Equal(t, "tasklistHost:1244", peer)
 
-	_, err = r.FromTaskList("invalid")
+	_, err = r.FromTaskList("domainA", "invalid")
 	assert.Error(t, err)
 
 	_, err = r.FromHostAddress("invalid address")
@@ -126,9 +127,10 @@ func TestPeerResolverFromSemaphoreBucket(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			serviceResolver := membership.NewMockResolver(gomock.NewController(t))
+			controller := gomock.NewController(t)
+			serviceResolver := membership.NewMockResolver(controller)
 			serviceResolver.EXPECT().Lookup(service.Matching, ringKey).Return(tt.lookupHost, tt.lookupErr)
-			r := NewPeerResolver(serviceResolver, membership.PortGRPC)
+			r := NewPeerResolver(serviceResolver, NewMockTaskListRouter(controller), membership.PortGRPC)
 
 			got, err := r.FromSemaphoreBucket(domainID, semaphoreName, bucket)
 			if tt.wantErr {

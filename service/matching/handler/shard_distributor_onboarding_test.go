@@ -41,7 +41,9 @@ const (
 	// noHost means SD hasn't given the shard to any host.
 	noHost = ""
 
-	// routedBySD and routedByHashRing say which one the resolver asked for a task list's owner.
+	onboardingDomainID = "domain-id"
+
+	// routedBySD and routedByHashRing say which one the router asked for a task list's owner.
 	routedBySD       = "SD"
 	routedByHashRing = "ring"
 )
@@ -57,19 +59,20 @@ type onboardingTestData struct {
 	taskLists           []onboardingTaskList
 	// shardOwners holds the host SD gives each shard to when the host joins SD.
 	shardOwners map[string]string
-	// routedBy is whichever of SD and the hash ring the resolver asked last.
+	// routedBy is whichever of SD and the hash ring the router asked last.
 	routedBy string
 
-	// taskListDifferentiator and shardDistributorResolver are shared by both hosts.
-	taskListDifferentiator   *membership.TaskListDifferentiator
-	shardDistributorResolver membership.SingleProvider
-	hosts                    []*onboardingHost
+	// taskListDifferentiator, matchingRing and taskListRouter are shared by both hosts.
+	taskListDifferentiator *matching.TaskListDifferentiator
+	matchingRing           membership.SingleProvider
+	taskListRouter         matching.TaskListRouter
+	hosts                  []*onboardingHost
 }
 
 // onboardingTaskList is one task list in the test.
 type onboardingTaskList struct {
 	name string
-	// shard is the shard the name hashes into.
+	// shard is the shard the task list hashes into.
 	shard string
 	// ringOwner is the host the hash ring routes the task list to.
 	ringOwner string
@@ -90,7 +93,7 @@ type onboardingHost struct {
 	stopped sync.Map
 }
 
-// route is where the resolver sends a task list.
+// route is where the router sends a task list.
 type route struct {
 	routedBy string
 	owner    string
@@ -99,7 +102,7 @@ type route struct {
 // routes holds the route of each task list, by task list name.
 type routes map[string]route
 
-// shard is the host that holds a shard, the load the shard reports, and where the resolver sends
+// shard is the host that holds a shard, the load the shard reports, and where the router sends
 // each task list in the shard. A shard reports the qps of the task lists SD routes to it. Every task
 // list reports 1 qps, so the load is the number of those task lists.
 type shard struct {
@@ -116,7 +119,7 @@ type shards map[string]shard
 // sd entries in its row.
 func TestShardDistributorOnboardingWithFixedShards(t *testing.T) {
 	taskLists := []onboardingTaskList{
-		{name: "checkout", shard: "0", ringOwner: host1},
+		{name: "billing", shard: "0", ringOwner: host1},
 		{name: "returns", shard: "0", ringOwner: host2},
 		{name: "pricing", shard: "1", ringOwner: host2},
 	}
@@ -127,23 +130,23 @@ func TestShardDistributorOnboardingWithFixedShards(t *testing.T) {
 	// No host has joined SD, so no host holds a shard. The hash ring routes every task list.
 	td.setPercentage(t, 0)
 	td.requireShards(t, shards{
-		"0": {heldBy: noHost, load: 0, taskLists: routes{"checkout": ring(host1), "returns": ring(host2)}},
+		"0": {heldBy: noHost, load: 0, taskLists: routes{"billing": ring(host1), "returns": ring(host2)}},
 		"1": {heldBy: noHost, load: 0, taskLists: routes{"pricing": ring(host2)}},
 	})
 
 	// The hosts join SD, so host1 holds shard 0 and host2 holds shard 1. At 50% only shard 0 is
-	// onboarded. SD takes over "checkout" and "returns", so "returns" moves from host2 to host1. The
+	// onboarded. SD takes over "billing" and "returns", so "returns" moves from host2 to host1. The
 	// hash ring keeps "pricing".
 	td.setPercentage(t, 50)
 	td.requireShards(t, shards{
-		"0": {heldBy: host1, load: 2, taskLists: routes{"checkout": sd(host1), "returns": sd(host1)}},
+		"0": {heldBy: host1, load: 2, taskLists: routes{"billing": sd(host1), "returns": sd(host1)}},
 		"1": {heldBy: host2, load: 0, taskLists: routes{"pricing": ring(host2)}},
 	})
 
 	// At 100% shard 1 is onboarded too. SD takes over "pricing", which stays on host2.
 	td.setPercentage(t, 100)
 	td.requireShards(t, shards{
-		"0": {heldBy: host1, load: 2, taskLists: routes{"checkout": sd(host1), "returns": sd(host1)}},
+		"0": {heldBy: host1, load: 2, taskLists: routes{"billing": sd(host1), "returns": sd(host1)}},
 		"1": {heldBy: host2, load: 1, taskLists: routes{"pricing": sd(host2)}},
 	})
 
@@ -151,22 +154,22 @@ func TestShardDistributorOnboardingWithFixedShards(t *testing.T) {
 	// host2, and shard 1 stops counting its load.
 	td.setPercentage(t, 50)
 	td.requireShards(t, shards{
-		"0": {heldBy: host1, load: 2, taskLists: routes{"checkout": sd(host1), "returns": sd(host1)}},
+		"0": {heldBy: host1, load: 2, taskLists: routes{"billing": sd(host1), "returns": sd(host1)}},
 		"1": {heldBy: host2, load: 0, taskLists: routes{"pricing": ring(host2)}},
 	})
 
-	// SD moves shard 0 from host1 to host2. "checkout" and "returns" move from host1 to host2 with it.
+	// SD moves shard 0 from host1 to host2. "billing" and "returns" move from host1 to host2 with it.
 	td.moveShard(t, "0", host2)
 	td.requireShards(t, shards{
-		"0": {heldBy: host2, load: 2, taskLists: routes{"checkout": sd(host2), "returns": sd(host2)}},
+		"0": {heldBy: host2, load: 2, taskLists: routes{"billing": sd(host2), "returns": sd(host2)}},
 		"1": {heldBy: host2, load: 0, taskLists: routes{"pricing": ring(host2)}},
 	})
 
-	// At 0% the hash ring takes back every task list. "checkout" moves from host2 to host1, and
+	// At 0% the hash ring takes back every task list. "billing" moves from host2 to host1, and
 	// "returns" and "pricing" stay on host2. host2 keeps both shards, but they count no load.
 	td.setPercentage(t, 0)
 	td.requireShards(t, shards{
-		"0": {heldBy: host2, load: 0, taskLists: routes{"checkout": ring(host1), "returns": ring(host2)}},
+		"0": {heldBy: host2, load: 0, taskLists: routes{"billing": ring(host1), "returns": ring(host2)}},
 		"1": {heldBy: host2, load: 0, taskLists: routes{"pricing": ring(host2)}},
 	})
 }
@@ -200,12 +203,10 @@ func newOnboardingTestData(
 
 	// SD gives out every shard, so shardOwners names them all.
 	shardCount := len(shardOwners)
-	percentageOnboarded := membership.NewPercentageOnboarded(
-		metrics.NewNoopMetricsClient(),
-		func(...dynamicproperties.FilterOption) int { return td.percentageOnboarded },
-	)
+	percentageOnboarded := func(...dynamicproperties.FilterOption) int { return td.percentageOnboarded }
 	shardTaskListsByHash := true
-	td.taskListDifferentiator = membership.NewTaskListDifferentiator(
+	td.taskListDifferentiator = matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(true), // short-lived task lists stay on the hash ring
 		dynamicproperties.GetBoolPropertyFn(shardTaskListsByHash),
 		percentageOnboarded,
@@ -213,23 +214,22 @@ func newOnboardingTestData(
 	)
 	for _, taskList := range taskLists {
 		require.Contains(t, shardOwners, taskList.shard, "SD gives out the shard of task list %q", taskList.name)
-		gotShardID := td.taskListDifferentiator.ShardID(taskList.name)
+		gotShardID := td.taskListDifferentiator.TaskListShard(onboardingDomainID, taskList.name).ID
 		require.Equal(t, taskList.shard, gotShardID, "shard of task list %q", taskList.name)
 	}
 
 	hostNames := []string{host1, host2}
-	td.shardDistributorResolver = td.newShardDistributorResolver(len(hostNames))
+	td.taskListRouter = td.newTaskListRouter(t, len(hostNames))
 	for _, hostName := range hostNames {
-		td.hosts = append(td.hosts, td.newHost(t, hostName, percentageOnboarded))
+		td.hosts = append(td.hosts, td.newHost(t, hostName))
 	}
 	return td
 }
 
-// newShardDistributorResolver builds the resolver matching routes task lists with. It asks SD
-// about onboarded task lists and the hash ring about the rest. SD answers with the host holding
-// the shard, and the hash ring with the task list's ringOwner. Both note that the resolver asked
-// them.
-func (td *onboardingTestData) newShardDistributorResolver(hostCount int) membership.SingleProvider {
+// newTaskListRouter builds the router matching routes task lists with. It asks SD about onboarded
+// task lists and the hash ring about the rest. SD answers with the host holding the shard, and the
+// hash ring with the task list's ringOwner. Both note that the router asked them.
+func (td *onboardingTestData) newTaskListRouter(t *testing.T, hostCount int) matching.TaskListRouter {
 	spectator := spectatorclient.NewMockSpectator(td.ctrl)
 	spectator.EXPECT().GetShardOwner(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, shardID string) (*spectatorclient.ShardOwner, error) {
@@ -259,24 +259,30 @@ func (td *onboardingTestData) newShardDistributorResolver(hostCount int) members
 	// Each host's engine starts a membership loop that subscribes to matching's ring once.
 	hashRing.EXPECT().Subscribe("matching-engine", gomock.Any()).Return(nil).Times(hostCount)
 
-	shardDistributorResolver := membership.NewShardDistributorResolver(
-		spectator,
+	td.matchingRing = hashRing
+
+	rings := map[string]membership.SingleProvider{service.Matching: hashRing}
+	resolver, err := membership.NewResolver(nil, metrics.NewNoopMetricsClient(), log.NewNoop(), rings)
+	require.NoError(t, err)
+
+	taskListRouter := matching.NewTaskListRouter(
+		resolver,
 		td.taskListDifferentiator,
-		hashRing,
+		spectator,
 		log.NewNoop(),
 		metrics.NoopScope,
 	)
-	return shardDistributorResolver
+	return taskListRouter
 }
 
 // newHost starts a matching engine that knows itself as hostName and routes task lists with the
-// shared resolver.
-func (td *onboardingTestData) newHost(t *testing.T, hostName string, percentageOnboarded membership.PercentageOnboarded) *onboardingHost {
+// shared router.
+func (td *onboardingTestData) newHost(t *testing.T, hostName string) *onboardingHost {
 	peerProvider := membership.NewMockPeerProvider(td.ctrl)
 	self := membership.NewDetailedHostInfo("", hostName, nil)
 	peerProvider.EXPECT().WhoAmI().Return(self, nil).AnyTimes()
 
-	rings := map[string]membership.SingleProvider{service.Matching: td.shardDistributorResolver}
+	rings := map[string]membership.SingleProvider{service.Matching: td.matchingRing}
 	resolver, err := membership.NewResolver(peerProvider, metrics.NewNoopMetricsClient(), log.NewNoop(), rings)
 	require.NoError(t, err)
 
@@ -297,13 +303,13 @@ func (td *onboardingTestData) newHost(t *testing.T, hostName string, percentageO
 		tally.NoopScope,
 		cache.NewMockDomainCache(td.ctrl),
 		resolver,
+		td.taskListRouter,
 		isolationgroup.NewMockState(td.ctrl),
 		td.timeSource,
 		executorclient.NewMockClient(td.ctrl),
 		defaultSDExecutorConfig(),
 		td.taskListDifferentiator,
 		nil,
-		percentageOnboarded,
 	).(*matchingEngineImpl)
 	// NewEngine starts the membership loop. Stop it directly, since engine.Stop would also stop
 	// every task list still running.
@@ -343,7 +349,7 @@ func (td *onboardingTestData) newExecutor(host *onboardingHost) executorclient.E
 // newManager returns the host's manager for the task list, which reports 1 qps. requireShards
 // checks every stop, so Stop can happen any number of times.
 func (td *onboardingTestData) newManager(t *testing.T, host *onboardingHost, taskList onboardingTaskList) *tasklist.MockManager {
-	taskListID := tasklist.NewTestTaskListID(t, "domain-id", taskList.name, persistence.TaskListTypeDecision)
+	taskListID := tasklist.NewTestTaskListID(t, onboardingDomainID, taskList.name, persistence.TaskListTypeDecision)
 	manager := tasklist.NewMockManager(td.ctrl)
 	manager.EXPECT().TaskListID().Return(taskListID).AnyTimes()
 	qps := 1.0
@@ -377,7 +383,7 @@ func (td *onboardingTestData) moveShard(t *testing.T, shardID string, toHostName
 }
 
 // requireShards requires the host that holds each shard, the load it reports, and where the
-// resolver sends each task list in the shard. It also requires that each task list runs only on the
+// router sends each task list in the shard. It also requires that each task list runs only on the
 // host it's routed to, and didn't stop there since the last requireShards.
 func (td *onboardingTestData) requireShards(t *testing.T, want shards) {
 	t.Helper()
@@ -397,8 +403,8 @@ func (td *onboardingTestData) requireShards(t *testing.T, want shards) {
 	}
 }
 
-// currentShards returns each shard as the hosts and the resolver report it now: the host holding
-// it, the load it reports, and where the resolver sends each of its task lists.
+// currentShards returns each shard as the hosts and the router report it now: the host holding
+// it, the load it reports, and where the router sends each of its task lists.
 func (td *onboardingTestData) currentShards(t *testing.T) shards {
 	t.Helper()
 	shardsByID := make(shards)
@@ -421,7 +427,7 @@ func (td *onboardingTestData) currentShards(t *testing.T) shards {
 // to SD. A host that stops heartbeating keeps its shards, as its executor no longer cleans them up.
 func (td *onboardingTestData) joinSDOnceOnboarded(t *testing.T) {
 	for _, host := range td.hosts {
-		if host.joinedSD || !host.engine.shardDistributorOnboarded() {
+		if host.joinedSD || !td.taskListDifferentiator.ShardDistributorEnabled() {
 			continue
 		}
 		host.joinedSD = true
@@ -434,7 +440,7 @@ func (td *onboardingTestData) joinSDOnceOnboarded(t *testing.T) {
 }
 
 // stopTaskListsHostsNoLongerOwn runs, on every host, the check matching runs when the hash ring's
-// membership changes. It stops every task list the resolver no longer routes to the host.
+// membership changes. It stops every task list the router no longer routes to the host.
 func (td *onboardingTestData) stopTaskListsHostsNoLongerOwn(t *testing.T) {
 	for _, host := range td.hosts {
 		err := host.engine.shutDownNonOwnedTasklists()
@@ -457,11 +463,11 @@ func (td *onboardingTestData) startTaskListsHostsNowOwn(t *testing.T) {
 	}
 }
 
-// routeOf returns where the resolver sends the task list.
+// routeOf returns where the router sends the task list.
 func (td *onboardingTestData) routeOf(t *testing.T, taskListName string) route {
 	t.Helper()
 	td.routedBy = ""
-	owner, err := td.shardDistributorResolver.Lookup(taskListName)
+	owner, err := td.taskListRouter.FromTaskList(onboardingDomainID, taskListName)
 	require.NoError(t, err, "routing task list %q", taskListName)
 	return route{routedBy: td.routedBy, owner: owner.Identity()}
 }
@@ -523,7 +529,8 @@ func (h *onboardingHost) removeShard(shardID string) {
 
 // owns runs the ownership check matching runs before it starts a task list.
 func (h *onboardingHost) owns(t *testing.T, taskListID *tasklist.Identifier) bool {
-	err := h.engine.errIfShardOwnershipLost(context.Background(), taskListID)
+	shard := h.engine.taskListDifferentiator.TaskListShard(taskListID.GetDomainID(), taskListID.GetName())
+	err := h.engine.errIfShardOwnershipLost(context.Background(), taskListID, shard)
 	if err == nil {
 		return true
 	}

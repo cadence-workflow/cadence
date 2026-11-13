@@ -9,9 +9,10 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -37,10 +38,11 @@ func newShardProcessorTestData(t *testing.T, taskListID *Identifier) shardProces
 	mockRegistry.EXPECT().ManagersByTaskListName(taskListID.GetName()).Return([]Manager{}).AnyTimes()
 
 	shardCount := 100
-	taskListDifferentiator := membership.NewTaskListDifferentiator(
+	taskListDifferentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
-		membership.StaticPercentageOnboarded(100),
+		dynamicproperties.GetIntPropertyFn(100),
 		shardCount,
 	)
 
@@ -118,10 +120,11 @@ func TestShardProcessor_ShardByHashSkipsTaskListsOwnedByHashRing(t *testing.T) {
 	mockRegistry.EXPECT().ManagersByShard(shardID).Return([]Manager{firstTaskList, secondTaskList, hashRingTaskList}).Times(2)
 
 	shardCount := 100
-	taskListDifferentiator := membership.NewTaskListDifferentiator(
+	taskListDifferentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(true),
 		dynamicproperties.GetBoolPropertyFn(true),
-		membership.StaticPercentageOnboarded(100),
+		dynamicproperties.GetIntPropertyFn(100),
 		shardCount,
 	)
 
@@ -137,6 +140,56 @@ func TestShardProcessor_ShardByHashSkipsTaskListsOwnedByHashRing(t *testing.T) {
 	timeSource.Advance(reportTTL + time.Second)
 	shardReport := shardProcessor.GetShardReport()
 	require.Equal(t, firstTaskListQPS+secondTaskListQPS, shardReport.ShardLoad)
+
+	shardProcessor.Stop()
+}
+
+func TestShardProcessor_ShardByHashOwnsTaskListsByDomainAndName(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctrl := gomock.NewController(t)
+	timeSource := clock.NewMockedTimeSource()
+	reportTTL := time.Second
+	shardCount := 100
+
+	// By name alone both task lists would be in shard 14. With the domain ID only one is onboarded.
+	onboardedTaskListID := mustNewIdentifier("domain-b", "billing", persistence.TaskListTypeDecision)
+	require.Equal(t, "8", matching.TaskListToShard(onboardedTaskListID.GetDomainID(), onboardedTaskListID.GetName(), shardCount))
+	onboardedTaskListQPS := 2.0
+	onboardedTaskList := NewMockManager(ctrl)
+	onboardedTaskList.EXPECT().TaskListID().Return(onboardedTaskListID).AnyTimes()
+	onboardedTaskList.EXPECT().QueriesPerSecond().Return(onboardedTaskListQPS)
+	onboardedTaskList.EXPECT().Stop()
+
+	hashRingTaskListID := mustNewIdentifier("domain-id", "billing", persistence.TaskListTypeDecision)
+	require.Equal(t, "88", matching.TaskListToShard(hashRingTaskListID.GetDomainID(), hashRingTaskListID.GetName(), shardCount))
+	hashRingTaskList := NewMockManager(ctrl)
+	hashRingTaskList.EXPECT().TaskListID().Return(hashRingTaskListID).AnyTimes()
+
+	shardID := "8"
+	mockRegistry := NewMockTaskListRegistry(ctrl)
+	mockRegistry.EXPECT().ManagersByShard(shardID).Return([]Manager{onboardedTaskList, hashRingTaskList}).Times(2)
+
+	taskListDifferentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(true),
+		dynamicproperties.GetIntPropertyFn(50),
+		shardCount,
+	)
+
+	shardProcessor, err := NewShardProcessor(ShardProcessorParams{
+		ShardID:                shardID,
+		TaskListsRegistry:      mockRegistry,
+		ReportTTL:              reportTTL,
+		TimeSource:             timeSource,
+		TaskListDifferentiator: taskListDifferentiator,
+	})
+	require.NoError(t, err)
+
+	timeSource.Advance(reportTTL + time.Second)
+	shardReport := shardProcessor.GetShardReport()
+	require.Equal(t, onboardedTaskListQPS, shardReport.ShardLoad)
 
 	shardProcessor.Stop()
 }

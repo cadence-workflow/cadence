@@ -28,6 +28,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -118,9 +119,8 @@ type (
 		// gracefully stop processing during drains.
 		DrainObserver clientcommon.DrainSignalObserver
 
-		PercentageOnboarded membership.PercentageOnboarded
 		// TaskListDifferentiator decides which task lists the shard distributor owns and which shard each
-		// one belongs to. The matching membership resolver and the matching service share it, so they agree.
-		TaskListDifferentiator *membership.TaskListDifferentiator
+		// one belongs to. The task list router and the matching service share it.
+		TaskListDifferentiator *matching.TaskListDifferentiator
 	}
 )
