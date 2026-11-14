@@ -126,6 +126,10 @@ func Test_parseWorkflowExecutionInfo(t *testing.T) {
 					"auto_reset_points_encoding":               "Proto3",
 					"active_cluster_selection_policy":          activeClusterSelectionPolicyData,
 					"active_cluster_selection_policy_encoding": "Proto3",
+					"import_source_workflow_id":                "import_source_workflow_id",
+					"import_source_run_id":                     newMockUUID("import_source_run_id"),
+					"import_timestamp":                         timeNow,
+					"import_in_progress":                       true,
 				},
 				"next_event_id": int64(5),
 			},
@@ -182,7 +186,23 @@ func Test_parseWorkflowExecutionInfo(t *testing.T) {
 				Memo:                               memo,
 				PartitionConfig:                    partitionConfig,
 				ActiveClusterSelectionPolicy:       persistence.NewDataBlob(activeClusterSelectionPolicyData, "Proto3"),
+				ImportSourceExecution: &types.WorkflowExecution{
+					WorkflowID: "import_source_workflow_id",
+					RunID:      "import_source_run_id",
+				},
+				ImportTimestamp:  timeNow,
+				ImportInProgress: true,
 			},
+		},
+		{
+			name: "null import source fields",
+			args: map[string]interface{}{
+				"execution": map[string]interface{}{
+					"import_source_workflow_id": "",
+					"import_source_run_id":      newMockUUID(cql.UUID{}.String()),
+				},
+			},
+			want: &persistence.InternalWorkflowExecutionInfo{},
 		},
 		{
 			name: "uuid fields",
@@ -286,6 +306,9 @@ func Test_parseWorkflowExecutionInfo(t *testing.T) {
 			assert.Equal(t, result.DecisionAttempt, tt.want.DecisionAttempt)
 			assert.Equal(t, result.ParentDomainID, tt.want.ParentDomainID)
 			assert.Equal(t, result.ActiveClusterSelectionPolicy, tt.want.ActiveClusterSelectionPolicy)
+			assert.Equal(t, tt.want.ImportSourceExecution, result.ImportSourceExecution)
+			assert.Equal(t, tt.want.ImportTimestamp, result.ImportTimestamp)
+			assert.Equal(t, tt.want.ImportInProgress, result.ImportInProgress)
 		})
 	}
 }

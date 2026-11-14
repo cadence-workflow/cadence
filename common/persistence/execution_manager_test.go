@@ -1640,6 +1640,9 @@ func sampleInternalWorkflowExecutionInfo() *InternalWorkflowExecutionInfo {
 		AutoResetPoints:                    sampleResetPointsData(),
 		HistorySize:                        1024,
 		ActiveClusterSelectionPolicy:       sampleActiveClusterSelectionPolicyData(),
+		ImportSourceExecution:              &types.WorkflowExecution{WorkflowID: testWorkflowID, RunID: testRunID},
+		ImportTimestamp:                    startedTimestamp,
+		ImportInProgress:                   true,
 	}
 }
 
@@ -1658,6 +1661,9 @@ func sampleWorkflowExecutionInfo() *WorkflowExecutionInfo {
 		CompletionEvent:                    completionEvent(),
 		AutoResetPoints:                    generateResetPoints(),
 		ActiveClusterSelectionPolicy:       generateActiveClusterSelectionPolicy(),
+		ImportSourceExecution:              &types.WorkflowExecution{WorkflowID: testWorkflowID, RunID: testRunID},
+		ImportTimestamp:                    startedTimestamp,
+		ImportInProgress:                   true,
 	}
 }
 

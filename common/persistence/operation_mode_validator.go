@@ -333,7 +333,8 @@ func checkWorkflowState(state int) error {
 		WorkflowStateRunning,
 		WorkflowStateZombie,
 		WorkflowStateCompleted,
-		WorkflowStateCorrupted:
+		WorkflowStateCorrupted,
+		WorkflowStatePreparing:
 		return nil
 	default:
 		return &types.InternalServiceError{

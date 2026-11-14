@@ -60,6 +60,7 @@ func (s *validateOperationWorkflowModeStateSuite) TestCreateMode_UpdateCurrent()
 		WorkflowStateRunning:   false,
 		WorkflowStateCompleted: true,
 		WorkflowStateZombie:    true,
+		WorkflowStatePreparing: false,
 	}
 
 	creatModes := []CreateWorkflowMode{
@@ -109,6 +110,7 @@ func (s *validateOperationWorkflowModeStateSuite) TestUpdateMode_UpdateCurrent()
 		WorkflowStateRunning:   false,
 		WorkflowStateCompleted: false,
 		WorkflowStateZombie:    true,
+		WorkflowStatePreparing: false,
 	}
 	for state, expectError := range stateToError {
 		testCurrentMutation := s.newTestWorkflowMutation(state)

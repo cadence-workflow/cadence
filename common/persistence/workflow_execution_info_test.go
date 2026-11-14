@@ -36,6 +36,7 @@ var (
 		"Running":   WorkflowStateRunning,
 		"Completed": WorkflowStateCompleted,
 		"Zombie":    WorkflowStateZombie,
+		"Preparing": WorkflowStatePreparing,
 	}
 	workflowCloseStatuses = map[string]int{
 		"None":           WorkflowCloseStatusNone,
@@ -91,6 +92,9 @@ func TestWorkflowExecutionInfoIsRunning(t *testing.T) {
 		"Corrupted": {
 			WorkflowStateCorrupted, false,
 		},
+		"Preparing": {
+			WorkflowStatePreparing, false,
+		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -120,11 +124,13 @@ func TestWorkflowExecutionInfoUpdateWorkflowStateCloseStatus(t *testing.T) {
 			WorkflowStateRunning:   withCloseStatusNone(),
 			WorkflowStateCompleted: withCloseStatus(WorkflowCloseStatusTerminated, WorkflowCloseStatusTimedOut, WorkflowCloseStatusContinuedAsNew),
 			WorkflowStateZombie:    withCloseStatusNone(),
+			WorkflowStatePreparing: withCloseStatusNone(),
 		}),
 		WorkflowStateRunning: toStates(map[int]stateChecker{
 			WorkflowStateRunning:   withCloseStatusNone(),
 			WorkflowStateCompleted: withAnyCloseStatusExcept(WorkflowCloseStatusNone),
 			WorkflowStateZombie:    withCloseStatusNone(),
+			WorkflowStatePreparing: withCloseStatusNone(),
 		}),
 		WorkflowStateCompleted: toStates(map[int]stateChecker{
 			WorkflowStateCompleted: func(executionInfo *WorkflowExecutionInfo, closeStatus int) bool {
@@ -136,6 +142,14 @@ func TestWorkflowExecutionInfoUpdateWorkflowStateCloseStatus(t *testing.T) {
 			WorkflowStateRunning:   withCloseStatusNone(),
 			WorkflowStateCompleted: withAnyCloseStatusExcept(WorkflowCloseStatusNone),
 			WorkflowStateZombie:    withAnyCloseStatusExcept(WorkflowCloseStatusNone),
+			WorkflowStatePreparing: withAnyCloseStatusExcept(),
+		}),
+		WorkflowStatePreparing: toStates(map[int]stateChecker{
+			WorkflowStatePreparing: withAnyCloseStatusExcept(),
+			WorkflowStateZombie:    withAnyCloseStatusExcept(),
+			WorkflowStateCreated:   withCloseStatusNone(),
+			WorkflowStateRunning:   withCloseStatusNone(),
+			WorkflowStateCompleted: withAnyCloseStatusExcept(WorkflowCloseStatusNone),
 		}),
 	}
 	var testCases []*testCase

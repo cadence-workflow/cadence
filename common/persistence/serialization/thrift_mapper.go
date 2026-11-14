@@ -289,6 +289,9 @@ func workflowExecutionInfoToThrift(info *WorkflowExecutionInfo) *sqlblobs.Workfl
 		ChecksumEncoding:                        &info.ChecksumEncoding,
 		ActiveClusterSelectionPolicy:            info.ActiveClusterSelectionPolicy,
 		ActiveClusterSelectionPolicyEncoding:    &info.ActiveClusterSelectionPolicyEncoding,
+		ImportSourceExecution:                   thrift.FromWorkflowExecution(info.ImportSourceExecution),
+		ImportTimestampNanos:                    timeToUnixNanoPtrIfSet(info.ImportTimestamp),
+		ImportInProgress:                        boolPtrIfTrue(info.ImportInProgress),
 	}
 }
 
@@ -365,6 +368,9 @@ func workflowExecutionInfoFromThrift(info *sqlblobs.WorkflowExecutionInfo) *Work
 		ChecksumEncoding:                     info.GetChecksumEncoding(),
 		ActiveClusterSelectionPolicy:         info.ActiveClusterSelectionPolicy,
 		ActiveClusterSelectionPolicyEncoding: info.GetActiveClusterSelectionPolicyEncoding(),
+		ImportSourceExecution:                thrift.ToWorkflowExecution(info.ImportSourceExecution),
+		ImportTimestamp:                      timeFromUnixNanoPtr(info.ImportTimestampNanos),
+		ImportInProgress:                     info.GetImportInProgress(),
 	}
 }
 
@@ -845,6 +851,21 @@ func timeToUnixNanoPtr(t time.Time) *int64 {
 	return common.Int64Ptr(t.UnixNano())
 }
 
+// timeToUnixNanoPtrIfSet and boolPtrIfTrue leave a field that is not set out of the blob.
+func timeToUnixNanoPtrIfSet(t time.Time) *int64 {
+	if t.IsZero() {
+		return nil
+	}
+	return timeToUnixNanoPtr(t)
+}
+
+func boolPtrIfTrue(b bool) *bool {
+	if !b {
+		return nil
+	}
+	return &b
+}
+
 func timePtr(t *int64) *time.Time {
 	if t == nil {
 		return nil
@@ -864,6 +885,15 @@ func timeFromUnixNano(t int64) time.Time {
 		return time.Time{}
 	}
 	return time.Unix(0, t)
+}
+
+// timeFromUnixNanoPtr returns the zero time when the field is not set, for example in blobs
+// written before the field was added.
+func timeFromUnixNanoPtr(t *int64) time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return timeFromUnixNano(*t)
 }
 
 func durationToSecondsInt32Ptr(t time.Duration) *int32 {
