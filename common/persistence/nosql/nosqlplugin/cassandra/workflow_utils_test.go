@@ -2911,7 +2911,8 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 					`client_feature_version: , client_impl: , auto_reset_points: [], auto_reset_points_encoding: , attempt: 0, has_retry_policy: false, ` +
 					`init_interval: 0, backoff_coefficient: 0, jitter_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, max_attempts: 0, ` +
 					`non_retriable_errors: [], event_store_version: 2, branch_token: [], cron_schedule: , cron_overlap_policy: 0, expiration_seconds: 0, search_attributes: map[], ` +
-					`memo: map[], partition_config: map[], active_cluster_selection_policy: [], active_cluster_selection_policy_encoding: ` +
+					`memo: map[], partition_config: map[], active_cluster_selection_policy: [], active_cluster_selection_policy_encoding: , ` +
+					`import_source_workflow_id: <nil>, import_source_run_id: <nil>, import_timestamp: 0001-01-01T00:00:00Z, import_in_progress: false` +
 					`}, next_event_id = 0 , version_histories = [] , version_histories_encoding =  , checksum = {version: 0, flavor: 0, value: [] }, workflow_last_write_version = 0 , workflow_state = 0 , last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
@@ -2978,6 +2979,12 @@ func TestCreateWorkflowExecution(t *testing.T) {
 						Data:     []byte("thrift-encoded-active-cluster-selection-policy-data"),
 					},
 					CronOverlapPolicy: types.CronOverlapPolicyBufferOne,
+					ImportSourceExecution: &types.WorkflowExecution{
+						WorkflowID: "sourceWorkflow1",
+						RunID:      "sourceRunID1",
+					},
+					ImportTimestamp:  ts,
+					ImportInProgress: true,
 				},
 				PreviousNextEventIDCondition: common.Int64Ptr(10),
 				WorkflowTimerTasks:           nil,
@@ -2998,7 +3005,8 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					`client_impl: , auto_reset_points: [], auto_reset_points_encoding: , attempt: 0, has_retry_policy: false, init_interval: 0, ` +
 					`backoff_coefficient: 0, jitter_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, max_attempts: 0, non_retriable_errors: [], ` +
 					`event_store_version: 2, branch_token: [], cron_schedule: , cron_overlap_policy: 1, expiration_seconds: 0, search_attributes: map[], memo: map[], partition_config: map[], ` +
-					`active_cluster_selection_policy: [116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 97 99 116 105 118 101 45 99 108 117 115 116 101 114 45 115 101 108 101 99 116 105 111 110 45 112 111 108 105 99 121 45 100 97 116 97], active_cluster_selection_policy_encoding: thriftrw` +
+					`active_cluster_selection_policy: [116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 97 99 116 105 118 101 45 99 108 117 115 116 101 114 45 115 101 108 101 99 116 105 111 110 45 112 111 108 105 99 121 45 100 97 116 97], active_cluster_selection_policy_encoding: thriftrw, ` +
+					`import_source_workflow_id: sourceWorkflow1, import_source_run_id: sourceRunID1, import_timestamp: 2023-12-19T22:08:41Z, import_in_progress: true` +
 					`}, 0, 946684800000, -10, [], , {version: 0, flavor: 0, value: [] }, 0, 0, 2025-01-06T15:00:00Z) IF NOT EXISTS `,
 			},
 		},

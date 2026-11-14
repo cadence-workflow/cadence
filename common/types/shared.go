@@ -8913,6 +8913,8 @@ func (e WorkflowExecutionStatus) String() string {
 		return "CONTINUED_AS_NEW"
 	case 7:
 		return "TIMED_OUT"
+	case 8:
+		return "PREPARING"
 	}
 	return fmt.Sprintf("WorkflowExecutionStatus(%d)", w)
 }
@@ -8943,6 +8945,9 @@ func (e *WorkflowExecutionStatus) UnmarshalText(value []byte) error {
 		return nil
 	case "TIMED_OUT":
 		*e = WorkflowExecutionStatusTimedOut
+		return nil
+	case "PREPARING":
+		*e = WorkflowExecutionStatusPreparing
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -9027,6 +9032,8 @@ const (
 	WorkflowExecutionStatusContinuedAsNew
 	// WorkflowExecutionStatusTimedOut is an option for WorkflowExecutionStatus
 	WorkflowExecutionStatusTimedOut
+	// WorkflowExecutionStatusPreparing is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusPreparing
 )
 
 // WorkflowExecutionCompletedEventAttributes is an internal type (TBD...)
@@ -9342,6 +9349,9 @@ type WorkflowExecutionStartedEventAttributes struct {
 	RequestID                           string                        `json:"requestId,omitempty"`
 	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
 	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
+	ImportSourceExecution               *WorkflowExecution            `json:"importSourceExecution,omitempty"`
+	ImportTimestamp                     *int64                        `json:"importTimestamp,omitempty"`
+	ImportLastEventID                   *int64                        `json:"importLastEventID,omitempty"`
 }
 
 // GetParentWorkflowDomain is an internal getter (TBD...)
@@ -9420,6 +9430,30 @@ func (v *WorkflowExecutionStartedEventAttributes) GetAttempt() (o int32) {
 func (v *WorkflowExecutionStartedEventAttributes) GetExpirationTimestamp() (o int64) {
 	if v != nil && v.ExpirationTimestamp != nil {
 		return *v.ExpirationTimestamp
+	}
+	return
+}
+
+// GetImportSourceExecution is an internal getter
+func (v *WorkflowExecutionStartedEventAttributes) GetImportSourceExecution() (o *WorkflowExecution) {
+	if v != nil {
+		return v.ImportSourceExecution
+	}
+	return
+}
+
+// GetImportTimestamp is an internal getter
+func (v *WorkflowExecutionStartedEventAttributes) GetImportTimestamp() (o int64) {
+	if v != nil && v.ImportTimestamp != nil {
+		return *v.ImportTimestamp
+	}
+	return
+}
+
+// GetImportLastEventID is an internal getter
+func (v *WorkflowExecutionStartedEventAttributes) GetImportLastEventID() (o int64) {
+	if v != nil && v.ImportLastEventID != nil {
+		return *v.ImportLastEventID
 	}
 	return
 }

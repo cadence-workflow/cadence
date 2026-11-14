@@ -94,6 +94,9 @@ func TestInternalWorkflowExecutionInfo(t *testing.T) {
 		IsCron:                             true,
 		ActiveClusterSelectionPolicy:       persistence.NewDataBlob([]byte("ActiveClusterSelectionPolicy"), constants.EncodingTypeJSON),
 		CronOverlapPolicy:                  types.CronOverlapPolicySkipped,
+		ImportSourceExecution:              &types.WorkflowExecution{WorkflowID: "ImportSourceWorkflowID", RunID: uuid.New()},
+		ImportTimestamp:                    time.UnixMilli(1752018142826),
+		ImportInProgress:                   true,
 	}
 	actual := ToInternalWorkflowExecutionInfo(FromInternalWorkflowExecutionInfo(expected))
 	assert.Equal(t, expected, actual)

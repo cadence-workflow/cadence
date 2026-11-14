@@ -5277,6 +5277,8 @@ func FromWorkflowExecutionStatus(t *types.WorkflowExecutionStatus) apiv1.Workflo
 		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW
 	case types.WorkflowExecutionStatusTimedOut:
 		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_TIMED_OUT
+	case types.WorkflowExecutionStatusPreparing:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_PREPARING
 	}
 	return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_INVALID
 }
@@ -5301,6 +5303,8 @@ func ToWorkflowExecutionStatus(t apiv1.WorkflowExecutionStatus) *types.WorkflowE
 		return types.WorkflowExecutionStatusContinuedAsNew.Ptr()
 	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
 		return types.WorkflowExecutionStatusTimedOut.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_PREPARING:
+		return types.WorkflowExecutionStatusPreparing.Ptr()
 	}
 	return nil
 }
@@ -5634,6 +5638,9 @@ func FromWorkflowExecutionStartedEventAttributes(t *types.WorkflowExecutionStart
 		RequestId:                    t.RequestID,
 		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy: FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		ImportSourceExecution:        FromWorkflowExecution(t.ImportSourceExecution),
+		ImportTime:                   unixNanoToTime(t.ImportTimestamp),
+		ImportLastEventId:            fromInt64Ptr(t.ImportLastEventID),
 	}
 }
 
@@ -5673,6 +5680,9 @@ func ToWorkflowExecutionStartedEventAttributes(t *apiv1.WorkflowExecutionStarted
 		RequestID:                           t.RequestId,
 		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		ImportSourceExecution:               ToWorkflowExecution(t.ImportSourceExecution),
+		ImportTimestamp:                     timeToUnixNano(t.ImportTime),
+		ImportLastEventID:                   toInt64Ptr(t.ImportLastEventId),
 	}
 }
 

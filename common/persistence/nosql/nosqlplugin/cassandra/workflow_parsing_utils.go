@@ -50,6 +50,8 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) (*persistence.Int
 	var autoResetPointsEncoding constants.EncodingType
 	var activeClusterSelectionPolicy []byte
 	var activeClusterSelectionPolicyEncoding constants.EncodingType
+	var importSourceWorkflowID string
+	var importSourceRunID string
 
 	for k, v := range executionBlob {
 		switch k {
@@ -191,9 +193,24 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) (*persistence.Int
 			activeClusterSelectionPolicyEncoding = constants.EncodingType(v.(string))
 		case "cron_overlap_policy":
 			info.CronOverlapPolicy = types.CronOverlapPolicy(int32(v.(int)))
+		case "import_source_workflow_id":
+			importSourceWorkflowID = v.(string)
+		case "import_source_run_id":
+			importSourceRunID = v.(gocql.UUID).String()
+		case "import_timestamp":
+			info.ImportTimestamp = v.(time.Time)
+		case "import_in_progress":
+			info.ImportInProgress = v.(bool)
 		}
 	}
 	info.CompletionEvent = persistence.NewDataBlob(completionEventData, completionEventEncoding)
+	// A run that is not imported has null import source fields.
+	if importSourceRunID != "" && importSourceRunID != _emptyUUID.String() {
+		info.ImportSourceExecution = &types.WorkflowExecution{
+			WorkflowID: importSourceWorkflowID,
+			RunID:      importSourceRunID,
+		}
+	}
 	info.AutoResetPoints = persistence.NewDataBlob(autoResetPoints, autoResetPointsEncoding)
 	info.ActiveClusterSelectionPolicy = persistence.NewDataBlob(activeClusterSelectionPolicy, activeClusterSelectionPolicyEncoding)
 

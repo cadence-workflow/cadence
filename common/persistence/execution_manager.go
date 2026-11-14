@@ -239,6 +239,9 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		Memo:                               info.Memo,
 		PartitionConfig:                    info.PartitionConfig,
 		ActiveClusterSelectionPolicy:       activeClusterSelectionPolicy,
+		ImportSourceExecution:              info.ImportSourceExecution,
+		ImportTimestamp:                    info.ImportTimestamp,
+		ImportInProgress:                   info.ImportInProgress,
 	}
 	newStats := &ExecutionStats{
 		HistorySize: info.HistorySize,
@@ -587,6 +590,9 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		PartitionConfig:                    info.PartitionConfig,
 		CronOverlapPolicy:                  info.CronOverlapPolicy,
 		ActiveClusterSelectionPolicy:       activeClusterSelectionPolicy,
+		ImportSourceExecution:              info.ImportSourceExecution,
+		ImportTimestamp:                    info.ImportTimestamp,
+		ImportInProgress:                   info.ImportInProgress,
 
 		// attributes which are not related to mutable state
 		HistorySize: stats.HistorySize,

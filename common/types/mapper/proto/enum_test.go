@@ -1975,6 +1975,7 @@ func TestWorkflowState(t *testing.T) {
 		common.Int32Ptr(persistence.WorkflowStateZombie),
 		common.Int32Ptr(persistence.WorkflowStateVoid),
 		common.Int32Ptr(persistence.WorkflowStateCorrupted),
+		common.Int32Ptr(persistence.WorkflowStatePreparing),
 	} {
 		assert.Equal(t, item, ToWorkflowState(FromWorkflowState(item)))
 	}

@@ -56,8 +56,12 @@ func checkBeforeFix(
 }
 
 // Open returns true if workflow state is open false if workflow is closed
+// An import in progress is open: it is the current run, and it writes history before it updates
+// the execution, the same as a running workflow.
 func Open(state int) bool {
-	return state == persistence.WorkflowStateCreated || state == persistence.WorkflowStateRunning
+	return state == persistence.WorkflowStateCreated ||
+		state == persistence.WorkflowStateRunning ||
+		state == persistence.WorkflowStatePreparing
 }
 
 // ExecutionOpen returns true if execution state is open false if workflow is closed

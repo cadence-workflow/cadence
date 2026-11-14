@@ -923,6 +923,30 @@ func (w *WorkflowExecutionInfo) GetChecksumEncoding() (o string) {
 	return
 }
 
+// GetImportSourceExecution internal sql blob getter
+func (w *WorkflowExecutionInfo) GetImportSourceExecution() (o *types.WorkflowExecution) {
+	if w != nil {
+		return w.ImportSourceExecution
+	}
+	return
+}
+
+// GetImportTimestamp internal sql blob getter
+func (w *WorkflowExecutionInfo) GetImportTimestamp() (o time.Time) {
+	if w != nil {
+		return w.ImportTimestamp
+	}
+	return
+}
+
+// GetImportInProgress internal sql blob getter
+func (w *WorkflowExecutionInfo) GetImportInProgress() (o bool) {
+	if w != nil {
+		return w.ImportInProgress
+	}
+	return
+}
+
 // GetVersion internal sql blob getter
 func (a *ActivityInfo) GetVersion() (o int64) {
 	if a != nil {

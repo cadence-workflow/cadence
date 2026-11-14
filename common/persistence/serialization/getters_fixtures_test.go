@@ -35,6 +35,9 @@ var (
 var expectedNil = map[string]map[string]any{
 	"*serialization.WorkflowExecutionInfo": {
 		"GetActiveClusterSelectionPolicyEncoding": string(""),
+		"GetImportSourceExecution":                (*types.WorkflowExecution)(nil),
+		"GetImportTimestamp":                      time.Time{},
+		"GetImportInProgress":                     false,
 		"GetAutoResetPoints":                      []uint8(nil),
 		"GetAutoResetPointsEncoding":              "",
 		"GetCancelRequestID":                      "",
@@ -286,6 +289,9 @@ var expectedNil = map[string]map[string]any{
 var expectedEmpty = map[string]map[string]any{
 	"*serialization.WorkflowExecutionInfo": {
 		"GetActiveClusterSelectionPolicyEncoding": string(""),
+		"GetImportSourceExecution":                (*types.WorkflowExecution)(nil),
+		"GetImportTimestamp":                      time.Time{},
+		"GetImportInProgress":                     false,
 		"GetAutoResetPoints":                      []uint8(nil),
 		"GetAutoResetPointsEncoding":              "",
 		"GetCancelRequestID":                      "",
@@ -536,6 +542,9 @@ var expectedEmpty = map[string]map[string]any{
 
 var expectedNonEmpty = map[string]map[string]any{
 	"*serialization.WorkflowExecutionInfo": {
+		"GetImportSourceExecution":              &types.WorkflowExecution{WorkflowID: "importSourceWorkflowID", RunID: "importSourceRunID"},
+		"GetImportTimestamp":                    importTimestamp,
+		"GetImportInProgress":                   true,
 		"GetAutoResetPoints":                    []byte("resetpoints"),
 		"GetAutoResetPointsEncoding":            "",
 		"GetCancelRequestID":                    "",

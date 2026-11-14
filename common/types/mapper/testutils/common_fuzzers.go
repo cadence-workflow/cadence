@@ -44,7 +44,7 @@ func WithCommonEnumFuzzers() FuzzOption {
 			*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
 		},
 		func(e *types.WorkflowExecutionStatus, c fuzz.Continue) {
-			*e = types.WorkflowExecutionStatus(c.Intn(8)) // 0-7: Pending, Started, Completed, Failed, Canceled, Terminated, ContinuedAsNew, TimedOut
+			*e = types.WorkflowExecutionStatus(c.Intn(9)) // 0-8: Pending, Started, Completed, Failed, Canceled, Terminated, ContinuedAsNew, TimedOut, Preparing
 		},
 	)
 }

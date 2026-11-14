@@ -366,6 +366,8 @@ func FromWorkflowState(t *int32) sharedv1.WorkflowState {
 		return sharedv1.WorkflowState_WORKFLOW_STATE_VOID
 	case persistence.WorkflowStateCorrupted:
 		return sharedv1.WorkflowState_WORKFLOW_STATE_CORRUPTED
+	case persistence.WorkflowStatePreparing:
+		return sharedv1.WorkflowState_WORKFLOW_STATE_PREPARING
 	}
 	return sharedv1.WorkflowState_WORKFLOW_STATE_INVALID
 }
@@ -391,6 +393,9 @@ func ToWorkflowState(t sharedv1.WorkflowState) *int32 {
 		return &v
 	case sharedv1.WorkflowState_WORKFLOW_STATE_CORRUPTED:
 		v := int32(persistence.WorkflowStateCorrupted)
+		return &v
+	case sharedv1.WorkflowState_WORKFLOW_STATE_PREPARING:
+		v := int32(persistence.WorkflowStatePreparing)
 		return &v
 	}
 	return nil
