@@ -11,6 +11,7 @@ import (
 	"github.com/uber/cadence/common/client"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/resource"
@@ -145,7 +146,7 @@ func TestCreateSemaphore(t *testing.T) {
 			if tc.nameMaxLength != 0 {
 				config.SemaphoreNameMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(tc.nameMaxLength)
 			}
-			handler := NewWorkflowHandler(mockResource, config, client.NewMockVersionChecker(ctrl), nil)
+			handler := NewWorkflowHandler(mockResource, config, client.NewMockVersionChecker(ctrl), NewPollTracker(log.NewNoop()), nil)
 
 			if tc.create != nil {
 				mockResource.DomainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil)
@@ -174,7 +175,7 @@ func TestCreateSemaphoreUnknownDomain(t *testing.T) {
 		10, false, "hostname", mockResource.Logger,
 	)
 	config.EnableDistributedSemaphore = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
-	handler := NewWorkflowHandler(mockResource, config, client.NewMockVersionChecker(ctrl), nil)
+	handler := NewWorkflowHandler(mockResource, config, client.NewMockVersionChecker(ctrl), NewPollTracker(log.NewNoop()), nil)
 
 	notFound := &types.EntityNotExistsError{Message: "domain not found"}
 	mockResource.DomainCache.EXPECT().GetDomainID(testDomain).Return("", notFound)
