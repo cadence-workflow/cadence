@@ -89,6 +89,10 @@ func (h *historyHandler) DescribeWorkflowExecution(ctx context.Context, hp1 *typ
 	return h.wrapped.DescribeWorkflowExecution(ctx, hp1)
 }
 
+func (h *historyHandler) EnqueueAsyncWorkflowMessage(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageRequest) (ep2 *types.EnqueueAsyncWorkflowMessageResponse, err error) {
+	return h.wrapped.EnqueueAsyncWorkflowMessage(ctx, ep1)
+}
+
 func (h *historyHandler) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetCrossClusterTasksRequest) (gp2 *types.GetCrossClusterTasksResponse, err error) {
 	return h.wrapped.GetCrossClusterTasks(ctx, gp1)
 }
