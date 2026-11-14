@@ -7110,6 +7110,9 @@ func FromWorkflowExecutionStatus(t *types.WorkflowExecutionStatus) *shared.Workf
 	case types.WorkflowExecutionStatusTimedOut:
 		v := shared.WorkflowExecutionStatusTimedOut
 		return &v
+	case types.WorkflowExecutionStatusPreparing:
+		v := shared.WorkflowExecutionStatusPreparing
+		return &v
 	}
 	panic("unexpected enum value")
 }
@@ -7143,6 +7146,9 @@ func ToWorkflowExecutionStatus(t *shared.WorkflowExecutionStatus) *types.Workflo
 		return &v
 	case shared.WorkflowExecutionStatusTimedOut:
 		v := types.WorkflowExecutionStatusTimedOut
+		return &v
+	case shared.WorkflowExecutionStatusPreparing:
+		v := types.WorkflowExecutionStatusPreparing
 		return &v
 	}
 	panic("unexpected enum value")
@@ -7424,6 +7430,9 @@ func FromWorkflowExecutionStartedEventAttributes(t *types.WorkflowExecutionStart
 		RequestId:                           &t.RequestID,
 		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
+		ImportSourceExecution:               FromWorkflowExecution(t.ImportSourceExecution),
+		ImportTimestamp:                     t.ImportTimestamp,
+		ImportLastEventID:                   t.ImportLastEventID,
 	}
 }
 
@@ -7464,6 +7473,9 @@ func ToWorkflowExecutionStartedEventAttributes(t *shared.WorkflowExecutionStarte
 		RequestID:                           t.GetRequestId(),
 		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
+		ImportSourceExecution:               ToWorkflowExecution(t.ImportSourceExecution),
+		ImportTimestamp:                     t.ImportTimestamp,
+		ImportLastEventID:                   t.ImportLastEventID,
 	}
 }
 

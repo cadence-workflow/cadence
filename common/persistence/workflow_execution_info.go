@@ -74,6 +74,9 @@ func (e *WorkflowExecutionInfo) UpdateWorkflowStateCloseStatus(
 				return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
 			}
 
+		case WorkflowStatePreparing:
+			return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
+
 		default:
 			return &types.InternalServiceError{
 				Message: fmt.Sprintf("unknown workflow state: %v", state),
@@ -99,6 +102,9 @@ func (e *WorkflowExecutionInfo) UpdateWorkflowStateCloseStatus(
 				return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
 			}
 
+		case WorkflowStatePreparing:
+			return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
+
 		default:
 			return &types.InternalServiceError{
 				Message: fmt.Sprintf("unknown workflow state: %v", state),
@@ -118,6 +124,9 @@ func (e *WorkflowExecutionInfo) UpdateWorkflowStateCloseStatus(
 
 			}
 		case WorkflowStateZombie:
+			return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
+
+		case WorkflowStatePreparing:
 			return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
 
 		default:
@@ -143,6 +152,44 @@ func (e *WorkflowExecutionInfo) UpdateWorkflowStateCloseStatus(
 			}
 
 		case WorkflowStateZombie:
+			if closeStatus == WorkflowCloseStatusNone {
+				return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
+			}
+
+		case WorkflowStatePreparing:
+			// A zombie import in progress that becomes current again (Revive). This is the only
+			// transition into Preparing: the import code sets Preparing directly. Its imported
+			// history can already have the close event, so the close status must not change.
+			if closeStatus != e.CloseStatus {
+				return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
+			}
+
+		default:
+			return &types.InternalServiceError{
+				Message: fmt.Sprintf("unknown workflow state: %v", state),
+			}
+		}
+	case WorkflowStatePreparing:
+		switch state {
+		case WorkflowStatePreparing:
+			// Imported events, including the close event, are applied while the run is Preparing,
+			// so any close status is valid.
+
+		case WorkflowStateZombie:
+			// An import in progress that lost a run conflict. Its imported history can already
+			// have the close event.
+
+		case WorkflowStateCreated:
+			if closeStatus != WorkflowCloseStatusNone {
+				return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
+			}
+
+		case WorkflowStateRunning:
+			if closeStatus != WorkflowCloseStatusNone {
+				return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
+			}
+
+		case WorkflowStateCompleted:
 			if closeStatus == WorkflowCloseStatusNone {
 				return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
 			}
@@ -175,6 +222,8 @@ func (e *WorkflowExecutionInfo) IsRunning() bool {
 	case WorkflowStateZombie:
 		return false
 	case WorkflowStateCorrupted:
+		return false
+	case WorkflowStatePreparing:
 		return false
 	default:
 		panic(fmt.Sprintf("unknown workflow state: %v", e.State))

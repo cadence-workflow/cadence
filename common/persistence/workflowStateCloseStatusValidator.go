@@ -33,6 +33,7 @@ var (
 		WorkflowStateCompleted: {},
 		WorkflowStateZombie:    {},
 		WorkflowStateCorrupted: {},
+		WorkflowStatePreparing: {},
 	}
 
 	validWorkflowCloseStatuses = map[int]struct{}{
@@ -59,6 +60,12 @@ func ValidateCreateWorkflowStateCloseStatus(
 		return err
 	}
 
+	// An import writes its imported events, including the close event, while the run is
+	// Preparing, so any close status is valid.
+	if state == WorkflowStatePreparing {
+		return nil
+	}
+
 	// validate workflow state & close status
 	if state == WorkflowStateCompleted || closeStatus != WorkflowCloseStatusNone {
 		return &types.InternalServiceError{
@@ -80,6 +87,12 @@ func ValidateUpdateWorkflowStateCloseStatus(
 	}
 	if err := validateWorkflowCloseStatus(closeStatus); err != nil {
 		return err
+	}
+
+	// An import writes its imported events, including the close event, while the run is
+	// Preparing, so any close status is valid.
+	if state == WorkflowStatePreparing {
+		return nil
 	}
 
 	// validate workflow state & close status

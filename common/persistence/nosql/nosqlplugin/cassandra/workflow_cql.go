@@ -87,7 +87,11 @@ const (
 		`memo: ?, ` +
 		`partition_config: ?, ` +
 		`active_cluster_selection_policy: ?, ` +
-		`active_cluster_selection_policy_encoding: ?` +
+		`active_cluster_selection_policy_encoding: ?, ` +
+		`import_source_workflow_id: ?, ` +
+		`import_source_run_id: ?, ` +
+		`import_timestamp: ?, ` +
+		`import_in_progress: ?` +
 		`}`
 
 	templateTransferTaskType = `{` +

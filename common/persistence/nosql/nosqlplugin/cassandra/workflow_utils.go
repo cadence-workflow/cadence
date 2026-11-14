@@ -1324,6 +1324,22 @@ func convertToCassandraTimestamp(in time.Time) time.Time {
 	return time.Unix(0, persistence.DBTimestampToUnixNano(persistence.UnixNanoToDBTimestamp(in.UnixNano())))
 }
 
+// importSourceWorkflowID and importSourceRunID return nil for a run that is not imported, so that
+// the fields are written as null.
+func importSourceWorkflowID(source *types.WorkflowExecution) interface{} {
+	if source == nil {
+		return nil
+	}
+	return source.WorkflowID
+}
+
+func importSourceRunID(source *types.WorkflowExecution) interface{} {
+	if source == nil {
+		return nil
+	}
+	return source.RunID
+}
+
 func getNextPageToken(iter gocql.Iter) []byte {
 	nextPageToken := iter.PageState()
 	newPageToken := make([]byte, len(nextPageToken))
@@ -1621,6 +1637,10 @@ func updateWorkflowExecution(
 		execution.PartitionConfig,
 		execution.ActiveClusterSelectionPolicy.GetData(),
 		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
+		importSourceWorkflowID(execution.ImportSourceExecution),
+		importSourceRunID(execution.ImportSourceExecution),
+		execution.ImportTimestamp,
+		execution.ImportInProgress,
 		execution.NextEventID,
 		execution.VersionHistories.Data,
 		execution.VersionHistories.GetEncodingString(),
@@ -1724,6 +1744,10 @@ func createWorkflowExecution(
 		execution.PartitionConfig,
 		execution.ActiveClusterSelectionPolicy.GetData(),
 		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
+		importSourceWorkflowID(execution.ImportSourceExecution),
+		importSourceRunID(execution.ImportSourceExecution),
+		execution.ImportTimestamp,
+		execution.ImportInProgress,
 		execution.NextEventID,
 		defaultVisibilityTimestamp,
 		rowTypeExecutionTaskID,

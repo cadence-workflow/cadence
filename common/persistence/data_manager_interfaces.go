@@ -202,6 +202,7 @@ const (
 	WorkflowStateZombie
 	WorkflowStateVoid
 	WorkflowStateCorrupted
+	WorkflowStatePreparing
 )
 
 // Workflow execution close status
@@ -511,6 +512,11 @@ type (
 		CronSchedule      string
 
 		ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
+
+		// Import
+		ImportSourceExecution *types.WorkflowExecution
+		ImportTimestamp       time.Time
+		ImportInProgress      bool
 	}
 
 	// ExecutionStats is the statistics about workflow execution
