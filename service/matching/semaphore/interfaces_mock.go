@@ -12,6 +12,7 @@ package semaphore
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 )
@@ -41,18 +42,18 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 }
 
 // Acquire mocks base method.
-func (m *MockManager) Acquire(ctx context.Context, ownerID string) (AcquireResult, error) {
+func (m *MockManager) Acquire(ctx context.Context, ownerID string, acquireDeadline *time.Time) (AcquireResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Acquire", ctx, ownerID)
+	ret := m.ctrl.Call(m, "Acquire", ctx, ownerID, acquireDeadline)
 	ret0, _ := ret[0].(AcquireResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Acquire indicates an expected call of Acquire.
-func (mr *MockManagerMockRecorder) Acquire(ctx, ownerID any) *gomock.Call {
+func (mr *MockManagerMockRecorder) Acquire(ctx, ownerID, acquireDeadline any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Acquire", reflect.TypeOf((*MockManager)(nil).Acquire), ctx, ownerID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Acquire", reflect.TypeOf((*MockManager)(nil).Acquire), ctx, ownerID, acquireDeadline)
 }
 
 // GetTokenByOwner mocks base method.

@@ -2238,6 +2238,13 @@ func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_Queued() {
 	}, nil)
 }
 
+func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_NoDeadline() {
+	s.testProcessAcquireSemaphore(func(_ execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		semaphoreInfo.AcquireDeadline = time.Time{}
+		s.expectAcquireSemaphoreRequest(semaphoreInfo, &types.AcquireSemaphoreResponse{Outcome: types.SemaphoreAcquireOutcomeQueued}, nil)
+	}, nil)
+}
+
 func (s *transferActiveTaskExecutorSuite) TestProcessAcquireSemaphore_MatchingError() {
 	badRequest := &types.BadRequestError{Message: "Feature not supported on TChannel"}
 	s.testProcessAcquireSemaphore(func(_ execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
@@ -2368,11 +2375,16 @@ func (s *transferActiveTaskExecutorSuite) expectAcquireSemaphoreRequest(
 	}).Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{Size: 4, BucketSize: 2}}, nil)
 	bucket, bucketErr := commonsemaphore.OwnerIDToBucket(semaphoreInfo.OwnerID, 2)
 	s.NoError(bucketErr)
+	var acquireDeadline *time.Time
+	if !semaphoreInfo.AcquireDeadline.IsZero() {
+		acquireDeadline = common.TimePtr(semaphoreInfo.AcquireDeadline)
+	}
 	s.mockMatchingClient.EXPECT().AcquireSemaphore(gomock.Any(), &types.AcquireSemaphoreRequest{
-		DomainUUID:    s.domainID,
-		SemaphoreName: testSemaphoreName,
-		Bucket:        int32(bucket),
-		OwnerID:       semaphoreInfo.OwnerID,
+		DomainUUID:      s.domainID,
+		SemaphoreName:   testSemaphoreName,
+		Bucket:          int32(bucket),
+		OwnerID:         semaphoreInfo.OwnerID,
+		AcquireDeadline: acquireDeadline,
 	}).Return(resp, err)
 }
 

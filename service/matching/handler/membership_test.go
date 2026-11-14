@@ -421,7 +421,7 @@ func TestShutDownNonOwnedSemaphoreManagers(t *testing.T) {
 	assert.Same(t, mineMgr, remaining[0], "the bucket this host still owns stays loaded")
 
 	// Unregistering alone would leave it holding its free-set and answering grants.
-	_, err := movedMgr.Acquire(context.Background(), "owner-1")
+	_, err := movedMgr.Acquire(context.Background(), "owner-1", nil)
 	assert.ErrorIs(t, err, semaphore.ErrNotReady, "the bucket that moved must be stopped too")
 }
 

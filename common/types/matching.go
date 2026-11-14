@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // AddActivityTaskRequest is an internal type (TBD...)
@@ -743,6 +744,8 @@ type AcquireSemaphoreRequest struct {
 	// and SemaphoreName it names the manager that serves the request.
 	Bucket  int32
 	OwnerID string
+	// AcquireDeadline is when the acquire stops waiting for a token. Nil means no deadline.
+	AcquireDeadline *time.Time
 }
 
 // GetDomainUUID is an internal getter (TBD...)
@@ -773,6 +776,14 @@ func (v *AcquireSemaphoreRequest) GetBucket() (o int32) {
 func (v *AcquireSemaphoreRequest) GetOwnerID() (o string) {
 	if v != nil {
 		return v.OwnerID
+	}
+	return
+}
+
+// GetAcquireDeadline is an internal getter (TBD...)
+func (v *AcquireSemaphoreRequest) GetAcquireDeadline() (o *time.Time) {
+	if v != nil {
+		return v.AcquireDeadline
 	}
 	return
 }
