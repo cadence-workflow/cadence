@@ -24,12 +24,19 @@ package invariant
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
 	"github.com/uber/cadence/common/types"
 )
+
+// timerInvalidWorkflowStates are the workflow states in which a pending timer is invalid
+var timerInvalidWorkflowStates = map[int]string{
+	persistence.WorkflowStateCompleted: "completed",
+	persistence.WorkflowStateCorrupted: "corrupted",
+}
 
 type timerInvalid struct {
 	pr    persistence.Retryer
@@ -101,11 +108,13 @@ func (h *timerInvalid) Check(
 		}
 	}
 
-	if !Open(resp.State.ExecutionInfo.State) {
+	// the fixer deletes flagged timers, so never flag a workflow that could run again
+	state := resp.State.ExecutionInfo.State
+	if stateName, ok := timerInvalidWorkflowStates[state]; ok && persistence.IsWorkflowStateFinal(state) {
 		return CheckResult{
 			CheckResultType: CheckResultTypeCorrupted,
 			InvariantName:   h.Name(),
-			Info:            "timer scheduled for closed workflow",
+			Info:            fmt.Sprintf("timer scheduled for workflow in %s state", stateName),
 		}
 	}
 

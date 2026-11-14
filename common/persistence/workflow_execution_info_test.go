@@ -257,3 +257,29 @@ func contains(slice []int, value int) bool {
 	}
 	return false
 }
+
+func TestIsWorkflowStateFinal(t *testing.T) {
+	tests := map[string]struct {
+		state int
+		want  bool
+	}{
+		"Created":   {WorkflowStateCreated, false},
+		"Running":   {WorkflowStateRunning, false},
+		"Completed": {WorkflowStateCompleted, true},
+		"Zombie":    {WorkflowStateZombie, false},
+		"Void":      {WorkflowStateVoid, false},
+		"Corrupted": {WorkflowStateCorrupted, true},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, IsWorkflowStateFinal(tc.state))
+			if !tc.want {
+				return
+			}
+			for _, open := range []int{WorkflowStateCreated, WorkflowStateRunning} {
+				info := &WorkflowExecutionInfo{State: tc.state}
+				assert.Error(t, info.UpdateWorkflowStateCloseStatus(open, WorkflowCloseStatusNone))
+			}
+		})
+	}
+}

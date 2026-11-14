@@ -78,6 +78,7 @@ func getUserTimers(
 				RunID:               t.GetRunID(),
 				TaskType:            t.GetTaskType(),
 				VisibilityTimestamp: t.GetVisibilityTimestamp(),
+				TaskID:              t.GetTaskID(),
 			}
 
 			if err := timer.Validate(); err != nil {

@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -108,7 +109,7 @@ func (ts *TimerInvalidTest) TestCheck() {
 			expectedResult: CheckResult{
 				CheckResultType: CheckResultTypeCorrupted,
 				InvariantName:   "TimerInvalid",
-				Info:            "timer scheduled for closed workflow",
+				Info:            "timer scheduled for workflow in completed state",
 				InfoDetails:     "",
 			},
 			getExecResp: &persistence.GetWorkflowExecutionResponse{
@@ -174,6 +175,7 @@ func (ts *TimerInvalidTest) TestFix() {
 		expectedResult FixResult
 		entity         interface{}
 		ttComplete     error
+		expectedKeys   []persistence.HistoryTaskKey
 	}{
 		{
 			name:       "context expired",
@@ -258,13 +260,18 @@ func (ts *TimerInvalidTest) TestFix() {
 				CheckResult: CheckResult{
 					CheckResultType: CheckResultTypeCorrupted,
 					InvariantName:   "TimerInvalid",
-					Info:            "timer scheduled for closed workflow",
+					Info:            "timer scheduled for workflow in completed state",
 				},
 			},
 			entity: &entity.Timer{
-				TaskType: persistence.TaskTypeUserTimer,
+				TaskType:            persistence.TaskTypeUserTimer,
+				VisibilityTimestamp: time.Unix(0, 1234),
+				TaskID:              5678,
 			},
 			ttComplete: nil,
+			expectedKeys: []persistence.HistoryTaskKey{
+				persistence.NewHistoryTaskKey(time.Unix(0, 1234), 5678),
+			},
 		},
 	}
 	ctrl := gomock.NewController(ts.T())
@@ -291,7 +298,70 @@ func (ts *TimerInvalidTest) TestFix() {
 			}
 			result := i.Fix(ctx, tc.entity)
 			ts.Equal(tc.expectedResult, result)
+			if tc.expectedKeys != nil {
+				execManager.AssertCalled(ts.T(), "CompleteHistoryTask", mock.Anything, mock.MatchedBy(func(req *persistence.CompleteHistoryTaskRequest) bool {
+					return req.TaskCategory == persistence.HistoryTaskCategoryTimer && ts.Equal(tc.expectedKeys, req.TaskKeys)
+				}))
+			}
 		})
 	}
 
+}
+
+func TestTimerInvalidCheckByWorkflowState(t *testing.T) {
+	tests := map[string]struct {
+		state      int
+		wantResult CheckResult
+	}{
+		"Created": {
+			state:      persistence.WorkflowStateCreated,
+			wantResult: CheckResult{CheckResultType: CheckResultTypeHealthy, InvariantName: TimerInvalid},
+		},
+		"Running": {
+			state:      persistence.WorkflowStateRunning,
+			wantResult: CheckResult{CheckResultType: CheckResultTypeHealthy, InvariantName: TimerInvalid},
+		},
+		"Completed": {
+			state: persistence.WorkflowStateCompleted,
+			wantResult: CheckResult{
+				CheckResultType: CheckResultTypeCorrupted,
+				InvariantName:   TimerInvalid,
+				Info:            "timer scheduled for workflow in completed state",
+			},
+		},
+		// zombie workflows can be revived by replication, which does not regenerate their timer tasks
+		"Zombie": {
+			state:      persistence.WorkflowStateZombie,
+			wantResult: CheckResult{CheckResultType: CheckResultTypeHealthy, InvariantName: TimerInvalid},
+		},
+		"Void": {
+			state:      persistence.WorkflowStateVoid,
+			wantResult: CheckResult{CheckResultType: CheckResultTypeHealthy, InvariantName: TimerInvalid},
+		},
+		"Corrupted": {
+			state: persistence.WorkflowStateCorrupted,
+			wantResult: CheckResult{
+				CheckResultType: CheckResultTypeCorrupted,
+				InvariantName:   TimerInvalid,
+				Info:            "timer scheduled for workflow in corrupted state",
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			retryer := persistence.NewMockRetryer(ctrl)
+			retryer.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(&persistence.GetWorkflowExecutionResponse{
+				State: &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{State: tc.state},
+				},
+			}, nil)
+			domainCache := cache.NewMockDomainCache(ctrl)
+			domainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain-name", nil)
+
+			result := NewTimerInvalid(retryer, domainCache).Check(context.Background(), &entity.Timer{})
+
+			assert.Equal(t, tc.wantResult, result)
+		})
+	}
 }
