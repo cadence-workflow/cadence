@@ -240,6 +240,7 @@ func TestCheckSchemas(t *testing.T) {
 		name           string
 		setup          func(*gomock.Controller) persistenceClient.Factory
 		expectedErrors []string // substrings expected in the error message
+		missingErrors  []string // substrings that must not be in the error message
 	}{
 		{
 			name: "factory.NewAdminDBs fails",
@@ -334,6 +335,37 @@ func TestCheckSchemas(t *testing.T) {
 				"mysql/default/db-1: failed to connect",
 				"mysql/default/db-2: not setup",
 			},
+			missingErrors: []string{"update-schema"},
+		},
+		{
+			name: "outdated schema adds the upgrade hint",
+			setup: func(ctrl *gomock.Controller) persistenceClient.Factory {
+				mockFactory := persistenceClient.NewMockFactory(ctrl)
+				mockAdminDB := newMockAdminDB(ctrl, "cassandra", persistence.DBTypeDefault, "db-1")
+				mockSetupDB := persistence.NewMockSetupDB(ctrl)
+				mockSchemaDB := persistence.NewMockSchemaDB(ctrl)
+				mockSchema := persistence.NewMockSchema(ctrl)
+
+				gomock.InOrder(
+					mockFactory.EXPECT().NewAdminDBs().Return([]persistence.AdminDB{mockAdminDB}, nil),
+					mockAdminDB.EXPECT().CreateSetupDB().Return(mockSetupDB, nil),
+					mockSetupDB.EXPECT().IsSetup(gomock.Any()).Return(true, nil),
+					mockAdminDB.EXPECT().SupportsSchema().Return(true),
+					mockAdminDB.EXPECT().CreateSchemaDB().Return(mockSchemaDB, nil),
+					mockSchemaDB.EXPECT().HasSchemaVersioning(gomock.Any()).Return(true, nil),
+					mockSchemaDB.EXPECT().LatestSchema().Return(mockSchema),
+					mockSchema.EXPECT().LatestVersion().Return(persistence.Version{Major: 2, Minor: 0}),
+					mockSchemaDB.EXPECT().GetSchemaVersion(gomock.Any()).Return(persistence.Version{Major: 1, Minor: 0}, nil),
+					mockSchemaDB.EXPECT().Close(),
+					mockSetupDB.EXPECT().Close(),
+				)
+				return mockFactory
+			},
+			expectedErrors: []string{
+				"cassandra/default/db-1: current schema version 1.0 is before latest version 2.0",
+				"update-schema",
+				"docs/persistence.md#upgrading-the-schema",
+			},
 		},
 		{
 			name: "empty admin databases list",
@@ -359,6 +391,9 @@ func TestCheckSchemas(t *testing.T) {
 			}
 			for _, expectedError := range tt.expectedErrors {
 				require.ErrorContains(t, err, expectedError)
+			}
+			for _, missingError := range tt.missingErrors {
+				require.NotContains(t, err.Error(), missingError)
 			}
 		})
 	}

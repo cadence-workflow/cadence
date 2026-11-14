@@ -79,6 +79,37 @@ cp config/development_postgres.yaml config/development.yaml
 ./cadence-server start --services=frontend,matching,history,worker
 ```
 
+# Upgrading the schema
+New Cadence releases can add schema versions. On startup the server compares each database with the
+schema version it expects and refuses to start if a database is behind, for example:
+```
+cassandra/default/NonShardedStore: current schema version 0.46 is before latest version 0.55
+```
+Upgrade both the default and the visibility database with the schema files from the release you are
+upgrading to, then start the new version. `update-schema` applies every version newer than the current one.
+
+## Cassandra
+```
+./cadence-cassandra-tool --ep $CASSANDRA_HOST -k cadence update-schema -d ./schema/cassandra/cadence/versioned
+./cadence-cassandra-tool --ep $CASSANDRA_HOST -k cadence_visibility update-schema -d ./schema/cassandra/visibility/versioned
+```
+
+## MySQL
+```
+./cadence-sql-tool --ep $SQL_HOST --pl mysql -u $SQL_USER --pw $SQL_PASSWORD --db cadence update-schema -d ./schema/mysql/v8/cadence/versioned
+./cadence-sql-tool --ep $SQL_HOST --pl mysql -u $SQL_USER --pw $SQL_PASSWORD --db cadence_visibility update-schema -d ./schema/mysql/v8/visibility/versioned
+```
+
+## PostgreSQL
+```
+./cadence-sql-tool --ep $SQL_HOST -p 5432 --pl postgres -u $SQL_USER --pw $SQL_PASSWORD --db cadence update-schema -d ./schema/postgres/cadence/versioned
+./cadence-sql-tool --ep $SQL_HOST -p 5432 --pl postgres -u $SQL_USER --pw $SQL_PASSWORD --db cadence_visibility update-schema -d ./schema/postgres/visibility/versioned
+```
+
+Use the keyspace or database names from your config if they differ. Add `--dryrun` to see what would change
+without applying it. See the [Cassandra](/tools/cassandra/README.md) and [SQL](/tools/sql/README.md) tool docs
+for all options.
+
 # Configuration
 ## Common to all persistence implementations
 There are two major sub-subsystems within cadence that need persistence - cadence-core and visibility. cadence-core is
