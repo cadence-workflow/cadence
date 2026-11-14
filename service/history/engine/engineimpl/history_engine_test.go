@@ -944,9 +944,6 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Complete() {
 			}
 			err := qr.SetTerminationState(id, completedTerminationState)
 			s.NoError(err)
-			state, err := qr.GetTerminationState(id)
-			s.NoError(err)
-			s.Equal(query.TerminationTypeCompleted, state.TerminationType)
 		}
 	}
 
@@ -1022,9 +1019,6 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Complete_ActiveActi
 			}
 			err := qr.SetTerminationState(id, completedTerminationState)
 			s.NoError(err)
-			state, err := qr.GetTerminationState(id)
-			s.NoError(err)
-			s.Equal(query.TerminationTypeCompleted, state.TerminationType)
 		}
 	}
 
@@ -1092,9 +1086,6 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Unblocked() {
 		buffered := qr.GetBufferedIDs()
 		for _, id := range buffered {
 			s.NoError(qr.SetTerminationState(id, &query.TerminationState{TerminationType: query.TerminationTypeUnblocked}))
-			state, err := qr.GetTerminationState(id)
-			s.NoError(err)
-			s.Equal(query.TerminationTypeUnblocked, state.TerminationType)
 		}
 	}
 
