@@ -161,6 +161,26 @@ func (mr *MockClientMockRecorder) DeprecateDomain(arg0, arg1 any, arg2 ...any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeprecateDomain", reflect.TypeOf((*MockClient)(nil).DeprecateDomain), varargs...)
 }
 
+// DescribeBatchOperation mocks base method.
+func (m *MockClient) DescribeBatchOperation(arg0 context.Context, arg1 *types.DescribeBatchOperationRequest, arg2 ...yarpc.CallOption) (*types.DescribeBatchOperationResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeBatchOperation", varargs...)
+	ret0, _ := ret[0].(*types.DescribeBatchOperationResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeBatchOperation indicates an expected call of DescribeBatchOperation.
+func (mr *MockClientMockRecorder) DescribeBatchOperation(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeBatchOperation", reflect.TypeOf((*MockClient)(nil).DescribeBatchOperation), varargs...)
+}
+
 // DescribeDomain mocks base method.
 func (m *MockClient) DescribeDomain(arg0 context.Context, arg1 *types.DescribeDomainRequest, arg2 ...yarpc.CallOption) (*types.DescribeDomainResponse, error) {
 	m.ctrl.T.Helper()
@@ -399,6 +419,26 @@ func (mr *MockClientMockRecorder) ListArchivedWorkflowExecutions(arg0, arg1 any,
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListArchivedWorkflowExecutions", reflect.TypeOf((*MockClient)(nil).ListArchivedWorkflowExecutions), varargs...)
+}
+
+// ListBatchOperations mocks base method.
+func (m *MockClient) ListBatchOperations(arg0 context.Context, arg1 *types.ListBatchOperationsRequest, arg2 ...yarpc.CallOption) (*types.ListBatchOperationsResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListBatchOperations", varargs...)
+	ret0, _ := ret[0].(*types.ListBatchOperationsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListBatchOperations indicates an expected call of ListBatchOperations.
+func (mr *MockClientMockRecorder) ListBatchOperations(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBatchOperations", reflect.TypeOf((*MockClient)(nil).ListBatchOperations), varargs...)
 }
 
 // ListClosedWorkflowExecutions mocks base method.
@@ -1029,6 +1069,26 @@ func (mr *MockClientMockRecorder) SignalWorkflowExecution(arg0, arg1 any, arg2 .
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignalWorkflowExecution", reflect.TypeOf((*MockClient)(nil).SignalWorkflowExecution), varargs...)
 }
 
+// StartBatchOperation mocks base method.
+func (m *MockClient) StartBatchOperation(arg0 context.Context, arg1 *types.StartBatchOperationRequest, arg2 ...yarpc.CallOption) (*types.StartBatchOperationResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "StartBatchOperation", varargs...)
+	ret0, _ := ret[0].(*types.StartBatchOperationResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StartBatchOperation indicates an expected call of StartBatchOperation.
+func (mr *MockClientMockRecorder) StartBatchOperation(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartBatchOperation", reflect.TypeOf((*MockClient)(nil).StartBatchOperation), varargs...)
+}
+
 // StartWorkflowExecution mocks base method.
 func (m *MockClient) StartWorkflowExecution(arg0 context.Context, arg1 *types.StartWorkflowExecutionRequest, arg2 ...yarpc.CallOption) (*types.StartWorkflowExecutionResponse, error) {
 	m.ctrl.T.Helper()
@@ -1069,6 +1129,26 @@ func (mr *MockClientMockRecorder) StartWorkflowExecutionAsync(arg0, arg1 any, ar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartWorkflowExecutionAsync", reflect.TypeOf((*MockClient)(nil).StartWorkflowExecutionAsync), varargs...)
 }
 
+// StopBatchOperation mocks base method.
+func (m *MockClient) StopBatchOperation(arg0 context.Context, arg1 *types.StopBatchOperationRequest, arg2 ...yarpc.CallOption) (*types.StopBatchOperationResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "StopBatchOperation", varargs...)
+	ret0, _ := ret[0].(*types.StopBatchOperationResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StopBatchOperation indicates an expected call of StopBatchOperation.
+func (mr *MockClientMockRecorder) StopBatchOperation(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StopBatchOperation", reflect.TypeOf((*MockClient)(nil).StopBatchOperation), varargs...)
+}
+
 // TerminateWorkflowExecution mocks base method.
 func (m *MockClient) TerminateWorkflowExecution(arg0 context.Context, arg1 *types.TerminateWorkflowExecutionRequest, arg2 ...yarpc.CallOption) error {
 	m.ctrl.T.Helper()
@@ -1106,6 +1186,26 @@ func (mr *MockClientMockRecorder) UnpauseSchedule(arg0, arg1 any, arg2 ...any) *
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnpauseSchedule", reflect.TypeOf((*MockClient)(nil).UnpauseSchedule), varargs...)
+}
+
+// UpdateBatchOperation mocks base method.
+func (m *MockClient) UpdateBatchOperation(arg0 context.Context, arg1 *types.UpdateBatchOperationRequest, arg2 ...yarpc.CallOption) (*types.UpdateBatchOperationResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "UpdateBatchOperation", varargs...)
+	ret0, _ := ret[0].(*types.UpdateBatchOperationResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateBatchOperation indicates an expected call of UpdateBatchOperation.
+func (mr *MockClientMockRecorder) UpdateBatchOperation(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBatchOperation", reflect.TypeOf((*MockClient)(nil).UpdateBatchOperation), varargs...)
 }
 
 // UpdateDomain mocks base method.
