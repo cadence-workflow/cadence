@@ -3153,6 +3153,9 @@ const (
 	HistoryTaskDLQReinjectFailuresCounter
 	// HistoryTaskDLQPageSizeBytes tracks the serialized byte size of each re-injected DLQ page
 	HistoryTaskDLQPageSizeBytes
+	// HistoryTaskDLQAckLevelRows tracks how many DLQ ack-level rows a shard carries, recorded
+	// once per periodic sweep from the length of the shard-scoped ack-level read
+	HistoryTaskDLQAckLevelRows
 	// AsyncWorkflowQueueFetchedCounter counts messages read from the async workflow queue
 	AsyncWorkflowQueueFetchedCounter
 	// AsyncWorkflowQueueSubmittedCounter counts messages submitted to the history engine
@@ -3838,6 +3841,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		HistoryTaskDLQReinjectFailuresCounter:   {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
 		HistoryTaskDLQPageSizeBytes:             {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
+		HistoryTaskDLQAckLevelRows:              {metricName: "history_task_dlq_ack_level_rows", metricType: Histogram, buckets: TaskCountBuckets},
 		AsyncWorkflowQueueFetchedCounter:        {metricName: "async_workflow_queue_fetched", metricType: Counter},
 		AsyncWorkflowQueueSubmittedCounter:      {metricName: "async_workflow_queue_submitted", metricType: Counter},
 		AsyncWorkflowQueueSuccessCounter:        {metricName: "async_workflow_queue_success", metricType: Counter},
