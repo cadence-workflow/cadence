@@ -11,6 +11,22 @@ import (
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 )
 
+// upgradeHint is added to the verification error when a schema is behind, so operators
+// know how to upgrade it.
+const upgradeHint = "to upgrade, run cadence-server update-schema with the same config as the server " +
+	"(or update-schema with cadence-cassandra-tool or cadence-sql-tool), " +
+	"see https://github.com/cadence-workflow/cadence/blob/master/docs/persistence.md#upgrading-the-schema"
+
+// outdatedSchemaError reports a schema whose version is behind the latest one.
+type outdatedSchemaError struct {
+	current persistence.Version
+	latest  persistence.Version
+}
+
+func (e *outdatedSchemaError) Error() string {
+	return fmt.Sprintf("current schema version %v is before latest version %v", e.current, e.latest)
+}
+
 func Verify(ctx context.Context, opts Options) error {
 	opts, err := withDefaults(opts)
 	if err != nil {
@@ -39,6 +55,10 @@ func checkSchemas(ctx context.Context, factory persistenceClient.Factory) error 
 		}
 	}
 	if len(result) > 0 {
+		var outdated *outdatedSchemaError
+		if errors.As(errors.Join(result...), &outdated) {
+			result = append(result, errors.New(upgradeHint))
+		}
 		return errors.Join(result...)
 	}
 	return nil
@@ -79,7 +99,7 @@ func checkDB(ctx context.Context, db persistence.AdminDB) error {
 		return fmt.Errorf("failed to get current schema version: %w", err)
 	}
 	if currentVersion.IsBefore(latestVersion) {
-		return fmt.Errorf("current schema version %v is before latest version %v", currentVersion, latestVersion)
+		return &outdatedSchemaError{current: currentVersion, latest: latestVersion}
 	}
 	return nil
 }
