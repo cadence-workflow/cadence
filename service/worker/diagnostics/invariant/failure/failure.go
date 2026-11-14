@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
@@ -23,11 +24,9 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
 	issueID := 0
 	for _, event := range events {
-		if event.GetWorkflowExecutionFailedEventAttributes() != nil && event.WorkflowExecutionFailedEventAttributes.Reason != nil {
-			attr := event.WorkflowExecutionFailedEventAttributes
-			reason := attr.Reason
-			identity := fetchIdentity(attr, events)
-			if *reason == common.FailureReasonDecisionBlobSizeExceedsLimit {
+		if reason, decisionID, ok := workflowFailure(event); ok {
+			identity := fetchIdentity(decisionID, events)
+			if reason == common.FailureReasonDecisionBlobSizeExceedsLimit {
 				result = append(result, invariant.InvariantCheckResult{
 					IssueID:       issueID,
 					InvariantType: DecisionCausedFailure.String(),
@@ -35,7 +34,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					Metadata:      invariant.MarshalData(FailureIssuesMetadata{EventID: event.ID, Identity: identity}),
 				})
 				issueID++
-			} else if *reason == common.FailureReasonHistorySizeExceedsLimit {
+			} else if reason == common.FailureReasonHistorySizeExceedsLimit {
 				result = append(result, invariant.InvariantCheckResult{
 					IssueID:       issueID,
 					InvariantType: WorkflowFailed.String(),
@@ -50,7 +49,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 				result = append(result, invariant.InvariantCheckResult{
 					IssueID:       issueID,
 					InvariantType: WorkflowFailed.String(),
-					Reason:        ErrorTypeFromReason(*reason).String(),
+					Reason:        ErrorTypeFromReason(reason).String(),
 					Metadata:      invariant.MarshalData(FailureIssuesMetadata{EventID: event.ID, Identity: identity}),
 				})
 				issueID++
@@ -132,9 +131,22 @@ func fetchScheduledEvent(attr *types.ActivityTaskFailedEventAttributes, events [
 	return nil
 }
 
-func fetchIdentity(attr *types.WorkflowExecutionFailedEventAttributes, events []*types.HistoryEvent) string {
+// workflowFailure returns the failure reason when the event closed the run because of a failure.
+// A retry or cron run closes with ContinuedAsNew instead. Without a decision task, the server timed it out.
+func workflowFailure(event *types.HistoryEvent) (reason string, decisionTaskCompletedEventID int64, ok bool) {
+	if attr := event.GetWorkflowExecutionFailedEventAttributes(); attr != nil && attr.Reason != nil {
+		return *attr.Reason, attr.DecisionTaskCompletedEventID, true
+	}
+	if attr := event.GetWorkflowExecutionContinuedAsNewEventAttributes(); attr.GetFailureReason() != "" &&
+		attr.DecisionTaskCompletedEventID != constants.EmptyEventID {
+		return attr.GetFailureReason(), attr.DecisionTaskCompletedEventID, true
+	}
+	return "", 0, false
+}
+
+func fetchIdentity(decisionTaskCompletedEventID int64, events []*types.HistoryEvent) string {
 	for _, event := range events {
-		if event.ID == attr.DecisionTaskCompletedEventID {
+		if event.ID == decisionTaskCompletedEventID {
 			return event.GetDecisionTaskCompletedEventAttributes().Identity
 		}
 	}

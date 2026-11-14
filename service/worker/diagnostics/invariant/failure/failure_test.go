@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
@@ -87,6 +88,31 @@ func Test__Check(t *testing.T) {
 			},
 			err: nil,
 		},
+		{
+			name:     "workflow failure and continued as new",
+			testData: continuedAsNewHistory(10, common.StringPtr("cadenceInternal:Generic downstream error"), types.ContinueAsNewInitiatorRetryPolicy),
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: WorkflowFailed.String(),
+					Reason:        GenericError.String(),
+					Metadata:      wfFailureMetadataInBytes(t, 11),
+				},
+			},
+			err: nil,
+		},
+		{
+			name:           "workflow execution timeout and continued as new",
+			testData:       continuedAsNewHistory(constants.EmptyEventID, common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"), types.ContinueAsNewInitiatorRetryPolicy),
+			expectedResult: []invariant.InvariantCheckResult{},
+			err:            nil,
+		},
+		{
+			name:           "continued as new without failure reason",
+			testData:       continuedAsNewHistory(10, nil, types.ContinueAsNewInitiatorDecider),
+			expectedResult: []invariant.InvariantCheckResult{},
+			err:            nil,
+		},
 	}
 	for _, tc := range testCases {
 		inv := NewInvariant()
@@ -116,6 +142,29 @@ func historySizeLimitExceededHistory() *types.GetWorkflowExecutionHistoryRespons
 						Reason:                       common.StringPtr(common.FailureReasonHistorySizeExceedsLimit),
 						Details:                      []byte("Workflow history size / count exceeds limit."),
 						DecisionTaskCompletedEventID: 10,
+					},
+				},
+			},
+		},
+	}
+}
+
+func continuedAsNewHistory(decisionID int64, failureReason *string, initiator types.ContinueAsNewInitiator) *types.GetWorkflowExecutionHistoryResponse {
+	return &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					ID: 10,
+					DecisionTaskCompletedEventAttributes: &types.DecisionTaskCompletedEventAttributes{
+						Identity: "localhost",
+					},
+				},
+				{
+					ID: 11,
+					WorkflowExecutionContinuedAsNewEventAttributes: &types.WorkflowExecutionContinuedAsNewEventAttributes{
+						DecisionTaskCompletedEventID: decisionID,
+						FailureReason:                failureReason,
+						Initiator:                    initiator.Ptr(),
 					},
 				},
 			},
