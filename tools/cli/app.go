@@ -146,6 +146,11 @@ func NewCliApp(cf ClientFactory, opts ...CLIAppOptions) *cli.App {
 			Subcommands: newTaskListCommands(),
 		},
 		{
+			Name:        "batch",
+			Usage:       "Run a batch operation against workflows matching a query, through the batch operations API",
+			Subcommands: newBatchOperationCommands(),
+		},
+		{
 			Name:        "schedule",
 			Aliases:     []string{"sched"},
 			Usage:       "Operate cadence schedules",

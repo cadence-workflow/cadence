@@ -60,6 +60,7 @@ const (
 	FlagTaskListType                   = "tasklisttype"
 	FlagWorkflowIDReusePolicy          = "workflowidreusepolicy"
 	FlagScheduleID                     = "schedule_id"
+	FlagBatchID                        = "batch_id"
 	FlagCronExpression                 = "cron_expression"
 	FlagOverlapPolicy                  = "overlap_policy"
 	FlagCatchUpPolicy                  = "catch_up_policy"
