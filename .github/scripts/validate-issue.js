@@ -36,13 +36,27 @@ function normalize(title) {
     .trim();
 }
 
-function parseSections(body) {
+const HEADING_PATTERN = /^#{1,6}\s*(.+?)\s*$/;
+const BOLD_PATTERN = /^\*\*(.+?)\*\*$/;
+const FENCE_PATTERN = /^(`{3,}|~{3,})(.*)$/;
+
+// Boundaries are required template headings, or a bold line whose normalized
+// title is one of those headings, and only outside fenced code blocks.
+// Colon-only lines stay in the current section. When no required sections are
+// given, any heading or bold line outside a fence starts a section.
+function parseSections(body, requiredSections) {
   const sections = new Map();
   if (!body) return sections;
 
+  const requiredSectionKeys = requiredSections
+    ? new Set(requiredSections.map(normalize))
+    : null;
   const lines = body.split(/\r?\n/);
   let currentKey = null;
   let buffer = [];
+  let inCodeBlock = false;
+  let codeFenceChar = "";
+  let codeFenceLength = 0;
 
   const flush = () => {
     if (currentKey) {
@@ -53,16 +67,51 @@ function parseSections(body) {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    const headingMatch = trimmed.match(/^#{1,6}\s*(.+?)\s*$/);
-    const boldMatch = trimmed.match(/^\*\*(.+?)\*\*$/);
-    const colonMatch = trimmed.match(/^(.+?):\s*$/);
-    const title = headingMatch?.[1] || boldMatch?.[1] || colonMatch?.[1];
+    const fenceMatch = trimmed.match(FENCE_PATTERN);
+    // CommonMark: a backtick fence's info string cannot contain backticks, so
+    // a line like ```inline``` is inline code, not an opening fence.
+    const isFenceLine =
+      fenceMatch &&
+      (inCodeBlock || fenceMatch[1][0] !== "`" || !fenceMatch[2].includes("`"));
+    if (isFenceLine) {
+      const fence = fenceMatch[1];
+      const rest = fenceMatch[2];
+      const fenceChar = fence[0];
+      const fenceLength = fence.length;
+      const isClosingFence =
+        inCodeBlock &&
+        fenceChar === codeFenceChar &&
+        fenceLength >= codeFenceLength &&
+        rest.trim() === "";
 
-    if (title) {
-      flush();
-      currentKey = normalize(title);
+      if (!inCodeBlock) {
+        inCodeBlock = true;
+        codeFenceChar = fenceChar;
+        codeFenceLength = fenceLength;
+      } else if (isClosingFence) {
+        inCodeBlock = false;
+        codeFenceChar = "";
+        codeFenceLength = 0;
+      }
+
+      if (currentKey) {
+        buffer.push(line);
+      }
       continue;
     }
+
+    if (!inCodeBlock) {
+      const headingMatch = trimmed.match(HEADING_PATTERN);
+      const boldMatch = trimmed.match(BOLD_PATTERN);
+      const title = headingMatch?.[1] || boldMatch?.[1];
+      const key = title ? normalize(title) : null;
+      if (key && (!requiredSectionKeys || requiredSectionKeys.has(key))) {
+        flush();
+        currentKey = key;
+        continue;
+      }
+    }
+
     if (currentKey) {
       buffer.push(line);
     }
@@ -81,6 +130,14 @@ function hasMeaningfulContent(content) {
     .toLowerCase();
   if (!cleaned) return false;
   return !["n/a", "na", "none", "tbd", "todo"].includes(cleaned);
+}
+
+function findMissingSections(body, requiredSections) {
+  const sections = parseSections(body, requiredSections);
+  return requiredSections.filter((section) => {
+    const content = sections.get(normalize(section));
+    return !hasMeaningfulContent(content);
+  });
 }
 
 function detectTemplate(body) {
@@ -171,11 +228,7 @@ function evaluateIssue({ title, body, labels, authorAssociation, templates }) {
       ? enhancementRequired
       : [];
 
-  const sections = parseSections(body || "");
-  const missingSections = requiredSections.filter((section) => {
-    const content = sections.get(normalize(section));
-    return !hasMeaningfulContent(content);
-  });
+  const missingSections = findMissingSections(body || "", requiredSections);
 
   const missingLabel = !hasTypeLabel;
   const needsInfo = missingLabel || missingSections.length > 0;
@@ -333,6 +386,7 @@ module.exports = {
   LABELS,
   normalize,
   parseSections,
+  findMissingSections,
   hasMeaningfulContent,
   detectTemplate,
   detectIssueType,
