@@ -323,14 +323,15 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	// and return avoiding the write lock
 	result, ok := e.taskListRegistry.ManagerByTaskListIdentifier(*taskList)
 	shard := e.taskListDifferentiator.TaskListShard(taskList.GetName())
+	shardID, onboardedToShardManager := shard.ShardID()
 
 	// Task lists excluded from the ShardDistributor (short-lived task lists with UUIDs) bypass
 	// the executor/shard-processor entirely and always use local hash-ring assignment.
-	if !shard.Onboarded && ok {
+	if !onboardedToShardManager && ok {
 		return result, nil
 	}
-	if shard.Onboarded {
-		sp, _ := e.executor.GetShardProcess(ctx, shard.ID)
+	if onboardedToShardManager {
+		sp, _ := e.executor.GetShardProcess(ctx, shardID)
 		if sp != nil && ok {
 			return result, nil
 		}
@@ -1680,11 +1681,12 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 
 	// Task lists excluded from the ShardDistributor bypass the executor entirely and rely on
 	// the local hash-ring for ownership, so skip the SD-based ownership check for them.
-	if shard.Onboarded {
+	shardID, onboardedToShardManager := shard.ShardID()
+	if onboardedToShardManager {
 		// We have a shard-processor shared by all the task lists with the same name, or, when task
 		// lists are sharded by hash, by all the task lists whose names hash to the same shard.
 		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
-		sp, err := e.executor.GetShardProcess(ctx, shard.ID)
+		sp, err := e.executor.GetShardProcess(ctx, shardID)
 		if err != nil {
 			if errors.Is(err, executorclient.ErrShardProcessNotFound) {
 				// The shard is not assigned to this host – treat it as an ownership loss,

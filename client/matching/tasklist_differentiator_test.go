@@ -147,8 +147,11 @@ func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
 				shardCount,
 			)
 
-			shard := differentiator.TaskListShard(tt.taskListName)
-			assert.Equal(t, tt.wantOnboarded, shard.Onboarded)
+			shardID, onboardedToShardManager := differentiator.TaskListShard(tt.taskListName).ShardID()
+			assert.Equal(t, tt.wantOnboarded, onboardedToShardManager)
+			if !tt.wantOnboarded {
+				assert.Empty(t, shardID)
+			}
 		})
 	}
 }
@@ -232,8 +235,9 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 				shardCount,
 			)
 
-			shard := differentiator.TaskListShard(tt.taskListName)
-			assert.Equal(t, tt.want, shard.ID)
+			shardID, onboardedToShardManager := differentiator.TaskListShard(tt.taskListName).ShardID()
+			assert.True(t, onboardedToShardManager)
+			assert.Equal(t, tt.want, shardID)
 		})
 	}
 }
@@ -255,13 +259,13 @@ func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 	)
 
 	assert.False(t, differentiator.ShardsByHash())
-	assert.Equal(t, TaskListShard{ID: taskListName, Onboarded: false}, differentiator.TaskListShard(taskListName))
+	assert.Equal(t, TaskListShard{id: "", onboardedToShardManager: false}, differentiator.TaskListShard(taskListName))
 
 	shardTaskListsByHash = true
 	percentageOnboarded = 100
 
 	assert.True(t, differentiator.ShardsByHash())
-	assert.Equal(t, TaskListShard{ID: hashedShardID, Onboarded: true}, differentiator.TaskListShard(taskListName))
+	assert.Equal(t, TaskListShard{id: hashedShardID, onboardedToShardManager: true}, differentiator.TaskListShard(taskListName))
 }
 
 func TestTaskListDifferentiator_ShardDistributorEnabled(t *testing.T) {

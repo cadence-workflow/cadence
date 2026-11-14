@@ -212,7 +212,7 @@ func newOnboardingTestData(
 	)
 	for _, taskList := range taskLists {
 		require.Contains(t, shardOwners, taskList.shard, "SD gives out the shard of task list %q", taskList.name)
-		gotShardID := td.taskListDifferentiator.TaskListShard(taskList.name).ID
+		gotShardID := matching.TaskListNameToShard(taskList.name, shardCount)
 		require.Equal(t, taskList.shard, gotShardID, "shard of task list %q", taskList.name)
 	}
 

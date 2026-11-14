@@ -42,12 +42,15 @@ func NewTaskListDifferentiator(
 
 // TaskListShard is the shard that holds a task list, and whether the shard distributor manages it.
 type TaskListShard struct {
-	// ID is one of shardCount shards when task lists are sharded by hash. Otherwise each task list has
-	// its own shard, named after it.
-	ID string
-	// Onboarded is true when the shard distributor manages the task list, and false when the hash
-	// ring does.
-	Onboarded bool
+	id                      string
+	onboardedToShardManager bool
+}
+
+// ShardID returns the ID of the task list's shard, and false if the hash ring owns the task list.
+// The ID is one of shardCount shards when task lists are sharded by hash. Otherwise each task list
+// has its own shard, named after it.
+func (s TaskListShard) ShardID() (id string, onboardedToShardManager bool) {
+	return s.id, s.onboardedToShardManager
 }
 
 // TaskListShard returns the shard that holds the task list and whether the shard distributor
@@ -64,17 +67,17 @@ func (d *TaskListDifferentiator) TaskListShard(taskListName string) TaskListShar
 		// Onboard the first percentageOnboarded percent of shards, so every task list in a shard
 		// gets the same decision.
 		shardOnboarded := shardIndex*100 < percentageOnboarded*uint64(d.shardCount)
-		return TaskListShard{
-			ID:        formatShardID(shardIndex),
-			Onboarded: !excludedAsShortLived && shardOnboarded,
+		if excludedAsShortLived || !shardOnboarded {
+			return TaskListShard{id: "", onboardedToShardManager: false}
 		}
+		return TaskListShard{id: formatShardID(shardIndex), onboardedToShardManager: true}
 	}
 
 	hash := farm.Fingerprint64([]byte(taskListName))
-	return TaskListShard{
-		ID:        taskListName,
-		Onboarded: !excludedAsShortLived && isbelowPercentage(hash, percentageOnboarded),
+	if excludedAsShortLived || !isbelowPercentage(hash, percentageOnboarded) {
+		return TaskListShard{id: "", onboardedToShardManager: false}
 	}
+	return TaskListShard{id: taskListName, onboardedToShardManager: true}
 }
 
 // ShardDistributorEnabled reports whether the onboarding percentage is above 0. Matching hosts

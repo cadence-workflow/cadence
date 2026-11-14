@@ -57,13 +57,14 @@ func NewTaskListRouter(
 
 func (r *taskListRouter) FromTaskList(taskListName string) (membership.HostInfo, error) {
 	shard := r.taskListDifferentiator.TaskListShard(taskListName)
-	if !shard.Onboarded || r.spectator == nil {
+	shardID, onboardedToShardManager := shard.ShardID()
+	if !onboardedToShardManager || r.spectator == nil {
 		r.emitRoutingPathMetric(routingPathHashRing)
 		return r.resolver.Lookup(service.Matching, taskListName)
 	}
 
 	r.emitRoutingPathMetric(routingPathShardDistributor)
-	return r.lookUpInShardDistributor(shard.ID)
+	return r.lookUpInShardDistributor(shardID)
 }
 
 // TODO: cache the hostinfos, creating them on every request is relatively expensive (we need to do string parsing etc.)
