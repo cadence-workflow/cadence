@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -373,6 +374,30 @@ func Test__ReplicateSemaphoreAcquiredEvent(t *testing.T) {
 		mb := testSemaphoreMutableStateBuilder(t)
 		assert.Equal(t, ErrMissingSemaphoreInfo, mb.ReplicateSemaphoreAcquiredEvent(event))
 	})
+}
+
+// Tests that replaying the history rebuilds the holds the Add methods recorded, as a standby
+// cluster or a rebuild does.
+func Test__SemaphoreEventsReplayToTheSameHolds(t *testing.T) {
+	original := testSemaphoreMutableStateBuilder(t)
+	acquireEvent, _, err := original.AddSemaphoreAcquireInitiatedEvent(4, "my-semaphore", 30)
+	require.NoError(t, err)
+	_, err = original.AddSemaphoreAcquiredEvent(acquireEvent.ID, 3)
+	require.NoError(t, err)
+	// Grant events are buffered until the transaction closes, which flushes them and gives them IDs.
+	require.NoError(t, original.FlushBufferedEvents())
+
+	rebuilt := testSemaphoreMutableStateBuilder(t)
+	// Replay runs later than the original write, so a hold that reads the clock would differ.
+	rebuilt.timeSource.(clock.MockedTimeSource).Advance(time.Hour)
+	// ApplyEvents adds each event to the version history, so the builder needs an empty one.
+	rebuilt.versionHistories = persistence.NewVersionHistories(&persistence.VersionHistory{})
+	info := original.executionInfo
+	_, err = NewStateBuilder(rebuilt.shard, rebuilt.logger, rebuilt).ApplyEvents(
+		info.DomainID, "request-id", types.WorkflowExecution{WorkflowID: info.WorkflowID, RunID: info.RunID}, original.hBuilder.history, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, original.pendingSemaphoreInfoIDs, rebuilt.pendingSemaphoreInfoIDs)
 }
 
 func Test__AddSemaphoreAcquireFailedEvent(t *testing.T) {
