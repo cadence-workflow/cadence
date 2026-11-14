@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -172,10 +173,75 @@ func (wh *WorkflowHandler) StartBatchOperation(
 	return &types.StartBatchOperationResponse{BatchID: batchID}, nil
 }
 
-// DescribeBatchOperation returns the details and progress of a single batch.
-// Implementation tracked separately; this is a placeholder so the BatchAPI
-// contract and its authorization wrapper can land ahead of the per-operation
-// business logic.
+func validateDescribeBatchOperationRequest(request *types.DescribeBatchOperationRequest) error {
+	if request == nil {
+		return validate.ErrRequestNotSet
+	}
+	if request.GetDomain() == "" {
+		return validate.ErrDomainNotSet
+	}
+	if request.GetBatchID() == "" {
+		return validate.ErrBatchIDNotSet
+	}
+	return nil
+}
+
+func batchOperationStateFromCloseStatus(closeStatus *types.WorkflowExecutionCloseStatus) types.BatchOperationState {
+	if closeStatus == nil {
+		return types.BatchOperationStateRunning
+	}
+	switch *closeStatus {
+	case types.WorkflowExecutionCloseStatusCompleted, types.WorkflowExecutionCloseStatusContinuedAsNew:
+		return types.BatchOperationStateCompleted
+	case types.WorkflowExecutionCloseStatusFailed, types.WorkflowExecutionCloseStatusTimedOut:
+		return types.BatchOperationStateFailed
+	case types.WorkflowExecutionCloseStatusCanceled, types.WorkflowExecutionCloseStatusTerminated:
+		return types.BatchOperationStateStopped
+	default:
+		return types.BatchOperationStateInvalid
+	}
+}
+
+func heartBeatDetailsFromPendingActivities(pendingActivities []*types.PendingActivityInfo) *batcher.HeartBeatDetails {
+	if len(pendingActivities) == 0 {
+		return nil
+	}
+	var hbd batcher.HeartBeatDetails
+	if err := json.Unmarshal(pendingActivities[0].HeartbeatDetails, &hbd); err != nil {
+		return nil
+	}
+	return &hbd
+}
+
+func batchOperationProgressFromHeartBeatDetails(hbd *batcher.HeartBeatDetails) *types.BatchOperationProgress {
+	if hbd == nil {
+		return nil
+	}
+	return &types.BatchOperationProgress{
+		TotalEstimate: hbd.TotalEstimate,
+		SuccessCount:  int64(hbd.SuccessCount),
+		ErrorCount:    int64(hbd.ErrorCount),
+	}
+}
+
+func batchOperationLimitsFromHeartBeatDetails(hbd *batcher.HeartBeatDetails) *types.BatchOperationLimits {
+	if hbd == nil {
+		return nil
+	}
+	return &types.BatchOperationLimits{
+		RPS:         int32(hbd.RPS),
+		Concurrency: int32(hbd.Concurrency),
+	}
+}
+
+func timePtrFromNanos(nanos *int64) *time.Time {
+	if nanos == nil {
+		return nil
+	}
+	return common.TimePtr(time.Unix(0, *nanos))
+}
+
+// DescribeBatchOperation returns the status and progress of a single batch.
 func (wh *WorkflowHandler) DescribeBatchOperation(
 	ctx context.Context,
 	request *types.DescribeBatchOperationRequest,
@@ -183,7 +249,46 @@ func (wh *WorkflowHandler) DescribeBatchOperation(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
-	return nil, &types.BadRequestError{Message: "DescribeBatchOperation is not yet implemented."}
+	if err := validateDescribeBatchOperationRequest(request); err != nil {
+		return nil, err
+	}
+
+	domainName := request.GetDomain()
+	if _, err := wh.GetDomainCache().GetDomainID(domainName); err != nil {
+		return nil, err
+	}
+
+	wfID := batchOperationWorkflowID(domainName, request.GetBatchID())
+	resp, err := wh.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
+		Domain:    constants.BatcherLocalDomainName,
+		Execution: &types.WorkflowExecution{WorkflowID: wfID},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	info := resp.GetWorkflowExecutionInfo()
+
+	var reason string
+	if info.Memo != nil {
+		_ = json.Unmarshal(info.Memo.Fields["Reason"], &reason)
+	}
+	var startedBy string
+	if info.SearchAttributes != nil {
+		_ = json.Unmarshal(info.SearchAttributes.IndexedFields["Operator"], &startedBy)
+	}
+
+	hbd := heartBeatDetailsFromPendingActivities(resp.PendingActivities)
+
+	return &types.DescribeBatchOperationResponse{
+		Reason:    reason,
+		State:     batchOperationStateFromCloseStatus(info.CloseStatus),
+		Progress:  batchOperationProgressFromHeartBeatDetails(hbd),
+		Limits:    batchOperationLimitsFromHeartBeatDetails(hbd),
+		StartedBy: startedBy,
+		StartTime: timePtrFromNanos(info.StartTime),
+		CloseTime: timePtrFromNanos(info.CloseTime),
+	}, nil
 }
 
 // ListBatchOperations returns the batches targeting a domain. Implementation
