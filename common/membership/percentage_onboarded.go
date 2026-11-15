@@ -15,16 +15,19 @@ type PercentageOnboarded interface {
 
 func NewPercentageOnboarded(
 	metricsClient metrics.Client,
+	scope metrics.ScopeIdx,
 	value dynamicproperties.IntPropertyFn,
 ) PercentageOnboarded {
 	return &percentageOnboarded{
 		metricsClient: metricsClient,
+		scope:         scope,
 		value:         value,
 	}
 }
 
 type percentageOnboarded struct {
 	metricsClient metrics.Client
+	scope         metrics.ScopeIdx
 	value         dynamicproperties.IntPropertyFn
 }
 
@@ -41,7 +44,7 @@ func (s staticPercentageOnboarded) Value() int { return int(s) }
 func (p *percentageOnboarded) Value() int {
 	value := p.value()
 
-	p.metricsClient.Scope(metrics.ShardManagerOnboardingScope).
+	p.metricsClient.Scope(p.scope).
 		UpdateGauge(metrics.PercentageOnboardedToShardManagerGauge, float64(value))
 
 	return value

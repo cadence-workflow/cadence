@@ -202,6 +202,7 @@ func newOnboardingTestData(
 	shardCount := len(shardOwners)
 	percentageOnboarded := membership.NewPercentageOnboarded(
 		metrics.NewNoopMetricsClient(),
+		metrics.ShardManagerOnboardingScope,
 		func(...dynamicproperties.FilterOption) int { return td.percentageOnboarded },
 	)
 	shardTaskListsByHash := true

@@ -154,6 +154,7 @@ func (s *server) startService() common.Daemon {
 	params.OperationalDynamicConfig = s.operationalDynamicConfig
 	params.PercentageOnboarded = membership.NewPercentageOnboarded(
 		params.MetricsClient,
+		metrics.ShardManagerOnboardingScope,
 		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 	)
 	params.TaskListDifferentiator = membership.NewTaskListDifferentiator(
