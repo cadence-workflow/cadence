@@ -329,6 +329,7 @@ message AcquireSemaphoreRequest {
   string semaphore_name = 2;
   int32 bucket = 3;
   string owner_id = 4;
+  google.protobuf.Timestamp acquire_deadline = 5;
 }
 
 message AcquireSemaphoreResponse {

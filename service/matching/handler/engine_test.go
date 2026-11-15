@@ -2128,7 +2128,7 @@ func TestUnloadSemaphoreManager(t *testing.T) {
 	e.unloadSemaphoreManager(mgr)
 	assert.Empty(t, e.semaphoreRegistry.AllManagers())
 
-	_, err = mgr.Acquire(context.Background(), "owner-1")
+	_, err = mgr.Acquire(context.Background(), "owner-1", nil)
 	assert.ErrorIs(t, err, semaphore.ErrNotReady, "an unloaded manager must stop serving")
 
 	expectBucketLoad(m)
@@ -2160,18 +2160,20 @@ func TestStopSemaphoreManagers(t *testing.T) {
 
 	// Refusing to serve is the only thing Stop is observable through.
 	for i, mgr := range managers {
-		_, err := mgr.Acquire(context.Background(), "owner-1")
+		_, err := mgr.Acquire(context.Background(), "owner-1", nil)
 		assert.ErrorIs(t, err, semaphore.ErrNotReady, "manager %d was left running", i)
 	}
 }
 
 func TestAcquireSemaphore(t *testing.T) {
+	deadline := time.Unix(1767258000, 0)
 	testCases := []struct {
 		name               string
 		req                *types.AcquireSemaphoreRequest
 		bucketLoaded       bool
 		semaphoresDisabled bool
 		mockSetup          func(*persistence.MockSemaphoreTokenManager)
+		tasksSetup         func(*testing.T, *persistence.MockSemaphoreTaskManager)
 		wantErr            bool
 		assertErr          func(*testing.T, error)
 		want               *types.AcquireSemaphoreResponse
@@ -2192,8 +2194,12 @@ func TestAcquireSemaphore(t *testing.T) {
 			want: &types.AcquireSemaphoreResponse{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 1},
 		},
 		{
-			name: "success - bucket is full, no slot",
-			req:  newAcquireSemaphoreRequest(testSemaphoreOwnerID),
+			name: "success - bucket is full, queued with the deadline",
+			req: func() *types.AcquireSemaphoreRequest {
+				req := newAcquireSemaphoreRequest(testSemaphoreOwnerID)
+				req.AcquireDeadline = &deadline
+				return req
+			}(),
 			mockSetup: func(m *persistence.MockSemaphoreTokenManager) {
 				// Bucket 0 owns tokens 1 and 2, and other owners hold both.
 				expectBucketLoad(m, []*persistence.SemaphoreOwnership{
@@ -2203,7 +2209,20 @@ func TestAcquireSemaphore(t *testing.T) {
 					{RowType: persistence.SemaphoreRowTypeOwner, OwnerID: "owner-2", HeldToken: 2},
 				}...)
 			},
-			want: &types.AcquireSemaphoreResponse{Outcome: types.SemaphoreAcquireOutcomeNoSlot},
+			tasksSetup: func(t *testing.T, tasks *persistence.MockSemaphoreTaskManager) {
+				tasks.EXPECT().CreateSemaphoreTasks(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+					func(_ context.Context, req *persistence.CreateSemaphoreTasksRequest) (*persistence.CreateSemaphoreTasksResponse, error) {
+						require.Len(t, req.Tasks, 1)
+						assert.Equal(t, "wf-1", req.Tasks[0].WorkflowID)
+						assert.Equal(t, "run-1", req.Tasks[0].RunID)
+						assert.Equal(t, int64(7), req.Tasks[0].HoldID)
+						assert.Equal(t, &deadline, req.Tasks[0].AcquireDeadline)
+						return &persistence.CreateSemaphoreTasksResponse{}, nil
+					})
+				tasks.EXPECT().GetSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().
+					Return(&persistence.GetSemaphoreTasksResponse{}, nil)
+			},
+			want: &types.AcquireSemaphoreResponse{Outcome: types.SemaphoreAcquireOutcomeQueued},
 		},
 		{
 			name:               "failure - semaphores disabled for the domain, no store call",
@@ -2237,6 +2256,13 @@ func TestAcquireSemaphore(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e, m := newEngineWithSemaphores(t, testSelfHost)
 			tc.mockSetup(m)
+			if tc.tasksSetup != nil {
+				tasks := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+				tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).
+					Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+				tc.tasksSetup(t, tasks)
+				e.semaphoreTaskManager = tasks
+			}
 			if tc.bucketLoaded {
 				_, err := e.getOrCreateSemaphoreManager(mustNewSemaphoreIdentifier(t, 0))
 				require.NoError(t, err)
