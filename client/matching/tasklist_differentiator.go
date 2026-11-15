@@ -42,15 +42,15 @@ func NewTaskListDifferentiator(
 
 // TaskListShard is the shard that holds a task list, and whether the shard distributor manages it.
 type TaskListShard struct {
-	id                      string
-	onboardedToShardManager bool
+	id                          string
+	onboardedToShardDistributor bool
 }
 
-// ShardID returns the ID of the task list's shard, and false if the hash ring owns the task list.
+// ShardID returns the task list's shard ID, or "" and false if the hash ring owns the task list.
 // The ID is one of shardCount shards when task lists are sharded by hash. Otherwise each task list
 // has its own shard, named after it.
-func (s TaskListShard) ShardID() (id string, onboardedToShardManager bool) {
-	return s.id, s.onboardedToShardManager
+func (s TaskListShard) ShardID() (id string, onboardedToShardDistributor bool) {
+	return s.id, s.onboardedToShardDistributor
 }
 
 // TaskListShard returns the shard that holds the task list and whether the shard distributor
@@ -68,16 +68,16 @@ func (d *TaskListDifferentiator) TaskListShard(taskListName string) TaskListShar
 		// gets the same decision.
 		shardOnboarded := shardIndex*100 < percentageOnboarded*uint64(d.shardCount)
 		if excludedAsShortLived || !shardOnboarded {
-			return TaskListShard{id: "", onboardedToShardManager: false}
+			return TaskListShard{id: "", onboardedToShardDistributor: false}
 		}
-		return TaskListShard{id: formatShardID(shardIndex), onboardedToShardManager: true}
+		return TaskListShard{id: formatShardID(shardIndex), onboardedToShardDistributor: true}
 	}
 
 	hash := farm.Fingerprint64([]byte(taskListName))
 	if excludedAsShortLived || !isbelowPercentage(hash, percentageOnboarded) {
-		return TaskListShard{id: "", onboardedToShardManager: false}
+		return TaskListShard{id: "", onboardedToShardDistributor: false}
 	}
-	return TaskListShard{id: taskListName, onboardedToShardManager: true}
+	return TaskListShard{id: taskListName, onboardedToShardDistributor: true}
 }
 
 // ShardDistributorEnabled reports whether the onboarding percentage is above 0. Matching hosts

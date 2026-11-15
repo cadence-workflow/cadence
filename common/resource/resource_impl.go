@@ -166,6 +166,8 @@ func New(
 	serviceName string,
 	serviceConfig *service.Config,
 ) (impl *Impl, retError error) {
+	// Builds that construct Params themselves skip config validation, so fail here instead of
+	// panicking the first time matching routes a task list.
 	if params.TaskListDifferentiator == nil {
 		return nil, errors.New("creating resource: resource.Params.TaskListDifferentiator must be set")
 	}

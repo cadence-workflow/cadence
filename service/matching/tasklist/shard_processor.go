@@ -139,8 +139,8 @@ func (sp *shardProcessorImpl) ownedManagers() []Manager {
 func (sp *shardProcessorImpl) ownsTaskList(tlMgr Manager) bool {
 	taskListName := tlMgr.TaskListID().GetName()
 	shard := sp.taskListDifferentiator.TaskListShard(taskListName)
-	_, onboardedToShardManager := shard.ShardID()
-	return onboardedToShardManager
+	_, onboardedToShardDistributor := shard.ShardID()
+	return onboardedToShardDistributor
 }
 
 func validateSPParams(params ShardProcessorParams) error {

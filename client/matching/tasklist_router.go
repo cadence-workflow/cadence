@@ -57,8 +57,8 @@ func NewTaskListRouter(
 
 func (r *taskListRouter) FromTaskList(taskListName string) (membership.HostInfo, error) {
 	shard := r.taskListDifferentiator.TaskListShard(taskListName)
-	shardID, onboardedToShardManager := shard.ShardID()
-	if !onboardedToShardManager || r.spectator == nil {
+	shardID, onboardedToShardDistributor := shard.ShardID()
+	if !onboardedToShardDistributor || r.spectator == nil {
 		r.emitRoutingPathMetric(routingPathHashRing)
 		return r.resolver.Lookup(service.Matching, taskListName)
 	}
