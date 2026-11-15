@@ -57,7 +57,7 @@ type (
 
 		ManagersByDomainID(domainID string) []Manager
 		ManagersByTaskListName(name string) []Manager
-		// ManagersByShard returns the managers of every task list whose name hashes to shardID.
+		// ManagersByShard returns the managers of every task list that hashes to shardID.
 		ManagersByShard(shardID string) []Manager
 		// ManagerByTaskListIdentifier returns a manager for a given identifier.
 		// it returns the manager and true if it was found, false if it was not found
