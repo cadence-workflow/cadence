@@ -1016,6 +1016,13 @@ const (
 	// Default value: 1
 	// Allowed filters: N/A
 	AcquireShardConcurrency
+	// HistoryPercentageOnboardedToShardManager is the percentage of history shards placed and routed
+	// by the shard manager
+	// KeyName: history.percentageOnboardedToShardManager
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	HistoryPercentageOnboardedToShardManager
 	// TaskProcessRPS is the task processing rate per second for each domain
 	// KeyName: history.taskProcessRPS
 	// Value type: Int
@@ -4263,6 +4270,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.acquireShardConcurrency",
 		Description:  "AcquireShardConcurrency is number of goroutines that can be used to acquire shards in the shard controller.",
 		DefaultValue: 1,
+	},
+	HistoryPercentageOnboardedToShardManager: {
+		KeyName:      "history.percentageOnboardedToShardManager",
+		Description:  "HistoryPercentageOnboardedToShardManager is the percentage of history shards placed and routed by the shard manager",
+		DefaultValue: 0,
 	},
 	TaskProcessRPS: {
 		KeyName:      "history.taskProcessRPS",
