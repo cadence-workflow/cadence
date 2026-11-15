@@ -16,6 +16,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -784,7 +785,7 @@ func TestGrant(t *testing.T) {
 			setupMocks: func(deps *mockDeps) {
 				expectGetTokenRow(deps.mockTokenManager, 1).Return(nil, readErr)
 			},
-			expectedTokenID: emptyTokenID,
+			expectedTokenID: constants.NoSemaphoreTokenID,
 			assertErr:       func(t *testing.T, err error) { assert.ErrorIs(t, err, readErr) },
 		},
 	}
@@ -836,31 +837,31 @@ func TestGrant_ConfirmHeldToken(t *testing.T) {
 		},
 		{
 			name:            "success - no cached token, no read",
-			expectedTokenID: emptyTokenID,
+			expectedTokenID: constants.NoSemaphoreTokenID,
 		},
 		{
 			name:            "success - DB row is FREE, no token",
 			callerCached:    true,
 			dbRow:           tokenRow(1, ""),
-			expectedTokenID: emptyTokenID,
+			expectedTokenID: constants.NoSemaphoreTokenID,
 		},
 		{
 			name:            "success - DB row names another owner, no token",
 			callerCached:    true,
 			dbRow:           tokenRow(1, "other-owner"),
-			expectedTokenID: emptyTokenID,
+			expectedTokenID: constants.NoSemaphoreTokenID,
 		},
 		{
 			name:            "success - no DB row, no token",
 			callerCached:    true,
 			readErr:         &types.EntityNotExistsError{Message: "not found"},
-			expectedTokenID: emptyTokenID,
+			expectedTokenID: constants.NoSemaphoreTokenID,
 		},
 		{
 			name:            "failure - read fails, returns the error",
 			callerCached:    true,
 			readErr:         readErr,
-			expectedTokenID: emptyTokenID,
+			expectedTokenID: constants.NoSemaphoreTokenID,
 			assertErr:       func(t *testing.T, err error) { assert.ErrorIs(t, err, readErr) },
 		},
 	}
@@ -912,35 +913,35 @@ func TestGrant_SyncHeldTokenLocked(t *testing.T) {
 		},
 		{
 			name:               "success - no cached token, no read",
-			expectedTokenID:    emptyTokenID,
+			expectedTokenID:    constants.NoSemaphoreTokenID,
 			expectedCacheEntry: free,
 		},
 		{
 			name:               "success - DB row is FREE, token 1 becomes free",
 			callerCached:       true,
 			dbRow:              tokenRow(1, ""),
-			expectedTokenID:    emptyTokenID,
+			expectedTokenID:    constants.NoSemaphoreTokenID,
 			expectedCacheEntry: free,
 		},
 		{
 			name:               "success - DB row names another owner, token 1 becomes unavailable",
 			callerCached:       true,
 			dbRow:              tokenRow(1, "other-owner"),
-			expectedTokenID:    emptyTokenID,
+			expectedTokenID:    constants.NoSemaphoreTokenID,
 			expectedCacheEntry: unavailable,
 		},
 		{
 			name:               "success - no DB row, token 1 becomes unavailable",
 			callerCached:       true,
 			readErr:            &types.EntityNotExistsError{Message: "not found"},
-			expectedTokenID:    emptyTokenID,
+			expectedTokenID:    constants.NoSemaphoreTokenID,
 			expectedCacheEntry: unavailable,
 		},
 		{
 			name:               "failure - read fails, cache unchanged",
 			callerCached:       true,
 			readErr:            readErr,
-			expectedTokenID:    emptyTokenID,
+			expectedTokenID:    constants.NoSemaphoreTokenID,
 			expectedCacheEntry: heldByCaller,
 			assertErr:          func(t *testing.T, err error) { assert.ErrorIs(t, err, readErr) },
 		},
@@ -982,7 +983,9 @@ func TestGrant_FreeToken(t *testing.T) {
 		// justReloaded sets the last reload to just under minBucketReloadInterval ago.
 		justReloaded bool
 		// expectRetry expects a reload that shows token 2 freed, and a write of token 2 that applies.
-		expectRetry          bool
+		expectRetry bool
+		// expectFullReload expects a reload that shows both tokens held, and no second write.
+		expectFullReload     bool
 		expectedTokenID      int
 		expectedCacheEntries map[int]tokenEntry
 		assertErr            func(t *testing.T, err error)
@@ -1002,14 +1005,14 @@ func TestGrant_FreeToken(t *testing.T) {
 		{
 			name:                 "failure - write fails, token 1 stays free",
 			writeErr:             writeErr,
-			expectedTokenID:      emptyTokenID,
+			expectedTokenID:      constants.NoSemaphoreTokenID,
 			expectedCacheEntries: map[int]tokenEntry{1: free, 2: heldByOther},
 			assertErr:            func(t *testing.T, err error) { assert.ErrorIs(t, err, writeErr) },
 		},
 		{
 			name:                 "failure - write returns an unknown outcome, token 1 stays free",
 			resp:                 &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantUnknown},
-			expectedTokenID:      emptyTokenID,
+			expectedTokenID:      constants.NoSemaphoreTokenID,
 			expectedCacheEntries: map[int]tokenEntry{1: free, 2: heldByOther},
 			assertErr: func(t *testing.T, err error) {
 				assert.IsType(t, &types.InternalServiceError{}, err)
@@ -1019,7 +1022,7 @@ func TestGrant_FreeToken(t *testing.T) {
 		{
 			name:                 "failure - write says the caller holds token 9 outside the bucket, token 1 stays free",
 			resp:                 &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantAlreadyHeld, HeldToken: 9},
-			expectedTokenID:      emptyTokenID,
+			expectedTokenID:      constants.NoSemaphoreTokenID,
 			expectedCacheEntries: map[int]tokenEntry{1: free, 2: heldByOther},
 			assertErr: func(t *testing.T, err error) {
 				assert.IsType(t, &types.InternalServiceError{}, err)
@@ -1034,16 +1037,23 @@ func TestGrant_FreeToken(t *testing.T) {
 			expectedCacheEntries: map[int]tokenEntry{1: heldByA, 2: heldByCaller},
 		},
 		{
+			name:                 "success - slot taken, reload shows the bucket full, no token",
+			resp:                 taken,
+			expectFullReload:     true,
+			expectedTokenID:      constants.NoSemaphoreTokenID,
+			expectedCacheEntries: map[int]tokenEntry{1: heldByA, 2: heldByOther},
+		},
+		{
 			name:                 "success - slot taken, bucket was just reloaded, no reload and no token",
 			resp:                 taken,
 			justReloaded:         true,
-			expectedTokenID:      emptyTokenID,
+			expectedTokenID:      constants.NoSemaphoreTokenID,
 			expectedCacheEntries: map[int]tokenEntry{1: unavailable, 2: heldByOther},
 		},
 		{
 			name:                 "failure - caller already gave up, no write, token 1 stays free",
 			callerGaveUp:         true,
-			expectedTokenID:      emptyTokenID,
+			expectedTokenID:      constants.NoSemaphoreTokenID,
 			expectedCacheEntries: map[int]tokenEntry{1: free, 2: heldByOther},
 			assertErr:            func(t *testing.T, err error) { assert.ErrorIs(t, err, context.Canceled) },
 		},
@@ -1071,6 +1081,12 @@ func TestGrant_FreeToken(t *testing.T) {
 					}}, nil)
 				expectGrantToken(deps.mockTokenManager, 2).Return(
 					&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
+			}
+			if tc.expectFullReload {
+				deps.mockTokenManager.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).Return(
+					&persistence.ScanSemaphoreBucketResponse{Ownerships: []*persistence.SemaphoreOwnership{
+						tokenRow(1, "owner-a"), ownerRow("owner-a", 1), tokenRow(2, "other-owner"), ownerRow("other-owner", 2),
+					}}, nil)
 			}
 
 			got, err := mgr.grantFreeTokenLocked(ctx, mgr.currentCache(), "caller")
@@ -1277,10 +1293,11 @@ func TestGetTokenByOwner(t *testing.T) {
 			expectedTokenID: 1,
 		},
 		{
-			name: "success - caller holds nothing, returns 0",
+			name: "success - caller holds nothing, returns no token",
 			setupMocks: func(deps *mockDeps) {
 				expectGetOwnerRow(deps.mockTokenManager).Return(nil, &types.EntityNotExistsError{Message: "not found"})
 			},
+			expectedTokenID: constants.NoSemaphoreTokenID,
 		},
 		{
 			name: "failure - owner row read fails",

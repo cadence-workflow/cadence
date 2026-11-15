@@ -780,7 +780,6 @@ func (v *AcquireSemaphoreRequest) GetOwnerID() (o string) {
 	return
 }
 
-// GetAcquireDeadline is an internal getter (TBD...)
 func (v *AcquireSemaphoreRequest) GetAcquireDeadline() (o *time.Time) {
 	if v != nil {
 		return v.AcquireDeadline
