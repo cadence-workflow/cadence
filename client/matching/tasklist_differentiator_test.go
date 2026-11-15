@@ -120,7 +120,6 @@ func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
 			excludeShortLivedTaskLists: true,
 		},
 		{
-			// By name alone the shard would be 639, so only the domain ID puts it below the percentage.
 			name:                 "sharded by hash - shard below percentage",
 			domainID:             testDomainID,
 			taskListName:         "orders", // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 134
@@ -129,7 +128,6 @@ func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
 			shardTaskListsByHash: true,
 		},
 		{
-			// By name alone the shard would be 6, so only the domain ID puts it above the percentage.
 			name:                 "sharded by hash - shard above percentage",
 			domainID:             testOtherDomainID,
 			taskListName:         "test-key", // farm.Fingerprint64([]byte(testOtherDomainID+"/test-key"))%1000 = 868
