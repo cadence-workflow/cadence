@@ -1127,3 +1127,68 @@ func TestGetValues_EmptyStoreReturnsDefault(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateKeyDataBlobPair_IntRange(t *testing.T) {
+	tests := map[string]struct {
+		key            dynamicproperties.Key
+		value          interface{}
+		wantBadRequest bool
+	}{
+		"in range":                {key: dynamicproperties.MatchingPercentageOnboardedToShardManager, value: 37},
+		"lower bound":             {key: dynamicproperties.MatchingPercentageOnboardedToShardManager, value: 0},
+		"upper bound":             {key: dynamicproperties.MatchingPercentageOnboardedToShardManager, value: 100},
+		"below range":             {key: dynamicproperties.MatchingPercentageOnboardedToShardManager, value: -1, wantBadRequest: true},
+		"above range":             {key: dynamicproperties.MatchingPercentageOnboardedToShardManager, value: 101, wantBadRequest: true},
+		"key without range":       {key: dynamicproperties.TestGetIntPropertyKey, value: -1},
+		"key without range large": {key: dynamicproperties.TestGetIntPropertyKey, value: 1_000_000},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateKeyDataBlobPair(tc.key, &types.DataBlob{
+				EncodingType: types.EncodingTypeJSON.Ptr(),
+				Data:         jsonMarshalHelper(tc.value),
+			})
+
+			if tc.wantBadRequest {
+				var badRequest *types.BadRequestError
+				require.ErrorAs(t, err, &badRequest)
+				require.ErrorContains(t, err, "outside the allowed range [0, 100]")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestUpdateValue_RejectsOutOfRangeIntBeforeWriting(t *testing.T) {
+	newValue := func(v int, filters ...*types.DynamicConfigFilter) *types.DynamicConfigValue {
+		return &types.DynamicConfigValue{
+			Value:   &types.DataBlob{EncodingType: types.EncodingTypeJSON.Ptr(), Data: jsonMarshalHelper(v)},
+			Filters: filters,
+		}
+	}
+
+	tests := map[string][]*types.DynamicConfigValue{
+		"negative value": {newValue(-1)},
+		"one of several values out of range": {
+			newValue(10),
+			newValue(250, &types.DynamicConfigFilter{
+				Name:  "domainName",
+				Value: &types.DataBlob{EncodingType: types.EncodingTypeJSON.Ptr(), Data: jsonMarshalHelper("my-domain")},
+			}),
+		},
+	}
+
+	for name, values := range tests {
+		t.Run(name, func(t *testing.T) {
+			// no persistence manager: reaching the write path would panic
+			csc := &configStoreClient{config: &c.ClientConfig{}}
+
+			err := csc.UpdateValue(dynamicproperties.MatchingPercentageOnboardedToShardManager, values)
+
+			var badRequest *types.BadRequestError
+			require.ErrorAs(t, err, &badRequest)
+		})
+	}
+}

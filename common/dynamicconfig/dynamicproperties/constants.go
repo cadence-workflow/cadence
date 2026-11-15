@@ -36,6 +36,13 @@ type (
 		Description  string
 		DefaultValue int
 		Filters      []Filter
+		// Range optionally restricts the values that can be written. Nil means any int is allowed.
+		Range *IntRange
+	}
+
+	IntRange struct {
+		Min int
+		Max int
 	}
 
 	DynamicBool struct {
@@ -144,11 +151,13 @@ func GetAllKeys() map[string]Key {
 
 func ValidateKeyValuePair(key Key, value interface{}) error {
 	err := fmt.Errorf("key value pair mismatch, key type: %T, value type: %T", key, value)
-	switch key.(type) {
+	switch k := key.(type) {
 	case IntKey:
-		if _, ok := value.(int); !ok {
+		intValue, ok := value.(int)
+		if !ok {
 			return err
 		}
+		return k.ValidateValue(intValue)
 	case BoolKey:
 		if _, ok := value.(bool); !ok {
 			return err
@@ -197,6 +206,15 @@ func (k IntKey) DefaultInt() int {
 
 func (k IntKey) Filters() []Filter {
 	return IntKeys[k].Filters
+}
+
+// ValidateValue returns an error if value is outside the key's allowed range.
+func (k IntKey) ValidateValue(value int) error {
+	r := IntKeys[k].Range
+	if r != nil && (value < r.Min || value > r.Max) {
+		return fmt.Errorf("value %d for %s is outside the allowed range [%d, %d]", value, k.String(), r.Min, r.Max)
+	}
+	return nil
 }
 
 func (k BoolKey) String() string {
@@ -921,6 +939,7 @@ const (
 	// KeyName: matching.percentageOnboardedToShardManager
 	// Value type: Int
 	// Default value: 0
+	// Allowed range: [0, 100]
 	// Allowed filters: N/A
 	MatchingPercentageOnboardedToShardManager
 	// MatchingTaskListMinimumWritePartitions is the minimum number of write partitions that the AdaptiveScaler will specify for a TaskList.
@@ -4185,6 +4204,7 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "matching.percentageOnboardedToShardManager",
 		Description:  "MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager",
 		DefaultValue: 0,
+		Range:        &IntRange{Min: 0, Max: 100},
 	},
 	MatchingTaskListMinimumWritePartitions: {
 		KeyName:      "matching.taskListMinimumWritePartitions",

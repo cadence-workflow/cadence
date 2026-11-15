@@ -637,9 +637,10 @@ func validateKeyDataBlobPair(key dynamicproperties.Key, blob *types.DataBlob) er
 		return err
 	}
 	err = fmt.Errorf("key value pair mismatch, key type: %T, value type: %T", key, value)
-	switch key.(type) {
+	switch k := key.(type) {
 	case dynamicproperties.IntKey:
-		if _, ok := value.(int); !ok {
+		intVal, ok := value.(int)
+		if !ok {
 			floatVal, ok := value.(float64)
 			if !ok { // int can be decoded as float64
 				return err
@@ -647,6 +648,10 @@ func validateKeyDataBlobPair(key dynamicproperties.Key, blob *types.DataBlob) er
 			if floatVal != math.Trunc(floatVal) {
 				return errors.New("value type is not int")
 			}
+			intVal = int(floatVal)
+		}
+		if rangeErr := k.ValidateValue(intVal); rangeErr != nil {
+			return &types.BadRequestError{Message: rangeErr.Error()}
 		}
 	case dynamicproperties.BoolKey:
 		if _, ok := value.(bool); !ok {

@@ -420,3 +420,42 @@ func TestDynamicConfigFilterStringsCorrectly(t *testing.T) {
 	badFilter := Filter(len(filters))
 	assert.Equal(t, UnknownFilter.String(), badFilter.String(), "filters with indexes outside the list of known strings should String() to the unknown filter type")
 }
+
+func TestIntKeyValidateValue(t *testing.T) {
+	tests := map[string]struct {
+		key     IntKey
+		value   int
+		wantErr bool
+	}{
+		"below range":       {key: MatchingPercentageOnboardedToShardManager, value: -1, wantErr: true},
+		"lower bound":       {key: MatchingPercentageOnboardedToShardManager, value: 0},
+		"in range":          {key: MatchingPercentageOnboardedToShardManager, value: 37},
+		"upper bound":       {key: MatchingPercentageOnboardedToShardManager, value: 100},
+		"above range":       {key: MatchingPercentageOnboardedToShardManager, value: 101, wantErr: true},
+		"key without range": {key: TestGetIntPropertyKey, value: -1},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := tc.key.ValidateValue(tc.value)
+			if tc.wantErr {
+				assert.ErrorContains(t, err, "matching.percentageOnboardedToShardManager")
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// ValidateKeyValuePair, used by the in-memory and file-based clients, applies the same range.
+			assert.Equal(t, err, ValidateKeyValuePair(tc.key, tc.value))
+		})
+	}
+}
+
+func TestIntKeyRangesContainDefault(t *testing.T) {
+	for key, def := range IntKeys {
+		if def.Range == nil {
+			continue
+		}
+		assert.LessOrEqual(t, def.Range.Min, def.Range.Max, "%s has an empty range", def.KeyName)
+		assert.NoError(t, key.ValidateValue(def.DefaultValue), "%s default value is outside its range", def.KeyName)
+	}
+}
