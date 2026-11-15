@@ -77,6 +77,7 @@ type (
 	rpcClientFactory struct {
 		rpcFactory            rpc.Factory
 		resolver              membership.Resolver
+		taskListRouter        matching.TaskListRouter
 		metricsClient         metrics.Client
 		dynConfig             *dynamicconfig.Collection
 		numberOfHistoryShards int
@@ -89,6 +90,7 @@ type (
 func NewRPCClientFactory(
 	rpcFactory rpc.Factory,
 	resolver membership.Resolver,
+	taskListRouter matching.TaskListRouter,
 	metricsClient metrics.Client,
 	dc *dynamicconfig.Collection,
 	numberOfHistoryShards int,
@@ -98,6 +100,7 @@ func NewRPCClientFactory(
 	return &rpcClientFactory{
 		rpcFactory:            rpcFactory,
 		resolver:              resolver,
+		taskListRouter:        taskListRouter,
 		metricsClient:         metricsClient,
 		dynConfig:             dc,
 		numberOfHistoryShards: numberOfHistoryShards,
@@ -160,7 +163,7 @@ func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 		rawClient = thrift.NewMatchingClient(matchingserviceclient.New(outboundConfig))
 	}
 
-	peerResolver := matching.NewPeerResolver(cf.resolver, namedPort)
+	peerResolver := matching.NewPeerResolver(cf.resolver, cf.taskListRouter, namedPort)
 
 	partitionConfigProvider := matching.NewPartitionConfigProvider(cf.logger, cf.metricsClient, domainIDToName, cf.dynConfig)
 	defaultLoadBalancer := matching.NewLoadBalancer(partitionConfigProvider)

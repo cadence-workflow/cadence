@@ -679,7 +679,17 @@ func (c *cadenceImpl) GetMatchingClients() []matchingClient.Client {
 func setOperationalDefaults(params *resource.Params) {
 	params.OperationalConfigStore = configstore.NewNopClient()
 	// OperationalDynamicConfig will be set after DynamicConfig is available
-	params.PercentageOnboarded = membership.StaticPercentageOnboarded(0)
+}
+
+// newTaskListDifferentiator reads params.OperationalDynamicConfig, so call it after that is set.
+func newTaskListDifferentiator(params *resource.Params) *matchingClient.TaskListDifferentiator {
+	return matchingClient.NewTaskListDifferentiator(
+		params.MetricsClient,
+		params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
+		params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
+		dynamicproperties.GetIntPropertyFn(0),
+		config.DefaultNumMatchingShards,
+	)
 }
 
 func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, startWG *sync.WaitGroup) {
@@ -716,6 +726,7 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 	params.PinotConfig = c.pinotConfig
 	params.PinotClient = c.pinotClient
 	params.GetIsolationGroups = getFromDynamicConfig(params)
+	params.TaskListDifferentiator = newTaskListDifferentiator(params)
 	var err error
 	authorizer, err := authorization.NewAuthorizer(c.authorizationConfig, params.Logger, nil)
 	if err != nil {
@@ -813,6 +824,7 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 		params.ESClient = c.esClient
 		params.PinotConfig = c.pinotConfig
 		params.GetIsolationGroups = getFromDynamicConfig(params)
+		params.TaskListDifferentiator = newTaskListDifferentiator(params)
 
 		var err error
 		params.PersistenceConfig, err = copyPersistenceConfig(c.persistenceConfig)
@@ -906,6 +918,7 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 		params.ArchivalMetadata = c.archiverMetadata
 		params.ArchiverProvider = c.archiverProvider
 		params.GetIsolationGroups = getFromDynamicConfig(params)
+		params.TaskListDifferentiator = newTaskListDifferentiator(params)
 
 		var err error
 		params.PersistenceConfig, err = copyPersistenceConfig(c.persistenceConfig)
@@ -928,13 +941,6 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 				TTLReport:         1 * time.Minute,
 			}},
 		}
-		params.TaskListDifferentiator = membership.NewTaskListDifferentiator(
-			params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
-			params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
-			params.PercentageOnboarded,
-			config.DefaultNumMatchingShards,
-		)
-
 		matchingService, err := matching.NewService(params)
 		if err != nil {
 			params.Logger.Fatal("unable to start matching service", tag.Error(err))
@@ -995,6 +1001,7 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	params.ArchivalMetadata = c.archiverMetadata
 	params.ArchiverProvider = c.archiverProvider
 	params.GetIsolationGroups = getFromDynamicConfig(params)
+	params.TaskListDifferentiator = newTaskListDifferentiator(params)
 
 	var err error
 	params.PersistenceConfig, err = copyPersistenceConfig(c.persistenceConfig)

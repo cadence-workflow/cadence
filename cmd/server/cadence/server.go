@@ -21,6 +21,7 @@ import (
 	"go.uber.org/cadence/compatibility"
 	"go.uber.org/zap"
 
+	matchingClient "github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -152,14 +153,11 @@ func (s *server) startService() common.Daemon {
 
 	params.OperationalConfigStore = s.operationalConfigStore
 	params.OperationalDynamicConfig = s.operationalDynamicConfig
-	params.PercentageOnboarded = membership.NewPercentageOnboarded(
+	params.TaskListDifferentiator = matchingClient.NewTaskListDifferentiator(
 		params.MetricsClient,
-		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
-	)
-	params.TaskListDifferentiator = membership.NewTaskListDifferentiator(
 		s.operationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
 		s.operationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
-		params.PercentageOnboarded,
+		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 		s.cfg.NumMatchingShards,
 	)
 
@@ -174,17 +172,13 @@ func (s *server) startService() common.Daemon {
 		if len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 1 {
 			s.logger.Fatal("spectator does not support multiple namespaces", tag.Value(s.cfg.ShardDistributorMatchingConfig.Namespaces))
 		}
-		matchingPercentageOnboarded := params.PercentageOnboarded
-
 		spectatorParams := spectatorclient.Params{
 			Client:       shardDistributorClient,
 			MetricsScope: params.MetricScope,
 			Logger:       params.ZapLogger,
 			Config:       s.cfg.ShardDistributorMatchingConfig,
 			TimeSource:   clock.NewSMTimeSourceAdapter(clock.NewRealTimeSource()),
-			Enabled: func() bool {
-				return matchingPercentageOnboarded.Value() > 0
-			},
+			Enabled:      params.TaskListDifferentiator.ShardDistributorEnabled,
 		}
 		namespace := s.cfg.ShardDistributorMatchingConfig.Namespaces[0].Namespace
 		spectator, err = spectatorclient.NewSpectatorWithNamespace(
@@ -204,19 +198,11 @@ func (s *server) startService() common.Daemon {
 		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
 	}
 
-	wrappedRings := s.wrapHashRingsWithShardDistributor(
-		params.HashRings,
-		spectator,
-		params.TaskListDifferentiator,
-		params.Logger,
-		params.MetricsClient.Scope(metrics.ShardDistributorResolverScope),
-	)
-
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
 		params.MetricsClient,
 		params.Logger,
-		wrappedRings,
+		params.HashRings,
 	)
 
 	if err != nil {
@@ -305,25 +291,6 @@ func (s *server) startService() common.Daemon {
 	go execute(daemon, s.doneC)
 
 	return daemon
-}
-
-func (*server) wrapHashRingsWithShardDistributor(
-	hashRings map[string]membership.SingleProvider,
-	spectator spectatorclient.Spectator,
-	taskListDifferentiator *membership.TaskListDifferentiator,
-	logger log.Logger,
-	metricsScope metrics.Scope,
-) map[string]membership.SingleProvider {
-	if _, ok := hashRings[service.Matching]; ok {
-		hashRings[service.Matching] = membership.NewShardDistributorResolver(
-			spectator,
-			taskListDifferentiator,
-			hashRings[service.Matching],
-			logger,
-			metricsScope,
-		)
-	}
-	return hashRings
 }
 
 func (*server) createShardDistributorClient(

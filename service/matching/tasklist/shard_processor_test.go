@@ -9,9 +9,10 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -37,10 +38,11 @@ func newShardProcessorTestData(t *testing.T, taskListID *Identifier) shardProces
 	mockRegistry.EXPECT().ManagersByTaskListName(taskListID.GetName()).Return([]Manager{}).AnyTimes()
 
 	shardCount := 100
-	taskListDifferentiator := membership.NewTaskListDifferentiator(
+	taskListDifferentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
-		membership.StaticPercentageOnboarded(100),
+		dynamicproperties.GetIntPropertyFn(100),
 		shardCount,
 	)
 
@@ -118,10 +120,11 @@ func TestShardProcessor_ShardByHashSkipsTaskListsOwnedByHashRing(t *testing.T) {
 	mockRegistry.EXPECT().ManagersByShard(shardID).Return([]Manager{firstTaskList, secondTaskList, hashRingTaskList}).Times(2)
 
 	shardCount := 100
-	taskListDifferentiator := membership.NewTaskListDifferentiator(
+	taskListDifferentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(true),
 		dynamicproperties.GetBoolPropertyFn(true),
-		membership.StaticPercentageOnboarded(100),
+		dynamicproperties.GetIntPropertyFn(100),
 		shardCount,
 	)
 
