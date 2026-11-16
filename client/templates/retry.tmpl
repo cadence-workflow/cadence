@@ -10,6 +10,8 @@ import (
 {{$clientName := (index .Vars "client")}}
 {{ $decorator := (printf "%s%s" (down $clientName) .Interface.Name) }}
 {{ $Decorator := (printf "%s%s" $clientName .Interface.Name) }}
+{{/* Long-polls are not retried: the poller always polls again by itself */}}
+{{$noRetryAPIs := list "Matching.PollForActivityTask" "Matching.PollForDecisionTask"}}
 
 // {{$decorator}} implements {{.Interface.Type}} interface instrumented with retries
 type {{$decorator}} struct {
@@ -30,7 +32,11 @@ func New{{$Decorator}}(client {{.Interface.Type}}, policy backoff.RetryPolicy, i
 
 {{range $method := .Interface.Methods}}
     {{$resultsLength := len ($method.Results)}}
-    {{if eq $resultsLength 1}}
+    {{if has (printf "%s.%s" $clientName $method.Name) $noRetryAPIs}}
+        func (c *{{$decorator}}) {{$method.Declaration}} {
+            return c.client.{{$method.Call}}
+        }
+    {{else if eq $resultsLength 1}}
         func (c *{{$decorator}}) {{$method.Declaration}} {
             op := func(ctx context.Context) error {
                 return c.client.{{$method.Call}}

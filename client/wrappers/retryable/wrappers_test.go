@@ -30,6 +30,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/frontend"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
@@ -70,4 +71,53 @@ func TestFrontendClientNonRetryableError(t *testing.T) {
 
 	_, err := retryableClient.CountWorkflowExecutions(context.Background(), &types.CountWorkflowExecutionsRequest{})
 	assert.Error(t, err)
+}
+
+func TestMatchingClientRetries(t *testing.T) {
+	transientErr := &types.ServiceBusyError{Message: "busy"}
+
+	tests := []struct {
+		name    string
+		wantErr error
+		call    func(*matching.MockClient, matching.Client) error
+	}{
+		{
+			name:    "PollForActivityTask is not retried",
+			wantErr: transientErr,
+			call: func(m *matching.MockClient, c matching.Client) error {
+				m.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any()).Return(nil, transientErr).Times(1)
+				_, err := c.PollForActivityTask(context.Background(), &types.MatchingPollForActivityTaskRequest{})
+				return err
+			},
+		},
+		{
+			name:    "PollForDecisionTask is not retried",
+			wantErr: transientErr,
+			call: func(m *matching.MockClient, c matching.Client) error {
+				m.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any()).Return(nil, transientErr).Times(1)
+				_, err := c.PollForDecisionTask(context.Background(), &types.MatchingPollForDecisionTaskRequest{})
+				return err
+			},
+		},
+		{
+			name: "QueryWorkflow is retried",
+			call: func(m *matching.MockClient, c matching.Client) error {
+				gomock.InOrder(
+					m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(nil, transientErr),
+					m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(&types.MatchingQueryWorkflowResponse{}, nil),
+				)
+				_, err := c.QueryWorkflow(context.Background(), &types.MatchingQueryWorkflowRequest{})
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientMock := matching.NewMockClient(gomock.NewController(t))
+			retryableClient := NewMatchingClient(clientMock, common.CreateMatchingServiceRetryPolicy(), common.IsServiceBusyError)
+
+			err := tt.call(clientMock, retryableClient)
+			assert.Equal(t, tt.wantErr, err)
+		})
+	}
 }

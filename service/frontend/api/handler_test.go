@@ -275,6 +275,7 @@ func (s *workflowHandlerSuite) TestPollForDecisionTask_AutoConfigHint() {
 		name     string
 		response *types.MatchingPollForDecisionTaskResponse
 		expected *types.PollForDecisionTaskResponse
+		err      error
 	}{
 		{
 			"success",
@@ -297,6 +298,7 @@ func (s *workflowHandlerSuite) TestPollForDecisionTask_AutoConfigHint() {
 				},
 				AutoConfigHint: &types.AutoConfigHint{EnableAutoConfig: true, PollerWaitTimeInMs: 1000},
 			},
+			nil,
 		},
 		{
 			"success with empty poll",
@@ -306,6 +308,11 @@ func (s *workflowHandlerSuite) TestPollForDecisionTask_AutoConfigHint() {
 			&types.PollForDecisionTaskResponse{
 				AutoConfigHint: &types.AutoConfigHint{EnableAutoConfig: true, PollerWaitTimeInMs: 1000},
 			},
+			nil,
+		},
+		{
+			name: "matching error is returned without retry",
+			err:  &types.ServiceBusyError{Message: "busy"},
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
@@ -318,7 +325,7 @@ func (s *workflowHandlerSuite) TestPollForDecisionTask_AutoConfigHint() {
 			s.mockHistoryV2Mgr.On("ReadHistoryBranch", mock.Anything, mock.Anything).Return(
 				&persistence.ReadHistoryBranchResponse{}, nil).Maybe()
 			s.mockResource.MatchingClient.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any()).Return(
-				tt.response, nil).Times(1)
+				tt.response, tt.err).Times(1)
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 			defer cancel()
 			config := s.newConfig(dc.NewInMemoryClient())
@@ -329,7 +336,7 @@ func (s *workflowHandlerSuite) TestPollForDecisionTask_AutoConfigHint() {
 					Name: "task-list",
 				},
 			})
-			assert.NoError(t, err)
+			assert.Equal(t, tt.err, err)
 			assert.Equal(t, tt.expected, resp)
 		})
 	}
@@ -389,6 +396,7 @@ func (s *workflowHandlerSuite) TestPollForActivityTask() {
 		name     string
 		response *types.MatchingPollForActivityTaskResponse
 		expected *types.PollForActivityTaskResponse
+		err      error
 	}{
 		{
 			"success",
@@ -412,6 +420,7 @@ func (s *workflowHandlerSuite) TestPollForActivityTask() {
 				Input:          []byte(`{"key": "value"}`),
 				AutoConfigHint: &types.AutoConfigHint{EnableAutoConfig: true, PollerWaitTimeInMs: 1000},
 			},
+			nil,
 		},
 		{
 			"success with empty polls",
@@ -421,6 +430,11 @@ func (s *workflowHandlerSuite) TestPollForActivityTask() {
 			&types.PollForActivityTaskResponse{
 				AutoConfigHint: &types.AutoConfigHint{EnableAutoConfig: true, PollerWaitTimeInMs: 1000},
 			},
+			nil,
+		},
+		{
+			name: "matching error is returned without retry",
+			err:  &types.ServiceBusyError{Message: "busy"},
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
@@ -435,14 +449,14 @@ func (s *workflowHandlerSuite) TestPollForActivityTask() {
 
 			s.mockDomainCache.EXPECT().GetDomainID(s.testDomain).Return(s.testDomainID, nil)
 			s.mockResource.IsolationGroups.EXPECT().IsDrained(gomock.Any(), s.testDomain, isolationGroup).Return(false, nil).AnyTimes()
-			s.mockMatchingClient.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any()).Return(tt.response, nil)
+			s.mockMatchingClient.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any()).Return(tt.response, tt.err)
 			resp, err := wh.PollForActivityTask(ctx, &types.PollForActivityTaskRequest{
 				Domain: s.testDomain,
 				TaskList: &types.TaskList{
 					Name: "task-list",
 				},
 			})
-			s.NoError(err)
+			s.Equal(tt.err, err)
 			s.Equal(tt.expected, resp)
 		})
 	}
