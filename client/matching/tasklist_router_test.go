@@ -29,9 +29,9 @@ func TestTaskListRouter_FromTaskList(t *testing.T) {
 			wantShardID:          "test-key",
 		},
 		{
-			name:                 "shard by hash uses the hashed shard",
+			name:                 "shard by hash uses the shard of the domain and name",
 			shardTaskListsByHash: true,
-			wantShardID:          "7126", // farm.Fingerprint64([]byte("test-key"))%8192
+			wantShardID:          "182", // farm.Fingerprint64([]byte(testDomainID+"/test-key"))%8192
 		},
 	}
 	for _, tt := range tests {
@@ -41,6 +41,7 @@ func TestTaskListRouter_FromTaskList(t *testing.T) {
 				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				dynamicproperties.GetBoolPropertyFn(true),
 				dynamicproperties.GetIntPropertyFn(100),
 				config.DefaultNumMatchingShards,
 			)
@@ -55,7 +56,7 @@ func TestTaskListRouter_FromTaskList(t *testing.T) {
 					},
 				}, nil)
 
-			host, err := router.FromTaskList("test-key")
+			host, err := router.FromTaskList(testDomainID, "test-key")
 			require.NoError(t, err)
 			assert.Equal(t, "127.0.0.1:7933", host.GetAddress())
 		})
@@ -122,6 +123,7 @@ func TestTaskListRouter_FromTaskList_RecordsRoutingPath(t *testing.T) {
 				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
 				config.DefaultNumMatchingShards,
 			)
@@ -133,7 +135,7 @@ func TestTaskListRouter_FromTaskList_RecordsRoutingPath(t *testing.T) {
 				metricsClient.Scope(metrics.ShardDistributorResolverScope),
 			)
 
-			host, err := router.FromTaskList("test-key")
+			host, err := router.FromTaskList(testDomainID, "test-key")
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantAddress, host.GetAddress())
 
@@ -158,6 +160,7 @@ func newTestTaskListRouter(t *testing.T) (*taskListRouter, *membership.MockResol
 	taskListDifferentiator := NewTaskListDifferentiator(
 		metrics.NewNoopMetricsClient(),
 		excludeShortLivedTaskLists,
+		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetIntPropertyFn(100),
 		config.DefaultNumMatchingShards,

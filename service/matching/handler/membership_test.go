@@ -120,6 +120,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(true),
 				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetIntPropertyFn(0),
 				commonConfig.DefaultNumMatchingShards,
 			)

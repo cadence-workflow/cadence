@@ -158,6 +158,7 @@ func TestStartStop(t *testing.T) {
 		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetIntPropertyFn(0),
 		config.DefaultNumMatchingShards,
 	)
@@ -292,6 +293,7 @@ func TestNewFailsWithoutTaskListDifferentiator(t *testing.T) {
 func TestNewFailsWithoutMatchingShards(t *testing.T) {
 	differentiator := matching.NewTaskListDifferentiator(
 		metrics.NewNoopMetricsClient(),
+		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetIntPropertyFn(0),

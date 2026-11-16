@@ -11,11 +11,17 @@ import (
 	"github.com/uber/cadence/common/metrics"
 )
 
+const (
+	testDomainID      = "e58e058d-5156-40ab-9a48-eca5ba55d0c5"
+	testOtherDomainID = "291f4b66-2a7f-4289-8583-0355cae40a06"
+)
+
 func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
 	shardCount := 1000
 
 	tests := []struct {
 		name                       string
+		domainID                   string
 		taskListName               string
 		wantOnboarded              bool
 		percentageOnboarded        int
@@ -115,18 +121,28 @@ func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
 		},
 		{
 			name:                 "sharded by hash - shard below percentage",
-			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
+			domainID:             testDomainID,
+			taskListName:         "orders", // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 127
 			wantOnboarded:        true,
-			percentageOnboarded:  64,
+			percentageOnboarded:  14,
 			shardTaskListsByHash: true,
 		},
 		{
-			// The task list's own hash%100 is 39, so only the shard puts it above the percentage.
 			name:                 "sharded by hash - shard above percentage",
-			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
+			domainID:             testOtherDomainID,
+			taskListName:         "test-key", // farm.Fingerprint64([]byte(testOtherDomainID+"/test-key"))%1000 = 942
 			wantOnboarded:        false,
-			percentageOnboarded:  63,
+			percentageOnboarded:  70,
 			shardTaskListsByHash: true,
+		},
+		{
+			name:                       "sharded by hash - domain ID is a UUID - not excluded as short lived",
+			domainID:                   testDomainID,
+			taskListName:               "orders",
+			wantOnboarded:              true,
+			percentageOnboarded:        100,
+			excludeShortLivedTaskLists: true,
+			shardTaskListsByHash:       true,
 		},
 		{
 			name:                       "sharded by hash - UUID - exclude enabled",
@@ -143,11 +159,12 @@ func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
 				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(tt.excludeShortLivedTaskLists),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				dynamicproperties.GetBoolPropertyFn(true),
 				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
 				shardCount,
 			)
 
-			_, onboardedToShardDistributor := differentiator.TaskListShard(tt.taskListName).ShardID()
+			_, onboardedToShardDistributor := differentiator.TaskListShard(tt.domainID, tt.taskListName).ShardID()
 			assert.Equal(t, tt.wantOnboarded, onboardedToShardDistributor)
 		})
 	}
@@ -205,14 +222,26 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 
 	tests := []struct {
 		name                 string
+		domainID             string
 		taskListName         string
 		shardTaskListsByHash bool
+		hashDomainID         bool
 		percentageOnboarded  int
 		wantShardID          string
 		wantOnboarded        bool
 	}{
 		{
 			name:                 "shard by task list name",
+			domainID:             testDomainID,
+			taskListName:         "orders",
+			shardTaskListsByHash: false,
+			percentageOnboarded:  100,
+			wantShardID:          "orders",
+			wantOnboarded:        true,
+		},
+		{
+			name:                 "shard by task list name is shared by every domain",
+			domainID:             testOtherDomainID,
 			taskListName:         "orders",
 			shardTaskListsByHash: false,
 			percentageOnboarded:  100,
@@ -221,6 +250,27 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 		},
 		{
 			name:                 "shard by hash",
+			domainID:             testDomainID,
+			taskListName:         "orders", // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 127
+			shardTaskListsByHash: true,
+			hashDomainID:         true,
+			percentageOnboarded:  100,
+			wantShardID:          "127",
+			wantOnboarded:        true,
+		},
+		{
+			name:                 "shard by hash puts the same name in another domain in another shard",
+			domainID:             testOtherDomainID,
+			taskListName:         "orders", // farm.Fingerprint64([]byte(testOtherDomainID+"/orders"))%1000 = 208
+			shardTaskListsByHash: true,
+			hashDomainID:         true,
+			percentageOnboarded:  100,
+			wantShardID:          "208",
+			wantOnboarded:        true,
+		},
+		{
+			name:                 "shard by hash of the name alone",
+			domainID:             testDomainID,
 			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
 			shardTaskListsByHash: true,
 			percentageOnboarded:  100,
@@ -228,7 +278,27 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 			wantOnboarded:        true,
 		},
 		{
+			name:                 "shard by hash of the name alone puts the same name in another domain in the same shard",
+			domainID:             testOtherDomainID,
+			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
+			shardTaskListsByHash: true,
+			percentageOnboarded:  100,
+			wantShardID:          "639",
+			wantOnboarded:        true,
+		},
+		{
+			name:                 "shard by hash without a domain ID",
+			domainID:             "",
+			taskListName:         "orders", // farm.Fingerprint64([]byte("/orders"))%1000 = 469
+			shardTaskListsByHash: true,
+			hashDomainID:         true,
+			percentageOnboarded:  100,
+			wantShardID:          "469",
+			wantOnboarded:        true,
+		},
+		{
 			name:                 "shard by task list name - not onboarded has no shard ID",
+			domainID:             testDomainID,
 			taskListName:         "orders",
 			shardTaskListsByHash: false,
 			percentageOnboarded:  0,
@@ -237,8 +307,10 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 		},
 		{
 			name:                 "shard by hash - not onboarded has no shard ID",
+			domainID:             testDomainID,
 			taskListName:         "orders",
 			shardTaskListsByHash: true,
+			hashDomainID:         true,
 			percentageOnboarded:  0,
 			wantShardID:          "",
 			wantOnboarded:        false,
@@ -250,11 +322,12 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				dynamicproperties.GetBoolPropertyFn(tt.hashDomainID),
 				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
 				shardCount,
 			)
 
-			shardID, onboardedToShardDistributor := differentiator.TaskListShard(tt.taskListName).ShardID()
+			shardID, onboardedToShardDistributor := differentiator.TaskListShard(tt.domainID, tt.taskListName).ShardID()
 			assert.Equal(t, tt.wantShardID, shardID)
 			assert.Equal(t, tt.wantOnboarded, onboardedToShardDistributor)
 		})
@@ -263,28 +336,35 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 
 func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 	shardCount := 1000
-	taskListName := "orders" // farm.Fingerprint64([]byte("orders"))%1000 = 639
-	hashedShardID := "639"
+	taskListName := "orders"
+	nameShardID := "639"   // farm.Fingerprint64([]byte("orders"))%1000 = 639
+	domainShardID := "127" // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 127
 
 	shardTaskListsByHash := false
+	hashDomainID := false
 	percentageOnboarded := 0
 
 	differentiator := NewTaskListDifferentiator(
 		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(false),
 		func(...dynamicproperties.FilterOption) bool { return shardTaskListsByHash },
+		func(...dynamicproperties.FilterOption) bool { return hashDomainID },
 		func(...dynamicproperties.FilterOption) int { return percentageOnboarded },
 		shardCount,
 	)
 
 	assert.False(t, differentiator.ShardsByHash())
-	assert.Equal(t, TaskListShard{id: "", onboardedToShardDistributor: false}, differentiator.TaskListShard(taskListName))
+	assert.Equal(t, TaskListShard{id: "", onboardedToShardDistributor: false}, differentiator.TaskListShard(testDomainID, taskListName))
 
 	shardTaskListsByHash = true
 	percentageOnboarded = 100
 
 	assert.True(t, differentiator.ShardsByHash())
-	assert.Equal(t, TaskListShard{id: hashedShardID, onboardedToShardDistributor: true}, differentiator.TaskListShard(taskListName))
+	assert.Equal(t, TaskListShard{id: nameShardID, onboardedToShardDistributor: true}, differentiator.TaskListShard(testDomainID, taskListName))
+
+	hashDomainID = true
+
+	assert.Equal(t, TaskListShard{id: domainShardID, onboardedToShardDistributor: true}, differentiator.TaskListShard(testDomainID, taskListName))
 }
 
 func TestTaskListDifferentiator_ShardDistributorEnabled(t *testing.T) {
@@ -304,6 +384,7 @@ func TestTaskListDifferentiator_ShardDistributorEnabled(t *testing.T) {
 			differentiator := NewTaskListDifferentiator(
 				metricsClient,
 				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(true),
 				dynamicproperties.GetBoolPropertyFn(true),
 				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
 				1000,

@@ -157,6 +157,7 @@ func (s *server) startService() common.Daemon {
 		params.MetricsClient,
 		s.operationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
 		s.operationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
+		s.operationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingHashDomainIDForShardManager),
 		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 		s.cfg.NumMatchingShards,
 	)

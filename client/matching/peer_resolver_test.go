@@ -50,11 +50,12 @@ func TestPeerResolver(t *testing.T) {
 			membership.PortGRPC:     1245,
 		},
 	)
+	domainID := "domain-id-a"
 	taskListRouter := NewMockTaskListRouter(controller)
-	taskListRouter.EXPECT().FromTaskList("taskListA").Return(
+	taskListRouter.EXPECT().FromTaskList(domainID, "taskListA").Return(
 		host1,
 		nil)
-	taskListRouter.EXPECT().FromTaskList("invalid").Return(membership.HostInfo{}, assert.AnError)
+	taskListRouter.EXPECT().FromTaskList(domainID, "invalid").Return(membership.HostInfo{}, assert.AnError)
 	serviceResolver.EXPECT().LookupByAddress(service.Matching, "invalid address").Return(membership.HostInfo{}, assert.AnError)
 
 	serviceResolver.EXPECT().Members(service.Matching).Return([]membership.HostInfo{
@@ -72,11 +73,11 @@ func TestPeerResolver(t *testing.T) {
 	).AnyTimes()
 	r := NewPeerResolver(serviceResolver, taskListRouter, membership.PortGRPC)
 
-	peer, err := r.FromTaskList("taskListA")
+	peer, err := r.FromTaskList(domainID, "taskListA")
 	assert.NoError(t, err)
 	assert.Equal(t, "tasklistHost:1244", peer)
 
-	_, err = r.FromTaskList("invalid")
+	_, err = r.FromTaskList(domainID, "invalid")
 	assert.Error(t, err)
 
 	_, err = r.FromHostAddress("invalid address")
