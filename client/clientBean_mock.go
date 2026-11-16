@@ -102,6 +102,21 @@ func (mr *MockBeanMockRecorder) GetMatchingClient(domainIDToName any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMatchingClient", reflect.TypeOf((*MockBean)(nil).GetMatchingClient), domainIDToName)
 }
 
+// GetMatchingPollerDisconnector mocks base method.
+func (m *MockBean) GetMatchingPollerDisconnector(domainIDToName DomainIDToNameFunc) (matching.PollerDisconnector, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMatchingPollerDisconnector", domainIDToName)
+	ret0, _ := ret[0].(matching.PollerDisconnector)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMatchingPollerDisconnector indicates an expected call of GetMatchingPollerDisconnector.
+func (mr *MockBeanMockRecorder) GetMatchingPollerDisconnector(domainIDToName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMatchingPollerDisconnector", reflect.TypeOf((*MockBean)(nil).GetMatchingPollerDisconnector), domainIDToName)
+}
+
 // GetRemoteAdminClient mocks base method.
 func (m *MockBean) GetRemoteAdminClient(cluster string) (admin.Client, error) {
 	m.ctrl.T.Helper()

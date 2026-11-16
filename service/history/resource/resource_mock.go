@@ -478,6 +478,20 @@ func (mr *MockResourceMockRecorder) GetMatchingClient() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMatchingClient", reflect.TypeOf((*MockResource)(nil).GetMatchingClient))
 }
 
+// GetMatchingPollerDisconnector mocks base method.
+func (m *MockResource) GetMatchingPollerDisconnector() matching.PollerDisconnector {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMatchingPollerDisconnector")
+	ret0, _ := ret[0].(matching.PollerDisconnector)
+	return ret0
+}
+
+// GetMatchingPollerDisconnector indicates an expected call of GetMatchingPollerDisconnector.
+func (mr *MockResourceMockRecorder) GetMatchingPollerDisconnector() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMatchingPollerDisconnector", reflect.TypeOf((*MockResource)(nil).GetMatchingPollerDisconnector))
+}
+
 // GetMatchingRawClient mocks base method.
 func (m *MockResource) GetMatchingRawClient() matching.Client {
 	m.ctrl.T.Helper()

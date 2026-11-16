@@ -44,6 +44,7 @@ type (
 		GetHistoryClient() history.Client
 		GetHistoryPeers() history.PeerResolver
 		GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error)
+		GetMatchingPollerDisconnector(domainIDToName DomainIDToNameFunc) (matching.PollerDisconnector, error)
 		GetFrontendClient() frontend.Client
 		GetShardDistributorExecutorClient() executorclient.Client
 		GetRemoteAdminClient(cluster string) (admin.Client, error)
@@ -61,6 +62,11 @@ type (
 		remoteAdminClients             map[string]admin.Client
 		remoteFrontendClients          map[string]frontend.Client
 		factory                        Factory
+	}
+
+	matchingClients struct {
+		client             matching.Client
+		pollerDisconnector matching.PollerDisconnector
 	}
 )
 
@@ -124,10 +130,26 @@ func (h *clientBeanImpl) GetHistoryPeers() history.PeerResolver {
 }
 
 func (h *clientBeanImpl) GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error) {
-	if client := h.matchingClient.Load(); client != nil {
-		return client.(matching.Client), nil
+	clients, err := h.getMatchingClients(domainIDToName)
+	if err != nil {
+		return nil, err
 	}
-	return h.lazyInitMatchingClient(domainIDToName)
+	return clients.client, nil
+}
+
+func (h *clientBeanImpl) GetMatchingPollerDisconnector(domainIDToName DomainIDToNameFunc) (matching.PollerDisconnector, error) {
+	clients, err := h.getMatchingClients(domainIDToName)
+	if err != nil {
+		return nil, err
+	}
+	return clients.pollerDisconnector, nil
+}
+
+func (h *clientBeanImpl) getMatchingClients(domainIDToName DomainIDToNameFunc) (*matchingClients, error) {
+	if clients := h.matchingClient.Load(); clients != nil {
+		return clients.(*matchingClients), nil
+	}
+	return h.lazyInitMatchingClients(domainIDToName)
 }
 
 func (h *clientBeanImpl) GetFrontendClient() frontend.Client {
@@ -162,16 +184,17 @@ func (h *clientBeanImpl) GetRemoteFrontendClient(cluster string) (frontend.Clien
 	return client, nil
 }
 
-func (h *clientBeanImpl) lazyInitMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error) {
+func (h *clientBeanImpl) lazyInitMatchingClients(domainIDToName DomainIDToNameFunc) (*matchingClients, error) {
 	h.Lock()
 	defer h.Unlock()
 	if cached := h.matchingClient.Load(); cached != nil {
-		return cached.(matching.Client), nil
+		return cached.(*matchingClients), nil
 	}
-	client, err := h.factory.NewMatchingClient(domainIDToName)
+	client, pollerDisconnector, err := h.factory.NewMatchingClient(domainIDToName)
 	if err != nil {
 		return nil, err
 	}
-	h.matchingClient.Store(client)
-	return client, nil
+	clients := &matchingClients{client: client, pollerDisconnector: pollerDisconnector}
+	h.matchingClient.Store(clients)
+	return clients, nil
 }
