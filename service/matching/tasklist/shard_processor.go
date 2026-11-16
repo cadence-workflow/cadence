@@ -135,12 +135,14 @@ func (sp *shardProcessorImpl) ownedManagers() []Manager {
 	return sp.taskListsRegistry.ManagersByTaskListName(sp.shardID)
 }
 
-// ownsTaskList is false for task lists the hash ring owns, such as short-lived ones.
+// ownsTaskList is true when this is the task list's current shard. It is false for task lists the hash
+// ring owns, such as short-lived ones, and for task lists the registry also files under this shard but
+// that currently hash to another one.
 func (sp *shardProcessorImpl) ownsTaskList(tlMgr Manager) bool {
 	id := tlMgr.TaskListID()
 	shard := sp.taskListDifferentiator.TaskListShard(id.GetDomainID(), id.GetName())
-	_, onboardedToShardDistributor := shard.ShardID()
-	return onboardedToShardDistributor
+	shardID, onboardedToShardDistributor := shard.ShardID()
+	return onboardedToShardDistributor && shardID == sp.shardID
 }
 
 func validateSPParams(params ShardProcessorParams) error {

@@ -185,6 +185,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		metrics.NewNoopMetricsClient(),
 		config.ExcludeShortLivedTaskListsFromShardManager,
 		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetIntPropertyFn(0),
 		commonConfig.DefaultNumMatchingShards,
 	)

@@ -58,8 +58,10 @@ func TestTaskListRegistry_RegisterLookupAndUnregister(t *testing.T) {
 	got, ok = registry.ManagerByTaskListIdentifier(*id)
 	require.True(t, ok)
 	assert.Equal(t, updatedMgr, got)
-	shardID := matching.TaskListToShard(id.GetDomainID(), id.GetName(), shardCount)
-	assert.ElementsMatch(t, []Manager{updatedMgr}, registry.ManagersByShard(shardID))
+	domainShardID := matching.TaskListToShard(id.GetDomainID(), id.GetName(), shardCount)
+	assert.ElementsMatch(t, []Manager{updatedMgr}, registry.ManagersByShard(domainShardID))
+	nameShardID := matching.TaskListNameToShard(id.GetName(), shardCount)
+	assert.ElementsMatch(t, []Manager{updatedMgr}, registry.ManagersByShard(nameShardID))
 
 	// Unregistering the current manager should remove the entry.
 	metricsScope.On("UpdateGauge", metrics.TaskListManagersGauge, float64(0)).Once()
@@ -70,7 +72,7 @@ func TestTaskListRegistry_RegisterLookupAndUnregister(t *testing.T) {
 	impl := registry.(*taskListRegistryImpl)
 	assert.Empty(t, impl.taskListsByDomainID, "should be empty because there are no other task lists for this domain")
 	assert.Empty(t, impl.taskListsByTaskListName, "should be empty because there are no other task lists for this task list name")
-	assert.Empty(t, impl.taskListsByShard, "should be empty because there are no other task lists in this shard")
+	assert.Empty(t, impl.taskListsByShard, "should be empty because there are no other task lists in either of its shards")
 
 	metricsClient.AssertExpectations(t)
 	metricsScope.AssertExpectations(t)
@@ -124,5 +126,14 @@ func TestTaskListRegistry_Filters(t *testing.T) {
 		assert.ElementsMatch(t, []Manager{mgrA1}, registry.ManagersByShard(domainASharedNameShardID))
 		assert.ElementsMatch(t, []Manager{mgrA2}, registry.ManagersByShard(domainAOtherNameShardID))
 		assert.ElementsMatch(t, []Manager{mgrB1}, registry.ManagersByShard(domainBSharedNameShardID))
+	})
+
+	t.Run("managers by shard of the name alone", func(t *testing.T) {
+		sharedNameShardID := matching.TaskListNameToShard("shared-name", shardCount)
+		otherNameShardID := matching.TaskListNameToShard("other-name", shardCount)
+		require.NotEqual(t, sharedNameShardID, otherNameShardID)
+
+		assert.ElementsMatch(t, []Manager{mgrA1, mgrB1}, registry.ManagersByShard(sharedNameShardID), "the same name in two domains should be in one shard by name")
+		assert.ElementsMatch(t, []Manager{mgrA2}, registry.ManagersByShard(otherNameShardID))
 	})
 }

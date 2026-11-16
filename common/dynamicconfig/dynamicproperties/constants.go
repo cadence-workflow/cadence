@@ -2490,8 +2490,9 @@ const (
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
 
-	// MatchingShardTaskListsByHashForShardManager hashes task lists, by domain ID and name, into a fixed set of
-	// shards in the shard manager. When disabled, each task list name is its own shard.
+	// MatchingShardTaskListsByHashForShardManager hashes task lists into a fixed set of shards in the shard
+	// manager, by name, and also by domain ID when matching.hashDomainIDForShardManager is enabled.
+	// When disabled, each task list name is its own shard.
 	// Enabling it also requires matching's namespace in the shard distributor to be a fixed namespace with
 	// shardNum set to numMatchingShards.
 	// Only change it while matching.percentageOnboardedToShardManager is 0, because hosts that disagree on it
@@ -2502,6 +2503,19 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	MatchingShardTaskListsByHashForShardManager
+
+	// MatchingHashDomainIDForShardManager adds the domain ID to the hash when
+	// matching.shardTaskListsByHashForShardManager is enabled, so task lists that share a name across domains
+	// land on different shards. When disabled, only the task list name is hashed.
+	// It can be changed while task lists are onboarded. Until every host reads the new value, hosts disagree on
+	// a task list's shard, so some requests are rejected as not owned and the new owner takes over the task
+	// list's lease, like after any shard move.
+	// Read from the primary database-backed operational dynamic config store.
+	// KeyName: matching.hashDomainIDForShardManager
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingHashDomainIDForShardManager
 
 	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
 	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
@@ -5509,7 +5523,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	},
 	MatchingShardTaskListsByHashForShardManager: {
 		KeyName:      "matching.shardTaskListsByHashForShardManager",
-		Description:  "MatchingShardTaskListsByHashForShardManager hashes task lists, by domain ID and name, into a fixed set of shards in the shard manager",
+		Description:  "MatchingShardTaskListsByHashForShardManager hashes task lists into a fixed set of shards in the shard manager",
+		DefaultValue: false,
+	},
+	MatchingHashDomainIDForShardManager: {
+		KeyName:      "matching.hashDomainIDForShardManager",
+		Description:  "MatchingHashDomainIDForShardManager adds the domain ID to the task list hash, so task lists that share a name across domains land on different shards",
 		DefaultValue: false,
 	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {

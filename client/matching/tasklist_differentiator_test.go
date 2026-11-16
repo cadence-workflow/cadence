@@ -159,6 +159,7 @@ func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
 				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(tt.excludeShortLivedTaskLists),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				dynamicproperties.GetBoolPropertyFn(true),
 				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
 				shardCount,
 			)
@@ -224,6 +225,7 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 		domainID             string
 		taskListName         string
 		shardTaskListsByHash bool
+		hashDomainID         bool
 		percentageOnboarded  int
 		wantShardID          string
 		wantOnboarded        bool
@@ -251,6 +253,7 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 			domainID:             testDomainID,
 			taskListName:         "orders", // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 127
 			shardTaskListsByHash: true,
+			hashDomainID:         true,
 			percentageOnboarded:  100,
 			wantShardID:          "127",
 			wantOnboarded:        true,
@@ -260,8 +263,27 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 			domainID:             testOtherDomainID,
 			taskListName:         "orders", // farm.Fingerprint64([]byte(testOtherDomainID+"/orders"))%1000 = 208
 			shardTaskListsByHash: true,
+			hashDomainID:         true,
 			percentageOnboarded:  100,
 			wantShardID:          "208",
+			wantOnboarded:        true,
+		},
+		{
+			name:                 "shard by hash of the name alone",
+			domainID:             testDomainID,
+			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
+			shardTaskListsByHash: true,
+			percentageOnboarded:  100,
+			wantShardID:          "639",
+			wantOnboarded:        true,
+		},
+		{
+			name:                 "shard by hash of the name alone puts the same name in another domain in the same shard",
+			domainID:             testOtherDomainID,
+			taskListName:         "orders", // farm.Fingerprint64([]byte("orders"))%1000 = 639
+			shardTaskListsByHash: true,
+			percentageOnboarded:  100,
+			wantShardID:          "639",
 			wantOnboarded:        true,
 		},
 		{
@@ -269,6 +291,7 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 			domainID:             "",
 			taskListName:         "orders", // farm.Fingerprint64([]byte("/orders"))%1000 = 469
 			shardTaskListsByHash: true,
+			hashDomainID:         true,
 			percentageOnboarded:  100,
 			wantShardID:          "469",
 			wantOnboarded:        true,
@@ -287,6 +310,7 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 			domainID:             testDomainID,
 			taskListName:         "orders",
 			shardTaskListsByHash: true,
+			hashDomainID:         true,
 			percentageOnboarded:  0,
 			wantShardID:          "",
 			wantOnboarded:        false,
@@ -298,6 +322,7 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				dynamicproperties.GetBoolPropertyFn(tt.hashDomainID),
 				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
 				shardCount,
 			)
@@ -311,16 +336,19 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 
 func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 	shardCount := 1000
-	taskListName := "orders" // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 127
-	hashedShardID := "127"
+	taskListName := "orders"
+	nameShardID := "639"   // farm.Fingerprint64([]byte("orders"))%1000 = 639
+	domainShardID := "127" // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 127
 
 	shardTaskListsByHash := false
+	hashDomainID := false
 	percentageOnboarded := 0
 
 	differentiator := NewTaskListDifferentiator(
 		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(false),
 		func(...dynamicproperties.FilterOption) bool { return shardTaskListsByHash },
+		func(...dynamicproperties.FilterOption) bool { return hashDomainID },
 		func(...dynamicproperties.FilterOption) int { return percentageOnboarded },
 		shardCount,
 	)
@@ -332,7 +360,11 @@ func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 	percentageOnboarded = 100
 
 	assert.True(t, differentiator.ShardsByHash())
-	assert.Equal(t, TaskListShard{id: hashedShardID, onboardedToShardDistributor: true}, differentiator.TaskListShard(testDomainID, taskListName))
+	assert.Equal(t, TaskListShard{id: nameShardID, onboardedToShardDistributor: true}, differentiator.TaskListShard(testDomainID, taskListName))
+
+	hashDomainID = true
+
+	assert.Equal(t, TaskListShard{id: domainShardID, onboardedToShardDistributor: true}, differentiator.TaskListShard(testDomainID, taskListName))
 }
 
 func TestTaskListDifferentiator_ShardDistributorEnabled(t *testing.T) {
@@ -352,6 +384,7 @@ func TestTaskListDifferentiator_ShardDistributorEnabled(t *testing.T) {
 			differentiator := NewTaskListDifferentiator(
 				metricsClient,
 				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(true),
 				dynamicproperties.GetBoolPropertyFn(true),
 				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
 				1000,

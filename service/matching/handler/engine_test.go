@@ -2430,6 +2430,7 @@ func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByH
 		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(excludeShortLivedTaskLists),
 		dynamicproperties.GetBoolPropertyFn(shardTaskListsByHash),
+		dynamicproperties.GetBoolPropertyFn(true),
 		dynamicproperties.GetIntPropertyFn(100),
 		commonConfig.DefaultNumMatchingShards,
 	)
@@ -2439,6 +2440,7 @@ func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByH
 func newTestTaskListRouter(resolver membership.Resolver) matching.TaskListRouter {
 	taskListDifferentiator := matching.NewTaskListDifferentiator(
 		metrics.NewNoopMetricsClient(),
+		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetIntPropertyFn(0),

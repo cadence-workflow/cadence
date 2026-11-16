@@ -41,6 +41,7 @@ func TestTaskListRouter_FromTaskList(t *testing.T) {
 				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(tt.shardTaskListsByHash),
+				dynamicproperties.GetBoolPropertyFn(true),
 				dynamicproperties.GetIntPropertyFn(100),
 				config.DefaultNumMatchingShards,
 			)
@@ -122,6 +123,7 @@ func TestTaskListRouter_FromTaskList_RecordsRoutingPath(t *testing.T) {
 				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetBoolPropertyFn(false),
 				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
 				config.DefaultNumMatchingShards,
 			)
@@ -158,6 +160,7 @@ func newTestTaskListRouter(t *testing.T) (*taskListRouter, *membership.MockResol
 	taskListDifferentiator := NewTaskListDifferentiator(
 		metrics.NewNoopMetricsClient(),
 		excludeShortLivedTaskLists,
+		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetIntPropertyFn(100),
 		config.DefaultNumMatchingShards,

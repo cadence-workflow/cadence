@@ -205,10 +205,12 @@ func newOnboardingTestData(
 	shardCount := len(shardOwners)
 	percentageOnboarded := func(...dynamicproperties.FilterOption) int { return td.percentageOnboarded }
 	shardTaskListsByHash := true
+	hashDomainID := true
 	td.taskListDifferentiator = matching.NewTaskListDifferentiator(
 		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(true), // short-lived task lists stay on the hash ring
 		dynamicproperties.GetBoolPropertyFn(shardTaskListsByHash),
+		dynamicproperties.GetBoolPropertyFn(hashDomainID),
 		percentageOnboarded,
 		shardCount,
 	)

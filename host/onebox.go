@@ -687,6 +687,7 @@ func newTaskListDifferentiator(params *resource.Params) *matchingClient.TaskList
 		params.MetricsClient,
 		params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
 		params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingShardTaskListsByHashForShardManager),
+		params.OperationalDynamicConfig.GetBoolProperty(dynamicproperties.MatchingHashDomainIDForShardManager),
 		dynamicproperties.GetIntPropertyFn(0),
 		config.DefaultNumMatchingShards,
 	)
