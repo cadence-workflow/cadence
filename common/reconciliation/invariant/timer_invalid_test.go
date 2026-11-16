@@ -174,6 +174,7 @@ func (ts *TimerInvalidTest) TestFix() {
 		expectedResult FixResult
 		entity         interface{}
 		ttComplete     error
+		expectedKeys   []persistence.HistoryTaskKey
 	}{
 		{
 			name:       "context expired",
@@ -237,9 +238,14 @@ func (ts *TimerInvalidTest) TestFix() {
 				InfoDetails:   "",
 			},
 			entity: &entity.Timer{
-				TaskType: persistence.TaskTypeUserTimer,
+				TaskType:            persistence.TaskTypeUserTimer,
+				VisibilityTimestamp: time.Unix(0, 1234),
+				TaskID:              5678,
 			},
 			ttComplete: errors.New("error from persistence"),
+			expectedKeys: []persistence.HistoryTaskKey{
+				persistence.NewHistoryTaskKey(time.Unix(0, 1234), 5678),
+			},
 		},
 		{
 			name: "timer deleted",
@@ -262,9 +268,14 @@ func (ts *TimerInvalidTest) TestFix() {
 				},
 			},
 			entity: &entity.Timer{
-				TaskType: persistence.TaskTypeUserTimer,
+				TaskType:            persistence.TaskTypeUserTimer,
+				VisibilityTimestamp: time.Unix(0, 1234),
+				TaskID:              5678,
 			},
 			ttComplete: nil,
+			expectedKeys: []persistence.HistoryTaskKey{
+				persistence.NewHistoryTaskKey(time.Unix(0, 1234), 5678),
+			},
 		},
 	}
 	ctrl := gomock.NewController(ts.T())
@@ -274,7 +285,10 @@ func (ts *TimerInvalidTest) TestFix() {
 		ts.Run(tc.name, func() {
 			execManager := &mocks.ExecutionManager{}
 			execManager.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(tc.getExecResp, tc.getExecErr)
-			execManager.On("CompleteHistoryTask", mock.Anything, mock.Anything).Return(tc.ttComplete)
+			execManager.On("CompleteHistoryTask", mock.Anything, &persistence.CompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategoryTimer,
+				TaskKeys:     tc.expectedKeys,
+			}).Return(tc.ttComplete)
 			i := NewTimerInvalid(
 				persistence.NewPersistenceRetryer(
 					execManager,
