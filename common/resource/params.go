@@ -63,6 +63,8 @@ type (
 		ZapLogger          *zap.Logger
 		HostName           string
 		GetIsolationGroups func() []string
+		// MatchingPollTracker is told about every poll sent through the matching client; it can be nil
+		MatchingPollTracker matching.PollTracker
 
 		MetricScope        tally.Scope
 		MembershipResolver membership.Resolver

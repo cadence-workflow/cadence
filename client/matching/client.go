@@ -26,6 +26,7 @@ import (
 
 	"go.uber.org/yarpc"
 
+	"github.com/uber/cadence/common"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/future"
 	"github.com/uber/cadence/common/persistence"
@@ -39,20 +40,24 @@ type clientImpl struct {
 	peerResolver PeerResolver
 	loadBalancer LoadBalancer
 	provider     PartitionConfigProvider
+	pollTracker  PollTracker
 }
 
-// NewClient creates a new history service TChannel client
+// NewClient creates a new history service TChannel client.
+// pollTracker is told about every poll in flight.
 func NewClient(
 	client Client,
 	peerResolver PeerResolver,
 	lb LoadBalancer,
 	provider PartitionConfigProvider,
+	pollTracker PollTracker,
 ) Client {
 	return &clientImpl{
 		client:       client,
 		peerResolver: peerResolver,
 		loadBalancer: lb,
 		provider:     provider,
+		pollTracker:  pollTracker,
 	}
 }
 
@@ -140,6 +145,13 @@ func (c *clientImpl) PollForActivityTask(
 		request,
 		request.GetIsolationGroup(),
 	)
+	done := c.pollTracker.PollStarted(&types.CancelOutstandingPollRequest{
+		DomainUUID:   request.GetDomainUUID(),
+		TaskListType: common.Int32Ptr(persistence.TaskListTypeActivity),
+		TaskList:     &types.TaskList{Name: partition, Kind: request.PollRequest.TaskList.Kind},
+		PollerID:     request.GetPollerID(),
+	})
+	defer done()
 	originalTaskList := request.PollRequest.TaskList
 	request.PollRequest.TaskList = &types.TaskList{
 		Name: partition,
@@ -182,6 +194,13 @@ func (c *clientImpl) PollForDecisionTask(
 		request,
 		request.GetIsolationGroup(),
 	)
+	done := c.pollTracker.PollStarted(&types.CancelOutstandingPollRequest{
+		DomainUUID:   request.GetDomainUUID(),
+		TaskListType: common.Int32Ptr(persistence.TaskListTypeDecision),
+		TaskList:     &types.TaskList{Name: partition, Kind: request.PollRequest.TaskList.Kind},
+		PollerID:     request.GetPollerID(),
+	})
+	defer done()
 	originalTaskList := request.PollRequest.TaskList
 	request.PollRequest.TaskList = &types.TaskList{
 		Name: partition,

@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
@@ -114,7 +115,7 @@ func setupMocksForWorkflowHandler(t *testing.T) (*WorkflowHandler, *mockDeps) {
 		"hostname",
 		logger,
 	)
-	wh := NewWorkflowHandler(deps.mockResource, config, deps.mockVersionChecker, deps.mockDomainHandler)
+	wh := NewWorkflowHandler(deps.mockResource, config, deps.mockVersionChecker, NewPollTracker(log.NewNoop()), deps.mockDomainHandler)
 	wh.requestValidator = deps.mockRequestValidator
 	return wh, deps
 }
