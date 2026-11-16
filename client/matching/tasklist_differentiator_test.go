@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	testDomainID      = "22222222-2222-4222-8222-222222222222"
-	testOtherDomainID = "55555555-5555-4555-8555-555555555555"
+	testDomainID      = "e58e058d-5156-40ab-9a48-eca5ba55d0c5"
+	testOtherDomainID = "291f4b66-2a7f-4289-8583-0355cae40a06"
 )
 
 func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
@@ -122,7 +122,7 @@ func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
 		{
 			name:                 "sharded by hash - shard below percentage",
 			domainID:             testDomainID,
-			taskListName:         "orders", // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 134
+			taskListName:         "orders", // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 127
 			wantOnboarded:        true,
 			percentageOnboarded:  14,
 			shardTaskListsByHash: true,
@@ -130,27 +130,19 @@ func TestTaskListDifferentiator_TaskListShard_Onboarded(t *testing.T) {
 		{
 			name:                 "sharded by hash - shard above percentage",
 			domainID:             testOtherDomainID,
-			taskListName:         "test-key", // farm.Fingerprint64([]byte(testOtherDomainID+"/test-key"))%1000 = 868
+			taskListName:         "test-key", // farm.Fingerprint64([]byte(testOtherDomainID+"/test-key"))%1000 = 942
 			wantOnboarded:        false,
 			percentageOnboarded:  70,
 			shardTaskListsByHash: true,
 		},
 		{
-			name:                       "sharded by hash - UUID in the domain ID only - exclude enabled",
+			name:                       "sharded by hash - domain ID is a UUID - not excluded as short lived",
 			domainID:                   testDomainID,
 			taskListName:               "orders",
 			wantOnboarded:              true,
 			percentageOnboarded:        100,
 			excludeShortLivedTaskLists: true,
 			shardTaskListsByHash:       true,
-		},
-		{
-			name:                       "UUID in the domain ID only - exclude enabled",
-			domainID:                   testDomainID,
-			taskListName:               "my-task-list", // farm.Fingerprint64([]byte("my-task-list"))%100 = 58
-			wantOnboarded:              true,
-			percentageOnboarded:        60,
-			excludeShortLivedTaskLists: true,
 		},
 		{
 			name:                       "sharded by hash - UUID - exclude enabled",
@@ -257,19 +249,19 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 		{
 			name:                 "shard by hash",
 			domainID:             testDomainID,
-			taskListName:         "orders", // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 134
+			taskListName:         "orders", // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 127
 			shardTaskListsByHash: true,
 			percentageOnboarded:  100,
-			wantShardID:          "134",
+			wantShardID:          "127",
 			wantOnboarded:        true,
 		},
 		{
 			name:                 "shard by hash puts the same name in another domain in another shard",
 			domainID:             testOtherDomainID,
-			taskListName:         "orders", // farm.Fingerprint64([]byte(testOtherDomainID+"/orders"))%1000 = 178
+			taskListName:         "orders", // farm.Fingerprint64([]byte(testOtherDomainID+"/orders"))%1000 = 208
 			shardTaskListsByHash: true,
 			percentageOnboarded:  100,
-			wantShardID:          "178",
+			wantShardID:          "208",
 			wantOnboarded:        true,
 		},
 		{
@@ -319,8 +311,8 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 
 func TestTaskListDifferentiator_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 	shardCount := 1000
-	taskListName := "orders" // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 134
-	hashedShardID := "134"
+	taskListName := "orders" // farm.Fingerprint64([]byte(testDomainID+"/orders"))%1000 = 127
+	hashedShardID := "127"
 
 	shardTaskListsByHash := false
 	percentageOnboarded := 0

@@ -31,7 +31,7 @@ func TestTaskListRouter_FromTaskList(t *testing.T) {
 		{
 			name:                 "shard by hash uses the shard of the domain and name",
 			shardTaskListsByHash: true,
-			wantShardID:          "966", // farm.Fingerprint64([]byte(testDomainID+"/test-key"))%8192
+			wantShardID:          "182", // farm.Fingerprint64([]byte(testDomainID+"/test-key"))%8192
 		},
 	}
 	for _, tt := range tests {
