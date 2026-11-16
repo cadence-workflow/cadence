@@ -114,9 +114,9 @@ func TestTaskListRegistry_Filters(t *testing.T) {
 	})
 
 	t.Run("managers by shard", func(t *testing.T) {
-		domainASharedNameShardID := matching.TaskListToShard("domain-a", "shared-name", shardCount)
-		domainAOtherNameShardID := matching.TaskListToShard("domain-a", "other-name", shardCount)
-		domainBSharedNameShardID := matching.TaskListToShard("domain-b", "shared-name", shardCount)
+		domainASharedNameShardID := matching.TaskListToShard(domainA1.GetDomainID(), domainA1.GetName(), shardCount)
+		domainAOtherNameShardID := matching.TaskListToShard(domainA2.GetDomainID(), domainA2.GetName(), shardCount)
+		domainBSharedNameShardID := matching.TaskListToShard(domainB1.GetDomainID(), domainB1.GetName(), shardCount)
 		require.NotEqual(t, domainASharedNameShardID, domainAOtherNameShardID)
 		require.NotEqual(t, domainASharedNameShardID, domainBSharedNameShardID, "the same name in two domains should hash to different shards")
 		require.NotEqual(t, domainAOtherNameShardID, domainBSharedNameShardID)

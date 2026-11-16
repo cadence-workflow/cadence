@@ -915,9 +915,9 @@ func TestGetTasklistsNotOwned(t *testing.T) {
 	resolver.EXPECT().WhoAmI().Return(membership.NewDetailedHostInfo("self", "host123", nil), nil)
 	router := matching.NewMockTaskListRouter(ctrl)
 
-	tl1 := mustNewIdentifier(t, "domain-1", "tl1", 0)
-	tl2 := mustNewIdentifier(t, "domain-2", "tl2", 0)
-	tl3 := mustNewIdentifier(t, "domain-3", "tl3", 0)
+	tl1 := mustNewIdentifier(t, "domain-id-1", "tl1", 0)
+	tl2 := mustNewIdentifier(t, "domain-id-2", "tl2", 0)
+	tl3 := mustNewIdentifier(t, "domain-id-3", "tl3", 0)
 
 	tl1m := newMockManagerWithTaskListID(ctrl, tl1)
 	tl2m := newMockManagerWithTaskListID(ctrl, tl2)
