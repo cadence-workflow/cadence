@@ -29,7 +29,6 @@ import (
 	historyv1 "github.com/uber/cadence/.gen/proto/history/v1"
 	matchingv1 "github.com/uber/cadence/.gen/proto/matching/v1"
 	"github.com/uber/cadence/client/admin"
-	"github.com/uber/cadence/client/batch"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
@@ -38,10 +37,6 @@ import (
 type (
 	adminClient struct {
 		c adminv1.AdminAPIYARPCClient
-	}
-
-	batchClient struct {
-		c apiv1.BatchAPIYARPCClient
 	}
 
 	frontendGRPCClientWrapper struct {
@@ -65,10 +60,6 @@ type (
 
 func NewAdminClient(c adminv1.AdminAPIYARPCClient) admin.Client {
 	return adminClient{c}
-}
-
-func NewBatchClient(c apiv1.BatchAPIYARPCClient) batch.Client {
-	return batchClient{c}
 }
 
 func NewFrontendClient(

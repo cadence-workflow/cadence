@@ -8,39 +8,30 @@ import (
 	"github.com/pborman/uuid"
 	cli "github.com/urfave/cli/v2"
 
-	"github.com/uber/cadence/client/batch"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/tools/common/commoncli"
 )
 
-// getBatchOperationsClients forces gRPC transport, since the batch API has
-// no thrift equivalent, and returns the clients a batch start command needs.
-func getBatchOperationsClients(c *cli.Context) (batch.Client, frontend.Client, error) {
+// getBatchOperationsClient forces gRPC transport, since the batch API has
+// no thrift equivalent, and returns the frontend client a batch start command needs.
+func getBatchOperationsClient(c *cli.Context) (frontend.Client, error) {
 	if c.IsSet(FlagTransport) && c.String(FlagTransport) != grpcTransport {
-		return nil, nil, commoncli.Problem("Batch commands require gRPC transport", fmt.Errorf("got --%s %q, the batch API has no thrift equivalent", FlagTransport, c.String(FlagTransport)))
+		return nil, commoncli.Problem("Batch commands require gRPC transport", fmt.Errorf("got --%s %q, the batch API has no thrift equivalent", FlagTransport, c.String(FlagTransport)))
 	}
 	if err := c.Set(FlagTransport, grpcTransport); err != nil {
-		return nil, nil, commoncli.Problem("Batch commands require gRPC transport but failed to set it", err)
+		return nil, commoncli.Problem("Batch commands require gRPC transport but failed to set it", err)
 	}
 	if c.IsSet(FlagAddress) {
 		fmt.Fprintf(getDeps(c).Progress(), "Note: batch commands always use gRPC; --%s must point at the gRPC port.\n", FlagAddress)
 	}
-	batchClient, err := getDeps(c).ServerBatchClient(c)
-	if err != nil {
-		return nil, nil, err
-	}
-	frontendClient, err := getDeps(c).ServerFrontendClient(c)
-	if err != nil {
-		return nil, nil, err
-	}
-	return batchClient, frontendClient, nil
+	return getDeps(c).ServerFrontendClient(c)
 }
 
 // startBatchOperation does the shared work: flags, confirmation prompt, and
 // calling StartBatchOperation. Each StartBatchXxx function just builds its
 // own types.BatchOperation.
-func startBatchOperation(c *cli.Context, batchClient batch.Client, frontendClient frontend.Client, operation *types.BatchOperation) error {
+func startBatchOperation(c *cli.Context, frontendClient frontend.Client, operation *types.BatchOperation) error {
 	domain, err := getRequiredOption(c, FlagDomain)
 	if err != nil {
 		return commoncli.Problem("Required flag not found: ", err)
@@ -109,7 +100,7 @@ func startBatchOperation(c *cli.Context, batchClient batch.Client, frontendClien
 	}
 	defer cancel()
 
-	resp, err := batchClient.StartBatchOperation(ctx, request)
+	resp, err := frontendClient.StartBatchOperation(ctx, request)
 	if err != nil {
 		return commoncli.Problem("Failed to start batch operation", err)
 	}
@@ -123,22 +114,22 @@ func startBatchOperation(c *cli.Context, batchClient batch.Client, frontendClien
 }
 
 func StartBatchTerminate(c *cli.Context) error {
-	batchClient, frontendClient, err := getBatchOperationsClients(c)
+	frontendClient, err := getBatchOperationsClient(c)
 	if err != nil {
 		return err
 	}
-	return startBatchOperation(c, batchClient, frontendClient, &types.BatchOperation{
+	return startBatchOperation(c, frontendClient, &types.BatchOperation{
 		OperationType:           types.BatchOperationTypeTerminate.Ptr(),
 		TerminateBatchOperation: &types.TerminateBatchOperation{},
 	})
 }
 
 func StartBatchCancel(c *cli.Context) error {
-	batchClient, frontendClient, err := getBatchOperationsClients(c)
+	frontendClient, err := getBatchOperationsClient(c)
 	if err != nil {
 		return err
 	}
-	return startBatchOperation(c, batchClient, frontendClient, &types.BatchOperation{
+	return startBatchOperation(c, frontendClient, &types.BatchOperation{
 		OperationType:        types.BatchOperationTypeCancel.Ptr(),
 		CancelBatchOperation: &types.CancelBatchOperation{},
 	})
@@ -150,11 +141,11 @@ func StartBatchSignal(c *cli.Context) error {
 		return commoncli.Problem("Required flag not found: ", err)
 	}
 	input := c.String(FlagInput)
-	batchClient, frontendClient, err := getBatchOperationsClients(c)
+	frontendClient, err := getBatchOperationsClient(c)
 	if err != nil {
 		return err
 	}
-	return startBatchOperation(c, batchClient, frontendClient, &types.BatchOperation{
+	return startBatchOperation(c, frontendClient, &types.BatchOperation{
 		OperationType: types.BatchOperationTypeSignal.Ptr(),
 		SignalBatchOperation: &types.SignalBatchOperation{
 			SignalName: signalName,
@@ -172,11 +163,11 @@ func StartBatchReplicate(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found: ", err)
 	}
-	batchClient, frontendClient, err := getBatchOperationsClients(c)
+	frontendClient, err := getBatchOperationsClient(c)
 	if err != nil {
 		return err
 	}
-	return startBatchOperation(c, batchClient, frontendClient, &types.BatchOperation{
+	return startBatchOperation(c, frontendClient, &types.BatchOperation{
 		OperationType: types.BatchOperationTypeReplicate.Ptr(),
 		ReplicateBatchOperation: &types.ReplicateBatchOperation{
 			SourceCluster: sourceCluster,
@@ -186,11 +177,11 @@ func StartBatchReplicate(c *cli.Context) error {
 }
 
 func StartBatchRefresh(c *cli.Context) error {
-	batchClient, frontendClient, err := getBatchOperationsClients(c)
+	frontendClient, err := getBatchOperationsClient(c)
 	if err != nil {
 		return err
 	}
-	return startBatchOperation(c, batchClient, frontendClient, &types.BatchOperation{
+	return startBatchOperation(c, frontendClient, &types.BatchOperation{
 		OperationType:         types.BatchOperationTypeRefresh.Ptr(),
 		RefreshBatchOperation: &types.RefreshBatchOperation{},
 	})

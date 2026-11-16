@@ -10,7 +10,6 @@ import (
 	"github.com/urfave/cli/v2"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/client/batch"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common/types"
 )
@@ -54,26 +53,26 @@ func TestStartBatchOperationCLI(t *testing.T) {
 		action   func(*cli.Context) error
 		flags    map[string]string
 		input    string // simulates stdin for the confirmation prompt; defaults to "" (FlagYes true skips it)
-		mockFn   func(*frontend.MockClient, *batch.MockClient, **types.StartBatchOperationRequest)
+		mockFn   func(*frontend.MockClient, **types.StartBatchOperationRequest)
 		wantErr  bool
 		validate func(*testing.T, *types.StartBatchOperationRequest)
 	}{
 		"missing domain": {
 			action:  StartBatchTerminate,
 			flags:   map[string]string{FlagDomain: "", FlagListQuery: "q", FlagReason: "r"},
-			mockFn:  func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {},
+			mockFn:  func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {},
 			wantErr: true,
 		},
 		"missing query": {
 			action:  StartBatchTerminate,
 			flags:   map[string]string{FlagListQuery: "", FlagReason: "r"},
-			mockFn:  func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {},
+			mockFn:  func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {},
 			wantErr: true,
 		},
 		"missing reason": {
 			action:  StartBatchTerminate,
 			flags:   map[string]string{FlagListQuery: "q", FlagReason: ""},
-			mockFn:  func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {},
+			mockFn:  func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {},
 			wantErr: true,
 		},
 		"signal missing signal name": {
@@ -82,7 +81,7 @@ func TestStartBatchOperationCLI(t *testing.T) {
 				FlagListQuery: "UserID = 5",
 				FlagReason:    "approve",
 			},
-			mockFn:  func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {},
+			mockFn:  func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {},
 			wantErr: true,
 		},
 		"replicate missing source cluster": {
@@ -92,7 +91,7 @@ func TestStartBatchOperationCLI(t *testing.T) {
 				FlagReason:        "resend",
 				FlagTargetCluster: "cluster-b",
 			},
-			mockFn:  func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {},
+			mockFn:  func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {},
 			wantErr: true,
 		},
 		"replicate missing target cluster": {
@@ -102,7 +101,7 @@ func TestStartBatchOperationCLI(t *testing.T) {
 				FlagReason:        "resend",
 				FlagSourceCluster: "cluster-a",
 			},
-			mockFn:  func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {},
+			mockFn:  func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {},
 			wantErr: true,
 		},
 		"non-grpc transport is rejected": {
@@ -112,13 +111,13 @@ func TestStartBatchOperationCLI(t *testing.T) {
 				FlagReason:    "r",
 				FlagTransport: "tchannel",
 			},
-			mockFn:  func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {},
+			mockFn:  func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {},
 			wantErr: true,
 		},
 		"count workflows fails": {
 			action: StartBatchTerminate,
 			flags:  map[string]string{FlagListQuery: "q", FlagReason: "r"},
-			mockFn: func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {
+			mockFn: func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {
 				f.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).
 					Return(nil, assert.AnError)
 			},
@@ -132,7 +131,7 @@ func TestStartBatchOperationCLI(t *testing.T) {
 				FlagYes:       "false",
 			},
 			input: "no\n",
-			mockFn: func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {
+			mockFn: func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {
 				f.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).
 					Return(&types.CountWorkflowExecutionsResponse{Count: 3}, nil)
 			},
@@ -141,10 +140,10 @@ func TestStartBatchOperationCLI(t *testing.T) {
 		"start batch operation fails": {
 			action: StartBatchTerminate,
 			flags:  map[string]string{FlagListQuery: "q", FlagReason: "r"},
-			mockFn: func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {
+			mockFn: func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {
 				f.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).
 					Return(&types.CountWorkflowExecutionsResponse{Count: 3}, nil)
-				b.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
+				f.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
 					Return(nil, assert.AnError)
 			},
 			wantErr: true,
@@ -155,10 +154,10 @@ func TestStartBatchOperationCLI(t *testing.T) {
 				FlagListQuery: "TaskList = 'buggy'",
 				FlagReason:    "cleanup",
 			},
-			mockFn: func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {
+			mockFn: func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {
 				f.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).
 					Return(&types.CountWorkflowExecutionsResponse{Count: 3}, nil)
-				b.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
+				f.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ any, req *types.StartBatchOperationRequest, _ ...any) (*types.StartBatchOperationResponse, error) {
 						*captured = req
 						return &types.StartBatchOperationResponse{BatchID: req.BatchID}, nil
@@ -181,10 +180,10 @@ func TestStartBatchOperationCLI(t *testing.T) {
 				FlagReason:    "cleanup",
 				FlagBatchID:   "my-batch-id",
 			},
-			mockFn: func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {
+			mockFn: func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {
 				f.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).
 					Return(&types.CountWorkflowExecutionsResponse{Count: 1}, nil)
-				b.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
+				f.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ any, req *types.StartBatchOperationRequest, _ ...any) (*types.StartBatchOperationResponse, error) {
 						*captured = req
 						return &types.StartBatchOperationResponse{BatchID: req.BatchID}, nil
@@ -201,10 +200,10 @@ func TestStartBatchOperationCLI(t *testing.T) {
 				FlagListQuery: "TaskList = 'buggy'",
 				FlagReason:    "cleanup",
 			},
-			mockFn: func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {
+			mockFn: func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {
 				f.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).
 					Return(&types.CountWorkflowExecutionsResponse{Count: 1}, nil)
-				b.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
+				f.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ any, req *types.StartBatchOperationRequest, _ ...any) (*types.StartBatchOperationResponse, error) {
 						*captured = req
 						return &types.StartBatchOperationResponse{BatchID: req.BatchID}, nil
@@ -224,10 +223,10 @@ func TestStartBatchOperationCLI(t *testing.T) {
 				FlagSignalName: "approval",
 				FlagInput:      "yes",
 			},
-			mockFn: func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {
+			mockFn: func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {
 				f.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).
 					Return(&types.CountWorkflowExecutionsResponse{Count: 1}, nil)
-				b.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
+				f.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ any, req *types.StartBatchOperationRequest, _ ...any) (*types.StartBatchOperationResponse, error) {
 						*captured = req
 						return &types.StartBatchOperationResponse{BatchID: req.BatchID}, nil
@@ -249,10 +248,10 @@ func TestStartBatchOperationCLI(t *testing.T) {
 				FlagSourceCluster: "cluster-a",
 				FlagTargetCluster: "cluster-b",
 			},
-			mockFn: func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {
+			mockFn: func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {
 				f.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).
 					Return(&types.CountWorkflowExecutionsResponse{Count: 2}, nil)
-				b.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
+				f.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ any, req *types.StartBatchOperationRequest, _ ...any) (*types.StartBatchOperationResponse, error) {
 						*captured = req
 						return &types.StartBatchOperationResponse{BatchID: req.BatchID}, nil
@@ -272,10 +271,10 @@ func TestStartBatchOperationCLI(t *testing.T) {
 				FlagListQuery: "TaskList = 'buggy'",
 				FlagReason:    "refresh tasks",
 			},
-			mockFn: func(f *frontend.MockClient, b *batch.MockClient, captured **types.StartBatchOperationRequest) {
+			mockFn: func(f *frontend.MockClient, captured **types.StartBatchOperationRequest) {
 				f.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).
 					Return(&types.CountWorkflowExecutionsResponse{Count: 1}, nil)
-				b.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
+				f.EXPECT().StartBatchOperation(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ any, req *types.StartBatchOperationRequest, _ ...any) (*types.StartBatchOperationResponse, error) {
 						*captured = req
 						return &types.StartBatchOperationResponse{BatchID: req.BatchID}, nil
@@ -293,11 +292,10 @@ func TestStartBatchOperationCLI(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockFrontendClient := frontend.NewMockClient(mockCtrl)
-			mockBatchClient := batch.NewMockClient(mockCtrl)
 			var capturedReq *types.StartBatchOperationRequest
-			tt.mockFn(mockFrontendClient, mockBatchClient, &capturedReq)
+			tt.mockFn(mockFrontendClient, &capturedReq)
 
-			app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockFrontendClient, serverBatchClient: mockBatchClient})
+			app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockFrontendClient})
 			if tt.input != "" {
 				app.Reader = strings.NewReader(tt.input)
 			}
