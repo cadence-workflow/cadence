@@ -23,7 +23,6 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"runtime/debug"
 	"sync"
 	"sync/atomic"
 
@@ -57,7 +56,14 @@ type directPeerChooser struct {
 	legacyChooser        peer.Chooser
 	legacyChooserErr     error
 	mu                   sync.RWMutex
-	peers                map[string]peer.Peer
+	peers                map[string]*retainedPeer
+}
+
+// retainedPeer is a peer the chooser keeps a connection to, with the number of requests in flight
+// on it.
+type retainedPeer struct {
+	peer     peer.Peer
+	inFlight atomic.Int64
 }
 
 func newDirectChooser(
@@ -73,7 +79,7 @@ func newDirectChooser(
 		scope:                metricsCl.Scope(metrics.P2PRPCPeerChooserScope).Tagged(metrics.DestServiceTag(serviceName)),
 		t:                    t,
 		enableConnRetainMode: enableConnRetainMode,
-		peers:                make(map[string]peer.Peer),
+		peers:                make(map[string]*retainedPeer),
 	}
 
 	if dpc.enableConnRetainMode == nil {
@@ -121,8 +127,8 @@ func (g *directPeerChooser) Stop() error {
 		err = g.legacyChooser.Stop()
 	}
 
-	// Release all peers if there's any
-	g.updatePeersInternal(nil)
+	// Release all peers, including the ones with requests in flight.
+	g.releaseAllPeers()
 
 	g.logger.Info("direct peer chooser stopped", tag.Error(err))
 	return err
@@ -145,8 +151,9 @@ func (g *directPeerChooser) IsRunning() bool {
 	return true // no-op
 }
 
-// Choose returns an existing peer for the shard key.
+// Choose returns an existing peer for the shard key, adding it if it isn't cached yet.
 // ShardKey is {host}:{port} of the peer. It could be tchannel or grpc address.
+// The peer isn't released while the request is in flight, which ends when onFinish is called.
 func (g *directPeerChooser) Choose(ctx context.Context, req *transport.Request) (peer peer.Peer, onFinish func(error), err error) {
 	if !g.enableConnRetainMode() {
 		return g.chooseFromLegacyDirectPeerChooser(ctx, req)
@@ -156,24 +163,17 @@ func (g *directPeerChooser) Choose(ctx context.Context, req *transport.Request) 
 		return nil, nil, yarpcerrors.InvalidArgumentErrorf("chooser requires ShardKey to be non-empty")
 	}
 
-	g.mu.RLock()
-	p, ok := g.peers[req.ShardKey]
-	if ok {
-		g.mu.RUnlock()
-		return p, func(error) {}, nil
-	}
-	g.mu.RUnlock()
-
-	// peer is not cached, add new peer
-	p, err = g.addPeer(req.ShardKey)
+	p, err := g.acquirePeer(req.ShardKey)
 	if err != nil {
 		return nil, nil, yarpcerrors.InternalErrorf("failed to add peer for shard key %v, err: %v", req.ShardKey, err)
 	}
 
-	return p, func(error) {}, nil
+	return p.peer, p.finishRequest, nil
 }
 
-// UpdatePeers removes peers that are not in the members list.
+// UpdatePeers releases peers that are not in the members list and have no requests in flight.
+// Requests can target addresses outside the members list, and releasing their peer would close
+// its connection and fail them.
 // Do not create actual yarpc peers for the members. They are created lazily when a request comes in (Choose is called).
 func (g *directPeerChooser) UpdatePeers(serviceName string, members []membership.HostInfo) {
 	if g.serviceName != serviceName {
@@ -206,64 +206,76 @@ func (g *directPeerChooser) updatePeersInternal(members []membership.HostInfo) {
 		}
 	}
 
-	// Take a copy of the current peers to avoid keeping write lock while removing all peers.
-	peers := make(map[string]bool)
-	g.mu.RLock()
-	for addr := range g.peers {
-		peers[addr] = true
-	}
-	g.mu.RUnlock()
+	g.logger.Debugf("valid peers: %v", validPeerAddresses)
 
-	g.logger.Debugf("valid peers: %v, current peers: %v", validPeerAddresses, peers)
-
-	for addr := range peers {
-		if !validPeerAddresses[addr] {
-			g.removePeer(addr)
+	// Check, remove and release each peer while holding the write lock. Choose counts its request
+	// under the lock too, so it never uses a peer that is being released.
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for addr, p := range g.peers {
+		if validPeerAddresses[addr] || p.inFlight.Load() > 0 {
+			continue
 		}
+		g.releasePeerLocked(addr, p)
 	}
 }
 
-func (g *directPeerChooser) removePeer(addr string) {
-	g.mu.RLock()
-	peer, exists := g.peers[addr]
-	if exists && peer != nil {
-		if err := g.t.ReleasePeer(peer, noOpSubscriberInstance); err != nil {
-			g.logger.Error("failed to release peer", tag.Error(err), tag.Address(addr))
-		}
-	} else {
-		if peer == nil {
-			g.logger.Error("peer is nil", tag.Address(addr), tag.Dynamic("stack", string(debug.Stack())))
-		} else {
-			g.logger.Error("peer is not in the peers map", tag.Address(addr), tag.Dynamic("stack", string(debug.Stack())))
-		}
-	}
-	g.mu.RUnlock()
-
+func (g *directPeerChooser) releaseAllPeers() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-
-	delete(g.peers, addr)
-	g.logger.Info("removed peer from direct peer chooser", tag.Address(addr))
-	g.scope.IncCounter(metrics.P2PPeerRemoved)
-	g.scope.UpdateGauge(metrics.P2PPeersCount, float64(len(g.peers)))
+	for addr, p := range g.peers {
+		g.releasePeerLocked(addr, p)
+	}
 }
 
-func (g *directPeerChooser) addPeer(addr string) (peer.Peer, error) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if p, ok := g.peers[addr]; ok {
+// acquirePeer returns the cached peer for the address, adding it if needed, with one more request
+// in flight. It counts the request while holding the lock, so updatePeersInternal can't release
+// the peer before the request starts.
+func (g *directPeerChooser) acquirePeer(addr string) (*retainedPeer, error) {
+	g.mu.RLock()
+	p, ok := g.peers[addr]
+	if ok {
+		p.inFlight.Add(1)
+		g.mu.RUnlock()
 		return p, nil
 	}
+	g.mu.RUnlock()
 
-	p, err := g.t.RetainPeer(hostport.Identify(addr), noOpSubscriberInstance)
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	p, ok = g.peers[addr]
+	if !ok {
+		var err error
+		p, err = g.addPeerLocked(addr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	p.inFlight.Add(1)
+	return p, nil
+}
+
+func (g *directPeerChooser) addPeerLocked(addr string) (*retainedPeer, error) {
+	transportPeer, err := g.t.RetainPeer(hostport.Identify(addr), noOpSubscriberInstance)
 	if err != nil {
 		return nil, err
 	}
+	p := &retainedPeer{peer: transportPeer}
 	g.peers[addr] = p
 	g.logger.Info("added peer to direct peer chooser", tag.Address(addr))
 	g.scope.IncCounter(metrics.P2PPeerAdded)
 	g.scope.UpdateGauge(metrics.P2PPeersCount, float64(len(g.peers)))
 	return p, nil
+}
+
+func (g *directPeerChooser) releasePeerLocked(addr string, p *retainedPeer) {
+	if err := g.t.ReleasePeer(p.peer, noOpSubscriberInstance); err != nil {
+		g.logger.Error("failed to release peer", tag.Error(err), tag.Address(addr))
+	}
+	delete(g.peers, addr)
+	g.logger.Info("removed peer from direct peer chooser", tag.Address(addr))
+	g.scope.IncCounter(metrics.P2PPeerRemoved)
+	g.scope.UpdateGauge(metrics.P2PPeersCount, float64(len(g.peers)))
 }
 
 func (g *directPeerChooser) chooseFromLegacyDirectPeerChooser(ctx context.Context, req *transport.Request) (peer.Peer, func(error), error) {
@@ -310,6 +322,11 @@ func (g *directPeerChooser) getLegacyChooser() (peer.Chooser, bool) {
 	}
 
 	return g.legacyChooser, true
+}
+
+// finishRequest ends a request started by Choose. It is the onFinish func Choose returns.
+func (p *retainedPeer) finishRequest(error) {
+	p.inFlight.Add(-1)
 }
 
 // noOpSubscriber is a no-op implementation of peer.Subscriber

@@ -129,6 +129,31 @@ func TestDirectChooser_PeerUpdates(t *testing.T) {
 			t.Fatalf("Peers mismatch (-want +got):\n%s", diff)
 		}
 	})
+
+	t.Run("peer5 is not in the members list, but is kept until its request finishes", func(t *testing.T) {
+		members := []membership.HostInfo{newHost("peer1"), newHost("peer4")}
+		_, onFinish, err := chooser.Choose(context.Background(), &transport.Request{
+			Caller:   "caller",
+			Service:  "service",
+			ShardKey: "peer5:80",
+		})
+		if err != nil {
+			t.Fatalf("Choose() failed: %v", err)
+		}
+
+		chooser.UpdatePeers(serviceName, members)
+		wantPeers := map[string]bool{"peer1:80": true, "peer4:80": true, "peer5:80": true}
+		if diff := cmp.Diff(wantPeers, currentPeersMap()); diff != "" {
+			t.Fatalf("Peers while the request is in flight mismatch (-want +got):\n%s", diff)
+		}
+
+		onFinish(nil)
+		chooser.UpdatePeers(serviceName, members)
+		wantPeers = map[string]bool{"peer1:80": true, "peer4:80": true}
+		if diff := cmp.Diff(wantPeers, currentPeersMap()); diff != "" {
+			t.Fatalf("Peers after the request finished mismatch (-want +got):\n%s", diff)
+		}
+	})
 }
 
 func TestDirectChooser_StartStop(t *testing.T) {
