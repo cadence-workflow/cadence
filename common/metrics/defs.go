@@ -1571,6 +1571,14 @@ const (
 	AsyncWorkflowQueueConsumerScope
 	// AsyncWorkflowQueueGCScope is the scope used by the history shard async workflow queue garbage collector
 	AsyncWorkflowQueueGCScope
+	// VisibilityQueueProcessorV2Scope is the scope used by all metric emitted by visibility queue processor
+	VisibilityQueueProcessorV2Scope
+	// VisibilityTaskRecordWorkflowStartedScope is the scope used for record workflow started task processing by visibility queue processor
+	VisibilityTaskRecordWorkflowStartedScope
+	// VisibilityTaskUpsertWorkflowSearchAttributesScope is the scope used for upsert search attributes task processing by visibility queue processor
+	VisibilityTaskUpsertWorkflowSearchAttributesScope
+	// VisibilityTaskRecordWorkflowClosedScope is the scope used for record workflow closed task processing by visibility queue processor
+	VisibilityTaskRecordWorkflowClosedScope
 	NumHistoryScopes
 )
 
@@ -2372,6 +2380,10 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryTaskDLQProcessorScope:                                    {operation: "HistoryTaskDLQProcessor"},
 		AsyncWorkflowQueueConsumerScope:                                 {operation: "AsyncWorkflowQueueConsumer"},
 		AsyncWorkflowQueueGCScope:                                       {operation: "AsyncWorkflowQueueGC"},
+		VisibilityQueueProcessorV2Scope:                                 {operation: "VisibilityQueueProcessorV2"},
+		VisibilityTaskRecordWorkflowStartedScope:                        {operation: "VisibilityTaskRecordWorkflowStarted"},
+		VisibilityTaskUpsertWorkflowSearchAttributesScope:               {operation: "VisibilityTaskUpsertWorkflowSearchAttributes"},
+		VisibilityTaskRecordWorkflowClosedScope:                         {operation: "VisibilityTaskRecordWorkflowClosed"},
 	},
 	// Matching Scope Names
 	Matching: {
