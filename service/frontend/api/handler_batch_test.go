@@ -357,3 +357,138 @@ func TestDescribeBatchOperation(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateBatchOperation(t *testing.T) {
+	tests := map[string]struct {
+		request *types.UpdateBatchOperationRequest
+		mockFn  func(*scheduleTestFixture)
+		wantErr bool
+	}{
+		"nil request": {
+			request: nil,
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty domain": {
+			request: &types.UpdateBatchOperationRequest{},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty batch ID": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"negative RPS": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: -1},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"negative concurrency": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", Concurrency: -1},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"no fields set": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id"},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"domain not found": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: 100},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return("", errors.New("not found")).AnyTimes()
+			},
+			wantErr: true,
+		},
+		"history error": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: 100},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("internal error"))
+			},
+			wantErr: true,
+		},
+		"entity not exists is a real error": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: 100},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.EntityNotExistsError{Message: "not found"})
+			},
+			wantErr: true,
+		},
+		"success, RPS only": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: 100},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistorySignalWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						assert.Equal(t, batcherDomainID, req.DomainUUID)
+						assert.Equal(t, constants.BatcherLocalDomainName, req.SignalRequest.Domain)
+						assert.Equal(t, "cadence-sys-batch-operation:test-domain:my-batch-id", req.SignalRequest.WorkflowExecution.WorkflowID)
+						assert.Equal(t, batcher.SignalNameTune, req.SignalRequest.SignalName)
+						var sig batcher.TuneSignal
+						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &sig))
+						assert.Equal(t, 100, sig.RPS)
+						assert.Equal(t, 0, sig.Concurrency)
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+		"success, concurrency only": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", Concurrency: 10},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistorySignalWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						var sig batcher.TuneSignal
+						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &sig))
+						assert.Equal(t, 0, sig.RPS)
+						assert.Equal(t, 10, sig.Concurrency)
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+		"success, both set": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: 100, Concurrency: 10},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistorySignalWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						var sig batcher.TuneSignal
+						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &sig))
+						assert.Equal(t, 100, sig.RPS)
+						assert.Equal(t, 10, sig.Concurrency)
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newScheduleTestFixture(t)
+			defer f.finish()
+			tt.mockFn(f)
+
+			resp, err := f.handler.UpdateBatchOperation(context.Background(), tt.request)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				require.NotNil(t, resp)
+			}
+		})
+	}
+}

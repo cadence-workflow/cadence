@@ -317,10 +317,31 @@ func (wh *WorkflowHandler) StopBatchOperation(
 	return nil, &types.BadRequestError{Message: "StopBatchOperation is not yet implemented."}
 }
 
-// UpdateBatchOperation changes the rate and concurrency of a running batch.
-// Implementation tracked separately; this is a placeholder so the BatchAPI
-// contract and its authorization wrapper can land ahead of the per-operation
-// business logic.
+func validateUpdateBatchOperationRequest(request *types.UpdateBatchOperationRequest) error {
+	if request == nil {
+		return validate.ErrRequestNotSet
+	}
+	if request.GetDomain() == "" {
+		return validate.ErrDomainNotSet
+	}
+	if request.GetBatchID() == "" {
+		return validate.ErrBatchIDNotSet
+	}
+	if request.GetRPS() < 0 {
+		return validate.ErrInvalidBatchRPS
+	}
+	if request.GetConcurrency() < 0 {
+		return validate.ErrInvalidBatchConcurrency
+	}
+	if request.GetRPS() == 0 && request.GetConcurrency() == 0 {
+		return validate.ErrBatchUpdateNoFieldsSet
+	}
+	return nil
+}
+
+// UpdateBatchOperation changes the RPS and/or concurrency of a running
+// batch by signaling the cadence-batcher workflow; it does not stop or
+// restart the batch.
 func (wh *WorkflowHandler) UpdateBatchOperation(
 	ctx context.Context,
 	request *types.UpdateBatchOperationRequest,
@@ -328,5 +349,34 @@ func (wh *WorkflowHandler) UpdateBatchOperation(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
-	return nil, &types.BadRequestError{Message: "UpdateBatchOperation is not yet implemented."}
+	if err := validateUpdateBatchOperationRequest(request); err != nil {
+		return nil, err
+	}
+
+	domainName := request.GetDomain()
+	if _, err := wh.GetDomainCache().GetDomainID(domainName); err != nil {
+		return nil, err
+	}
+
+	signalInput, err := json.Marshal(batcher.TuneSignal{
+		RPS:         int(request.GetRPS()),
+		Concurrency: int(request.GetConcurrency()),
+	})
+	if err != nil {
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to encode batch tune signal: %v", err)}
+	}
+
+	wfID := batchOperationWorkflowID(domainName, request.GetBatchID())
+	err = wh.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
+		Domain:            constants.BatcherLocalDomainName,
+		WorkflowExecution: &types.WorkflowExecution{WorkflowID: wfID},
+		SignalName:        batcher.SignalNameTune,
+		Input:             signalInput,
+		Identity:          request.GetIdentity(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.UpdateBatchOperationResponse{}, nil
 }

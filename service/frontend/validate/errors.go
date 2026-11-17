@@ -63,6 +63,9 @@ var (
 	ErrBatchIDNotSet                              = &types.BadRequestError{Message: "BatchID is not set on request."}
 	ErrBatchOperationNotSet                       = &types.BadRequestError{Message: "Operation is not set on request."}
 	ErrBatchOperationTypeNotSet                   = &types.BadRequestError{Message: "Operation.OperationType is not set or invalid on request."}
+	ErrInvalidBatchRPS                            = &types.BadRequestError{Message: "RPS must not be negative."}
+	ErrInvalidBatchConcurrency                    = &types.BadRequestError{Message: "Concurrency must not be negative."}
+	ErrBatchUpdateNoFieldsSet                     = &types.BadRequestError{Message: "At least one of RPS or Concurrency must be set to update a batch operation."}
 
 	// Err for archival
 	ErrHistoryNotFound = &types.BadRequestError{Message: "Requested workflow history not found, may have passed retention period."}
