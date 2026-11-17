@@ -25,9 +25,9 @@ const (
 	maxReadWindows = 10
 )
 
-// taskReader reads tasks in task id order and passes them, one at a time, to grantTask. It
-// saves the ack level on a timer and on stop. The timer saves even an unchanged ack level, since
-// the write also checks that this host still owns the bucket.
+// taskReader passes tasks to grantTask one at a time, in task id order. It saves the ack level on
+// a timer and on stop, and deletes finished tasks. Each save also checks that this host still owns
+// the bucket.
 type taskReader struct {
 	db             *taskDB
 	writer         *taskWriter
@@ -37,6 +37,8 @@ type taskReader struct {
 	updateInterval func() time.Duration
 	readRangeSize  int64
 	throttleRetry  *backoff.ThrottleRetry
+
+	taskGC *taskGC
 
 	taskBuffer      chan *persistence.SemaphoreTask
 	grantTask       func(context.Context, *persistence.SemaphoreTask) bool
@@ -72,6 +74,7 @@ func newTaskReader(m *semaphoreManagerImpl) *taskReader {
 			backoff.WithRetryPolicy(common.CreatePersistenceRetryPolicy()),
 			backoff.WithRetryableError(persistence.IsTransientError),
 		),
+		taskGC:          newTaskGC(m.taskDB, m.timeSource),
 		taskBuffer:      make(chan *persistence.SemaphoreTask, getTasksBatchSize),
 		grantTask:       m.grantTask,
 		signalGrantLoop: m.signalGrantLoop,
@@ -82,6 +85,7 @@ func newTaskReader(m *semaphoreManagerImpl) *taskReader {
 	}
 }
 
+// start runs the read loop and the grant loop. Call it after the claim.
 func (tr *taskReader) start() {
 	tr.signal()
 	tr.wg.Add(2)
@@ -96,6 +100,7 @@ func (tr *taskReader) stop() {
 		if err := tr.persistAckLevel(); err != nil {
 			tr.logger.Error("Semaphore task reader failed to save the ack level", tag.Error(err))
 		}
+		tr.taskGC.runNow(tr.taskAckManager.GetAckLevel())
 	}
 }
 
@@ -124,7 +129,17 @@ func (tr *taskReader) signal() {
 	}
 }
 
-// grantTasksLoop grants buffered tasks in order, and acks each once it is finished.
+// hasTasks reports whether any task is written but not acked. The read level is checked first,
+// since a read counts the task in the backlog before it moves the read level.
+func (tr *taskReader) hasTasks() bool {
+	if tr.taskAckManager.GetReadLevel() < tr.writer.getMaxReadLevel() {
+		return true
+	}
+	return tr.taskAckManager.GetBacklogCount() > 0
+}
+
+// grantTasksLoop grants buffered tasks in order, acks each once it is finished, and deletes
+// finished tasks.
 func (tr *taskReader) grantTasksLoop() {
 	defer tr.wg.Done()
 	for {
@@ -137,7 +152,7 @@ func (tr *taskReader) grantTasksLoop() {
 			if !tr.grantTask(tr.cancelCtx, task) {
 				return
 			}
-			tr.taskAckManager.AckItem(task.TaskID)
+			tr.taskGC.run(tr.taskAckManager.AckItem(task.TaskID))
 		}
 	}
 }

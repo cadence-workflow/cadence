@@ -26,7 +26,7 @@ func newTestQueueManager(t *testing.T, store persistence.SemaphoreTaskManager, t
 		logger:         logger,
 		timeSource:     timeSource,
 		config:         &config.SemaphoreConfig{UpdateAckInterval: testUpdateAckInterval},
-		taskDB:         newTaskDB(testBucketID, store),
+		taskDB:         newTaskDB(testBucketID, store, logger),
 		taskAckManager: messaging.NewAckManager(logger),
 	}
 }

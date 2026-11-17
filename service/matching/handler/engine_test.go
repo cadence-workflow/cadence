@@ -1921,20 +1921,24 @@ func newSemaphoreMetadata(t *testing.T) persistence.SemaphoreMetadataManager {
 	return md
 }
 
-// newSemaphoreTasks returns a task store that accepts every claim and ack level save.
+// newSemaphoreTasks returns a task store that accepts every claim, ack level save and delete of
+// finished tasks.
 func newSemaphoreTasks(t *testing.T) persistence.SemaphoreTaskManager {
 	t.Helper()
 	tasks := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
 	tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).AnyTimes().
 		Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
-	expectAckLevelSaves(tasks)
+	expectAckLevelSavesAndDeletes(tasks)
 	return tasks
 }
 
-// expectAckLevelSaves accepts any number of ack level saves.
-func expectAckLevelSaves(tasks *persistence.MockSemaphoreTaskManager) {
+// expectAckLevelSavesAndDeletes accepts any number of ack level saves and deletes of finished
+// tasks.
+func expectAckLevelSavesAndDeletes(tasks *persistence.MockSemaphoreTaskManager) {
 	tasks.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).AnyTimes().
 		Return(&persistence.UpdateSemaphoreTaskBucketStateResponse{}, nil)
+	tasks.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.RangeCompleteSemaphoreTasksResponse{}, nil)
 }
 
 // mustNewSemaphoreIdentifier returns the id of one bucket of the test semaphore.
@@ -2269,7 +2273,7 @@ func TestAcquireSemaphore(t *testing.T) {
 				tasks := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
 				tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).
 					Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
-				expectAckLevelSaves(tasks)
+				expectAckLevelSavesAndDeletes(tasks)
 				tc.tasksSetup(t, tasks)
 				e.semaphoreTaskManager = tasks
 			}

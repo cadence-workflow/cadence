@@ -74,6 +74,7 @@ func testConfig(idleTime time.Duration) *config.Config {
 
 // testManagerParams returns valid params for a bucket of tokens 1 to tokenCount, and their mocks.
 // The metadata read and the queue claim may happen at most once, since not every test calls Start.
+// Task deletes may happen any number of times.
 func testManagerParams(t *testing.T, tokenCount int) (ManagerParams, *mockDeps) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
@@ -95,6 +96,8 @@ func testManagerParams(t *testing.T, tokenCount int) (ManagerParams, *mockDeps) 
 	}}, nil)
 	deps.mockTaskManager.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).MaxTimes(1).
 		Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+	deps.mockTaskManager.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.RangeCompleteSemaphoreTasksResponse{}, nil)
 	return ManagerParams{
 		ID:             testBucketID,
 		Tokens:         deps.mockTokenManager,
@@ -659,14 +662,12 @@ func TestAcquire(t *testing.T) {
 	testCases := []struct {
 		name string
 		// rows are what the startup scan reads. Nil leaves the bucket's only token free.
-		rows []*persistence.SemaphoreOwnership
-		// managerStopped stops the manager before Acquire.
+		rows           []*persistence.SemaphoreOwnership
 		managerStopped bool
-		// setupMocks expects Acquire's database calls. Nil expects none.
-		setupMocks func(deps *mockDeps)
-		expected   AcquireResult
-		// assertErr checks the error. Nil expects no error.
-		assertErr func(t *testing.T, err error)
+		hasTasks       bool
+		setupMocks     func(deps *mockDeps)
+		expected       AcquireResult
+		assertErr      func(t *testing.T, err error)
 	}{
 		{
 			name:           "failure - manager is stopped, retryable ErrNotReady",
@@ -699,6 +700,32 @@ func TestAcquire(t *testing.T) {
 			expected: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeQueued},
 		},
 		{
+			name:     "success - tasks are pending and a token is free, Queued",
+			hasTasks: true,
+			setupMocks: func(deps *mockDeps) {
+				expectTaskWrite(deps).Return(&persistence.CreateSemaphoreTasksResponse{}, nil)
+			},
+			expected: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeQueued},
+		},
+		{
+			name:     "success - tasks are pending and the owner holds a token, Acquired",
+			rows:     []*persistence.SemaphoreOwnership{tokenRow(1, owner.String()), ownerRow(owner.String(), 1)},
+			hasTasks: true,
+			setupMocks: func(deps *mockDeps) {
+				expectGetTokenRow(deps.mockTokenManager, 1).Return(tokenRowRead(1, owner.String()), nil)
+			},
+			expected: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 1},
+		},
+		{
+			name:     "failure - tasks are pending and the owner's token read fails",
+			rows:     []*persistence.SemaphoreOwnership{tokenRow(1, owner.String()), ownerRow(owner.String(), 1)},
+			hasTasks: true,
+			setupMocks: func(deps *mockDeps) {
+				expectGetTokenRow(deps.mockTokenManager, 1).Return(nil, assert.AnError)
+			},
+			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, assert.AnError) },
+		},
+		{
 			name: "success - bucket is full, Queued",
 			rows: fullBucket,
 			setupMocks: func(deps *mockDeps) {
@@ -707,7 +734,7 @@ func TestAcquire(t *testing.T) {
 			expected: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeQueued},
 		},
 		{
-			name: "failure - bucket is full, enqueue fails",
+			name: "failure - bucket is full, queueTask fails",
 			rows: fullBucket,
 			setupMocks: func(deps *mockDeps) {
 				expectTaskWrite(deps).Return(nil, assert.AnError)
@@ -722,6 +749,9 @@ func TestAcquire(t *testing.T) {
 			if tc.managerStopped {
 				allowStopAckLevelSave(deps)
 				mgr.Stop()
+			}
+			if tc.hasTasks {
+				require.NoError(t, mgr.taskAckManager.ReadItem(1))
 			}
 			if tc.setupMocks != nil {
 				tc.setupMocks(deps)
@@ -738,8 +768,8 @@ func TestAcquire(t *testing.T) {
 	}
 }
 
-// Tests that enqueue writes a task for ownerID and signals the reader.
-func TestEnqueue(t *testing.T) {
+// Tests that queueTask writes a task for ownerID and signals the reader.
+func TestQueueTask(t *testing.T) {
 	mgr, deps := startTestManager(t, 1, nil)
 	owner := commonsemaphore.Owner{WorkflowID: "wf", RunID: "run", HoldID: 7}
 	deadline := time.Unix(1767258000, 0)
@@ -751,7 +781,7 @@ func TestEnqueue(t *testing.T) {
 		AcquireDeadline: &deadline,
 		CreatedTime:     deps.mockTimeSource.Now(),
 	})).Times(1).Return(&persistence.CreateSemaphoreTasksResponse{}, nil)
-	// read is sent to when the reader reads, which it does once enqueue signals it.
+	// read is sent to when the reader reads, which it does once queueTask signals it.
 	read := make(chan struct{}, 1)
 	deps.mockTaskManager.EXPECT().GetSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
 		func(context.Context, *persistence.GetSemaphoreTasksRequest) (*persistence.GetSemaphoreTasksResponse, error) {
@@ -762,7 +792,7 @@ func TestEnqueue(t *testing.T) {
 			return &persistence.GetSemaphoreTasksResponse{}, nil
 		})
 
-	require.NoError(t, mgr.enqueue(context.Background(), owner.String(), &deadline))
+	require.NoError(t, mgr.queueTask(context.Background(), owner.String(), &deadline))
 	select {
 	case <-read:
 	case <-time.After(time.Second):
@@ -770,9 +800,9 @@ func TestEnqueue(t *testing.T) {
 	}
 }
 
-func TestEnqueue_BadOwnerID(t *testing.T) {
+func TestQueueTask_BadOwnerID(t *testing.T) {
 	mgr, _ := startTestManager(t, 1, nil)
-	err := mgr.enqueue(context.Background(), "caller", nil)
+	err := mgr.queueTask(context.Background(), "caller", nil)
 	assert.ErrorAs(t, err, new(*types.BadRequestError))
 }
 

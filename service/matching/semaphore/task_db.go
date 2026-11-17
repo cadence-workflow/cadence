@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -18,8 +20,9 @@ type taskBucketState struct {
 // taskDB calls semaphore_tasks for one bucket. Its writes are fenced by the range_id this host
 // claimed, so they fail with ConditionFailedError once another host claims the bucket.
 type taskDB struct {
-	id    Identifier
-	store persistence.SemaphoreTaskManager
+	id     Identifier
+	store  persistence.SemaphoreTaskManager
+	logger log.Logger
 
 	// mu sends the store calls one at a time, as the task list's does: concurrent conditional
 	// writes to one partition time out.
@@ -28,8 +31,8 @@ type taskDB struct {
 	rangeID int64
 }
 
-func newTaskDB(id Identifier, store persistence.SemaphoreTaskManager) *taskDB {
-	return &taskDB{id: id, store: store}
+func newTaskDB(id Identifier, store persistence.SemaphoreTaskManager, logger log.Logger) *taskDB {
+	return &taskDB{id: id, store: store, logger: logger}
 }
 
 // claim takes the bucket and bumps its range_id. The first claim passes 0 and takes the bucket
@@ -100,4 +103,23 @@ func (db *taskDB) getTasks(readLevel, maxReadLevel int64, batchSize int) ([]*per
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("no tasks response returned for bucket %v", db.id)}
 	}
 	return resp.Tasks, nil
+}
+
+// completeTasksUpTo deletes every task with an id at or below ackLevel, and logs a failure. Not a
+// conditional write, so it does not take mu.
+func (db *taskDB) completeTasksUpTo(ackLevel int64) error {
+	_, err := db.store.RangeCompleteSemaphoreTasks(context.Background(), &persistence.RangeCompleteSemaphoreTasksRequest{
+		DomainID:      db.id.DomainID,
+		SemaphoreName: db.id.SemaphoreName,
+		Bucket:        db.id.Bucket,
+		ReadLevel:     0,
+		AckLevel:      ackLevel,
+	})
+	if err != nil {
+		db.logger.Error("Persistent store operation failure",
+			tag.StoreOperationCompleteTasksLessThan,
+			tag.Error(err),
+			tag.TaskID(ackLevel))
+	}
+	return err
 }

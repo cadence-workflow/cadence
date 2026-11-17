@@ -172,7 +172,7 @@ func NewManager(p ManagerParams) (Manager, error) {
 		logger:         logger,
 		timeSource:     p.TimeSource,
 		config:         newSemaphoreConfig(p.Cfg, p.DomainName),
-		taskDB:         newTaskDB(p.ID, p.Tasks),
+		taskDB:         newTaskDB(p.ID, p.Tasks, logger),
 		taskAckManager: messaging.NewAckManager(logger),
 		historyService: p.HistoryService,
 		grantNotifyC:   make(chan struct{}, 1),
@@ -409,31 +409,38 @@ func (m *semaphoreManagerImpl) currentCache() *bucketCache {
 	return m.cache
 }
 
-// Acquire is the entry point: it asks for a token on behalf of ownerID, and queues a task when
-// this host cannot find one.
+// Acquire returns ownerID's token, or queues a task for ownerID and answers Queued. Queued tasks
+// come before new acquires. An owner that already holds a token still gets it.
 func (m *semaphoreManagerImpl) Acquire(ctx context.Context, ownerID string, acquireDeadline *time.Time) (AcquireResult, error) {
 	m.liveness.MarkAlive()
 	if err := m.awaitStartup(ctx); err != nil {
 		return AcquireResult{}, err
 	}
 
-	tokenID, err := m.grant(ctx, ownerID)
-	// If the grant was refused, queue the owner. The grant loop tries again later.
+	var tokenID int
+	var err error
+	if m.taskReader.hasTasks() {
+		// check whether the owner already has a token granted
+		tokenID, err = m.confirmHeldToken(ctx, ownerID)
+	} else {
+		tokenID, err = m.grant(ctx, ownerID)
+	}
+
 	if err != nil && !errors.Is(err, errStaleCache) {
 		return AcquireResult{}, err
 	}
 	if tokenID != constants.NoSemaphoreTokenID {
 		return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: tokenID}, nil
 	}
-	// No token was granted: none is free, or the grant was refused.
-	if err := m.enqueue(ctx, ownerID, acquireDeadline); err != nil {
+
+	if err = m.queueTask(ctx, ownerID, acquireDeadline); err != nil {
 		return AcquireResult{}, err
 	}
 	return AcquireResult{Outcome: types.SemaphoreAcquireOutcomeQueued}, nil
 }
 
-// enqueue writes a task for ownerID and signals the reader to read it.
-func (m *semaphoreManagerImpl) enqueue(ctx context.Context, ownerID string, acquireDeadline *time.Time) error {
+// queueTask writes a task for ownerID and signals the reader to read it.
+func (m *semaphoreManagerImpl) queueTask(ctx context.Context, ownerID string, acquireDeadline *time.Time) error {
 	owner, err := ParseRequestOwner(ownerID)
 	if err != nil {
 		return err

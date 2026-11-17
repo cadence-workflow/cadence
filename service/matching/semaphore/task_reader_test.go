@@ -19,7 +19,7 @@ import (
 func testUpdateAckInterval() time.Duration { return time.Minute }
 
 // newTestTaskReader returns a reader whose writer claimed range 1 with ackLevel. It is stopped,
-// possibly saving the ack level, when the test ends.
+// possibly saving the ack level and deleting finished tasks, when the test ends.
 func newTestTaskReader(t *testing.T, store *persistence.MockSemaphoreTaskManager, ackLevel int64, timeSource clock.TimeSource) *taskReader {
 	t.Helper()
 	expectClaim(store, 0, 1, ackLevel)
@@ -31,6 +31,8 @@ func newTestTaskReader(t *testing.T, store *persistence.MockSemaphoreTaskManager
 	t.Cleanup(func() {
 		store.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).MaxTimes(1).
 			Return(&persistence.UpdateSemaphoreTaskBucketStateResponse{}, nil)
+		store.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), gomock.Any()).MaxTimes(1).
+			Return(&persistence.RangeCompleteSemaphoreTasksResponse{}, nil)
 		r.stop()
 	})
 	return r
@@ -281,6 +283,49 @@ func TestReadTasks(t *testing.T) {
 	}
 }
 
+// Tests that stop saves the ack level, then deletes the finished tasks.
+func TestStopDeletesFinishedTasks(t *testing.T) {
+	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
+	require.NoError(t, r.taskAckManager.ReadItem(1))
+	r.taskAckManager.AckItem(1)
+
+	gomock.InOrder(
+		store.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).Times(1).
+			Return(&persistence.UpdateSemaphoreTaskBucketStateResponse{}, nil),
+		store.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), &persistence.RangeCompleteSemaphoreTasksRequest{
+			DomainID:      testBucketID.DomainID,
+			SemaphoreName: testBucketID.SemaphoreName,
+			Bucket:        testBucketID.Bucket,
+			AckLevel:      1,
+		}).Times(1).Return(&persistence.RangeCompleteSemaphoreTasksResponse{}, nil),
+	)
+	r.stop()
+}
+
+// Tests that a task counts from the moment the writer saves it until it is acked.
+func TestHasTasks(t *testing.T) {
+	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
+	r.writer.start()
+	assert.False(t, r.hasTasks(), "nothing saved yet")
+
+	store.EXPECT().CreateSemaphoreTasks(gomock.Any(), createRequest(1, written("wf-a", 1)))
+	require.NoError(t, r.writer.appendTask(testContext(t), newTask("wf-a")))
+	assert.True(t, r.hasTasks(), "saved, not read yet")
+
+	store.EXPECT().GetSemaphoreTasks(gomock.Any(), getTasksRequest(0, 1, getTasksBatchSize)).Return(
+		&persistence.GetSemaphoreTasksResponse{Tasks: []*persistence.SemaphoreTask{written("wf-a", 1)}}, nil)
+	require.True(t, r.readTasks())
+	assert.True(t, r.hasTasks(), "in the buffer")
+
+	task := <-r.taskBuffer
+	assert.True(t, r.hasTasks(), "taken from the buffer, not acked yet")
+
+	r.taskAckManager.AckItem(task.TaskID)
+	assert.False(t, r.hasTasks(), "acked")
+}
+
 func TestGetTasksPumpTimerSavesAndWakesGrantLoop(t *testing.T) {
 	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
 	mockClock := clock.NewMockedTimeSource()
@@ -331,6 +376,9 @@ func TestGrantTasksLoop(t *testing.T) {
 			for _, task := range tasksWithIDs(1, 2) {
 				require.True(t, r.addTaskToBuffer(task))
 			}
+			// Acks delete finished tasks.
+			store.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().
+				Return(&persistence.RangeCompleteSemaphoreTasksResponse{}, nil)
 
 			r.wg.Add(1)
 			go r.grantTasksLoop()
