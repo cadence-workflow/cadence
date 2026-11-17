@@ -184,6 +184,16 @@ func ring(host string) route {
 	return route{routedBy: routedByHashRing, owner: host}
 }
 
+// ringIdentity and executorID name a host in the hash ring and in SD. As in production, the two
+// names differ, so a check that compares one with the other fails.
+func ringIdentity(hostName string) string {
+	return hostName + ":7933"
+}
+
+func executorID(hostName string) string {
+	return hostName + "@executor"
+}
+
 func newOnboardingTestData(
 	t *testing.T,
 	taskLists []onboardingTaskList,
@@ -241,7 +251,7 @@ func (td *onboardingTestData) newTaskListRouter(t *testing.T, hostCount int) mat
 				return nil, fmt.Errorf("SD has given shard %q to no host", shardID)
 			}
 			shardOwner := &spectatorclient.ShardOwner{
-				ExecutorID: host.name,
+				ExecutorID: executorID(host.name),
 				Metadata:   map[string]string{"hostIP": "127.0.0.1", "tchannel": "7933", "grpc": "7833"},
 			}
 			return shardOwner, nil
@@ -250,7 +260,7 @@ func (td *onboardingTestData) newTaskListRouter(t *testing.T, hostCount int) mat
 
 	hashRing := membership.NewMockSingleProvider(td.ctrl)
 	for _, taskList := range td.taskLists {
-		owner := membership.NewDetailedHostInfo("", taskList.ringOwner, nil)
+		owner := membership.NewDetailedHostInfo("", ringIdentity(taskList.ringOwner), nil)
 		hashRing.EXPECT().Lookup(taskList.name).DoAndReturn(
 			func(string) (membership.HostInfo, error) {
 				td.routedBy = routedByHashRing
@@ -281,7 +291,7 @@ func (td *onboardingTestData) newTaskListRouter(t *testing.T, hostCount int) mat
 // shared router.
 func (td *onboardingTestData) newHost(t *testing.T, hostName string) *onboardingHost {
 	peerProvider := membership.NewMockPeerProvider(td.ctrl)
-	self := membership.NewDetailedHostInfo("", hostName, nil)
+	self := membership.NewDetailedHostInfo("", ringIdentity(hostName), nil)
 	peerProvider.EXPECT().WhoAmI().Return(self, nil).AnyTimes()
 
 	rings := map[string]membership.SingleProvider{service.Matching: td.matchingRing}
@@ -366,9 +376,9 @@ func (td *onboardingTestData) newManager(t *testing.T, host *onboardingHost, tas
 }
 
 // setPercentage changes the onboarding percentage every host reads. A host joins SD and gets its
-// shards once matching lets its executor heartbeat. Then each host stops the task lists it no
-// longer owns and starts the ones it now owns. In production a host only runs that stop check when
-// the hash ring's membership changes.
+// shards once matching lets its executor heartbeat. Then each host runs the check matching runs when
+// the hash ring's membership changes, and starts the task lists it now owns. In production a host
+// only runs that check when the ring changes, not when the percentage does.
 func (td *onboardingTestData) setPercentage(t *testing.T, percentage int) {
 	td.percentageOnboarded = percentage
 	td.joinSDOnceOnboarded(t)
@@ -442,7 +452,8 @@ func (td *onboardingTestData) joinSDOnceOnboarded(t *testing.T) {
 }
 
 // stopTaskListsHostsNoLongerOwn runs, on every host, the check matching runs when the hash ring's
-// membership changes. It stops every task list the router no longer routes to the host.
+// membership changes. It stops every task list the hash ring routes to another host, and leaves
+// onboarded task lists to the executor.
 func (td *onboardingTestData) stopTaskListsHostsNoLongerOwn(t *testing.T) {
 	for _, host := range td.hosts {
 		err := host.engine.shutDownNonOwnedTasklists()
@@ -461,6 +472,17 @@ func (td *onboardingTestData) startTaskListsHostsNowOwn(t *testing.T) {
 				continue
 			}
 			host.engine.taskListRegistry.Register(*taskListID, manager)
+			td.stopOnOtherHosts(host, taskListID.GetName())
+		}
+	}
+}
+
+// stopOnOtherHosts stops the task list on every host but owner. Starting a task list takes its
+// lease, so a copy still running on another host fails its next write and stops.
+func (td *onboardingTestData) stopOnOtherHosts(owner *onboardingHost, taskListName string) {
+	for _, host := range td.hosts {
+		if host != owner && host.runs(taskListName) {
+			host.managers[taskListName].Stop()
 		}
 	}
 }
@@ -471,7 +493,20 @@ func (td *onboardingTestData) routeOf(t *testing.T, taskListName string) route {
 	td.routedBy = ""
 	owner, err := td.taskListRouter.FromTaskList(onboardingDomainID, taskListName)
 	require.NoError(t, err, "routing task list %q", taskListName)
-	return route{routedBy: td.routedBy, owner: owner.Identity()}
+	return route{routedBy: td.routedBy, owner: td.hostNameOf(t, owner.Identity())}
+}
+
+// hostNameOf returns the name of the host the identity belongs to, as a ring identity or an
+// executor ID.
+func (td *onboardingTestData) hostNameOf(t *testing.T, identity string) string {
+	t.Helper()
+	for _, host := range td.hosts {
+		if identity == ringIdentity(host.name) || identity == executorID(host.name) {
+			return host.name
+		}
+	}
+	require.Failf(t, "unknown identity", "no host in the test has the identity %q", identity)
+	return ""
 }
 
 // requireRunsOnlyOn requires that the task list runs on owner and on no other host, and that it
