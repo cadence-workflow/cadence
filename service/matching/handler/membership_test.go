@@ -116,12 +116,12 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			// testing. With the onboarding percentage at 0, no task list name is below the
 			// percentage threshold, so every name is considered excluded regardless of whether it
 			// contains a UUID.
-			pct := membership.NewMockPercentageOnboarded(ctrl)
-			pct.EXPECT().Value().Return(0).AnyTimes()
-			taskListDifferentiator := membership.NewTaskListDifferentiator(
+			taskListDifferentiator := matching.NewTaskListDifferentiator(
+				metrics.NewNoopMetricsClient(),
 				dynamicproperties.GetBoolPropertyFn(true),
 				dynamicproperties.GetBoolPropertyFn(false),
-				pct,
+				dynamicproperties.GetBoolPropertyFn(false),
+				dynamicproperties.GetIntPropertyFn(0),
 				commonConfig.DefaultNumMatchingShards,
 			)
 
@@ -140,13 +140,13 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				tally.NoopScope,
 				mockDomainCache,
 				resolverMock,
+				newTestTaskListRouter(resolverMock),
 				isolationgroup.NewMockState(ctrl),
 				mockTimeSource,
 				mockShardDistributorExecutorClient,
 				defaultSDExecutorConfig(),
 				taskListDifferentiator,
 				nil,
-				pct,
 			).(*matchingEngineImpl)
 
 			// All task lists are excluded from the ShardDistributor, so GetShardProcess is
@@ -187,6 +187,7 @@ func TestMembershipSubscriptionRecoversAfterPanic(t *testing.T) {
 
 		engine := matchingEngineImpl{
 			membershipResolver: r.MembershipResolver,
+			taskListRouter:     newTestTaskListRouter(r.MembershipResolver),
 			config:             &config.Config{},
 			logger:             log.NewNoop(),
 			shutdown:           make(chan struct{}),
@@ -210,6 +211,7 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
+		taskListRouter:     newTestTaskListRouter(mockResolver),
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
@@ -246,6 +248,7 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
+		taskListRouter:     newTestTaskListRouter(mockResolver),
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
@@ -305,6 +308,7 @@ func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
+		taskListRouter:     newTestTaskListRouter(mockResolver),
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		config:             &config.Config{},
@@ -349,16 +353,14 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
-	pct := membership.NewMockPercentageOnboarded(ctrl)
-	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	engine := matchingEngineImpl{
 		shutdownCompletion:     &shutdownWG,
 		membershipResolver:     mockResolver,
+		taskListRouter:         newTestTaskListRouter(mockResolver),
 		taskListRegistry:       tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
 		semaphoreRegistry:      semaphore.NewSemaphoreRegistry(),
 		metricsClient:          metrics.NewNoopMetricsClient(),
-		percentageOnboarded:    pct,
 		taskListDifferentiator: newTestTaskListDifferentiator(true, false),
 		shutdown:               make(chan struct{}),
 		logger:                 log.NewNoop(),
@@ -402,6 +404,7 @@ func TestShutDownNonOwnedSemaphoreManagers(t *testing.T) {
 	e := &matchingEngineImpl{
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		membershipResolver: resolver,
+		taskListRouter:     newTestTaskListRouter(resolver),
 		logger:             log.NewNoop(),
 	}
 
@@ -421,7 +424,7 @@ func TestShutDownNonOwnedSemaphoreManagers(t *testing.T) {
 	assert.Same(t, mineMgr, remaining[0], "the bucket this host still owns stays loaded")
 
 	// Unregistering alone would leave it holding its free-set and answering grants.
-	_, err := movedMgr.Acquire(context.Background(), "owner-1")
+	_, err := movedMgr.Acquire(context.Background(), "owner-1", nil)
 	assert.ErrorIs(t, err, semaphore.ErrNotReady, "the bucket that moved must be stopped too")
 }
 
@@ -442,6 +445,7 @@ func TestShutDownNonOwnedSemaphoreManagersReportsAPanic(t *testing.T) {
 	e := &matchingEngineImpl{
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		membershipResolver: resolver,
+		taskListRouter:     newTestTaskListRouter(resolver),
 		logger:             log.NewNoop(),
 	}
 	registerSemaphoreManager(t, e, mgr)
@@ -468,6 +472,7 @@ func TestShutDownNonOwnedSemaphoreManagersSurfacesALookupFailure(t *testing.T) {
 	e := &matchingEngineImpl{
 		semaphoreRegistry:  semaphore.NewSemaphoreRegistry(),
 		membershipResolver: resolver,
+		taskListRouter:     newTestTaskListRouter(resolver),
 		logger:             log.NewNoop(),
 	}
 	mgr := newUnstartedSemaphoreManager(t, mustNewSemaphoreIdentifier(t, 0), tokens)

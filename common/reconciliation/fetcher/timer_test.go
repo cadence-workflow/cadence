@@ -84,6 +84,7 @@ func TestGetUserTimers(t *testing.T) {
 						},
 						TaskData: persistence.TaskData{
 							VisibilityTimestamp: fixedTimestamp,
+							TaskID:              456,
 						},
 					},
 				}
@@ -115,6 +116,7 @@ func TestGetUserTimers(t *testing.T) {
 						RunID:               "testRunID",
 						TaskType:            persistence.TaskTypeUserTimer,
 						VisibilityTimestamp: fixedTimestamp,
+						TaskID:              456,
 					},
 				},
 			},

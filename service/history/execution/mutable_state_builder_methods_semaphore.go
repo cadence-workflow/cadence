@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	commonsemaphore "github.com/uber/cadence/common/semaphore"
@@ -188,6 +189,63 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquiredEvent(
 	e.UpsertSemaphoreInfo(semaphoreInfo)
 
 	return nil
+}
+
+// AddSemaphoreTokenLostEvent records that the token of the hold started by initiatedEventID is no
+// longer valid. The hold must exist and have a token.
+func (e *mutableStateBuilder) AddSemaphoreTokenLostEvent(
+	initiatedEventID int64,
+) (*types.HistoryEvent, error) {
+
+	opTag := tag.WorkflowActionSemaphoreTokenLost
+	if err := e.checkMutability(opTag); err != nil {
+		return nil, err
+	}
+
+	semaphoreInfo, ok := e.GetSemaphoreInfo(initiatedEventID)
+	// Only a hold with a token can lose it.
+	if !ok || !semaphoreInfo.HasToken() {
+		e.logWarn(mutableStateInvalidHistoryActionMsg, opTag,
+			tag.WorkflowEventID(e.GetNextEventID()),
+			tag.ErrorTypeInvalidHistoryAction,
+			tag.Bool(ok),
+			tag.WorkflowInitiatedID(initiatedEventID))
+		return nil, e.createInternalServerError(opTag)
+	}
+
+	event := e.hBuilder.AddSemaphoreTokenLostEvent(initiatedEventID, int32(semaphoreInfo.TokenID))
+	if err := e.ReplicateSemaphoreTokenLostEvent(event); err != nil {
+		return nil, err
+	}
+	return event, nil
+}
+
+// ReplicateSemaphoreTokenLostEvent clears the hold's token and deadline and adds a transfer task
+// to acquire a new token. A re-acquire has no deadline, so the timeout task generator adds no timer.
+func (e *mutableStateBuilder) ReplicateSemaphoreTokenLostEvent(
+	event *types.HistoryEvent,
+) error {
+
+	initiatedEventID := event.SemaphoreTokenLostEventAttributes.GetInitiatedEventID()
+	semaphoreInfo, ok := e.GetSemaphoreInfo(initiatedEventID)
+	if !ok {
+		e.logError(
+			"Unable to find semaphore hold",
+			tag.ErrorTypeInvalidMutableStateAction,
+			tag.WorkflowEventID(e.GetNextEventID()),
+			tag.WorkflowInitiatedID(initiatedEventID),
+		)
+		return ErrMissingSemaphoreInfo
+	}
+	semaphoreInfo.Version = event.Version
+	semaphoreInfo.TokenID = constants.NoSemaphoreTokenID
+	semaphoreInfo.AcquireDeadline = time.Time{}
+	e.UpsertSemaphoreInfo(semaphoreInfo)
+
+	if err := e.taskGenerator.GenerateAcquireSemaphoreTasks(initiatedEventID); err != nil {
+		return err
+	}
+	return e.taskGenerator.GenerateSemaphoreAcquireTimeoutTasks(initiatedEventID)
 }
 
 // AddSemaphoreAcquireFailedEvent records that the acquire started by initiatedEventID ended

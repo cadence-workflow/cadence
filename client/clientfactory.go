@@ -77,11 +77,13 @@ type (
 	rpcClientFactory struct {
 		rpcFactory            rpc.Factory
 		resolver              membership.Resolver
+		taskListRouter        matching.TaskListRouter
 		metricsClient         metrics.Client
 		dynConfig             *dynamicconfig.Collection
 		numberOfHistoryShards int
 		allIsolationGroups    func() []string
 		logger                log.Logger
+		matchingPollTracker   matching.PollTracker
 	}
 )
 
@@ -89,20 +91,24 @@ type (
 func NewRPCClientFactory(
 	rpcFactory rpc.Factory,
 	resolver membership.Resolver,
+	taskListRouter matching.TaskListRouter,
 	metricsClient metrics.Client,
 	dc *dynamicconfig.Collection,
 	numberOfHistoryShards int,
 	allIsolationGroups func() []string,
+	matchingPollTracker matching.PollTracker,
 	logger log.Logger,
 ) Factory {
 	return &rpcClientFactory{
 		rpcFactory:            rpcFactory,
 		resolver:              resolver,
+		taskListRouter:        taskListRouter,
 		metricsClient:         metricsClient,
 		dynConfig:             dc,
 		numberOfHistoryShards: numberOfHistoryShards,
 		allIsolationGroups:    allIsolationGroups,
 		logger:                logger,
+		matchingPollTracker:   matchingPollTracker,
 	}
 }
 
@@ -160,7 +166,7 @@ func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 		rawClient = thrift.NewMatchingClient(matchingserviceclient.New(outboundConfig))
 	}
 
-	peerResolver := matching.NewPeerResolver(cf.resolver, namedPort)
+	peerResolver := matching.NewPeerResolver(cf.resolver, cf.taskListRouter, namedPort)
 
 	partitionConfigProvider := matching.NewPartitionConfigProvider(cf.logger, cf.metricsClient, domainIDToName, cf.dynConfig)
 	defaultLoadBalancer := matching.NewLoadBalancer(partitionConfigProvider)
@@ -178,6 +184,7 @@ func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 		peerResolver,
 		matching.NewMultiLoadBalancer(defaultLoadBalancer, loadBalancers, domainIDToName, cf.dynConfig, cf.logger),
 		partitionConfigProvider,
+		cf.matchingPollTracker,
 	)
 	client = timeoutwrapper.NewMatchingClient(client, longPollTimeout, timeout)
 	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.MatchingErrorInjectionRate)(); errorRate != 0 {
@@ -224,6 +231,7 @@ func (cf *rpcClientFactory) NewFrontendClientWithTimeoutAndConfig(
 			apiv1.NewWorkerAPIYARPCClient(config),
 			apiv1.NewVisibilityAPIYARPCClient(config),
 			apiv1.NewScheduleAPIYARPCClient(config),
+			apiv1.NewBatchAPIYARPCClient(config),
 		)
 	} else {
 		client = thrift.NewFrontendClient(workflowserviceclient.New(config))

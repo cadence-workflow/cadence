@@ -59,6 +59,7 @@ type Service struct {
 	adminHandler           admin.Handler
 	stopC                  chan struct{}
 	config                 *config.Config
+	pollTracker            *api.PollTracker
 	params                 *resource.Params
 	ratelimiterCollections globalRatelimiterCollections
 }
@@ -76,6 +77,9 @@ func NewService(
 		params.HostName,
 		params.Logger,
 	)
+
+	pollTracker := api.NewPollTracker(params.Logger)
+	params.MatchingPollTracker = pollTracker
 
 	serviceResource, err := resource.New(
 		params,
@@ -107,11 +111,12 @@ func NewService(
 	}
 
 	return &Service{
-		Resource: serviceResource,
-		status:   common.DaemonStatusInitialized,
-		config:   serviceConfig,
-		stopC:    make(chan struct{}),
-		params:   params,
+		Resource:    serviceResource,
+		status:      common.DaemonStatusInitialized,
+		config:      serviceConfig,
+		stopC:       make(chan struct{}),
+		params:      params,
+		pollTracker: pollTracker,
 	}, nil
 }
 
@@ -138,7 +143,7 @@ func (s *Service) Start() {
 	)
 
 	// Base handler
-	s.handler = api.NewWorkflowHandler(s, s.config, client.NewVersionChecker(), dh)
+	s.handler = api.NewWorkflowHandler(s, s.config, client.NewVersionChecker(), s.pollTracker, dh)
 
 	collections, err := s.createGlobalQuotaCollections()
 	if err != nil {

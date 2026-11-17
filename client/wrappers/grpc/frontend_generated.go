@@ -44,6 +44,11 @@ func (g frontendClient) DeprecateDomain(ctx context.Context, dp1 *types.Deprecat
 	return proto.ToError(err)
 }
 
+func (g frontendClient) DescribeBatchOperation(ctx context.Context, dp1 *types.DescribeBatchOperationRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeBatchOperationResponse, err error) {
+	response, err := g.c.DescribeBatchOperation(ctx, proto.FromDescribeBatchOperationRequest(dp1), p1...)
+	return proto.ToDescribeBatchOperationResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeDomainResponse, err error) {
 	response, err := g.c.DescribeDomain(ctx, proto.FromDescribeDomainRequest(dp1), p1...)
 	return proto.ToDescribeDomainResponse(response), proto.ToError(err)
@@ -102,6 +107,11 @@ func (g frontendClient) GetWorkflowExecutionHistory(ctx context.Context, gp1 *ty
 func (g frontendClient) ListArchivedWorkflowExecutions(ctx context.Context, lp1 *types.ListArchivedWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListArchivedWorkflowExecutionsResponse, err error) {
 	response, err := g.c.ListArchivedWorkflowExecutions(ctx, proto.FromListArchivedWorkflowExecutionsRequest(lp1), p1...)
 	return proto.ToListArchivedWorkflowExecutionsResponse(response), proto.ToError(err)
+}
+
+func (g frontendClient) ListBatchOperations(ctx context.Context, lp1 *types.ListBatchOperationsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListBatchOperationsResponse, err error) {
+	response, err := g.c.ListBatchOperations(ctx, proto.FromListBatchOperationsRequest(lp1), p1...)
+	return proto.ToListBatchOperationsResponse(response), proto.ToError(err)
 }
 
 func (g frontendClient) ListClosedWorkflowExecutions(ctx context.Context, lp1 *types.ListClosedWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListClosedWorkflowExecutionsResponse, err error) {
@@ -264,6 +274,11 @@ func (g frontendClient) SignalWorkflowExecution(ctx context.Context, sp1 *types.
 	return proto.ToError(err)
 }
 
+func (g frontendClient) StartBatchOperation(ctx context.Context, sp1 *types.StartBatchOperationRequest, p1 ...yarpc.CallOption) (sp2 *types.StartBatchOperationResponse, err error) {
+	response, err := g.c.StartBatchOperation(ctx, proto.FromStartBatchOperationRequest(sp1), p1...)
+	return proto.ToStartBatchOperationResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) StartWorkflowExecution(ctx context.Context, sp1 *types.StartWorkflowExecutionRequest, p1 ...yarpc.CallOption) (sp2 *types.StartWorkflowExecutionResponse, err error) {
 	response, err := g.c.StartWorkflowExecution(ctx, proto.FromStartWorkflowExecutionRequest(sp1), p1...)
 	return proto.ToStartWorkflowExecutionResponse(response), proto.ToError(err)
@@ -274,6 +289,11 @@ func (g frontendClient) StartWorkflowExecutionAsync(ctx context.Context, sp1 *ty
 	return proto.ToStartWorkflowExecutionAsyncResponse(response), proto.ToError(err)
 }
 
+func (g frontendClient) StopBatchOperation(ctx context.Context, sp1 *types.StopBatchOperationRequest, p1 ...yarpc.CallOption) (sp2 *types.StopBatchOperationResponse, err error) {
+	response, err := g.c.StopBatchOperation(ctx, proto.FromStopBatchOperationRequest(sp1), p1...)
+	return proto.ToStopBatchOperationResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) TerminateWorkflowExecution(ctx context.Context, tp1 *types.TerminateWorkflowExecutionRequest, p1 ...yarpc.CallOption) (err error) {
 	_, err = g.c.TerminateWorkflowExecution(ctx, proto.FromTerminateWorkflowExecutionRequest(tp1), p1...)
 	return proto.ToError(err)
@@ -282,6 +302,11 @@ func (g frontendClient) TerminateWorkflowExecution(ctx context.Context, tp1 *typ
 func (g frontendClient) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseScheduleRequest, p1 ...yarpc.CallOption) (up2 *types.UnpauseScheduleResponse, err error) {
 	response, err := g.c.UnpauseSchedule(ctx, proto.FromUnpauseScheduleRequest(up1), p1...)
 	return proto.ToUnpauseScheduleResponse(response), proto.ToError(err)
+}
+
+func (g frontendClient) UpdateBatchOperation(ctx context.Context, up1 *types.UpdateBatchOperationRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateBatchOperationResponse, err error) {
+	response, err := g.c.UpdateBatchOperation(ctx, proto.FromUpdateBatchOperationRequest(up1), p1...)
+	return proto.ToUpdateBatchOperationResponse(response), proto.ToError(err)
 }
 
 func (g frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainResponse, err error) {

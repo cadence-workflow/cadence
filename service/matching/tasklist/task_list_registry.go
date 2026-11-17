@@ -25,7 +25,7 @@ package tasklist
 import (
 	"sync"
 
-	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/metrics"
 )
 
@@ -33,15 +33,20 @@ type taskListRegistryImpl struct {
 	sync.RWMutex
 	taskLists map[Identifier]Manager
 
-	// task lists indexed by domain ID, task list name and the shard the name hashes to
+	// task lists indexed by domain ID, task list name and the shards the task list hashes to
 	// to quickly get all task lists for a domain, a task list name or a shard
 	// they are always in sync with the taskLists map
+	//
+	// A task list is in two shards of taskListsByShard: the one it hashes to by name alone, and the one it
+	// hashes to by domain ID and name. matching.hashDomainIDForShardManager decides which of them
+	// owns it, and it can change while the task list is loaded, so filing it under both keeps the index right
+	// either way. Callers of ManagersByShard must check that a task list's current shard is the one they asked for.
 	taskListsByDomainID     map[string]map[Identifier]Manager
 	taskListsByTaskListName map[string]map[Identifier]Manager
 	taskListsByShard        map[string]map[Identifier]Manager
 
 	metricsClient metrics.Client
-	// shardCount is the number of shards task list names hash to in taskListsByShard.
+	// shardCount is the number of shards task lists hash to in taskListsByShard.
 	shardCount int
 }
 
@@ -70,14 +75,14 @@ func (r *taskListRegistryImpl) Register(id Identifier, mgr Manager) {
 	if _, ok := r.taskListsByTaskListName[id.GetName()]; !ok {
 		r.taskListsByTaskListName[id.GetName()] = make(map[Identifier]Manager)
 	}
-	shardID := membership.TaskListNameToShard(id.GetName(), r.shardCount)
-	if _, ok := r.taskListsByShard[shardID]; !ok {
-		r.taskListsByShard[shardID] = make(map[Identifier]Manager)
-	}
-
 	r.taskListsByDomainID[id.GetDomainID()][id] = mgr
 	r.taskListsByTaskListName[id.GetName()][id] = mgr
-	r.taskListsByShard[shardID][id] = mgr
+	for _, shardID := range r.shardIDs(id) {
+		if _, ok := r.taskListsByShard[shardID]; !ok {
+			r.taskListsByShard[shardID] = make(map[Identifier]Manager)
+		}
+		r.taskListsByShard[shardID][id] = mgr
+	}
 	r.updateMetricsLocked()
 }
 
@@ -101,10 +106,11 @@ func (r *taskListRegistryImpl) Unregister(mgr Manager) bool {
 			delete(r.taskListsByTaskListName, id.GetName())
 		}
 
-		shardID := membership.TaskListNameToShard(id.GetName(), r.shardCount)
-		delete(r.taskListsByShard[shardID], *id)
-		if len(r.taskListsByShard[shardID]) == 0 {
-			delete(r.taskListsByShard, shardID)
+		for _, shardID := range r.shardIDs(*id) {
+			delete(r.taskListsByShard[shardID], *id)
+			if len(r.taskListsByShard[shardID]) == 0 {
+				delete(r.taskListsByShard, shardID)
+			}
 		}
 
 		r.updateMetricsLocked()
@@ -164,6 +170,14 @@ func (r *taskListRegistryImpl) ManagersByShard(shardID string) []Manager {
 		res = append(res, tlm)
 	}
 	return res
+}
+
+// shardIDs returns the shard the task list hashes to by name alone and the one it hashes to by domain ID
+// and name. They can be the same shard.
+func (r *taskListRegistryImpl) shardIDs(id Identifier) []string {
+	nameShardID := matching.TaskListNameToShard(id.GetName(), r.shardCount)
+	domainShardID := matching.TaskListToShard(id.GetDomainID(), id.GetName(), r.shardCount)
+	return []string{nameShardID, domainShardID}
 }
 
 func (r *taskListRegistryImpl) updateMetricsLocked() {

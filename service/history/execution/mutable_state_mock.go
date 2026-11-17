@@ -594,6 +594,21 @@ func (mr *MockMutableStateMockRecorder) AddSemaphoreReleasedEvent(arg0, arg1 any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreReleasedEvent", reflect.TypeOf((*MockMutableState)(nil).AddSemaphoreReleasedEvent), arg0, arg1)
 }
 
+// AddSemaphoreTokenLostEvent mocks base method.
+func (m *MockMutableState) AddSemaphoreTokenLostEvent(arg0 int64) (*types.HistoryEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddSemaphoreTokenLostEvent", arg0)
+	ret0, _ := ret[0].(*types.HistoryEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddSemaphoreTokenLostEvent indicates an expected call of AddSemaphoreTokenLostEvent.
+func (mr *MockMutableStateMockRecorder) AddSemaphoreTokenLostEvent(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreTokenLostEvent", reflect.TypeOf((*MockMutableState)(nil).AddSemaphoreTokenLostEvent), arg0)
+}
+
 // AddSignalExternalWorkflowExecutionFailedEvent mocks base method.
 func (m *MockMutableState) AddSignalExternalWorkflowExecutionFailedEvent(arg0, arg1 int64, arg2, arg3, arg4 string, arg5 []uint8, arg6 types.SignalExternalWorkflowExecutionFailedCause) (*types.HistoryEvent, error) {
 	m.ctrl.T.Helper()
@@ -2295,6 +2310,20 @@ func (m *MockMutableState) ReplicateSemaphoreReleasedEvent(arg0 *types.HistoryEv
 func (mr *MockMutableStateMockRecorder) ReplicateSemaphoreReleasedEvent(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateSemaphoreReleasedEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateSemaphoreReleasedEvent), arg0)
+}
+
+// ReplicateSemaphoreTokenLostEvent mocks base method.
+func (m *MockMutableState) ReplicateSemaphoreTokenLostEvent(arg0 *types.HistoryEvent) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplicateSemaphoreTokenLostEvent", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReplicateSemaphoreTokenLostEvent indicates an expected call of ReplicateSemaphoreTokenLostEvent.
+func (mr *MockMutableStateMockRecorder) ReplicateSemaphoreTokenLostEvent(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateSemaphoreTokenLostEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateSemaphoreTokenLostEvent), arg0)
 }
 
 // ReplicateSignalExternalWorkflowExecutionFailedEvent mocks base method.

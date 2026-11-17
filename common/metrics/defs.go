@@ -600,6 +600,16 @@ const (
 	FrontendClientListSchedulesScope
 	// FrontendClientExportWorkflowExecutionScope tracks RPC calls to frontend service
 	FrontendClientExportWorkflowExecutionScope
+	// FrontendClientStartBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientStartBatchOperationScope
+	// FrontendClientStopBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientStopBatchOperationScope
+	// FrontendClientDescribeBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientDescribeBatchOperationScope
+	// FrontendClientListBatchOperationsScope tracks RPC calls to frontend service
+	FrontendClientListBatchOperationsScope
+	// FrontendClientUpdateBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientUpdateBatchOperationScope
 	// FrontendClientListWorkflowExecutionsScope tracks RPC calls to frontend service
 	FrontendClientListWorkflowExecutionsScope
 	// FrontendClientScanWorkflowExecutionsScope tracks RPC calls to frontend service
@@ -1888,6 +1898,11 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientBackfillScheduleScope:                      {operation: "FrontendClientBackfillSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientListSchedulesScope:                         {operation: "FrontendClientListSchedules", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientExportWorkflowExecutionScope:               {operation: "FrontendClientExportWorkflowExecution", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientStartBatchOperationScope:                   {operation: "FrontendClientStartBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientStopBatchOperationScope:                    {operation: "FrontendClientStopBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientDescribeBatchOperationScope:                {operation: "FrontendClientDescribeBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientListBatchOperationsScope:                   {operation: "FrontendClientListBatchOperations", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientUpdateBatchOperationScope:                  {operation: "FrontendClientUpdateBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 
 		AdminClientGetReplicationTasksScope:                   {operation: "AdminClientGetReplicationTasks", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientAddSearchAttributeScope:                    {operation: "AdminClientAddSearchAttribute", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
@@ -3153,6 +3168,9 @@ const (
 	HistoryTaskDLQReinjectFailuresCounter
 	// HistoryTaskDLQPageSizeBytes tracks the serialized byte size of each re-injected DLQ page
 	HistoryTaskDLQPageSizeBytes
+	// HistoryTaskDLQAckLevelRows tracks how many DLQ ack-level rows a shard carries, recorded
+	// once per periodic sweep from the length of the shard-scoped ack-level read
+	HistoryTaskDLQAckLevelRows
 	// AsyncWorkflowQueueFetchedCounter counts messages read from the async workflow queue
 	AsyncWorkflowQueueFetchedCounter
 	// AsyncWorkflowQueueSubmittedCounter counts messages submitted to the history engine
@@ -3838,6 +3856,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		HistoryTaskDLQReinjectFailuresCounter:   {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
 		HistoryTaskDLQPageSizeBytes:             {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
+		HistoryTaskDLQAckLevelRows:              {metricName: "history_task_dlq_ack_level_rows", metricType: Histogram, buckets: TaskCountBuckets},
 		AsyncWorkflowQueueFetchedCounter:        {metricName: "async_workflow_queue_fetched", metricType: Counter},
 		AsyncWorkflowQueueSubmittedCounter:      {metricName: "async_workflow_queue_submitted", metricType: Counter},
 		AsyncWorkflowQueueSuccessCounter:        {metricName: "async_workflow_queue_success", metricType: Counter},
