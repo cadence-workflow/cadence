@@ -1,6 +1,7 @@
 package semaphore
 
 import (
+	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,8 +18,8 @@ import (
 // testUpdateAckInterval is how often the readers in these tests save the ack level.
 func testUpdateAckInterval() time.Duration { return time.Minute }
 
-// newTestTaskReader returns a reader whose writer claimed range 1 with ackLevel, stopped when the
-// test ends.
+// newTestTaskReader returns a reader whose writer claimed range 1 with ackLevel. It is stopped,
+// possibly saving the ack level, when the test ends.
 func newTestTaskReader(t *testing.T, store *persistence.MockSemaphoreTaskManager, ackLevel int64, timeSource clock.TimeSource) *taskReader {
 	t.Helper()
 	expectClaim(store, 0, 1, ackLevel)
@@ -27,7 +28,11 @@ func newTestTaskReader(t *testing.T, store *persistence.MockSemaphoreTaskManager
 	t.Cleanup(m.taskWriter.stop)
 	require.NoError(t, m.taskWriter.claim())
 	r := newTaskReader(m)
-	t.Cleanup(r.stop)
+	t.Cleanup(func() {
+		store.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).MaxTimes(1).
+			Return(&persistence.UpdateSemaphoreTaskBucketStateResponse{}, nil)
+		r.stop()
+	})
 	return r
 }
 
@@ -71,7 +76,7 @@ func TestGetTaskBatch(t *testing.T) {
 			wantDone:      true,
 		},
 		{
-			name:         "returns the first window's waiters without reading further",
+			name:         "returns the first window's tasks without reading further",
 			maxReadLevel: 35,
 			reads: func(store *persistence.MockSemaphoreTaskManager) {
 				store.EXPECT().GetSemaphoreTasks(gomock.Any(), getTasksRequest(0, 10, batchSize)).
@@ -148,9 +153,9 @@ func TestReadTasks(t *testing.T) {
 	tests := []struct {
 		name         string
 		maxReadLevel int64
-		// readFirst, if set, is a waiter already read and not yet acked.
+		// readFirst, if set, is a task already read and not yet acked.
 		readFirst int64
-		// buffered is how many waiters are already in the buffer.
+		// buffered is how many tasks are already in the buffer.
 		buffered int
 		// read stubs the store. Nil expects no read.
 		read          func(store *persistence.MockSemaphoreTaskManager)
@@ -163,7 +168,7 @@ func TestReadTasks(t *testing.T) {
 		wantStop bool
 	}{
 		{
-			name:         "buffers and registers waiters, reading only into free room",
+			name:         "buffers and registers tasks, reading only into free room",
 			maxReadLevel: maxReadLevel,
 			buffered:     getTasksBatchSize - 2,
 			read: func(store *persistence.MockSemaphoreTaskManager) {
@@ -176,7 +181,7 @@ func TestReadTasks(t *testing.T) {
 			wantSignal:    true,
 		},
 		{
-			name:         "skips a waiter past its deadline",
+			name:         "buffers a task past its deadline too, for the grant loop to settle",
 			maxReadLevel: maxReadLevel,
 			read: func(store *persistence.MockSemaphoreTaskManager) {
 				store.EXPECT().GetSemaphoreTasks(gomock.Any(), gomock.Any()).
@@ -184,7 +189,7 @@ func TestReadTasks(t *testing.T) {
 						withDeadline(11, future), withDeadline(12, past),
 					}}, nil)
 			},
-			wantBuffered:  []*persistence.SemaphoreTask{withDeadline(11, future)},
+			wantBuffered:  []*persistence.SemaphoreTask{withDeadline(11, future), withDeadline(12, past)},
 			wantReadLevel: 12,
 			wantAckLevel:  ackLevel,
 			wantSignal:    true,
@@ -201,7 +206,7 @@ func TestReadTasks(t *testing.T) {
 			wantSignal:    true,
 		},
 		{
-			name:         "empty read keeps the ack level below an unacked waiter",
+			name:         "empty read keeps the ack level below an unacked task",
 			maxReadLevel: maxReadLevel,
 			readFirst:    11,
 			read: func(store *persistence.MockSemaphoreTaskManager) {
@@ -212,7 +217,7 @@ func TestReadTasks(t *testing.T) {
 			wantAckLevel:  ackLevel,
 		},
 		{
-			name:         "waiter read out of order stops the reader",
+			name:         "task read out of order stops the reader",
 			maxReadLevel: maxReadLevel,
 			readFirst:    15,
 			read: func(store *persistence.MockSemaphoreTaskManager) {
@@ -259,7 +264,7 @@ func TestReadTasks(t *testing.T) {
 
 			assert.Equal(t, !tc.wantStop, r.readTasks())
 
-			// The prefilled waiters come first; what follows is what this pass read.
+			// The prefilled tasks come first, then what this pass read.
 			for range tc.buffered {
 				<-r.taskBuffer
 			}
@@ -276,92 +281,69 @@ func TestReadTasks(t *testing.T) {
 	}
 }
 
-// Tests that a waiter counts from the moment the writer saves it until it is acked.
-func TestHasWaiters(t *testing.T) {
-	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
-	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
-	r.writer.start()
-	assert.False(t, r.hasWaiters(), "nothing saved yet")
-
-	store.EXPECT().CreateSemaphoreTasks(gomock.Any(), createRequest(1, written("wf-a", 1)))
-	require.NoError(t, r.writer.appendTask(testContext(t), waiter("wf-a")))
-	assert.True(t, r.hasWaiters(), "saved, not read yet")
-
-	store.EXPECT().GetSemaphoreTasks(gomock.Any(), getTasksRequest(0, 1, getTasksBatchSize)).Return(
-		&persistence.GetSemaphoreTasksResponse{Tasks: []*persistence.SemaphoreTask{written("wf-a", 1)}}, nil)
-	require.True(t, r.readTasks())
-	assert.True(t, r.hasWaiters(), "in the buffer")
-
-	task := <-r.taskBuffer
-	assert.True(t, r.hasWaiters(), "taken from the buffer, not acked yet")
-
-	r.taskAckManager.AckItem(task.TaskID)
-	assert.False(t, r.hasWaiters(), "acked")
-}
-
-// Tests that a waiter skipped for its deadline stops counting once it is read.
-func TestHasWaitersSkipsAnExpiredWaiter(t *testing.T) {
-	now := time.Unix(1_000, 0)
-	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
-	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSourceAt(now))
-	r.writer.start()
-
-	expired := waiter("wf-a")
-	deadline := now.Add(-time.Second)
-	expired.AcquireDeadline = &deadline
-	saved := *expired
-	saved.TaskID = 1
-	store.EXPECT().CreateSemaphoreTasks(gomock.Any(), createRequest(1, &saved))
-	require.NoError(t, r.writer.appendTask(testContext(t), expired))
-	assert.True(t, r.hasWaiters(), "saved, not read yet")
-
-	store.EXPECT().GetSemaphoreTasks(gomock.Any(), getTasksRequest(0, 1, getTasksBatchSize)).Return(
-		&persistence.GetSemaphoreTasksResponse{Tasks: []*persistence.SemaphoreTask{&saved}}, nil)
-	require.True(t, r.readTasks())
-	assert.Empty(t, r.taskBuffer, "the expired waiter is skipped")
-	assert.False(t, r.hasWaiters())
-}
-
-func TestGetTasksPumpConditionFailedReportsFatal(t *testing.T) {
-	defer goleak.VerifyNone(t)
+func TestGetTasksPumpTimerSavesAndWakesGrantLoop(t *testing.T) {
 	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
 	mockClock := clock.NewMockedTimeSource()
 	r := newTestTaskReader(t, store, 0, mockClock)
-	store.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).
-		Return(nil, &persistence.ConditionFailedError{})
-	r.start()
+	grantLoopWoken := make(chan struct{}, 1)
+	r.signalGrantLoop = func() { grantLoopWoken <- struct{}{} }
+	store.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).Times(1).
+		Return(&persistence.UpdateSemaphoreTaskBucketStateResponse{}, nil)
 
+	r.wg.Add(1)
+	go r.getTasksPump()
 	mockClock.BlockUntil(1)
 	mockClock.Advance(testUpdateAckInterval())
 	select {
-	case <-r.fatal():
+	case <-grantLoopWoken:
 	case <-time.After(time.Second):
-		t.Fatal("losing the bucket was not reported")
+		t.Fatal("the timer did not wake the grant loop")
 	}
-	r.stop()
 }
 
-func TestGetTasksPumpReadsWhenSignaled(t *testing.T) {
-	defer goleak.VerifyNone(t)
-	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
-	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
-	gomock.InOrder(
-		store.EXPECT().GetSemaphoreTasks(gomock.Any(), getTasksRequest(0, 2, getTasksBatchSize)).
-			Return(&persistence.GetSemaphoreTasksResponse{Tasks: tasksWithIDs(1, 2)}, nil),
-		// Two waiters are still in the buffer, so the read asks for the room left.
-		store.EXPECT().GetSemaphoreTasks(gomock.Any(), getTasksRequest(2, 3, getTasksBatchSize-2)).
-			Return(&persistence.GetSemaphoreTasksResponse{Tasks: tasksWithIDs(3)}, nil),
-	)
+func TestGrantTasksLoop(t *testing.T) {
+	tests := []struct {
+		name             string
+		grantTaskReturns map[int64]bool
+		wantAckLevel     int64
+	}{
+		{
+			name:             "grants tasks in order, acking each once it is finished",
+			grantTaskReturns: map[int64]bool{1: true, 2: true},
+			wantAckLevel:     2,
+		},
+		{
+			name:             "stops at a task that is not finished, leaving it unacked",
+			grantTaskReturns: map[int64]bool{1: true, 2: false},
+			wantAckLevel:     1,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			defer goleak.VerifyNone(t)
+			store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+			r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
+			granted := make(chan int64, 2)
+			r.grantTask = func(_ context.Context, task *persistence.SemaphoreTask) bool {
+				granted <- task.TaskID
+				return tc.grantTaskReturns[task.TaskID]
+			}
+			for _, task := range tasksWithIDs(1, 2) {
+				require.True(t, r.addTaskToBuffer(task))
+			}
 
-	atomic.StoreInt64(&r.writer.maxReadLevel, 2)
-	r.start()
-	require.Eventually(t, func() bool { return len(r.taskBuffer) == 2 }, time.Second, time.Millisecond,
-		"starting did not read the waiters already written")
-
-	atomic.StoreInt64(&r.writer.maxReadLevel, 3)
-	r.signal()
-	require.Eventually(t, func() bool { return len(r.taskBuffer) == 3 }, time.Second, time.Millisecond,
-		"a signal did not read the new waiter")
-	r.stop()
-	assert.Equal(t, tasksWithIDs(1, 2, 3), []*persistence.SemaphoreTask{<-r.taskBuffer, <-r.taskBuffer, <-r.taskBuffer})
+			r.wg.Add(1)
+			go r.grantTasksLoop()
+			assert.Equal(t, []int64{1, 2}, []int64{<-granted, <-granted})
+			require.Eventually(t, func() bool { return r.taskAckManager.GetAckLevel() == tc.wantAckLevel }, time.Second, time.Millisecond)
+			assert.Len(t, r.notifyC, 1, "taking a task makes room, so the read loop is signaled")
+			store.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).Times(1).
+				DoAndReturn(func(_ context.Context, req *persistence.UpdateSemaphoreTaskBucketStateRequest) (*persistence.UpdateSemaphoreTaskBucketStateResponse, error) {
+					assert.Equal(t, tc.wantAckLevel, req.AckLevel, "stop saves the ack level reached")
+					return &persistence.UpdateSemaphoreTaskBucketStateResponse{}, nil
+				})
+			r.stop()
+			assert.Equal(t, tc.wantAckLevel, r.taskAckManager.GetAckLevel())
+		})
+	}
 }

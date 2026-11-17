@@ -36,7 +36,7 @@ type (
 		end   int64
 	}
 
-	// taskWriter assigns task ids and writes waiters to semaphore_tasks from one goroutine.
+	// taskWriter assigns task ids and writes tasks to semaphore_tasks from one goroutine.
 	taskWriter struct {
 		db             *taskDB
 		taskAckManager messaging.AckManager

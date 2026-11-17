@@ -561,15 +561,16 @@ func (e *matchingEngineImpl) getOrCreateSemaphoreManager(id semaphore.Identifier
 		// a request arriving mid-scan reuses this one rather than scanning the same bucket again.
 		mgr, err = e.semaphoreRegistry.GetOrCreate(id, func() (semaphore.Manager, error) {
 			return semaphore.NewManager(semaphore.ManagerParams{
-				ID:         id,
-				Tokens:     e.semaphoreTokenManager,
-				Metadata:   e.semaphoreMetadataManager,
-				Tasks:      e.semaphoreTaskManager,
-				Logger:     e.logger,
-				Cfg:        e.config,
-				DomainName: domainName,
-				OnStopFn:   e.unregisterSemaphoreManager,
-				TimeSource: e.timeSource,
+				ID:             id,
+				Tokens:         e.semaphoreTokenManager,
+				Metadata:       e.semaphoreMetadataManager,
+				Tasks:          e.semaphoreTaskManager,
+				HistoryService: e.historyService,
+				Logger:         e.logger,
+				Cfg:            e.config,
+				DomainName:     domainName,
+				OnStopFn:       e.unregisterSemaphoreManager,
+				TimeSource:     e.timeSource,
 			})
 		})
 		if err != nil {
