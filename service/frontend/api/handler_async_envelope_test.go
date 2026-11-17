@@ -13,6 +13,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/client"
 	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
@@ -94,7 +95,7 @@ func TestAsyncHandlersPublishEnvelopeIdentity(t *testing.T) {
 				"hostname",
 				mockResource.GetLogger(),
 			)
-			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, nil)
+			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
 			wh.producerManager = mockProducerManager
 
 			var published []*sqlblobs.AsyncRequestMessage
