@@ -108,13 +108,47 @@ func (ts *TimerInvalidTest) TestCheck() {
 			expectedResult: CheckResult{
 				CheckResultType: CheckResultTypeCorrupted,
 				InvariantName:   "TimerInvalid",
-				Info:            "timer scheduled for closed workflow",
+				Info:            "timer scheduled for workflow in final state",
 				InfoDetails:     "",
 			},
 			getExecResp: &persistence.GetWorkflowExecutionResponse{
 				State: &persistence.WorkflowMutableState{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
 						State: closedState,
+					},
+				},
+			},
+			getExecErr: nil,
+			entity:     &entity.Timer{},
+		},
+		{
+			name: "Workflow is corrupted",
+			expectedResult: CheckResult{
+				CheckResultType: CheckResultTypeCorrupted,
+				InvariantName:   "TimerInvalid",
+				Info:            "timer scheduled for workflow in final state",
+				InfoDetails:     "",
+			},
+			getExecResp: &persistence.GetWorkflowExecutionResponse{
+				State: &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						State: persistence.WorkflowStateCorrupted,
+					},
+				},
+			},
+			getExecErr: nil,
+			entity:     &entity.Timer{},
+		},
+		{
+			name: "Workflow is zombie",
+			expectedResult: CheckResult{
+				CheckResultType: CheckResultTypeHealthy,
+				InvariantName:   "TimerInvalid",
+			},
+			getExecResp: &persistence.GetWorkflowExecutionResponse{
+				State: &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						State: persistence.WorkflowStateZombie,
 					},
 				},
 			},
@@ -258,7 +292,7 @@ func (ts *TimerInvalidTest) TestFix() {
 				CheckResult: CheckResult{
 					CheckResultType: CheckResultTypeCorrupted,
 					InvariantName:   "TimerInvalid",
-					Info:            "timer scheduled for closed workflow",
+					Info:            "timer scheduled for workflow in final state",
 				},
 			},
 			entity: &entity.Timer{
