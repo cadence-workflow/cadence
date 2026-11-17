@@ -1470,6 +1470,229 @@ func TestRangeDeleteTransferTasks(t *testing.T) {
 	}
 }
 
+func TestSelectVisibilityTasksOrderByTaskID(t *testing.T) {
+	tests := []struct {
+		name               string
+		shardID            int
+		pageToken          []byte
+		pageSize           int
+		inclusiveMinTaskID int64
+		exclusiveMaxTaskID int64
+		iter               *fakeIter
+		wantQueries        []string
+		wantTasks          []*nosqlplugin.HistoryMigrationTask
+		wantErr            bool
+	}{
+		{
+			name:      "nil iter returned",
+			shardID:   1,
+			pageToken: []byte("test-page-token"),
+			pageSize:  10,
+			wantErr:   true,
+		},
+		{
+			name:               "success",
+			shardID:            1,
+			pageToken:          []byte("test-page-token"),
+			pageSize:           10,
+			inclusiveMinTaskID: 1,
+			exclusiveMaxTaskID: 10,
+			iter: &fakeIter{
+				mapScanInputs: []map[string]interface{}{
+					{
+						"task_id":       int64(1),
+						"data":          []byte("test-data-1"),
+						"data_encoding": "thriftrw",
+					},
+					{
+						"task_id":       int64(5),
+						"data":          []byte("test-data-2"),
+						"data_encoding": "thriftrw",
+					},
+				},
+				pageState: []byte("test-page-token-2"),
+			},
+			wantQueries: []string{
+				`SELECT task_id, data, data_encoding FROM executions WHERE shard_id = 1 and type = 12 ` +
+					`and domain_id = 10000000-d000-f000-f000-000000000000 and workflow_id = 20000000-d000-f000-f000-000000000000 ` +
+					`and run_id = 30000000-d000-f000-f000-000000000000 and visibility_ts = 946684800000 and task_id >= 1 and task_id < 10`,
+			},
+			wantTasks: []*nosqlplugin.HistoryMigrationTask{
+				{
+					Task:   persistence.NewDataBlob([]byte("test-data-1"), "thriftrw"),
+					TaskID: 1,
+				},
+				{
+					Task:   persistence.NewDataBlob([]byte("test-data-2"), "thriftrw"),
+					TaskID: 5,
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			query := gocql.NewMockQuery(ctrl)
+			query.EXPECT().PageSize(tc.pageSize).Return(query).Times(1)
+			query.EXPECT().PageState(tc.pageToken).Return(query).Times(1)
+			query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+			if tc.iter != nil {
+				query.EXPECT().Iter().Return(tc.iter).Times(1)
+			} else {
+				// Passing tc.iter to Return() doesn't work even though tc.iter is nil due to Go's typed nils.
+				// So, we have to call Return(nil) directly.
+				query.EXPECT().Iter().Return(nil).Times(1)
+			}
+
+			session := &fakeSession{
+				query: query,
+			}
+			logger := testlogger.New(t)
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
+
+			gotTasks, gotPageToken, err := db.SelectVisibilityTasksOrderByTaskID(context.Background(), tc.shardID, tc.pageSize, tc.pageToken, tc.inclusiveMinTaskID, tc.exclusiveMaxTaskID)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("SelectVisibilityTasksOrderByTaskID() error: %v, wantErr %v", err, tc.wantErr)
+			}
+
+			if err != nil || tc.wantErr {
+				return
+			}
+
+			if diff := cmp.Diff(tc.wantQueries, session.queries); diff != "" {
+				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
+			}
+
+			if diff := cmp.Diff(tc.wantTasks, gotTasks); diff != "" {
+				t.Fatalf("Tasks mismatch (-want +got):\n%s", diff)
+			}
+
+			if diff := cmp.Diff(tc.iter.pageState, gotPageToken); diff != "" {
+				t.Fatalf("Page token mismatch (-want +got):\n%s", diff)
+			}
+
+			if !tc.iter.closed {
+				t.Error("iter was not closed")
+			}
+		})
+	}
+}
+
+func TestDeleteVisibilityTask(t *testing.T) {
+	tests := []struct {
+		name            string
+		shardID         int
+		keys            []persistence.HistoryTaskKey
+		executeBatchErr error
+		wantErr         bool
+	}{
+		{
+			name:    "success",
+			shardID: 1,
+			keys:    []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(123)},
+			wantErr: false,
+		},
+		{
+			name:    "success - multi-key batch",
+			shardID: 1,
+			keys: []persistence.HistoryTaskKey{
+				persistence.NewImmediateTaskKey(123),
+				persistence.NewImmediateTaskKey(124),
+			},
+			wantErr: false,
+		},
+		{
+			name:            "execute batch fails",
+			shardID:         1,
+			keys:            []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(123)},
+			executeBatchErr: errors.New("failed to exec"),
+			wantErr:         true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			session := &fakeSession{
+				executeBatchErr: tc.executeBatchErr,
+			}
+			logger := testlogger.New(t)
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
+
+			err := db.DeleteVisibilityTask(context.Background(), tc.shardID, tc.keys)
+
+			if (err != nil) != tc.wantErr {
+				t.Errorf("DeleteVisibilityTask() error: %v, wantErr: %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestRangeDeleteVisibilityTasks(t *testing.T) {
+	tests := []struct {
+		name                 string
+		shardID              int
+		inclusiveBeginTaskID int64
+		exclusiveEndTaskID   int64
+		queryMockFn          func(query *gocql.MockQuery)
+		wantErr              bool
+	}{
+		{
+			name:                 "success",
+			shardID:              1,
+			inclusiveBeginTaskID: 123,
+			exclusiveEndTaskID:   456,
+			queryMockFn: func(query *gocql.MockQuery) {
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+				query.EXPECT().Exec().Return(nil).Times(1)
+			},
+			wantErr: false,
+		},
+		{
+			name:                 "query exec fails",
+			shardID:              1,
+			inclusiveBeginTaskID: 123,
+			exclusiveEndTaskID:   456,
+			queryMockFn: func(query *gocql.MockQuery) {
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+				query.EXPECT().Exec().Return(errors.New("failed to exec")).Times(1)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			query := gocql.NewMockQuery(ctrl)
+			tc.queryMockFn(query)
+
+			session := &fakeSession{
+				query: query,
+			}
+			logger := testlogger.New(t)
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
+
+			err := db.RangeDeleteVisibilityTasks(context.Background(), tc.shardID, tc.inclusiveBeginTaskID, tc.exclusiveEndTaskID)
+
+			if (err != nil) != tc.wantErr {
+				t.Errorf("RangeDeleteVisibilityTasks() error: %v, wantErr: %v", err, tc.wantErr)
+			}
+
+			wantQuery := `DELETE FROM executions WHERE shard_id = 1 and type = 12 ` +
+				`and domain_id = 10000000-d000-f000-f000-000000000000 and workflow_id = 20000000-d000-f000-f000-000000000000 ` +
+				`and run_id = 30000000-d000-f000-f000-000000000000 and visibility_ts = 946684800000 and task_id >= 123 and task_id < 456`
+			if diff := cmp.Diff([]string{wantQuery}, session.queries); diff != "" {
+				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestSelectTimerTasksOrderByVisibilityTime(t *testing.T) {
 	now := time.Now()
 

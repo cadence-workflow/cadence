@@ -97,6 +97,18 @@ func (db *mdb) RangeDeleteTransferTasks(ctx context.Context, shardID int, inclus
 	panic("TODO")
 }
 
+func (db *mdb) SelectVisibilityTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
+	panic("TODO")
+}
+
+func (db *mdb) DeleteVisibilityTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
+	panic("TODO")
+}
+
+func (db *mdb) RangeDeleteVisibilityTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
+	panic("TODO")
+}
+
 func (db *mdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	panic("TODO")
 }

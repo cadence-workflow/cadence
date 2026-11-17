@@ -444,6 +444,8 @@ func createTasksByCategory(
 			createTimerTasks(batch, shardID, domainID, workflowID, tasks, timeStamp)
 		case persistence.HistoryTaskCategoryIDReplication:
 			createReplicationTasks(batch, shardID, domainID, workflowID, tasks, timeStamp)
+		case persistence.HistoryTaskCategoryIDVisibility:
+			createVisibilityTasks(batch, shardID, tasks, timeStamp)
 		}
 	}
 
@@ -580,6 +582,31 @@ func createTransferTasks(
 			taskBlob,
 			taskEncoding,
 			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp
+			defaultVisibilityTimestamp,
+			task.TaskID,
+			timeStamp,
+		)
+	}
+}
+
+// createVisibilityTasks writes visibility tasks as blob-only rows. Domain, workflow and run IDs
+// live inside the blob, so the row's ID columns hold the visibility row type constants.
+func createVisibilityTasks(
+	batch gocql.Batch,
+	shardID int,
+	visibilityTasks []*nosqlplugin.HistoryMigrationTask,
+	timeStamp time.Time,
+) {
+	for _, task := range visibilityTasks {
+		taskBlob, taskEncoding := fromDataBlobForCassandra(task.Task)
+		batch.Query(templateCreateVisibilityTaskQuery,
+			shardID,
+			rowTypeVisibilityTask,
+			rowTypeVisibilityDomainID,
+			rowTypeVisibilityWorkflowID,
+			rowTypeVisibilityRunID,
+			taskBlob,
+			taskEncoding,
 			defaultVisibilityTimestamp,
 			task.TaskID,
 			timeStamp,
