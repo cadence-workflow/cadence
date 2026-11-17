@@ -394,6 +394,12 @@ func (s *contextImpl) GetQueueState(category persistence.HistoryTaskCategory) (*
 			queueState = &types.QueueState{
 				ExclusiveMaxReadLevel: &types.TaskKey{ScheduledTimeNano: s.shardInfo.TimerAckLevel.UnixNano()},
 			}
+		case persistence.HistoryTaskCategoryVisibility:
+			// visibility queue has no legacy ack level, and no visibility task exists
+			// before the queue state is first persisted, so start from the minimum key
+			queueState = &types.QueueState{
+				ExclusiveMaxReadLevel: &types.TaskKey{TaskID: persistence.MinimumHistoryTaskKey.GetTaskID()},
+			}
 		default:
 			return nil, fmt.Errorf("unknown history task category: %v", category)
 		}

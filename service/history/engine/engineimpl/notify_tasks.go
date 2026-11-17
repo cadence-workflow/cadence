@@ -77,6 +77,26 @@ func (e *historyEngineImpl) NotifyNewTimerTasks(info *hcommon.NotifyTaskInfo) {
 	timerProcessor.NotifyNewTask(clusterName, info)
 }
 
+func (e *historyEngineImpl) NotifyNewVisibilityTasks(info *hcommon.NotifyTaskInfo) {
+	if len(info.Tasks) == 0 {
+		return
+	}
+
+	task := info.Tasks[0]
+	clusterName, err := e.shard.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
+	if err != nil {
+		e.logger.Warn("cluster name for failover version not found", tag.Error(err), tag.Value(task.GetVersion()), tag.TaskID(task.GetTaskID()))
+		return
+	}
+	visibilityProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryVisibility]
+	if !ok {
+		// visibility tasks are persisted, but no processor is running to pick them up
+		e.logger.Error("visibility processor not found", tag.TaskID(task.GetTaskID()))
+		return
+	}
+	visibilityProcessor.NotifyNewTask(clusterName, info)
+}
+
 func (e *historyEngineImpl) NotifyNewReplicationTasks(info *hcommon.NotifyTaskInfo) {
 	for _, task := range info.Tasks {
 		hTask, err := hydrateReplicationTask(task, info.ExecutionInfo, info.VersionHistories, info.Activities, info.History)
