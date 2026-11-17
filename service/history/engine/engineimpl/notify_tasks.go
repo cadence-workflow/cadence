@@ -90,8 +90,9 @@ func (e *historyEngineImpl) NotifyNewVisibilityTasks(info *hcommon.NotifyTaskInf
 	}
 	visibilityProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryVisibility]
 	if !ok {
-		// visibility tasks are persisted, but no processor is running to pick them up
-		e.logger.Error("visibility processor not found", tag.TaskID(task.GetTaskID()))
+		// visibility tasks are persisted, but no processor is running to pick them up.
+		// throttled since this fires on every workflow write that produces visibility tasks
+		e.throttledLogger.Warn("visibility processor not found", tag.TaskID(task.GetTaskID()))
 		return
 	}
 	visibilityProcessor.NotifyNewTask(clusterName, info)

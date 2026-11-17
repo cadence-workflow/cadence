@@ -65,6 +65,7 @@ func TestNotifyNewVisibilityTasks(t *testing.T) {
 			e := &historyEngineImpl{
 				shard:           mockShard,
 				logger:          testlogger.New(t),
+				throttledLogger: testlogger.New(t),
 				queueProcessors: queueProcessors,
 			}
 
