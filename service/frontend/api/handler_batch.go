@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -291,9 +292,49 @@ func (wh *WorkflowHandler) DescribeBatchOperation(
 	}, nil
 }
 
-// ListBatchOperations returns the batches targeting a domain. Implementation
-// tracked separately; this is a placeholder so the BatchAPI contract and its
-// authorization wrapper can land ahead of the per-operation business logic.
+func validateListBatchOperationsRequest(request *types.ListBatchOperationsRequest) error {
+	if request == nil {
+		return validate.ErrRequestNotSet
+	}
+	if request.GetDomain() == "" {
+		return validate.ErrDomainNotSet
+	}
+	switch request.GetState() {
+	case types.BatchOperationStateInvalid, types.BatchOperationStateRunning,
+		types.BatchOperationStateCompleted, types.BatchOperationStateFailed,
+		types.BatchOperationStateStopped:
+		return nil
+	default:
+		return validate.ErrInvalidBatchOperationState
+	}
+}
+
+// batchOperationStateQueryClause is the inverse of batchOperationStateFromCloseStatus.
+func batchOperationStateQueryClause(state types.BatchOperationState) string {
+	switch state {
+	case types.BatchOperationStateRunning:
+		return " and CloseTime = missing"
+	case types.BatchOperationStateCompleted:
+		return fmt.Sprintf(" and (CloseStatus = %d or CloseStatus = %d)",
+			types.WorkflowExecutionCloseStatusCompleted, types.WorkflowExecutionCloseStatusContinuedAsNew)
+	case types.BatchOperationStateFailed:
+		return fmt.Sprintf(" and (CloseStatus = %d or CloseStatus = %d)",
+			types.WorkflowExecutionCloseStatusFailed, types.WorkflowExecutionCloseStatusTimedOut)
+	case types.BatchOperationStateStopped:
+		return fmt.Sprintf(" and (CloseStatus = %d or CloseStatus = %d)",
+			types.WorkflowExecutionCloseStatusCanceled, types.WorkflowExecutionCloseStatusTerminated)
+	default:
+		return ""
+	}
+}
+
+// batchIDFromWorkflowID is the inverse of batchOperationWorkflowID.
+func batchIDFromWorkflowID(domainName, workflowID string) string {
+	return strings.TrimPrefix(workflowID, batchOperationWorkflowIDPrefix+domainName+":")
+}
+
+// ListBatchOperations lists the batches targeting a domain by querying the
+// visibility records of the cadence-batcher workflows started for it.
 func (wh *WorkflowHandler) ListBatchOperations(
 	ctx context.Context,
 	request *types.ListBatchOperationsRequest,
@@ -301,7 +342,46 @@ func (wh *WorkflowHandler) ListBatchOperations(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
-	return nil, &types.BadRequestError{Message: "ListBatchOperations is not yet implemented."}
+	if err := validateListBatchOperationsRequest(request); err != nil {
+		return nil, err
+	}
+
+	domainName := request.GetDomain()
+	if _, err := wh.GetDomainCache().GetDomainID(domainName); err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf("CustomDomain = '%s'", domainName) + batchOperationStateQueryClause(request.GetState())
+
+	resp, err := wh.ListWorkflowExecutions(ctx, &types.ListWorkflowExecutionsRequest{
+		Domain:        constants.BatcherLocalDomainName,
+		PageSize:      request.GetPageSize(),
+		NextPageToken: request.GetNextPageToken(),
+		Query:         query,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]*types.BatchOperationListEntry, 0, len(resp.GetExecutions()))
+	for _, wf := range resp.GetExecutions() {
+		var startedBy string
+		if wf.SearchAttributes != nil {
+			_ = json.Unmarshal(wf.SearchAttributes.IndexedFields["Operator"], &startedBy)
+		}
+		entries = append(entries, &types.BatchOperationListEntry{
+			BatchID:   batchIDFromWorkflowID(domainName, wf.GetExecution().GetWorkflowID()),
+			State:     batchOperationStateFromCloseStatus(wf.CloseStatus),
+			StartedBy: startedBy,
+			StartTime: timePtrFromNanos(wf.StartTime),
+			CloseTime: timePtrFromNanos(wf.CloseTime),
+		})
+	}
+
+	return &types.ListBatchOperationsResponse{
+		BatchOperations: entries,
+		NextPageToken:   resp.GetNextPageToken(),
+	}, nil
 }
 
 func validateStopBatchOperationRequest(request *types.StopBatchOperationRequest) error {
