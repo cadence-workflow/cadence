@@ -351,8 +351,11 @@ func TestGrantTask_WokenByARelease(t *testing.T) {
 	)
 
 	done := make(chan bool, 1)
-	// No deadline, so only a wake-up ends the wait.
-	go func() { done <- mgr.grantTask(context.Background(), testTask(nil)) }()
+	// The clock never reaches the deadline, so only a wake-up ends the wait.
+	deadline := deps.mockTimeSource.Now().Add(time.Hour)
+	go func() { done <- mgr.grantTask(context.Background(), testTask(&deadline)) }()
+	// The idle clock, the ack level timer and the grant wait's deadline timer.
+	deps.mockTimeSource.BlockUntil(3)
 	require.NoError(t, mgr.Release(context.Background(), "other-owner"))
 	select {
 	case finished := <-done:
