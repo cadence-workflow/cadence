@@ -101,17 +101,26 @@ func (h *timerInvalid) Check(
 		}
 	}
 
-	if !Open(resp.State.ExecutionInfo.State) {
+	if isUserTimerInvalidForState(resp.State.ExecutionInfo.State) {
 		return CheckResult{
 			CheckResultType: CheckResultTypeCorrupted,
 			InvariantName:   h.Name(),
-			Info:            "timer scheduled for closed workflow",
+			Info:            "timer scheduled for workflow in final state",
 		}
 	}
 
 	return CheckResult{
 		CheckResultType: CheckResultTypeHealthy,
 		InvariantName:   h.Name(),
+	}
+}
+
+func isUserTimerInvalidForState(state int) bool {
+	switch state {
+	case persistence.WorkflowStateCompleted, persistence.WorkflowStateCorrupted:
+		return persistence.IsWorkflowStateFinal(state)
+	default:
+		return false
 	}
 }
 

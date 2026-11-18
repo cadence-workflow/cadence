@@ -376,6 +376,7 @@ type (
 	* current_workflow: partition key(shardID), range key(domainID, workflowID), query condition column(currentRunID, lastWriteVersion, state)
 	* workflow_execution: partition key(shardID), range key(domainID, workflowID, runID), query condition column(nextEventID)
 	* transfer_task: partition key(shardID), range key(taskID)
+	* visibility_task: partition key(shardID), range key(taskID)
 	* replication_task: partition key(shardID), range key(taskID)
 	* cross_cluster_task: partition key(shardID), range key(clusterName, taskID)
 	* timer_task: partition key(shardID), range key(visibilityTimestamp)
@@ -473,6 +474,14 @@ type (
 		DeleteTransferTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error
 		// delete a range of transfer tasks
 		RangeDeleteTransferTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error
+
+		// visibility_task table
+		// within a shard, paging through visibility tasks order by taskID(ASC), filtered by minTaskID(inclusive) and maxTaskID(exclusive)
+		SelectVisibilityTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error)
+		// delete one or more visibility tasks; multi-task calls are batched into a single LoggedBatch
+		DeleteVisibilityTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error
+		// delete a range of visibility tasks
+		RangeDeleteVisibilityTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error
 
 		// timer_task table
 		// within a shard, paging through timer tasks order by taskID(ASC), filtered by visibilityTimestamp

@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	c "github.com/uber/cadence/common"
@@ -44,10 +45,9 @@ func TestAggregatorSuite(t *testing.T) {
 func (s *aggregatorsSuite) TestShardScanResultAggregator() {
 	agg := NewShardScanResultAggregator([]int{1, 2, 3}, 1, 3)
 	expected := &ShardScanResultAggregator{
-		minShard:    1,
-		maxShard:    3,
-		reports:     map[int]ScanReport{},
-		domainStats: map[string]*ScanStats{},
+		minShard: 1,
+		maxShard: 3,
+		reports:  map[int]ScanReport{},
 		status: map[int]ShardStatus{
 			1: ShardStatusRunning,
 			2: ShardStatusRunning,
@@ -89,24 +89,6 @@ func (s *aggregatorsSuite) TestShardScanResultAggregator() {
 				},
 			},
 		},
-		DomainStats: map[string]*ScanStats{
-			"ABC": &ScanStats{
-				EntitiesCount:    5,
-				CorruptedCount:   2,
-				CheckFailedCount: 1,
-				CorruptionByType: map[invariant.Name]int64{
-					invariant.HistoryExists:        1,
-					invariant.OpenCurrentExecution: 1,
-				},
-			},
-			"DEF": &ScanStats{
-				EntitiesCount:  5,
-				CorruptedCount: 1,
-				CorruptionByType: map[invariant.Name]int64{
-					invariant.HistoryExists: 1,
-				},
-			},
-		},
 	}
 	agg.AddReport(firstReport)
 	expected.status[1] = ShardStatusSuccess
@@ -126,23 +108,6 @@ func (s *aggregatorsSuite) TestShardScanResultAggregator() {
 		invariant.HistoryExists:        2,
 		invariant.OpenCurrentExecution: 1,
 	}
-	expected.domainStats["ABC"] = &ScanStats{
-		EntitiesCount:    5,
-		CorruptedCount:   2,
-		CheckFailedCount: 1,
-		CorruptionByType: map[invariant.Name]int64{
-			invariant.HistoryExists:        1,
-			invariant.OpenCurrentExecution: 1,
-		},
-	}
-	expected.domainStats["DEF"] = &ScanStats{
-		EntitiesCount:  5,
-		CorruptedCount: 1,
-		CorruptionByType: map[invariant.Name]int64{
-			invariant.HistoryExists: 1,
-		},
-	}
-
 	expected.corruptionKeys = map[int]store.Keys{
 		1: {
 			UUID: "test_uuid",
@@ -166,24 +131,6 @@ func (s *aggregatorsSuite) TestShardScanResultAggregator() {
 		Result: ScanResult{
 			ControlFlowFailure: &ControlFlowFailure{},
 		},
-		DomainStats: map[string]*ScanStats{
-			"ABC": &ScanStats{
-				EntitiesCount:    5,
-				CorruptedCount:   2,
-				CheckFailedCount: 1,
-				CorruptionByType: map[invariant.Name]int64{
-					invariant.HistoryExists:        1,
-					invariant.OpenCurrentExecution: 1,
-				},
-			},
-			"DEF": &ScanStats{
-				EntitiesCount:  5,
-				CorruptedCount: 1,
-				CorruptionByType: map[invariant.Name]int64{
-					invariant.HistoryExists: 1,
-				},
-			},
-		},
 	}
 	agg.AddReport(secondReport)
 	expected.status[2] = ShardStatusControlFlowFailure
@@ -196,14 +143,6 @@ func (s *aggregatorsSuite) TestShardScanResultAggregator() {
 			EntitiesCount: 10,
 		},
 	}
-	expected.domainStats["ABC"].EntitiesCount *= 2
-	expected.domainStats["ABC"].CorruptedCount *= 2
-	expected.domainStats["ABC"].CheckFailedCount *= 2
-	expected.domainStats["ABC"].CorruptionByType[invariant.HistoryExists] *= 2
-	expected.domainStats["ABC"].CorruptionByType[invariant.OpenCurrentExecution] *= 2
-	expected.domainStats["DEF"].EntitiesCount *= 2
-	expected.domainStats["DEF"].CorruptedCount *= 2
-	expected.domainStats["DEF"].CorruptionByType[invariant.HistoryExists] *= 2
 	s.Equal(expected, agg)
 	shardStatus, err := agg.GetStatusResult(PaginatedShardQueryRequest{
 		StartingShardID: c.IntPtr(1),
@@ -237,63 +176,14 @@ func (s *aggregatorsSuite) TestShardScanResultAggregator() {
 		},
 	}, corruptedKeys)
 
-	domainReport, err := agg.GetDomainStatus(DomainReportQueryRequest{
-		DomainID: c.StringPtr("ABC"),
-	})
-	s.NoError(err)
-	s.Equal(&DomainScanReportQueryResult{
-		Reports: []DomainScanStats{
-			{
-				DomainID: "ABC",
-				Stats: ScanStats{
-					EntitiesCount:    10,
-					CorruptedCount:   4,
-					CheckFailedCount: 2,
-					CorruptionByType: map[invariant.Name]int64{
-						invariant.HistoryExists:        2,
-						invariant.OpenCurrentExecution: 2,
-					},
-				},
-			},
-		},
-	}, domainReport)
-	allDomainsReport, err := agg.GetDomainStatus(DomainReportQueryRequest{})
-	s.NoError(err)
-	s.Equal(&DomainScanReportQueryResult{
-		Reports: []DomainScanStats{
-			{
-				DomainID: "ABC",
-				Stats: ScanStats{
-					EntitiesCount:    10,
-					CorruptedCount:   4,
-					CheckFailedCount: 2,
-					CorruptionByType: map[invariant.Name]int64{
-						invariant.HistoryExists:        2,
-						invariant.OpenCurrentExecution: 2,
-					},
-				},
-			},
-			{
-				DomainID: "DEF",
-				Stats: ScanStats{
-					EntitiesCount:  10,
-					CorruptedCount: 2,
-					CorruptionByType: map[invariant.Name]int64{
-						invariant.HistoryExists: 2,
-					},
-				},
-			},
-		},
-	}, allDomainsReport)
 }
 
 func (s *aggregatorsSuite) TestShardFixResultAggregator() {
 	agg := NewShardFixResultAggregator([]CorruptedKeysEntry{{ShardID: 1}, {ShardID: 2}, {ShardID: 3}}, 1, 3)
 	expected := &ShardFixResultAggregator{
-		minShard:    1,
-		maxShard:    3,
-		reports:     map[int]FixReport{},
-		domainStats: map[string]*FixStats{},
+		minShard: 1,
+		maxShard: 3,
+		reports:  map[int]FixReport{},
 		status: map[int]ShardStatus{
 			1: ShardStatusRunning,
 			2: ShardStatusRunning,
@@ -663,5 +553,29 @@ func (s *aggregatorsSuite) TestInsertReportIntoSizes() {
 	}
 	for i := 0; i < 999; i++ {
 		s.GreaterOrEqual(agg.shardSizes[i].EntitiesCount, agg.shardSizes[i+1].EntitiesCount)
+	}
+}
+
+func TestGetShardDistributionStats(t *testing.T) {
+	failed := ScanResult{ControlFlowFailure: &ControlFlowFailure{}}
+	tests := map[string]struct {
+		reports  []ScanReport
+		expected ShardDistributionStats
+	}{
+		"no reports":        {expected: ShardDistributionStats{}},
+		"all shards failed": {reports: []ScanReport{{ShardID: 1, Result: failed}, {ShardID: 2, Result: failed}}, expected: ShardDistributionStats{}},
+		"single shard": {
+			reports:  []ScanReport{{ShardID: 1, Stats: ScanStats{EntitiesCount: 10}, Result: ScanResult{ShardScanKeys: &ScanKeys{}}}},
+			expected: ShardDistributionStats{Max: 10, Median: 10, Min: 10, P90: 10, P75: 10, P25: 10, P10: 10},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			agg := NewShardScanResultAggregator([]int{1, 2}, 1, 2)
+			for _, r := range tc.reports {
+				agg.AddReport(r)
+			}
+			assert.Equal(t, tc.expected, agg.GetShardDistributionStats())
+		})
 	}
 }

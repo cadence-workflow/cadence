@@ -464,6 +464,8 @@ const (
 	HistoryClientWfIDCacheScope
 	// HistoryClientRatelimitUpdateScope tracks global ratelimiter related calls to history service
 	HistoryClientRatelimitUpdateScope
+	// HistoryClientEnqueueAsyncWorkflowMessageScope tracks EnqueueAsyncWorkflowMessage calls to history service
+	HistoryClientEnqueueAsyncWorkflowMessageScope
 
 	// MatchingClientPollForDecisionTaskScope tracks RPC calls to matching service
 	MatchingClientPollForDecisionTaskScope
@@ -598,6 +600,18 @@ const (
 	FrontendClientListSchedulesScope
 	// FrontendClientExportWorkflowExecutionScope tracks RPC calls to frontend service
 	FrontendClientExportWorkflowExecutionScope
+	// FrontendClientStartBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientStartBatchOperationScope
+	// FrontendClientStopBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientStopBatchOperationScope
+	// FrontendClientDescribeBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientDescribeBatchOperationScope
+	// FrontendClientListBatchOperationsScope tracks RPC calls to frontend service
+	FrontendClientListBatchOperationsScope
+	// FrontendClientUpdateBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientUpdateBatchOperationScope
+	// FrontendClientCreateSemaphoreScope tracks RPC calls to frontend service
+	FrontendClientCreateSemaphoreScope
 	// FrontendClientListWorkflowExecutionsScope tracks RPC calls to frontend service
 	FrontendClientListWorkflowExecutionsScope
 	// FrontendClientScanWorkflowExecutionsScope tracks RPC calls to frontend service
@@ -1337,6 +1351,8 @@ const (
 	HistoryGetFailoverInfoScope
 	// HistoryRatelimitUpdateScope tracks RatelimitUpdate API calls received by the history service
 	HistoryRatelimitUpdateScope
+	// HistoryEnqueueAsyncWorkflowMessageScope tracks EnqueueAsyncWorkflowMessage API calls received by the history service
+	HistoryEnqueueAsyncWorkflowMessageScope
 	// TaskPriorityAssignerScope is the scope used by all metric emitted by task priority assigner
 	TaskPriorityAssignerScope
 	// TransferQueueProcessorScope is the scope used by all metric emitted by transfer queue processor
@@ -1549,6 +1565,10 @@ const (
 	WorkflowCorruptionRepairScope
 	// HistoryTaskDLQProcessorScope is the scope used by the history task DLQ re-injection processor
 	HistoryTaskDLQProcessorScope
+	// AsyncWorkflowQueueConsumerScope is the scope used by the history shard async workflow queue consumer
+	AsyncWorkflowQueueConsumerScope
+	// AsyncWorkflowQueueGCScope is the scope used by the history shard async workflow queue garbage collector
+	AsyncWorkflowQueueGCScope
 	NumHistoryScopes
 )
 
@@ -1800,6 +1820,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryClientGetReplicationMessagesScope:            {operation: "HistoryClientGetReplicationMessages", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientWfIDCacheScope:                         {operation: "HistoryClientWfIDCache", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientRatelimitUpdateScope:                   {operation: "HistoryClientRatelimitUpdate", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
+		HistoryClientEnqueueAsyncWorkflowMessageScope:       {operation: "HistoryClientEnqueueAsyncWorkflowMessage", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 
 		MatchingClientPollForDecisionTaskScope:            {operation: "MatchingClientPollForDecisionTask", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientPollForActivityTaskScope:            {operation: "MatchingClientPollForActivityTask", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
@@ -1879,6 +1900,12 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientBackfillScheduleScope:                      {operation: "FrontendClientBackfillSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientListSchedulesScope:                         {operation: "FrontendClientListSchedules", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientExportWorkflowExecutionScope:               {operation: "FrontendClientExportWorkflowExecution", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientStartBatchOperationScope:                   {operation: "FrontendClientStartBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientStopBatchOperationScope:                    {operation: "FrontendClientStopBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientDescribeBatchOperationScope:                {operation: "FrontendClientDescribeBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientListBatchOperationsScope:                   {operation: "FrontendClientListBatchOperations", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientUpdateBatchOperationScope:                  {operation: "FrontendClientUpdateBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientCreateSemaphoreScope:                       {operation: "FrontendClientCreateSemaphore", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 
 		AdminClientGetReplicationTasksScope:                   {operation: "AdminClientGetReplicationTasks", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientAddSearchAttributeScope:                    {operation: "AdminClientAddSearchAttribute", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
@@ -2236,6 +2263,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryRespondCrossClusterTasksCompletedScope:                   {operation: "RespondCrossClusterTasksCompleted"},
 		HistoryGetFailoverInfoScope:                                     {operation: "GetFailoverInfo"},
 		HistoryRatelimitUpdateScope:                                     {operation: "RatelimitUpdate"},
+		HistoryEnqueueAsyncWorkflowMessageScope:                         {operation: "EnqueueAsyncWorkflowMessage"},
 		TaskPriorityAssignerScope:                                       {operation: "TaskPriorityAssigner"},
 		TransferQueueProcessorScope:                                     {operation: "TransferQueueProcessor"},
 		TransferQueueProcessorV2Scope:                                   {operation: "TransferQueueProcessorV2"},
@@ -2339,6 +2367,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryTaskSchedulerMigrationScope:                              {operation: "HistoryTaskSchedulerMigration"},
 		WorkflowCorruptionRepairScope:                                   {operation: "WorkflowCorruptionRepair"},
 		HistoryTaskDLQProcessorScope:                                    {operation: "HistoryTaskDLQProcessor"},
+		AsyncWorkflowQueueConsumerScope:                                 {operation: "AsyncWorkflowQueueConsumer"},
+		AsyncWorkflowQueueGCScope:                                       {operation: "AsyncWorkflowQueueGC"},
 	},
 	// Matching Scope Names
 	Matching: {
@@ -3144,6 +3174,39 @@ const (
 	// HistoryTaskDLQBusyResponsesCounter counts ServiceBusy responses received by the DLQ processor,
 	// including the last one when retries run out
 	HistoryTaskDLQBusyResponsesCounter
+	// HistoryTaskDLQAckLevelRows tracks how many DLQ ack-level rows a shard carries, recorded
+	// once per periodic sweep from the length of the shard-scoped ack-level read
+	HistoryTaskDLQAckLevelRows
+	// AsyncWorkflowQueueFetchedCounter counts messages read from the async workflow queue
+	AsyncWorkflowQueueFetchedCounter
+	// AsyncWorkflowQueueSubmittedCounter counts messages submitted to the history engine
+	AsyncWorkflowQueueSubmittedCounter
+	// AsyncWorkflowQueueSuccessCounter counts messages successfully processed
+	AsyncWorkflowQueueSuccessCounter
+	// AsyncWorkflowQueueAlreadyStartedCounter counts messages whose workflow was already started
+	AsyncWorkflowQueueAlreadyStartedCounter
+	// AsyncWorkflowQueueForwardedCounter counts messages forwarded to the active cluster
+	AsyncWorkflowQueueForwardedCounter
+	// AsyncWorkflowQueueDecodeFailuresCounter counts messages that failed to decode
+	AsyncWorkflowQueueDecodeFailuresCounter
+	// AsyncWorkflowQueueDLQCounter counts messages written to the async workflow queue DLQ
+	AsyncWorkflowQueueDLQCounter
+	// AsyncWorkflowQueueDLQFailuresCounter counts failures writing messages to the async workflow queue DLQ
+	AsyncWorkflowQueueDLQFailuresCounter
+	// AsyncWorkflowQueuePollFailuresCounter counts failures reading from the async workflow queue
+	AsyncWorkflowQueuePollFailuresCounter
+	// AsyncWorkflowQueueCommitFailuresCounter counts failures persisting the async workflow queue ack level
+	AsyncWorkflowQueueCommitFailuresCounter
+	// AsyncWorkflowQueueGCFailuresCounter counts failures deleting acknowledged async workflow queue messages
+	AsyncWorkflowQueueGCFailuresCounter
+	// AsyncWorkflowQueueBacklogGauge tracks the number of async workflow queue messages fetched but not yet acknowledged
+	AsyncWorkflowQueueBacklogGauge
+	// AsyncWorkflowQueueAckLevelGauge tracks the persisted async workflow queue ack level
+	AsyncWorkflowQueueAckLevelGauge
+	// AsyncWorkflowQueueGCDeletedUpToGauge tracks the message id up to which async workflow queue messages were deleted
+	AsyncWorkflowQueueGCDeletedUpToGauge
+	// AsyncWorkflowQueueProcessLatency tracks the latency of processing an async workflow queue message
+	AsyncWorkflowQueueProcessLatency
 
 	NumHistoryMetrics
 )
@@ -3797,9 +3860,25 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskScheduleSubmittedPerTaskList:          {metricName: "task_schedule_submitted_per_task_list", metricType: Counter},
 		TaskScheduleThrottledPerTaskList:          {metricName: "task_schedule_throttled_per_task_list", metricType: Counter},
 
-		HistoryTaskDLQReinjectFailuresCounter: {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
-		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
-		HistoryTaskDLQBusyResponsesCounter:    {metricName: "history_task_dlq_busy_responses", metricType: Counter},
+		HistoryTaskDLQReinjectFailuresCounter:   {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
+		HistoryTaskDLQPageSizeBytes:             {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
+		HistoryTaskDLQBusyResponsesCounter:      {metricName: "history_task_dlq_busy_responses", metricType: Counter},
+		HistoryTaskDLQAckLevelRows:              {metricName: "history_task_dlq_ack_level_rows", metricType: Histogram, buckets: TaskCountBuckets},
+		AsyncWorkflowQueueFetchedCounter:        {metricName: "async_workflow_queue_fetched", metricType: Counter},
+		AsyncWorkflowQueueSubmittedCounter:      {metricName: "async_workflow_queue_submitted", metricType: Counter},
+		AsyncWorkflowQueueSuccessCounter:        {metricName: "async_workflow_queue_success", metricType: Counter},
+		AsyncWorkflowQueueAlreadyStartedCounter: {metricName: "async_workflow_queue_already_started", metricType: Counter},
+		AsyncWorkflowQueueForwardedCounter:      {metricName: "async_workflow_queue_forwarded", metricType: Counter},
+		AsyncWorkflowQueueDecodeFailuresCounter: {metricName: "async_workflow_queue_decode_failures", metricType: Counter},
+		AsyncWorkflowQueueDLQCounter:            {metricName: "async_workflow_queue_dlq", metricType: Counter},
+		AsyncWorkflowQueueDLQFailuresCounter:    {metricName: "async_workflow_queue_dlq_failures", metricType: Counter},
+		AsyncWorkflowQueuePollFailuresCounter:   {metricName: "async_workflow_queue_poll_failures", metricType: Counter},
+		AsyncWorkflowQueueCommitFailuresCounter: {metricName: "async_workflow_queue_commit_failures", metricType: Counter},
+		AsyncWorkflowQueueGCFailuresCounter:     {metricName: "async_workflow_queue_gc_failures", metricType: Counter},
+		AsyncWorkflowQueueBacklogGauge:          {metricName: "async_workflow_queue_backlog", metricType: Gauge},
+		AsyncWorkflowQueueAckLevelGauge:         {metricName: "async_workflow_queue_ack_level", metricType: Gauge},
+		AsyncWorkflowQueueGCDeletedUpToGauge:    {metricName: "async_workflow_queue_gc_deleted_up_to", metricType: Gauge},
+		AsyncWorkflowQueueProcessLatency:        {metricName: "async_workflow_queue_process_latency", metricType: Timer},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},

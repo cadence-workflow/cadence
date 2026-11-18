@@ -127,6 +127,8 @@ var (
 
 	shardInfoUpdatedTime   = time.Unix(130, 0)
 	shardInfoTimerAckLevel = time.Unix(140, 0)
+
+	importTimestamp = time.Unix(150, 0)
 )
 
 func TestGettersForInfos(t *testing.T) {
@@ -150,6 +152,9 @@ func TestGettersForInfos(t *testing.T) {
 			LastFirstEventID:        7,
 			AutoResetPoints:         []byte("resetpoints"),
 			SearchAttributes:        map[string][]byte{"key": []byte("value")},
+			ImportSourceExecution:   &types.WorkflowExecution{WorkflowID: "importSourceWorkflowID", RunID: "importSourceRunID"},
+			ImportTimestamp:         importTimestamp,
+			ImportInProgress:        true,
 		},
 		&TransferTaskInfo{
 			DomainID:                taskDomainID,

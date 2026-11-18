@@ -82,7 +82,6 @@ func (s *ScannerSuite) TestScan_Failure_FirstIteratorError() {
 				InfoDetails: "iterator error",
 			},
 		},
-		DomainStats: make(map[string]*ScanStats),
 	}, result)
 }
 
@@ -129,12 +128,6 @@ func (s *ScannerSuite) TestScan_Failure_NonFirstError() {
 				InfoDetails: "iterator got error on: 4",
 			},
 		},
-		DomainStats: map[string]*ScanStats{
-			"ABC": &ScanStats{
-				EntitiesCount:    4,
-				CorruptionByType: make(map[invariant.Name]int64),
-			},
-		},
 	}, result)
 }
 
@@ -171,12 +164,6 @@ func (s *ScannerSuite) TestScan_Failure_CorruptedWriterError() {
 			ControlFlowFailure: &ControlFlowFailure{
 				Info:        "blobstore add failed for corrupted execution check",
 				InfoDetails: "corrupted writer add failed",
-			},
-		},
-		DomainStats: map[string]*ScanStats{
-			"ABC": &ScanStats{
-				EntitiesCount:    1,
-				CorruptionByType: make(map[invariant.Name]int64),
 			},
 		},
 	}, result)
@@ -217,12 +204,6 @@ func (s *ScannerSuite) TestScan_Failure_FailedWriterError() {
 				InfoDetails: "failed writer add failed",
 			},
 		},
-		DomainStats: map[string]*ScanStats{
-			"ABC": &ScanStats{
-				EntitiesCount:    1,
-				CorruptionByType: make(map[invariant.Name]int64),
-			},
-		},
 	}, result)
 }
 
@@ -250,7 +231,6 @@ func (s *ScannerSuite) TestScan_Failure_FailedWriterFlushError() {
 				InfoDetails: "failed writer flush failed",
 			},
 		},
-		DomainStats: make(map[string]*ScanStats),
 	}, result)
 }
 
@@ -281,7 +261,6 @@ func (s *ScannerSuite) TestScan_Failure_CorruptedWriterFlushError() {
 				InfoDetails: "corrupted writer flush failed",
 			},
 		},
-		DomainStats: make(map[string]*ScanStats),
 	}, result)
 }
 
@@ -478,31 +457,6 @@ func (s *ScannerSuite) TestScan_Success() {
 				Failed:  &store.Keys{UUID: "failed_keys_uuid"},
 			},
 		},
-		DomainStats: map[string]*ScanStats{
-			"failed": &ScanStats{
-				EntitiesCount:    2,
-				CheckFailedCount: 2,
-				CorruptionByType: make(map[invariant.Name]int64),
-			},
-			"healthy": &ScanStats{
-				EntitiesCount:    4,
-				CorruptionByType: make(map[invariant.Name]int64),
-			},
-			"history_missing": &ScanStats{
-				EntitiesCount:  3,
-				CorruptedCount: 3,
-				CorruptionByType: map[invariant.Name]int64{
-					invariant.HistoryExists: 3,
-				},
-			},
-			"orphan_execution": &ScanStats{
-				EntitiesCount:  1,
-				CorruptedCount: 1,
-				CorruptionByType: map[invariant.Name]int64{
-					invariant.OpenCurrentExecution: 1,
-				},
-			},
-		},
 	}, result)
 }
 
@@ -532,21 +486,13 @@ func (s *ScannerSuite) TestGetDomainIDFromEntity() {
 
 func TestScan_DomainLookupError(t *testing.T) {
 	tests := map[string]struct {
-		domainErr       error
-		wantEntities    int64
-		wantFailure     *ControlFlowFailure
-		wantDomainStats map[string]*ScanStats
+		domainErr    error
+		wantEntities int64
+		wantFailure  *ControlFlowFailure
 	}{
 		"domain not found continues the scan": {
 			domainErr:    &types.EntityNotExistsError{Message: "domain not found"},
 			wantEntities: 2,
-			wantDomainStats: map[string]*ScanStats{
-				"missing": {
-					EntitiesCount:    2,
-					CheckFailedCount: 2,
-					CorruptionByType: make(map[invariant.Name]int64),
-				},
-			},
 		},
 		"other errors abort the scan": {
 			domainErr: errors.New("timeout"),
@@ -554,7 +500,6 @@ func TestScan_DomainLookupError(t *testing.T) {
 				Info:        "failed to get domain name from cache",
 				InfoDetails: "timeout",
 			},
-			wantDomainStats: make(map[string]*ScanStats),
 		},
 	}
 
@@ -596,7 +541,6 @@ func TestScan_DomainLookupError(t *testing.T) {
 
 			require.Equal(t, tc.wantFailure, result.Result.ControlFlowFailure)
 			require.Equal(t, tc.wantEntities, result.Stats.EntitiesCount)
-			require.Equal(t, tc.wantDomainStats, result.DomainStats)
 		})
 	}
 }

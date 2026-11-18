@@ -157,6 +157,7 @@ type (
 	AsyncWorkflowQueueStore interface {
 		Closeable
 		GetName() string
+		// EnqueueAsyncWorkflowMessage inserts one message. A message id that already exists for the (shard, source cluster) queue returns *ConditionFailedError.
 		EnqueueAsyncWorkflowMessage(ctx context.Context, request *InternalEnqueueAsyncWorkflowMessageRequest) error
 		ReadAsyncWorkflowMessages(ctx context.Context, request *ReadAsyncWorkflowMessagesRequest) (*ReadAsyncWorkflowMessagesResponse, error)
 		GetAsyncWorkflowAckLevels(ctx context.Context, request *GetAsyncWorkflowAckLevelsRequest) (*GetAsyncWorkflowAckLevelsResponse, error)
@@ -489,6 +490,10 @@ type (
 		PartitionConfig    map[string]string
 
 		ActiveClusterSelectionPolicy *DataBlob
+
+		ImportSourceExecution *types.WorkflowExecution
+		ImportTimestamp       time.Time
+		ImportInProgress      bool
 
 		// attributes which are not related to mutable state at all
 		HistorySize int64

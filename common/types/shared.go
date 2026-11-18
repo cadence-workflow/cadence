@@ -3231,6 +3231,8 @@ func (e EventType) String() string {
 		return "SemaphoreReleased"
 	case 45:
 		return "SemaphoreAcquireFailed"
+	case 46:
+		return "SemaphoreTokenLost"
 	}
 	return fmt.Sprintf("EventType(%d)", w)
 }
@@ -3376,6 +3378,9 @@ func (e *EventType) UnmarshalText(value []byte) error {
 	case "SEMAPHOREACQUIREFAILED":
 		*e = EventTypeSemaphoreAcquireFailed
 		return nil
+	case "SEMAPHORETOKENLOST":
+		*e = EventTypeSemaphoreTokenLost
+		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
@@ -3484,6 +3489,8 @@ const (
 	EventTypeSemaphoreReleased
 	// EventTypeSemaphoreAcquireFailed is an option for EventType
 	EventTypeSemaphoreAcquireFailed
+	// EventTypeSemaphoreTokenLost is an option for EventType
+	EventTypeSemaphoreTokenLost
 )
 
 // ExternalWorkflowExecutionCancelRequestedEventAttributes is an internal type (TBD...)
@@ -3804,6 +3811,7 @@ type HistoryEvent struct {
 	SemaphoreAcquiredEventAttributes                               *SemaphoreAcquiredEventAttributes                               `json:"semaphoreAcquiredEventAttributes,omitempty"`
 	SemaphoreReleasedEventAttributes                               *SemaphoreReleasedEventAttributes                               `json:"semaphoreReleasedEventAttributes,omitempty"`
 	SemaphoreAcquireFailedEventAttributes                          *SemaphoreAcquireFailedEventAttributes                          `json:"semaphoreAcquireFailedEventAttributes,omitempty"`
+	SemaphoreTokenLostEventAttributes                              *SemaphoreTokenLostEventAttributes                              `json:"semaphoreTokenLostEventAttributes,omitempty"`
 }
 
 // GetTimestamp is an internal getter (TBD...)
@@ -4190,6 +4198,14 @@ func (v *HistoryEvent) GetSemaphoreAcquireFailedEventAttributes() (o *SemaphoreA
 	return
 }
 
+// GetSemaphoreTokenLostEventAttributes is an internal getter
+func (v *HistoryEvent) GetSemaphoreTokenLostEventAttributes() (o *SemaphoreTokenLostEventAttributes) {
+	if v != nil && v.SemaphoreTokenLostEventAttributes != nil {
+		return v.SemaphoreTokenLostEventAttributes
+	}
+	return
+}
+
 // Size is an internal method to get the estimated size of the event
 func (v *HistoryEvent) ByteSize() uint64 {
 	if v == nil {
@@ -4380,6 +4396,10 @@ func (v *HistoryEvent) ByteSize() uint64 {
 
 	if v.SemaphoreAcquireFailedEventAttributes != nil {
 		size += v.SemaphoreAcquireFailedEventAttributes.ByteSize()
+	}
+
+	if v.SemaphoreTokenLostEventAttributes != nil {
+		size += v.SemaphoreTokenLostEventAttributes.ByteSize()
 	}
 
 	return size
@@ -8657,6 +8677,34 @@ func (v *SemaphoreAcquireFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
+// SemaphoreTokenLostEventAttributes records that the hold the acquire InitiatedEventID started no
+// longer has TokenID, so the hold gets a token again.
+type SemaphoreTokenLostEventAttributes struct {
+	TokenID          int32 `json:"tokenId,omitempty"`
+	InitiatedEventID int64 `json:"initiatedEventId,omitempty"`
+}
+
+// GetTokenID is an internal getter
+func (v *SemaphoreTokenLostEventAttributes) GetTokenID() (o int32) {
+	if v != nil {
+		return v.TokenID
+	}
+	return
+}
+
+// GetInitiatedEventID is an internal getter
+func (v *SemaphoreTokenLostEventAttributes) GetInitiatedEventID() (o int64) {
+	if v != nil {
+		return v.InitiatedEventID
+	}
+	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *SemaphoreTokenLostEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // VersionHistories is an internal type (TBD...)
 type VersionHistories struct {
 	CurrentVersionHistoryIndex int32             `json:"currentVersionHistoryIndex,omitempty"`
@@ -8865,6 +8913,8 @@ func (e WorkflowExecutionStatus) String() string {
 		return "CONTINUED_AS_NEW"
 	case 7:
 		return "TIMED_OUT"
+	case 8:
+		return "PREPARING"
 	}
 	return fmt.Sprintf("WorkflowExecutionStatus(%d)", w)
 }
@@ -8895,6 +8945,9 @@ func (e *WorkflowExecutionStatus) UnmarshalText(value []byte) error {
 		return nil
 	case "TIMED_OUT":
 		*e = WorkflowExecutionStatusTimedOut
+		return nil
+	case "PREPARING":
+		*e = WorkflowExecutionStatusPreparing
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -8979,6 +9032,8 @@ const (
 	WorkflowExecutionStatusContinuedAsNew
 	// WorkflowExecutionStatusTimedOut is an option for WorkflowExecutionStatus
 	WorkflowExecutionStatusTimedOut
+	// WorkflowExecutionStatusPreparing is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusPreparing
 )
 
 // WorkflowExecutionCompletedEventAttributes is an internal type (TBD...)
@@ -9294,6 +9349,9 @@ type WorkflowExecutionStartedEventAttributes struct {
 	RequestID                           string                        `json:"requestId,omitempty"`
 	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
 	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
+	ImportSourceExecution               *WorkflowExecution            `json:"importSourceExecution,omitempty"`
+	ImportTimestamp                     *int64                        `json:"importTimestamp,omitempty"`
+	ImportLastEventID                   *int64                        `json:"importLastEventID,omitempty"`
 }
 
 // GetParentWorkflowDomain is an internal getter (TBD...)
@@ -9372,6 +9430,30 @@ func (v *WorkflowExecutionStartedEventAttributes) GetAttempt() (o int32) {
 func (v *WorkflowExecutionStartedEventAttributes) GetExpirationTimestamp() (o int64) {
 	if v != nil && v.ExpirationTimestamp != nil {
 		return *v.ExpirationTimestamp
+	}
+	return
+}
+
+// GetImportSourceExecution is an internal getter
+func (v *WorkflowExecutionStartedEventAttributes) GetImportSourceExecution() (o *WorkflowExecution) {
+	if v != nil {
+		return v.ImportSourceExecution
+	}
+	return
+}
+
+// GetImportTimestamp is an internal getter
+func (v *WorkflowExecutionStartedEventAttributes) GetImportTimestamp() (o int64) {
+	if v != nil && v.ImportTimestamp != nil {
+		return *v.ImportTimestamp
+	}
+	return
+}
+
+// GetImportLastEventID is an internal getter
+func (v *WorkflowExecutionStartedEventAttributes) GetImportLastEventID() (o int64) {
+	if v != nil && v.ImportLastEventID != nil {
+		return *v.ImportLastEventID
 	}
 	return
 }

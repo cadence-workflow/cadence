@@ -502,8 +502,8 @@ func (r *mutableStateTaskGeneratorImpl) GenerateAcquireSemaphoreTasks(
 	return nil
 }
 
-// GenerateSemaphoreAcquireTimeoutTasks adds the timer that ends the acquire started by
-// initiatedEventID at its deadline.
+// GenerateSemaphoreAcquireTimeoutTasks adds a timer that fires at the hold's deadline.
+// A hold with no deadline gets no timer.
 func (r *mutableStateTaskGeneratorImpl) GenerateSemaphoreAcquireTimeoutTasks(
 	initiatedEventID int64,
 ) error {
@@ -513,6 +513,9 @@ func (r *mutableStateTaskGeneratorImpl) GenerateSemaphoreAcquireTimeoutTasks(
 		return &types.InternalServiceError{
 			Message: fmt.Sprintf("it could be a bug, cannot get pending semaphore hold: %v", initiatedEventID),
 		}
+	}
+	if semaphoreInfo.AcquireDeadline.IsZero() {
+		return nil
 	}
 
 	executionInfo := r.mutableState.GetExecutionInfo()

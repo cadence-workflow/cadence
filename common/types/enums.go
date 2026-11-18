@@ -69,6 +69,7 @@ func EventTypeValues() []EventType {
 		EventTypeSemaphoreAcquired,
 		EventTypeSemaphoreReleased,
 		EventTypeSemaphoreAcquireFailed,
+		EventTypeSemaphoreTokenLost,
 	}
 }
 

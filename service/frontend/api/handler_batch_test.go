@@ -197,3 +197,398 @@ func TestStartBatchOperation(t *testing.T) {
 		})
 	}
 }
+
+func TestDescribeBatchOperation(t *testing.T) {
+	validRequest := &types.DescribeBatchOperationRequest{
+		Domain:  testDomain,
+		BatchID: "my-batch-id",
+	}
+	reasonBytes, err := json.Marshal("my-reason")
+	require.NoError(t, err)
+	operatorBytes, err := json.Marshal("my-operator")
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		request  *types.DescribeBatchOperationRequest
+		mockFn   func(*scheduleTestFixture)
+		wantErr  bool
+		validate func(*testing.T, *types.DescribeBatchOperationResponse)
+	}{
+		"nil request": {
+			request: nil,
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty domain": {
+			request: &types.DescribeBatchOperationRequest{},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty batch ID": {
+			request: &types.DescribeBatchOperationRequest{Domain: testDomain},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"domain not found": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return("", errors.New("not found")).AnyTimes()
+			},
+			wantErr: true,
+		},
+		"history error": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("internal error"))
+			},
+			wantErr: true,
+		},
+		"running with progress": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				hbd, err := json.Marshal(batcher.HeartBeatDetails{TotalEstimate: 10, SuccessCount: 3, ErrorCount: 1, RPS: 50, Concurrency: 5})
+				require.NoError(t, err)
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistoryDescribeWorkflowExecutionRequest, _ ...yarpc.CallOption) (*types.DescribeWorkflowExecutionResponse, error) {
+						assert.Equal(t, batcherDomainID, req.DomainUUID)
+						assert.Equal(t, "cadence-sys-batch-operation:test-domain:my-batch-id", req.Request.Execution.WorkflowID)
+						return &types.DescribeWorkflowExecutionResponse{
+							WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+								Memo:             &types.Memo{Fields: map[string][]byte{"Reason": reasonBytes}},
+								SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{"Operator": operatorBytes}},
+							},
+							PendingActivities: []*types.PendingActivityInfo{{HeartbeatDetails: hbd}},
+						}, nil
+					})
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.DescribeBatchOperationResponse) {
+				assert.Equal(t, types.BatchOperationStateRunning, resp.State)
+				assert.Equal(t, "my-reason", resp.Reason)
+				assert.Equal(t, "my-operator", resp.StartedBy)
+				require.NotNil(t, resp.Progress)
+				assert.Equal(t, int64(10), resp.Progress.TotalEstimate)
+				assert.Equal(t, int64(3), resp.Progress.SuccessCount)
+				assert.Equal(t, int64(1), resp.Progress.ErrorCount)
+				require.NotNil(t, resp.Limits)
+				assert.Equal(t, int32(50), resp.Limits.RPS)
+				assert.Equal(t, int32(5), resp.Limits.Concurrency)
+				assert.Nil(t, resp.StartTime)
+				assert.Nil(t, resp.CloseTime)
+			},
+		},
+		"completed with no pending activity": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+							CloseStatus: types.WorkflowExecutionCloseStatusCompleted.Ptr(),
+						},
+					}, nil)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.DescribeBatchOperationResponse) {
+				assert.Equal(t, types.BatchOperationStateCompleted, resp.State)
+				assert.Nil(t, resp.Progress)
+				assert.Nil(t, resp.Limits)
+			},
+		},
+		"terminated maps to stopped": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+							CloseStatus: types.WorkflowExecutionCloseStatusTerminated.Ptr(),
+						},
+					}, nil)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.DescribeBatchOperationResponse) {
+				assert.Equal(t, types.BatchOperationStateStopped, resp.State)
+			},
+		},
+		"failed maps to failed": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+							CloseStatus: types.WorkflowExecutionCloseStatusFailed.Ptr(),
+						},
+					}, nil)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.DescribeBatchOperationResponse) {
+				assert.Equal(t, types.BatchOperationStateFailed, resp.State)
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newScheduleTestFixture(t)
+			defer f.finish()
+			tt.mockFn(f)
+
+			resp, err := f.handler.DescribeBatchOperation(context.Background(), tt.request)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				require.NotNil(t, resp)
+				if tt.validate != nil {
+					tt.validate(t, resp)
+				}
+			}
+		})
+	}
+}
+
+func TestUpdateBatchOperation(t *testing.T) {
+	tests := map[string]struct {
+		request *types.UpdateBatchOperationRequest
+		mockFn  func(*scheduleTestFixture)
+		wantErr bool
+	}{
+		"nil request": {
+			request: nil,
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty domain": {
+			request: &types.UpdateBatchOperationRequest{},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty batch ID": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"negative RPS": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: -1},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"negative concurrency": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", Concurrency: -1},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"no fields set": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id"},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"domain not found": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: 100},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return("", errors.New("not found")).AnyTimes()
+			},
+			wantErr: true,
+		},
+		"history error": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: 100},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("internal error"))
+			},
+			wantErr: true,
+		},
+		"entity not exists is a real error": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: 100},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.EntityNotExistsError{Message: "not found"})
+			},
+			wantErr: true,
+		},
+		"success, RPS only": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: 100},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistorySignalWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						assert.Equal(t, batcherDomainID, req.DomainUUID)
+						assert.Equal(t, constants.BatcherLocalDomainName, req.SignalRequest.Domain)
+						assert.Equal(t, "cadence-sys-batch-operation:test-domain:my-batch-id", req.SignalRequest.WorkflowExecution.WorkflowID)
+						assert.Equal(t, batcher.SignalNameTune, req.SignalRequest.SignalName)
+						var sig batcher.TuneSignal
+						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &sig))
+						assert.Equal(t, 100, sig.RPS)
+						assert.Equal(t, 0, sig.Concurrency)
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+		"success, concurrency only": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", Concurrency: 10},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistorySignalWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						var sig batcher.TuneSignal
+						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &sig))
+						assert.Equal(t, 0, sig.RPS)
+						assert.Equal(t, 10, sig.Concurrency)
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+		"success, both set": {
+			request: &types.UpdateBatchOperationRequest{Domain: testDomain, BatchID: "my-batch-id", RPS: 100, Concurrency: 10},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistorySignalWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						var sig batcher.TuneSignal
+						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &sig))
+						assert.Equal(t, 100, sig.RPS)
+						assert.Equal(t, 10, sig.Concurrency)
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newScheduleTestFixture(t)
+			defer f.finish()
+			tt.mockFn(f)
+
+			resp, err := f.handler.UpdateBatchOperation(context.Background(), tt.request)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				require.NotNil(t, resp)
+			}
+		})
+	}
+}
+
+func TestStopBatchOperation(t *testing.T) {
+	validRequest := &types.StopBatchOperationRequest{
+		Domain:  testDomain,
+		BatchID: "my-batch-id",
+		Reason:  "my-reason",
+	}
+
+	tests := map[string]struct {
+		request *types.StopBatchOperationRequest
+		mockFn  func(*scheduleTestFixture)
+		wantErr bool
+	}{
+		"nil request": {
+			request: nil,
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty domain": {
+			request: &types.StopBatchOperationRequest{},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty batch ID": {
+			request: &types.StopBatchOperationRequest{Domain: testDomain},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"domain not found": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return("", errors.New("not found")).Times(1)
+			},
+			wantErr: true,
+		},
+		"history error": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("internal error"))
+			},
+			wantErr: true,
+		},
+		"entity not exists is a real error": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.EntityNotExistsError{Message: "not found"})
+			},
+			wantErr: true,
+		},
+		"already completed is treated as idempotent success": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.WorkflowExecutionAlreadyCompletedError{Message: "already completed"})
+			},
+			wantErr: false,
+		},
+		"success": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistoryTerminateWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						assert.Equal(t, batcherDomainID, req.DomainUUID)
+						assert.Equal(t, constants.BatcherLocalDomainName, req.TerminateRequest.Domain)
+						assert.Equal(t, "cadence-sys-batch-operation:test-domain:my-batch-id", req.TerminateRequest.WorkflowExecution.WorkflowID)
+						assert.Equal(t, "my-reason", req.TerminateRequest.Reason)
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newScheduleTestFixture(t)
+			defer f.finish()
+			tt.mockFn(f)
+
+			resp, err := f.handler.StopBatchOperation(context.Background(), tt.request)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				require.NotNil(t, resp)
+			}
+		})
+	}
+}

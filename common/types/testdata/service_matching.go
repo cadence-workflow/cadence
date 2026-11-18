@@ -21,6 +21,8 @@
 package testdata
 
 import (
+	"time"
+
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
@@ -216,11 +218,15 @@ var (
 	// way a real owner id is: the release CAS compares these bytes exactly.
 	SemaphoreOwnerID = semaphore.Owner{WorkflowID: WorkflowID, RunID: RunID, HoldID: 7}.String()
 
+	// Local time, as the proto mapper decodes with time.Unix; a UTC value would not compare equal after the round trip.
+	semaphoreAcquireDeadline = time.Unix(1767258000, 0)
+
 	MatchingAcquireSemaphoreRequest = types.AcquireSemaphoreRequest{
-		DomainUUID:    DomainID,
-		SemaphoreName: SemaphoreName,
-		Bucket:        2,
-		OwnerID:       SemaphoreOwnerID,
+		DomainUUID:      DomainID,
+		SemaphoreName:   SemaphoreName,
+		Bucket:          2,
+		OwnerID:         SemaphoreOwnerID,
+		AcquireDeadline: &semaphoreAcquireDeadline,
 	}
 
 	MatchingAcquireSemaphoreResponse = types.AcquireSemaphoreResponse{

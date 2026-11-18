@@ -470,6 +470,13 @@ func (b *stateBuilderImpl) ApplyEvents(
 				return nil, err
 			}
 
+		case types.EventTypeSemaphoreTokenLost:
+			if err := b.mutableState.ReplicateSemaphoreTokenLostEvent(
+				event,
+			); err != nil {
+				return nil, err
+			}
+
 		case types.EventTypeWorkflowExecutionCompleted:
 			if err := b.mutableState.ReplicateWorkflowExecutionCompletedEvent(
 				firstEvent.ID,

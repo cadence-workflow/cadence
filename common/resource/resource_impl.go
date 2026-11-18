@@ -22,6 +22,8 @@ package resource
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -114,6 +116,7 @@ type Impl struct {
 	membershipResolver membership.Resolver
 	hashRings          map[string]membership.Ring
 	spectator          spectatorclient.Spectator
+	taskListRouter     matching.TaskListRouter
 
 	// internal services clients
 
@@ -163,6 +166,14 @@ func New(
 	serviceName string,
 	serviceConfig *service.Config,
 ) (impl *Impl, retError error) {
+	// Builds that construct Params themselves skip config validation, so fail here instead of
+	// panicking the first time matching routes a task list.
+	if params.TaskListDifferentiator == nil {
+		return nil, errors.New("creating resource: resource.Params.TaskListDifferentiator must be set")
+	}
+	if shardCount := params.TaskListDifferentiator.ShardCount(); shardCount <= 0 {
+		return nil, fmt.Errorf("creating resource: numMatchingShards must be positive, got %d", shardCount)
+	}
 
 	hostname := params.HostName
 
@@ -173,17 +184,32 @@ func New(
 	dispatcher := params.RPCFactory.GetDispatcher()
 	membershipResolver := params.MembershipResolver
 
+	taskListRouter := matching.NewTaskListRouter(
+		membershipResolver,
+		params.TaskListDifferentiator,
+		params.Spectator,
+		logger,
+		params.MetricsClient.Scope(metrics.ShardDistributorResolverScope),
+	)
+
 	ensureGetAllIsolationGroupsFnIsSet(params)
+
+	matchingPollTracker := params.MatchingPollTracker
+	if matchingPollTracker == nil {
+		matchingPollTracker = matching.NewNoopPollTracker()
+	}
 
 	dynamicCollection := params.DynamicCollection
 	clientBean, err := client.NewClientBean(
 		client.NewRPCClientFactory(
 			params.RPCFactory,
 			membershipResolver,
+			taskListRouter,
 			params.MetricsClient,
 			dynamicCollection,
 			numShards,
 			params.GetIsolationGroups,
+			matchingPollTracker,
 			logger,
 		),
 		params.RPCFactory.GetDispatcher(),
@@ -368,6 +394,7 @@ func New(
 		// membership infos
 		membershipResolver: membershipResolver,
 		spectator:          params.Spectator,
+		taskListRouter:     taskListRouter,
 
 		// internal services clients
 
@@ -573,6 +600,11 @@ func (h *Impl) GetMembershipResolver() membership.Resolver {
 	return h.membershipResolver
 }
 
+// GetTaskListRouter return the router that finds the matching host owning a task list
+func (h *Impl) GetTaskListRouter() matching.TaskListRouter {
+	return h.taskListRouter
+}
+
 // internal services clients
 
 // GetSDKClient return sdk client
@@ -690,6 +722,11 @@ func (h *Impl) GetHistoryManager() persistence.HistoryManager {
 // GetHistoryTaskDLQManager returns the history task DLQ manager.
 func (h *Impl) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
 	return h.persistenceBean.GetHistoryTaskDLQManager()
+}
+
+// GetAsyncWorkflowQueueManager returns the async workflow queue manager.
+func (h *Impl) GetAsyncWorkflowQueueManager() persistence.AsyncWorkflowQueueManager {
+	return h.persistenceBean.GetAsyncWorkflowQueueManager()
 }
 
 // GetExecutionManager return execution manager

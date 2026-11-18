@@ -173,6 +173,30 @@ func (c *historyClient) DescribeWorkflowExecution(ctx context.Context, hp1 *type
 	return dp1, err
 }
 
+func (c *historyClient) EnqueueAsyncWorkflowMessage(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageRequest, p1 ...yarpc.CallOption) (ep2 *types.EnqueueAsyncWorkflowMessageResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientEnqueueAsyncWorkflowMessageScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientEnqueueAsyncWorkflowMessageScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	ep2, err = c.client.EnqueueAsyncWorkflowMessage(ctx, ep1, p1...)
+	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return ep2, err
+}
+
 func (c *historyClient) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetCrossClusterTasksRequest, p1 ...yarpc.CallOption) (gp2 *types.GetCrossClusterTasksResponse, err error) {
 	retryCount := getRetryCountFromContext(ctx)
 

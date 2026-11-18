@@ -85,6 +85,7 @@ type (
 
 		// membership infos
 		MembershipResolver *membership.MockResolver
+		TaskListRouter     *matching.MockTaskListRouter
 
 		// internal services clients
 
@@ -111,7 +112,8 @@ type (
 		ExecutionMgr         *mocks.ExecutionManager
 		PersistenceBean      *persistenceClient.MockBean
 
-		HistoryTaskDLQMgr *persistence.MockHistoryTaskDLQManager
+		HistoryTaskDLQMgr     *persistence.MockHistoryTaskDLQManager
+		AsyncWorkflowQueueMgr *persistence.MockAsyncWorkflowQueueManager
 
 		IsolationGroups        *isolationgroup.MockState
 		IsolationGroupStore    configstore.Client
@@ -186,6 +188,8 @@ func NewTest(
 	// shard after inserting the task. Tests that care can override on the exposed HistoryTaskDLQMgr.
 	historyTaskDLQMgr.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryTaskDLQManager().Return(historyTaskDLQMgr).AnyTimes()
+	asyncWorkflowQueueMgr := persistence.NewMockAsyncWorkflowQueueManager(controller)
+	persistenceBean.EXPECT().GetAsyncWorkflowQueueManager().Return(asyncWorkflowQueueMgr).AnyTimes()
 
 	isolationGroupMock := isolationgroup.NewMockState(controller)
 	isolationGroupMock.EXPECT().Stop().AnyTimes()
@@ -218,6 +222,7 @@ func NewTest(
 
 		// membership infos
 		MembershipResolver: membership.NewMockResolver(controller),
+		TaskListRouter:     matching.NewMockTaskListRouter(controller),
 
 		// internal services clients
 
@@ -232,19 +237,20 @@ func NewTest(
 
 		// persistence clients
 
-		MetadataMgr:          metadataMgr,
-		DomainAuditMgr:       domainAuditMgr,
-		SemaphoreMetadataMgr: semaphoreMetadataMgr,
-		SemaphoreTokenMgr:    semaphoreTokenMgr,
-		SemaphoreTaskMgr:     semaphoreTaskMgr,
-		TaskMgr:              taskMgr,
-		VisibilityMgr:        visibilityMgr,
-		ShardMgr:             shardMgr,
-		HistoryMgr:           historyMgr,
-		ExecutionMgr:         executionMgr,
-		PersistenceBean:      persistenceBean,
-		HistoryTaskDLQMgr:    historyTaskDLQMgr,
-		IsolationGroups:      isolationGroupMock,
+		MetadataMgr:           metadataMgr,
+		DomainAuditMgr:        domainAuditMgr,
+		SemaphoreMetadataMgr:  semaphoreMetadataMgr,
+		SemaphoreTokenMgr:     semaphoreTokenMgr,
+		SemaphoreTaskMgr:      semaphoreTaskMgr,
+		TaskMgr:               taskMgr,
+		VisibilityMgr:         visibilityMgr,
+		ShardMgr:              shardMgr,
+		HistoryMgr:            historyMgr,
+		ExecutionMgr:          executionMgr,
+		PersistenceBean:       persistenceBean,
+		HistoryTaskDLQMgr:     historyTaskDLQMgr,
+		AsyncWorkflowQueueMgr: asyncWorkflowQueueMgr,
+		IsolationGroups:       isolationGroupMock,
 
 		// logger
 
@@ -353,6 +359,11 @@ func (s *Test) GetArchiverProvider() provider.ArchiverProvider {
 // GetMembershipResolver for testing
 func (s *Test) GetMembershipResolver() membership.Resolver {
 	return s.MembershipResolver
+}
+
+// GetTaskListRouter for testing
+func (s *Test) GetTaskListRouter() matching.TaskListRouter {
+	return s.TaskListRouter
 }
 
 // internal services clients
@@ -471,6 +482,11 @@ func (s *Test) GetHistoryManager() persistence.HistoryManager {
 // GetHistoryTaskDLQManager for testing
 func (s *Test) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
 	return s.PersistenceBean.GetHistoryTaskDLQManager()
+}
+
+// GetAsyncWorkflowQueueManager for testing
+func (s *Test) GetAsyncWorkflowQueueManager() persistence.AsyncWorkflowQueueManager {
+	return s.PersistenceBean.GetAsyncWorkflowQueueManager()
 }
 
 // GetExecutionManager for testing
