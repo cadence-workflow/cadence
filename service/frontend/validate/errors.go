@@ -66,6 +66,7 @@ var (
 	ErrInvalidBatchRPS                            = &types.BadRequestError{Message: "RPS must not be negative."}
 	ErrInvalidBatchConcurrency                    = &types.BadRequestError{Message: "Concurrency must not be negative."}
 	ErrBatchUpdateNoFieldsSet                     = &types.BadRequestError{Message: "At least one of RPS or Concurrency must be set to update a batch operation."}
+	ErrInvalidBatchOperationState                 = &types.BadRequestError{Message: "State filter must be unset or a valid BatchOperationState."}
 
 	// Err for archival
 	ErrHistoryNotFound = &types.BadRequestError{Message: "Requested workflow history not found, may have passed retention period."}

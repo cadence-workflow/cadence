@@ -7,11 +7,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/batcher"
 )
@@ -588,6 +590,164 @@ func TestStopBatchOperation(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				require.NotNil(t, resp)
+			}
+		})
+	}
+}
+
+func TestListBatchOperations(t *testing.T) {
+	operatorBytes, err := json.Marshal("my-operator")
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		request  *types.ListBatchOperationsRequest
+		mockFn   func(*scheduleTestFixture)
+		wantErr  bool
+		validate func(*testing.T, *types.ListBatchOperationsResponse)
+	}{
+		"nil request": {
+			request: nil,
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty domain": {
+			request: &types.ListBatchOperationsRequest{},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"invalid state value": {
+			request: &types.ListBatchOperationsRequest{Domain: testDomain, State: types.BatchOperationState(99)},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"domain not found": {
+			request: &types.ListBatchOperationsRequest{Domain: testDomain},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return("", errors.New("not found")).AnyTimes()
+			},
+			wantErr: true,
+		},
+		"visibility error": {
+			request: &types.ListBatchOperationsRequest{Domain: testDomain},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.Anything).
+					Return(nil, errors.New("internal error")).Once()
+			},
+			wantErr: true,
+		},
+		"success, no state filter": {
+			request: &types.ListBatchOperationsRequest{Domain: testDomain},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.MatchedBy(func(req *persistence.ListWorkflowExecutionsByQueryRequest) bool {
+					return req.Domain == constants.BatcherLocalDomainName && req.Query == "`Attr.CustomDomain` = 'test-domain'"
+				})).Return(&persistence.ListWorkflowExecutionsResponse{
+					Executions: []*types.WorkflowExecutionInfo{
+						{
+							Execution:        &types.WorkflowExecution{WorkflowID: "cadence-sys-batch-operation:test-domain:my-batch-id"},
+							SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{"Operator": operatorBytes}},
+						},
+					},
+					NextPageToken: []byte("next"),
+				}, nil).Once()
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.ListBatchOperationsResponse) {
+				require.Len(t, resp.BatchOperations, 1)
+				assert.Equal(t, "my-batch-id", resp.BatchOperations[0].BatchID)
+				assert.Equal(t, types.BatchOperationStateRunning, resp.BatchOperations[0].State)
+				assert.Equal(t, "my-operator", resp.BatchOperations[0].StartedBy)
+				assert.Equal(t, []byte("next"), resp.NextPageToken)
+			},
+		},
+		"success, skips legacy CLI batch without batch-operation prefix": {
+			request: &types.ListBatchOperationsRequest{Domain: testDomain},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.Anything).
+					Return(&persistence.ListWorkflowExecutionsResponse{
+						Executions: []*types.WorkflowExecutionInfo{
+							{Execution: &types.WorkflowExecution{WorkflowID: "some-random-legacy-cli-uuid"}},
+							{Execution: &types.WorkflowExecution{WorkflowID: "cadence-sys-batch-operation:test-domain:my-batch-id"}},
+						},
+					}, nil).Once()
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.ListBatchOperationsResponse) {
+				require.Len(t, resp.BatchOperations, 1)
+				assert.Equal(t, "my-batch-id", resp.BatchOperations[0].BatchID)
+			},
+		},
+		"success, skips continued-as-new runs": {
+			request: &types.ListBatchOperationsRequest{Domain: testDomain},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				continuedAsNew := types.WorkflowExecutionCloseStatusContinuedAsNew
+				f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.Anything).
+					Return(&persistence.ListWorkflowExecutionsResponse{
+						Executions: []*types.WorkflowExecutionInfo{
+							{
+								Execution:   &types.WorkflowExecution{WorkflowID: "cadence-sys-batch-operation:test-domain:my-batch-id"},
+								CloseStatus: &continuedAsNew,
+							},
+							{Execution: &types.WorkflowExecution{WorkflowID: "cadence-sys-batch-operation:test-domain:my-batch-id"}},
+						},
+					}, nil).Once()
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.ListBatchOperationsResponse) {
+				require.Len(t, resp.BatchOperations, 1)
+				assert.Equal(t, types.BatchOperationStateRunning, resp.BatchOperations[0].State)
+			},
+		},
+		"success, with state filter": {
+			request: &types.ListBatchOperationsRequest{Domain: testDomain, State: types.BatchOperationStateRunning},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.MatchedBy(func(req *persistence.ListWorkflowExecutionsByQueryRequest) bool {
+					return req.Query == "`Attr.CustomDomain` = 'test-domain' and CloseTime = missing"
+				})).Return(&persistence.ListWorkflowExecutionsResponse{}, nil).Once()
+			},
+			wantErr: false,
+		},
+		"success, pagination": {
+			request: &types.ListBatchOperationsRequest{Domain: testDomain, PageSize: 10, NextPageToken: []byte("prev")},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.MatchedBy(func(req *persistence.ListWorkflowExecutionsByQueryRequest) bool {
+					return req.PageSize == 10 && string(req.NextPageToken) == "prev"
+				})).Return(&persistence.ListWorkflowExecutionsResponse{NextPageToken: []byte("next-page")}, nil).Once()
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.ListBatchOperationsResponse) {
+				assert.Equal(t, []byte("next-page"), resp.NextPageToken)
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newScheduleTestFixture(t)
+			defer f.finish()
+			tt.mockFn(f)
+
+			resp, err := f.handler.ListBatchOperations(context.Background(), tt.request)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				require.NotNil(t, resp)
+				if tt.validate != nil {
+					tt.validate(t, resp)
+				}
 			}
 		})
 	}
