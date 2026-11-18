@@ -150,6 +150,8 @@ func NewWorkflowHandler(
 		producerManager: NewProducerManager(
 			resource.GetDomainCache(),
 			resource.GetAsyncWorkflowQueueProvider(),
+			resource.GetHistoryClient(),
+			config.NumHistoryShards,
 			resource.GetLogger(),
 			resource.GetMetricsClient(),
 		),
@@ -1653,6 +1655,8 @@ func (wh *WorkflowHandler) StartWorkflowExecutionAsync(
 		Header:       header,
 		Encoding:     common.StringPtr(string(constants.EncodingTypeThriftRW)),
 		Payload:      payload,
+		DomainName:   common.StringPtr(startRequest.GetDomain()),
+		RequestID:    common.StringPtr(startRequest.GetRequestID()),
 	}
 	err = producer.Publish(ctx, message)
 	if err != nil {
@@ -2267,6 +2271,8 @@ func (wh *WorkflowHandler) SignalWithStartWorkflowExecutionAsync(
 		Header:       header,
 		Encoding:     common.StringPtr(string(constants.EncodingTypeThriftRW)),
 		Payload:      payload,
+		DomainName:   common.StringPtr(signalWithStartRequest.GetDomain()),
+		RequestID:    common.StringPtr(signalWithStartRequest.GetRequestID()),
 	}
 	err = producer.Publish(ctx, message)
 	if err != nil {

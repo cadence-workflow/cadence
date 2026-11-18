@@ -28,6 +28,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/client/frontend"
+	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
@@ -40,6 +41,10 @@ type (
 		Logger         log.Logger
 		MetricsClient  metrics.Client
 		FrontendClient frontend.Client
+		// HistoryClient and NumHistoryShards are required by history-backed queues, whose producer
+		// routes each request to the history shard that owns its workflow id.
+		HistoryClient    history.Client
+		NumHistoryShards int
 	}
 
 	Decoder interface {
