@@ -231,21 +231,24 @@ func ListBatchOperationsCLI(c *cli.Context) error {
 	}
 	defer cancel()
 
-	resp, err := frontendClient.ListBatchOperations(ctx, request)
-	if err != nil {
-		return commoncli.Problem("Failed to list batch operations", err)
+	found := false
+	for {
+		resp, err := frontendClient.ListBatchOperations(ctx, request)
+		if err != nil {
+			return commoncli.Problem("Failed to list batch operations", err)
+		}
+		for _, entry := range resp.GetBatchOperations() {
+			found = true
+			fmt.Printf("  %-40s  %-10s  %-20s\n", entry.BatchID, entry.State.String(), entry.StartedBy)
+		}
+		if len(resp.GetNextPageToken()) == 0 {
+			break
+		}
+		request.NextPageToken = resp.GetNextPageToken()
 	}
 
-	if len(resp.GetBatchOperations()) == 0 {
+	if !found {
 		fmt.Println("No batch operations found.")
-		return nil
-	}
-
-	for _, entry := range resp.GetBatchOperations() {
-		fmt.Printf("  %-40s  %-10s  %-20s\n", entry.BatchID, entry.State.String(), entry.StartedBy)
-	}
-	if len(resp.GetNextPageToken()) > 0 {
-		fmt.Println("\n  ... more batch operations exist. Use --pagesize to increase the page size.")
 	}
 	return nil
 }

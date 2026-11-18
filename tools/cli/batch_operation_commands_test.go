@@ -381,6 +381,35 @@ func TestListBatchOperationsCLI(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		"success, follows next page token across multiple pages": {
+			flags: map[string]string{},
+			mockFn: func(f *frontend.MockClient, captured **types.ListBatchOperationsRequest) {
+				first := f.EXPECT().ListBatchOperations(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ any, req *types.ListBatchOperationsRequest, _ ...any) (*types.ListBatchOperationsResponse, error) {
+						assert.Empty(t, req.NextPageToken)
+						return &types.ListBatchOperationsResponse{
+							BatchOperations: []*types.BatchOperationListEntry{
+								{BatchID: "batch-1", State: types.BatchOperationStateRunning, StartedBy: "op-1"},
+							},
+							NextPageToken: []byte("page-2"),
+						}, nil
+					})
+				f.EXPECT().ListBatchOperations(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ any, req *types.ListBatchOperationsRequest, _ ...any) (*types.ListBatchOperationsResponse, error) {
+						*captured = req
+						assert.Equal(t, []byte("page-2"), req.NextPageToken)
+						return &types.ListBatchOperationsResponse{
+							BatchOperations: []*types.BatchOperationListEntry{
+								{BatchID: "batch-2", State: types.BatchOperationStateCompleted, StartedBy: "op-2"},
+							},
+						}, nil
+					}).After(first)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, req *types.ListBatchOperationsRequest) {
+				assert.Equal(t, []byte("page-2"), req.NextPageToken)
+			},
+		},
 	}
 
 	for name, tt := range tests {
