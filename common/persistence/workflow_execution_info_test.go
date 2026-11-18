@@ -140,13 +140,11 @@ func TestWorkflowExecutionInfoUpdateWorkflowStateCloseStatus(t *testing.T) {
 			WorkflowStateRunning:   withCloseStatusNone(),
 			WorkflowStateCompleted: withAnyCloseStatusExcept(WorkflowCloseStatusNone),
 			WorkflowStateZombie:    withAnyCloseStatusExcept(WorkflowCloseStatusNone),
-			WorkflowStatePreparing: func(executionInfo *WorkflowExecutionInfo, closeStatus int) bool {
-				return executionInfo.CloseStatus == closeStatus
-			},
+			WorkflowStatePreparing: withCloseStatusNone(),
 		}),
 		WorkflowStatePreparing: toStates(map[int]stateChecker{
 			WorkflowStatePreparing: withAnyCloseStatusExcept(),
-			WorkflowStateZombie:    withAnyCloseStatusExcept(),
+			WorkflowStateZombie:    withCloseStatusNone(),
 			WorkflowStateCreated:   withCloseStatusNone(),
 			WorkflowStateRunning:   withCloseStatusNone(),
 			WorkflowStateCompleted: withAnyCloseStatusExcept(WorkflowCloseStatusNone),
@@ -182,23 +180,6 @@ func TestWorkflowExecutionInfoUpdateWorkflowStateCloseStatus(t *testing.T) {
 		fromStatus: WorkflowCloseStatusCompleted,
 		toState:    WorkflowStateCompleted,
 		toStatus:   WorkflowCloseStatusCompleted,
-	})
-	// Ensure reviving a zombie import keeps the close status of its imported history.
-	// Valid: the close status does not change.
-	testCases = append(testCases, &testCase{
-		name:       "(Zombie,Completed)->(Preparing,Completed)",
-		fromState:  WorkflowStateZombie,
-		fromStatus: WorkflowCloseStatusCompleted,
-		toState:    WorkflowStatePreparing,
-		toStatus:   WorkflowCloseStatusCompleted,
-	})
-	// Invalid: the revive must not drop the close status.
-	testCases = append(testCases, &testCase{
-		name:       "(Zombie,Completed)->(Preparing,None)",
-		fromState:  WorkflowStateZombie,
-		fromStatus: WorkflowCloseStatusCompleted,
-		toState:    WorkflowStatePreparing,
-		toStatus:   WorkflowCloseStatusNone,
 	})
 	// Invalid states
 	testCases = append(testCases, &testCase{
