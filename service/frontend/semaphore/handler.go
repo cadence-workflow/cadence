@@ -65,8 +65,8 @@ func (h *handlerImpl) CreateSemaphore(
 	if err != nil {
 		return nil, err
 	}
-	if err := h.checkClusterCanCreate(domainEntry); err != nil {
-		return nil, err
+	if domainEntry.IsGlobalDomain() && !h.clusterMetadata.IsPrimaryCluster() {
+		return nil, errNotPrimaryCluster
 	}
 	domainID := domainEntry.GetInfo().ID
 
@@ -110,14 +110,6 @@ func (h *handlerImpl) CreateSemaphore(
 		}
 	}
 	return &types.CreateSemaphoreResponse{Semaphore: toSemaphore(semaphore)}, nil
-}
-
-// checkClusterCanCreate returns errNotPrimaryCluster if the domain is global and this cluster is not the primary.
-func (h *handlerImpl) checkClusterCanCreate(domainEntry *cache.DomainCacheEntry) error {
-	if domainEntry.IsGlobalDomain() && !h.clusterMetadata.IsPrimaryCluster() {
-		return errNotPrimaryCluster
-	}
-	return nil
 }
 
 // existingSemaphoreMatchesCreateRequest reports whether the stored semaphore has the requested capacities.
