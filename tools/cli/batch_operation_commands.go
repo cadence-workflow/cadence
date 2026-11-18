@@ -186,3 +186,66 @@ func StartBatchRefresh(c *cli.Context) error {
 		RefreshBatchOperation: &types.RefreshBatchOperation{},
 	})
 }
+
+var batchOperationStateMap = map[string]types.BatchOperationState{
+	"running":   types.BatchOperationStateRunning,
+	"completed": types.BatchOperationStateCompleted,
+	"failed":    types.BatchOperationStateFailed,
+	"stopped":   types.BatchOperationStateStopped,
+}
+
+func getBatchOperationState(stateStr string) (types.BatchOperationState, error) {
+	if state, ok := batchOperationStateMap[strings.ToLower(stateStr)]; ok {
+		return state, nil
+	}
+	return types.BatchOperationStateInvalid, commoncli.Problem(
+		"option state is not one of allowed values [running, completed, failed, stopped]", nil)
+}
+
+// ListBatchOperationsCLI lists the batch operations started for a domain.
+func ListBatchOperationsCLI(c *cli.Context) error {
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	frontendClient, err := getBatchOperationsClient(c)
+	if err != nil {
+		return err
+	}
+
+	request := &types.ListBatchOperationsRequest{
+		Domain:   domain,
+		PageSize: int32(c.Int(FlagPageSize)),
+	}
+	if stateStr := c.String(FlagBatchOperationState); stateStr != "" {
+		state, err := getBatchOperationState(stateStr)
+		if err != nil {
+			return err
+		}
+		request.State = state
+	}
+
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
+	defer cancel()
+
+	resp, err := frontendClient.ListBatchOperations(ctx, request)
+	if err != nil {
+		return commoncli.Problem("Failed to list batch operations", err)
+	}
+
+	if len(resp.GetBatchOperations()) == 0 {
+		fmt.Println("No batch operations found.")
+		return nil
+	}
+
+	for _, entry := range resp.GetBatchOperations() {
+		fmt.Printf("  %-40s  %-10s  %-20s\n", entry.BatchID, entry.State.String(), entry.StartedBy)
+	}
+	if len(resp.GetNextPageToken()) > 0 {
+		fmt.Println("\n  ... more batch operations exist. Use --pagesize to increase the page size.")
+	}
+	return nil
+}
