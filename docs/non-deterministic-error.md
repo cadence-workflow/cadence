@@ -311,7 +311,7 @@ When troubleshooting it might be helpful to let a small number of workers run wi
 
 If you know some code change will cause non-deterministic errors, then use
 
-[workflow.GetVersion()](https://cadenceworkflow.io/docs/07_goclient/14_workflow_versioning) API to prevent it. This API will let the workflow that has finished the changing code to go with old code path, but let the workflows that hasn’t to go with new code path.
+[workflow.GetVersion()](https://cadenceworkflow.io/docs/go-client/workflow-versioning) API to prevent it. This API will let the workflow that has finished the changing code to go with old code path, but let the workflows that hasn’t to go with new code path.
 
 For example of "missing decision", instead of simply deleting the code, we could change it to:
 ```go
@@ -326,7 +326,7 @@ if v == workflow.DefaultVersion{
 ```
 
 
-Another similar API to prevent non-deterministic error is [workflow.SideEffect()](https://cadenceworkflow.io/docs/07_goclient/10_side_effect).
+Another similar API to prevent non-deterministic error is [workflow.SideEffect()](https://cadenceworkflow.io/docs/go-client/side-effect).
 
 ## BinaryChecksum & workflow.Now()
 
@@ -363,7 +363,7 @@ if *(workflow.GetInfo(ctx).BinaryChecksum)== "BINARY_BEFORE_BAD_DEPLOYMENT" || w
 
 BINARY_BEFORE_BAD_DEPLOYMENT is the previous binary checksum, DeploymentStartTime that deployment start time. This will tell the workflows that has finished the decision with previous binary, or the decision is old enough that is not finished with new code, then it should go with the old code. We need DeploymentStartTime because W1 could be started by different binary checksums.
 
-## [Reset workflow](https://cadenceworkflow.io/docs/08_cli#restart-reset-workflow)
+## [Reset workflow](https://cadenceworkflow.io/docs/cli#reset-workflow)
 
 The last solution is to reset the workflows. A process in real OS can only move forward but never go back to previous state. However, a Cadence workflow can go back to previous state since we have stored the history as a list.
 
