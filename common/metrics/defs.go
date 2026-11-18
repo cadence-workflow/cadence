@@ -366,6 +366,8 @@ const (
 	HashringScope
 	// ShardManagerOnboardingScope is a metrics scope for the matching → shard-manager onboarding percentage gauge.
 	ShardManagerOnboardingScope
+	// ShardManagerHistoryOnboardingScope is a metrics scope for the history → shard-manager onboarding percentage gauge.
+	ShardManagerHistoryOnboardingScope
 	// ShardDistributorResolverScope is a metrics scope for matching routing decisions.
 	ShardDistributorResolverScope
 	// HistoryClientStartWorkflowExecutionScope tracks RPC calls to history service
@@ -2067,13 +2069,14 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 
 		GetAvailableIsolationGroupsScope: {operation: "GetAvailableIsolationGroups"},
 
-		DomainFailoverScope:           {operation: "DomainFailover"},
-		TaskValidatorScope:            {operation: "TaskValidation"},
-		DomainReplicationQueueScope:   {operation: "DomainReplicationQueue"},
-		ClusterMetadataScope:          {operation: "ClusterMetadata"},
-		HashringScope:                 {operation: "Hashring"},
-		ShardManagerOnboardingScope:   {operation: "ShardManagerOnboarding"},
-		ShardDistributorResolverScope: {operation: "ShardDistributorResolver"},
+		DomainFailoverScope:                {operation: "DomainFailover"},
+		TaskValidatorScope:                 {operation: "TaskValidation"},
+		DomainReplicationQueueScope:        {operation: "DomainReplicationQueue"},
+		ClusterMetadataScope:               {operation: "ClusterMetadata"},
+		HashringScope:                      {operation: "Hashring"},
+		ShardManagerOnboardingScope:        {operation: "ShardManagerOnboarding"},
+		ShardManagerHistoryOnboardingScope: {operation: "ShardManagerHistoryOnboarding"},
+		ShardDistributorResolverScope:      {operation: "ShardDistributorResolver"},
 
 		// currently used by both frontend and history, but may grow to other limiting-host-services.
 		GlobalRatelimiter:           {operation: "GlobalRatelimiter"},
