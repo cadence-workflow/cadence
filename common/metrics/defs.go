@@ -610,6 +610,8 @@ const (
 	FrontendClientListBatchOperationsScope
 	// FrontendClientUpdateBatchOperationScope tracks RPC calls to frontend service
 	FrontendClientUpdateBatchOperationScope
+	// FrontendClientCreateSemaphoreScope tracks RPC calls to frontend service
+	FrontendClientCreateSemaphoreScope
 	// FrontendClientListWorkflowExecutionsScope tracks RPC calls to frontend service
 	FrontendClientListWorkflowExecutionsScope
 	// FrontendClientScanWorkflowExecutionsScope tracks RPC calls to frontend service
@@ -1903,6 +1905,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientDescribeBatchOperationScope:                {operation: "FrontendClientDescribeBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientListBatchOperationsScope:                   {operation: "FrontendClientListBatchOperations", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientUpdateBatchOperationScope:                  {operation: "FrontendClientUpdateBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientCreateSemaphoreScope:                       {operation: "FrontendClientCreateSemaphore", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 
 		AdminClientGetReplicationTasksScope:                   {operation: "AdminClientGetReplicationTasks", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientAddSearchAttributeScope:                    {operation: "AdminClientAddSearchAttribute", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},

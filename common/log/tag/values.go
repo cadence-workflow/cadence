@@ -436,6 +436,7 @@ var (
 	FrontendClientOperationDescribeBatchOperation                = clientOperation("frontend-describe-batch-operation")
 	FrontendClientOperationListBatchOperations                   = clientOperation("frontend-list-batch-operations")
 	FrontendClientOperationUpdateBatchOperation                  = clientOperation("frontend-update-batch-operation")
+	FrontendClientOperationCreateSemaphore                       = clientOperation("frontend-create-semaphore")
 
 	HistoryClientOperationStartWorkflowExecution            = clientOperation("history-start-wf-execution")
 	HistoryClientOperationDescribeHistoryHost               = clientOperation("history-describe-history-host")

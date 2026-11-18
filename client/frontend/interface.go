@@ -101,4 +101,6 @@ type Client interface {
 	DescribeBatchOperation(context.Context, *types.DescribeBatchOperationRequest, ...yarpc.CallOption) (*types.DescribeBatchOperationResponse, error)
 	ListBatchOperations(context.Context, *types.ListBatchOperationsRequest, ...yarpc.CallOption) (*types.ListBatchOperationsResponse, error)
 	UpdateBatchOperation(context.Context, *types.UpdateBatchOperationRequest, ...yarpc.CallOption) (*types.UpdateBatchOperationResponse, error)
+
+	CreateSemaphore(context.Context, *types.CreateSemaphoreRequest, ...yarpc.CallOption) (*types.CreateSemaphoreResponse, error)
 }
