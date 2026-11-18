@@ -682,6 +682,29 @@ func TestListBatchOperations(t *testing.T) {
 				assert.Equal(t, "my-batch-id", resp.BatchOperations[0].BatchID)
 			},
 		},
+		"success, skips continued-as-new runs": {
+			request: &types.ListBatchOperationsRequest{Domain: testDomain},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				continuedAsNew := types.WorkflowExecutionCloseStatusContinuedAsNew
+				f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.Anything).
+					Return(&persistence.ListWorkflowExecutionsResponse{
+						Executions: []*types.WorkflowExecutionInfo{
+							{
+								Execution:   &types.WorkflowExecution{WorkflowID: "cadence-sys-batch-operation:test-domain:my-batch-id"},
+								CloseStatus: &continuedAsNew,
+							},
+							{Execution: &types.WorkflowExecution{WorkflowID: "cadence-sys-batch-operation:test-domain:my-batch-id"}},
+						},
+					}, nil).Once()
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.ListBatchOperationsResponse) {
+				require.Len(t, resp.BatchOperations, 1)
+				assert.Equal(t, types.BatchOperationStateRunning, resp.BatchOperations[0].State)
+			},
+		},
 		"success, with state filter": {
 			request: &types.ListBatchOperationsRequest{Domain: testDomain, State: types.BatchOperationStateRunning},
 			mockFn: func(f *scheduleTestFixture) {

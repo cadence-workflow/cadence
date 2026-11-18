@@ -366,6 +366,10 @@ func (wh *WorkflowHandler) ListBatchOperations(
 			// Skip legacy CLI batches, since their BatchID won't resolve in Describe/Stop/Update.
 			continue
 		}
+		if wf.CloseStatus != nil && *wf.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
+			// The continuation run has the same BatchID and a more current state.
+			continue
+		}
 		var startedBy string
 		if wf.SearchAttributes != nil {
 			_ = json.Unmarshal(wf.SearchAttributes.IndexedFields["Operator"], &startedBy)
