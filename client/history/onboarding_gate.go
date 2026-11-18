@@ -5,7 +5,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 )
 
-// OnboardingGate decides which history shards the shard distributor manages.
+// OnboardingGate decides which history shards the shard manager manages.
 // The lowest shard IDs are onboarded first,
 // so raising the percentage only adds shards and lowering it only removes them
 type OnboardingGate struct {
