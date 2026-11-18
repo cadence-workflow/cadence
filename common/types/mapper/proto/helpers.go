@@ -57,6 +57,13 @@ func toInt64Value(v *gogo.Int64Value) *int64 {
 	return common.Int64Ptr(v.Value)
 }
 
+func toInt64Ptr(v int64) *int64 {
+	if v == 0 {
+		return nil
+	}
+	return &v
+}
+
 func fromBoolValue(v *bool) *gogo.BoolValue {
 	if v == nil {
 		return nil

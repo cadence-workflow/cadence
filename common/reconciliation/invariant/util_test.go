@@ -53,6 +53,27 @@ func (s *UtilSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 }
 
+func TestOpen(t *testing.T) {
+	tests := map[string]struct {
+		state int
+		want  bool
+	}{
+		"created":            {state: persistence.WorkflowStateCreated, want: true},
+		"running":            {state: persistence.WorkflowStateRunning, want: true},
+		"import in progress": {state: persistence.WorkflowStatePreparing, want: true},
+		"completed":          {state: persistence.WorkflowStateCompleted},
+		"zombie":             {state: persistence.WorkflowStateZombie},
+		"void":               {state: persistence.WorkflowStateVoid},
+		"corrupted":          {state: persistence.WorkflowStateCorrupted},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tc.want, Open(tc.state))
+		})
+	}
+}
+
 func (s *UtilSuite) TestDeleteExecution() {
 	testCases := []struct {
 		deleteConcreteErr error

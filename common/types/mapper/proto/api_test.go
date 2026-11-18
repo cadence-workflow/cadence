@@ -2980,6 +2980,10 @@ func TestWorkflowExecutionStartedEventAttributesFuzz(t *testing.T) {
 				if e.ParentWorkflowDomainID != nil && *e.ParentWorkflowDomainID == "" {
 					e.ParentWorkflowDomainID = nil
 				}
+				// Zero ImportLastEventID becomes nil after proto roundtrip
+				if e.ImportLastEventID != nil && *e.ImportLastEventID == 0 {
+					e.ImportLastEventID = nil
+				}
 			},
 		),
 		testutils.WithExcludedFields("JitterStartSeconds"),

@@ -303,6 +303,9 @@ var (
 		RequestID:                           RequestID,
 		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyWithClusterAttribute,
 		CronOverlapPolicy:                   &CronOverlapPolicy,
+		ImportSourceExecution:               &WorkflowExecution,
+		ImportTimestamp:                     &Timestamp2,
+		ImportLastEventID:                   common.Int64Ptr(EventID4),
 	}
 	WorkflowExecutionCompletedEventAttributes = types.WorkflowExecutionCompletedEventAttributes{
 		Result:                       Payload1,
