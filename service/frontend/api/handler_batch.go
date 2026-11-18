@@ -328,11 +328,6 @@ func batchOperationStateQueryClause(state types.BatchOperationState) string {
 	}
 }
 
-// batchIDFromWorkflowID is the inverse of batchOperationWorkflowID.
-func batchIDFromWorkflowID(domainName, workflowID string) string {
-	return strings.TrimPrefix(workflowID, batchOperationWorkflowIDPrefix+domainName+":")
-}
-
 // ListBatchOperations lists the batches targeting a domain by querying the
 // visibility records of the cadence-batcher workflows started for it.
 func (wh *WorkflowHandler) ListBatchOperations(
@@ -363,14 +358,20 @@ func (wh *WorkflowHandler) ListBatchOperations(
 		return nil, err
 	}
 
+	wfIDPrefix := batchOperationWorkflowIDPrefix + domainName + ":"
 	entries := make([]*types.BatchOperationListEntry, 0, len(resp.GetExecutions()))
 	for _, wf := range resp.GetExecutions() {
+		wfID := wf.GetExecution().GetWorkflowID()
+		if !strings.HasPrefix(wfID, wfIDPrefix) {
+			// Skip legacy CLI batches, since their BatchID won't resolve in Describe/Stop/Update.
+			continue
+		}
 		var startedBy string
 		if wf.SearchAttributes != nil {
 			_ = json.Unmarshal(wf.SearchAttributes.IndexedFields["Operator"], &startedBy)
 		}
 		entries = append(entries, &types.BatchOperationListEntry{
-			BatchID:   batchIDFromWorkflowID(domainName, wf.GetExecution().GetWorkflowID()),
+			BatchID:   strings.TrimPrefix(wfID, wfIDPrefix),
 			State:     batchOperationStateFromCloseStatus(wf.CloseStatus),
 			StartedBy: startedBy,
 			StartTime: timePtrFromNanos(wf.StartTime),

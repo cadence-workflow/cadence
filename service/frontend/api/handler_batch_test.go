@@ -663,6 +663,25 @@ func TestListBatchOperations(t *testing.T) {
 				assert.Equal(t, []byte("next"), resp.NextPageToken)
 			},
 		},
+		"success, skips legacy CLI batch without batch-operation prefix": {
+			request: &types.ListBatchOperationsRequest{Domain: testDomain},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.domainCache.EXPECT().GetDomainID(constants.BatcherLocalDomainName).Return(batcherDomainID, nil).AnyTimes()
+				f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.Anything).
+					Return(&persistence.ListWorkflowExecutionsResponse{
+						Executions: []*types.WorkflowExecutionInfo{
+							{Execution: &types.WorkflowExecution{WorkflowID: "some-random-legacy-cli-uuid"}},
+							{Execution: &types.WorkflowExecution{WorkflowID: "cadence-sys-batch-operation:test-domain:my-batch-id"}},
+						},
+					}, nil).Once()
+			},
+			wantErr: false,
+			validate: func(t *testing.T, resp *types.ListBatchOperationsResponse) {
+				require.Len(t, resp.BatchOperations, 1)
+				assert.Equal(t, "my-batch-id", resp.BatchOperations[0].BatchID)
+			},
+		},
 		"success, with state filter": {
 			request: &types.ListBatchOperationsRequest{Domain: testDomain, State: types.BatchOperationStateRunning},
 			mockFn: func(f *scheduleTestFixture) {
