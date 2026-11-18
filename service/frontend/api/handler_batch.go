@@ -309,14 +309,14 @@ func validateListBatchOperationsRequest(request *types.ListBatchOperationsReques
 	}
 }
 
-// batchOperationStateQueryClause is the inverse of batchOperationStateFromCloseStatus.
+// batchOperationStateQueryClause mirrors batchOperationStateFromCloseStatus,
+// except it excludes ContinuedAsNew, which the caller always discards.
 func batchOperationStateQueryClause(state types.BatchOperationState) string {
 	switch state {
 	case types.BatchOperationStateRunning:
 		return " and CloseTime = missing"
 	case types.BatchOperationStateCompleted:
-		return fmt.Sprintf(" and (CloseStatus = %d or CloseStatus = %d)",
-			types.WorkflowExecutionCloseStatusCompleted, types.WorkflowExecutionCloseStatusContinuedAsNew)
+		return fmt.Sprintf(" and CloseStatus = %d", types.WorkflowExecutionCloseStatusCompleted)
 	case types.BatchOperationStateFailed:
 		return fmt.Sprintf(" and (CloseStatus = %d or CloseStatus = %d)",
 			types.WorkflowExecutionCloseStatusFailed, types.WorkflowExecutionCloseStatusTimedOut)
