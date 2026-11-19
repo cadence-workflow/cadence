@@ -36,6 +36,7 @@ import (
 type (
 	Factory interface {
 		Category() persistence.HistoryTaskCategory
+		// CreateQueue returns nil if the queue is disabled for the shard
 		CreateQueue(shard.Context, execution.Cache, invariant.Invariant) Processor
 	}
 

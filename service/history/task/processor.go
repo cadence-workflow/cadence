@@ -85,10 +85,11 @@ const (
 	ephemeralTaskListGroupKey = "__ephemeral__"
 )
 
-// NewProcessor creates a new task processor
+// NewProcessor creates a new task processor with workerCount workers
 func NewProcessor(
 	priorityAssigner PriorityAssigner,
 	config *config.Config,
+	workerCount dynamicproperties.IntPropertyFn,
 	logger log.Logger,
 	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
@@ -99,7 +100,7 @@ func NewProcessor(
 		metricsClient,
 		&task.ParallelTaskProcessorOptions{
 			QueueSize:   1,
-			WorkerCount: config.TaskSchedulerWorkerCount,
+			WorkerCount: workerCount,
 			RetryPolicy: common.CreateTaskProcessingRetryPolicy(),
 		},
 	)

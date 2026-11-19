@@ -84,6 +84,7 @@ type (
 		rateLimiter              quotas.Limiter
 		replicationTaskFetchers  replication.TaskFetchers
 		queueTaskProcessor       task.Processor
+		visibilityTaskProcessor  task.Processor
 		failoverCoordinator      failover.Coordinator
 		workflowIDCache          workflowcache.WFCache
 		ratelimitAggregator      algorithm.RequestWeighted
@@ -176,6 +177,7 @@ func (h *handlerImpl) Start() {
 	taskProcessor, err = task.NewProcessor(
 		taskPriorityAssigner,
 		h.config,
+		h.config.TaskSchedulerWorkerCount,
 		h.GetLogger(),
 		h.GetMetricsClient(),
 		h.GetTimeSource(),
@@ -194,6 +196,30 @@ func (h *handlerImpl) Start() {
 	h.queueTaskProcessor = task.NewRateLimitedProcessor(taskProcessor, taskRateLimiter)
 	h.queueTaskProcessor.Start()
 
+	// the visibility queue has its own task processor, so a visibility backlog doesn't take workers from transfer and timer tasks.
+	// It also has its own priority assigner, so visibility tasks don't use up the per-domain priority budget of the shared processor.
+	visibilityLogger := h.GetLogger().WithTags(tag.ComponentVisibilityQueue)
+	h.visibilityTaskProcessor, err = task.NewProcessor(
+		task.NewPriorityAssigner(
+			h.GetClusterMetadata().GetCurrentClusterName(),
+			h.GetDomainCache(),
+			h.GetActiveClusterManager(),
+			visibilityLogger,
+			h.GetMetricsClient(),
+			h.config,
+		),
+		h.config,
+		h.config.VisibilityTaskSchedulerWorkerCount,
+		visibilityLogger,
+		h.GetMetricsClient(),
+		h.GetTimeSource(),
+		h.GetDomainCache(),
+	)
+	if err != nil {
+		h.GetLogger().Fatal("Creating visibility task processor failed", tag.Error(err))
+	}
+	h.visibilityTaskProcessor.Start()
+
 	h.queueFactories = []queue.Factory{
 		queuev2.NewTransferQueueFactory(
 			h.queueTaskProcessor,
@@ -202,6 +228,10 @@ func (h *handlerImpl) Start() {
 		),
 		queuev2.NewTimerQueueFactory(
 			h.queueTaskProcessor,
+			h.GetArchiverClient(),
+		),
+		queuev2.NewVisibilityQueueFactory(
+			h.visibilityTaskProcessor,
 			h.GetArchiverClient(),
 		),
 	}
@@ -237,6 +267,7 @@ func (h *handlerImpl) Stop() {
 	h.replicationTaskFetchers.Stop()
 	h.controller.Stop()
 	h.queueTaskProcessor.Stop()
+	h.visibilityTaskProcessor.Stop()
 	h.historyEventNotifier.Stop()
 	h.failoverCoordinator.Stop()
 }
