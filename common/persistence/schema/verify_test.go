@@ -364,7 +364,7 @@ func TestCheckSchemas(t *testing.T) {
 			expectedErrors: []string{
 				"cassandra/default/db-1: current schema version 1.0 is before latest version 2.0",
 				"update-schema",
-				"docs/persistence.md#upgrading-the-schema",
+				"operation-guide/maintain#how-to-apply-db-schema-changes",
 			},
 		},
 		{

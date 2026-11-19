@@ -15,7 +15,7 @@ import (
 // know how to upgrade it.
 const upgradeHint = "to upgrade, run cadence-server update-schema with the same config as the server " +
 	"(or update-schema with cadence-cassandra-tool or cadence-sql-tool), " +
-	"see https://github.com/cadence-workflow/cadence/blob/master/docs/persistence.md#upgrading-the-schema"
+	"see https://cadenceworkflow.io/docs/operation-guide/maintain#how-to-apply-db-schema-changes"
 
 // outdatedSchemaError reports a schema whose version is behind the latest one.
 type outdatedSchemaError struct {
