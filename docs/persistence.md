@@ -80,14 +80,14 @@ cp config/development_postgres.yaml config/development.yaml
 ```
 
 # Upgrading the schema
-New Cadence releases can add schema versions. On startup the server compares each database with the
+New Cadence releases can add new schema versions. On startup the server compares each database with the
 schema version it expects and logs an error if a database is behind, for example:
 ```
 cassandra/default/NonShardedStore: current schema version 0.46 is before latest version 0.55
 ```
 With the `system.enforceSchemaVerificationV2` dynamic config enabled, the server refuses to start instead.
 
-Upgrade the databases before starting the new version. The simplest way is the server's own command,
+Upgrade the databases before starting with the new version. The simplest way is the server's own command,
 which uses the persistence config of the server and upgrades every configured database to the version
 that release expects:
 ```
