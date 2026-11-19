@@ -303,7 +303,7 @@ func TestNewConfig(t *testing.T) {
 		"HistoryTaskDLQMode":                                     {dynamicproperties.HistoryTaskDLQMode, "enabled"},
 		"HistoryTaskDLQProcessorInterval":                        {dynamicproperties.HistoryTaskDLQProcessorInterval, time.Second},
 		"HistoryTaskDLQProcessorFailoverJitterMaxDelay":          {dynamicproperties.HistoryTaskDLQProcessorFailoverJitterMaxDelay, time.Second},
-		"HistoryTaskDLQProcessorHostConcurrency":                 {dynamicproperties.HistoryTaskDLQProcessorHostConcurrency, 11},
+		"HistoryTaskDLQProcessorGlobalMaxQPS":                    {dynamicproperties.HistoryTaskDLQProcessorGlobalMaxQPS, 11},
 		"HistoryTaskDLQProcessorEnabled":                         {dynamicproperties.HistoryTaskDLQProcessorEnabled, true},
 		"AsyncWorkflowQueueConsumerEnabled":                      {dynamicproperties.AsyncWorkflowQueueConsumerEnabled, true},
 		"AsyncWorkflowQueuePollInterval":                         {dynamicproperties.AsyncWorkflowQueuePollInterval, 2 * time.Second},

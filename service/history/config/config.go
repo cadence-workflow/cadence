@@ -373,7 +373,7 @@ type Config struct {
 	HistoryTaskDLQProcessorInterval               dynamicproperties.DurationPropertyFnWithShardIDFilter
 	HistoryTaskDLQProcessorFailoverJitterMaxDelay dynamicproperties.DurationPropertyFn
 	HistoryTaskDLQProcessorEnabled                dynamicproperties.BoolPropertyFn
-	HistoryTaskDLQProcessorHostConcurrency        dynamicproperties.IntPropertyFn
+	HistoryTaskDLQProcessorGlobalMaxQPS           dynamicproperties.IntPropertyFn
 
 	// Async Workflow Queue Consumer Configuration
 	AsyncWorkflowQueueConsumerEnabled    dynamicproperties.BoolPropertyFnWithShardIDFilter
@@ -674,7 +674,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		HistoryTaskDLQProcessorInterval:               dc.GetDurationPropertyFilteredByShardID(dynamicproperties.HistoryTaskDLQProcessorInterval),
 		HistoryTaskDLQProcessorFailoverJitterMaxDelay: dc.GetDurationProperty(dynamicproperties.HistoryTaskDLQProcessorFailoverJitterMaxDelay),
 		HistoryTaskDLQProcessorEnabled:                dc.GetBoolProperty(dynamicproperties.HistoryTaskDLQProcessorEnabled),
-		HistoryTaskDLQProcessorHostConcurrency:        dc.GetIntProperty(dynamicproperties.HistoryTaskDLQProcessorHostConcurrency),
+		HistoryTaskDLQProcessorGlobalMaxQPS:           dc.GetIntProperty(dynamicproperties.HistoryTaskDLQProcessorGlobalMaxQPS),
 
 		AsyncWorkflowQueueConsumerEnabled:    dc.GetBoolPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueueConsumerEnabled),
 		AsyncWorkflowQueuePollInterval:       dc.GetDurationPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueuePollInterval),

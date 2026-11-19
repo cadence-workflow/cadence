@@ -1656,12 +1656,13 @@ const (
 	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
 
-	// HistoryTaskDLQProcessorHostConcurrency is the maximum number of shards that may process the History Task DLQ concurrently on one history host.
-	// KeyName: history.historyTaskDLQProcessorHostConcurrency
+	// HistoryTaskDLQProcessorGlobalMaxQPS is the cluster-wide cap on History Task DLQ processor persistence
+	// calls per second, split evenly across history hosts (at least 1 per host).
+	// KeyName: history.historyTaskDLQProcessorGlobalMaxQPS
 	// Value type: Int
-	// Default value: 10
+	// Default value: 1000
 	// Allowed filters: N/A
-	HistoryTaskDLQProcessorHostConcurrency
+	HistoryTaskDLQProcessorGlobalMaxQPS
 
 	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
 	// KeyName: history.taskListNiceValue
@@ -4827,10 +4828,10 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
 	},
-	HistoryTaskDLQProcessorHostConcurrency: {
-		KeyName:      "history.historyTaskDLQProcessorHostConcurrency",
-		Description:  "HistoryTaskDLQProcessorHostConcurrency is the maximum number of shards that may process the History Task DLQ concurrently on one history host. Evaluated once at history host startup; changing it requires a restart",
-		DefaultValue: 10,
+	HistoryTaskDLQProcessorGlobalMaxQPS: {
+		KeyName:      "history.historyTaskDLQProcessorGlobalMaxQPS",
+		Description:  "HistoryTaskDLQProcessorGlobalMaxQPS is the cluster-wide cap on History Task DLQ processor persistence calls per second, split evenly across history hosts (at least 1 per host). Raise it if DLQ reprocessing after a failover is too slow; lower it if DLQ calls contribute to persistence rate limiting",
+		DefaultValue: 1000,
 	},
 	HistoryTaskListNiceValue: {
 		KeyName:      "history.taskListNiceValue",

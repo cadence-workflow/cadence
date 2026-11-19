@@ -33,3 +33,9 @@ import (
 type TaskReinjector interface {
 	ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error
 }
+
+// HostBudget paces every persistence call the DLQ processor makes; one instance is shared by all
+// shards on a history host. Satisfied by quotas.Limiter.
+type HostBudget interface {
+	Wait(ctx context.Context) error
+}

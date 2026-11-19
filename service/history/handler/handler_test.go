@@ -100,6 +100,7 @@ func (s *handlerSuite) SetupTest() {
 	s.mockEngine = engine.NewMockEngine(s.controller)
 	s.mockWFCache = workflowcache.NewMockWFCache(s.controller)
 	s.mockFailoverCoordinator = failover.NewMockCoordinator(s.controller)
+	s.mockResource.MembershipResolver.EXPECT().MemberCount(service.History).Return(1, nil).AnyTimes()
 	s.handler = NewHandler(s.mockResource, config.NewForTest(), s.mockWFCache).(*handlerImpl)
 	s.handler.controller = s.mockShardController
 	s.mockTokenSerializer = common.NewMockTaskTokenSerializer(s.controller)
@@ -3927,6 +3928,32 @@ func Test_sortReplicationShardMessages(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			sortReplicationShardMessages(c.msgs)
 			assert.Equal(t, c.want, c.msgs)
+		})
+	}
+}
+
+func TestDLQHostQPS(t *testing.T) {
+	tests := []struct {
+		name      string
+		globalQPS int
+		members   int
+		err       error
+		want      float64
+	}{
+		{name: "divided evenly across members", globalQPS: 1000, members: 4, want: 250},
+		{name: "single member gets the whole budget", globalQPS: 1000, members: 1, want: 1000},
+		{name: "share below one is floored at one", globalQPS: 3, members: 10, want: 1},
+		{name: "zero budget is floored at one", globalQPS: 0, members: 5, want: 1},
+		{name: "member count error falls back to one", globalQPS: 1000, err: errors.New("ring not ready"), want: 1},
+		{name: "zero members falls back to one", globalQPS: 1000, members: 0, want: 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			resolver := membership.NewMockResolver(ctrl)
+			resolver.EXPECT().MemberCount(service.History).Return(tc.members, tc.err).Times(1)
+
+			assert.Equal(t, tc.want, dlqHostQPS(tc.globalQPS, resolver))
 		})
 	}
 }

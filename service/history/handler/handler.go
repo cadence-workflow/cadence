@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -46,6 +47,7 @@ import (
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/quotas/global/algorithm"
 	"github.com/uber/cadence/common/quotas/global/rpc"
+	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/proto"
 	"github.com/uber/cadence/service/history/config"
@@ -61,7 +63,6 @@ import (
 	"github.com/uber/cadence/service/history/resource"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/task"
-	"github.com/uber/cadence/service/history/taskdlq"
 	"github.com/uber/cadence/service/history/workflowcache"
 )
 
@@ -88,7 +89,7 @@ type (
 		ratelimitAggregator      algorithm.RequestWeighted
 		queueFactories           []queue.Factory
 		replicationBudgetManager cache.Manager
-		dlqHostLimiter           *taskdlq.HostLimiter
+		dlqHostBudget            quotas.Limiter
 	}
 )
 
@@ -108,12 +109,24 @@ func NewHandler(
 		rateLimiter:         quotas.NewDynamicRateLimiter(config.RPS.AsFloat64()),
 		workflowIDCache:     wfCache,
 		ratelimitAggregator: resource.GetRatelimiterAlgorithm(),
-		dlqHostLimiter:      taskdlq.NewHostLimiter(config.HistoryTaskDLQProcessorHostConcurrency()),
+		dlqHostBudget: quotas.NewDynamicRateLimiter(func() float64 {
+			return dlqHostQPS(config.HistoryTaskDLQProcessorGlobalMaxQPS(), resource.GetMembershipResolver())
+		}),
 	}
 
 	// prevent us from trying to serve requests before shard controller is started and ready
 	handler.startWG.Add(1)
 	return handler
+}
+
+// dlqHostQPS returns this host's share of the cluster-wide DLQ persistence budget: the global value
+// divided across history hosts, at least 1. It is 1 when the member count is unavailable.
+func dlqHostQPS(globalQPS int, resolver membership.Resolver) float64 {
+	members, err := resolver.MemberCount(service.History)
+	if err != nil || members < 1 {
+		return 1
+	}
+	return math.Max(float64(globalQPS)/float64(members), 1)
 }
 
 // Start starts the handler
@@ -261,7 +274,7 @@ func (h *handlerImpl) CreateEngine(
 		h.GetMatchingRawClient(),
 		h.failoverCoordinator,
 		h.queueFactories,
-		h.dlqHostLimiter,
+		h.dlqHostBudget,
 	)
 }
 
