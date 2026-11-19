@@ -60,6 +60,22 @@ func newBatchOperationCommands() []*cli.Command {
 			Usage:       "Start a batch operation; pick the subcommand matching the operation to run",
 			Subcommands: newBatchStartCommands(),
 		},
+		{
+			Name:  "list",
+			Usage: "List batch operations for a domain",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  FlagBatchOperationState,
+					Usage: "Optional state filter: running, completed, failed, stopped",
+				},
+				&cli.IntFlag{
+					Name:  FlagPageSize,
+					Value: 100,
+					Usage: "Page size for each ListBatchOperations API call",
+				},
+			},
+			Action: ListBatchOperations,
+		},
 	}
 }
 
