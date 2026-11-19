@@ -236,11 +236,16 @@ func NewEngineWithShardContext(
 	openExecutionCheck := invariant.NewConcreteExecutionExists(pRetry, shard.GetDomainCache())
 
 	for _, factory := range queueFactories {
-		historyEngImpl.queueProcessors[factory.Category()] = factory.CreateQueue(
+		processor := factory.CreateQueue(
 			shard,
 			executionCache,
 			openExecutionCheck,
 		)
+		// a factory returns nil if its queue is disabled for the shard
+		if processor == nil {
+			continue
+		}
+		historyEngImpl.queueProcessors[factory.Category()] = processor
 	}
 
 	historyEngImpl.eventsReapplier = ndc.NewEventsReapplier(shard.GetMetricsClient(), logger)

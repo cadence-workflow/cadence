@@ -1165,6 +1165,30 @@ const (
 	// Default value: 20
 	// Allowed filters: N/A
 	TransferProcessorMaxPollRPS
+	// VisibilityTaskBatchSize is batch size for the visibility queue processor
+	// KeyName: history.visibilityTaskBatchSize
+	// Value type: Int
+	// Default value: 100
+	// Allowed filters: N/A
+	VisibilityTaskBatchSize
+	// VisibilityTaskDeleteBatchSize is batch size for the visibility queue processor to delete visibility tasks
+	// KeyName: history.visibilityTaskDeleteBatchSize
+	// Value type: Int
+	// Default value: 4000
+	// Allowed filters: N/A
+	VisibilityTaskDeleteBatchSize
+	// VisibilityProcessorMaxPollRPS is max poll rate per second for the visibility queue processor
+	// KeyName: history.visibilityProcessorMaxPollRPS
+	// Value type: Int
+	// Default value: 20
+	// Allowed filters: N/A
+	VisibilityProcessorMaxPollRPS
+	// VisibilityTaskSchedulerWorkerCount is the number of workers per host in the task scheduler of the visibility queue
+	// KeyName: history.visibilityTaskSchedulerWorkerCount
+	// Value type: Int
+	// Default value: 50
+	// Allowed filters: N/A
+	VisibilityTaskSchedulerWorkerCount
 	// TransferProcessorCompleteTransferFailureRetryCount is times of retry for failure
 	// KeyName: history.transferProcessorCompleteTransferFailureRetryCount
 	// Value type: Int
@@ -2463,6 +2487,12 @@ const (
 	// Default value: true
 	// Allowed filters: ShardID
 	EnableTransferQueueV2
+	// EnableVisibilityQueue is to enable the visibility queue, which processes visibility tasks separately from transfer tasks
+	// KeyName: history.enableVisibilityQueue
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: ShardID
+	EnableVisibilityQueue
 	// EnableTimerQueueV2 is to enable timer queue v2
 	// KeyName: history.enableTimerQueueV2
 	// Value type: Bool
@@ -2668,6 +2698,18 @@ const (
 	// Default value: 0.15
 	// Allowed filters: N/A
 	TransferProcessorUpdateAckIntervalJitterCoefficient
+	// VisibilityProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient of the visibility queue processor
+	// KeyName: history.visibilityProcessorMaxPollIntervalJitterCoefficient
+	// Value type: Float64
+	// Default value: 0.15
+	// Allowed filters: N/A
+	VisibilityProcessorMaxPollIntervalJitterCoefficient
+	// VisibilityProcessorUpdateAckIntervalJitterCoefficient is the update interval jitter coefficient of the visibility queue processor
+	// KeyName: history.visibilityProcessorUpdateAckIntervalJitterCoefficient
+	// Value type: Float64
+	// Default value: 0.15
+	// Allowed filters: N/A
+	VisibilityProcessorUpdateAckIntervalJitterCoefficient
 	// ReplicationTaskProcessorCleanupJitterCoefficient is the jitter for cleanup timer
 	// KeyName: history.ReplicationTaskProcessorCleanupJitterCoefficient
 	// Value type: Float64
@@ -3267,6 +3309,18 @@ const (
 	// Default value: 30s (30*time.Second)
 	// Allowed filters: N/A
 	TransferProcessorUpdateAckInterval
+	// VisibilityProcessorMaxPollInterval is max poll interval for the visibility queue processor
+	// KeyName: history.visibilityProcessorMaxPollInterval
+	// Value type: Duration
+	// Default value: 1m (1*time.Minute)
+	// Allowed filters: N/A
+	VisibilityProcessorMaxPollInterval
+	// VisibilityProcessorUpdateAckInterval is update interval for the visibility queue processor
+	// KeyName: history.visibilityProcessorUpdateAckInterval
+	// Value type: Duration
+	// Default value: 30s (30*time.Second)
+	// Allowed filters: N/A
+	VisibilityProcessorUpdateAckInterval
 	// TransferProcessorCompleteTransferInterval is complete timer interval for transferQueueProcessor
 	// KeyName: history.transferProcessorCompleteTransferInterval
 	// Value type: Duration
@@ -4414,6 +4468,26 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "TransferProcessorMaxPollRPS is max poll rate per second for transferQueueProcessor",
 		DefaultValue: 20,
 	},
+	VisibilityTaskBatchSize: {
+		KeyName:      "history.visibilityTaskBatchSize",
+		Description:  "VisibilityTaskBatchSize is batch size for the visibility queue processor",
+		DefaultValue: 100,
+	},
+	VisibilityTaskDeleteBatchSize: {
+		KeyName:      "history.visibilityTaskDeleteBatchSize",
+		Description:  "VisibilityTaskDeleteBatchSize is batch size for the visibility queue processor to delete visibility tasks",
+		DefaultValue: 4000,
+	},
+	VisibilityProcessorMaxPollRPS: {
+		KeyName:      "history.visibilityProcessorMaxPollRPS",
+		Description:  "VisibilityProcessorMaxPollRPS is max poll rate per second for the visibility queue processor",
+		DefaultValue: 20,
+	},
+	VisibilityTaskSchedulerWorkerCount: {
+		KeyName:      "history.visibilityTaskSchedulerWorkerCount",
+		Description:  "VisibilityTaskSchedulerWorkerCount is the number of workers per host in the task scheduler of the visibility queue",
+		DefaultValue: 50,
+	},
 	TransferProcessorCompleteTransferFailureRetryCount: {
 		KeyName:      "history.transferProcessorCompleteTransferFailureRetryCount",
 		Description:  "TransferProcessorCompleteTransferFailureRetryCount is times of retry for failure",
@@ -5510,6 +5584,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{ShardID},
 		DefaultValue: true,
 	},
+	EnableVisibilityQueue: {
+		KeyName:      "history.enableVisibilityQueue",
+		Description:  "EnableVisibilityQueue is to enable the visibility queue, which processes visibility tasks separately from transfer tasks",
+		Filters:      []Filter{ShardID},
+		DefaultValue: false,
+	},
 	EnableTimerQueueV2: {
 		KeyName:      "history.enableTimerQueueV2",
 		Description:  "EnableTimerQueueV2 is to enable timer queue v2",
@@ -5659,6 +5739,16 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 	TransferProcessorUpdateAckIntervalJitterCoefficient: {
 		KeyName:      "history.transferProcessorUpdateAckIntervalJitterCoefficient",
 		Description:  "TransferProcessorUpdateAckIntervalJitterCoefficient is the update interval jitter coefficient",
+		DefaultValue: 0.15,
+	},
+	VisibilityProcessorMaxPollIntervalJitterCoefficient: {
+		KeyName:      "history.visibilityProcessorMaxPollIntervalJitterCoefficient",
+		Description:  "VisibilityProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient of the visibility queue processor",
+		DefaultValue: 0.15,
+	},
+	VisibilityProcessorUpdateAckIntervalJitterCoefficient: {
+		KeyName:      "history.visibilityProcessorUpdateAckIntervalJitterCoefficient",
+		Description:  "VisibilityProcessorUpdateAckIntervalJitterCoefficient is the update interval jitter coefficient of the visibility queue processor",
 		DefaultValue: 0.15,
 	},
 	ReplicationTaskProcessorCleanupJitterCoefficient: {
@@ -6176,6 +6266,16 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	TransferProcessorUpdateAckInterval: {
 		KeyName:      "history.transferProcessorUpdateAckInterval",
 		Description:  "TransferProcessorUpdateAckInterval is update interval for transferQueueProcessor",
+		DefaultValue: time.Second * 30,
+	},
+	VisibilityProcessorMaxPollInterval: {
+		KeyName:      "history.visibilityProcessorMaxPollInterval",
+		Description:  "VisibilityProcessorMaxPollInterval is max poll interval for the visibility queue processor",
+		DefaultValue: time.Minute,
+	},
+	VisibilityProcessorUpdateAckInterval: {
+		KeyName:      "history.visibilityProcessorUpdateAckInterval",
+		Description:  "VisibilityProcessorUpdateAckInterval is update interval for the visibility queue processor",
 		DefaultValue: time.Second * 30,
 	},
 	TransferProcessorCompleteTransferInterval: {
