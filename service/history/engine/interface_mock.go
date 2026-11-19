@@ -242,6 +242,18 @@ func (mr *MockEngineMockRecorder) NotifyNewTransferTasks(info any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyNewTransferTasks", reflect.TypeOf((*MockEngine)(nil).NotifyNewTransferTasks), info)
 }
 
+// NotifyNewVisibilityTasks mocks base method.
+func (m *MockEngine) NotifyNewVisibilityTasks(info *common.NotifyTaskInfo) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "NotifyNewVisibilityTasks", info)
+}
+
+// NotifyNewVisibilityTasks indicates an expected call of NotifyNewVisibilityTasks.
+func (mr *MockEngineMockRecorder) NotifyNewVisibilityTasks(info any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyNewVisibilityTasks", reflect.TypeOf((*MockEngine)(nil).NotifyNewVisibilityTasks), info)
+}
+
 // PollMutableState mocks base method.
 func (m *MockEngine) PollMutableState(ctx context.Context, request *types.PollMutableStateRequest) (*types.PollMutableStateResponse, error) {
 	m.ctrl.T.Helper()

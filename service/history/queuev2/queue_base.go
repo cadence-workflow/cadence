@@ -128,6 +128,8 @@ func newQueueBase(
 		queueType = task.QueueTypeTransfer
 	} else if category == persistence.HistoryTaskCategoryTimer {
 		queueType = task.QueueTypeTimer
+	} else if category == persistence.HistoryTaskCategoryVisibility {
+		queueType = task.QueueTypeVisibility
 	}
 	taskInitializer := func(t persistence.Task) task.Task {
 		return task.NewHistoryTaskV2(

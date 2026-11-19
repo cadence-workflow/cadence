@@ -175,7 +175,7 @@ func (n *taskNotifier) logNotifyTaskDroppedOnPersistenceError(
 	)
 }
 
-// notifyTasks notifies the transfer and timer queue processors of new tasks.
+// notifyTasks notifies the transfer, timer and visibility queue processors of new tasks.
 // Must be called while holding the shard lock.
 func (n *taskNotifier) notifyTasks(
 	executionInfo *persistence.WorkflowExecutionInfo,
@@ -197,6 +197,14 @@ func (n *taskNotifier) notifyTasks(
 			Tasks:               timerTasks,
 			PersistenceError:    persistenceError,
 			ClusterCurrentTimes: n.fetchClusterCurrentTimes(timerTasks),
+		})
+	}
+
+	if visibilityTasks := tasksByCategory[persistence.HistoryTaskCategoryVisibility]; len(visibilityTasks) > 0 {
+		n.getEngine().NotifyNewVisibilityTasks(&hcommon.NotifyTaskInfo{
+			ExecutionInfo:    executionInfo,
+			Tasks:            visibilityTasks,
+			PersistenceError: persistenceError,
 		})
 	}
 }
