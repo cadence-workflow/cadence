@@ -60,6 +60,10 @@ func (e *historyEngineImpl) QueryWorkflow(
 	if err != nil {
 		return nil, err
 	}
+	// A worker would replay the partial history of an import in progress.
+	if mutableStateResp.WorkflowState != nil && int(*mutableStateResp.WorkflowState) == persistence.WorkflowStatePreparing {
+		return nil, workflow.ErrImportInProgress
+	}
 	req := request.GetRequest()
 	if !mutableStateResp.GetIsWorkflowRunning() && req.QueryRejectCondition != nil {
 		notOpenReject := req.GetQueryRejectCondition() == types.QueryRejectConditionNotOpen

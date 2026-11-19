@@ -74,6 +74,9 @@ func (e *historyEngineImpl) SignalWorkflowExecution(
 				}
 			}
 
+			if mutableState.GetExecutionInfo().State == persistence.WorkflowStatePreparing {
+				return nil, workflow.ErrImportInProgress
+			}
 			if !mutableState.IsWorkflowExecutionRunning() {
 				return nil, workflow.ErrAlreadyCompleted
 			}

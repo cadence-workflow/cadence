@@ -290,6 +290,20 @@ func (r *workflowRepairerImpl) repairViaRebuild(
 	rebuiltInfo.ClientFeatureVersion = executionInfo.ClientFeatureVersion
 	rebuiltInfo.ClientImpl = executionInfo.ClientImpl
 
+	// The replay does not set the import fields or the Preparing state, and the rebuild refreshes
+	// tasks from the replayed state, which is Running or Completed. An import in progress has no
+	// tasks until the import ends, so the refreshed tasks are removed. The import fields and the
+	// state are set before the checksum because the checksum includes the state. The state is set
+	// on the new rebuilt mutable state: the stored run stays Preparing.
+	if executionInfo.State == persistence.WorkflowStatePreparing {
+		rebuiltMutableState.DeleteTransferTasks()
+		rebuiltMutableState.DeleteTimerTasks()
+		rebuiltInfo.ImportSourceExecution = executionInfo.ImportSourceExecution
+		rebuiltInfo.ImportTimestamp = executionInfo.ImportTimestamp
+		rebuiltInfo.ImportInProgress = executionInfo.ImportInProgress
+		rebuiltInfo.State = persistence.WorkflowStatePreparing
+	}
+
 	rebuiltChecksum, err := generateMutableStateChecksum(rebuiltMutableState)
 	if err != nil {
 		return err

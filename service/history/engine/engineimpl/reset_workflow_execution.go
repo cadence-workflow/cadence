@@ -35,6 +35,7 @@ import (
 	persistenceutils "github.com/uber/cadence/common/persistence/persistence-utils"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
+	"github.com/uber/cadence/service/history/workflow"
 )
 
 const (
@@ -130,6 +131,13 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 		return &types.ResetWorkflowExecutionResponse{
 			RunID: currentRunID,
 		}, nil
+	}
+
+	// The reset terminates the current run only when it is running, so a reset next to an import
+	// in progress would create a second current run.
+	if baseMutableState.GetExecutionInfo().State == persistence.WorkflowStatePreparing ||
+		currentMutableState.GetExecutionInfo().State == persistence.WorkflowStatePreparing {
+		return nil, workflow.ErrImportInProgress
 	}
 
 	resetRunID := uuid.New()

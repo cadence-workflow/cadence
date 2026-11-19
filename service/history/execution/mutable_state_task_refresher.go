@@ -254,6 +254,11 @@ func refreshTasksForWorkflowClose(
 	workflowDeletionTaskJitterRange int,
 ) error {
 	executionInfo := mutableState.GetExecutionInfo()
+	// An import in progress can have a complete imported history. Its close tasks are generated
+	// when the import ends, and its close event can be read only when the state is Completed.
+	if executionInfo.State == persistence.WorkflowStatePreparing {
+		return nil
+	}
 	if executionInfo.CloseStatus != persistence.WorkflowCloseStatusNone {
 		closeEvent, err := mutableState.GetCompletionEvent(ctx)
 		if err != nil {
