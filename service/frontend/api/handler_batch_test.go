@@ -168,6 +168,7 @@ func TestStartBatchOperation(t *testing.T) {
 						require.NoError(t, json.Unmarshal(req.StartRequest.Memo.Fields["Operation"], &memoOperation))
 						assert.Equal(t, types.BatchOperationTypeSignal, memoOperation.GetOperationType())
 						assert.Equal(t, "my-signal", memoOperation.GetSignalBatchOperation().GetSignalName())
+						assert.Empty(t, memoOperation.GetSignalBatchOperation().GetInput(), "signal input must not be duplicated into the memo")
 
 						var customDomain string
 						require.NoError(t, json.Unmarshal(req.StartRequest.SearchAttributes.IndexedFields["CustomDomain"], &customDomain))
@@ -182,6 +183,7 @@ func TestStartBatchOperation(t *testing.T) {
 						require.NotNil(t, params.Operation)
 						assert.Equal(t, types.BatchOperationTypeSignal, params.Operation.GetOperationType())
 						assert.Equal(t, "my-signal", params.Operation.GetSignalBatchOperation().GetSignalName())
+						assert.Equal(t, []byte("signal-input"), params.Operation.GetSignalBatchOperation().GetInput(), "the real signal input must still reach the workflow input")
 
 						return &types.StartWorkflowExecutionResponse{RunID: "test-run-id"}, nil
 					})

@@ -42,6 +42,9 @@ func batchOperationRetryPolicy() *types.RetryPolicy {
 // batchOperationMemo encodes Reason the same way tools/cli's getWorkflowMemo
 // does, plus Query and Operation so DescribeBatchOperation can report them
 // back; the workflow's own start input isn't readable from DescribeWorkflowExecution.
+// The signal input, if any, is already duplicated into the workflow's start
+// Input via toBatchParams, so it's stripped here to avoid counting it twice
+// against the blob size limit.
 func batchOperationMemo(reason, query string, operation *types.BatchOperation) (*types.Memo, error) {
 	reasonBytes, err := json.Marshal(reason)
 	if err != nil {
@@ -51,7 +54,15 @@ func batchOperationMemo(reason, query string, operation *types.BatchOperation) (
 	if err != nil {
 		return nil, err
 	}
-	operationBytes, err := json.Marshal(operation)
+	memoOperation := operation
+	if operation != nil && operation.SignalBatchOperation != nil {
+		strippedSignal := *operation.SignalBatchOperation
+		strippedSignal.Input = nil
+		strippedOperation := *operation
+		strippedOperation.SignalBatchOperation = &strippedSignal
+		memoOperation = &strippedOperation
+	}
+	operationBytes, err := json.Marshal(memoOperation)
 	if err != nil {
 		return nil, err
 	}
