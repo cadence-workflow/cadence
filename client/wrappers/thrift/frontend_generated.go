@@ -26,6 +26,11 @@ func (g frontendClient) CreateSchedule(ctx context.Context, cp1 *types.CreateSch
 	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 
+func (g frontendClient) CreateSemaphore(ctx context.Context, cp1 *types.CreateSemaphoreRequest, p1 ...yarpc.CallOption) (cp2 *types.CreateSemaphoreResponse, err error) {
+	response, err := g.c.CreateSemaphore(ctx, thrift.FromCreateSemaphoreRequest(cp1), p1...)
+	return thrift.ToCreateSemaphoreResponse(response), thrift.ToError(err)
+}
+
 func (g frontendClient) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest, p1 ...yarpc.CallOption) (err error) {
 	err = g.c.DeleteDomain(ctx, thrift.FromDeleteDomainRequest(dp1), p1...)
 	return thrift.ToError(err)
@@ -38,6 +43,10 @@ func (g frontendClient) DeleteSchedule(ctx context.Context, dp1 *types.DeleteSch
 func (g frontendClient) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDomainRequest, p1 ...yarpc.CallOption) (err error) {
 	err = g.c.DeprecateDomain(ctx, thrift.FromDeprecateDomainRequest(dp1), p1...)
 	return thrift.ToError(err)
+}
+
+func (g frontendClient) DescribeBatchOperation(ctx context.Context, dp1 *types.DescribeBatchOperationRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeBatchOperationResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 
 func (g frontendClient) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeDomainResponse, err error) {
@@ -97,6 +106,10 @@ func (g frontendClient) GetWorkflowExecutionHistory(ctx context.Context, gp1 *ty
 func (g frontendClient) ListArchivedWorkflowExecutions(ctx context.Context, lp1 *types.ListArchivedWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListArchivedWorkflowExecutionsResponse, err error) {
 	response, err := g.c.ListArchivedWorkflowExecutions(ctx, thrift.FromListArchivedWorkflowExecutionsRequest(lp1), p1...)
 	return thrift.ToListArchivedWorkflowExecutionsResponse(response), thrift.ToError(err)
+}
+
+func (g frontendClient) ListBatchOperations(ctx context.Context, lp1 *types.ListBatchOperationsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListBatchOperationsResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 
 func (g frontendClient) ListClosedWorkflowExecutions(ctx context.Context, lp1 *types.ListClosedWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListClosedWorkflowExecutionsResponse, err error) {
@@ -257,6 +270,10 @@ func (g frontendClient) SignalWorkflowExecution(ctx context.Context, sp1 *types.
 	return thrift.ToError(err)
 }
 
+func (g frontendClient) StartBatchOperation(ctx context.Context, sp1 *types.StartBatchOperationRequest, p1 ...yarpc.CallOption) (sp2 *types.StartBatchOperationResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g frontendClient) StartWorkflowExecution(ctx context.Context, sp1 *types.StartWorkflowExecutionRequest, p1 ...yarpc.CallOption) (sp2 *types.StartWorkflowExecutionResponse, err error) {
 	response, err := g.c.StartWorkflowExecution(ctx, thrift.FromStartWorkflowExecutionRequest(sp1), p1...)
 	return thrift.ToStartWorkflowExecutionResponse(response), thrift.ToError(err)
@@ -267,12 +284,20 @@ func (g frontendClient) StartWorkflowExecutionAsync(ctx context.Context, sp1 *ty
 	return thrift.ToStartWorkflowExecutionAsyncResponse(response), thrift.ToError(err)
 }
 
+func (g frontendClient) StopBatchOperation(ctx context.Context, sp1 *types.StopBatchOperationRequest, p1 ...yarpc.CallOption) (sp2 *types.StopBatchOperationResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g frontendClient) TerminateWorkflowExecution(ctx context.Context, tp1 *types.TerminateWorkflowExecutionRequest, p1 ...yarpc.CallOption) (err error) {
 	err = g.c.TerminateWorkflowExecution(ctx, thrift.FromTerminateWorkflowExecutionRequest(tp1), p1...)
 	return thrift.ToError(err)
 }
 
 func (g frontendClient) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseScheduleRequest, p1 ...yarpc.CallOption) (up2 *types.UnpauseScheduleResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
+func (g frontendClient) UpdateBatchOperation(ctx context.Context, up1 *types.UpdateBatchOperationRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateBatchOperationResponse, err error) {
 	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 

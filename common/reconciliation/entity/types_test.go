@@ -154,13 +154,28 @@ func (t *TypeSuite) TestValidateExecution() {
 					DomainID:   domainID,
 					WorkflowID: workflowID,
 					RunID:      runID,
-					State:      persistence.WorkflowStateCorrupted + 1,
+					State:      persistence.WorkflowStatePreparing + 1,
 				},
 				BranchToken: []byte{1, 2, 3},
 				TreeID:      treeID,
 				BranchID:    branchID,
 			},
 			expectError: true,
+		},
+		{
+			execution: &ConcreteExecution{
+				Execution: Execution{
+					ShardID:    0,
+					DomainID:   domainID,
+					WorkflowID: workflowID,
+					RunID:      runID,
+					State:      persistence.WorkflowStatePreparing,
+				},
+				BranchToken: []byte{1, 2, 3},
+				TreeID:      treeID,
+				BranchID:    branchID,
+			},
+			expectError: false,
 		},
 		{
 			execution: &ConcreteExecution{

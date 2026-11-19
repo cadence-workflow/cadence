@@ -355,6 +355,42 @@ func TestTaskSerializerThriftRW(t *testing.T) {
 				},
 			},
 		},
+		{
+			category: persistence.HistoryTaskCategoryVisibility,
+			task: &persistence.RecordWorkflowStartedTask{
+				WorkflowIdentifier: workflowIdentifier,
+				TaskData: persistence.TaskData{
+					Version:             21,
+					TaskID:              21,
+					VisibilityTimestamp: time.Unix(21, 21),
+				},
+				TaskList: "test-tl",
+			},
+		},
+		{
+			category: persistence.HistoryTaskCategoryVisibility,
+			task: &persistence.UpsertWorkflowSearchAttributesTask{
+				WorkflowIdentifier: workflowIdentifier,
+				TaskData: persistence.TaskData{
+					Version:             22,
+					TaskID:              22,
+					VisibilityTimestamp: time.Unix(22, 22),
+				},
+				TaskList: "test-tl",
+			},
+		},
+		{
+			category: persistence.HistoryTaskCategoryVisibility,
+			task: &persistence.RecordWorkflowClosedTask{
+				WorkflowIdentifier: workflowIdentifier,
+				TaskData: persistence.TaskData{
+					Version:             23,
+					TaskID:              23,
+					VisibilityTimestamp: time.Unix(23, 23),
+				},
+				TaskList: "test-tl",
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -368,4 +404,28 @@ func TestTaskSerializerThriftRW(t *testing.T) {
 		}
 		assert.Equal(t, tc.task, task)
 	}
+}
+
+func TestTaskSerializerVisibilityRejectsNonVisibilityTasks(t *testing.T) {
+	parser, err := NewParser(persistence.NewDefaultDynamicConfiguration())
+	require.NoError(t, err)
+	taskSerializer := NewTaskSerializer(parser)
+
+	decisionTask := &persistence.DecisionTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   "8be8a310-7d20-483e-a5d2-48659dc47602",
+			WorkflowID: "test-workflow",
+			RunID:      "4be8a310-7d20-483e-a5d2-48659dc47609",
+		},
+		TargetDomainID: "0be8a310-7d20-483e-a5d2-48659dc47602",
+	}
+
+	_, err = taskSerializer.SerializeTask(persistence.HistoryTaskCategoryVisibility, decisionTask)
+	assert.Error(t, err)
+
+	// a transfer blob of a non-visibility type must not deserialize as a visibility task
+	blob, err := taskSerializer.SerializeTask(persistence.HistoryTaskCategoryTransfer, decisionTask)
+	require.NoError(t, err)
+	_, err = taskSerializer.DeserializeTask(persistence.HistoryTaskCategoryVisibility, &blob)
+	assert.Error(t, err)
 }

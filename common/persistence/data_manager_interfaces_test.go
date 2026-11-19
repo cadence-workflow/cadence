@@ -934,3 +934,33 @@ func TestHistoryTaskCategoryVisibility(t *testing.T) {
 	assert.Equal(t, HistoryTaskCategoryTypeImmediate, HistoryTaskCategoryVisibility.Type())
 	assert.Equal(t, "visibility", HistoryTaskCategoryVisibility.Name())
 }
+
+func TestIsWorkflowStateFinal(t *testing.T) {
+	for state, expected := range map[int]bool{
+		WorkflowStateCreated:   false,
+		WorkflowStateRunning:   false,
+		WorkflowStateCompleted: true,
+		WorkflowStateZombie:    false,
+		WorkflowStateVoid:      false,
+		WorkflowStateCorrupted: true,
+	} {
+		assert.Equal(t, expected, IsWorkflowStateFinal(state), "state %d", state)
+	}
+}
+
+func TestFinalWorkflowStatesHaveNoTransitions(t *testing.T) {
+	for state := range validWorkflowStates {
+		if !IsWorkflowStateFinal(state) {
+			continue
+		}
+		for target := range validWorkflowStates {
+			if target == state {
+				continue
+			}
+			for closeStatus := range validWorkflowCloseStatuses {
+				info := &WorkflowExecutionInfo{State: state}
+				assert.Error(t, info.UpdateWorkflowStateCloseStatus(target, closeStatus), "%d -> (%d, %d)", state, target, closeStatus)
+			}
+		}
+	}
+}

@@ -68,6 +68,7 @@ const (
 	rowTypeWorkflowRequestCancel
 	rowTypeWorkflowRequestReset
 	rowTypeWorkflowActiveClusterSelectionPolicy
+	rowTypeVisibilityTask
 )
 
 // Guidelines for creating new special UUID constants
@@ -101,6 +102,10 @@ const (
 	rowTypeReplicationDomainID   = "10000000-5000-f000-f000-000000000000"
 	rowTypeReplicationWorkflowID = "20000000-5000-f000-f000-000000000000"
 	rowTypeReplicationRunID      = "30000000-5000-f000-f000-000000000000"
+	// Row Constants for Visibility Task Row
+	rowTypeVisibilityDomainID   = "10000000-d000-f000-f000-000000000000"
+	rowTypeVisibilityWorkflowID = "20000000-d000-f000-f000-000000000000"
+	rowTypeVisibilityRunID      = "30000000-d000-f000-f000-000000000000"
 	// Row Constants for Replication Task DLQ Row. Source cluster name will be used as WorkflowID.
 	rowTypeDLQDomainID = "10000000-6000-f000-f000-000000000000"
 	rowTypeDLQRunID    = "30000000-6000-f000-f000-000000000000"

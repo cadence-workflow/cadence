@@ -80,6 +80,7 @@ var (
 		&HistoryEvent_SemaphoreAcquired,
 		&HistoryEvent_SemaphoreReleased,
 		&HistoryEvent_SemaphoreAcquireFailed,
+		&HistoryEvent_SemaphoreTokenLost,
 	}
 
 	HistoryEvent_WorkflowExecutionStarted = generateEvent(func(e *types.HistoryEvent) {
@@ -266,6 +267,10 @@ var (
 		e.EventType = types.EventTypeSemaphoreAcquireFailed.Ptr()
 		e.SemaphoreAcquireFailedEventAttributes = &SemaphoreAcquireFailedEventAttributes
 	})
+	HistoryEvent_SemaphoreTokenLost = generateEvent(func(e *types.HistoryEvent) {
+		e.EventType = types.EventTypeSemaphoreTokenLost.Ptr()
+		e.SemaphoreTokenLostEventAttributes = &SemaphoreTokenLostEventAttributes
+	})
 
 	WorkflowExecutionStartedEventAttributes = types.WorkflowExecutionStartedEventAttributes{
 		WorkflowType:                        &WorkflowType,
@@ -298,6 +303,9 @@ var (
 		RequestID:                           RequestID,
 		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyWithClusterAttribute,
 		CronOverlapPolicy:                   &CronOverlapPolicy,
+		ImportSourceExecution:               &WorkflowExecution,
+		ImportTimestamp:                     &Timestamp2,
+		ImportLastEventID:                   common.Int64Ptr(EventID4),
 	}
 	WorkflowExecutionCompletedEventAttributes = types.WorkflowExecutionCompletedEventAttributes{
 		Result:                       Payload1,
@@ -625,12 +633,27 @@ var (
 		Cause:            types.SemaphoreAcquireFailedCauseNotFound.Ptr(),
 		InitiatedEventID: EventID2,
 	}
+	SemaphoreTokenLostEventAttributes = types.SemaphoreTokenLostEventAttributes{
+		TokenID:          17,
+		InitiatedEventID: EventID2,
+	}
 	GetFailoverInfoRequest = types.GetFailoverInfoRequest{
 		DomainID: uuid.NewUUID().String(),
 	}
 	GetFailoverInfoResponse = types.GetFailoverInfoResponse{
 		CompletedShardCount: 0,
 		PendingShards:       []int32{1, 2, 3},
+	}
+	HistoryEnqueueAsyncWorkflowMessageRequest = types.EnqueueAsyncWorkflowMessageRequest{
+		ShardID:     7,
+		DomainName:  DomainName,
+		WorkflowID:  WorkflowID,
+		RequestID:   RequestID,
+		RequestType: types.AsyncWorkflowRequestTypeSignalWithStartWorkflowExecution.Ptr(),
+		Payload:     &DataBlob,
+	}
+	HistoryEnqueueAsyncWorkflowMessageResponse = types.EnqueueAsyncWorkflowMessageResponse{
+		MessageID: 42,
 	}
 	RatelimitUpdateRequest = types.RatelimitUpdateRequest{
 		Any: &types.Any{

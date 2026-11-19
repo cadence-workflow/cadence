@@ -55,6 +55,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
 	"github.com/uber/cadence/service/frontend/config"
+	"github.com/uber/cadence/service/frontend/semaphore"
 	"github.com/uber/cadence/service/frontend/validate"
 	"github.com/uber/cadence/service/worker/diagnostics"
 )
@@ -67,6 +68,8 @@ const (
 	// HealthStatusShuttingDown is used when the rpc handler is shutting down
 	HealthStatusShuttingDown
 )
+
+const cancelPollsTimeout = 2 * time.Second
 
 var _ Handler = (*WorkflowHandler)(nil)
 
@@ -81,12 +84,14 @@ type (
 		config                    *config.Config
 		versionChecker            client.VersionChecker
 		domainHandler             domain.Handler
+		semaphoreHandler          semaphore.Handler
 		visibilityQueryValidator  *validator.VisibilityQueryValidator
 		searchAttributesValidator *validator.SearchAttributesValidator
 		throttleRetry             *backoff.ThrottleRetry
 		producerManager           ProducerManager
 		thriftrwEncoder           codec.BinaryEncoder
 		requestValidator          RequestValidator
+		pollTracker               *PollTracker
 	}
 
 	getHistoryContinuationToken struct {
@@ -112,20 +117,24 @@ var (
 	frontendServiceRetryPolicy = common.CreateFrontendServiceRetryPolicy()
 )
 
-// NewWorkflowHandler creates a thrift handler for the cadence service
+// NewWorkflowHandler creates a thrift handler for the cadence service.
+// pollTracker must be the one given to the matching client of the resource.
 func NewWorkflowHandler(
 	resource resource.Resource,
 	config *config.Config,
 	versionChecker client.VersionChecker,
+	pollTracker *PollTracker,
 	domainHandler domain.Handler,
+	semaphoreHandler semaphore.Handler,
 ) *WorkflowHandler {
 	return &WorkflowHandler{
-		Resource:        resource,
-		config:          config,
-		healthStatus:    int32(HealthStatusWarmingUp),
-		tokenSerializer: common.NewJSONTaskTokenSerializer(),
-		versionChecker:  versionChecker,
-		domainHandler:   domainHandler,
+		Resource:         resource,
+		config:           config,
+		healthStatus:     int32(HealthStatusWarmingUp),
+		tokenSerializer:  common.NewJSONTaskTokenSerializer(),
+		versionChecker:   versionChecker,
+		domainHandler:    domainHandler,
+		semaphoreHandler: semaphoreHandler,
 		visibilityQueryValidator: validator.NewQueryValidator(
 			config.ValidSearchAttributes,
 			config.EnableQueryAttributeValidation,
@@ -150,6 +159,7 @@ func NewWorkflowHandler(
 		),
 		thriftrwEncoder:  codec.NewThriftRWEncoder(),
 		requestValidator: NewRequestValidator(resource.GetLogger(), resource.GetMetricsClient(), config),
+		pollTracker:      pollTracker,
 	}
 }
 
@@ -171,6 +181,13 @@ func (wh *WorkflowHandler) Start() {
 // Stop stops the handler
 func (wh *WorkflowHandler) Stop() {
 	atomic.StoreInt32(&wh.shuttingDown, 1)
+	if wh.config.CancelOutstandingPollsOnShutdown() {
+		// release the long-polls still waiting in matching, so the shutdown doesn't wait for them
+		wh.GetLogger().Info("ShutdownHandler: Cancelling outstanding polls to matching")
+		ctx, cancel := context.WithTimeout(context.Background(), cancelPollsTimeout)
+		defer cancel()
+		wh.pollTracker.cancelAll(ctx, wh.GetMatchingRawClient())
+	}
 }
 
 // UpdateHealthStatus sets the health status for this rpc handler.

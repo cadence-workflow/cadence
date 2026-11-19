@@ -50,6 +50,11 @@ func (g GRPCHandler) DescribeWorkflowExecution(ctx context.Context, request *his
 	return proto.FromHistoryDescribeWorkflowExecutionResponse(response), proto.FromError(err)
 }
 
+func (g GRPCHandler) EnqueueAsyncWorkflowMessage(ctx context.Context, request *historyv1.EnqueueAsyncWorkflowMessageRequest) (*historyv1.EnqueueAsyncWorkflowMessageResponse, error) {
+	response, err := g.h.EnqueueAsyncWorkflowMessage(ctx, proto.ToHistoryEnqueueAsyncWorkflowMessageRequest(request))
+	return proto.FromHistoryEnqueueAsyncWorkflowMessageResponse(response), proto.FromError(err)
+}
+
 func (g GRPCHandler) GetCrossClusterTasks(ctx context.Context, request *historyv1.GetCrossClusterTasksRequest) (*historyv1.GetCrossClusterTasksResponse, error) {
 	response, err := g.h.GetCrossClusterTasks(ctx, proto.ToHistoryGetCrossClusterTasksRequest(request))
 	return proto.FromHistoryGetCrossClusterTasksResponse(response), proto.FromError(err)

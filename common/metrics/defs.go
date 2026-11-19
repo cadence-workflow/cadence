@@ -464,6 +464,8 @@ const (
 	HistoryClientWfIDCacheScope
 	// HistoryClientRatelimitUpdateScope tracks global ratelimiter related calls to history service
 	HistoryClientRatelimitUpdateScope
+	// HistoryClientEnqueueAsyncWorkflowMessageScope tracks EnqueueAsyncWorkflowMessage calls to history service
+	HistoryClientEnqueueAsyncWorkflowMessageScope
 
 	// MatchingClientPollForDecisionTaskScope tracks RPC calls to matching service
 	MatchingClientPollForDecisionTaskScope
@@ -598,6 +600,18 @@ const (
 	FrontendClientListSchedulesScope
 	// FrontendClientExportWorkflowExecutionScope tracks RPC calls to frontend service
 	FrontendClientExportWorkflowExecutionScope
+	// FrontendClientStartBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientStartBatchOperationScope
+	// FrontendClientStopBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientStopBatchOperationScope
+	// FrontendClientDescribeBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientDescribeBatchOperationScope
+	// FrontendClientListBatchOperationsScope tracks RPC calls to frontend service
+	FrontendClientListBatchOperationsScope
+	// FrontendClientUpdateBatchOperationScope tracks RPC calls to frontend service
+	FrontendClientUpdateBatchOperationScope
+	// FrontendClientCreateSemaphoreScope tracks RPC calls to frontend service
+	FrontendClientCreateSemaphoreScope
 	// FrontendClientListWorkflowExecutionsScope tracks RPC calls to frontend service
 	FrontendClientListWorkflowExecutionsScope
 	// FrontendClientScanWorkflowExecutionsScope tracks RPC calls to frontend service
@@ -1337,6 +1351,8 @@ const (
 	HistoryGetFailoverInfoScope
 	// HistoryRatelimitUpdateScope tracks RatelimitUpdate API calls received by the history service
 	HistoryRatelimitUpdateScope
+	// HistoryEnqueueAsyncWorkflowMessageScope tracks EnqueueAsyncWorkflowMessage API calls received by the history service
+	HistoryEnqueueAsyncWorkflowMessageScope
 	// TaskPriorityAssignerScope is the scope used by all metric emitted by task priority assigner
 	TaskPriorityAssignerScope
 	// TransferQueueProcessorScope is the scope used by all metric emitted by transfer queue processor
@@ -1804,6 +1820,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryClientGetReplicationMessagesScope:            {operation: "HistoryClientGetReplicationMessages", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientWfIDCacheScope:                         {operation: "HistoryClientWfIDCache", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientRatelimitUpdateScope:                   {operation: "HistoryClientRatelimitUpdate", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
+		HistoryClientEnqueueAsyncWorkflowMessageScope:       {operation: "HistoryClientEnqueueAsyncWorkflowMessage", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 
 		MatchingClientPollForDecisionTaskScope:            {operation: "MatchingClientPollForDecisionTask", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
 		MatchingClientPollForActivityTaskScope:            {operation: "MatchingClientPollForActivityTask", tags: map[string]string{CadenceRoleTagName: MatchingClientRoleTagValue}},
@@ -1883,6 +1900,12 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientBackfillScheduleScope:                      {operation: "FrontendClientBackfillSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientListSchedulesScope:                         {operation: "FrontendClientListSchedules", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientExportWorkflowExecutionScope:               {operation: "FrontendClientExportWorkflowExecution", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientStartBatchOperationScope:                   {operation: "FrontendClientStartBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientStopBatchOperationScope:                    {operation: "FrontendClientStopBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientDescribeBatchOperationScope:                {operation: "FrontendClientDescribeBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientListBatchOperationsScope:                   {operation: "FrontendClientListBatchOperations", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientUpdateBatchOperationScope:                  {operation: "FrontendClientUpdateBatchOperation", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientCreateSemaphoreScope:                       {operation: "FrontendClientCreateSemaphore", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 
 		AdminClientGetReplicationTasksScope:                   {operation: "AdminClientGetReplicationTasks", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientAddSearchAttributeScope:                    {operation: "AdminClientAddSearchAttribute", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
@@ -2240,6 +2263,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryRespondCrossClusterTasksCompletedScope:                   {operation: "RespondCrossClusterTasksCompleted"},
 		HistoryGetFailoverInfoScope:                                     {operation: "GetFailoverInfo"},
 		HistoryRatelimitUpdateScope:                                     {operation: "RatelimitUpdate"},
+		HistoryEnqueueAsyncWorkflowMessageScope:                         {operation: "EnqueueAsyncWorkflowMessage"},
 		TaskPriorityAssignerScope:                                       {operation: "TaskPriorityAssigner"},
 		TransferQueueProcessorScope:                                     {operation: "TransferQueueProcessor"},
 		TransferQueueProcessorV2Scope:                                   {operation: "TransferQueueProcessorV2"},
@@ -3147,6 +3171,9 @@ const (
 	HistoryTaskDLQReinjectFailuresCounter
 	// HistoryTaskDLQPageSizeBytes tracks the serialized byte size of each re-injected DLQ page
 	HistoryTaskDLQPageSizeBytes
+	// HistoryTaskDLQAckLevelRows tracks how many DLQ ack-level rows a shard carries, recorded
+	// once per periodic sweep from the length of the shard-scoped ack-level read
+	HistoryTaskDLQAckLevelRows
 	// AsyncWorkflowQueueFetchedCounter counts messages read from the async workflow queue
 	AsyncWorkflowQueueFetchedCounter
 	// AsyncWorkflowQueueSubmittedCounter counts messages submitted to the history engine
@@ -3832,6 +3859,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		HistoryTaskDLQReinjectFailuresCounter:   {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
 		HistoryTaskDLQPageSizeBytes:             {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
+		HistoryTaskDLQAckLevelRows:              {metricName: "history_task_dlq_ack_level_rows", metricType: Histogram, buckets: TaskCountBuckets},
 		AsyncWorkflowQueueFetchedCounter:        {metricName: "async_workflow_queue_fetched", metricType: Counter},
 		AsyncWorkflowQueueSubmittedCounter:      {metricName: "async_workflow_queue_submitted", metricType: Counter},
 		AsyncWorkflowQueueSuccessCounter:        {metricName: "async_workflow_queue_success", metricType: Counter},

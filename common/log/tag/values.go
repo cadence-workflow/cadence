@@ -90,6 +90,7 @@ var (
 	WorkflowActionSemaphoreAcquired         = workflowAction("add-semaphore-acquired-event")
 	WorkflowActionSemaphoreAcquireFailed    = workflowAction("add-semaphore-acquire-failed-event")
 	WorkflowActionSemaphoreReleased         = workflowAction("add-semaphore-released-event")
+	WorkflowActionSemaphoreTokenLost        = workflowAction("add-semaphore-token-lost-event")
 
 	WorkflowActionUnknown = workflowAction("add-unknown-event")
 )
@@ -430,6 +431,12 @@ var (
 	FrontendClientOperationBackfillSchedule                      = clientOperation("frontend-backfill-schedule")
 	FrontendClientOperationListSchedules                         = clientOperation("frontend-list-schedules")
 	FrontendClientOperationExportWorkflowExecution               = clientOperation("frontend-export-workflow-execution")
+	FrontendClientOperationStartBatchOperation                   = clientOperation("frontend-start-batch-operation")
+	FrontendClientOperationStopBatchOperation                    = clientOperation("frontend-stop-batch-operation")
+	FrontendClientOperationDescribeBatchOperation                = clientOperation("frontend-describe-batch-operation")
+	FrontendClientOperationListBatchOperations                   = clientOperation("frontend-list-batch-operations")
+	FrontendClientOperationUpdateBatchOperation                  = clientOperation("frontend-update-batch-operation")
+	FrontendClientOperationCreateSemaphore                       = clientOperation("frontend-create-semaphore")
 
 	HistoryClientOperationStartWorkflowExecution            = clientOperation("history-start-wf-execution")
 	HistoryClientOperationDescribeHistoryHost               = clientOperation("history-describe-history-host")
@@ -481,6 +488,7 @@ var (
 	HistoryClientOperationRespondDecisionTaskCompleted      = clientOperation("history-respond-decision-task-completed")
 	HistoryClientOperationRespondDecisionTaskFailed         = clientOperation("history-respond-decision-task-failed")
 	HistoryClientOperationRatelimitUpdate                   = clientOperation("history-ratelimit-update")
+	HistoryClientOperationEnqueueAsyncWorkflowMessage       = clientOperation("history-enqueue-async-workflow-message")
 
 	MatchingClientOperationAddActivityTask                = clientOperation("matching-add-activity-task")
 	MatchingClientOperationAddDecisionTask                = clientOperation("matching-add-decision-task")

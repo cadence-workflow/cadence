@@ -275,11 +275,28 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 		Checksum:                           []byte("Checksum"),
 		ChecksumEncoding:                   "ChecksumEncoding",
 		IsCron:                             true,
+		ImportSourceExecution:              &types.WorkflowExecution{WorkflowID: "ImportSourceWorkflowID", RunID: uuid.New()},
+		ImportTimestamp:                    time.UnixMilli(1752018142826),
+		ImportInProgress:                   true,
 	}
 	actual := workflowExecutionInfoFromThrift(workflowExecutionInfoToThrift(expected))
 	assert.Equal(t, expected, actual)
 	assert.Nil(t, workflowExecutionInfoFromThrift(nil))
 	assert.Nil(t, workflowExecutionInfoToThrift(nil))
+}
+
+func TestWorkflowExecutionInfo_NoImportFields(t *testing.T) {
+	// A run that is not imported writes no import fields, the same as a blob written before
+	// the fields were added.
+	thriftVersion := workflowExecutionInfoToThrift(&WorkflowExecutionInfo{})
+	assert.Nil(t, thriftVersion.ImportSourceExecution)
+	assert.Nil(t, thriftVersion.ImportTimestampNanos)
+	assert.Nil(t, thriftVersion.ImportInProgress)
+
+	actual := workflowExecutionInfoFromThrift(thriftVersion)
+	assert.Nil(t, actual.ImportSourceExecution)
+	assert.True(t, actual.ImportTimestamp.IsZero())
+	assert.False(t, actual.ImportInProgress)
 }
 
 func TestWorkflowExecutionInfo_NoTaskListKind(t *testing.T) {

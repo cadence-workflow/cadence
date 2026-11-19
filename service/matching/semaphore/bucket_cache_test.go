@@ -12,20 +12,21 @@ import (
 	commonsemaphore "github.com/uber/cadence/common/semaphore"
 )
 
-// testTokenRange is the bucket most tests in this file use: three tokens, 1 to 3, built with
-// newCacheFromRows. A test that changes one token uses token 2 and checks that tokens 1 and 3 are
-// untouched. Every test ends with assertCacheConsistent, which checks the cache's own rules.
+// testTokenRange is the bucket the cache tests use: tokens 1 to 3.
 //
-// The helpers below use the cache without cacheMu: the tests that use them run on one goroutine, or
-// read only after every goroutine has finished.
+// The helpers below read and write the cache without cacheMu, so call them only when no other
+// goroutine is using the cache.
 var testTokenRange = commonsemaphore.TokenRange{First: 1, Count: 3}
 
-// The token states the tests start from and expect.
+// The token states the tests start from and expect. The manager tests call the manager for
+// "caller", so they use heldByCaller and heldByOther.
 var (
-	free        = tokenEntry{state: tokenFree}
-	heldByA     = tokenEntry{state: tokenHeld, owner: "owner-a"}
-	heldByB     = tokenEntry{state: tokenHeld, owner: "owner-b"}
-	unavailable = tokenEntry{state: tokenUnavailable}
+	free         = tokenEntry{state: tokenFree}
+	heldByA      = tokenEntry{state: tokenHeld, owner: "owner-a"}
+	heldByB      = tokenEntry{state: tokenHeld, owner: "owner-b"}
+	heldByCaller = tokenEntry{state: tokenHeld, owner: "caller"}
+	heldByOther  = tokenEntry{state: tokenHeld, owner: "other-owner"}
+	unavailable  = tokenEntry{state: tokenUnavailable}
 )
 
 // newCacheFromRows builds a cache over testTokenRange from rows.

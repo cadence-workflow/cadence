@@ -1650,7 +1650,7 @@ func (s *stateBuilderSuite) TestApplyEvents_EventTypeExternalWorkflowExecutionSi
 
 func (s *stateBuilderSuite) TestApplyEventsNewEventsNotHandled() {
 	eventTypes := types.EventTypeValues()
-	s.Equal(46, len(eventTypes), "If you see this error, you are adding new event type. "+
+	s.Equal(47, len(eventTypes), "If you see this error, you are adding new event type. "+
 		"Before updating the number to make this test pass, please make sure you update stateBuilderImpl.ApplyEvents method "+
 		"to handle the new decision type. Otherwise cross dc will not work on the new event.")
 }
@@ -1752,6 +1752,30 @@ func TestApplyEventsSemaphoreEvents(t *testing.T) {
 			},
 			expectFn: func(ms *MockMutableState, event *types.HistoryEvent) {
 				ms.EXPECT().ReplicateSemaphoreAcquireFailedEvent(event).Return(errReplicate)
+			},
+			wantErr: errReplicate,
+		},
+		{
+			name: "a token lost event goes to ReplicateSemaphoreTokenLostEvent",
+			event: &types.HistoryEvent{
+				EventType: types.EventTypeSemaphoreTokenLost.Ptr(),
+				SemaphoreTokenLostEventAttributes: &types.SemaphoreTokenLostEventAttributes{
+					TokenID:          7,
+					InitiatedEventID: 2,
+				},
+			},
+			expectFn: func(ms *MockMutableState, event *types.HistoryEvent) {
+				ms.EXPECT().ReplicateSemaphoreTokenLostEvent(event).Return(nil)
+			},
+		},
+		{
+			name: "an error from ReplicateSemaphoreTokenLostEvent stops the apply",
+			event: &types.HistoryEvent{
+				EventType:                         types.EventTypeSemaphoreTokenLost.Ptr(),
+				SemaphoreTokenLostEventAttributes: &types.SemaphoreTokenLostEventAttributes{},
+			},
+			expectFn: func(ms *MockMutableState, event *types.HistoryEvent) {
+				ms.EXPECT().ReplicateSemaphoreTokenLostEvent(event).Return(errReplicate)
 			},
 			wantErr: errReplicate,
 		},

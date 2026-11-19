@@ -79,6 +79,9 @@ func ToInternalWorkflowExecutionInfo(info *WorkflowExecutionInfo) *persistence.I
 		PartitionConfig:                    info.PartitionConfig,
 		IsCron:                             info.IsCron,
 		CronOverlapPolicy:                  types.CronOverlapPolicy(info.GetCronOverlapPolicy()),
+		ImportSourceExecution:              info.GetImportSourceExecution(),
+		ImportTimestamp:                    info.GetImportTimestamp(),
+		ImportInProgress:                   info.GetImportInProgress(),
 	}
 	if info.ParentDomainID != nil {
 		result.ParentDomainID = info.ParentDomainID.String()
@@ -173,6 +176,9 @@ func FromInternalWorkflowExecutionInfo(executionInfo *persistence.InternalWorkfl
 		CronOverlapPolicy:                    executionInfo.CronOverlapPolicy,
 		ActiveClusterSelectionPolicy:         executionInfo.ActiveClusterSelectionPolicy.GetData(),
 		ActiveClusterSelectionPolicyEncoding: string(executionInfo.ActiveClusterSelectionPolicy.GetEncoding()),
+		ImportSourceExecution:                executionInfo.ImportSourceExecution,
+		ImportTimestamp:                      executionInfo.ImportTimestamp,
+		ImportInProgress:                     executionInfo.ImportInProgress,
 	}
 
 	if executionInfo.CompletionEvent != nil {

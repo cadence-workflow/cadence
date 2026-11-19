@@ -1529,6 +1529,12 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
 					ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
 				},
+				ImportSourceExecution: &types.WorkflowExecution{
+					WorkflowID: "import-source-workflow-id",
+					RunID:      uuid.New(),
+				},
+				ImportTimestamp:  time.Now(),
+				ImportInProgress: true,
 			},
 			ExecutionStats: &p.ExecutionStats{
 				HistorySize: int64(rand.Int31()),
@@ -1590,6 +1596,9 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.CronSchedule, info.CronSchedule)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.CronOverlapPolicy, info.CronOverlapPolicy)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.ActiveClusterSelectionPolicy, info.ActiveClusterSelectionPolicy)
+	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.ImportSourceExecution, info.ImportSourceExecution)
+	s.EqualTimes(createReq.NewWorkflowSnapshot.ExecutionInfo.ImportTimestamp, info.ImportTimestamp)
+	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.ImportInProgress, info.ImportInProgress)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.NonRetriableErrors, info.NonRetriableErrors)
 	s.Equal(testResetPoints, *info.AutoResetPoints)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionStats.HistorySize, state.ExecutionStats.HistorySize)
