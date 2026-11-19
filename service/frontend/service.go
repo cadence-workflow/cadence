@@ -41,6 +41,7 @@ import (
 	"github.com/uber/cadence/service/frontend/admin"
 	"github.com/uber/cadence/service/frontend/api"
 	"github.com/uber/cadence/service/frontend/config"
+	"github.com/uber/cadence/service/frontend/semaphore"
 	"github.com/uber/cadence/service/frontend/wrappers/accesscontrolled"
 	"github.com/uber/cadence/service/frontend/wrappers/clusterredirection"
 	"github.com/uber/cadence/service/frontend/wrappers/grpc"
@@ -59,6 +60,7 @@ type Service struct {
 	adminHandler           admin.Handler
 	stopC                  chan struct{}
 	config                 *config.Config
+	pollTracker            *api.PollTracker
 	params                 *resource.Params
 	ratelimiterCollections globalRatelimiterCollections
 }
@@ -76,6 +78,9 @@ func NewService(
 		params.HostName,
 		params.Logger,
 	)
+
+	pollTracker := api.NewPollTracker(params.Logger)
+	params.MatchingPollTracker = pollTracker
 
 	serviceResource, err := resource.New(
 		params,
@@ -107,11 +112,12 @@ func NewService(
 	}
 
 	return &Service{
-		Resource: serviceResource,
-		status:   common.DaemonStatusInitialized,
-		config:   serviceConfig,
-		stopC:    make(chan struct{}),
-		params:   params,
+		Resource:    serviceResource,
+		status:      common.DaemonStatusInitialized,
+		config:      serviceConfig,
+		stopC:       make(chan struct{}),
+		params:      params,
+		pollTracker: pollTracker,
 	}, nil
 }
 
@@ -137,8 +143,16 @@ func (s *Service) Start() {
 		s.GetTimeSource(),
 	)
 
+	// semaphore handler publishes to the same domain replication queue as the domain handler
+	sh := semaphore.NewHandler(
+		s.GetSemaphoreMetadataManager(),
+		s.GetDomainCache(),
+		s.GetClusterMetadata(),
+		domain.NewSemaphoreReplicator(s.GetDomainReplicationQueue()),
+	)
+
 	// Base handler
-	s.handler = api.NewWorkflowHandler(s, s.config, client.NewVersionChecker(), dh)
+	s.handler = api.NewWorkflowHandler(s, s.config, client.NewVersionChecker(), s.pollTracker, dh, sh)
 
 	collections, err := s.createGlobalQuotaCollections()
 	if err != nil {

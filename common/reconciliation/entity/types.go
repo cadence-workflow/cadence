@@ -113,7 +113,7 @@ func validateExecution(execution *Execution) error {
 	if len(execution.RunID) == 0 {
 		return errors.New("empty RunID")
 	}
-	if execution.State < persistence.WorkflowStateCreated || execution.State > persistence.WorkflowStateCorrupted {
+	if execution.State < persistence.WorkflowStateCreated || execution.State > persistence.WorkflowStatePreparing {
 		return fmt.Errorf("unknown workflow state: %v", execution.State)
 	}
 	return nil

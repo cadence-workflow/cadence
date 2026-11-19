@@ -803,7 +803,7 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 }
 
 // CreateHistoryTasks allows direct injection of tasks without a corresponding workflow update.
-// It supports transfer and timer tasks - replication tasks are not supported.
+// It supports transfer, timer and visibility tasks - replication tasks are not supported.
 // Returns an error when an unsupported category is provided or when the task insertion fails.
 func (d *nosqlExecutionStore) CreateHistoryTasks(
 	ctx context.Context,
@@ -815,15 +815,18 @@ func (d *nosqlExecutionStore) CreateHistoryTasks(
 	}
 
 	for category := range request.TasksByCategory {
-		if id := category.ID(); id != persistence.HistoryTaskCategoryIDTransfer && id != persistence.HistoryTaskCategoryIDTimer {
-			return &types.BadRequestError{Message: fmt.Sprintf("CreateHistoryTasks only supports transfer and timer tasks, got category: %v", id)}
+		switch category.ID() {
+		case persistence.HistoryTaskCategoryIDTransfer, persistence.HistoryTaskCategoryIDTimer, persistence.HistoryTaskCategoryIDVisibility:
+		default:
+			return &types.BadRequestError{Message: fmt.Sprintf("CreateHistoryTasks only supports transfer, timer and visibility tasks, got category: %v", category.ID())}
 		}
 	}
 
 	outputTasks := make(map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask)
 	// The transfer/timer prepare helpers read each task's own (domainID, workflowID, runID) from
-	// its info, so no per-workflow grouping is needed here; the runID argument is unused for these
-	// categories. The cassandra writer likewise derives each row's owner from the task itself.
+	// its info, and visibility tasks carry them in the blob, so no per-workflow grouping is needed
+	// here; the runID argument is unused for these categories. The cassandra writer likewise derives
+	// each row's owner from the task itself.
 	if err := d.prepareNoSQLTasksForWorkflowTxn("", "", "", request.TasksByCategory, outputTasks); err != nil {
 		return err
 	}
@@ -919,6 +922,25 @@ func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 				}
 				tTasks = append(tTasks, task)
 			}
+		}
+		return &persistence.GetHistoryTasksResponse{
+			Tasks:         tTasks,
+			NextPageToken: nextPageToken,
+		}, nil
+	case persistence.HistoryTaskCategoryIDVisibility:
+		tasks, nextPageToken, err := storeShard.db.SelectVisibilityTasksOrderByTaskID(ctx, shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
+		if err != nil {
+			return nil, convertCommonErrors(storeShard.db, "GetImmediateHistoryTasks", err)
+		}
+		// visibility tasks are blob-only, so they are always read from the data blob
+		tTasks := make([]persistence.Task, 0, len(tasks))
+		for _, t := range tasks {
+			task, err := d.taskSerializer.DeserializeTask(request.TaskCategory, t.Task)
+			if err != nil {
+				return nil, convertCommonErrors(storeShard.db, "GetImmediateHistoryTasks", err)
+			}
+			task.SetTaskID(t.TaskID)
+			tTasks = append(tTasks, task)
 		}
 		return &persistence.GetHistoryTasksResponse{
 			Tasks:         tTasks,
@@ -1023,6 +1045,12 @@ func (d *nosqlExecutionStore) completeImmediateHistoryTask(
 			return convertCommonErrors(storeShard.db, "CompleteImmediateHistoryTask", err)
 		}
 		return nil
+	case persistence.HistoryTaskCategoryIDVisibility:
+		err := storeShard.db.DeleteVisibilityTask(ctx, shardID, request.TaskKeys)
+		if err != nil {
+			return convertCommonErrors(storeShard.db, "CompleteImmediateHistoryTask", err)
+		}
+		return nil
 	default:
 		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category ID: %v", request.TaskCategory.ID())}
 	}
@@ -1080,6 +1108,11 @@ func (d *nosqlExecutionStore) rangeCompleteImmediateHistoryTask(
 		err := storeShard.db.RangeDeleteReplicationTasks(ctx, shardID, request.ExclusiveMaxTaskKey.GetTaskID())
 		if err != nil {
 			return nil, convertCommonErrors(storeShard.db, "RangeCompleteReplicationTask", err)
+		}
+	case persistence.HistoryTaskCategoryIDVisibility:
+		err := storeShard.db.RangeDeleteVisibilityTasks(ctx, shardID, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
+		if err != nil {
+			return nil, convertCommonErrors(storeShard.db, "RangeCompleteVisibilityTask", err)
 		}
 	default:
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category: %v", request.TaskCategory.ID())}

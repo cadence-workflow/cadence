@@ -23,6 +23,7 @@ package persistence
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common/types"
@@ -37,6 +38,25 @@ type (
 func TestWorkflowStateCloseStatusSuite(t *testing.T) {
 	s := new(workflowStateCloseStatusSuite)
 	suite.Run(t, s)
+}
+
+func TestValidateWorkflowStateCloseStatus_WorkflowStatePreparing(t *testing.T) {
+	tests := map[string]int{
+		"None":           WorkflowCloseStatusNone,
+		"Completed":      WorkflowCloseStatusCompleted,
+		"Failed":         WorkflowCloseStatusFailed,
+		"Canceled":       WorkflowCloseStatusCanceled,
+		"Terminated":     WorkflowCloseStatusTerminated,
+		"ContinuedAsNew": WorkflowCloseStatusContinuedAsNew,
+		"TimedOut":       WorkflowCloseStatusTimedOut,
+	}
+
+	for name, closeStatus := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.NoError(t, ValidateCreateWorkflowStateCloseStatus(WorkflowStatePreparing, closeStatus))
+			assert.NoError(t, ValidateUpdateWorkflowStateCloseStatus(WorkflowStatePreparing, closeStatus))
+		})
+	}
 }
 
 func (s *workflowStateCloseStatusSuite) SetupSuite() {

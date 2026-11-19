@@ -87,7 +87,11 @@ const (
 		`memo: ?, ` +
 		`partition_config: ?, ` +
 		`active_cluster_selection_policy: ?, ` +
-		`active_cluster_selection_policy_encoding: ?` +
+		`active_cluster_selection_policy_encoding: ?, ` +
+		`import_source_workflow_id: ?, ` +
+		`import_source_run_id: ?, ` +
+		`import_timestamp: ?, ` +
+		`import_in_progress: ?` +
 		`}`
 
 	templateTransferTaskType = `{` +
@@ -307,6 +311,11 @@ const (
 	templateCreateReplicationTaskQuery = `INSERT INTO executions (` +
 		`shard_id, type, domain_id, workflow_id, run_id, replication, data, data_encoding, visibility_ts, task_id, created_time) ` +
 		`VALUES(?, ?, ?, ?, ?, ` + templateReplicationTaskType + `, ?, ?, ?, ?, ?)`
+
+	// visibility tasks are stored only in the data blob, there is no visibility UDT column
+	templateCreateVisibilityTaskQuery = `INSERT INTO executions (` +
+		`shard_id, type, domain_id, workflow_id, run_id, data, data_encoding, visibility_ts, task_id, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	templateCreateTimerTaskQuery = `INSERT INTO executions (` +
 		`shard_id, type, domain_id, workflow_id, run_id, timer, data, data_encoding, visibility_ts, task_id, created_time) ` +
@@ -697,6 +706,17 @@ const (
 		`and task_id >= ? ` +
 		`and task_id < ?`
 
+	templateGetVisibilityTasksQuery = `SELECT task_id, data, data_encoding ` +
+		`FROM executions ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id >= ? ` +
+		`and task_id < ?`
+
 	templateGetDLQSizeQuery = `SELECT count(1) as count ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
@@ -738,6 +758,10 @@ const (
 	templateCompleteReplicationTaskQuery = templateCompleteTransferTaskQuery
 
 	templateRangeCompleteReplicationTaskQuery = templateRangeCompleteTransferTaskQuery
+
+	templateCompleteVisibilityTaskQuery = templateCompleteTransferTaskQuery
+
+	templateRangeCompleteVisibilityTaskQuery = templateRangeCompleteTransferTaskQuery
 
 	templateGetTimerTasksQuery = `SELECT visibility_ts, task_id, timer, data, data_encoding ` +
 		`FROM executions ` +

@@ -1016,6 +1016,13 @@ const (
 	// Default value: 1
 	// Allowed filters: N/A
 	AcquireShardConcurrency
+	// HistoryPercentageOnboardedToShardManager is the percentage of history shards placed and routed
+	// by the shard manager
+	// KeyName: history.percentageOnboardedToShardManager
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	HistoryPercentageOnboardedToShardManager
 	// TaskProcessRPS is the task processing rate per second for each domain
 	// KeyName: history.taskProcessRPS
 	// Value type: Int
@@ -1845,6 +1852,12 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	EnableClientVersionCheck
+	// FrontendCancelOutstandingPollsOnShutdown is whether frontend cancels the polls it sent to matching on shutdown, instead of waiting for them
+	// KeyName: frontend.cancelOutstandingPollsOnShutdown
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	FrontendCancelOutstandingPollsOnShutdown
 	// SendRawWorkflowHistory is whether to enable raw history retrieving
 	// KeyName: frontend.sendRawWorkflowHistory
 	// Value type: Bool
@@ -2192,10 +2205,9 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableStickyQuery
-	// EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on
-	// frontend, the acquire decision on history, and acquires on matching. Releases and token lookups
-	// are not gated, so tokens granted before it was turned off are still freed and checked.
-	// Global domains also need HistoryTaskDLQMode enabled, or a hold still waiting at failover is never acquired.
+	// EnableDistributedSemaphore enables distributed semaphores for a domain. Releases and token
+	// lookups always work, so tokens granted before it was turned off can still be freed.
+	// Global domains also need HistoryTaskDLQMode enabled and HistoryTaskDLQProcessorEnabled true.
 	// KeyName: system.enableDistributedSemaphore
 	// Value type: Bool
 	// Default value: false
@@ -2491,8 +2503,9 @@ const (
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
 
-	// MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard
-	// manager. When disabled, each task list name is its own shard.
+	// MatchingShardTaskListsByHashForShardManager hashes task lists into a fixed set of shards in the shard
+	// manager, by name, and also by domain ID when matching.hashDomainIDForShardManager is enabled.
+	// When disabled, each task list name is its own shard.
 	// Enabling it also requires matching's namespace in the shard distributor to be a fixed namespace with
 	// shardNum set to numMatchingShards.
 	// Only change it while matching.percentageOnboardedToShardManager is 0, because hosts that disagree on it
@@ -2503,6 +2516,19 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	MatchingShardTaskListsByHashForShardManager
+
+	// MatchingHashDomainIDForShardManager adds the domain ID to the hash when
+	// matching.shardTaskListsByHashForShardManager is enabled, so task lists that share a name across domains
+	// land on different shards. When disabled, only the task list name is hashed.
+	// It can be changed while task lists are onboarded. Until every host reads the new value, hosts disagree on
+	// a task list's shard, so some requests are rejected as not owned and the new owner takes over the task
+	// list's lease, like after any shard move.
+	// Read from the primary database-backed operational dynamic config store.
+	// KeyName: matching.hashDomainIDForShardManager
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingHashDomainIDForShardManager
 
 	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
 	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
@@ -4265,6 +4291,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "AcquireShardConcurrency is number of goroutines that can be used to acquire shards in the shard controller.",
 		DefaultValue: 1,
 	},
+	HistoryPercentageOnboardedToShardManager: {
+		KeyName:      "history.percentageOnboardedToShardManager",
+		Description:  "HistoryPercentageOnboardedToShardManager is the percentage of history shards placed and routed by the shard manager",
+		DefaultValue: 0,
+	},
 	TaskProcessRPS: {
 		KeyName:      "history.taskProcessRPS",
 		Filters:      []Filter{DomainName},
@@ -4975,6 +5006,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableClientVersionCheck is enables client version check for frontend",
 		DefaultValue: false,
 	},
+	FrontendCancelOutstandingPollsOnShutdown: {
+		KeyName:      "frontend.cancelOutstandingPollsOnShutdown",
+		Description:  "FrontendCancelOutstandingPollsOnShutdown is whether frontend cancels the polls it sent to matching on shutdown, instead of waiting for them",
+		DefaultValue: false,
+	},
 	SendRawWorkflowHistory: {
 		KeyName:      "frontend.sendRawWorkflowHistory",
 		Filters:      []Filter{DomainName},
@@ -5271,7 +5307,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableDistributedSemaphore: {
 		KeyName:      "system.enableDistributedSemaphore",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableDistributedSemaphore gates distributed semaphores per domain: the CreateSemaphore API on frontend, the acquire decision on history, and acquires on matching. Releases and token lookups are not gated, so tokens granted before it was turned off are still freed and checked. Global domains also need HistoryTaskDLQMode enabled",
+		Description:  "EnableDistributedSemaphore enables distributed semaphores for a domain. Releases and token lookups always work, so tokens granted before it was turned off can still be freed. Global domains also need HistoryTaskDLQMode enabled and HistoryTaskDLQProcessorEnabled true",
 		DefaultValue: false,
 	},
 	EnableFailoverManager: {
@@ -5510,7 +5546,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	},
 	MatchingShardTaskListsByHashForShardManager: {
 		KeyName:      "matching.shardTaskListsByHashForShardManager",
-		Description:  "MatchingShardTaskListsByHashForShardManager hashes task list names into a fixed set of shards in the shard manager",
+		Description:  "MatchingShardTaskListsByHashForShardManager hashes task lists into a fixed set of shards in the shard manager",
+		DefaultValue: false,
+	},
+	MatchingHashDomainIDForShardManager: {
+		KeyName:      "matching.hashDomainIDForShardManager",
+		Description:  "MatchingHashDomainIDForShardManager adds the domain ID to the task list hash, so task lists that share a name across domains land on different shards",
 		DefaultValue: false,
 	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {

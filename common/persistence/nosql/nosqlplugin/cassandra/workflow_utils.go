@@ -444,6 +444,8 @@ func createTasksByCategory(
 			createTimerTasks(batch, shardID, domainID, workflowID, tasks, timeStamp)
 		case persistence.HistoryTaskCategoryIDReplication:
 			createReplicationTasks(batch, shardID, domainID, workflowID, tasks, timeStamp)
+		case persistence.HistoryTaskCategoryIDVisibility:
+			createVisibilityTasks(batch, shardID, tasks, timeStamp)
 		}
 	}
 
@@ -580,6 +582,31 @@ func createTransferTasks(
 			taskBlob,
 			taskEncoding,
 			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp
+			defaultVisibilityTimestamp,
+			task.TaskID,
+			timeStamp,
+		)
+	}
+}
+
+// createVisibilityTasks writes visibility tasks as blob-only rows. Domain, workflow and run IDs
+// live inside the blob, so the row's ID columns hold the visibility row type constants.
+func createVisibilityTasks(
+	batch gocql.Batch,
+	shardID int,
+	visibilityTasks []*nosqlplugin.HistoryMigrationTask,
+	timeStamp time.Time,
+) {
+	for _, task := range visibilityTasks {
+		taskBlob, taskEncoding := fromDataBlobForCassandra(task.Task)
+		batch.Query(templateCreateVisibilityTaskQuery,
+			shardID,
+			rowTypeVisibilityTask,
+			rowTypeVisibilityDomainID,
+			rowTypeVisibilityWorkflowID,
+			rowTypeVisibilityRunID,
+			taskBlob,
+			taskEncoding,
 			defaultVisibilityTimestamp,
 			task.TaskID,
 			timeStamp,
@@ -1324,6 +1351,22 @@ func convertToCassandraTimestamp(in time.Time) time.Time {
 	return time.Unix(0, persistence.DBTimestampToUnixNano(persistence.UnixNanoToDBTimestamp(in.UnixNano())))
 }
 
+// importSourceWorkflowID and importSourceRunID return nil for a run that is not imported, so that
+// the fields are written as null.
+func importSourceWorkflowID(source *types.WorkflowExecution) interface{} {
+	if source == nil {
+		return nil
+	}
+	return source.WorkflowID
+}
+
+func importSourceRunID(source *types.WorkflowExecution) interface{} {
+	if source == nil {
+		return nil
+	}
+	return source.RunID
+}
+
 func getNextPageToken(iter gocql.Iter) []byte {
 	nextPageToken := iter.PageState()
 	newPageToken := make([]byte, len(nextPageToken))
@@ -1621,6 +1664,10 @@ func updateWorkflowExecution(
 		execution.PartitionConfig,
 		execution.ActiveClusterSelectionPolicy.GetData(),
 		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
+		importSourceWorkflowID(execution.ImportSourceExecution),
+		importSourceRunID(execution.ImportSourceExecution),
+		execution.ImportTimestamp,
+		execution.ImportInProgress,
 		execution.NextEventID,
 		execution.VersionHistories.Data,
 		execution.VersionHistories.GetEncodingString(),
@@ -1724,6 +1771,10 @@ func createWorkflowExecution(
 		execution.PartitionConfig,
 		execution.ActiveClusterSelectionPolicy.GetData(),
 		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
+		importSourceWorkflowID(execution.ImportSourceExecution),
+		importSourceRunID(execution.ImportSourceExecution),
+		execution.ImportTimestamp,
+		execution.ImportInProgress,
 		execution.NextEventID,
 		defaultVisibilityTimestamp,
 		rowTypeExecutionTaskID,

@@ -322,6 +322,20 @@ func (mr *MockDBMockRecorder) DeleteVisibility(ctx, domainID, workflowID, runID 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVisibility", reflect.TypeOf((*MockDB)(nil).DeleteVisibility), ctx, domainID, workflowID, runID)
 }
 
+// DeleteVisibilityTask mocks base method.
+func (m *MockDB) DeleteVisibilityTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteVisibilityTask", ctx, shardID, keys)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteVisibilityTask indicates an expected call of DeleteVisibilityTask.
+func (mr *MockDBMockRecorder) DeleteVisibilityTask(ctx, shardID, keys any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVisibilityTask", reflect.TypeOf((*MockDB)(nil).DeleteVisibilityTask), ctx, shardID, keys)
+}
+
 // DeleteWorkflowExecution mocks base method.
 func (m *MockDB) DeleteWorkflowExecution(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
 	m.ctrl.T.Helper()
@@ -874,6 +888,20 @@ func (m *MockDB) RangeDeleteTransferTasks(ctx context.Context, shardID int, incl
 func (mr *MockDBMockRecorder) RangeDeleteTransferTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteTransferTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
+}
+
+// RangeDeleteVisibilityTasks mocks base method.
+func (m *MockDB) RangeDeleteVisibilityTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteVisibilityTasks", ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteVisibilityTasks indicates an expected call of RangeDeleteVisibilityTasks.
+func (mr *MockDBMockRecorder) RangeDeleteVisibilityTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteVisibilityTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteVisibilityTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
 // ReleaseSemaphoreToken mocks base method.
@@ -1430,6 +1458,22 @@ func (mr *MockDBMockRecorder) SelectVisibility(ctx, filter any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectVisibility", reflect.TypeOf((*MockDB)(nil).SelectVisibility), ctx, filter)
 }
 
+// SelectVisibilityTasksOrderByTaskID mocks base method.
+func (m *MockDB) SelectVisibilityTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectVisibilityTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectVisibilityTasksOrderByTaskID indicates an expected call of SelectVisibilityTasksOrderByTaskID.
+func (mr *MockDBMockRecorder) SelectVisibilityTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectVisibilityTasksOrderByTaskID", reflect.TypeOf((*MockDB)(nil).SelectVisibilityTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+}
+
 // SelectWorkflowExecution mocks base method.
 func (m *MockDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainID, workflowID, runID string) (*WorkflowExecution, error) {
 	m.ctrl.T.Helper()
@@ -1804,6 +1848,20 @@ func (m *MocktableCRUD) DeleteVisibility(ctx context.Context, domainID, workflow
 func (mr *MocktableCRUDMockRecorder) DeleteVisibility(ctx, domainID, workflowID, runID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVisibility", reflect.TypeOf((*MocktableCRUD)(nil).DeleteVisibility), ctx, domainID, workflowID, runID)
+}
+
+// DeleteVisibilityTask mocks base method.
+func (m *MocktableCRUD) DeleteVisibilityTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteVisibilityTask", ctx, shardID, keys)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteVisibilityTask indicates an expected call of DeleteVisibilityTask.
+func (mr *MocktableCRUDMockRecorder) DeleteVisibilityTask(ctx, shardID, keys any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVisibilityTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteVisibilityTask), ctx, shardID, keys)
 }
 
 // DeleteWorkflowExecution mocks base method.
@@ -2288,6 +2346,20 @@ func (m *MocktableCRUD) RangeDeleteTransferTasks(ctx context.Context, shardID in
 func (mr *MocktableCRUDMockRecorder) RangeDeleteTransferTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteTransferTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
+}
+
+// RangeDeleteVisibilityTasks mocks base method.
+func (m *MocktableCRUD) RangeDeleteVisibilityTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteVisibilityTasks", ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteVisibilityTasks indicates an expected call of RangeDeleteVisibilityTasks.
+func (mr *MocktableCRUDMockRecorder) RangeDeleteVisibilityTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteVisibilityTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteVisibilityTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
 // ReleaseSemaphoreToken mocks base method.
@@ -2842,6 +2914,22 @@ func (m *MocktableCRUD) SelectVisibility(ctx context.Context, filter *Visibility
 func (mr *MocktableCRUDMockRecorder) SelectVisibility(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectVisibility", reflect.TypeOf((*MocktableCRUD)(nil).SelectVisibility), ctx, filter)
+}
+
+// SelectVisibilityTasksOrderByTaskID mocks base method.
+func (m *MocktableCRUD) SelectVisibilityTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectVisibilityTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectVisibilityTasksOrderByTaskID indicates an expected call of SelectVisibilityTasksOrderByTaskID.
+func (mr *MocktableCRUDMockRecorder) SelectVisibilityTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectVisibilityTasksOrderByTaskID", reflect.TypeOf((*MocktableCRUD)(nil).SelectVisibilityTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
 }
 
 // SelectWorkflowExecution mocks base method.
@@ -3943,6 +4031,20 @@ func (mr *MockWorkflowCRUDMockRecorder) DeleteTransferTask(ctx, shardID, keys an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteTransferTask), ctx, shardID, keys)
 }
 
+// DeleteVisibilityTask mocks base method.
+func (m *MockWorkflowCRUD) DeleteVisibilityTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteVisibilityTask", ctx, shardID, keys)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteVisibilityTask indicates an expected call of DeleteVisibilityTask.
+func (mr *MockWorkflowCRUDMockRecorder) DeleteVisibilityTask(ctx, shardID, keys any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVisibilityTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteVisibilityTask), ctx, shardID, keys)
+}
+
 // DeleteWorkflowExecution mocks base method.
 func (m *MockWorkflowCRUD) DeleteWorkflowExecution(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
 	m.ctrl.T.Helper()
@@ -4084,6 +4186,20 @@ func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteTransferTasks(ctx, shardID, i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteTransferTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
+// RangeDeleteVisibilityTasks mocks base method.
+func (m *MockWorkflowCRUD) RangeDeleteVisibilityTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteVisibilityTasks", ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteVisibilityTasks indicates an expected call of RangeDeleteVisibilityTasks.
+func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteVisibilityTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteVisibilityTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteVisibilityTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
+}
+
 // SelectActiveClusterSelectionPolicy mocks base method.
 func (m *MockWorkflowCRUD) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*ActiveClusterSelectionPolicyRow, error) {
 	m.ctrl.T.Helper()
@@ -4223,6 +4339,22 @@ func (m *MockWorkflowCRUD) SelectTransferTasksOrderByTaskID(ctx context.Context,
 func (mr *MockWorkflowCRUDMockRecorder) SelectTransferTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectTransferTasksOrderByTaskID", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectTransferTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+}
+
+// SelectVisibilityTasksOrderByTaskID mocks base method.
+func (m *MockWorkflowCRUD) SelectVisibilityTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectVisibilityTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectVisibilityTasksOrderByTaskID indicates an expected call of SelectVisibilityTasksOrderByTaskID.
+func (mr *MockWorkflowCRUDMockRecorder) SelectVisibilityTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectVisibilityTasksOrderByTaskID", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectVisibilityTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
 }
 
 // SelectWorkflowExecution mocks base method.

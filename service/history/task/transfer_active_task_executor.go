@@ -1364,12 +1364,18 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 		return err
 	}
 
+	// A zero deadline means the hold has none, so it is sent as nil.
+	var acquireDeadline *time.Time
+	if !semaphoreInfo.AcquireDeadline.IsZero() {
+		acquireDeadline = common.TimePtr(semaphoreInfo.AcquireDeadline)
+	}
 	// Keep the workflow lock through the call so nothing changes the hold before the grant is recorded.
 	tokenID, err := t.acquireSemaphoreToken(ctx, &types.AcquireSemaphoreRequest{
-		DomainUUID:    task.DomainID,
-		SemaphoreName: semaphoreInfo.SemaphoreName,
-		Bucket:        int32(bucket),
-		OwnerID:       semaphoreInfo.OwnerID,
+		DomainUUID:      task.DomainID,
+		SemaphoreName:   semaphoreInfo.SemaphoreName,
+		Bucket:          int32(bucket),
+		OwnerID:         semaphoreInfo.OwnerID,
+		AcquireDeadline: acquireDeadline,
 	})
 	if err != nil {
 		return err

@@ -267,3 +267,19 @@ func TestSemaphoreManagerGetNameAndClose(t *testing.T) {
 	assert.Equal(t, "cassandra", m.GetName())
 	m.Close()
 }
+
+func TestSemaphoreBucketSizeOrDefault(t *testing.T) {
+	tests := []struct {
+		name       string
+		bucketSize int
+		want       int
+	}{
+		{name: "zero returns the default", bucketSize: 0, want: DefaultSemaphoreBucketSize},
+		{name: "a set value is returned as is", bucketSize: 50, want: 50},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, SemaphoreBucketSizeOrDefault(tt.bucketSize))
+		})
+	}
+}

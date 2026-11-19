@@ -26,6 +26,7 @@ import (
 
 	"go.uber.org/yarpc"
 
+	"github.com/uber/cadence/common"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/future"
 	"github.com/uber/cadence/common/persistence"
@@ -39,20 +40,24 @@ type clientImpl struct {
 	peerResolver PeerResolver
 	loadBalancer LoadBalancer
 	provider     PartitionConfigProvider
+	pollTracker  PollTracker
 }
 
-// NewClient creates a new history service TChannel client
+// NewClient creates a new history service TChannel client.
+// pollTracker is told about every poll in flight.
 func NewClient(
 	client Client,
 	peerResolver PeerResolver,
 	lb LoadBalancer,
 	provider PartitionConfigProvider,
+	pollTracker PollTracker,
 ) Client {
 	return &clientImpl{
 		client:       client,
 		peerResolver: peerResolver,
 		loadBalancer: lb,
 		provider:     provider,
+		pollTracker:  pollTracker,
 	}
 }
 
@@ -70,7 +75,7 @@ func (c *clientImpl) AddActivityTask(
 		Name: partition,
 		Kind: originalTaskList.Kind,
 	}
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(request.GetDomainUUID(), request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +112,7 @@ func (c *clientImpl) AddDecisionTask(
 		Name: partition,
 		Kind: originalTaskList.Kind,
 	}
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(request.GetDomainUUID(), request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -140,12 +145,19 @@ func (c *clientImpl) PollForActivityTask(
 		request,
 		request.GetIsolationGroup(),
 	)
+	done := c.pollTracker.PollStarted(&types.CancelOutstandingPollRequest{
+		DomainUUID:   request.GetDomainUUID(),
+		TaskListType: common.Int32Ptr(persistence.TaskListTypeActivity),
+		TaskList:     &types.TaskList{Name: partition, Kind: request.PollRequest.TaskList.Kind},
+		PollerID:     request.GetPollerID(),
+	})
+	defer done()
 	originalTaskList := request.PollRequest.TaskList
 	request.PollRequest.TaskList = &types.TaskList{
 		Name: partition,
 		Kind: originalTaskList.Kind,
 	}
-	peer, err := c.peerResolver.FromTaskList(request.PollRequest.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(request.GetDomainUUID(), request.PollRequest.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -182,12 +194,19 @@ func (c *clientImpl) PollForDecisionTask(
 		request,
 		request.GetIsolationGroup(),
 	)
+	done := c.pollTracker.PollStarted(&types.CancelOutstandingPollRequest{
+		DomainUUID:   request.GetDomainUUID(),
+		TaskListType: common.Int32Ptr(persistence.TaskListTypeDecision),
+		TaskList:     &types.TaskList{Name: partition, Kind: request.PollRequest.TaskList.Kind},
+		PollerID:     request.GetPollerID(),
+	})
+	defer done()
 	originalTaskList := request.PollRequest.TaskList
 	request.PollRequest.TaskList = &types.TaskList{
 		Name: partition,
 		Kind: originalTaskList.Kind,
 	}
-	peer, err := c.peerResolver.FromTaskList(request.PollRequest.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(request.GetDomainUUID(), request.PollRequest.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +247,7 @@ func (c *clientImpl) QueryWorkflow(
 		Name: partition,
 		Kind: originalTaskList.Kind,
 	}
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(request.GetDomainUUID(), request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +270,7 @@ func (c *clientImpl) RespondQueryTaskCompleted(
 	request *types.MatchingRespondQueryTaskCompletedRequest,
 	opts ...yarpc.CallOption,
 ) error {
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(request.GetDomainUUID(), request.TaskList.GetName())
 	if err != nil {
 		return err
 	}
@@ -267,7 +286,7 @@ func (c *clientImpl) CancelOutstandingPoll(
 	request *types.CancelOutstandingPollRequest,
 	opts ...yarpc.CallOption,
 ) error {
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(request.GetDomainUUID(), request.TaskList.GetName())
 	if err != nil {
 		return err
 	}
@@ -283,7 +302,7 @@ func (c *clientImpl) DescribeTaskList(
 	request *types.MatchingDescribeTaskListRequest,
 	opts ...yarpc.CallOption,
 ) (*types.DescribeTaskListResponse, error) {
-	peer, err := c.peerResolver.FromTaskList(request.DescRequest.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(request.GetDomainUUID(), request.DescRequest.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +318,10 @@ func (c *clientImpl) ListTaskListPartitions(
 	request *types.MatchingListTaskListPartitionsRequest,
 	opts ...yarpc.CallOption,
 ) (*types.ListTaskListPartitionsResponse, error) {
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	// The request has no domain ID, only the domain name, so route without one. The receiving host
+	// doesn't need to own the task list: it resolves the domain ID from its domain cache and looks
+	// up each partition's owner through the router, so any matching host returns the same answer.
+	peer, err := c.peerResolver.FromTaskList("", request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +431,7 @@ func (c *clientImpl) UpdateTaskListPartitionConfig(
 	request *types.MatchingUpdateTaskListPartitionConfigRequest,
 	opts ...yarpc.CallOption,
 ) (*types.MatchingUpdateTaskListPartitionConfigResponse, error) {
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(request.DomainUUID, request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -425,7 +447,7 @@ func (c *clientImpl) RefreshTaskListPartitionConfig(
 	request *types.MatchingRefreshTaskListPartitionConfigRequest,
 	opts ...yarpc.CallOption,
 ) (*types.MatchingRefreshTaskListPartitionConfigResponse, error) {
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.peerResolver.FromTaskList(request.DomainUUID, request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}

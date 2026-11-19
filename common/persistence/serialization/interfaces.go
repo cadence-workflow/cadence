@@ -179,6 +179,9 @@ type (
 		ChecksumEncoding                     string
 		ActiveClusterSelectionPolicy         []byte
 		ActiveClusterSelectionPolicyEncoding string
+		ImportSourceExecution                *types.WorkflowExecution
+		ImportTimestamp                      time.Time
+		ImportInProgress                     bool
 	}
 
 	// ActivityInfo blob in a serialization agnostic format
