@@ -3514,6 +3514,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateActivities() {
 		LastFailureDetails:       []byte(uuid.New()),
 		LastFailureCategory:      types.FailureCategoryFatal,
 		LastRetryIntervalSeconds: 10,
+		ThreadID:                 2,
 	}}
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
@@ -3659,6 +3660,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateChildExecutions() {
 		CreateRequestID:   uuid.New(),
 		DomainID:          uuid.New(),
 		ParentClosePolicy: types.ParentClosePolicyTerminate,
+		ThreadID:          3,
 	}}
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
@@ -3845,6 +3847,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateSemaphoreInfo() {
 		// A waiting acquire holds no token yet.
 		TokenID:         0,
 		AcquireDeadline: time.Unix(1700000000, 0).UTC(),
+		ThreadID:        1,
 	}
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{

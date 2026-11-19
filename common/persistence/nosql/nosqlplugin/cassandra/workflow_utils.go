@@ -745,6 +745,7 @@ func resetSemaphoreInfoMap(semaphoreInfos map[int64]*persistence.SemaphoreInfo) 
 		sInfo["owner_id"] = s.OwnerID
 		sInfo["token_id"] = s.TokenID
 		sInfo["acquire_deadline"] = s.AcquireDeadline
+		sInfo["thread_id"] = s.ThreadID
 		sMap[s.InitiatedID] = sInfo
 	}
 
@@ -770,6 +771,7 @@ func updateSemaphoreInfos(
 			c.OwnerID,
 			c.TokenID,
 			c.AcquireDeadline,
+			c.ThreadID,
 			timeStamp,
 			shardID,
 			rowTypeExecution,
@@ -966,6 +968,7 @@ func resetChildExecutionInfoMap(childExecutionInfos map[int64]*persistence.Inter
 		cInfo["domain_name"] = c.DomainNameDEPRECATED
 		cInfo["workflow_type_name"] = c.WorkflowTypeName
 		cInfo["parent_close_policy"] = int32(c.ParentClosePolicy)
+		cInfo["thread_id"] = c.ThreadID
 
 		cMap[c.InitiatedID] = cInfo
 	}
@@ -1000,6 +1003,7 @@ func updateChildExecutionInfos(
 			c.DomainNameDEPRECATED,
 			c.WorkflowTypeName,
 			int32(c.ParentClosePolicy),
+			c.ThreadID,
 			timeStamp,
 			shardID,
 			rowTypeExecution,
@@ -1239,6 +1243,7 @@ func resetActivityInfoMap(activityInfos map[int64]*persistence.InternalActivityI
 		aInfo["last_failure_details"] = a.LastFailureDetails
 		aInfo["last_failure_category"] = int32(a.LastFailureCategory)
 		aInfo["last_retry_interval_seconds"] = a.LastRetryIntervalSeconds
+		aInfo["thread_id"] = a.ThreadID
 
 		aMap[a.ScheduleID] = aInfo
 	}
@@ -1301,6 +1306,7 @@ func updateActivityInfos(
 			a.LastFailureDetails,
 			int32(a.LastFailureCategory),
 			a.LastRetryIntervalSeconds,
+			a.ThreadID,
 			a.ScheduledEvent.GetEncodingString(),
 			timeStamp,
 			shardID,

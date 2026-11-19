@@ -204,6 +204,7 @@ func CopyActivityInfo(t *testing.T, sourceInfo *persistence.ActivityInfo) *persi
 		LastFailureDetails:       sourceInfo.LastFailureDetails,
 		LastFailureCategory:      sourceInfo.LastFailureCategory,
 		LastRetryIntervalSeconds: sourceInfo.LastRetryIntervalSeconds,
+		ThreadID:                 sourceInfo.ThreadID,
 		// Not written to database - This is used only for deduping heartbeat timer creation
 		LastHeartbeatTimeoutVisibilityInSeconds: sourceInfo.LastHeartbeatTimeoutVisibilityInSeconds,
 	}
@@ -252,6 +253,7 @@ func CopySemaphoreInfo(t *testing.T, sourceInfo *persistence.SemaphoreInfo) *per
 		OwnerID:         sourceInfo.OwnerID,
 		TokenID:         sourceInfo.TokenID,
 		AcquireDeadline: sourceInfo.AcquireDeadline,
+		ThreadID:        sourceInfo.ThreadID,
 	}
 }
 
@@ -269,6 +271,7 @@ func CopyChildInfo(t *testing.T, sourceInfo *persistence.ChildExecutionInfo) *pe
 		DomainNameDEPRECATED:  sourceInfo.DomainNameDEPRECATED,
 		WorkflowTypeName:      sourceInfo.WorkflowTypeName,
 		ParentClosePolicy:     sourceInfo.ParentClosePolicy,
+		ThreadID:              sourceInfo.ThreadID,
 		InitiatedEvent:        deepCopyHistoryEvent(t, sourceInfo.InitiatedEvent),
 		StartedEvent:          deepCopyHistoryEvent(t, sourceInfo.StartedEvent),
 	}

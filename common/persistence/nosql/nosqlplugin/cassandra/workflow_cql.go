@@ -185,6 +185,7 @@ const (
 		`last_failure_details: ?, ` +
 		`last_failure_category: ?, ` +
 		`last_retry_interval_seconds: ?, ` +
+		`thread_id: ?, ` +
 		`event_data_encoding: ?` +
 		`}`
 
@@ -210,7 +211,8 @@ const (
 		`domain_id: ?, ` +
 		`domain_name: ?, ` +
 		`workflow_type_name: ?, ` +
-		`parent_close_policy: ?` +
+		`parent_close_policy: ?, ` +
+		`thread_id: ?` +
 		`}`
 
 	templateRequestCancelInfoType = `{` +
@@ -236,7 +238,8 @@ const (
 		`semaphore_name: ?, ` +
 		`owner_id: ?, ` +
 		`token_id: ?, ` +
-		`acquire_deadline: ?` +
+		`acquire_deadline: ?, ` +
+		`thread_id: ?` +
 		`}`
 
 	templateChecksumType = `{` +

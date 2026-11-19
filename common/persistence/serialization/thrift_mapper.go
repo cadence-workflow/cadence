@@ -416,6 +416,7 @@ func activityInfoToThrift(info *ActivityInfo) *sqlblobs.ActivityInfo {
 			FailureCategory:          thrift.FromFailureCategory(info.RetryLastFailureCategory.Ptr()),
 			NextRetryIntervalSeconds: &info.RetryLastRetryIntervalSeconds,
 		},
+		ThreadID: &info.ThreadID,
 	}
 }
 
@@ -459,6 +460,7 @@ func activityInfoFromThrift(info *sqlblobs.ActivityInfo) *ActivityInfo {
 		RetryLastFailureDetails:       info.RetryLastFailureDetails,
 		RetryLastFailureCategory:      failureCategoryFromSqlblob(info.RetryLastFailureOptions),
 		RetryLastRetryIntervalSeconds: info.RetryLastFailureOptions.GetNextRetryIntervalSeconds(),
+		ThreadID:                      info.GetThreadID(),
 	}
 }
 
@@ -491,6 +493,7 @@ func childExecutionInfoToThrift(info *ChildExecutionInfo) *sqlblobs.ChildExecuti
 		DomainName:             &info.DomainNameDEPRECATED,
 		WorkflowTypeName:       &info.WorkflowTypeName,
 		ParentClosePolicy:      &info.ParentClosePolicy,
+		ThreadID:               &info.ThreadID,
 	}
 }
 
@@ -513,6 +516,7 @@ func childExecutionInfoFromThrift(info *sqlblobs.ChildExecutionInfo) *ChildExecu
 		DomainNameDEPRECATED:   info.GetDomainName(),
 		WorkflowTypeName:       info.GetWorkflowTypeName(),
 		ParentClosePolicy:      info.GetParentClosePolicy(),
+		ThreadID:               info.GetThreadID(),
 	}
 }
 

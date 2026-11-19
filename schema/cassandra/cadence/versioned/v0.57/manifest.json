@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.57",
+  "MinCompatibleVersion": "0.57",
+  "Description": "Adding thread_id to activity_info, child_execution_info and semaphore_info",
+  "SchemaUpdateCqlFiles": [
+    "thread_id.cql"
+  ]
+}
