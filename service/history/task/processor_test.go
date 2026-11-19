@@ -138,6 +138,7 @@ func (s *queueTaskProcessorSuite) newTestQueueTaskProcessor() *processorImpl {
 	processor, err := NewProcessor(
 		s.mockPriorityAssigner,
 		config,
+		config.TaskSchedulerWorkerCount,
 		s.logger,
 		s.metricsClient,
 		s.timeSource,

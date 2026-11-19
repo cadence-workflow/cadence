@@ -189,6 +189,17 @@ type Config struct {
 	TransferProcessorCacheMaxSize                          dynamicproperties.IntPropertyFn
 	TransferProcessorCachedQueueReaderShadowSampleInterval dynamicproperties.DurationPropertyFn
 
+	// VisibilityQueueProcessor settings
+	EnableVisibilityQueue                                 dynamicproperties.BoolPropertyFnWithShardIDFilter
+	VisibilityTaskBatchSize                               dynamicproperties.IntPropertyFn
+	VisibilityTaskDeleteBatchSize                         dynamicproperties.IntPropertyFn
+	VisibilityProcessorMaxPollRPS                         dynamicproperties.IntPropertyFn
+	VisibilityProcessorMaxPollInterval                    dynamicproperties.DurationPropertyFn
+	VisibilityProcessorMaxPollIntervalJitterCoefficient   dynamicproperties.FloatPropertyFn
+	VisibilityProcessorUpdateAckInterval                  dynamicproperties.DurationPropertyFn
+	VisibilityProcessorUpdateAckIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
+	VisibilityTaskSchedulerWorkerCount                    dynamicproperties.IntPropertyFn
+
 	// ReplicatorQueueProcessor settings
 	ReplicatorTaskDeleteBatchSize            dynamicproperties.IntPropertyFn
 	ReplicatorReadTaskMaxRetryCount          dynamicproperties.IntPropertyFn
@@ -532,6 +543,16 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TransferProcessorCachedQueueReaderMode:                 dc.GetStringPropertyFilteredByShardID(dynamicproperties.TransferProcessorCachedQueueReaderMode),
 		TransferProcessorCacheMaxSize:                          dc.GetIntProperty(dynamicproperties.TransferProcessorCacheMaxSize),
 		TransferProcessorCachedQueueReaderShadowSampleInterval: dc.GetDurationProperty(dynamicproperties.TransferProcessorCachedQueueReaderShadowSampleInterval),
+
+		EnableVisibilityQueue:                                 dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableVisibilityQueue),
+		VisibilityTaskBatchSize:                               dc.GetIntProperty(dynamicproperties.VisibilityTaskBatchSize),
+		VisibilityTaskDeleteBatchSize:                         dc.GetIntProperty(dynamicproperties.VisibilityTaskDeleteBatchSize),
+		VisibilityProcessorMaxPollRPS:                         dc.GetIntProperty(dynamicproperties.VisibilityProcessorMaxPollRPS),
+		VisibilityProcessorMaxPollInterval:                    dc.GetDurationProperty(dynamicproperties.VisibilityProcessorMaxPollInterval),
+		VisibilityProcessorMaxPollIntervalJitterCoefficient:   dc.GetFloat64Property(dynamicproperties.VisibilityProcessorMaxPollIntervalJitterCoefficient),
+		VisibilityProcessorUpdateAckInterval:                  dc.GetDurationProperty(dynamicproperties.VisibilityProcessorUpdateAckInterval),
+		VisibilityProcessorUpdateAckIntervalJitterCoefficient: dc.GetFloat64Property(dynamicproperties.VisibilityProcessorUpdateAckIntervalJitterCoefficient),
+		VisibilityTaskSchedulerWorkerCount:                    dc.GetIntProperty(dynamicproperties.VisibilityTaskSchedulerWorkerCount),
 
 		ReplicatorTaskDeleteBatchSize:            dc.GetIntProperty(dynamicproperties.ReplicatorTaskDeleteBatchSize),
 		ReplicatorReadTaskMaxRetryCount:          dc.GetIntProperty(dynamicproperties.ReplicatorReadTaskMaxRetryCount),
