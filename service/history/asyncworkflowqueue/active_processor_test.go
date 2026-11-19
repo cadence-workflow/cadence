@@ -12,7 +12,6 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/isolationgroup"
-	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/engine"
@@ -204,7 +203,7 @@ func TestActiveProcessor_Process(t *testing.T) {
 			tc.expect(t, eng)
 			timeSource := clock.NewMockedTimeSourceAt(now)
 
-			p := NewActiveProcessor(func() engine.Engine { return eng }, timeSource, testScope(), testlogger.New(t))
+			p := NewActiveProcessor(func() engine.Engine { return eng }, timeSource, testScope())
 			err := p.Process(context.Background(), tc.req())
 
 			if tc.wantErr != nil {

@@ -7,7 +7,6 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client"
-	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
@@ -15,16 +14,14 @@ import (
 type forwardProcessor struct {
 	clientBean client.Bean
 	scope      metrics.Scope
-	logger     log.Logger
 }
 
 // NewForwardProcessor returns a Processor that forwards requests to the frontend of req.ActiveCluster,
 // replaying the yarpc headers captured at accept time.
-func NewForwardProcessor(clientBean client.Bean, scope metrics.Scope, logger log.Logger) Processor {
+func NewForwardProcessor(clientBean client.Bean, scope metrics.Scope) Processor {
 	return &forwardProcessor{
 		clientBean: clientBean,
 		scope:      scope,
-		logger:     logger,
 	}
 }
 

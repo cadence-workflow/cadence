@@ -11,7 +11,6 @@ import (
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/frontend"
-	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -164,7 +163,7 @@ func TestForwardProcessor_Process(t *testing.T) {
 				}
 			}
 
-			p := NewForwardProcessor(bean, testScope(), testlogger.New(t))
+			p := NewForwardProcessor(bean, testScope())
 			err := p.Process(context.Background(), tc.req)
 
 			switch {

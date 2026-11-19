@@ -13,7 +13,10 @@ import (
 
 // Decoder converts a queue row into a typed request.
 type Decoder interface {
-	Decode(msg *persistence.AsyncWorkflowMessage) (*Request, error) // ErrCorruptMessage (wrapped) for bad row/envelope encoding, type mismatch, bad bytes, nil inner; raw error from domainIDFn
+	// Decode returns a wrapped ErrCorruptMessage for a bad row or envelope encoding, a type
+	// mismatch, bad bytes or a nil inner request. An error from the domain lookup is returned
+	// unwrapped, so callers can tell a row that can never be decoded from a lookup failure.
+	Decode(msg *persistence.AsyncWorkflowMessage) (*Request, error)
 }
 
 type decoder struct {
@@ -89,6 +92,9 @@ func (d *decoder) Decode(msg *persistence.AsyncWorkflowMessage) (*Request, error
 		req.Headers = headers
 	}
 
+	// The lookup error is returned as is, not as ErrCorruptMessage. A missing domain
+	// (EntityNotExistsError) is not transient, so the task dead-letters the row on the first
+	// attempt, and the row itself is intact, so it stays out of the decode-failures metric.
 	domainID, err := d.domainIDFn(domainName)
 	if err != nil {
 		return nil, err

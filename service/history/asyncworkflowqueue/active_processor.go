@@ -7,7 +7,6 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/isolationgroup"
-	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/engine"
@@ -17,17 +16,19 @@ type activeProcessor struct {
 	engineFn   func() engine.Engine
 	timeSource clock.TimeSource
 	scope      metrics.Scope
-	logger     log.Logger
 }
 
 // NewActiveProcessor returns a Processor that starts workflows in the shard engine.
 // engineFn is called on every Process; its result is never cached.
-func NewActiveProcessor(engineFn func() engine.Engine, timeSource clock.TimeSource, scope metrics.Scope, logger log.Logger) Processor {
+//
+// The start is an in-process engine call, so the frontend user rate limiter and the history
+// handler's rate limiters do not run. The frontend's async rate limit, applied when the request
+// was accepted, is the throttle for these requests.
+func NewActiveProcessor(engineFn func() engine.Engine, timeSource clock.TimeSource, scope metrics.Scope) Processor {
 	return &activeProcessor{
 		engineFn:   engineFn,
 		timeSource: timeSource,
 		scope:      scope,
-		logger:     logger,
 	}
 }
 
