@@ -135,18 +135,40 @@ function readTemplateHeadings(fileName) {
   }
 }
 
+const SKIP_LABELS = ["epic", "roadmap", "release"];
+const PRIVILEGED_AUTHORS = ["OWNER", "MEMBER", "COLLABORATOR"];
+
 function evaluateIssue({ title, body, labels, authorAssociation, templates }) {
   const labelNames = (labels || [])
     .map((label) => (typeof label === "string" ? label : label.name))
     .filter(Boolean)
     .map((label) => label.toLowerCase());
 
+  const hasManualTriageLabel = labelNames.some(
+    (l) => l.startsWith("triage/") && l !== LABELS.NEEDS_INFO,
+  );
+  const hasSkipLabel = SKIP_LABELS.some((s) => labelNames.includes(s));
+  const isPrivilegedAuthor = PRIVILEGED_AUTHORS.includes(authorAssociation);
+
   let hasTypeLabel = LABELS.TYPE.some((l) => labelNames.includes(l));
   let isBug = labelNames.includes(LABELS.BUG);
   let isEnhancement = LABELS.ENHANCEMENT.some((l) => labelNames.includes(l));
 
+  const template = detectTemplate(body);
+
   let typeToApply = null;
-  if (!hasTypeLabel) {
+  if (!hasTypeLabel && template) {
+    if (template === "bug_report") typeToApply = LABELS.BUG;
+    else if (template === "feature_request") typeToApply = "kind/feature";
+
+    if (typeToApply) {
+      hasTypeLabel = true;
+      isBug = typeToApply === LABELS.BUG;
+      isEnhancement = !isBug;
+    }
+  }
+
+  if (!hasTypeLabel && !template) {
     const detected = detectIssueType(body);
     if (detected) {
       typeToApply = detected;
@@ -154,6 +176,17 @@ function evaluateIssue({ title, body, labels, authorAssociation, templates }) {
       isBug = detected === LABELS.BUG;
       isEnhancement = !isBug;
     }
+  }
+
+  if (!template || hasManualTriageLabel || hasSkipLabel || isPrivilegedAuthor) {
+    return {
+      typeToApply,
+      addNeedsInfo: false,
+      removeNeedsInfo: false,
+      missingSections: [],
+      comment: null,
+      deleteComment: !template && !hasManualTriageLabel,
+    };
   }
 
   const bugRequired =
@@ -177,33 +210,23 @@ function evaluateIssue({ title, body, labels, authorAssociation, templates }) {
     return !hasMeaningfulContent(content);
   });
 
-  const missingLabel = !hasTypeLabel;
-  const needsInfo = missingLabel || missingSections.length > 0;
+  const needsInfo = missingSections.length > 0;
 
   let comment = null;
   if (needsInfo) {
     const parts = [
       "<!-- issue-template-check -->",
       "Thanks for opening this issue. To help us triage it, please provide the missing details:",
+      "Missing required sections:",
     ];
-
-    if (missingLabel) {
-      parts.push(`- Add one label from: ${LABELS.TYPE.join(", ")}`);
+    for (const section of missingSections) {
+      parts.push(`- ${section}`);
     }
-
-    if (missingSections.length > 0) {
-      parts.push("Missing required sections:");
-      for (const section of missingSections) {
-        parts.push(`- ${section}`);
-      }
-    }
-
     parts.push("Issue templates:");
     parts.push("- Bug report: **bug_report.md**");
     parts.push(
       "- Feature request (use for features, improvements, or cleanup): **feature_request.md**",
     );
-
     comment = parts.join("\n");
   }
 
