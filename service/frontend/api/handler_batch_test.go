@@ -160,6 +160,15 @@ func TestStartBatchOperation(t *testing.T) {
 						require.NoError(t, json.Unmarshal(req.StartRequest.Memo.Fields["Reason"], &reason))
 						assert.Equal(t, "my-reason", reason)
 
+						var memoQuery string
+						require.NoError(t, json.Unmarshal(req.StartRequest.Memo.Fields["Query"], &memoQuery))
+						assert.Equal(t, "WorkflowType = 'my-workflow-type'", memoQuery)
+
+						var memoOperation types.BatchOperation
+						require.NoError(t, json.Unmarshal(req.StartRequest.Memo.Fields["Operation"], &memoOperation))
+						assert.Equal(t, types.BatchOperationTypeSignal, memoOperation.GetOperationType())
+						assert.Equal(t, "my-signal", memoOperation.GetSignalBatchOperation().GetSignalName())
+
 						var customDomain string
 						require.NoError(t, json.Unmarshal(req.StartRequest.SearchAttributes.IndexedFields["CustomDomain"], &customDomain))
 						assert.Equal(t, testDomain, customDomain)
@@ -206,6 +215,13 @@ func TestDescribeBatchOperation(t *testing.T) {
 		BatchID: "my-batch-id",
 	}
 	reasonBytes, err := json.Marshal("my-reason")
+	require.NoError(t, err)
+	queryBytes, err := json.Marshal("WorkflowType = 'my-workflow-type'")
+	require.NoError(t, err)
+	operationBytes, err := json.Marshal(&types.BatchOperation{
+		OperationType:        types.BatchOperationTypeCancel.Ptr(),
+		CancelBatchOperation: &types.CancelBatchOperation{},
+	})
 	require.NoError(t, err)
 	operatorBytes, err := json.Marshal("my-operator")
 	require.NoError(t, err)
@@ -261,7 +277,11 @@ func TestDescribeBatchOperation(t *testing.T) {
 						assert.Equal(t, "cadence-sys-batch-operation:test-domain:my-batch-id", req.Request.Execution.WorkflowID)
 						return &types.DescribeWorkflowExecutionResponse{
 							WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
-								Memo:             &types.Memo{Fields: map[string][]byte{"Reason": reasonBytes}},
+								Memo: &types.Memo{Fields: map[string][]byte{
+									"Reason":    reasonBytes,
+									"Query":     queryBytes,
+									"Operation": operationBytes,
+								}},
 								SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{"Operator": operatorBytes}},
 							},
 							PendingActivities: []*types.PendingActivityInfo{{HeartbeatDetails: hbd}},
@@ -272,6 +292,9 @@ func TestDescribeBatchOperation(t *testing.T) {
 			validate: func(t *testing.T, resp *types.DescribeBatchOperationResponse) {
 				assert.Equal(t, types.BatchOperationStateRunning, resp.State)
 				assert.Equal(t, "my-reason", resp.Reason)
+				assert.Equal(t, "WorkflowType = 'my-workflow-type'", resp.Query)
+				require.NotNil(t, resp.Operation)
+				assert.Equal(t, types.BatchOperationTypeCancel, resp.Operation.GetOperationType())
 				assert.Equal(t, "my-operator", resp.StartedBy)
 				require.NotNil(t, resp.Progress)
 				assert.Equal(t, int64(10), resp.Progress.TotalEstimate)

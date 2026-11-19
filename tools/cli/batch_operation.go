@@ -76,6 +76,17 @@ func newBatchOperationCommands() []*cli.Command {
 			},
 			Action: ListBatchOperations,
 		},
+		{
+			Name:  "describe",
+			Usage: "Describe the status and progress of a single batch operation",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  FlagBatchID,
+					Usage: "Required: ID of the batch operation to describe",
+				},
+			},
+			Action: DescribeBatchOperation,
+		},
 	}
 }
 

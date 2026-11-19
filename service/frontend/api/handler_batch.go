@@ -39,13 +39,27 @@ func batchOperationRetryPolicy() *types.RetryPolicy {
 	}
 }
 
-// batchOperationMemo matches tools/cli's getWorkflowMemo encoding.
-func batchOperationMemo(reason string) (*types.Memo, error) {
+// batchOperationMemo encodes Reason the same way tools/cli's getWorkflowMemo
+// does, plus Query and Operation so DescribeBatchOperation can report them
+// back; the workflow's own start input isn't readable from DescribeWorkflowExecution.
+func batchOperationMemo(reason, query string, operation *types.BatchOperation) (*types.Memo, error) {
 	reasonBytes, err := json.Marshal(reason)
 	if err != nil {
 		return nil, err
 	}
-	return &types.Memo{Fields: map[string][]byte{"Reason": reasonBytes}}, nil
+	queryBytes, err := json.Marshal(query)
+	if err != nil {
+		return nil, err
+	}
+	operationBytes, err := json.Marshal(operation)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Memo{Fields: map[string][]byte{
+		"Reason":    reasonBytes,
+		"Query":     queryBytes,
+		"Operation": operationBytes,
+	}}, nil
 }
 
 // batchOperationSearchAttributes sets CustomDomain/Operator, matching the
@@ -135,7 +149,7 @@ func (wh *WorkflowHandler) StartBatchOperation(
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to serialize batch workflow input: %v", err)}
 	}
 
-	memo, err := batchOperationMemo(request.GetReason())
+	memo, err := batchOperationMemo(request.GetReason(), request.GetQuery(), request.GetOperation())
 	if err != nil {
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to encode batch job memo: %v", err)}
 	}
@@ -270,9 +284,17 @@ func (wh *WorkflowHandler) DescribeBatchOperation(
 
 	info := resp.GetWorkflowExecutionInfo()
 
-	var reason string
+	var reason, query string
+	var operation *types.BatchOperation
 	if info.Memo != nil {
 		_ = json.Unmarshal(info.Memo.Fields["Reason"], &reason)
+		_ = json.Unmarshal(info.Memo.Fields["Query"], &query)
+		if raw, ok := info.Memo.Fields["Operation"]; ok {
+			var decoded types.BatchOperation
+			if json.Unmarshal(raw, &decoded) == nil {
+				operation = &decoded
+			}
+		}
 	}
 	var startedBy string
 	if info.SearchAttributes != nil {
@@ -282,6 +304,8 @@ func (wh *WorkflowHandler) DescribeBatchOperation(
 	hbd := heartBeatDetailsFromPendingActivities(resp.PendingActivities)
 
 	return &types.DescribeBatchOperationResponse{
+		Operation: operation,
+		Query:     query,
 		Reason:    reason,
 		State:     batchOperationStateFromCloseStatus(info.CloseStatus),
 		Progress:  batchOperationProgressFromHeartBeatDetails(hbd),
