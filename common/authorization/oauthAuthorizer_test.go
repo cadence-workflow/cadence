@@ -154,7 +154,7 @@ func (s *oauthSuite) TestEmptyToken() {
 	s.NoError(err)
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authenticated", gomock.Cond(func(t []tag.Tag) bool {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is not set in header"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
@@ -188,7 +188,7 @@ func (s *oauthSuite) TestMaxTTLLargerInToken() {
 	s.cfg.MaxJwtTTL = 1
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authenticated", gomock.Cond(func(t []tag.Tag) bool {
 		return strings.HasPrefix(fmt.Sprintf("%v", t[0].Field().Interface), "token TTL:")
 	}))
 	result, _ := authorizer.Authorize(s.ctx, &s.att)
@@ -204,7 +204,7 @@ func (s *oauthSuite) TestIncorrectToken() {
 	s.NoError(err)
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authenticated", gomock.Cond(func(t []tag.Tag) bool {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is malformed: token contains an invalid number of segments"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
@@ -222,7 +222,7 @@ func (s *oauthSuite) TestIatExpiredToken() {
 	s.NoError(err)
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authenticated", gomock.Cond(func(t []tag.Tag) bool {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is expired"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
@@ -301,10 +301,10 @@ func Test_oauthAuthority_validateTTL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			validator := &oauthAuthority{
+			authority := &oauthAuthority{
 				config: config.OAuthAuthorizer{MaxJwtTTL: tt.ttlConfig},
 			}
-			tt.wantErr(t, validator.validateTTL(tt.claims), fmt.Sprintf("validateTTL(%v)", tt.claims))
+			tt.wantErr(t, authority.validateTTL(tt.claims), fmt.Sprintf("validateTTL(%v)", tt.claims))
 		})
 	}
 }
@@ -457,11 +457,11 @@ func Test_oauthAuthority_parseExternal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := &oauthAuthority{
+			v := &oauthAuthority{
 				config: tt.config,
 			}
 			actualClaim := &JWTClaims{}
-			err := a.parseExternal(tt.mapToken, actualClaim)
+			err := v.parseExternal(tt.mapToken, actualClaim)
 			tt.wantErr(t, err)
 			assert.Equal(t, tt.wantGroups, actualClaim.Groups)
 			assert.Equal(t, tt.wantAdmin, actualClaim.Admin)
