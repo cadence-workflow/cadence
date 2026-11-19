@@ -178,7 +178,7 @@ func TestTask(t *testing.T) {
 			wantState:           ctask.TaskStateAcked,
 		},
 		{
-			name:          "non-transient non-corrupt decode error writes DLQ without calling Process",
+			name:          "domain not found at decode writes DLQ on the first attempt without calling Process",
 			action:        actionRun,
 			decodeResults: []error{notFoundErr},
 			expectProcess: false,
