@@ -315,7 +315,7 @@ func TestStartBatchOperationCLI(t *testing.T) {
 	}
 }
 
-func TestListBatchOperationsCLI(t *testing.T) {
+func TestListBatchOperations(t *testing.T) {
 	tests := map[string]struct {
 		flags    map[string]string
 		mockFn   func(*frontend.MockClient, **types.ListBatchOperationsRequest)
@@ -421,7 +421,7 @@ func TestListBatchOperationsCLI(t *testing.T) {
 
 			app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockFrontendClient})
 			c := newBatchOperationCLIContext(app, tt.flags)
-			err := ListBatchOperationsCLI(c)
+			err := ListBatchOperations(c)
 
 			if tt.wantErr {
 				assert.Error(t, err)

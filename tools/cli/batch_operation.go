@@ -71,10 +71,10 @@ func newBatchOperationCommands() []*cli.Command {
 				&cli.IntFlag{
 					Name:  FlagPageSize,
 					Value: 100,
-					Usage: "Number of batch operations to list",
+					Usage: "Page size for each ListBatchOperations API call",
 				},
 			},
-			Action: ListBatchOperationsCLI,
+			Action: ListBatchOperations,
 		},
 	}
 }

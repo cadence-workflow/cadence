@@ -202,8 +202,8 @@ func getBatchOperationState(stateStr string) (types.BatchOperationState, error) 
 		"option state is not one of allowed values [running, completed, failed, stopped]", nil)
 }
 
-// ListBatchOperationsCLI lists the batch operations started for a domain.
-func ListBatchOperationsCLI(c *cli.Context) error {
+// ListBatchOperations lists the batch operations started for a domain.
+func ListBatchOperations(c *cli.Context) error {
 	domain, err := getRequiredOption(c, FlagDomain)
 	if err != nil {
 		return commoncli.Problem("Required flag not found: ", err)
