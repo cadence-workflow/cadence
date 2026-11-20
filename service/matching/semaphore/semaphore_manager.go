@@ -597,7 +597,8 @@ func (m *semaphoreManagerImpl) reloadBucketLocked(ctx context.Context, tokenRang
 	m.stateMu.Unlock()
 	m.lastReload = m.timeSource.Now()
 	if cache.freeTokenCount() > 0 {
-		// Wake the grant loop for tasks queued while the cache was stale.
+		// The reload found free tokens. Wake the grant loop so they go to tasks that were queued
+		// while the stale cache showed no free token.
 		m.signalGrantLoop()
 	}
 	m.logger.Info("Semaphore bucket cache reloaded after a refused grant",

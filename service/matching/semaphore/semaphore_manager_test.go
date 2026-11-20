@@ -678,7 +678,7 @@ func TestAcquire(t *testing.T) {
 			},
 		},
 		{
-			name: "success - grant succeeds, Acquired",
+			name: "success - no tasks are pending and a token is free, Acquired",
 			setupMocks: func(deps *mockDeps) {
 				expectGrant(deps).Return(&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
 			},

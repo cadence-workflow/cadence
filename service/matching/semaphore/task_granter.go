@@ -32,7 +32,8 @@ type taskRetrier struct {
 	attempts int
 }
 
-// signalGrantLoop wakes the grant loop to try the task at the front again. It never blocks.
+// signalGrantLoop wakes grantTasksLoop when it waits for a free token, so it retries the task at the
+// front. It never blocks: if a signal is already pending, this one is dropped.
 func (m *semaphoreManagerImpl) signalGrantLoop() {
 	select {
 	case m.grantNotifyC <- struct{}{}:
@@ -147,11 +148,13 @@ func (m *semaphoreManagerImpl) recordGrant(ctx context.Context, task *persistenc
 			// The hold is gone, the run closed, or the hold has another token.
 			return m.releaseTaskToken(ctx, task, ownerID, tokenID)
 		case errors.As(err, new(*types.DomainNotActiveError)):
-			// The domain failed over. Refresh the run's tasks first, so this cluster acquires again
-			// if the domain fails back before the other cluster grants it.
-			if err = m.refreshWorkflowTasks(ctx, task); err == nil {
-				return m.releaseTaskToken(ctx, task, ownerID, tokenID)
+			// The domain failed over. Free the token, then refresh the run's tasks so this cluster
+			// acquires again if the domain fails back. Freeing comes first: otherwise the refreshed
+			// acquire could be given this token and then lose it to the release.
+			if !m.releaseTaskToken(ctx, task, ownerID, tokenID) {
+				return false
 			}
+			return m.refreshWorkflowTasks(ctx, task)
 		}
 		if !m.waitToRetry(ctx, retrier, task, "Semaphore grant loop failed to record a grant", err) {
 			return false
@@ -159,20 +162,30 @@ func (m *semaphoreManagerImpl) recordGrant(ctx context.Context, task *persistenc
 	}
 }
 
-// refreshWorkflowTasks asks History to rebuild the run's tasks. A missing run counts as success.
-func (m *semaphoreManagerImpl) refreshWorkflowTasks(ctx context.Context, task *persistence.SemaphoreTask) error {
-	callCtx, cancel := context.WithTimeout(ctx, taskCallTimeout)
-	defer cancel()
-	err := m.historyService.RefreshWorkflowTasks(callCtx, &types.HistoryRefreshWorkflowTasksRequest{
+// refreshWorkflowTasks asks History to rebuild the run's tasks, retrying until it succeeds or the
+// run is gone. It returns false only if ctx ends first.
+func (m *semaphoreManagerImpl) refreshWorkflowTasks(ctx context.Context, task *persistence.SemaphoreTask) bool {
+	request := &types.HistoryRefreshWorkflowTasksRequest{
 		DomainUIID: m.id.DomainID,
 		Request: &types.RefreshWorkflowTasksRequest{
 			Execution: &types.WorkflowExecution{WorkflowID: task.WorkflowID, RunID: task.RunID},
 		},
-	})
-	if errors.As(err, new(*types.EntityNotExistsError)) {
-		return nil
 	}
-	return err
+	// No retry limit: giving up would leave this cluster with no acquire task for the run if the
+	// domain fails back. Blocking the tasks behind this one only matters for active-active domains,
+	// since in an active-passive domain they can't be recorded here either.
+	retrier := m.newTaskRetrier()
+	for {
+		callCtx, cancel := context.WithTimeout(ctx, taskCallTimeout)
+		err := m.historyService.RefreshWorkflowTasks(callCtx, request)
+		cancel()
+		if err == nil || errors.As(err, new(*types.EntityNotExistsError)) {
+			return true
+		}
+		if !m.waitToRetry(ctx, retrier, task, "Semaphore grant loop failed to refresh a run's tasks", err) {
+			return false
+		}
+	}
 }
 
 // releaseTaskToken releases ownerID's tokenID, retrying until it succeeds or taskReleaseTimeout

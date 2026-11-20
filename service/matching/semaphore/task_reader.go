@@ -45,6 +45,8 @@ type taskReader struct {
 	signalGrantLoop func()
 	// notifyC wakes the read loop. It holds at most one signal.
 	notifyC chan struct{}
+	// gcNotifyC wakes the read loop to delete finished tasks. It holds at most one signal.
+	gcNotifyC chan struct{}
 
 	// cancelCtx is canceled by stop. It ends the read loop.
 	cancelCtx  context.Context
@@ -79,6 +81,7 @@ func newTaskReader(m *semaphoreManagerImpl) *taskReader {
 		grantTask:       m.grantTask,
 		signalGrantLoop: m.signalGrantLoop,
 		notifyC:         make(chan struct{}, 1),
+		gcNotifyC:       make(chan struct{}, 1),
 		cancelCtx:       cancelCtx,
 		cancelFunc:      cancelFunc,
 		fatalCh:         make(chan struct{}),
@@ -129,6 +132,14 @@ func (tr *taskReader) signal() {
 	}
 }
 
+// signalGC wakes the read loop to delete finished tasks. It never blocks.
+func (tr *taskReader) signalGC() {
+	select {
+	case tr.gcNotifyC <- struct{}{}:
+	default: // a signal is already waiting
+	}
+}
+
 // hasTasks reports whether any task is written but not acked. The read level is checked first,
 // since a read counts the task in the backlog before it moves the read level.
 func (tr *taskReader) hasTasks() bool {
@@ -138,8 +149,7 @@ func (tr *taskReader) hasTasks() bool {
 	return tr.taskAckManager.GetBacklogCount() > 0
 }
 
-// grantTasksLoop grants buffered tasks in order, acks each once it is finished, and deletes
-// finished tasks.
+// grantTasksLoop grants buffered tasks in order, and acks each once it is finished.
 func (tr *taskReader) grantTasksLoop() {
 	defer tr.wg.Done()
 	for {
@@ -152,12 +162,15 @@ func (tr *taskReader) grantTasksLoop() {
 			if !tr.grantTask(tr.cancelCtx, task) {
 				return
 			}
-			tr.taskGC.run(tr.taskAckManager.AckItem(task.TaskID))
+			tr.taskAckManager.AckItem(task.TaskID)
+			// The read loop deletes finished tasks, so a slow delete doesn't hold up the next grant.
+			tr.signalGC()
 		}
 	}
 }
 
-// getTasksPump reads tasks into taskBuffer when signaled, and saves the ack level on a timer.
+// getTasksPump reads tasks into taskBuffer and deletes finished tasks when signaled, and saves the
+// ack level on a timer.
 func (tr *taskReader) getTasksPump() {
 	defer tr.wg.Done()
 	// A timer reset after each save, not a ticker, so a change to the interval takes effect.
@@ -173,6 +186,9 @@ func (tr *taskReader) getTasksPump() {
 			if !tr.readTasks() {
 				return
 			}
+		case <-tr.gcNotifyC:
+			// A task was acked: delete the finished tasks.
+			tr.taskGC.run(tr.taskAckManager.GetAckLevel())
 		case <-updateAckTimer.Chan():
 			// Save the ack level. The write also checks that this host still holds the bucket.
 			err := tr.persistAckLevel()

@@ -32,25 +32,20 @@ func TestTaskGC(t *testing.T) {
 			expectedDeletedLevel: lastDeletedLevel,
 		},
 		{
-			name:                 "fewer than a batch, too soon, nothing deleted",
+			name:                 "too soon after the last delete, nothing deleted",
+			timeSinceLastDelete:  maxTimeBetweenTaskDeletes / 2,
 			ackLevel:             20,
 			expectedDeletedLevel: lastDeletedLevel,
 		},
 		{
-			name:                 "fewer than a batch, waited long enough, deleted",
+			name:                 "waited long enough, deleted",
 			timeSinceLastDelete:  2 * maxTimeBetweenTaskDeletes,
 			ackLevel:             20,
 			expectDelete:         true,
 			expectedDeletedLevel: 20,
 		},
 		{
-			name:                 "a batch, deleted",
-			ackLevel:             lastDeletedLevel + taskDeleteBatchSize,
-			expectDelete:         true,
-			expectedDeletedLevel: lastDeletedLevel + taskDeleteBatchSize,
-		},
-		{
-			name:                 "runNow, fewer than a batch, deleted",
+			name:                 "runNow, too soon, deleted",
 			ackLevel:             20,
 			runNow:               true,
 			expectDelete:         true,
@@ -88,6 +83,7 @@ func TestTaskGC(t *testing.T) {
 				gc.run(tc.ackLevel)
 			}
 			assert.Equal(t, tc.expectedDeletedLevel, gc.ackLevel)
+			assert.Equal(t, tc.expectDelete, gc.lastDeleteTime.Equal(timeSource.Now()), "a delete, failed or not, starts the wait")
 		})
 	}
 }

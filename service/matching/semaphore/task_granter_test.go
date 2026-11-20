@@ -177,13 +177,13 @@ func TestGrantTask(t *testing.T) {
 			},
 		},
 		{
-			name: "the domain is not active, tasks refreshed, the token is freed",
+			name: "the domain is not active, the token is freed, then tasks refreshed",
 			setupMocks: func(deps *mockDeps) {
 				gomock.InOrder(
 					expectGrantToken(deps.mockTokenManager, 1, ownerID).Return(applied, nil),
 					expectRecordGrant(deps.mockHistory, 1).Return(nil, &types.DomainNotActiveError{}),
-					expectRefreshTasks(deps.mockHistory).Return(nil),
 					expectReleaseToken(deps.mockTokenManager, 1, ownerID).Return(releaseApplied, nil),
+					expectRefreshTasks(deps.mockHistory).Return(nil),
 				)
 			},
 		},
@@ -193,19 +193,20 @@ func TestGrantTask(t *testing.T) {
 				gomock.InOrder(
 					expectGrantToken(deps.mockTokenManager, 1, ownerID).Return(applied, nil),
 					expectRecordGrant(deps.mockHistory, 1).Return(nil, &types.DomainNotActiveError{}),
-					expectRefreshTasks(deps.mockHistory).Return(&types.EntityNotExistsError{}),
 					expectReleaseToken(deps.mockTokenManager, 1, ownerID).Return(releaseApplied, nil),
+					expectRefreshTasks(deps.mockHistory).Return(&types.EntityNotExistsError{}),
 				)
 			},
 		},
 		{
-			name: "the domain is not active and the refresh fails, the grant is sent again",
+			name: "the domain is not active and the refresh fails, only the refresh is retried",
 			setupMocks: func(deps *mockDeps) {
 				gomock.InOrder(
 					expectGrantToken(deps.mockTokenManager, 1, ownerID).Return(applied, nil),
 					expectRecordGrant(deps.mockHistory, 1).Return(nil, &types.DomainNotActiveError{}),
+					expectReleaseToken(deps.mockTokenManager, 1, ownerID).Return(releaseApplied, nil),
 					expectRefreshTasks(deps.mockHistory).Return(assert.AnError),
-					expectRecordGrant(deps.mockHistory, 1).Return(&types.RecordSemaphoreAcquiredResponse{}, nil),
+					expectRefreshTasks(deps.mockHistory).Return(nil),
 				)
 			},
 		},

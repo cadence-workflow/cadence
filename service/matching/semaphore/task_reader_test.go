@@ -346,6 +346,32 @@ func TestGetTasksPumpTimerSavesAndWakesGrantLoop(t *testing.T) {
 	}
 }
 
+func TestGetTasksPumpDeletesWhenSignaled(t *testing.T) {
+	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
+	require.NoError(t, r.taskAckManager.ReadItem(1))
+	r.taskAckManager.AckItem(1)
+	deleted := make(chan struct{})
+	store.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), &persistence.RangeCompleteSemaphoreTasksRequest{
+		DomainID:      testBucketID.DomainID,
+		SemaphoreName: testBucketID.SemaphoreName,
+		Bucket:        testBucketID.Bucket,
+		AckLevel:      1,
+	}).Times(1).DoAndReturn(func(context.Context, *persistence.RangeCompleteSemaphoreTasksRequest) (*persistence.RangeCompleteSemaphoreTasksResponse, error) {
+		close(deleted)
+		return &persistence.RangeCompleteSemaphoreTasksResponse{}, nil
+	})
+
+	r.wg.Add(1)
+	go r.getTasksPump()
+	r.signalGC()
+	select {
+	case <-deleted:
+	case <-time.After(time.Second):
+		t.Fatal("the signal did not delete the finished tasks")
+	}
+}
+
 func TestGrantTasksLoop(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -376,7 +402,7 @@ func TestGrantTasksLoop(t *testing.T) {
 			for _, task := range tasksWithIDs(1, 2) {
 				require.True(t, r.addTaskToBuffer(task))
 			}
-			// Acks delete finished tasks.
+			// Stop deletes finished tasks.
 			store.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().
 				Return(&persistence.RangeCompleteSemaphoreTasksResponse{}, nil)
 
@@ -385,6 +411,7 @@ func TestGrantTasksLoop(t *testing.T) {
 			assert.Equal(t, []int64{1, 2}, []int64{<-granted, <-granted})
 			require.Eventually(t, func() bool { return r.taskAckManager.GetAckLevel() == tc.wantAckLevel }, time.Second, time.Millisecond)
 			assert.Len(t, r.notifyC, 1, "taking a task makes room, so the read loop is signaled")
+			assert.Len(t, r.gcNotifyC, 1, "acking a task signals the read loop to delete")
 			store.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).Times(1).
 				DoAndReturn(func(_ context.Context, req *persistence.UpdateSemaphoreTaskBucketStateRequest) (*persistence.UpdateSemaphoreTaskBucketStateResponse, error) {
 					assert.Equal(t, tc.wantAckLevel, req.AckLevel, "stop saves the ack level reached")
