@@ -420,7 +420,7 @@ func (m *semaphoreManagerImpl) Acquire(ctx context.Context, ownerID string, acqu
 	var tokenID int
 	var err error
 	if m.taskReader.hasTasks() {
-		// check whether the owner already has a token granted
+		// Queued tasks get free tokens first, so only return a token the owner already holds.
 		tokenID, err = m.confirmHeldToken(ctx, ownerID)
 	} else {
 		tokenID, err = m.grant(ctx, ownerID)
@@ -597,8 +597,7 @@ func (m *semaphoreManagerImpl) reloadBucketLocked(ctx context.Context, tokenRang
 	m.stateMu.Unlock()
 	m.lastReload = m.timeSource.Now()
 	if cache.freeTokenCount() > 0 {
-		// The reload found free tokens. Wake the grant loop so they go to tasks that were queued
-		// while the stale cache showed no free token.
+		// The grant loop may be sleeping after a refused grant. Wake it so it can use the free tokens.
 		m.signalGrantLoop()
 	}
 	m.logger.Info("Semaphore bucket cache reloaded after a refused grant",
