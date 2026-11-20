@@ -139,7 +139,6 @@ func (c *client) Update(ctx context.Context, period time.Duration, load map[shar
 	// but as each goes to a different host this seems fine to just blast out all at once,
 	// and it makes timeouts easy because we don't need to reserve room for queued calls.
 	for peer, peerKeys := range peers {
-		peer, peerKeys := peer, peerKeys // for closure
 		g.Go(func() (err error) {
 			defer func() { log.CapturePanic(recover(), c.logger, &err) }()
 

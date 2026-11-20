@@ -154,7 +154,6 @@ func TestMapping(t *testing.T) {
 			},
 		}
 		for name, test := range tests {
-			test := test
 			t.Run(name, func(t *testing.T) {
 				require.ErrorContains(t, test.do(test.value), test.errContains)
 			})
