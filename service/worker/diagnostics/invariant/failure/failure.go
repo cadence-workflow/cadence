@@ -137,9 +137,9 @@ func workflowFailure(event *types.HistoryEvent) (reason string, decisionTaskComp
 	if attr := event.GetWorkflowExecutionFailedEventAttributes(); attr != nil && attr.Reason != nil {
 		return *attr.Reason, attr.DecisionTaskCompletedEventID, true
 	}
-	if attr := event.GetWorkflowExecutionContinuedAsNewEventAttributes(); attr.GetFailureReason() != "" &&
+	if attr := event.GetWorkflowExecutionContinuedAsNewEventAttributes(); attr != nil && attr.FailureReason != nil &&
 		attr.DecisionTaskCompletedEventID != constants.EmptyEventID {
-		return attr.GetFailureReason(), attr.DecisionTaskCompletedEventID, true
+		return *attr.FailureReason, attr.DecisionTaskCompletedEventID, true
 	}
 	return "", 0, false
 }

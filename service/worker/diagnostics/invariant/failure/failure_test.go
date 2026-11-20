@@ -102,6 +102,19 @@ func Test__Check(t *testing.T) {
 			err: nil,
 		},
 		{
+			name:     "workflow failure with empty reason and continued as new",
+			testData: continuedAsNewHistory(10, common.StringPtr(""), types.ContinueAsNewInitiatorRetryPolicy),
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: WorkflowFailed.String(),
+					Reason:        CustomError.String(),
+					Metadata:      wfFailureMetadataInBytes(t, 11),
+				},
+			},
+			err: nil,
+		},
+		{
 			name:           "workflow execution timeout and continued as new",
 			testData:       continuedAsNewHistory(constants.EmptyEventID, common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"), types.ContinueAsNewInitiatorRetryPolicy),
 			expectedResult: []invariant.InvariantCheckResult{},

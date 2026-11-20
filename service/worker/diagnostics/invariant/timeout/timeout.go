@@ -105,7 +105,7 @@ func executionTimeoutType(event *types.HistoryEvent) (types.TimeoutType, bool) {
 	if attr := event.WorkflowExecutionTimedOutEventAttributes; attr != nil {
 		return attr.GetTimeoutType(), true
 	}
-	if attr := event.GetWorkflowExecutionContinuedAsNewEventAttributes(); attr.GetFailureReason() != "" &&
+	if attr := event.GetWorkflowExecutionContinuedAsNewEventAttributes(); attr != nil && attr.FailureReason != nil &&
 		attr.DecisionTaskCompletedEventID == constants.EmptyEventID {
 		// ContinuedAsNew has no timeout type, and execution timeouts are always START_TO_CLOSE.
 		return types.TimeoutTypeStartToClose, true
