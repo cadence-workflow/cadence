@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/uber/cadence/common/clock"
 	commonConfig "github.com/uber/cadence/common/config"
@@ -459,6 +460,26 @@ func TestGetTasksPumpConditionFailedUnloadsTaskList(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return atomic.LoadInt32(&tlm.stopped) == 1
 	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestStopLogsLeaseConflictAtInfoLevel(t *testing.T) {
+	controller := gomock.NewController(t)
+	logger, logs := testlogger.NewObserved(t)
+	tlm := createTestTaskListManagerWithConfig(t, logger, controller, defaultConfig(), clock.NewMockedTimeSource())
+	require.NoError(t, tlm.Start(context.Background()))
+
+	// Another host takes the lease, so the final ack level write in Stop fails
+	tm := tlm.db.store.(*TestTaskManager)
+	tm.SetRangeID(tlm.taskListID, 999)
+
+	tlm.Stop()
+
+	leaseConflictEntries := logs.FilterMessage("Final ack level write failed because another owner holds the task list lease.").All()
+	require.Len(t, leaseConflictEntries, 1)
+	assert.Equal(t, zapcore.InfoLevel, leaseConflictEntries[0].Level)
+
+	persistenceFailureEntries := logs.FilterMessage("Persistent store operation failure").All()
+	assert.Empty(t, persistenceFailureEntries, "a lease conflict should not be logged as a persistence failure")
 }
 
 func TestTaskReaderBatchSizeValidation(t *testing.T) {
