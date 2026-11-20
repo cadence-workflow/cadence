@@ -66,9 +66,10 @@ const (
 	// This seems aggressive, but the default sticky schedule_to_start timeout is 5s, so 10s seems reasonable.
 	_stickyPollerUnavailableWindow = 10 * time.Second
 
-	// _defaultSDReportTTL is the default TTL for shard status reports from matching executor to shard distributor.
-	// This controls how frequently the executor reports its shard load/status to the distributor.
-	_defaultSDReportTTL = 1 * time.Minute
+	// _defaultSDReportTTL is the default TTL for shard load reports from matching executor to shard distributor.
+	// Shard reports are sent on every heartbeat, but the load in them is only recomputed after this TTL.
+	// The shard distributor smooths reported load, so the TTL only needs to keep the load reasonably fresh.
+	_defaultSDReportTTL = 10 * time.Second
 )
 
 // Implements matching.Engine
