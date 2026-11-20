@@ -49,6 +49,32 @@ func newBatchOperationCLIContext(app *cli.App, overrides map[string]string) *cli
 	return cli.NewContext(app, set, nil)
 }
 
+// newUpdateBatchOperationCLIContext mirrors newBatchOperationCLIContext, except
+// FlagRPS/FlagConcurrency default to 0 (unset), matching the real "update" command's
+// flags, which (unlike "start"'s) have no non-zero default.
+func newUpdateBatchOperationCLIContext(app *cli.App, overrides map[string]string) *cli.Context {
+	set := flag.NewFlagSet("test", 0)
+
+	domain := "test-domain"
+	if v, ok := overrides[FlagDomain]; ok {
+		domain = v
+	}
+	set.String(FlagDomain, domain, "")
+	set.String(FlagTransport, grpcTransport, "")
+
+	set.Int(FlagRPS, 0, "")
+	set.Int(FlagConcurrency, 0, "")
+
+	handled := map[string]bool{FlagDomain: true, FlagTransport: true}
+	for k, v := range overrides {
+		if handled[k] {
+			continue
+		}
+		set.String(k, v, "")
+	}
+	return cli.NewContext(app, set, nil)
+}
+
 func TestStartBatchOperationCLI(t *testing.T) {
 	tests := map[string]struct {
 		action   func(*cli.Context) error
@@ -601,6 +627,22 @@ func TestUpdateBatchOperation(t *testing.T) {
 			mockFn:  func(f *frontend.MockClient, captured **types.UpdateBatchOperationRequest) {},
 			wantErr: true,
 		},
+		"negative rps rejected": {
+			flags: map[string]string{FlagBatchID: "my-batch-id"},
+			setup: func(t *testing.T, c *cli.Context) {
+				require.NoError(t, c.Set(FlagRPS, "-1"))
+			},
+			mockFn:  func(f *frontend.MockClient, captured **types.UpdateBatchOperationRequest) {},
+			wantErr: true,
+		},
+		"negative concurrency rejected": {
+			flags: map[string]string{FlagBatchID: "my-batch-id"},
+			setup: func(t *testing.T, c *cli.Context) {
+				require.NoError(t, c.Set(FlagConcurrency, "-5"))
+			},
+			mockFn:  func(f *frontend.MockClient, captured **types.UpdateBatchOperationRequest) {},
+			wantErr: true,
+		},
 		"update fails": {
 			flags: map[string]string{FlagBatchID: "my-batch-id"},
 			setup: func(t *testing.T, c *cli.Context) {
@@ -629,6 +671,7 @@ func TestUpdateBatchOperation(t *testing.T) {
 				assert.Equal(t, "test-domain", req.Domain)
 				assert.Equal(t, "my-batch-id", req.BatchID)
 				assert.EqualValues(t, 100, req.RPS)
+				assert.EqualValues(t, 0, req.Concurrency)
 			},
 		},
 		"success, concurrency only": {
@@ -645,6 +688,7 @@ func TestUpdateBatchOperation(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, req *types.UpdateBatchOperationRequest) {
+				assert.EqualValues(t, 0, req.RPS)
 				assert.EqualValues(t, 20, req.Concurrency)
 			},
 		},
@@ -658,7 +702,7 @@ func TestUpdateBatchOperation(t *testing.T) {
 			tt.mockFn(mockFrontendClient, &capturedReq)
 
 			app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockFrontendClient})
-			c := newBatchOperationCLIContext(app, tt.flags)
+			c := newUpdateBatchOperationCLIContext(app, tt.flags)
 			if tt.setup != nil {
 				tt.setup(t, c)
 			}

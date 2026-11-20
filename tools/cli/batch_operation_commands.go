@@ -345,8 +345,12 @@ func UpdateBatchOperation(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found: ", err)
 	}
-	if !c.IsSet(FlagRPS) && !c.IsSet(FlagConcurrency) {
-		return commoncli.Problem("At least one of --rps or --concurrency must be set", nil)
+	rps, concurrency := c.Int(FlagRPS), c.Int(FlagConcurrency)
+	if rps < 0 || concurrency < 0 {
+		return commoncli.Problem("--rps and --concurrency must not be negative", nil)
+	}
+	if rps == 0 && concurrency == 0 {
+		return commoncli.Problem("At least one of --rps or --concurrency must be set to a positive value", nil)
 	}
 	frontendClient, err := getBatchOperationsClient(c)
 	if err != nil {
@@ -362,8 +366,8 @@ func UpdateBatchOperation(c *cli.Context) error {
 	_, err = frontendClient.UpdateBatchOperation(ctx, &types.UpdateBatchOperationRequest{
 		Domain:      domain,
 		BatchID:     batchID,
-		RPS:         int32(c.Int(FlagRPS)),
-		Concurrency: int32(c.Int(FlagConcurrency)),
+		RPS:         int32(rps),
+		Concurrency: int32(concurrency),
 		Identity:    getCurrentUserFromEnv(),
 	})
 	if err != nil {
