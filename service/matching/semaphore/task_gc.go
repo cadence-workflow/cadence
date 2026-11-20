@@ -6,8 +6,9 @@ import (
 	"github.com/uber/cadence/common/clock"
 )
 
-// maxTimeBetweenTaskDeletes is how long after one delete, failed or not, the next can run.
-const maxTimeBetweenTaskDeletes = time.Second
+// maxTimeBetweenTaskDeletes is how long after one delete, failed or not, the next can run. Each delete
+// writes one range tombstone, so this caps a busy bucket at one tombstone per interval.
+const maxTimeBetweenTaskDeletes = 10 * time.Second
 
 // taskGC deletes every task at or below the ack level
 type taskGC struct {
