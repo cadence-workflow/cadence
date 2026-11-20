@@ -145,8 +145,20 @@ func TestRefreshTasksForWorkflowClose(t *testing.T) {
 			name: "success - import in progress with a complete history skips the close tasks",
 			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator) {
 				ms.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
-					State:       persistence.WorkflowStatePreparing,
-					CloseStatus: persistence.WorkflowCloseStatusCompleted,
+					State:            persistence.WorkflowStatePreparing,
+					CloseStatus:      persistence.WorkflowCloseStatusCompleted,
+					ImportInProgress: true,
+				})
+			},
+			wantErr: false,
+		},
+		{
+			name: "success - zombie import with a complete history skips the close tasks",
+			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator) {
+				ms.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					State:            persistence.WorkflowStateZombie,
+					CloseStatus:      persistence.WorkflowCloseStatusCompleted,
+					ImportInProgress: true,
 				})
 			},
 			wantErr: false,

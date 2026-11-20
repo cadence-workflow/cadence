@@ -24,7 +24,6 @@ package engineimpl
 import (
 	"context"
 
-	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
 )
@@ -51,8 +50,9 @@ func (e *historyEngineImpl) RefreshWorkflowTasks(
 		return err
 	}
 
-	// An import in progress has no tasks to refresh: they are generated when the import ends.
-	if mutableState.GetExecutionInfo().State == persistence.WorkflowStatePreparing {
+	// An import in progress, current (Preparing) or a zombie, has no tasks to refresh: they are
+	// generated when the import ends.
+	if mutableState.GetExecutionInfo().ImportInProgress {
 		return nil
 	}
 

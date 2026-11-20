@@ -134,8 +134,9 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 	}
 
 	// The reset terminates the current run only when it is running, so a reset next to an import
-	// in progress would create a second current run.
-	if baseMutableState.GetExecutionInfo().State == persistence.WorkflowStatePreparing ||
+	// in progress would create a second current run. An import in progress as the base, current
+	// (Preparing) or a zombie, can have an incomplete history.
+	if baseMutableState.GetExecutionInfo().ImportInProgress ||
 		currentMutableState.GetExecutionInfo().State == persistence.WorkflowStatePreparing {
 		return nil, workflow.ErrImportInProgress
 	}

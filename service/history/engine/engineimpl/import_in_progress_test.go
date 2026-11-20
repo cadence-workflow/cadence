@@ -167,6 +167,34 @@ func TestAPIsOnImportInProgress(t *testing.T) {
 	}
 }
 
+// TestQueryWorkflow_ZombieImport checks that a query by run ID on a zombie import is refused. The
+// zombie is not running and its history has a completed decision, so without the check the query
+// goes to a worker that replays the partial history.
+func TestQueryWorkflow_ZombieImport(t *testing.T) {
+	eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
+	eft.Engine.Start()
+	defer eft.Engine.Stop()
+
+	execution := importInProgressExecution()
+	execution.State.ExecutionInfo.State = persistence.WorkflowStateZombie
+	execution.State.ExecutionInfo.CloseStatus = persistence.WorkflowCloseStatusCompleted
+	execution.State.ExecutionInfo.LastProcessedEvent = 3
+	eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, gomock.Any()).
+		Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName}, nil).AnyTimes()
+	eft.ShardCtx.Resource.ExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).
+		Return(execution, nil).Once()
+
+	_, err := eft.Engine.QueryWorkflow(context.Background(), &types.HistoryQueryWorkflowRequest{
+		DomainUUID: constants.TestDomainID,
+		Request: &types.QueryWorkflowRequest{
+			Domain:    constants.TestDomainName,
+			Execution: &types.WorkflowExecution{WorkflowID: constants.TestWorkflowID, RunID: constants.TestRunID},
+			Query:     &types.WorkflowQuery{QueryType: "query"},
+		},
+	})
+	assert.Equal(t, workflow.ErrImportInProgress, err)
+}
+
 // TestReapplyEvents_ImportInProgress checks that the reapply skips an import in progress without
 // an error: the reapply would reset it into a new run, and an error makes replication retry forever.
 func TestReapplyEvents_ImportInProgress(t *testing.T) {
@@ -187,24 +215,45 @@ func TestReapplyEvents_ImportInProgress(t *testing.T) {
 	eft.ShardCtx.Resource.ExecutionMgr.AssertNotCalled(t, "UpdateWorkflowExecution", mock.Anything, mock.Anything)
 }
 
-// TestRefreshWorkflowTasks_ImportInProgress checks that an import in progress gets no refreshed
-// tasks: they are generated when the import ends.
+// TestRefreshWorkflowTasks_ImportInProgress checks that an import in progress, current or a zombie,
+// gets no refreshed tasks: they are generated when the import ends.
 func TestRefreshWorkflowTasks_ImportInProgress(t *testing.T) {
-	eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
-	eft.Engine.Start()
-	defer eft.Engine.Stop()
+	tests := map[string]struct {
+		state       int
+		closeStatus int
+	}{
+		"current import in progress": {
+			state:       persistence.WorkflowStatePreparing,
+			closeStatus: persistence.WorkflowCloseStatusNone,
+		},
+		"zombie import with a replicated close event": {
+			state:       persistence.WorkflowStateZombie,
+			closeStatus: persistence.WorkflowCloseStatusCompleted,
+		},
+	}
 
-	eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, gomock.Any()).
-		Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName}, nil).AnyTimes()
-	eft.ShardCtx.Resource.ExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).
-		Return(importInProgressExecution(), nil).Once()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
+			eft.Engine.Start()
+			defer eft.Engine.Stop()
 
-	err := eft.Engine.RefreshWorkflowTasks(context.Background(), constants.TestDomainID, types.WorkflowExecution{
-		WorkflowID: constants.TestWorkflowID,
-		RunID:      constants.TestRunID,
-	})
-	assert.NoError(t, err)
-	eft.ShardCtx.Resource.ExecutionMgr.AssertNotCalled(t, "UpdateWorkflowExecution", mock.Anything, mock.Anything)
+			execution := importInProgressExecution()
+			execution.State.ExecutionInfo.State = tc.state
+			execution.State.ExecutionInfo.CloseStatus = tc.closeStatus
+			eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, gomock.Any()).
+				Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName}, nil).AnyTimes()
+			eft.ShardCtx.Resource.ExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).
+				Return(execution, nil).Once()
+
+			err := eft.Engine.RefreshWorkflowTasks(context.Background(), constants.TestDomainID, types.WorkflowExecution{
+				WorkflowID: constants.TestWorkflowID,
+				RunID:      constants.TestRunID,
+			})
+			assert.NoError(t, err)
+			eft.ShardCtx.Resource.ExecutionMgr.AssertNotCalled(t, "UpdateWorkflowExecution", mock.Anything, mock.Anything)
+		})
+	}
 }
 
 func TestIsOpenForLongPoll(t *testing.T) {

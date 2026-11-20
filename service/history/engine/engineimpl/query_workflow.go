@@ -118,6 +118,12 @@ func (e *historyEngineImpl) QueryWorkflow(
 	if err != nil {
 		return nil, err
 	}
+	// The mutable state response has no import flag, so the check above refuses only a current
+	// import. A zombie import is not running, so without this check the query goes to a worker
+	// that replays its partial history.
+	if mutableState.GetExecutionInfo().ImportInProgress {
+		return nil, workflow.ErrImportInProgress
+	}
 	// If history is corrupted, query will be rejected
 	if corrupted, err := e.checkForHistoryCorruptions(ctx, mutableState); err != nil {
 		return nil, err
