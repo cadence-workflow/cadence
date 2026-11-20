@@ -287,6 +287,17 @@ func (r *transactionManagerImpl) backfillWorkflowEventsReapply(
 	if err != nil {
 		return 0, execution.TransactionPolicyActive, err
 	}
+
+	// the source cluster already handled the events of an import in progress, so they are not
+	// reapplied. An import in progress is not running, so case 1.b would also reset it into a new run.
+	if targetWorkflow.GetMutableState().GetExecutionInfo().ImportInProgress {
+		r.metricsClient.IncCounter(metrics.HistoryReapplyEventsScope, metrics.EventReapplySkippedCount)
+		if isCurrentWorkflow {
+			return persistence.UpdateWorkflowModeUpdateCurrent, execution.TransactionPolicyPassive, nil
+		}
+		return persistence.UpdateWorkflowModeBypassCurrent, execution.TransactionPolicyPassive, nil
+	}
+
 	isWorkflowRunning := targetWorkflow.GetMutableState().IsWorkflowExecutionRunning()
 	activeClusterSelectionPolicy := targetWorkflow.GetMutableState().GetExecutionInfo().ActiveClusterSelectionPolicy
 	activeClusterInfo, err := r.activeClusterManager.GetActiveClusterInfoByClusterAttribute(ctx, targetWorkflow.GetMutableState().GetExecutionInfo().DomainID, activeClusterSelectionPolicy.GetClusterAttribute())

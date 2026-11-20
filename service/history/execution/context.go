@@ -603,13 +603,16 @@ func (c *contextImpl) ConflictResolveWorkflowExecution(
 		}
 	}
 
-	if err := c.conflictResolveEventReapplyFn(
-		conflictResolveMode,
-		resetWorkflowEventsSeq,
-		newWorkflowEventsSeq,
-		// current workflow events will not participate in the events reapplication
-	); err != nil {
-		return err
+	// the source cluster already handled the events of an import in progress, so they are not reapplied
+	if !resetMutableState.GetExecutionInfo().ImportInProgress {
+		if err := c.conflictResolveEventReapplyFn(
+			conflictResolveMode,
+			resetWorkflowEventsSeq,
+			newWorkflowEventsSeq,
+			// current workflow events will not participate in the events reapplication
+		); err != nil {
+			return err
+		}
 	}
 	resp, err := c.shard.ConflictResolveWorkflowExecution(ctx, &persistence.ConflictResolveWorkflowExecutionRequest{
 		// RangeID , this is set by shard context
@@ -876,8 +879,11 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 		return err
 	}
 
-	if err := c.updateWorkflowExecutionEventReapplyFn(updateMode, currentWorkflowEventsSeq, newWorkflowEventsSeq); err != nil {
-		return err
+	// the source cluster already handled the events of an import in progress, so they are not reapplied
+	if !c.mutableState.GetExecutionInfo().ImportInProgress {
+		if err := c.updateWorkflowExecutionEventReapplyFn(updateMode, currentWorkflowEventsSeq, newWorkflowEventsSeq); err != nil {
+			return err
+		}
 	}
 	resp, err := c.updateWorkflowExecutionFn(ctx, &persistence.UpdateWorkflowExecutionRequest{
 		// RangeID , this is set by shard context

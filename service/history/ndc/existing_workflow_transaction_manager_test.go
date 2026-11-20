@@ -261,6 +261,9 @@ func (s *transactionManagerForExistingWorkflowSuite) TestDispatchForExistingWork
 	targetWorkflow.EXPECT().HappensAfter(currentWorkflow).Return(true, nil)
 	currentWorkflowPolicy := execution.TransactionPolicyPassive
 	currentMutableState.EXPECT().IsWorkflowExecutionRunning().Return(false).AnyTimes()
+	currentMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+		State: persistence.WorkflowStateCompleted,
+	}).AnyTimes()
 	currentWorkflow.EXPECT().SuppressBy(targetWorkflow).Return(currentWorkflowPolicy, nil).Times(0)
 	targetWorkflow.EXPECT().Revive().Return(nil).Times(1)
 

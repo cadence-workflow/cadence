@@ -1118,7 +1118,8 @@ func updateExecution(
 	// validate workflow state & close status
 	if err := p.ValidateUpdateWorkflowStateCloseStatus(
 		executionInfo.State,
-		executionInfo.CloseStatus); err != nil {
+		executionInfo.CloseStatus,
+		executionInfo.ImportInProgress); err != nil {
 		return err
 	}
 
