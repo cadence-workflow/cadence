@@ -143,6 +143,15 @@ operations:
     eventCount: 1
     timeout: 5s
 
+  - op: wait_for_history_event
+    at: 172s
+    workflowID: aa-stale-branch-running-parent
+    cluster: cluster1
+    domain: test-domain-aa
+    eventType: ChildWorkflowExecutionCompleted
+    eventCount: 4
+    timeout: 5s
+
   - op: validate
     at: 185s
     workflowID: aa-adoption-region0-parent
@@ -150,3 +159,12 @@ operations:
     domain: test-domain-aa
     want:
       status: completed
+
+  - op: wait_for_history_event
+    at: 186s
+    workflowID: aa-adoption-region0-parent
+    cluster: cluster1
+    domain: test-domain-aa
+    eventType: ChildWorkflowExecutionCompleted
+    eventCount: 4
+    timeout: 5s
