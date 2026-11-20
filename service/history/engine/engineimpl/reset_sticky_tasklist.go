@@ -25,6 +25,7 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/workflow"
@@ -49,6 +50,9 @@ func (e *historyEngineImpl) ResetStickyTaskList(
 
 	err := workflow.UpdateWithAction(ctx, e.logger, e.executionCache, domainID, *resetRequest.Execution, false, e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) error {
+			if mutableState.GetExecutionInfo().State == persistence.WorkflowStatePreparing {
+				return workflow.ErrImportInProgress
+			}
 			if !mutableState.IsWorkflowExecutionRunning() {
 				return workflow.ErrAlreadyCompleted
 			}

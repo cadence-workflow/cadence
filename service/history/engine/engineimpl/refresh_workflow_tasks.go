@@ -50,6 +50,12 @@ func (e *historyEngineImpl) RefreshWorkflowTasks(
 		return err
 	}
 
+	// An import in progress, current (Preparing) or a zombie, has no tasks to refresh: they are
+	// generated when the import ends.
+	if mutableState.GetExecutionInfo().ImportInProgress {
+		return nil
+	}
+
 	mutableStateTaskRefresher := execution.NewMutableStateTaskRefresher(
 		e.shard.GetConfig(),
 		e.shard.GetClusterMetadata(),
