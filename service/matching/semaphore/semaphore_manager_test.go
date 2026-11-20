@@ -14,6 +14,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
@@ -59,6 +60,7 @@ func callerOwnerRow(tokenID int) *persistence.GetSemaphoreOwnershipByOwnerRespon
 type mockDeps struct {
 	mockTokenManager *persistence.MockSemaphoreTokenManager
 	mockTaskManager  *persistence.MockSemaphoreTaskManager
+	mockHistory      *history.MockClient
 	mockTimeSource   clock.MockedTimeSource
 }
 
@@ -72,12 +74,14 @@ func testConfig(idleTime time.Duration) *config.Config {
 
 // testManagerParams returns valid params for a bucket of tokens 1 to tokenCount, and their mocks.
 // The metadata read and the queue claim may happen at most once, since not every test calls Start.
+// Task deletes may happen any number of times.
 func testManagerParams(t *testing.T, tokenCount int) (ManagerParams, *mockDeps) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	deps := &mockDeps{
 		mockTokenManager: persistence.NewMockSemaphoreTokenManager(ctrl),
 		mockTaskManager:  persistence.NewMockSemaphoreTaskManager(ctrl),
+		mockHistory:      history.NewMockClient(ctrl),
 		mockTimeSource:   clock.NewMockedTimeSource(),
 	}
 	metadata := persistence.NewMockSemaphoreMetadataManager(ctrl)
@@ -92,16 +96,19 @@ func testManagerParams(t *testing.T, tokenCount int) (ManagerParams, *mockDeps) 
 	}}, nil)
 	deps.mockTaskManager.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).MaxTimes(1).
 		Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+	deps.mockTaskManager.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.RangeCompleteSemaphoreTasksResponse{}, nil)
 	return ManagerParams{
-		ID:         testBucketID,
-		Tokens:     deps.mockTokenManager,
-		Metadata:   metadata,
-		Tasks:      deps.mockTaskManager,
-		Logger:     testlogger.New(t),
-		Cfg:        testConfig(testIdleTTL),
-		DomainName: "test-domain",
-		OnStopFn:   func(Manager) {},
-		TimeSource: deps.mockTimeSource,
+		ID:             testBucketID,
+		Tokens:         deps.mockTokenManager,
+		Metadata:       metadata,
+		Tasks:          deps.mockTaskManager,
+		HistoryService: deps.mockHistory,
+		Logger:         testlogger.New(t),
+		Cfg:            testConfig(testIdleTTL),
+		DomainName:     "test-domain",
+		OnStopFn:       func(Manager) {},
+		TimeSource:     deps.mockTimeSource,
 	}, deps
 }
 
@@ -115,8 +122,11 @@ func setupMocksForSemaphoreManager(t *testing.T, tokenCount int, opts ...func(*M
 	}
 	mgr, err := NewManager(p)
 	require.NoError(t, err)
-	// Every manager runs an idle clock, so stop it rather than leak the goroutine.
-	t.Cleanup(mgr.Stop)
+	// Stop it to end its idle clock goroutine. The stop may save the ack level.
+	t.Cleanup(func() {
+		allowStopAckLevelSave(deps)
+		mgr.Stop()
+	})
 	return mgr.(*semaphoreManagerImpl), deps
 }
 
@@ -129,6 +139,12 @@ func startTestManager(t *testing.T, tokenCount int, rows []*persistence.Semaphor
 		Return(&persistence.ScanSemaphoreBucketResponse{Ownerships: rows}, nil)
 	require.NoError(t, mgr.Start(context.Background()))
 	return mgr, deps
+}
+
+// allowStopAckLevelSave allows one ack level save, from a stop.
+func allowStopAckLevelSave(deps *mockDeps) {
+	deps.mockTaskManager.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).MaxTimes(1).
+		Return(&persistence.UpdateSemaphoreTaskBucketStateResponse{}, nil)
 }
 
 // startWithBlockedScan starts mgr and returns while its scan is still blocked.
@@ -191,35 +207,35 @@ func tokenRowRead(tokenID int, holder string) *persistence.GetSemaphoreOwnership
 	return &persistence.GetSemaphoreOwnershipByTokenResponse{Ownership: tokenRow(tokenID, holder)}
 }
 
-// expectGrantToken expects one grant of tokenID to "caller".
-func expectGrantToken(m *persistence.MockSemaphoreTokenManager, tokenID int) *gomock.Call {
+// expectGrantToken expects one grant of tokenID to ownerID.
+func expectGrantToken(m *persistence.MockSemaphoreTokenManager, tokenID int, ownerID string) *gomock.Call {
 	return m.EXPECT().GrantSemaphoreToken(gomock.Any(), &persistence.GrantSemaphoreTokenRequest{
 		DomainID:      testBucketID.DomainID,
 		SemaphoreName: testBucketID.SemaphoreName,
 		Bucket:        testBucketID.Bucket,
 		TokenID:       tokenID,
-		OwnerID:       "caller",
+		OwnerID:       ownerID,
 	}).Times(1)
 }
 
-// expectReleaseToken expects one release of tokenID for "caller".
-func expectReleaseToken(m *persistence.MockSemaphoreTokenManager, tokenID int) *gomock.Call {
+// expectReleaseToken expects one release of tokenID for ownerID.
+func expectReleaseToken(m *persistence.MockSemaphoreTokenManager, tokenID int, ownerID string) *gomock.Call {
 	return m.EXPECT().ReleaseSemaphoreToken(gomock.Any(), &persistence.ReleaseSemaphoreTokenRequest{
 		DomainID:      testBucketID.DomainID,
 		SemaphoreName: testBucketID.SemaphoreName,
 		Bucket:        testBucketID.Bucket,
 		TokenID:       tokenID,
-		OwnerID:       "caller",
+		OwnerID:       ownerID,
 	}).Times(1)
 }
 
-// expectGetOwnerRow expects one read of "caller"'s owner row.
-func expectGetOwnerRow(m *persistence.MockSemaphoreTokenManager) *gomock.Call {
+// expectGetOwnerRow expects one read of ownerID's owner row.
+func expectGetOwnerRow(m *persistence.MockSemaphoreTokenManager, ownerID string) *gomock.Call {
 	return m.EXPECT().GetSemaphoreOwnershipByOwner(gomock.Any(), &persistence.GetSemaphoreOwnershipByOwnerRequest{
 		DomainID:      testBucketID.DomainID,
 		SemaphoreName: testBucketID.SemaphoreName,
 		Bucket:        testBucketID.Bucket,
-		OwnerID:       "caller",
+		OwnerID:       ownerID,
 	}).Times(1)
 }
 
@@ -322,9 +338,12 @@ func TestStart_Fails(t *testing.T) {
 			BucketSize:    bucketSize,
 		}}
 	}
+	// claimed claims the bucket, so the stop after the failure saves the ack level.
 	claimed := func(tasks *persistence.MockSemaphoreTaskManager) {
 		tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).
 			Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+		tasks.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).Times(1).
+			Return(&persistence.UpdateSemaphoreTaskBucketStateResponse{}, nil)
 	}
 
 	testCases := []struct {
@@ -464,7 +483,8 @@ func TestStart_Twice(t *testing.T) {
 		{
 			name: "failure - the manager was stopped after loading, ErrNotReady",
 			setup: func(t *testing.T) *semaphoreManagerImpl {
-				mgr, _ := startTestManager(t, 2, nil)
+				mgr, deps := startTestManager(t, 2, nil)
+				allowStopAckLevelSave(deps)
 				mgr.Stop()
 				return mgr
 			},
@@ -498,6 +518,7 @@ func TestStop_WhileStartIsScanning(t *testing.T) {
 	mgr, deps := setupMocksForSemaphoreManager(t, 1)
 	releaseScanAndWaitForStart := startWithBlockedScan(mgr, deps)
 
+	allowStopAckLevelSave(deps)
 	mgr.Stop()
 	select {
 	case <-mgr.startupDoneCh:
@@ -543,6 +564,7 @@ func TestIdleUnload(t *testing.T) {
 
 	_, err = mgr.GetTokenByOwner(context.Background(), "caller")
 	require.NoError(t, err)
+	allowStopAckLevelSave(deps)
 	deps.mockTimeSource.Advance(testIdleTTL * 3 / 4)
 	require.Eventually(t, isStopped, time.Second, 5*time.Millisecond, "did not stop an idle TTL after the Acquire")
 }
@@ -558,16 +580,20 @@ func TestLostClaim(t *testing.T) {
 		{
 			name: "reader - ack level save fails with ConditionFailedError",
 			loseClaim: func(_ *testing.T, _ *semaphoreManagerImpl, deps *mockDeps) {
-				deps.mockTaskManager.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).Return(nil, conditionFailed)
+				// The timer's save, then the stop's.
+				deps.mockTaskManager.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).Times(2).
+					Return(nil, conditionFailed)
 				// The idle clock and the ack level ticker.
 				deps.mockTimeSource.BlockUntil(2)
 				deps.mockTimeSource.Advance(testUpdateAckInterval())
 			},
 		},
 		{
-			name: "writer - waiter write fails with ConditionFailedError",
+			name: "writer - task write fails with ConditionFailedError",
 			loseClaim: func(t *testing.T, mgr *semaphoreManagerImpl, deps *mockDeps) {
 				deps.mockTaskManager.EXPECT().CreateSemaphoreTasks(gomock.Any(), gomock.Any()).Return(nil, conditionFailed)
+				// The stop's save.
+				deps.mockTaskManager.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).Return(nil, conditionFailed)
 				// The failed write still moves maxReadLevel, so the reader may read before the bucket stops.
 				deps.mockTaskManager.EXPECT().GetSemaphoreTasks(gomock.Any(), gomock.Any()).
 					Return(&persistence.GetSemaphoreTasksResponse{}, nil).AnyTimes()
@@ -617,12 +643,12 @@ func TestAcquire(t *testing.T) {
 			OwnerID:       owner.String(),
 		}).Times(1)
 	}
-	// expectWaiterWrite expects one waiter write for owner with deadline. A written waiter signals
+	// expectTaskWrite expects one task write for owner with deadline. A written task signals
 	// the reader, which reads.
-	expectWaiterWrite := func(deps *mockDeps) *gomock.Call {
+	expectTaskWrite := func(deps *mockDeps) *gomock.Call {
 		deps.mockTaskManager.EXPECT().GetSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().
 			Return(&persistence.GetSemaphoreTasksResponse{}, nil)
-		waiter := &persistence.SemaphoreTask{
+		task := &persistence.SemaphoreTask{
 			TaskID:          1,
 			WorkflowID:      owner.WorkflowID,
 			RunID:           owner.RunID,
@@ -630,20 +656,18 @@ func TestAcquire(t *testing.T) {
 			AcquireDeadline: &deadline,
 			CreatedTime:     deps.mockTimeSource.Now(),
 		}
-		return deps.mockTaskManager.EXPECT().CreateSemaphoreTasks(gomock.Any(), createRequest(1, waiter)).Times(1)
+		return deps.mockTaskManager.EXPECT().CreateSemaphoreTasks(gomock.Any(), createRequest(1, task)).Times(1)
 	}
 
 	testCases := []struct {
 		name string
 		// rows are what the startup scan reads. Nil leaves the bucket's only token free.
-		rows []*persistence.SemaphoreOwnership
-		// managerStopped stops the manager before Acquire.
+		rows           []*persistence.SemaphoreOwnership
 		managerStopped bool
-		// setupMocks expects Acquire's database calls. Nil expects none.
-		setupMocks func(deps *mockDeps)
-		expected   AcquireResult
-		// assertErr checks the error. Nil expects no error.
-		assertErr func(t *testing.T, err error)
+		hasTasks       bool
+		setupMocks     func(deps *mockDeps)
+		expected       AcquireResult
+		assertErr      func(t *testing.T, err error)
 	}{
 		{
 			name:           "failure - manager is stopped, retryable ErrNotReady",
@@ -654,7 +678,7 @@ func TestAcquire(t *testing.T) {
 			},
 		},
 		{
-			name: "success - grant succeeds, Acquired",
+			name: "success - no tasks are pending and a token is free, Acquired",
 			setupMocks: func(deps *mockDeps) {
 				expectGrant(deps).Return(&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
 			},
@@ -668,18 +692,52 @@ func TestAcquire(t *testing.T) {
 			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, assert.AnError) },
 		},
 		{
-			name: "success - bucket is full, Queued",
-			rows: fullBucket,
+			name: "success - grant refused right after the load, Queued",
 			setupMocks: func(deps *mockDeps) {
-				expectWaiterWrite(deps).Return(&persistence.CreateSemaphoreTasksResponse{}, nil)
+				expectGrant(deps).Return(&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantSlotTaken}, nil)
+				expectTaskWrite(deps).Return(&persistence.CreateSemaphoreTasksResponse{}, nil)
 			},
 			expected: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeQueued},
 		},
 		{
-			name: "failure - bucket is full, enqueue fails",
+			name:     "success - tasks are pending and a token is free, Queued",
+			hasTasks: true,
+			setupMocks: func(deps *mockDeps) {
+				expectTaskWrite(deps).Return(&persistence.CreateSemaphoreTasksResponse{}, nil)
+			},
+			expected: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeQueued},
+		},
+		{
+			name:     "success - tasks are pending and the owner holds a token, Acquired",
+			rows:     []*persistence.SemaphoreOwnership{tokenRow(1, owner.String()), ownerRow(owner.String(), 1)},
+			hasTasks: true,
+			setupMocks: func(deps *mockDeps) {
+				expectGetTokenRow(deps.mockTokenManager, 1).Return(tokenRowRead(1, owner.String()), nil)
+			},
+			expected: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeAcquired, TokenID: 1},
+		},
+		{
+			name:     "failure - tasks are pending and the owner's token read fails",
+			rows:     []*persistence.SemaphoreOwnership{tokenRow(1, owner.String()), ownerRow(owner.String(), 1)},
+			hasTasks: true,
+			setupMocks: func(deps *mockDeps) {
+				expectGetTokenRow(deps.mockTokenManager, 1).Return(nil, assert.AnError)
+			},
+			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, assert.AnError) },
+		},
+		{
+			name: "success - bucket is full, Queued",
 			rows: fullBucket,
 			setupMocks: func(deps *mockDeps) {
-				expectWaiterWrite(deps).Return(nil, assert.AnError)
+				expectTaskWrite(deps).Return(&persistence.CreateSemaphoreTasksResponse{}, nil)
+			},
+			expected: AcquireResult{Outcome: types.SemaphoreAcquireOutcomeQueued},
+		},
+		{
+			name: "failure - bucket is full, queueTask fails",
+			rows: fullBucket,
+			setupMocks: func(deps *mockDeps) {
+				expectTaskWrite(deps).Return(nil, assert.AnError)
 			},
 			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, assert.AnError) },
 		},
@@ -689,7 +747,11 @@ func TestAcquire(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mgr, deps := startTestManager(t, 1, tc.rows)
 			if tc.managerStopped {
+				allowStopAckLevelSave(deps)
 				mgr.Stop()
+			}
+			if tc.hasTasks {
+				require.NoError(t, mgr.taskAckManager.ReadItem(1))
 			}
 			if tc.setupMocks != nil {
 				tc.setupMocks(deps)
@@ -706,8 +768,8 @@ func TestAcquire(t *testing.T) {
 	}
 }
 
-// Tests that enqueue writes ownerID as a waiter and signals the reader.
-func TestEnqueue(t *testing.T) {
+// Tests that queueTask writes a task for ownerID and signals the reader.
+func TestQueueTask(t *testing.T) {
 	mgr, deps := startTestManager(t, 1, nil)
 	owner := commonsemaphore.Owner{WorkflowID: "wf", RunID: "run", HoldID: 7}
 	deadline := time.Unix(1767258000, 0)
@@ -719,7 +781,7 @@ func TestEnqueue(t *testing.T) {
 		AcquireDeadline: &deadline,
 		CreatedTime:     deps.mockTimeSource.Now(),
 	})).Times(1).Return(&persistence.CreateSemaphoreTasksResponse{}, nil)
-	// read is sent to when the reader reads, which it does once enqueue signals it.
+	// read is sent to when the reader reads, which it does once queueTask signals it.
 	read := make(chan struct{}, 1)
 	deps.mockTaskManager.EXPECT().GetSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
 		func(context.Context, *persistence.GetSemaphoreTasksRequest) (*persistence.GetSemaphoreTasksResponse, error) {
@@ -730,17 +792,17 @@ func TestEnqueue(t *testing.T) {
 			return &persistence.GetSemaphoreTasksResponse{}, nil
 		})
 
-	require.NoError(t, mgr.enqueue(context.Background(), owner.String(), &deadline))
+	require.NoError(t, mgr.queueTask(context.Background(), owner.String(), &deadline))
 	select {
 	case <-read:
 	case <-time.After(time.Second):
-		t.Fatal("the reader was not signaled after the waiter was written")
+		t.Fatal("the reader was not signaled after the task was written")
 	}
 }
 
-func TestEnqueue_BadOwnerID(t *testing.T) {
+func TestQueueTask_BadOwnerID(t *testing.T) {
 	mgr, _ := startTestManager(t, 1, nil)
-	err := mgr.enqueue(context.Background(), "caller", nil)
+	err := mgr.queueTask(context.Background(), "caller", nil)
 	assert.ErrorAs(t, err, new(*types.BadRequestError))
 }
 
@@ -775,7 +837,7 @@ func TestGrant(t *testing.T) {
 			name: "success - caller's token was freed, grants a free token",
 			setupMocks: func(deps *mockDeps) {
 				expectGetTokenRow(deps.mockTokenManager, 1).Times(2).Return(tokenRowRead(1, ""), nil)
-				expectGrantToken(deps.mockTokenManager, 1).Return(
+				expectGrantToken(deps.mockTokenManager, 1, "caller").Return(
 					&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
 			},
 			expectedTokenID: 1,
@@ -897,12 +959,13 @@ func TestGrant_SyncHeldTokenLocked(t *testing.T) {
 	testCases := []struct {
 		name string
 		// callerCached starts the cache with "caller" holding token 1. Otherwise no read is expected.
-		callerCached       bool
-		dbRow              *persistence.SemaphoreOwnership
-		readErr            error
-		expectedTokenID    int
-		expectedCacheEntry tokenEntry
-		assertErr          func(t *testing.T, err error)
+		callerCached              bool
+		dbRow                     *persistence.SemaphoreOwnership
+		readErr                   error
+		expectedTokenID           int
+		expectedCacheEntry        tokenEntry
+		expectedGrantLoopSignaled bool
+		assertErr                 func(t *testing.T, err error)
 	}{
 		{
 			name:               "success - DB row names the caller, returns token 1",
@@ -917,11 +980,12 @@ func TestGrant_SyncHeldTokenLocked(t *testing.T) {
 			expectedCacheEntry: free,
 		},
 		{
-			name:               "success - DB row is FREE, token 1 becomes free",
-			callerCached:       true,
-			dbRow:              tokenRow(1, ""),
-			expectedTokenID:    constants.NoSemaphoreTokenID,
-			expectedCacheEntry: free,
+			name:                      "success - DB row is FREE, token 1 becomes free",
+			callerCached:              true,
+			dbRow:                     tokenRow(1, ""),
+			expectedTokenID:           constants.NoSemaphoreTokenID,
+			expectedCacheEntry:        free,
+			expectedGrantLoopSignaled: true,
 		},
 		{
 			name:               "success - DB row names another owner, token 1 becomes unavailable",
@@ -966,6 +1030,7 @@ func TestGrant_SyncHeldTokenLocked(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectedTokenID, got)
 			assert.Equal(t, tc.expectedCacheEntry, getTokenEntry(mgr.currentCache(), 1))
+			assert.Equal(t, tc.expectedGrantLoopSignaled, len(mgr.grantNotifyC) == 1)
 			assertCacheConsistent(t, mgr.currentCache())
 		})
 	}
@@ -974,6 +1039,7 @@ func TestGrant_SyncHeldTokenLocked(t *testing.T) {
 // Tests grantFreeTokenLocked for each write answer. Token 2 is held, so the first write goes to token 1.
 func TestGrant_FreeToken(t *testing.T) {
 	writeErr := &persistence.TimeoutError{Msg: "write timed out"}
+	applied := &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}
 	taken := &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantSlotTaken}
 	testCases := []struct {
 		name         string
@@ -982,17 +1048,20 @@ func TestGrant_FreeToken(t *testing.T) {
 		callerGaveUp bool
 		// justReloaded sets the last reload to just under minBucketReloadInterval ago.
 		justReloaded bool
-		// expectRetry expects a reload that shows token 2 freed, and a write of token 2 that applies.
-		expectRetry bool
+		// retryResp, if set, expects a reload that shows token 2 freed, and a write of token 2
+		// answered with retryResp.
+		retryResp *persistence.GrantSemaphoreTokenResponse
 		// expectFullReload expects a reload that shows both tokens held, and no second write.
 		expectFullReload     bool
 		expectedTokenID      int
 		expectedCacheEntries map[int]tokenEntry
-		assertErr            func(t *testing.T, err error)
+		// expectedGrantLoopSignaled is set when a reload finds a free token.
+		expectedGrantLoopSignaled bool
+		assertErr                 func(t *testing.T, err error)
 	}{
 		{
 			name:                 "success - write applies, grants token 1",
-			resp:                 &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied},
+			resp:                 applied,
 			expectedTokenID:      1,
 			expectedCacheEntries: map[int]tokenEntry{1: heldByCaller, 2: heldByOther},
 		},
@@ -1030,11 +1099,12 @@ func TestGrant_FreeToken(t *testing.T) {
 			},
 		},
 		{
-			name:                 "success - slot taken, reloads and grants token 2",
-			resp:                 taken,
-			expectRetry:          true,
-			expectedTokenID:      2,
-			expectedCacheEntries: map[int]tokenEntry{1: heldByA, 2: heldByCaller},
+			name:                      "success - slot taken, reloads and grants token 2",
+			resp:                      taken,
+			retryResp:                 applied,
+			expectedTokenID:           2,
+			expectedCacheEntries:      map[int]tokenEntry{1: heldByA, 2: heldByCaller},
+			expectedGrantLoopSignaled: true,
 		},
 		{
 			name:                 "success - slot taken, reload shows the bucket full, no token",
@@ -1044,11 +1114,21 @@ func TestGrant_FreeToken(t *testing.T) {
 			expectedCacheEntries: map[int]tokenEntry{1: heldByA, 2: heldByOther},
 		},
 		{
-			name:                 "success - slot taken, bucket was just reloaded, no reload and no token",
+			name:                 "failure - slot taken, bucket was just reloaded, no reload, stale cache",
 			resp:                 taken,
 			justReloaded:         true,
 			expectedTokenID:      constants.NoSemaphoreTokenID,
 			expectedCacheEntries: map[int]tokenEntry{1: unavailable, 2: heldByOther},
+			assertErr:            func(t *testing.T, err error) { assert.ErrorIs(t, err, errStaleCache) },
+		},
+		{
+			name:                      "failure - slot taken, reloads, token 2 taken too, stale cache",
+			resp:                      taken,
+			retryResp:                 taken,
+			expectedTokenID:           constants.NoSemaphoreTokenID,
+			expectedCacheEntries:      map[int]tokenEntry{1: heldByA, 2: unavailable},
+			expectedGrantLoopSignaled: true,
+			assertErr:                 func(t *testing.T, err error) { assert.ErrorIs(t, err, errStaleCache) },
 		},
 		{
 			name:                 "failure - caller already gave up, no write, token 1 stays free",
@@ -1072,15 +1152,14 @@ func TestGrant_FreeToken(t *testing.T) {
 			if tc.callerGaveUp {
 				cancel()
 			} else {
-				expectGrantToken(deps.mockTokenManager, 1).Return(tc.resp, tc.writeErr)
+				expectGrantToken(deps.mockTokenManager, 1, "caller").Return(tc.resp, tc.writeErr)
 			}
-			if tc.expectRetry {
+			if tc.retryResp != nil {
 				deps.mockTokenManager.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).Return(
 					&persistence.ScanSemaphoreBucketResponse{Ownerships: []*persistence.SemaphoreOwnership{
 						tokenRow(1, "owner-a"), ownerRow("owner-a", 1), tokenRow(2, ""),
 					}}, nil)
-				expectGrantToken(deps.mockTokenManager, 2).Return(
-					&persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}, nil)
+				expectGrantToken(deps.mockTokenManager, 2, "caller").Return(tc.retryResp, nil)
 			}
 			if tc.expectFullReload {
 				deps.mockTokenManager.EXPECT().ScanSemaphoreBucket(gomock.Any(), gomock.Any()).Times(1).Return(
@@ -1097,6 +1176,7 @@ func TestGrant_FreeToken(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectedTokenID, got)
 			assert.Equal(t, tc.expectedCacheEntries, cacheEntries(mgr.currentCache()))
+			assert.Equal(t, tc.expectedGrantLoopSignaled, len(mgr.grantNotifyC) == 1)
 			assertCacheConsistent(t, mgr.currentCache())
 		})
 	}
@@ -1116,22 +1196,22 @@ func TestRelease(t *testing.T) {
 			name: "success - caller's token is cached, releases it without reading the owner row",
 			rows: []*persistence.SemaphoreOwnership{tokenRow(1, "caller"), ownerRow("caller", 1)},
 			setupMocks: func(deps *mockDeps) {
-				expectReleaseToken(deps.mockTokenManager, 1).Return(applied, nil)
+				expectReleaseToken(deps.mockTokenManager, 1, "caller").Return(applied, nil)
 			},
 		},
 		{
 			name: "success - caller's token isn't cached, releases the token its owner row names",
 			setupMocks: func(deps *mockDeps) {
 				gomock.InOrder(
-					expectGetOwnerRow(deps.mockTokenManager).Return(callerOwnerRow(1), nil),
-					expectReleaseToken(deps.mockTokenManager, 1).Return(applied, nil),
+					expectGetOwnerRow(deps.mockTokenManager, "caller").Return(callerOwnerRow(1), nil),
+					expectReleaseToken(deps.mockTokenManager, 1, "caller").Return(applied, nil),
 				)
 			},
 		},
 		{
 			name: "success - caller holds nothing, no release",
 			setupMocks: func(deps *mockDeps) {
-				expectGetOwnerRow(deps.mockTokenManager).Return(nil, &types.EntityNotExistsError{Message: "not found"})
+				expectGetOwnerRow(deps.mockTokenManager, "caller").Return(nil, &types.EntityNotExistsError{Message: "not found"})
 			},
 		},
 		{
@@ -1148,6 +1228,7 @@ func TestRelease(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mgr, deps := startTestManager(t, 1, tc.rows)
 			if tc.managerStopped {
+				allowStopAckLevelSave(deps)
 				mgr.Stop()
 			}
 			if tc.setupMocks != nil {
@@ -1173,18 +1254,20 @@ func TestRelease_TryReleaseToken(t *testing.T) {
 		name    string
 		tokenID int
 		// resp and writeErr answer the write. Both nil expects no write.
-		resp               *persistence.ReleaseSemaphoreTokenResponse
-		writeErr           error
-		expectedApplied    bool
-		expectedCacheEntry tokenEntry
-		assertErr          func(t *testing.T, err error)
+		resp                      *persistence.ReleaseSemaphoreTokenResponse
+		writeErr                  error
+		expectedApplied           bool
+		expectedCacheEntry        tokenEntry
+		expectedGrantLoopSignaled bool
+		assertErr                 func(t *testing.T, err error)
 	}{
 		{
-			name:               "success - write applies, token 1 is free",
-			tokenID:            1,
-			resp:               &persistence.ReleaseSemaphoreTokenResponse{Applied: true},
-			expectedApplied:    true,
-			expectedCacheEntry: free,
+			name:                      "success - write applies, token 1 is free",
+			tokenID:                   1,
+			resp:                      &persistence.ReleaseSemaphoreTokenResponse{Applied: true},
+			expectedApplied:           true,
+			expectedCacheEntry:        free,
+			expectedGrantLoopSignaled: true,
 		},
 		{
 			name:               "success - write does not apply, token 1 is unavailable",
@@ -1193,11 +1276,12 @@ func TestRelease_TryReleaseToken(t *testing.T) {
 			expectedCacheEntry: unavailable,
 		},
 		{
-			name:               "failure - write fails, token 1 is free",
-			tokenID:            1,
-			writeErr:           writeErr,
-			expectedCacheEntry: free,
-			assertErr:          func(t *testing.T, err error) { assert.ErrorIs(t, err, writeErr) },
+			name:                      "failure - write fails, token 1 is free",
+			tokenID:                   1,
+			writeErr:                  writeErr,
+			expectedCacheEntry:        free,
+			expectedGrantLoopSignaled: true,
+			assertErr:                 func(t *testing.T, err error) { assert.ErrorIs(t, err, writeErr) },
 		},
 		{
 			name:               "failure - token 2 is outside the bucket, no write",
@@ -1214,7 +1298,7 @@ func TestRelease_TryReleaseToken(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mgr, deps := startTestManager(t, 1, []*persistence.SemaphoreOwnership{tokenRow(1, "caller"), ownerRow("caller", 1)})
 			if tc.resp != nil || tc.writeErr != nil {
-				expectReleaseToken(deps.mockTokenManager, tc.tokenID).Return(tc.resp, tc.writeErr)
+				expectReleaseToken(deps.mockTokenManager, tc.tokenID, "caller").Return(tc.resp, tc.writeErr)
 			}
 
 			applied, err := mgr.tryReleaseTokenLocked(context.Background(), mgr.currentCache(), tc.tokenID, "caller")
@@ -1225,6 +1309,7 @@ func TestRelease_TryReleaseToken(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectedApplied, applied)
 			assert.Equal(t, tc.expectedCacheEntry, getTokenEntry(mgr.currentCache(), 1))
+			assert.Equal(t, tc.expectedGrantLoopSignaled, len(mgr.grantNotifyC) == 1)
 			assertCacheConsistent(t, mgr.currentCache())
 		})
 	}
@@ -1241,7 +1326,7 @@ func TestRelease_OwnerRowToken(t *testing.T) {
 		{
 			name: "failure - owner row read fails, returns the error",
 			setupMocks: func(deps *mockDeps) {
-				expectGetOwnerRow(deps.mockTokenManager).Return(nil, readErr)
+				expectGetOwnerRow(deps.mockTokenManager, "caller").Return(nil, readErr)
 			},
 			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, readErr) },
 		},
@@ -1249,8 +1334,8 @@ func TestRelease_OwnerRowToken(t *testing.T) {
 			name: "failure - owner row names token 1 but its release does not apply, InternalServiceError",
 			setupMocks: func(deps *mockDeps) {
 				gomock.InOrder(
-					expectGetOwnerRow(deps.mockTokenManager).Return(callerOwnerRow(1), nil),
-					expectReleaseToken(deps.mockTokenManager, 1).Return(&persistence.ReleaseSemaphoreTokenResponse{Applied: false}, nil),
+					expectGetOwnerRow(deps.mockTokenManager, "caller").Return(callerOwnerRow(1), nil),
+					expectReleaseToken(deps.mockTokenManager, 1, "caller").Return(&persistence.ReleaseSemaphoreTokenResponse{Applied: false}, nil),
 				)
 			},
 			assertErr: func(t *testing.T, err error) { assert.IsType(t, &types.InternalServiceError{}, err) },
@@ -1288,28 +1373,28 @@ func TestGetTokenByOwner(t *testing.T) {
 		{
 			name: "success - caller's token isn't cached, returns the token its owner row names",
 			setupMocks: func(deps *mockDeps) {
-				expectGetOwnerRow(deps.mockTokenManager).Return(callerOwnerRow(1), nil)
+				expectGetOwnerRow(deps.mockTokenManager, "caller").Return(callerOwnerRow(1), nil)
 			},
 			expectedTokenID: 1,
 		},
 		{
 			name: "success - caller holds nothing, returns no token",
 			setupMocks: func(deps *mockDeps) {
-				expectGetOwnerRow(deps.mockTokenManager).Return(nil, &types.EntityNotExistsError{Message: "not found"})
+				expectGetOwnerRow(deps.mockTokenManager, "caller").Return(nil, &types.EntityNotExistsError{Message: "not found"})
 			},
 			expectedTokenID: constants.NoSemaphoreTokenID,
 		},
 		{
 			name: "failure - owner row read fails",
 			setupMocks: func(deps *mockDeps) {
-				expectGetOwnerRow(deps.mockTokenManager).Return(nil, readErr)
+				expectGetOwnerRow(deps.mockTokenManager, "caller").Return(nil, readErr)
 			},
 			assertErr: func(t *testing.T, err error) { assert.ErrorIs(t, err, readErr) },
 		},
 		{
 			name: "failure - owner row names token 2 outside the bucket",
 			setupMocks: func(deps *mockDeps) {
-				expectGetOwnerRow(deps.mockTokenManager).Return(callerOwnerRow(2), nil)
+				expectGetOwnerRow(deps.mockTokenManager, "caller").Return(callerOwnerRow(2), nil)
 			},
 			assertErr: func(t *testing.T, err error) {
 				assert.IsType(t, &types.InternalServiceError{}, err)
@@ -1330,6 +1415,7 @@ func TestGetTokenByOwner(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mgr, deps := startTestManager(t, 1, tc.rows)
 			if tc.managerStopped {
+				allowStopAckLevelSave(deps)
 				mgr.Stop()
 			}
 			if tc.setupMocks != nil {

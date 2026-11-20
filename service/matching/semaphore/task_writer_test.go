@@ -26,7 +26,7 @@ func newTestQueueManager(t *testing.T, store persistence.SemaphoreTaskManager, t
 		logger:         logger,
 		timeSource:     timeSource,
 		config:         &config.SemaphoreConfig{UpdateAckInterval: testUpdateAckInterval},
-		taskDB:         newTaskDB(testBucketID, store),
+		taskDB:         newTaskDB(testBucketID, store, logger),
 		taskAckManager: messaging.NewAckManager(logger),
 	}
 }
@@ -68,14 +68,14 @@ func startTestTaskWriter(t *testing.T, store *persistence.MockSemaphoreTaskManag
 	return w
 }
 
-// waiter returns a task as an append gets it, with no task id.
-func waiter(workflowID string) *persistence.SemaphoreTask {
+// newTask returns a task as an append gets it, with no task id.
+func newTask(workflowID string) *persistence.SemaphoreTask {
 	return &persistence.SemaphoreTask{WorkflowID: workflowID, RunID: "run-" + workflowID, HoldID: 7}
 }
 
-// written returns waiter(workflowID) as the writer writes it, with taskID.
+// written returns newTask(workflowID) as the writer writes it, with taskID.
 func written(workflowID string, taskID int64) *persistence.SemaphoreTask {
-	task := waiter(workflowID)
+	task := newTask(workflowID)
 	task.TaskID = taskID
 	return task
 }
@@ -197,10 +197,10 @@ func TestAppendTask(t *testing.T) {
 		store.EXPECT().CreateSemaphoreTasks(gomock.Any(), createRequest(1, written("wf-b", 2))),
 	)
 
-	task := waiter("wf-a")
+	task := newTask("wf-a")
 	require.NoError(t, w.appendTask(testContext(t), task))
-	assert.Equal(t, waiter("wf-a"), task, "the caller's task is not changed")
-	require.NoError(t, w.appendTask(testContext(t), waiter("wf-b")))
+	assert.Equal(t, newTask("wf-a"), task, "the caller's task is not changed")
+	require.NoError(t, w.appendTask(testContext(t), newTask("wf-b")))
 	assert.Equal(t, int64(2), w.getMaxReadLevel())
 }
 
@@ -237,7 +237,7 @@ func TestAllocTaskIDsRenewsWhenBlockRunsOut(t *testing.T) {
 			)
 
 			for _, workflowID := range []string{"wf-a", "wf-b", "wf-c"} {
-				require.NoError(t, w.appendTask(testContext(t), waiter(workflowID)))
+				require.NoError(t, w.appendTask(testContext(t), newTask(workflowID)))
 			}
 			assert.Equal(t, int64(3), w.getMaxReadLevel())
 			assert.False(t, isClosed(w.fatal()))
@@ -312,15 +312,15 @@ func TestTaskWriterFailures(t *testing.T) {
 			store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
 			w := startTestTaskWriter(t, store, tc.rangeSize)
 			store.EXPECT().CreateSemaphoreTasks(gomock.Any(), createRequest(1, written("wf-a", 1)))
-			require.NoError(t, w.appendTask(testContext(t), waiter("wf-a")))
+			require.NoError(t, w.appendTask(testContext(t), newTask("wf-a")))
 			tc.fail(store)
 
-			assert.ErrorIs(t, w.appendTask(testContext(t), waiter("wf-b")), tc.wantErr)
+			assert.ErrorIs(t, w.appendTask(testContext(t), newTask("wf-b")), tc.wantErr)
 			assert.Equal(t, tc.wantMaxReadLevel, w.getMaxReadLevel())
 			assert.Equal(t, tc.wantFatal, isClosed(w.fatal()))
 			if tc.wantStopped {
 				// The mock fails the test on another claim.
-				assert.ErrorIs(t, w.appendTask(testContext(t), waiter("wf-c")), ErrNotReady)
+				assert.ErrorIs(t, w.appendTask(testContext(t), newTask("wf-c")), ErrNotReady)
 			}
 		})
 	}
@@ -339,12 +339,12 @@ func TestTaskWriterShutdown(t *testing.T) {
 		})
 
 	appended := make(chan error, 1)
-	go func() { appended <- w.appendTask(testContext(t), waiter("wf-a")) }()
+	go func() { appended <- w.appendTask(testContext(t), newTask("wf-a")) }()
 	<-writing
 	w.stop()
 
 	assert.ErrorIs(t, <-appended, ErrNotReady)
-	assert.ErrorIs(t, w.appendTask(testContext(t), waiter("wf-b")), ErrNotReady)
+	assert.ErrorIs(t, w.appendTask(testContext(t), newTask("wf-b")), ErrNotReady)
 	close(finishWrite)
 }
 
@@ -361,7 +361,7 @@ func TestAppendTaskCallerGivesUp(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	appended := make(chan error, 1)
-	go func() { appended <- w.appendTask(ctx, waiter("wf-a")) }()
+	go func() { appended <- w.appendTask(ctx, newTask("wf-a")) }()
 	<-writing
 	cancel()
 	assert.ErrorIs(t, <-appended, context.Canceled)

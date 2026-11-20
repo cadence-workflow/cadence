@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/uber/cadence/common"
@@ -16,7 +17,7 @@ import (
 )
 
 const (
-	// getTasksBatchSize is the most waiters one read returns, and the buffer size.
+	// getTasksBatchSize is the most tasks one read returns, and the buffer size.
 	getTasksBatchSize = 100
 	// readRangeSize is how many task ids one query covers.
 	readRangeSize = 50_000
@@ -24,10 +25,9 @@ const (
 	maxReadWindows = 10
 )
 
-// taskReader reads waiters into taskBuffer in task id order and saves the ack level.
-//
-// The ack level is saved on every tick, even when unchanged: the write is fenced on range_id, so
-// it detects that another host claimed the bucket.
+// taskReader passes tasks to grantTask one at a time, in task id order. It saves the ack level on
+// a timer and on stop, and deletes finished tasks. Each save also checks that this host still owns
+// the bucket.
 type taskReader struct {
 	db             *taskDB
 	writer         *taskWriter
@@ -38,14 +38,22 @@ type taskReader struct {
 	readRangeSize  int64
 	throttleRetry  *backoff.ThrottleRetry
 
-	taskBuffer chan *persistence.SemaphoreTask
+	taskGC *taskGC
+
+	taskBuffer      chan *persistence.SemaphoreTask
+	grantTask       func(context.Context, *persistence.SemaphoreTask) bool
+	signalGrantLoop func()
 	// notifyC wakes the read loop. It holds at most one signal.
 	notifyC chan struct{}
+	// gcNotifyC wakes the read loop to delete finished tasks. It holds at most one signal.
+	gcNotifyC chan struct{}
 
 	// cancelCtx is canceled by stop. It ends the read loop.
 	cancelCtx  context.Context
 	cancelFunc context.CancelFunc
 	wg         sync.WaitGroup
+	// stopped is set to 1 by the first stop.
+	stopped int64
 
 	// fatalCh is closed when this host has lost the bucket. The reader only reports it; the
 	// manager stops the bucket.
@@ -68,29 +76,43 @@ func newTaskReader(m *semaphoreManagerImpl) *taskReader {
 			backoff.WithRetryPolicy(common.CreatePersistenceRetryPolicy()),
 			backoff.WithRetryableError(persistence.IsTransientError),
 		),
-		taskBuffer: make(chan *persistence.SemaphoreTask, getTasksBatchSize),
-		notifyC:    make(chan struct{}, 1),
-		cancelCtx:  cancelCtx,
-		cancelFunc: cancelFunc,
-		fatalCh:    make(chan struct{}),
+		taskGC:          newTaskGC(m.taskDB, m.timeSource),
+		taskBuffer:      make(chan *persistence.SemaphoreTask, getTasksBatchSize),
+		grantTask:       m.grantTask,
+		signalGrantLoop: m.signalGrantLoop,
+		notifyC:         make(chan struct{}, 1),
+		gcNotifyC:       make(chan struct{}, 1),
+		cancelCtx:       cancelCtx,
+		cancelFunc:      cancelFunc,
+		fatalCh:         make(chan struct{}),
 	}
 }
 
-// start runs the read loop, which reads waiters when signaled and saves the ack level on a timer.
-// Call it after the writer's claim.
+// start runs the read loop and the grant loop. Call it after the claim.
 func (tr *taskReader) start() {
 	tr.signal()
-	tr.wg.Add(1)
+	tr.wg.Add(2)
 	go tr.getTasksPump()
+	go tr.grantTasksLoop()
 }
 
-// stop stops the reader and waits for its goroutine to exit. Safe to call more than once, and
-// before start.
-//
-// TODO: Once waiters are acked, save the ack level once more and delete the rows below it.
 func (tr *taskReader) stop() {
-	tr.cancelFunc()
-	tr.wg.Wait()
+	if atomic.CompareAndSwapInt64(&tr.stopped, 0, 1) {
+		tr.cancelFunc()
+		tr.wg.Wait()
+		if err := tr.persistAckLevel(); err != nil {
+			tr.logger.Error("Semaphore task reader failed to save the ack level", tag.Error(err))
+		}
+		tr.taskGC.runNow(tr.taskAckManager.GetAckLevel())
+	}
+}
+
+func (tr *taskReader) persistAckLevel() error {
+	ackLevel := tr.taskAckManager.GetAckLevel()
+	if ackLevel < 0 {
+		return nil
+	}
+	return tr.db.updateAckLevel(ackLevel)
 }
 
 // fatal returns a channel that is closed once this host has lost the bucket.
@@ -102,7 +124,7 @@ func (tr *taskReader) signalFatal() {
 	tr.fatalOnce.Do(func() { close(tr.fatalCh) })
 }
 
-// signal wakes the read loop to look for new waiters. It never blocks.
+// signal wakes the read loop to look for new tasks. It never blocks.
 func (tr *taskReader) signal() {
 	select {
 	case tr.notifyC <- struct{}{}:
@@ -110,20 +132,45 @@ func (tr *taskReader) signal() {
 	}
 }
 
-// hasWaiters reports whether any waiter is not yet granted: written but not read, or read but not
-// acked. The read level is checked first so a waiter being read is not missed. It can report true
-// when no waiter exists, after a failed write, until the reader reads past it.
-//
-// TODO: Acquire calls it before granting, so a newcomer queues behind existing waiters. The
-// enqueue must signal the reader, since a false true can queue a newcomer next to a free token.
-func (tr *taskReader) hasWaiters() bool {
+// signalGC wakes the read loop to delete finished tasks. It never blocks.
+func (tr *taskReader) signalGC() {
+	select {
+	case tr.gcNotifyC <- struct{}{}:
+	default: // a signal is already waiting
+	}
+}
+
+// hasTasks reports whether any task is written but not acked. The read level is checked first,
+// since a read counts the task in the backlog before it moves the read level.
+func (tr *taskReader) hasTasks() bool {
 	if tr.taskAckManager.GetReadLevel() < tr.writer.getMaxReadLevel() {
 		return true
 	}
 	return tr.taskAckManager.GetBacklogCount() > 0
 }
 
-// getTasksPump reads waiters into taskBuffer when signaled, and saves the ack level on a timer.
+// grantTasksLoop grants buffered tasks in order, and acks each once it is finished.
+func (tr *taskReader) grantTasksLoop() {
+	defer tr.wg.Done()
+	for {
+		select {
+		case <-tr.cancelCtx.Done():
+			return
+		case task := <-tr.taskBuffer:
+			// Taking one frees buffer room, so wake the read loop.
+			tr.signal()
+			if !tr.grantTask(tr.cancelCtx, task) {
+				return
+			}
+			tr.taskAckManager.AckItem(task.TaskID)
+			// The read loop deletes finished tasks, so a slow delete doesn't hold up the next grant.
+			tr.signalGC()
+		}
+	}
+}
+
+// getTasksPump reads tasks into taskBuffer and deletes finished tasks when signaled, and saves the
+// ack level on a timer.
 func (tr *taskReader) getTasksPump() {
 	defer tr.wg.Done()
 	// A timer reset after each save, not a ticker, so a change to the interval takes effect.
@@ -135,13 +182,16 @@ func (tr *taskReader) getTasksPump() {
 			// Stop was called.
 			return
 		case <-tr.notifyC:
-			// There may be new waiters: read the next ones into the buffer.
+			// There may be new tasks: read the next ones into the buffer.
 			if !tr.readTasks() {
 				return
 			}
+		case <-tr.gcNotifyC:
+			// A task was acked: delete the finished tasks.
+			tr.taskGC.run(tr.taskAckManager.GetAckLevel())
 		case <-updateAckTimer.Chan():
 			// Save the ack level. The write also checks that this host still holds the bucket.
-			err := tr.db.updateAckLevel(tr.taskAckManager.GetAckLevel())
+			err := tr.persistAckLevel()
 			if errors.As(err, new(*persistence.ConditionFailedError)) {
 				reportConditionFailed(tr.logger, err)
 				tr.signalFatal()
@@ -151,19 +201,20 @@ func (tr *taskReader) getTasksPump() {
 				// Not fatal: the next save writes it again.
 				tr.logger.Error("Semaphore task reader failed to save the ack level", tag.Error(err))
 			}
-			// Also look for waiters, in case a signal was missed.
+			// Also look for new tasks and free tokens, in case a signal was missed.
 			tr.signal()
+			tr.signalGrantLoop()
 			updateAckTimer.Reset(tr.updateInterval())
 		}
 	}
 }
 
-// readTasks reads as many waiters as taskBuffer has room for, so adding them never blocks. It
+// readTasks reads as many tasks as taskBuffer has room for, so adding them never blocks. It
 // returns false if the reader must stop.
 func (tr *taskReader) readTasks() bool {
 	room := cap(tr.taskBuffer) - len(tr.taskBuffer)
 	if room == 0 {
-		// Nothing to read into. Not a reason to stop: the loop that takes waiters from the buffer
+		// Nothing to read into. Not a reason to stop: the loop that takes tasks from the buffer
 		// signals the reader, and the next pass reads then.
 		return true
 	}
@@ -193,13 +244,13 @@ func (tr *taskReader) readTasks() bool {
 			return false
 		}
 	}
-	// There may be more waiters.
+	// There may be more tasks.
 	tr.signal()
 	return true
 }
 
-// getTaskBatch reads up to batchSize waiters in (readLevel, maxReadLevel], one window at a time,
-// stopping at the first window with waiters. It returns the level reached and whether that is
+// getTaskBatch reads up to batchSize tasks in (readLevel, maxReadLevel], one window at a time,
+// stopping at the first window with tasks. It returns the level reached and whether that is
 // maxReadLevel.
 func (tr *taskReader) getTaskBatch(readLevel, maxReadLevel int64, batchSize int) ([]*persistence.SemaphoreTask, int64, bool, error) {
 	for i := 0; i < maxReadWindows && readLevel < maxReadLevel; i++ {
@@ -216,7 +267,7 @@ func (tr *taskReader) getTaskBatch(readLevel, maxReadLevel int64, batchSize int)
 	return nil, readLevel, readLevel == maxReadLevel, nil
 }
 
-// getTaskBatchWithRange reads up to batchSize waiters with ids in (readLevel, maxReadLevel],
+// getTaskBatchWithRange reads up to batchSize tasks with ids in (readLevel, maxReadLevel],
 // retrying transient errors.
 func (tr *taskReader) getTaskBatchWithRange(readLevel, maxReadLevel int64, batchSize int) ([]*persistence.SemaphoreTask, error) {
 	var tasks []*persistence.SemaphoreTask
@@ -226,30 +277,17 @@ func (tr *taskReader) getTaskBatchWithRange(readLevel, maxReadLevel int64, batch
 		return err
 	}
 	if err := tr.throttleRetry.Do(context.Background(), op); err != nil {
-		tr.logger.Error("Semaphore task reader failed to read waiters", tag.Error(err))
+		tr.logger.Error("Semaphore task reader failed to read tasks", tag.Error(err))
 		return nil, err
 	}
 	return tasks, nil
 }
 
-// isTaskExpired reports whether task's acquire deadline has passed. A task with no deadline never
-// expires.
-func (tr *taskReader) isTaskExpired(task *persistence.SemaphoreTask) bool {
-	return task.AcquireDeadline != nil && tr.timeSource.Now().After(*task.AcquireDeadline)
-}
-
-// addTaskToBuffer registers task with the ack manager and buffers it. A waiter past its deadline
-// is skipped. It returns false once the reader must stop.
-//
-// TODO: History's acquire timeout must end a skipped waiter's hold.
+// addTaskToBuffer registers task with the ack manager and buffers it, even if expired: its owner
+// may hold a token History never confirmed. It returns false once the reader must stop.
 func (tr *taskReader) addTaskToBuffer(task *persistence.SemaphoreTask) bool {
-	if tr.isTaskExpired(task) {
-		// Moves the read level past it, or a batch of only expired waiters would be read again.
-		tr.taskAckManager.SetReadLevel(task.TaskID)
-		return true
-	}
 	if err := tr.taskAckManager.ReadItem(task.TaskID); err != nil {
-		tr.logger.Error("Semaphore task reader read a waiter out of order", tag.TaskID(task.TaskID), tag.Error(err))
+		tr.logger.Error("Semaphore task reader read a task out of order", tag.TaskID(task.TaskID), tag.Error(err))
 		tr.signalFatal()
 		return false
 	}
