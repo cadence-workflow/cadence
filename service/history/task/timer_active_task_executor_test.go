@@ -1149,6 +1149,82 @@ func (s *timerActiveTaskExecutorSuite) TestActivityRetryTimer_Fire() {
 	s.NoError(err)
 }
 
+func (s *timerActiveTaskExecutorSuite) TestActivityRetryTimer_SemaphoreHasNoToken() {
+	s.testActivityRetryTimerWithSemaphore(func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		_, err := mutableState.AddSemaphoreTokenLostEvent(semaphoreInfo.InitiatedID)
+		s.NoError(err)
+		mutableState.FlushBufferedEvents()
+	})
+}
+
+func (s *timerActiveTaskExecutorSuite) TestActivityRetryTimer_MatchingLostSemaphoreToken() {
+	s.testActivityRetryTimerWithSemaphore(func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		s.mockShard.Resource.SemaphoreMetadataMgr.EXPECT().GetSemaphore(gomock.Any(), gomock.Any()).
+			Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{Size: 4, BucketSize: 4}}, nil)
+		s.mockMatchingClient.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), gomock.Any()).
+			Return(&types.GetSemaphoreTokenByOwnerResponse{}, nil)
+		s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+		s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.UpdateWorkflowExecutionRequest) bool {
+			infos := req.UpdateWorkflowMutation.UpsertSemaphoreInfos
+			return len(infos) == 1 && !infos[0].HasToken()
+		})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
+	})
+}
+
+func (s *timerActiveTaskExecutorSuite) testActivityRetryTimerWithSemaphore(
+	setupFn func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo),
+) {
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+	semaphoreInfo := addSemaphoreWithToken(s.T(), mutableState, decisionCompletionID)
+
+	timerTimeout := 2 * time.Second
+	_, activityInfo := test.AddActivityTaskScheduledEventWithRetry(
+		mutableState,
+		decisionCompletionID,
+		"activity",
+		"activity type",
+		mutableState.GetExecutionInfo().TaskList,
+		[]byte(nil),
+		int32(timerTimeout.Seconds()),
+		int32(timerTimeout.Seconds()),
+		int32(timerTimeout.Seconds()),
+		int32(timerTimeout.Seconds()),
+		&types.RetryPolicy{
+			InitialIntervalInSeconds:    1,
+			BackoffCoefficient:          1.2,
+			MaximumIntervalInSeconds:    5,
+			MaximumAttempts:             5,
+			ExpirationIntervalInSeconds: 999,
+		},
+	)
+	activityInfo.Attempt = 1
+	mutableState.FlushBufferedEvents()
+	setupFn(mutableState, semaphoreInfo)
+
+	timerTask := s.newTimerTaskFromInfo(&persistence.ActivityRetryTimerTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version:             s.version,
+			TaskID:              int64(100),
+			VisibilityTimestamp: s.timeSource.Now(),
+		},
+		EventID: activityInfo.ScheduleID,
+		Attempt: int64(activityInfo.Attempt),
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, mutableState.GetNextEventID()-1, s.version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+
+	_, err = s.timerActiveTaskExecutor.Execute(timerTask)
+	s.NoError(err)
+}
+
 func (s *timerActiveTaskExecutorSuite) TestActivityRetryTimer_Noop() {
 
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)

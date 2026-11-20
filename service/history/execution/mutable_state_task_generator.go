@@ -30,6 +30,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -71,6 +72,10 @@ type (
 		GenerateChildWorkflowTasks(
 			event *types.HistoryEvent,
 		) error
+		// GenerateUnstartedWorkTasks adds tasks to send each activity and child workflow that was
+		// scheduled after the semaphore's acquire and hasn't started. A retrying activity gets a retry
+		// timer instead, which keeps its backoff.
+		GenerateUnstartedWorkTasks(semaphoreInitiatedID int64) error
 		GenerateRequestCancelExternalTasks(
 			event *types.HistoryEvent,
 		) error
@@ -423,6 +428,14 @@ func (r *mutableStateTaskGeneratorImpl) GenerateActivityTransferTasks(
 		}
 	}
 
+	r.addActivityTransferTask(activityInfo, targetDomainID)
+	return nil
+}
+
+func (r *mutableStateTaskGeneratorImpl) addActivityTransferTask(
+	activityInfo *persistence.ActivityInfo,
+	targetDomainID string,
+) {
 	executionInfo := r.mutableState.GetExecutionInfo()
 	r.mutableState.AddTransferTasks(&persistence.ActivityTask{
 		WorkflowIdentifier: persistence.WorkflowIdentifier{
@@ -438,8 +451,6 @@ func (r *mutableStateTaskGeneratorImpl) GenerateActivityTransferTasks(
 		TaskList:       activityInfo.TaskList,
 		ScheduleID:     activityInfo.ScheduleID,
 	})
-
-	return nil
 }
 
 func (r *mutableStateTaskGeneratorImpl) GenerateActivityRetryTasks(
@@ -579,6 +590,12 @@ func (r *mutableStateTaskGeneratorImpl) GenerateChildWorkflowTasks(
 			Message: fmt.Sprintf("it could be a bug, cannot get pending child workflow: %v", childWorkflowScheduleID),
 		}
 	}
+	return r.addChildWorkflowTask(childWorkflowInfo)
+}
+
+func (r *mutableStateTaskGeneratorImpl) addChildWorkflowTask(
+	childWorkflowInfo *persistence.ChildExecutionInfo,
+) error {
 
 	msbDomainID := r.mutableState.GetDomainEntry().GetInfo().ID
 
@@ -610,6 +627,31 @@ func (r *mutableStateTaskGeneratorImpl) GenerateChildWorkflowTasks(
 	}
 
 	r.mutableState.AddTransferTasks(startChildExecutionTask)
+	return nil
+}
+
+func (r *mutableStateTaskGeneratorImpl) GenerateUnstartedWorkTasks(semaphoreInitiatedID int64) error {
+	for _, activityInfo := range r.mutableState.GetPendingActivityInfos() {
+		if activityInfo.ScheduleID < semaphoreInitiatedID || activityInfo.StartedID != constants.EmptyEventID {
+			continue
+		}
+		if activityInfo.Attempt > 0 {
+			if err := r.GenerateActivityRetryTasks(activityInfo.ScheduleID); err != nil {
+				return err
+			}
+			continue
+		}
+		r.addActivityTransferTask(activityInfo, activityInfo.DomainID)
+	}
+
+	for _, childWorkflowInfo := range r.mutableState.GetPendingChildExecutionInfos() {
+		if childWorkflowInfo.InitiatedID < semaphoreInitiatedID || childWorkflowInfo.StartedID != constants.EmptyEventID {
+			continue
+		}
+		if err := r.addChildWorkflowTask(childWorkflowInfo); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

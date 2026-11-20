@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
@@ -231,6 +232,48 @@ func Test__AddActivityTaskScheduledEvent(t *testing.T) {
 				assert.Equal(t, tc.expectedAttributes, event.ActivityTaskScheduledEventAttributes)
 				assert.Equal(t, tc.expectedInfo, activityInfo)
 				assert.Equal(t, tc.expectedDispatch, dispatchInfo)
+			}
+		})
+	}
+}
+
+func TestAddActivityTaskScheduledEvent_LocalDispatch(t *testing.T) {
+	cases := []struct {
+		name         string
+		hasSemaphore bool
+		wantDispatch bool
+	}{
+		{name: "a run with no semaphore dispatches locally", wantDispatch: true},
+		{name: "a run with a semaphore sends the activity through the transfer task", hasSemaphore: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mb := testMutableStateBuilder(t)
+			mockEventsCache := mb.shard.GetEventsCache().(*events.MockCache)
+			mockEventsCache.EXPECT().PutEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
+			if tc.hasSemaphore {
+				mb.pendingSemaphoreInfoIDs[2] = &persistence.SemaphoreInfo{InitiatedID: 2, TokenID: 7}
+			}
+
+			_, _, dispatchInfo, err := mb.AddActivityTaskScheduledEvent(0, &types.ScheduleActivityTaskDecisionAttributes{
+				ActivityID:                    "activityID",
+				ActivityType:                  &types.ActivityType{Name: "activityType"},
+				TaskList:                      &types.TaskList{Name: "taskList"},
+				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
+				ScheduleToStartTimeoutSeconds: common.Int32Ptr(1),
+				StartToCloseTimeoutSeconds:    common.Int32Ptr(1),
+				RequestLocalDispatch:          true,
+			})
+			require.NoError(t, err)
+
+			if tc.wantDispatch {
+				assert.Equal(t, &types.ActivityLocalDispatchInfo{ActivityID: "activityID"}, dispatchInfo)
+				assert.Empty(t, mb.GetTransferTasks())
+			} else {
+				assert.Nil(t, dispatchInfo)
+				require.Len(t, mb.GetTransferTasks(), 1)
+				assert.IsType(t, &persistence.ActivityTask{}, mb.GetTransferTasks()[0])
 			}
 		})
 	}

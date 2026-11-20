@@ -371,6 +371,30 @@ func Test__ReplicateSemaphoreAcquiredEvent(t *testing.T) {
 		require.NoError(t, mb.ReplicateSemaphoreAcquiredEvent(event))
 		assert.Equal(t, 7, mb.pendingSemaphoreInfoIDs[2].TokenID)
 	})
+	t.Run("a grant adds tasks for unstarted work", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+		hold := testSemaphoreInfo(2)
+		hold.TokenID = constants.NoSemaphoreTokenID
+		mb.pendingSemaphoreInfoIDs[2] = hold
+		mb.pendingActivityInfoIDs[3] = &persistence.ActivityInfo{
+			Version:    1,
+			ScheduleID: 3,
+			StartedID:  constants.EmptyEventID,
+			DomainID:   "domain-id",
+			TaskList:   "activity-task-list",
+		}
+
+		require.NoError(t, mb.ReplicateSemaphoreAcquiredEvent(event))
+		assert.Equal(t, []persistence.Task{
+			&persistence.ActivityTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
+				TaskData:           persistence.TaskData{Version: 1},
+				TargetDomainID:     "domain-id",
+				TaskList:           "activity-task-list",
+				ScheduleID:         3,
+			},
+		}, mb.GetTransferTasks())
+	})
 	t.Run("an event with no matching hold returns an error", func(t *testing.T) {
 		mb := testSemaphoreMutableStateBuilder(t)
 		assert.Equal(t, ErrMissingSemaphoreInfo, mb.ReplicateSemaphoreAcquiredEvent(event))
@@ -572,6 +596,13 @@ func Test__ReplicateSemaphoreAcquireFailedEvent(t *testing.T) {
 	hold := testSemaphoreInfo(2)
 	hold.TokenID = constants.NoSemaphoreTokenID
 	mb.pendingSemaphoreInfoIDs[2] = hold
+	mb.pendingActivityInfoIDs[3] = &persistence.ActivityInfo{
+		Version:    1,
+		ScheduleID: 3,
+		StartedID:  constants.EmptyEventID,
+		DomainID:   "domain-id",
+		TaskList:   "activity-task-list",
+	}
 
 	err := mb.ReplicateSemaphoreAcquireFailedEvent(&types.HistoryEvent{
 		ID:        10,
@@ -584,6 +615,15 @@ func Test__ReplicateSemaphoreAcquireFailedEvent(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
 	assert.Contains(t, mb.deleteSemaphoreInfos, int64(2))
+	assert.Equal(t, []persistence.Task{
+		&persistence.ActivityTask{
+			WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
+			TaskData:           persistence.TaskData{Version: 1},
+			TargetDomainID:     "domain-id",
+			TaskList:           "activity-task-list",
+			ScheduleID:         3,
+		},
+	}, mb.GetTransferTasks(), "held-back work is sent")
 }
 
 // Tests which releases AddSemaphoreReleasedEvent records and which it refuses.
@@ -659,9 +699,16 @@ func Test__ReplicateSemaphoreReleasedEvent(t *testing.T) {
 		},
 	}
 
-	t.Run("deletes the hold and adds the release task", func(t *testing.T) {
+	t.Run("a hold with a token is deleted and gets only a release task", func(t *testing.T) {
 		mb := testSemaphoreMutableStateBuilder(t)
 		mb.pendingSemaphoreInfoIDs[2] = testSemaphoreInfo(2)
+		mb.pendingActivityInfoIDs[3] = &persistence.ActivityInfo{
+			Version:    1,
+			ScheduleID: 3,
+			StartedID:  constants.EmptyEventID,
+			DomainID:   "domain-id",
+			TaskList:   "activity-task-list",
+		}
 
 		require.NoError(t, mb.ReplicateSemaphoreReleasedEvent(event))
 
@@ -673,6 +720,38 @@ func Test__ReplicateSemaphoreReleasedEvent(t *testing.T) {
 			InitiatedID:        2,
 			SemaphoreName:      "my-semaphore",
 		}}, mb.GetTransferTasks())
+	})
+	t.Run("a hold with no token also re-sends the waiting tasks", func(t *testing.T) {
+		mb := testSemaphoreMutableStateBuilder(t)
+		hold := testSemaphoreInfo(2)
+		hold.TokenID = constants.NoSemaphoreTokenID
+		mb.pendingSemaphoreInfoIDs[2] = hold
+		mb.pendingActivityInfoIDs[3] = &persistence.ActivityInfo{
+			Version:    1,
+			ScheduleID: 3,
+			StartedID:  constants.EmptyEventID,
+			DomainID:   "domain-id",
+			TaskList:   "activity-task-list",
+		}
+
+		require.NoError(t, mb.ReplicateSemaphoreReleasedEvent(event))
+
+		assert.NotContains(t, mb.pendingSemaphoreInfoIDs, int64(2))
+		assert.Equal(t, []persistence.Task{
+			&persistence.ReleaseSemaphoreTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
+				TaskData:           persistence.TaskData{Version: 1},
+				InitiatedID:        2,
+				SemaphoreName:      "my-semaphore",
+			},
+			&persistence.ActivityTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: "domain-id", WorkflowID: "wid", RunID: "rid"},
+				TaskData:           persistence.TaskData{Version: 1},
+				TargetDomainID:     "domain-id",
+				TaskList:           "activity-task-list",
+				ScheduleID:         3,
+			},
+		}, mb.GetTransferTasks())
 	})
 	t.Run("hold missing from a broken mutable state: replay succeeds and adds no release task", func(t *testing.T) {
 		mb := testSemaphoreMutableStateBuilder(t)

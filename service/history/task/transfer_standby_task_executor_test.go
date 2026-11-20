@@ -312,6 +312,46 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessActivityTask_Pending_PushT
 	s.Nil(err)
 }
 
+func (s *transferStandbyTaskExecutorSuite) TestProcessActivityTask_SemaphoreHasNoToken() {
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+	semaphoreInfo := addSemaphoreWithToken(s.T(), mutableState, decisionCompletionID)
+	event, _ := test.AddActivityTaskScheduledEvent(
+		mutableState,
+		decisionCompletionID,
+		"activity-1",
+		"some random activity type",
+		mutableState.GetExecutionInfo().TaskList,
+		[]byte{}, 1, 1, 1, 1,
+	)
+	_, err = mutableState.AddSemaphoreTokenLostEvent(semaphoreInfo.InitiatedID)
+	s.NoError(err)
+	mutableState.FlushBufferedEvents()
+
+	now := time.Now()
+	transferTask := s.newTransferTaskFromInfo(&persistence.ActivityTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version:             s.version,
+			VisibilityTimestamp: now,
+			TaskID:              int64(59),
+		},
+		TaskList:   mutableState.GetExecutionInfo().TaskList,
+		ScheduleID: event.ID,
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, mutableState.GetNextEventID()-1, s.version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.fetchHistoryDuration))
+	_, err = s.transferStandbyTaskExecutor.Execute(transferTask)
+	s.Nil(err)
+}
+
 func (s *transferStandbyTaskExecutorSuite) TestProcessActivityTask_Pending_TaskListKindEphemeral() {
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
 	s.NoError(err)

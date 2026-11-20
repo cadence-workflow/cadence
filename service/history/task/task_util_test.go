@@ -30,6 +30,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
@@ -1011,4 +1012,95 @@ func getDomainCacheEntry(isGlobal, isActiveActive bool) *cache.DomainCacheEntry 
 		1,
 		1,
 	)
+}
+
+func TestGetSemaphoreWithoutValidToken(t *testing.T) {
+	const ownerID = "owner"
+	withToken3 := &persistence.SemaphoreInfo{InitiatedID: 5, SemaphoreName: testSemaphoreName, OwnerID: ownerID, TokenID: 3}
+	noToken := &persistence.SemaphoreInfo{InitiatedID: 5}
+	expectBucket := func(metadataManager *persistence.MockSemaphoreMetadataManager) {
+		metadataManager.EXPECT().GetSemaphore(gomock.Any(), &persistence.GetSemaphoreRequest{
+			DomainID:      constants.TestDomainID,
+			SemaphoreName: testSemaphoreName,
+		}).Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{Size: 4, BucketSize: 4}}, nil)
+	}
+	expectTokenByOwner := func(matchingClient *matching.MockClient, resp *types.GetSemaphoreTokenByOwnerResponse, err error) {
+		matchingClient.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), &types.GetSemaphoreTokenByOwnerRequest{
+			DomainUUID:    constants.TestDomainID,
+			SemaphoreName: testSemaphoreName,
+			Bucket:        0,
+			OwnerID:       ownerID,
+		}).Return(resp, err)
+	}
+	matchingErr := &types.InternalServiceError{Message: "matching error"}
+
+	testCases := []struct {
+		name       string
+		semaphores map[int64]*persistence.SemaphoreInfo
+		setupMocks func(*persistence.MockSemaphoreMetadataManager, *matching.MockClient)
+		want       *persistence.SemaphoreInfo
+		wantErr    error
+	}{
+		{
+			name:       "acquired after eventID: nil, Matching not called",
+			semaphores: map[int64]*persistence.SemaphoreInfo{12: {InitiatedID: 12, TokenID: 3}},
+		},
+		{
+			name:       "no token: returned, Matching not called",
+			semaphores: map[int64]*persistence.SemaphoreInfo{5: noToken},
+			want:       noToken,
+		},
+		{
+			name:       "Matching holds the same token: nil",
+			semaphores: map[int64]*persistence.SemaphoreInfo{5: withToken3},
+			setupMocks: func(metadataManager *persistence.MockSemaphoreMetadataManager, matchingClient *matching.MockClient) {
+				expectBucket(metadataManager)
+				expectTokenByOwner(matchingClient, &types.GetSemaphoreTokenByOwnerResponse{TokenID: 3}, nil)
+			},
+		},
+		{
+			name:       "Matching holds no token for the owner: returned",
+			semaphores: map[int64]*persistence.SemaphoreInfo{5: withToken3},
+			setupMocks: func(metadataManager *persistence.MockSemaphoreMetadataManager, matchingClient *matching.MockClient) {
+				expectBucket(metadataManager)
+				expectTokenByOwner(matchingClient, &types.GetSemaphoreTokenByOwnerResponse{}, nil)
+			},
+			want: withToken3,
+		},
+		{
+			name:       "semaphore metadata not found: returned",
+			semaphores: map[int64]*persistence.SemaphoreInfo{5: withToken3},
+			setupMocks: func(metadataManager *persistence.MockSemaphoreMetadataManager, _ *matching.MockClient) {
+				metadataManager.EXPECT().GetSemaphore(gomock.Any(), gomock.Any()).Return(nil, &types.EntityNotExistsError{})
+			},
+			want: withToken3,
+		},
+		{
+			name:       "Matching call fails: error returned",
+			semaphores: map[int64]*persistence.SemaphoreInfo{5: withToken3},
+			setupMocks: func(metadataManager *persistence.MockSemaphoreMetadataManager, matchingClient *matching.MockClient) {
+				expectBucket(metadataManager)
+				expectTokenByOwner(matchingClient, nil, matchingErr)
+			},
+			wantErr: matchingErr,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mutableState := execution.NewMockMutableState(ctrl)
+			metadataManager := persistence.NewMockSemaphoreMetadataManager(ctrl)
+			matchingClient := matching.NewMockClient(ctrl)
+			mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{DomainID: constants.TestDomainID}).AnyTimes()
+			mutableState.EXPECT().GetPendingSemaphoreInfos().Return(tc.semaphores)
+			if tc.setupMocks != nil {
+				tc.setupMocks(metadataManager, matchingClient)
+			}
+
+			got, err := getSemaphoreWithoutValidToken(context.Background(), metadataManager, matchingClient, mutableState, 10)
+			assert.Equal(t, tc.wantErr, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }

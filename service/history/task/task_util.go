@@ -27,11 +27,13 @@ import (
 
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/shard"
@@ -415,3 +417,101 @@ func (m *mockTaskMatcher) String() string {
 
 var errActiveClusterSelectionPolicyNotFound = errors.New("active cluster selection policy not found")
 var errDomainEntryNotFound = errors.New("domain entry not found")
+
+// getOwnerBucket returns the bucket of semaphoreName that serves ownerID.
+func getOwnerBucket(
+	ctx context.Context,
+	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
+	domainID string,
+	semaphoreName string,
+	ownerID string,
+) (int, error) {
+
+	resp, err := semaphoreMetadataManager.GetSemaphore(ctx, &persistence.GetSemaphoreRequest{
+		DomainID:      domainID,
+		SemaphoreName: semaphoreName,
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	numBuckets, err := commonsemaphore.NumBuckets(resp.Semaphore.Size, resp.Semaphore.BucketSize)
+	if err != nil {
+		return 0, invalidSemaphoreMetadataError(domainID, semaphoreName, err)
+	}
+	bucket, err := commonsemaphore.OwnerIDToBucket(ownerID, numBuckets)
+	if err != nil {
+		return 0, invalidSemaphoreMetadataError(domainID, semaphoreName, err)
+	}
+	return bucket, nil
+}
+
+// invalidSemaphoreMetadataError reports a metadata row that can't be split into buckets, which only
+// a manual edit can cause. It's an internal error, so the task retries.
+func invalidSemaphoreMetadataError(domainID, semaphoreName string, err error) error {
+	return &types.InternalServiceError{
+		Message: fmt.Sprintf("semaphore metadata for domain %v, semaphore %v is invalid: %v", domainID, semaphoreName, err),
+	}
+}
+
+// getSemaphoreWithoutValidToken returns a semaphore acquired before eventID whose token is missing
+// or no longer held in Matching, or nil.
+func getSemaphoreWithoutValidToken(
+	ctx context.Context,
+	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
+	matchingClient matching.Client,
+	mutableState execution.MutableState,
+	eventID int64,
+) (*persistence.SemaphoreInfo, error) {
+
+	domainID := mutableState.GetExecutionInfo().DomainID
+	for _, semaphoreInfo := range mutableState.GetPendingSemaphoreInfos() {
+		if semaphoreInfo.InitiatedID > eventID {
+			continue
+		}
+		if !semaphoreInfo.HasToken() {
+			return semaphoreInfo, nil
+		}
+
+		tokenID, err := getSemaphoreTokenByOwner(ctx, semaphoreMetadataManager, matchingClient, domainID, semaphoreInfo)
+		if err != nil {
+			return nil, err
+		}
+		if tokenID != semaphoreInfo.TokenID {
+			return semaphoreInfo, nil
+		}
+	}
+	return nil, nil
+}
+
+// getSemaphoreTokenByOwner returns the token the semaphore's owner has in Matching.
+func getSemaphoreTokenByOwner(
+	ctx context.Context,
+	semaphoreMetadataManager persistence.SemaphoreMetadataManager,
+	matchingClient matching.Client,
+	domainID string,
+	semaphoreInfo *persistence.SemaphoreInfo,
+) (int, error) {
+
+	bucket, err := getOwnerBucket(ctx, semaphoreMetadataManager, domainID, semaphoreInfo.SemaphoreName, semaphoreInfo.OwnerID)
+	if errors.As(err, new(*types.EntityNotExistsError)) {
+		// Missing metadata counts as no token.
+		return constants.NoSemaphoreTokenID, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
+	defer cancel()
+	resp, err := matchingClient.GetSemaphoreTokenByOwner(ctx, &types.GetSemaphoreTokenByOwnerRequest{
+		DomainUUID:    domainID,
+		SemaphoreName: semaphoreInfo.SemaphoreName,
+		Bucket:        int32(bucket),
+		OwnerID:       semaphoreInfo.OwnerID,
+	})
+	if err != nil {
+		return 0, err
+	}
+	return int(resp.TokenID), nil
+}

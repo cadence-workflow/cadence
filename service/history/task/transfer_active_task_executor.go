@@ -213,6 +213,19 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 	if err != nil || !ok {
 		return err
 	}
+	semaphoreInfo, err := getSemaphoreWithoutValidToken(ctx, t.semaphoreMetadataManager, t.matchingClient, mutableState, ai.ScheduleID)
+	if err != nil {
+		return err
+	}
+	if semaphoreInfo != nil {
+		if !semaphoreInfo.HasToken() {
+			// The loss is already recorded and a new acquire is under way. The activity is sent
+			// when that acquire ends or the semaphore is released.
+			return nil
+		}
+		// Matching no longer holds the token: record the loss, which starts a new acquire.
+		return recordSemaphoreTokenLost(ctx, t.logger, wfContext, semaphoreInfo.InitiatedID, semaphoreInfo.TokenID, t.shard.GetTimeSource().Now())
+	}
 
 	timeout := min(ai.ScheduleToStartTimeout, constants.MaxTaskTimeout)
 
@@ -951,6 +964,20 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 	// remaining 2 cases:
 	// workflow running, child not started, close policy is or is not abandon
 
+	semaphoreInfo, err := getSemaphoreWithoutValidToken(ctx, t.semaphoreMetadataManager, t.matchingClient, mutableState, initiatedEventID)
+	if err != nil {
+		return err
+	}
+	if semaphoreInfo != nil {
+		if !semaphoreInfo.HasToken() {
+			// The loss is already recorded and a new acquire is under way. The child is started
+			// when that acquire ends or the semaphore is released.
+			return nil
+		}
+		// Matching no longer holds the token: record the loss, which starts a new acquire.
+		return recordSemaphoreTokenLost(ctx, t.logger, wfContext, semaphoreInfo.InitiatedID, semaphoreInfo.TokenID, t.shard.GetTimeSource().Now())
+	}
+
 	initiatedEvent, err := mutableState.GetChildExecutionInitiatedEvent(ctx, initiatedEventID)
 	if err != nil {
 		return err
@@ -1354,7 +1381,7 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 		return nil
 	}
 
-	bucket, err := t.getOwnerBucket(ctx, task.DomainID, semaphoreInfo.SemaphoreName, semaphoreInfo.OwnerID)
+	bucket, err := getOwnerBucket(ctx, t.semaphoreMetadataManager, task.DomainID, semaphoreInfo.SemaphoreName, semaphoreInfo.OwnerID)
 	if errors.As(err, new(*types.EntityNotExistsError)) {
 		// The semaphore does not exist, so the acquire can never succeed.
 		return recordSemaphoreAcquireFailed(ctx, t.logger, wfContext, task.InitiatedID,
@@ -1400,7 +1427,7 @@ func (t *transferActiveTaskExecutor) processReleaseSemaphore(
 		HoldID:     task.InitiatedID,
 	}.String()
 
-	bucket, err := t.getOwnerBucket(ctx, task.DomainID, task.SemaphoreName, ownerID)
+	bucket, err := getOwnerBucket(ctx, t.semaphoreMetadataManager, task.DomainID, task.SemaphoreName, ownerID)
 	if errors.As(err, new(*types.EntityNotExistsError)) {
 		// No metadata means no bucket to send the release to, so a retry can't help. Only a manual
 		// change to the metadata gets here. Logged, since the token can no longer be freed.
@@ -2255,42 +2282,6 @@ func getWorkflowExecutionStatus(mutableState execution.MutableState, closeEvent 
 	}
 }
 
-// getOwnerBucket returns the bucket of semaphoreName that serves ownerID.
-func (t *transferActiveTaskExecutor) getOwnerBucket(
-	ctx context.Context,
-	domainID string,
-	semaphoreName string,
-	ownerID string,
-) (int, error) {
-
-	resp, err := t.semaphoreMetadataManager.GetSemaphore(ctx, &persistence.GetSemaphoreRequest{
-		DomainID:      domainID,
-		SemaphoreName: semaphoreName,
-	})
-	if err != nil {
-		return 0, err
-	}
-
-	numBuckets, err := commonsemaphore.NumBuckets(resp.Semaphore.Size, resp.Semaphore.BucketSize)
-	if err != nil {
-		return 0, invalidSemaphoreMetadataError(domainID, semaphoreName, err)
-	}
-	bucket, err := commonsemaphore.OwnerIDToBucket(ownerID, numBuckets)
-	if err != nil {
-		return 0, invalidSemaphoreMetadataError(domainID, semaphoreName, err)
-	}
-	return bucket, nil
-}
-
-// invalidSemaphoreMetadataError reports a metadata row that can't be split into buckets.
-// CreateSemaphore never stores such values, so only a manual change to the row gets here.
-// It's an internal error, so the task retries rather than dropping the hold's token.
-func invalidSemaphoreMetadataError(domainID, semaphoreName string, err error) error {
-	return &types.InternalServiceError{
-		Message: fmt.Sprintf("semaphore metadata for domain %v, semaphore %v is invalid: %v", domainID, semaphoreName, err),
-	}
-}
-
 // acquireSemaphoreToken asks the bucket's Matching host for a token and returns it
 func (t *transferActiveTaskExecutor) acquireSemaphoreToken(
 	ctx context.Context,
@@ -2387,6 +2378,35 @@ func recordSemaphoreAcquireFailed(
 			}
 
 			_, err := mutableState.AddSemaphoreAcquireFailedEvent(initiatedEventID, cause)
+			return err
+		},
+		now,
+	)
+}
+
+// recordSemaphoreTokenLost clears the semaphore's token so it acquires a new one, without telling
+// the workflow. It skips a closed run or a semaphore whose token is no longer tokenID.
+func recordSemaphoreTokenLost(
+	ctx context.Context,
+	logger log.Logger,
+	wfContext execution.Context,
+	initiatedEventID int64,
+	tokenID int,
+	now time.Time,
+) error {
+
+	return updateWorkflowExecution(ctx, logger, wfContext, false,
+		func(ctx context.Context, mutableState execution.MutableState) error {
+			if !mutableState.IsWorkflowExecutionRunning() {
+				return &types.WorkflowExecutionAlreadyCompletedError{Message: "Workflow execution already completed."}
+			}
+
+			semaphoreInfo, ok := mutableState.GetSemaphoreInfo(initiatedEventID)
+			if !ok || semaphoreInfo.TokenID != tokenID {
+				return &types.EntityNotExistsError{Message: "Semaphore with this token not found."}
+			}
+
+			_, err := mutableState.AddSemaphoreTokenLostEvent(initiatedEventID)
 			return err
 		},
 		now,
