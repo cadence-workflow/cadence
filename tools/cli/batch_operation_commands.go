@@ -232,16 +232,14 @@ func DescribeBatchOperation(c *cli.Context) error {
 	}
 
 	output := map[string]interface{}{
-		"batchID":       batchID,
-		"operationType": resp.GetOperation().GetOperationType().String(),
-		"state":         resp.GetState().String(),
-		"query":         resp.GetQuery(),
-		"reason":        resp.GetReason(),
-		"startedBy":     resp.GetStartedBy(),
-		"startTime":     resp.GetStartTime(),
-		"closeTime":     resp.GetCloseTime(),
-		"progress":      resp.GetProgress(),
-		"limits":        resp.GetLimits(),
+		"batchID":   batchID,
+		"state":     resp.GetState().String(),
+		"reason":    resp.GetReason(),
+		"startedBy": resp.GetStartedBy(),
+		"startTime": resp.GetStartTime(),
+		"closeTime": resp.GetCloseTime(),
+		"progress":  resp.GetProgress(),
+		"limits":    resp.GetLimits(),
 	}
 	prettyPrintJSONObject(getDeps(c).Output(), output)
 	return nil
