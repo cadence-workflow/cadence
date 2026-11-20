@@ -202,6 +202,49 @@ func getBatchOperationState(stateStr string) (types.BatchOperationState, error) 
 		"option state is not one of allowed values [running, completed, failed, stopped]", nil)
 }
 
+// DescribeBatchOperation prints the status and progress of a single batch.
+func DescribeBatchOperation(c *cli.Context) error {
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	batchID, err := getRequiredOption(c, FlagBatchID)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	frontendClient, err := getBatchOperationsClient(c)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
+	defer cancel()
+
+	resp, err := frontendClient.DescribeBatchOperation(ctx, &types.DescribeBatchOperationRequest{
+		Domain:  domain,
+		BatchID: batchID,
+	})
+	if err != nil {
+		return commoncli.Problem("Failed to describe batch operation", err)
+	}
+
+	output := map[string]interface{}{
+		"batchID":   batchID,
+		"state":     resp.GetState().String(),
+		"reason":    resp.GetReason(),
+		"startedBy": resp.GetStartedBy(),
+		"startTime": resp.GetStartTime(),
+		"closeTime": resp.GetCloseTime(),
+		"progress":  resp.GetProgress(),
+		"limits":    resp.GetLimits(),
+	}
+	prettyPrintJSONObject(getDeps(c).Output(), output)
+	return nil
+}
+
 // ListBatchOperations lists the batch operations started for a domain.
 func ListBatchOperations(c *cli.Context) error {
 	domain, err := getRequiredOption(c, FlagDomain)

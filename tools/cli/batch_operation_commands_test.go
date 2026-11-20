@@ -4,6 +4,7 @@ import (
 	"flag"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -422,6 +423,82 @@ func TestListBatchOperations(t *testing.T) {
 			app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockFrontendClient})
 			c := newBatchOperationCLIContext(app, tt.flags)
 			err := ListBatchOperations(c)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			if tt.validate != nil {
+				tt.validate(t, capturedReq)
+			}
+		})
+	}
+}
+
+func TestDescribeBatchOperation(t *testing.T) {
+	startTime := time.Date(2026, 11, 19, 0, 0, 0, 0, time.UTC)
+
+	tests := map[string]struct {
+		flags    map[string]string
+		mockFn   func(*frontend.MockClient, **types.DescribeBatchOperationRequest)
+		wantErr  bool
+		validate func(*testing.T, *types.DescribeBatchOperationRequest)
+	}{
+		"missing domain": {
+			flags:   map[string]string{FlagDomain: "", FlagBatchID: "my-batch-id"},
+			mockFn:  func(f *frontend.MockClient, captured **types.DescribeBatchOperationRequest) {},
+			wantErr: true,
+		},
+		"missing batch id": {
+			flags:   map[string]string{FlagBatchID: ""},
+			mockFn:  func(f *frontend.MockClient, captured **types.DescribeBatchOperationRequest) {},
+			wantErr: true,
+		},
+		"describe fails": {
+			flags: map[string]string{FlagBatchID: "my-batch-id"},
+			mockFn: func(f *frontend.MockClient, captured **types.DescribeBatchOperationRequest) {
+				f.EXPECT().DescribeBatchOperation(gomock.Any(), gomock.Any()).
+					Return(nil, assert.AnError)
+			},
+			wantErr: true,
+		},
+		"success": {
+			flags: map[string]string{FlagBatchID: "my-batch-id"},
+			mockFn: func(f *frontend.MockClient, captured **types.DescribeBatchOperationRequest) {
+				f.EXPECT().DescribeBatchOperation(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ any, req *types.DescribeBatchOperationRequest, _ ...any) (*types.DescribeBatchOperationResponse, error) {
+						*captured = req
+						return &types.DescribeBatchOperationResponse{
+							Operation: &types.BatchOperation{
+								OperationType: types.BatchOperationTypeTerminate.Ptr(),
+							},
+							Query:     "TaskList = 'buggy'",
+							Reason:    "cleanup",
+							State:     types.BatchOperationStateRunning,
+							StartedBy: "my-operator",
+							StartTime: &startTime,
+						}, nil
+					})
+			},
+			wantErr: false,
+			validate: func(t *testing.T, req *types.DescribeBatchOperationRequest) {
+				assert.Equal(t, "test-domain", req.Domain)
+				assert.Equal(t, "my-batch-id", req.BatchID)
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			mockFrontendClient := frontend.NewMockClient(mockCtrl)
+			var capturedReq *types.DescribeBatchOperationRequest
+			tt.mockFn(mockFrontendClient, &capturedReq)
+
+			app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockFrontendClient})
+			c := newBatchOperationCLIContext(app, tt.flags)
+			err := DescribeBatchOperation(c)
 
 			if tt.wantErr {
 				assert.Error(t, err)
