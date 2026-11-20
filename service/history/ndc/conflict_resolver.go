@@ -190,6 +190,20 @@ func (r *conflictResolverImpl) rebuild(
 	// set the update condition from original mutable state
 	rebuildMutableState.SetUpdateCondition(r.mutableState.GetUpdateCondition())
 
+	// The replay does not set the import fields or the import state (Preparing or Zombie), and the
+	// rebuild refreshes tasks from the replayed state, which is Running or Completed. An import in
+	// progress has no tasks until the import ends, so the refreshed tasks are removed. The close
+	// status comes from the replay: the new current branch may not have the close event.
+	if executionInfo.ImportInProgress {
+		rebuildMutableState.DeleteTransferTasks()
+		rebuildMutableState.DeleteTimerTasks()
+		rebuildInfo := rebuildMutableState.GetExecutionInfo()
+		rebuildInfo.ImportSourceExecution = executionInfo.ImportSourceExecution
+		rebuildInfo.ImportTimestamp = executionInfo.ImportTimestamp
+		rebuildInfo.ImportInProgress = executionInfo.ImportInProgress
+		rebuildInfo.State = executionInfo.State
+	}
+
 	r.context.Clear()
 	r.context.SetHistorySize(rebuiltHistorySize)
 	return rebuildMutableState, nil

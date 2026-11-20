@@ -454,6 +454,13 @@ func applyStartEvents(
 		return err
 	}
 
+	// an imported run is an import in progress on every cluster until the import ends. A reset run
+	// of an imported run copies the start event, but it is not the imported run.
+	startAttributes := task.getFirstEvent().GetWorkflowExecutionStartedEventAttributes()
+	if execution.IsImportedRun(startAttributes, task.getExecution().GetRunID()) {
+		execution.SetImportInProgress(mutableState, startAttributes)
+	}
+
 	err = transactionManager.createWorkflow(
 		ctx,
 		task.getEventTime(),

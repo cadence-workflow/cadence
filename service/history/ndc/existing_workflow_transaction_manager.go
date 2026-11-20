@@ -340,7 +340,7 @@ func (r *transactionManagerForExistingWorkflowImpl) suppressCurrentAndUpdateAsCu
 	var err error
 
 	currentWorkflowPolicy := execution.TransactionPolicyPassive
-	if currentWorkflow.GetMutableState().IsWorkflowExecutionRunning() {
+	if execution.IsRunningOrImporting(currentWorkflow.GetMutableState()) {
 		currentWorkflowPolicy, err = currentWorkflow.SuppressBy(
 			targetWorkflow,
 		)

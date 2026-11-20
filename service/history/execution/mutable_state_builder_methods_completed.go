@@ -57,17 +57,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionCompletedEvent(
 	event *types.HistoryEvent,
 ) error {
 
-	if err := e.UpdateWorkflowStateCloseStatus(
-		persistence.WorkflowStateCompleted,
-		persistence.WorkflowCloseStatusCompleted,
-	); err != nil {
-		return err
-	}
-	e.executionInfo.CompletionEventBatchID = firstEventID // Used when completion event needs to be loaded from database
-	e.ClearStickyness()
-	e.writeEventToCache(event)
-
-	return e.taskGenerator.GenerateWorkflowCloseTasks(event, e.config.WorkflowDeletionJitterRange(e.domainEntry.GetInfo().Name))
+	return e.closeWorkflow(firstEventID, persistence.WorkflowCloseStatusCompleted, event)
 }
 
 func (e *mutableStateBuilder) AddFailWorkflowEvent(
@@ -92,17 +82,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionFailedEvent(
 	event *types.HistoryEvent,
 ) error {
 
-	if err := e.UpdateWorkflowStateCloseStatus(
-		persistence.WorkflowStateCompleted,
-		persistence.WorkflowCloseStatusFailed,
-	); err != nil {
-		return err
-	}
-	e.executionInfo.CompletionEventBatchID = firstEventID // Used when completion event needs to be loaded from database
-	e.ClearStickyness()
-	e.writeEventToCache(event)
-
-	return e.taskGenerator.GenerateWorkflowCloseTasks(event, e.config.WorkflowDeletionJitterRange(e.domainEntry.GetInfo().Name))
+	return e.closeWorkflow(firstEventID, persistence.WorkflowCloseStatusFailed, event)
 }
 
 // GetCompletionEvent retrieves the workflow completion event from mutable state
