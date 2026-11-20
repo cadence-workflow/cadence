@@ -710,7 +710,7 @@ func TestDomainCallback(t *testing.T) {
 				shard:        shardCtx,
 				dlqProcessor: dlqProcessor,
 			}
-			he.domainChangeCB(td.domainUpdates)
+			he.domainChangeCB(make([]*cache.DomainCacheEntry, len(td.domainUpdates)), td.domainUpdates)
 		})
 	}
 }
@@ -857,7 +857,7 @@ func TestHistoryEngine_registerDomainFailoverCallback_ClosureBehavior(t *testing
 		prepareCalled := false
 		callbackCalled := false
 		prepare := func() { prepareCalled = true }
-		callback := func([]*cache.DomainCacheEntry) { callbackCalled = true }
+		callback := func(_, _ []*cache.DomainCacheEntry) { callbackCalled = true }
 
 		if registeredCatchUpFn != nil {
 			registeredCatchUpFn(mockDomainCache, prepare, callback)
@@ -898,7 +898,8 @@ func TestHistoryEngine_registerDomainFailoverCallback_ClosureBehavior(t *testing
 		callbackCalled := false
 		var actualUpdatedEntries []*cache.DomainCacheEntry
 		prepare := func() { prepareCalled = true }
-		callback := func(entries []*cache.DomainCacheEntry) {
+		callback := func(prev, entries []*cache.DomainCacheEntry) {
+			assert.Len(t, prev, len(entries))
 			callbackCalled = true
 			actualUpdatedEntries = entries
 		}
@@ -944,7 +945,8 @@ func TestHistoryEngine_registerDomainFailoverCallback_ClosureBehavior(t *testing
 		callbackCalled := false
 		var actualUpdatedEntries []*cache.DomainCacheEntry
 		prepare := func() { prepareCalled = true }
-		callback := func(entries []*cache.DomainCacheEntry) {
+		callback := func(prev, entries []*cache.DomainCacheEntry) {
+			assert.Len(t, prev, len(entries))
 			callbackCalled = true
 			actualUpdatedEntries = entries
 		}
@@ -967,7 +969,7 @@ func TestHistoryEngine_registerDomainFailoverCallback_ClosureBehavior(t *testing
 		prepareCalled := false
 		callbackCalled := false
 		prepare := func() { prepareCalled = true }
-		callback := func([]*cache.DomainCacheEntry) { callbackCalled = true }
+		callback := func(_, _ []*cache.DomainCacheEntry) { callbackCalled = true }
 
 		if registeredCatchUpFn != nil {
 			registeredCatchUpFn(mockDomainCache, prepare, callback)
@@ -977,4 +979,169 @@ func TestHistoryEngine_registerDomainFailoverCallback_ClosureBehavior(t *testing
 			assert.Fail(t, "catchUpFn was not registered")
 		}
 	})
+}
+
+func TestDomainCallback_DLQPartitionsDiffAgainstPrevious(t *testing.T) {
+	const domainID = "83b48dab-68cb-4f73-8752-c75d9271977f"
+	clusters := []*persistence.ClusterReplicationConfig{
+		{ClusterName: "cluster0"},
+		{ClusterName: "cluster1"},
+		{ClusterName: "cluster2"},
+	}
+	domainInfo := persistence.DomainInfo{ID: domainID, Name: "samples-domain", Data: map[string]string{}}
+	domainConfig := persistence.DomainConfig{
+		Retention:       3,
+		BadBinaries:     types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+		IsolationGroups: types.IsolationGroupConfiguration{},
+	}
+
+	// activeActive builds an active-active entry; attrs maps "scope/name" to the cluster it is active in.
+	activeActive := func(attrs map[string]string) *cache.DomainCacheEntry {
+		scopes := map[string]types.ClusterAttributeScope{}
+		for key, active := range attrs {
+			var scope, name string
+			for i := 0; i < len(key); i++ {
+				if key[i] == '/' {
+					scope, name = key[:i], key[i+1:]
+					break
+				}
+			}
+			if _, ok := scopes[scope]; !ok {
+				scopes[scope] = types.ClusterAttributeScope{ClusterAttributes: map[string]types.ActiveClusterInfo{}}
+			}
+			scopes[scope].ClusterAttributes[name] = types.ActiveClusterInfo{ActiveClusterName: active, FailoverVersion: 1}
+		}
+		return cache.NewDomainCacheEntryForTest(&domainInfo, &domainConfig, true,
+			&persistence.DomainReplicationConfig{
+				Clusters:       clusters,
+				ActiveClusters: &types.ActiveClusters{AttributeScopes: scopes},
+			},
+			-1, nil, 4, 5, 5)
+	}
+	activePassive := func(active string) *cache.DomainCacheEntry {
+		return cache.NewDomainCacheEntryForTest(&domainInfo, &domainConfig, true,
+			&persistence.DomainReplicationConfig{ActiveClusterName: active, Clusters: clusters},
+			11, common.Ptr(time.Now().Add(time.Second).UnixNano()), 4, 0, 5)
+	}
+	part := func(scope, name string) taskdlq.Partition {
+		return taskdlq.Partition{DomainID: domainID, ClusterAttributeScope: scope, ClusterAttributeName: name}
+	}
+
+	tests := map[string]struct {
+		prev           *cache.DomainCacheEntry
+		next           *cache.DomainCacheEntry
+		activeHere     bool                // next is active in cluster0 → queues are notified
+		activePassive  bool                // next is active-passive → queue processors are failed over
+		wantPartitions []taskdlq.Partition // nil → FailoverPartitions must not be called
+	}{
+		"nil prev enqueues all attributes active here": {
+			prev:           nil,
+			next:           activeActive(map[string]string{"region/a": "cluster0", "region/b": "cluster0", "region/c": "cluster1"}),
+			activeHere:     true,
+			wantPartitions: []taskdlq.Partition{part("region", "a"), part("region", "b")},
+		},
+		"only the attribute that became active here is enqueued": {
+			prev:           activeActive(map[string]string{"region/a": "cluster0", "region/b": "cluster1", "region/c": "cluster1"}),
+			next:           activeActive(map[string]string{"region/a": "cluster0", "region/b": "cluster0", "region/c": "cluster1"}),
+			activeHere:     true,
+			wantPartitions: []taskdlq.Partition{part("region", "b")},
+		},
+		"a new scope or attribute active here is enqueued": {
+			prev:           activeActive(map[string]string{"region/a": "cluster0"}),
+			next:           activeActive(map[string]string{"region/a": "cluster0", "region/d": "cluster0", "city/x": "cluster0", "city/y": "cluster2"}),
+			activeHere:     true,
+			wantPartitions: []taskdlq.Partition{part("region", "d"), part("city", "x")},
+		},
+		"nothing newly active here enqueues nothing": {
+			prev:           activeActive(map[string]string{"region/a": "cluster0", "region/b": "cluster1"}),
+			next:           activeActive(map[string]string{"region/a": "cluster0", "region/b": "cluster2"}),
+			activeHere:     true,
+			wantPartitions: nil,
+		},
+		"an attribute leaving this cluster enqueues nothing": {
+			prev:           activeActive(map[string]string{"region/a": "cluster0"}),
+			next:           activeActive(map[string]string{"region/a": "cluster1"}),
+			activeHere:     false,
+			wantPartitions: nil,
+		},
+		"active-passive becoming active here enqueues the default partition": {
+			prev:           activePassive("cluster2"),
+			next:           activePassive("cluster0"),
+			activeHere:     true,
+			activePassive:  true,
+			wantPartitions: []taskdlq.Partition{{DomainID: domainID}},
+		},
+		"active-passive with nil prev enqueues the default partition": {
+			prev:           nil,
+			next:           activePassive("cluster0"),
+			activeHere:     true,
+			activePassive:  true,
+			wantPartitions: []taskdlq.Partition{{DomainID: domainID}},
+		},
+		"active-passive already active here enqueues nothing": {
+			prev:           activePassive("cluster0"),
+			next:           activePassive("cluster0"),
+			activeHere:     true,
+			activePassive:  true,
+			wantPartitions: nil,
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			clusterMetadata := cluster.NewMetadata(
+				config.ClusterGroupMetadata{
+					FailoverVersionIncrement: 10,
+					PrimaryClusterName:       "cluster0",
+					CurrentClusterName:       "cluster0",
+					ClusterGroup: map[string]config.ClusterInformation{
+						"cluster0": {Enabled: true, InitialFailoverVersion: 1},
+						"cluster1": {Enabled: true, InitialFailoverVersion: 0},
+						"cluster2": {Enabled: true, InitialFailoverVersion: 2},
+					},
+				},
+				func(string) bool { return false },
+				metrics.NewNoopMetricsClient(),
+				log.NewNoop(),
+			)
+			timerProcessor := queue.NewMockProcessor(ctrl)
+			txProcessor := queue.NewMockProcessor(ctrl)
+			shardCtx := shard.NewMockContext(ctrl)
+			dlqProcessor := taskdlq.NewMockProcessor(ctrl)
+
+			shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
+			shardCtx.EXPECT().UpdateDomainNotificationVersion(int64(6))
+			txProcessor.EXPECT().UnlockTaskProcessing()
+			timerProcessor.EXPECT().UnlockTaskProcessing()
+			if td.activeHere {
+				shardCtx.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
+				txProcessor.EXPECT().NotifyNewTask("cluster0", gomock.Any())
+				timerProcessor.EXPECT().NotifyNewTask("cluster0", gomock.Any())
+			}
+			if td.activePassive {
+				txProcessor.EXPECT().FailoverDomain(map[string]struct{}{domainID: {}})
+				timerProcessor.EXPECT().FailoverDomain(map[string]struct{}{domainID: {}})
+			}
+			if td.wantPartitions != nil {
+				dlqProcessor.EXPECT().FailoverPartitions(gomock.Any()).Do(func(parts []taskdlq.Partition) {
+					assert.ElementsMatch(t, td.wantPartitions, parts)
+				})
+			}
+
+			he := historyEngineImpl{
+				logger:             log.NewNoop(),
+				clusterMetadata:    clusterMetadata,
+				currentClusterName: "cluster0",
+				metricsClient:      metrics.NewNoopMetricsClient(),
+				queueProcessors: map[persistence.HistoryTaskCategory]queue.Processor{
+					persistence.HistoryTaskCategoryTransfer: txProcessor,
+					persistence.HistoryTaskCategoryTimer:    timerProcessor,
+				},
+				shard:        shardCtx,
+				dlqProcessor: dlqProcessor,
+			}
+			he.domainChangeCB([]*cache.DomainCacheEntry{td.prev}, []*cache.DomainCacheEntry{td.next})
+		})
+	}
 }
