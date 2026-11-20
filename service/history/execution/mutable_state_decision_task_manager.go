@@ -143,8 +143,10 @@ func (m *mutableStateDecisionTaskManagerImpl) ReplicateDecisionTaskScheduledEven
 
 	// set workflow state to running, since decision is scheduled
 	// NOTE: for zombie workflow, should not change the state
+	// NOTE: for an import in progress, should not change the state: a run never leaves Preparing
+	// and comes back
 	state, _ := m.msb.GetWorkflowStateCloseStatus()
-	if state != persistence.WorkflowStateZombie {
+	if state != persistence.WorkflowStateZombie && state != persistence.WorkflowStatePreparing {
 		if err := m.msb.UpdateWorkflowStateCloseStatus(
 			persistence.WorkflowStateRunning,
 			persistence.WorkflowCloseStatusNone,

@@ -2311,6 +2311,11 @@ func TestIsCurrentWorkflowGuaranteed(t *testing.T) {
 			stateInDB:      persistence.WorkflowStateCorrupted,
 			expectedResult: false,
 		},
+		{
+			name:           "Workflow is an import in progress",
+			stateInDB:      persistence.WorkflowStatePreparing,
+			expectedResult: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2805,6 +2810,10 @@ func TestMutableState_IsCurrentWorkflowGuaranteed(t *testing.T) {
 		"corrupted state": {
 			state:    persistence.WorkflowStateCorrupted,
 			expected: false,
+		},
+		"import in progress": {
+			state:    persistence.WorkflowStatePreparing,
+			expected: true,
 		},
 	}
 

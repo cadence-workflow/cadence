@@ -109,11 +109,12 @@ func TestWorkflowExecutionInfoIsRunning(t *testing.T) {
 type transitionChecker func(executionInfo *WorkflowExecutionInfo, toState, closeStatus int) bool
 type stateChecker func(executionInfo *WorkflowExecutionInfo, closeStatus int) bool
 type testCase struct {
-	name       string
-	fromState  int
-	fromStatus int
-	toState    int
-	toStatus   int
+	name             string
+	fromState        int
+	fromStatus       int
+	toState          int
+	toStatus         int
+	importInProgress bool
 }
 
 func TestWorkflowExecutionInfoUpdateWorkflowStateCloseStatus(t *testing.T) {
@@ -140,11 +141,18 @@ func TestWorkflowExecutionInfoUpdateWorkflowStateCloseStatus(t *testing.T) {
 			WorkflowStateRunning:   withCloseStatusNone(),
 			WorkflowStateCompleted: withAnyCloseStatusExcept(WorkflowCloseStatusNone),
 			WorkflowStateZombie:    withAnyCloseStatusExcept(WorkflowCloseStatusNone),
-			WorkflowStatePreparing: withCloseStatusNone(),
+			WorkflowStatePreparing: func(executionInfo *WorkflowExecutionInfo, closeStatus int) bool {
+				return executionInfo.ImportInProgress && executionInfo.CloseStatus == closeStatus
+			},
 		}),
 		WorkflowStatePreparing: toStates(map[int]stateChecker{
 			WorkflowStatePreparing: withAnyCloseStatusExcept(),
-			WorkflowStateZombie:    withCloseStatusNone(),
+			WorkflowStateZombie: func(executionInfo *WorkflowExecutionInfo, closeStatus int) bool {
+				if executionInfo.ImportInProgress {
+					return executionInfo.CloseStatus == closeStatus
+				}
+				return closeStatus == WorkflowCloseStatusNone
+			},
 			WorkflowStateCreated:   withCloseStatusNone(),
 			WorkflowStateRunning:   withCloseStatusNone(),
 			WorkflowStateCompleted: withAnyCloseStatusExcept(WorkflowCloseStatusNone),
@@ -181,6 +189,68 @@ func TestWorkflowExecutionInfoUpdateWorkflowStateCloseStatus(t *testing.T) {
 		toState:    WorkflowStateCompleted,
 		toStatus:   WorkflowCloseStatusCompleted,
 	})
+	// Valid: a zombie import with the close event is revived with its close status
+	testCases = append(testCases, &testCase{
+		name:             "(Zombie,Completed)->(Preparing,Completed) import",
+		fromState:        WorkflowStateZombie,
+		fromStatus:       WorkflowCloseStatusCompleted,
+		toState:          WorkflowStatePreparing,
+		toStatus:         WorkflowCloseStatusCompleted,
+		importInProgress: true,
+	})
+	// Valid: a zombie import without the close event is revived with close status None
+	testCases = append(testCases, &testCase{
+		name:             "(Zombie,None)->(Preparing,None) import",
+		fromState:        WorkflowStateZombie,
+		fromStatus:       WorkflowCloseStatusNone,
+		toState:          WorkflowStatePreparing,
+		toStatus:         WorkflowCloseStatusNone,
+		importInProgress: true,
+	})
+	// Invalid: the revive must not change the close status
+	testCases = append(testCases, &testCase{
+		name:             "(Zombie,Completed)->(Preparing,None) import",
+		fromState:        WorkflowStateZombie,
+		fromStatus:       WorkflowCloseStatusCompleted,
+		toState:          WorkflowStatePreparing,
+		toStatus:         WorkflowCloseStatusNone,
+		importInProgress: true,
+	})
+	// Valid: a zombie import receives its close event
+	testCases = append(testCases, &testCase{
+		name:             "(Zombie,None)->(Zombie,Completed) import",
+		fromState:        WorkflowStateZombie,
+		fromStatus:       WorkflowCloseStatusNone,
+		toState:          WorkflowStateZombie,
+		toStatus:         WorkflowCloseStatusCompleted,
+		importInProgress: true,
+	})
+	// Valid: an import with the close event that loses a run conflict keeps its close status
+	testCases = append(testCases, &testCase{
+		name:             "(Preparing,Completed)->(Zombie,Completed) import",
+		fromState:        WorkflowStatePreparing,
+		fromStatus:       WorkflowCloseStatusCompleted,
+		toState:          WorkflowStateZombie,
+		toStatus:         WorkflowCloseStatusCompleted,
+		importInProgress: true,
+	})
+	// Invalid: an import that loses a run conflict must not change its close status
+	testCases = append(testCases, &testCase{
+		name:             "(Preparing,Completed)->(Zombie,None) import",
+		fromState:        WorkflowStatePreparing,
+		fromStatus:       WorkflowCloseStatusCompleted,
+		toState:          WorkflowStateZombie,
+		toStatus:         WorkflowCloseStatusNone,
+		importInProgress: true,
+	})
+	// Invalid: a Preparing run that is not an import becomes a zombie only with close status None
+	testCases = append(testCases, &testCase{
+		name:       "(Preparing,Completed)->(Zombie,Completed)",
+		fromState:  WorkflowStatePreparing,
+		fromStatus: WorkflowCloseStatusCompleted,
+		toState:    WorkflowStateZombie,
+		toStatus:   WorkflowCloseStatusCompleted,
+	})
 	// Invalid states
 	testCases = append(testCases, &testCase{
 		name:       "(Completed,Completed)->(?,Completed)",
@@ -200,8 +270,9 @@ func TestWorkflowExecutionInfoUpdateWorkflowStateCloseStatus(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			executionInfo := &WorkflowExecutionInfo{
-				State:       test.fromState,
-				CloseStatus: test.fromStatus,
+				State:            test.fromState,
+				CloseStatus:      test.fromStatus,
+				ImportInProgress: test.importInProgress,
 			}
 
 			var noErr bool

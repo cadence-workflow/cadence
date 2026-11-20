@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
@@ -1046,6 +1047,8 @@ func Test_applyStartEvents(t *testing.T) {
 		mockReplicationTaskAffordance    func(mockReplicationTask *MockreplicationTask)
 		mockTransactionManagerAffordance func(mockTransactionManager *MocktransactionManager)
 		mockShardContextAffordance       func(mockShardContext *shard.MockContext)
+		executionInfo                    *persistence.WorkflowExecutionInfo
+		expectExecutionInfo              *persistence.WorkflowExecutionInfo
 		expectError                      error
 	}{
 		"Case1: success case with no errors": {
@@ -1068,6 +1071,12 @@ func Test_applyStartEvents(t *testing.T) {
 				mockReplicationTask.EXPECT().getExecution().Return(&types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
 					RunID:      "test-run-id",
+				}).Times(2)
+				mockReplicationTask.EXPECT().getFirstEvent().Return(&types.HistoryEvent{
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						OriginalExecutionRunID: "test-run-id",
+					},
 				}).Times(1)
 				mockReplicationTask.EXPECT().getEvents().Return(nil).Times(1)
 				mockReplicationTask.EXPECT().getNewEvents().Return(nil).Times(1)
@@ -1126,6 +1135,12 @@ func Test_applyStartEvents(t *testing.T) {
 				mockReplicationTask.EXPECT().getExecution().Return(&types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
 					RunID:      "test-run-id",
+				}).Times(2)
+				mockReplicationTask.EXPECT().getFirstEvent().Return(&types.HistoryEvent{
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						OriginalExecutionRunID: "test-run-id",
+					},
 				}).Times(1)
 				mockReplicationTask.EXPECT().getEvents().Return(nil).Times(1)
 				mockReplicationTask.EXPECT().getNewEvents().Return(nil).Times(1)
@@ -1166,6 +1181,95 @@ func Test_applyStartEvents(t *testing.T) {
 			mockShardContextAffordance:       func(mockShard *shard.MockContext) {},
 			expectError:                      fmt.Errorf("test error"),
 		},
+		"Case5: the imported run is created as an import in progress": {
+			mockDomainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).
+					Return(cache.NewGlobalDomainCacheEntryForTest(nil, nil, nil, 1), nil).Times(1)
+			},
+			mockStateBuilderAffordance: func(mockStateBuilder *execution.MockStateBuilder) {
+				mockStateBuilder.EXPECT().ApplyEvents(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
+			},
+			mockReplicationTaskAffordance: func(mockReplicationTask *MockreplicationTask) {
+				mockReplicationTask.EXPECT().getLogger().Return(log.NewNoop()).Times(2)
+				mockReplicationTask.EXPECT().getDomainID().Return("test-domain-id").Times(2)
+				mockReplicationTask.EXPECT().getExecution().Return(&types.WorkflowExecution{
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+				}).Times(2)
+				mockReplicationTask.EXPECT().getFirstEvent().Return(&types.HistoryEvent{
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						OriginalExecutionRunID: "test-run-id",
+						ImportSourceExecution:  &types.WorkflowExecution{WorkflowID: "source-workflow-id", RunID: "source-run-id"},
+						ImportTimestamp:        common.Int64Ptr(1000),
+					},
+				}).Times(1)
+				mockReplicationTask.EXPECT().getEvents().Return(nil).Times(1)
+				mockReplicationTask.EXPECT().getNewEvents().Return(nil).Times(1)
+				mockReplicationTask.EXPECT().getEventTime().Return(time.Now()).Times(2)
+				mockReplicationTask.EXPECT().getSourceCluster().Return("test-source-cluster").Times(1)
+			},
+			mockTransactionManagerAffordance: func(mockTransactionManager *MocktransactionManager) {
+				mockTransactionManager.EXPECT().createWorkflow(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			},
+			mockShardContextAffordance: func(mockShard *shard.MockContext) {
+				mockShard.EXPECT().GetConfig().Return(&config.Config{StandbyClusterDelay: dynamicproperties.GetDurationPropertyFn(10)}).Times(1)
+				mockShard.EXPECT().SetCurrentTime(gomock.Any(), gomock.Any()).Times(1)
+			},
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				State: persistence.WorkflowStateRunning,
+			},
+			expectExecutionInfo: &persistence.WorkflowExecutionInfo{
+				State:                 persistence.WorkflowStatePreparing,
+				ImportSourceExecution: &types.WorkflowExecution{WorkflowID: "source-workflow-id", RunID: "source-run-id"},
+				ImportTimestamp:       time.Unix(0, 1000),
+				ImportInProgress:      true,
+			},
+			expectError: nil,
+		},
+		"Case6: a reset run of an imported run is not an import in progress": {
+			mockDomainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).
+					Return(cache.NewGlobalDomainCacheEntryForTest(nil, nil, nil, 1), nil).Times(1)
+			},
+			mockStateBuilderAffordance: func(mockStateBuilder *execution.MockStateBuilder) {
+				mockStateBuilder.EXPECT().ApplyEvents(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
+			},
+			mockReplicationTaskAffordance: func(mockReplicationTask *MockreplicationTask) {
+				mockReplicationTask.EXPECT().getLogger().Return(log.NewNoop()).Times(2)
+				mockReplicationTask.EXPECT().getDomainID().Return("test-domain-id").Times(2)
+				mockReplicationTask.EXPECT().getExecution().Return(&types.WorkflowExecution{
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-reset-run-id",
+				}).Times(2)
+				mockReplicationTask.EXPECT().getFirstEvent().Return(&types.HistoryEvent{
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						OriginalExecutionRunID: "test-run-id",
+						ImportSourceExecution:  &types.WorkflowExecution{WorkflowID: "source-workflow-id", RunID: "source-run-id"},
+						ImportTimestamp:        common.Int64Ptr(1000),
+					},
+				}).Times(1)
+				mockReplicationTask.EXPECT().getEvents().Return(nil).Times(1)
+				mockReplicationTask.EXPECT().getNewEvents().Return(nil).Times(1)
+				mockReplicationTask.EXPECT().getEventTime().Return(time.Now()).Times(2)
+				mockReplicationTask.EXPECT().getSourceCluster().Return("test-source-cluster").Times(1)
+			},
+			mockTransactionManagerAffordance: func(mockTransactionManager *MocktransactionManager) {
+				mockTransactionManager.EXPECT().createWorkflow(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			},
+			mockShardContextAffordance: func(mockShard *shard.MockContext) {
+				mockShard.EXPECT().GetConfig().Return(&config.Config{StandbyClusterDelay: dynamicproperties.GetDurationPropertyFn(10)}).Times(1)
+				mockShard.EXPECT().SetCurrentTime(gomock.Any(), gomock.Any()).Times(1)
+			},
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				State: persistence.WorkflowStateRunning,
+			},
+			expectExecutionInfo: &persistence.WorkflowExecutionInfo{
+				State: persistence.WorkflowStateRunning,
+			},
+			expectError: nil,
+		},
 	}
 
 	for name, test := range tests {
@@ -1189,6 +1293,9 @@ func Test_applyStartEvents(t *testing.T) {
 			test.mockReplicationTaskAffordance(mockReplicationTask)
 			test.mockTransactionManagerAffordance(mockTransactionManager)
 			test.mockShardContextAffordance(mockShard)
+			if test.executionInfo != nil {
+				mockMutableState.EXPECT().GetExecutionInfo().Return(test.executionInfo).AnyTimes()
+			}
 
 			// Mock functions
 			mockNewMutableStateFn := func(
@@ -1212,6 +1319,9 @@ func Test_applyStartEvents(t *testing.T) {
 			// Assertions
 			// can't change it to ErrorIs since ErrorIs need error chains
 			assert.Equal(t, test.expectError, err)
+			if test.expectExecutionInfo != nil {
+				assert.Equal(t, test.expectExecutionInfo, test.executionInfo)
+			}
 		})
 	}
 }

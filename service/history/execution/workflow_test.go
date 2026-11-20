@@ -308,6 +308,7 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Zombiefy() {
 
 func (s *workflowSuite) TestRevive_Zombie_Error() {
 	s.mockMutableState.EXPECT().GetWorkflowStateCloseStatus().Return(persistence.WorkflowStateZombie, persistence.WorkflowCloseStatusNone).Times(1)
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{State: persistence.WorkflowStateZombie}).Times(1)
 	s.mockMutableState.EXPECT().HasProcessedOrPendingDecision().Return(true).Times(1)
 	s.mockMutableState.EXPECT().UpdateWorkflowStateCloseStatus(persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone).Return(&types.InternalServiceError{Message: "error"}).Times(1)
 
@@ -325,6 +326,7 @@ func (s *workflowSuite) TestRevive_Zombie_Error() {
 
 func (s *workflowSuite) TestRevive_Zombie_Success() {
 	s.mockMutableState.EXPECT().GetWorkflowStateCloseStatus().Return(persistence.WorkflowStateZombie, persistence.WorkflowCloseStatusNone).Times(1)
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{State: persistence.WorkflowStateZombie}).Times(1)
 	s.mockMutableState.EXPECT().HasProcessedOrPendingDecision().Return(true).Times(1)
 	s.mockMutableState.EXPECT().UpdateWorkflowStateCloseStatus(persistence.WorkflowStateRunning, persistence.WorkflowCloseStatusNone).Return(nil).Times(1)
 
@@ -515,6 +517,110 @@ func TestWorkflowHappensAfter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := workflowHappensAfter(tt.thisVectorClock, tt.thatVectorClock)
 			assert.Equal(t, tt.expected, result, "workflowHappensAfter result mismatch for test case: %s", tt.name)
+		})
+	}
+}
+
+// TestSuppressBy_ImportInProgress checks that an import in progress that loses a run conflict
+// becomes a zombie with its close status, on the cluster of its last write and on other clusters.
+func TestSuppressBy_ImportInProgress(t *testing.T) {
+	tests := map[string]struct {
+		lastWriteVersion int64
+		closeStatus      int
+	}{
+		"last write on this cluster": {
+			lastWriteVersion: cluster.TestCurrentClusterInitialFailoverVersion,
+			closeStatus:      persistence.WorkflowCloseStatusNone,
+		},
+		"last write on another cluster": {
+			lastWriteVersion: cluster.TestAlternativeClusterInitialFailoverVersion,
+			closeStatus:      persistence.WorkflowCloseStatusNone,
+		},
+		"imported history with the close event": {
+			lastWriteVersion: cluster.TestCurrentClusterInitialFailoverVersion,
+			closeStatus:      persistence.WorkflowCloseStatusCompleted,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			mutableState := NewMockMutableState(controller)
+			executionInfo := &persistence.WorkflowExecutionInfo{
+				RunID:            uuid.New(),
+				State:            persistence.WorkflowStatePreparing,
+				CloseStatus:      tc.closeStatus,
+				ImportInProgress: true,
+			}
+			mutableState.EXPECT().GetLastWriteVersion().Return(tc.lastWriteVersion, nil).AnyTimes()
+			mutableState.EXPECT().GetExecutionInfo().Return(executionInfo).AnyTimes()
+
+			incomingMutableState := NewMockMutableState(controller)
+			incomingMutableState.EXPECT().GetLastWriteVersion().Return(tc.lastWriteVersion+1, nil).AnyTimes()
+			incomingMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{RunID: uuid.New()}).AnyTimes()
+
+			workflow := NewWorkflow(context.Background(), cluster.TestActiveClusterMetadata, NewMockContext(controller), mutableState, NoopReleaseFn, testlogger.New(t))
+			incomingWorkflow := NewWorkflow(context.Background(), cluster.TestActiveClusterMetadata, NewMockContext(controller), incomingMutableState, NoopReleaseFn, testlogger.New(t))
+
+			policy, err := workflow.SuppressBy(incomingWorkflow)
+			require.NoError(t, err)
+			assert.Equal(t, TransactionPolicyPassive, policy)
+			assert.Equal(t, persistence.WorkflowStateZombie, executionInfo.State)
+			assert.Equal(t, tc.closeStatus, executionInfo.CloseStatus)
+		})
+	}
+}
+
+// TestRevive_ImportInProgress checks that a zombie import becomes an import in progress again
+// with its close status, and that a zombie that is not an import becomes running.
+func TestRevive_ImportInProgress(t *testing.T) {
+	tests := map[string]struct {
+		executionInfo   *persistence.WorkflowExecutionInfo
+		wantState       int
+		wantCloseStatus int
+	}{
+		"zombie import without the close event": {
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				State:            persistence.WorkflowStateZombie,
+				CloseStatus:      persistence.WorkflowCloseStatusNone,
+				ImportInProgress: true,
+			},
+			wantState:       persistence.WorkflowStatePreparing,
+			wantCloseStatus: persistence.WorkflowCloseStatusNone,
+		},
+		"zombie import with the close event": {
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				State:            persistence.WorkflowStateZombie,
+				CloseStatus:      persistence.WorkflowCloseStatusCompleted,
+				ImportInProgress: true,
+			},
+			wantState:       persistence.WorkflowStatePreparing,
+			wantCloseStatus: persistence.WorkflowCloseStatusCompleted,
+		},
+		"zombie that is not an import": {
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				State:       persistence.WorkflowStateZombie,
+				CloseStatus: persistence.WorkflowCloseStatusNone,
+			},
+			wantState:       persistence.WorkflowStateRunning,
+			wantCloseStatus: persistence.WorkflowCloseStatusNone,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			mutableState := NewMockMutableState(controller)
+			mutableState.EXPECT().GetWorkflowStateCloseStatus().Return(tc.executionInfo.State, tc.executionInfo.CloseStatus).AnyTimes()
+			mutableState.EXPECT().GetExecutionInfo().Return(tc.executionInfo).AnyTimes()
+			mutableState.EXPECT().HasProcessedOrPendingDecision().Return(true).AnyTimes()
+			mutableState.EXPECT().UpdateWorkflowStateCloseStatus(gomock.Any(), gomock.Any()).DoAndReturn(tc.executionInfo.UpdateWorkflowStateCloseStatus).Times(1)
+
+			workflow := NewWorkflow(context.Background(), cluster.TestActiveClusterMetadata, NewMockContext(controller), mutableState, NoopReleaseFn, testlogger.New(t))
+
+			require.NoError(t, workflow.Revive())
+			assert.Equal(t, tc.wantState, tc.executionInfo.State)
+			assert.Equal(t, tc.wantCloseStatus, tc.executionInfo.CloseStatus)
 		})
 	}
 }
