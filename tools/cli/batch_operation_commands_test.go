@@ -49,6 +49,32 @@ func newBatchOperationCLIContext(app *cli.App, overrides map[string]string) *cli
 	return cli.NewContext(app, set, nil)
 }
 
+// newUpdateBatchOperationCLIContext mirrors newBatchOperationCLIContext, except
+// FlagRPS/FlagConcurrency default to 0 (unset), matching the real "update" command's
+// flags, which (unlike "start"'s) have no non-zero default.
+func newUpdateBatchOperationCLIContext(app *cli.App, overrides map[string]string) *cli.Context {
+	set := flag.NewFlagSet("test", 0)
+
+	domain := "test-domain"
+	if v, ok := overrides[FlagDomain]; ok {
+		domain = v
+	}
+	set.String(FlagDomain, domain, "")
+	set.String(FlagTransport, grpcTransport, "")
+
+	set.Int(FlagRPS, 0, "")
+	set.Int(FlagConcurrency, 0, "")
+
+	handled := map[string]bool{FlagDomain: true, FlagTransport: true}
+	for k, v := range overrides {
+		if handled[k] {
+			continue
+		}
+		set.String(k, v, "")
+	}
+	return cli.NewContext(app, set, nil)
+}
+
 func TestStartBatchOperationCLI(t *testing.T) {
 	tests := map[string]struct {
 		action   func(*cli.Context) error
@@ -499,6 +525,188 @@ func TestDescribeBatchOperation(t *testing.T) {
 			app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockFrontendClient})
 			c := newBatchOperationCLIContext(app, tt.flags)
 			err := DescribeBatchOperation(c)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			if tt.validate != nil {
+				tt.validate(t, capturedReq)
+			}
+		})
+	}
+}
+
+func TestStopBatchOperation(t *testing.T) {
+	tests := map[string]struct {
+		flags    map[string]string
+		mockFn   func(*frontend.MockClient, **types.StopBatchOperationRequest)
+		wantErr  bool
+		validate func(*testing.T, *types.StopBatchOperationRequest)
+	}{
+		"missing domain": {
+			flags:   map[string]string{FlagDomain: "", FlagBatchID: "my-batch-id"},
+			mockFn:  func(f *frontend.MockClient, captured **types.StopBatchOperationRequest) {},
+			wantErr: true,
+		},
+		"missing batch id": {
+			flags:   map[string]string{FlagBatchID: ""},
+			mockFn:  func(f *frontend.MockClient, captured **types.StopBatchOperationRequest) {},
+			wantErr: true,
+		},
+		"stop fails": {
+			flags: map[string]string{FlagBatchID: "my-batch-id"},
+			mockFn: func(f *frontend.MockClient, captured **types.StopBatchOperationRequest) {
+				f.EXPECT().StopBatchOperation(gomock.Any(), gomock.Any()).
+					Return(nil, assert.AnError)
+			},
+			wantErr: true,
+		},
+		"success": {
+			flags: map[string]string{FlagBatchID: "my-batch-id", FlagReason: "cleanup"},
+			mockFn: func(f *frontend.MockClient, captured **types.StopBatchOperationRequest) {
+				f.EXPECT().StopBatchOperation(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ any, req *types.StopBatchOperationRequest, _ ...any) (*types.StopBatchOperationResponse, error) {
+						*captured = req
+						return &types.StopBatchOperationResponse{}, nil
+					})
+			},
+			wantErr: false,
+			validate: func(t *testing.T, req *types.StopBatchOperationRequest) {
+				assert.Equal(t, "test-domain", req.Domain)
+				assert.Equal(t, "my-batch-id", req.BatchID)
+				assert.Equal(t, "cleanup", req.Reason)
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			mockFrontendClient := frontend.NewMockClient(mockCtrl)
+			var capturedReq *types.StopBatchOperationRequest
+			tt.mockFn(mockFrontendClient, &capturedReq)
+
+			app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockFrontendClient})
+			c := newBatchOperationCLIContext(app, tt.flags)
+			err := StopBatchOperation(c)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			if tt.validate != nil {
+				tt.validate(t, capturedReq)
+			}
+		})
+	}
+}
+
+func TestUpdateBatchOperation(t *testing.T) {
+	tests := map[string]struct {
+		flags    map[string]string
+		setup    func(*testing.T, *cli.Context)
+		mockFn   func(*frontend.MockClient, **types.UpdateBatchOperationRequest)
+		wantErr  bool
+		validate func(*testing.T, *types.UpdateBatchOperationRequest)
+	}{
+		"missing domain": {
+			flags:   map[string]string{FlagDomain: "", FlagBatchID: "my-batch-id"},
+			mockFn:  func(f *frontend.MockClient, captured **types.UpdateBatchOperationRequest) {},
+			wantErr: true,
+		},
+		"missing batch id": {
+			flags:   map[string]string{FlagBatchID: ""},
+			mockFn:  func(f *frontend.MockClient, captured **types.UpdateBatchOperationRequest) {},
+			wantErr: true,
+		},
+		"neither rps nor concurrency set": {
+			flags:   map[string]string{FlagBatchID: "my-batch-id"},
+			mockFn:  func(f *frontend.MockClient, captured **types.UpdateBatchOperationRequest) {},
+			wantErr: true,
+		},
+		"negative rps rejected": {
+			flags: map[string]string{FlagBatchID: "my-batch-id"},
+			setup: func(t *testing.T, c *cli.Context) {
+				require.NoError(t, c.Set(FlagRPS, "-1"))
+			},
+			mockFn:  func(f *frontend.MockClient, captured **types.UpdateBatchOperationRequest) {},
+			wantErr: true,
+		},
+		"negative concurrency rejected": {
+			flags: map[string]string{FlagBatchID: "my-batch-id"},
+			setup: func(t *testing.T, c *cli.Context) {
+				require.NoError(t, c.Set(FlagConcurrency, "-5"))
+			},
+			mockFn:  func(f *frontend.MockClient, captured **types.UpdateBatchOperationRequest) {},
+			wantErr: true,
+		},
+		"update fails": {
+			flags: map[string]string{FlagBatchID: "my-batch-id"},
+			setup: func(t *testing.T, c *cli.Context) {
+				require.NoError(t, c.Set(FlagRPS, "100"))
+			},
+			mockFn: func(f *frontend.MockClient, captured **types.UpdateBatchOperationRequest) {
+				f.EXPECT().UpdateBatchOperation(gomock.Any(), gomock.Any()).
+					Return(nil, assert.AnError)
+			},
+			wantErr: true,
+		},
+		"success, rps only": {
+			flags: map[string]string{FlagBatchID: "my-batch-id"},
+			setup: func(t *testing.T, c *cli.Context) {
+				require.NoError(t, c.Set(FlagRPS, "100"))
+			},
+			mockFn: func(f *frontend.MockClient, captured **types.UpdateBatchOperationRequest) {
+				f.EXPECT().UpdateBatchOperation(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ any, req *types.UpdateBatchOperationRequest, _ ...any) (*types.UpdateBatchOperationResponse, error) {
+						*captured = req
+						return &types.UpdateBatchOperationResponse{}, nil
+					})
+			},
+			wantErr: false,
+			validate: func(t *testing.T, req *types.UpdateBatchOperationRequest) {
+				assert.Equal(t, "test-domain", req.Domain)
+				assert.Equal(t, "my-batch-id", req.BatchID)
+				assert.EqualValues(t, 100, req.RPS)
+				assert.EqualValues(t, 0, req.Concurrency)
+			},
+		},
+		"success, concurrency only": {
+			flags: map[string]string{FlagBatchID: "my-batch-id"},
+			setup: func(t *testing.T, c *cli.Context) {
+				require.NoError(t, c.Set(FlagConcurrency, "20"))
+			},
+			mockFn: func(f *frontend.MockClient, captured **types.UpdateBatchOperationRequest) {
+				f.EXPECT().UpdateBatchOperation(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ any, req *types.UpdateBatchOperationRequest, _ ...any) (*types.UpdateBatchOperationResponse, error) {
+						*captured = req
+						return &types.UpdateBatchOperationResponse{}, nil
+					})
+			},
+			wantErr: false,
+			validate: func(t *testing.T, req *types.UpdateBatchOperationRequest) {
+				assert.EqualValues(t, 0, req.RPS)
+				assert.EqualValues(t, 20, req.Concurrency)
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			mockFrontendClient := frontend.NewMockClient(mockCtrl)
+			var capturedReq *types.UpdateBatchOperationRequest
+			tt.mockFn(mockFrontendClient, &capturedReq)
+
+			app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockFrontendClient})
+			c := newUpdateBatchOperationCLIContext(app, tt.flags)
+			if tt.setup != nil {
+				tt.setup(t, c)
+			}
+			err := UpdateBatchOperation(c)
 
 			if tt.wantErr {
 				assert.Error(t, err)
