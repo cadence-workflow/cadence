@@ -739,6 +739,7 @@ type (
 		LastFailureDetails       []byte
 		LastFailureCategory      types.FailureCategory
 		LastRetryIntervalSeconds int32
+		ThreadID                 int64
 		// Not written to database - This is used only for deduping heartbeat timer creation
 		LastHeartbeatTimeoutVisibilityInSeconds int64
 	}
@@ -767,6 +768,7 @@ type (
 		DomainNameDEPRECATED  string // deprecated: please use DomainID field instead
 		WorkflowTypeName      string
 		ParentClosePolicy     types.ParentClosePolicy
+		ThreadID              int64
 	}
 
 	// RequestCancelInfo has details for pending external workflow cancellations
@@ -799,6 +801,8 @@ type (
 		TokenID int
 		// AcquireDeadline is when a waiting acquire gives up.
 		AcquireDeadline time.Time
+		// ThreadID is the workflow coroutine that acquired the semaphore. 0 is the root.
+		ThreadID int64
 	}
 
 	// CreateShardRequest is used to create a shard in executions table

@@ -221,6 +221,7 @@ type (
 		RetryLastFailureDetails       []byte
 		RetryLastFailureCategory      types.FailureCategory
 		RetryLastRetryIntervalSeconds int32
+		ThreadID                      int64
 	}
 
 	// ChildExecutionInfo blob in a serialization agnostic format
@@ -239,6 +240,7 @@ type (
 		DomainNameDEPRECATED   string
 		WorkflowTypeName       string
 		ParentClosePolicy      int32
+		ThreadID               int64
 	}
 
 	// SignalInfo blob in a serialization agnostic format

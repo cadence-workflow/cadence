@@ -449,6 +449,7 @@ func Test_parseActivityInfo(t *testing.T) {
 		"last_failure_details":        []byte("last_failure_details"),
 		"last_failure_category":       2,
 		"last_retry_interval_seconds": 14,
+		"thread_id":                   int64(15),
 		"event_data_encoding":         "Proto3",
 	}
 
@@ -489,6 +490,7 @@ func Test_parseActivityInfo(t *testing.T) {
 		LastFailureDetails:       []byte("last_failure_details"),
 		LastFailureCategory:      types.FailureCategoryFatal,
 		LastRetryIntervalSeconds: int32(14),
+		ThreadID:                 int64(15),
 		DomainID:                 "domain_id",
 	}
 
@@ -532,6 +534,7 @@ func Test_parseChildExecutionInfo(t *testing.T) {
 		"domain_id":                domainID,
 		"workflow_type_name":       "workflow_type_name",
 		"parent_close_policy":      1,
+		"thread_id":                int64(2),
 	}
 	expected := &persistence.InternalChildExecutionInfo{
 		Version:               int64(1),
@@ -546,6 +549,7 @@ func Test_parseChildExecutionInfo(t *testing.T) {
 		DomainID:              domainID.String(),
 		WorkflowTypeName:      "workflow_type_name",
 		ParentClosePolicy:     1,
+		ThreadID:              2,
 	}
 	assert.Equal(t, expected, parseChildExecutionInfo(testInput))
 

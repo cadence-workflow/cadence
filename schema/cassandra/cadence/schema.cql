@@ -216,6 +216,7 @@ CREATE TYPE activity_info (
   task_list_kind            int, -- enum TaskListKind {Normal, Sticky, Ephemeral},
   last_failure_category     int, -- enum FailureCategory {Poll, Normal, Fatal}
   last_retry_interval_seconds int, -- override for the retry interval from the FailureOptions
+  thread_id                 bigint, -- workflow coroutine that scheduled the activity
 );
 
 -- User timer details
@@ -246,6 +247,7 @@ CREATE TYPE child_execution_info (
   domain_name               text, -- deprecated
   workflow_type_name        text,
   parent_close_policy       int,
+  thread_id                 bigint, -- workflow coroutine that started the child
 );
 
 -- External workflow cancellation in progress mutable state
@@ -275,6 +277,7 @@ CREATE TYPE semaphore_info (
   owner_id                  text,
   token_id                  int,
   acquire_deadline          timestamp,
+  thread_id                 bigint, -- workflow coroutine that acquired the semaphore
 );
 
 -- Activity or workflow task in a task list

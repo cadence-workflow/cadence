@@ -412,6 +412,7 @@ func TestActivityInfo(t *testing.T) {
 		RetryLastFailureDetails:       []byte("RetryLastFailureDetails"),
 		RetryLastFailureCategory:      types.FailureCategoryFatal,
 		RetryLastRetryIntervalSeconds: int32(rand.Intn(1000)),
+		ThreadID:                      int64(rand.Intn(1000)),
 	}
 	actual := activityInfoFromThrift(activityInfoToThrift(expected))
 	assert.Equal(t, expected, actual)
@@ -435,6 +436,7 @@ func TestChildExecutionInfo(t *testing.T) {
 		DomainNameDEPRECATED:   "DomainName",
 		WorkflowTypeName:       "WorkflowTypeName",
 		ParentClosePolicy:      int32(rand.Intn(1000)),
+		ThreadID:               int64(rand.Intn(1000)),
 	}
 	actual := childExecutionInfoFromThrift(childExecutionInfoToThrift(expected))
 	assert.Equal(t, expected, actual)

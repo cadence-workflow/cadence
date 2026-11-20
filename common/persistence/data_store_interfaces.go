@@ -561,6 +561,7 @@ type (
 		LastFailureDetails       []byte
 		LastFailureCategory      types.FailureCategory
 		LastRetryIntervalSeconds int32
+		ThreadID                 int64
 		// Not written to database - This is used only for deduping heartbeat timer creation
 		LastHeartbeatTimeoutVisibilityInSeconds int64
 	}
@@ -580,6 +581,7 @@ type (
 		DomainNameDEPRECATED  string // deprecated: use DomainID field
 		WorkflowTypeName      string
 		ParentClosePolicy     types.ParentClosePolicy
+		ThreadID              int64
 	}
 
 	// InternalUpdateWorkflowExecutionRequest is used to update a workflow execution for Persistence Interface

@@ -352,6 +352,8 @@ func parseActivityInfo(
 			info.LastFailureCategory = types.FailureCategory(v.(int))
 		case "last_retry_interval_seconds":
 			info.LastRetryIntervalSeconds = int32(v.(int))
+		case "thread_id":
+			info.ThreadID = v.(int64)
 		case "event_data_encoding":
 			sharedEncoding = constants.EncodingType(v.(string))
 		}
@@ -430,6 +432,8 @@ func parseChildExecutionInfo(
 			info.WorkflowTypeName = v.(string)
 		case "parent_close_policy":
 			info.ParentClosePolicy = types.ParentClosePolicy(v.(int))
+		case "thread_id":
+			info.ThreadID = v.(int64)
 		}
 	}
 	info.InitiatedEvent = persistence.NewDataBlob(initiatedData, encoding)
@@ -477,6 +481,8 @@ func parseSemaphoreInfo(
 			info.TokenID = v.(int)
 		case "acquire_deadline":
 			info.AcquireDeadline = v.(time.Time)
+		case "thread_id":
+			info.ThreadID = v.(int64)
 		}
 	}
 

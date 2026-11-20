@@ -1202,6 +1202,14 @@ func (a *ActivityInfo) GetRetryJitterCoefficient() (o float64) {
 	return
 }
 
+// GetThreadID internal sql blob getter
+func (a *ActivityInfo) GetThreadID() (o int64) {
+	if a != nil {
+		return a.ThreadID
+	}
+	return
+}
+
 // GetRetryNonRetryableErrors internal sql blob getter
 func (a *ActivityInfo) GetRetryNonRetryableErrors() (o []string) {
 	if a != nil {
@@ -1238,6 +1246,14 @@ func (c *ChildExecutionInfo) GetStartedID() (o int64) {
 func (c *ChildExecutionInfo) GetParentClosePolicy() (o int32) {
 	if c != nil {
 		return c.ParentClosePolicy
+	}
+	return
+}
+
+// GetThreadID internal sql blob getter
+func (c *ChildExecutionInfo) GetThreadID() (o int64) {
+	if c != nil {
+		return c.ThreadID
 	}
 	return
 }

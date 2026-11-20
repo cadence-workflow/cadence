@@ -249,6 +249,7 @@ func TestGettersForInfos(t *testing.T) {
 			DomainID:               "domainID",
 			WorkflowTypeName:       "workflowTypeName",
 			ParentClosePolicy:      1,
+			ThreadID:               7,
 		},
 		&ActivityInfo{
 			Version:                  1,
@@ -284,6 +285,7 @@ func TestGettersForInfos(t *testing.T) {
 			RetryLastWorkerIdentity:  "retryLastWorkerIdentity",
 			RetryLastFailureReason:   "retryLastFailureReason",
 			RetryLastFailureDetails:  []byte("retryLastFailureDetails"),
+			ThreadID:                 9,
 		},
 		&HistoryTreeInfo{
 			CreatedTimestamp: historyTreeEventCreatedTime,

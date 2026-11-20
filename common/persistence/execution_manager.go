@@ -293,6 +293,7 @@ func (m *executionManagerImpl) DeserializeChildExecutionInfos(
 			DomainNameDEPRECATED:  v.DomainNameDEPRECATED,
 			WorkflowTypeName:      v.WorkflowTypeName,
 			ParentClosePolicy:     v.ParentClosePolicy,
+			ThreadID:              v.ThreadID,
 		}
 
 		// Needed for backward compatibility reason.
@@ -364,6 +365,7 @@ func (m *executionManagerImpl) DeserializeActivityInfos(
 			LastFailureDetails:                      v.LastFailureDetails,
 			LastFailureCategory:                     v.LastFailureCategory,
 			LastRetryIntervalSeconds:                v.LastRetryIntervalSeconds,
+			ThreadID:                                v.ThreadID,
 			LastHeartbeatTimeoutVisibilityInSeconds: v.LastHeartbeatTimeoutVisibilityInSeconds,
 		}
 		newInfos[k] = a
@@ -439,6 +441,7 @@ func (m *executionManagerImpl) SerializeUpsertChildExecutionInfos(
 			DomainNameDEPRECATED:  v.DomainNameDEPRECATED,
 			WorkflowTypeName:      v.WorkflowTypeName,
 			ParentClosePolicy:     v.ParentClosePolicy,
+			ThreadID:              v.ThreadID,
 		}
 		newInfos = append(newInfos, i)
 	}
@@ -498,6 +501,7 @@ func (m *executionManagerImpl) SerializeUpsertActivityInfos(
 			LastFailureDetails:                      v.LastFailureDetails,
 			LastFailureCategory:                     v.LastFailureCategory,
 			LastRetryIntervalSeconds:                v.LastRetryIntervalSeconds,
+			ThreadID:                                v.ThreadID,
 			LastHeartbeatTimeoutVisibilityInSeconds: v.LastHeartbeatTimeoutVisibilityInSeconds,
 		}
 		newInfos = append(newInfos, i)

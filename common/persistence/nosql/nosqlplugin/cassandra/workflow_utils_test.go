@@ -1760,7 +1760,7 @@ func TestResetChildExecutionInfos(t *testing.T) {
 					`create_request_id:createRequestID1 domain_id:domain1 domain_name: event_data_encoding:thriftrw ` +
 					`initiated_event:[] initiated_event_batch_id:2 initiated_id:1 parent_close_policy:0 ` +
 					`started_event:[] started_id:3 started_run_id:startedRunID1 started_workflow_id:startedWorkflowID1 ` +
-					`version:1 workflow_type_name:workflowType1` +
+					`thread_id:0 version:1 workflow_type_name:workflowType1` +
 					`]], last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -1798,7 +1798,7 @@ func TestResetChildExecutionInfos(t *testing.T) {
 					`create_request_id:createRequestID1 domain_id:domain1 domain_name: event_data_encoding:thriftrw ` +
 					`initiated_event:[] initiated_event_batch_id:2 initiated_id:1 parent_close_policy:0 ` +
 					`started_event:[] started_id:3 started_run_id:30000000-0000-f000-f000-000000000000 started_workflow_id:startedWorkflowID1 ` +
-					`version:1 workflow_type_name:workflowType1` +
+					`thread_id:0 version:1 workflow_type_name:workflowType1` +
 					`]], last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = 30000000-0000-f000-f000-000000000000 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -1861,6 +1861,7 @@ func TestUpdateChildExecutionInfos(t *testing.T) {
 					DomainID:          "domain1",
 					WorkflowTypeName:  "workflowType1",
 					ParentClosePolicy: types.ParentClosePolicyAbandon,
+					ThreadID:          1,
 				},
 			},
 			deleteInfos: []int64{2},
@@ -1869,7 +1870,7 @@ func TestUpdateChildExecutionInfos(t *testing.T) {
 					`version: 1, initiated_id: 1, initiated_event_batch_id: 2, initiated_event: [], ` +
 					`started_id: 3, started_workflow_id: startedWorkflowID1, started_run_id: startedRunID1, ` +
 					`started_event: [], create_request_id: createRequestID1, event_data_encoding: thriftrw, ` +
-					`domain_id: domain1, domain_name: , workflow_type_name: workflowType1, parent_close_policy: 0` +
+					`domain_id: domain1, domain_name: , workflow_type_name: workflowType1, parent_close_policy: 0, thread_id: 1` +
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -2164,7 +2165,7 @@ func TestResetActivityInfos(t *testing.T) {
 					`scheduled_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
 					`scheduled_event_batch_id:0 scheduled_time:2023-12-19 22:08:41 +0000 UTC start_to_close_timeout:180 ` +
 					`started_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
-					`started_id:2 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 task_list_kind:0 timer_task_status:0 version:1` +
+					`started_id:2 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 task_list_kind:0 thread_id:0 timer_task_status:0 version:1` +
 					`] ` +
 					`2:map[` +
 					`activity_id:activity2 attempt:1 backoff_coefficient:0 cancel_request_id:0 cancel_requested:false ` +
@@ -2175,7 +2176,7 @@ func TestResetActivityInfos(t *testing.T) {
 					`scheduled_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
 					`scheduled_event_batch_id:0 scheduled_time:2023-12-19 22:08:41 +0000 UTC start_to_close_timeout:180 ` +
 					`started_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
-					`started_id:3 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 task_list_kind:1 timer_task_status:0 version:1` +
+					`started_id:3 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 task_list_kind:1 thread_id:0 timer_task_status:0 version:1` +
 					`]` +
 					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
@@ -2250,6 +2251,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					TaskListKind:           types.TaskListKindEphemeral,
 					HasRetryPolicy:         true,
 					LastFailureReason:      "retry reason",
+					ThreadID:               1,
 				},
 			},
 			deleteInfos:          []int64{2},
@@ -2266,7 +2268,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					`timer_task_status: 0, attempt: 3, task_list: tasklist1, task_list_kind: 2, started_identity: , has_retry_policy: true, ` +
 					`init_interval: 0, backoff_coefficient: 0, jitter_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, ` +
 					`max_attempts: 5, non_retriable_errors: [], last_failure_reason: retry reason, last_worker_identity: , ` +
-					`last_failure_details: [], last_failure_category: 0, last_retry_interval_seconds: 0, event_data_encoding: thriftrw` +
+					`last_failure_details: [], last_failure_category: 0, last_retry_interval_seconds: 0, thread_id: 1, event_data_encoding: thriftrw` +
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -2323,7 +2325,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					`timer_task_status: 0, attempt: 3, task_list: tasklist1, task_list_kind: 2, started_identity: , has_retry_policy: true, ` +
 					`init_interval: 0, backoff_coefficient: 0, jitter_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, ` +
 					`max_attempts: 5, non_retriable_errors: [], last_failure_reason: retry reason, last_worker_identity: , ` +
-					`last_failure_details: [], last_failure_category: 0, last_retry_interval_seconds: 0, event_data_encoding: thriftrw` +
+					`last_failure_details: [], last_failure_category: 0, last_retry_interval_seconds: 0, thread_id: 0, event_data_encoding: thriftrw` +
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -2403,7 +2405,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					`scheduled_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
 					`scheduled_event_batch_id:0 scheduled_time:2023-12-19 22:08:41 +0000 UTC start_to_close_timeout:180 ` +
 					`started_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
-					`started_id:2 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 task_list_kind:0 timer_task_status:0 version:1` +
+					`started_id:2 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 task_list_kind:0 thread_id:0 timer_task_status:0 version:1` +
 					`]` +
 					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
