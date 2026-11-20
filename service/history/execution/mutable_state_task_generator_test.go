@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -1795,6 +1796,113 @@ func TestGenerateReleaseSemaphoreTasks(t *testing.T) {
 
 			err := taskGenerator.GenerateReleaseSemaphoreTasks(5)
 			assert.Equal(t, tc.wantErr, err)
+		})
+	}
+}
+
+func TestGenerateUnstartedWorkTasks(t *testing.T) {
+	executionInfo := &persistence.WorkflowExecutionInfo{
+		DomainID:   constants.TestDomainID,
+		WorkflowID: constants.TestWorkflowID,
+		RunID:      constants.TestRunID,
+		TaskList:   "task-list",
+	}
+	workflowIdentifier := persistence.WorkflowIdentifier{
+		DomainID:   constants.TestDomainID,
+		WorkflowID: constants.TestWorkflowID,
+		RunID:      constants.TestRunID,
+	}
+	domainEntry := cache.NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{ID: constants.TestDomainID}, &persistence.DomainConfig{}, "active")
+	retryTime := time.Unix(1700000000, 0).UTC()
+
+	testCases := []struct {
+		name       string
+		activities map[int64]*persistence.ActivityInfo
+		children   map[int64]*persistence.ChildExecutionInfo
+		wantTasks  func(mockMutableState *MockMutableState)
+	}{
+		{
+			name: "an activity on its first attempt gets a transfer task",
+			activities: map[int64]*persistence.ActivityInfo{
+				5: {Version: 3, ScheduleID: 5, StartedID: commonconstants.EmptyEventID, DomainID: "target-domain-id", TaskList: "activity-task-list"},
+			},
+			wantTasks: func(mockMutableState *MockMutableState) {
+				mockMutableState.EXPECT().AddTransferTasks(&persistence.ActivityTask{
+					WorkflowIdentifier: workflowIdentifier,
+					TaskData:           persistence.TaskData{Version: 3},
+					TargetDomainID:     "target-domain-id",
+					TaskList:           "activity-task-list",
+					ScheduleID:         5,
+				})
+			},
+		},
+		{
+			name: "an activity waiting to retry gets a retry timer at its scheduled time",
+			activities: map[int64]*persistence.ActivityInfo{
+				5: {Version: 3, ScheduleID: 5, StartedID: commonconstants.EmptyEventID, Attempt: 2, ScheduledTime: retryTime, TaskList: "activity-task-list"},
+			},
+			wantTasks: func(mockMutableState *MockMutableState) {
+				mockMutableState.EXPECT().GetActivityInfo(int64(5)).
+					Return(&persistence.ActivityInfo{Version: 3, ScheduleID: 5, Attempt: 2, ScheduledTime: retryTime, TaskList: "activity-task-list"}, true)
+				mockMutableState.EXPECT().AddTimerTasks(&persistence.ActivityRetryTimerTask{
+					WorkflowIdentifier: workflowIdentifier,
+					TaskData:           persistence.TaskData{Version: 3, VisibilityTimestamp: retryTime},
+					EventID:            5,
+					Attempt:            2,
+					TaskList:           "activity-task-list",
+				})
+			},
+		},
+		{
+			name: "a child gets a start-child task",
+			children: map[int64]*persistence.ChildExecutionInfo{
+				6: {Version: 3, InitiatedID: 6, StartedID: commonconstants.EmptyEventID, DomainID: constants.TestDomainID, StartedWorkflowID: "child-wid"},
+			},
+			wantTasks: func(mockMutableState *MockMutableState) {
+				mockMutableState.EXPECT().GetDomainEntry().Return(domainEntry)
+				mockMutableState.EXPECT().AddTransferTasks(&persistence.StartChildExecutionTask{
+					WorkflowIdentifier: workflowIdentifier,
+					TaskData:           persistence.TaskData{Version: 3},
+					TargetDomainID:     constants.TestDomainID,
+					TargetWorkflowID:   "child-wid",
+					InitiatedID:        6,
+					TaskList:           "task-list",
+				})
+			},
+		},
+		{
+			name: "activities and children scheduled before the acquire get no tasks",
+			activities: map[int64]*persistence.ActivityInfo{
+				3: {ScheduleID: 3, StartedID: commonconstants.EmptyEventID},
+			},
+			children: map[int64]*persistence.ChildExecutionInfo{
+				2: {InitiatedID: 2, StartedID: commonconstants.EmptyEventID},
+			},
+		},
+		{
+			name: "started activities and children get no tasks",
+			activities: map[int64]*persistence.ActivityInfo{
+				5: {ScheduleID: 5, StartedID: 7},
+			},
+			children: map[int64]*persistence.ChildExecutionInfo{
+				6: {InitiatedID: 6, StartedID: 8},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockMutableState := NewMockMutableState(ctrl)
+			mockMutableState.EXPECT().GetExecutionInfo().Return(executionInfo).AnyTimes()
+			mockMutableState.EXPECT().GetPendingActivityInfos().Return(tc.activities)
+			mockMutableState.EXPECT().GetPendingChildExecutionInfos().Return(tc.children)
+			if tc.wantTasks != nil {
+				tc.wantTasks(mockMutableState)
+			}
+			taskGenerator := NewMutableStateTaskGenerator(log.NewNoop(), constants.TestClusterMetadata, cache.NewMockDomainCache(ctrl), mockMutableState)
+
+			assert.NoError(t, taskGenerator.GenerateUnstartedWorkTasks(4))
 		})
 	}
 }

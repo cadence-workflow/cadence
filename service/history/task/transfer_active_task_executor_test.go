@@ -235,6 +235,78 @@ func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Success() {
 	s.Nil(err)
 }
 
+func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_SemaphoreTokenValid() {
+	s.testProcessActivityTaskWithSemaphore(func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		s.mockShard.Resource.SemaphoreMetadataMgr.EXPECT().GetSemaphore(gomock.Any(), gomock.Any()).
+			Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{Size: 4, BucketSize: 4}}, nil)
+		s.mockMatchingClient.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), gomock.Any()).
+			Return(&types.GetSemaphoreTokenByOwnerResponse{TokenID: int32(semaphoreInfo.TokenID)}, nil)
+		s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).Return(&types.AddActivityTaskResponse{}, nil)
+	})
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_MatchingLostSemaphoreToken() {
+	s.testProcessActivityTaskWithSemaphore(func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		s.mockShard.Resource.SemaphoreMetadataMgr.EXPECT().GetSemaphore(gomock.Any(), gomock.Any()).
+			Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{Size: 4, BucketSize: 4}}, nil)
+		s.mockMatchingClient.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), gomock.Any()).
+			Return(&types.GetSemaphoreTokenByOwnerResponse{}, nil)
+		s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+		s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.UpdateWorkflowExecutionRequest) bool {
+			infos := req.UpdateWorkflowMutation.UpsertSemaphoreInfos
+			return len(infos) == 1 && !infos[0].HasToken()
+		})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
+	})
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_SemaphoreHasNoToken() {
+	s.testProcessActivityTaskWithSemaphore(func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		_, err := mutableState.AddSemaphoreTokenLostEvent(semaphoreInfo.InitiatedID)
+		s.NoError(err)
+		mutableState.FlushBufferedEvents()
+	})
+}
+
+func (s *transferActiveTaskExecutorSuite) testProcessActivityTaskWithSemaphore(
+	setupFn func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo),
+) {
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+	semaphoreInfo := addSemaphoreWithToken(s.T(), mutableState, decisionCompletionID)
+	event, _ := test.AddActivityTaskScheduledEvent(
+		mutableState,
+		decisionCompletionID,
+		"activity-1",
+		"some random activity type",
+		mutableState.GetExecutionInfo().TaskList,
+		[]byte{}, 1, 1, 1, 1,
+	)
+	mutableState.FlushBufferedEvents()
+	setupFn(mutableState, semaphoreInfo)
+
+	transferTask := s.newTransferTaskFromInfo(&persistence.ActivityTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version: s.version,
+			TaskID:  int64(59),
+		},
+		TargetDomainID: constants.TestDomainID,
+		TaskList:       mutableState.GetExecutionInfo().TaskList,
+		ScheduleID:     event.ID,
+	})
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, mutableState.GetNextEventID()-1, s.version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true)
+
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
+	s.NoError(err)
+}
+
 func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_EphemeralTaskListKind() {
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
 	s.NoError(err)
@@ -1616,6 +1688,68 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Success
 	)
 }
 
+func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_SemaphoreHasNoToken() {
+	s.testProcessStartChildExecutionWithSemaphore(func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		_, err := mutableState.AddSemaphoreTokenLostEvent(semaphoreInfo.InitiatedID)
+		s.NoError(err)
+		mutableState.FlushBufferedEvents()
+	})
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_MatchingLostSemaphoreToken() {
+	s.testProcessStartChildExecutionWithSemaphore(func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo) {
+		s.mockShard.Resource.SemaphoreMetadataMgr.EXPECT().GetSemaphore(gomock.Any(), gomock.Any()).
+			Return(&persistence.GetSemaphoreResponse{Semaphore: &persistence.SemaphoreMetadata{Size: 4, BucketSize: 4}}, nil)
+		s.mockMatchingClient.EXPECT().GetSemaphoreTokenByOwner(gomock.Any(), gomock.Any()).
+			Return(&types.GetSemaphoreTokenByOwnerResponse{}, nil)
+		s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+		s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.UpdateWorkflowExecutionRequest) bool {
+			infos := req.UpdateWorkflowMutation.UpsertSemaphoreInfos
+			return len(infos) == 1 && !infos[0].HasToken()
+		})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
+	})
+}
+
+func (s *transferActiveTaskExecutorSuite) testProcessStartChildExecutionWithSemaphore(
+	setupFn func(mutableState execution.MutableState, semaphoreInfo *persistence.SemaphoreInfo),
+) {
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+	semaphoreInfo := addSemaphoreWithToken(s.T(), mutableState, decisionCompletionID)
+	event, _ := test.AddStartChildWorkflowExecutionInitiatedEvent(
+		mutableState,
+		decisionCompletionID,
+		constants.TestDomainName,
+		"child-wid",
+		"child-workflow-type",
+		"child-task-list",
+		nil, 1, 1, nil,
+	)
+	mutableState.FlushBufferedEvents()
+	setupFn(mutableState, semaphoreInfo)
+
+	transferTask := s.newTransferTaskFromInfo(&persistence.StartChildExecutionTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version: s.version,
+			TaskID:  int64(59),
+		},
+		TargetDomainID:   constants.TestDomainID,
+		TargetWorkflowID: "child-wid",
+		InitiatedID:      event.ID,
+	})
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, mutableState.GetNextEventID()-1, s.version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
+	s.NoError(err)
+}
+
 func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Failure() {
 	s.testProcessStartChildExecution(
 		constants.TestDomainID,
@@ -2503,6 +2637,73 @@ func TestRecordSemaphoreAcquire(t *testing.T) {
 			tc.setupMock(mutableState, wfContext)
 
 			err := tc.record(wfContext)
+			assert.Equal(t, tc.wantErr, err)
+		})
+	}
+}
+
+// addSemaphoreWithToken gives the run a semaphore with token 3.
+func addSemaphoreWithToken(t *testing.T, mutableState execution.MutableState, decisionCompletionID int64) *persistence.SemaphoreInfo {
+	event, semaphoreInfo, err := mutableState.AddSemaphoreAcquireInitiatedEvent(decisionCompletionID, testSemaphoreName, 30)
+	require.NoError(t, err)
+	_, err = mutableState.AddSemaphoreAcquiredEvent(event.ID, 3)
+	require.NoError(t, err)
+	mutableState.FlushBufferedEvents()
+	return semaphoreInfo
+}
+
+func TestRecordSemaphoreTokenLost(t *testing.T) {
+	errTokenNotFound := &types.EntityNotExistsError{Message: "Semaphore with this token not found."}
+
+	testCases := []struct {
+		name      string
+		setupMock func(mutableState *execution.MockMutableState, wfContext *execution.MockContext)
+		wantErr   error
+	}{
+		{
+			name: "the semaphore has the token: the event is recorded without a decision",
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 3}, true)
+				mutableState.EXPECT().AddSemaphoreTokenLostEvent(int64(5)).Return(&types.HistoryEvent{}, nil)
+				mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{})
+				wfContext.EXPECT().UpdateWorkflowExecutionAsActive(gomock.Any(), testTime).Return(nil)
+			},
+		},
+		{
+			name: "workflow not running",
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(false)
+			},
+			wantErr: &types.WorkflowExecutionAlreadyCompletedError{Message: "Workflow execution already completed."},
+		},
+		{
+			name: "semaphore not found",
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(nil, false)
+			},
+			wantErr: errTokenNotFound,
+		},
+		{
+			name: "the semaphore has a different token",
+			setupMock: func(mutableState *execution.MockMutableState, wfContext *execution.MockContext) {
+				mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
+				mutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(&persistence.SemaphoreInfo{InitiatedID: 5, TokenID: 7}, true)
+			},
+			wantErr: errTokenNotFound,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			wfContext := execution.NewMockContext(ctrl)
+			mutableState := execution.NewMockMutableState(ctrl)
+			wfContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(mutableState, nil)
+			tc.setupMock(mutableState, wfContext)
+
+			err := recordSemaphoreTokenLost(context.Background(), log.NewNoop(), wfContext, 5, 3, testTime)
 			assert.Equal(t, tc.wantErr, err)
 		})
 	}

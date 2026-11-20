@@ -224,6 +224,20 @@ func (mr *MockMutableStateTaskGeneratorMockRecorder) GenerateSignalExternalTasks
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateSignalExternalTasks", reflect.TypeOf((*MockMutableStateTaskGenerator)(nil).GenerateSignalExternalTasks), event)
 }
 
+// GenerateUnstartedWorkTasks mocks base method.
+func (m *MockMutableStateTaskGenerator) GenerateUnstartedWorkTasks(semaphoreInitiatedID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenerateUnstartedWorkTasks", semaphoreInitiatedID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GenerateUnstartedWorkTasks indicates an expected call of GenerateUnstartedWorkTasks.
+func (mr *MockMutableStateTaskGeneratorMockRecorder) GenerateUnstartedWorkTasks(semaphoreInitiatedID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateUnstartedWorkTasks", reflect.TypeOf((*MockMutableStateTaskGenerator)(nil).GenerateUnstartedWorkTasks), semaphoreInitiatedID)
+}
+
 // GenerateUserTimerTasks mocks base method.
 func (m *MockMutableStateTaskGenerator) GenerateUserTimerTasks() error {
 	m.ctrl.T.Helper()

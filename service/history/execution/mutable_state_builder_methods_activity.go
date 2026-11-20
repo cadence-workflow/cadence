@@ -261,7 +261,10 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 		return nil, nil, nil, err
 	}
 	activityStartedScope := e.metricsClient.Scope(metrics.HistoryRecordActivityTaskStartedScope)
-	if e.config.EnableActivityLocalDispatchByDomain(e.domainEntry.GetInfo().Name) && attributes.RequestLocalDispatch {
+	// A run with a semaphore skips local dispatch: a locally dispatched activity starts at once,
+	// without the token check in the transfer task.
+	if e.config.EnableActivityLocalDispatchByDomain(e.domainEntry.GetInfo().Name) && attributes.RequestLocalDispatch &&
+		len(e.pendingSemaphoreInfoIDs) == 0 {
 		activityStartedScope.IncCounter(metrics.CadenceRequests)
 		return event, ai, &types.ActivityLocalDispatchInfo{ActivityID: ai.ActivityID}, nil
 	}
