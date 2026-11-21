@@ -30,7 +30,8 @@ func (f FailureType) String() string {
 }
 
 // FailureIssuesMetadata is the metadata for every failure issue. EventID is the
-// WorkflowExecutionFailed or ActivityTaskFailed event the issue was found on.
+// WorkflowExecutionFailed, WorkflowExecutionContinuedAsNew or ActivityTaskFailed event
+// the issue was found on.
 type FailureIssuesMetadata struct {
 	EventID             int64
 	Identity            string
