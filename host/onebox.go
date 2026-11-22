@@ -92,15 +92,16 @@ type Cadence interface {
 	GetHistoryClient() historyClient.Client
 	GetMatchingClient() matchingClient.Client
 	GetMatchingClients() []matchingClient.Client
-	GetDomainCache() cache.DomainCache
+	GetDomainCaches() []cache.DomainCache
 	GetExecutionManager() persistence.ExecutionManager
 }
 
 type (
 	cadenceImpl struct {
-		frontendService  resource.Resource
-		matchingServices []common.Daemon
-		historyServices  []common.Daemon
+		frontendService     resource.Resource
+		matchingServices    []common.Daemon
+		historyServices     []common.Daemon
+		historyDomainCaches []cache.DomainCache
 
 		adminClient                      adminClient.Client
 		frontendClient                   frontendClient.Client
@@ -870,6 +871,7 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 		// Need to change those tests and modify the interface for getting history client.
 		c.historyClient = NewHistoryClient(historyService.GetDispatcher())
 		c.historyServices = append(c.historyServices, historyService)
+		c.historyDomainCaches = append(c.historyDomainCaches, historyService.GetDomainCache())
 
 		go historyService.Start()
 	}
@@ -1223,8 +1225,8 @@ func (c *cadenceImpl) GetExecutionManager() persistence.ExecutionManager {
 	return c.executionMgr
 }
 
-func (c *cadenceImpl) GetDomainCache() cache.DomainCache {
-	return c.frontendService.GetDomainCache()
+func (c *cadenceImpl) GetDomainCaches() []cache.DomainCache {
+	return append([]cache.DomainCache{c.frontendService.GetDomainCache()}, c.historyDomainCaches...)
 }
 
 func (c *cadenceImpl) overrideHistoryDynamicConfig(client *dynamicClient) {
