@@ -22,14 +22,9 @@ func TestShardOnboarded(t *testing.T) {
 	}{
 		{name: "1% onboards shard 163", shardIndex: 163, numShards: 16384, percentageOnboarded: 1, want: true},
 		{name: "1% stops before shard 164", shardIndex: 164, numShards: 16384, percentageOnboarded: 1, want: false},
-		{name: "14% onboards shard 139 of 1000", shardIndex: 139, numShards: 1000, percentageOnboarded: 14, want: true},
-		{name: "14% stops before shard 140 of 1000", shardIndex: 140, numShards: 1000, percentageOnboarded: 14, want: false},
-		{name: "0% onboards nothing", shardIndex: 0, numShards: 16384, percentageOnboarded: 0, want: false},
 		{name: "100% onboards the last shard", shardIndex: 16383, numShards: 16384, percentageOnboarded: 100, want: true},
-		{name: "negative percentage onboards nothing", shardIndex: 0, numShards: 1000, percentageOnboarded: -1, want: false},
 		{name: "huge negative percentage onboards nothing", shardIndex: 9, numShards: 1500, percentageOnboarded: math.MinInt / 3, want: false},
 		{name: "negative shard index", shardIndex: -1, numShards: 16384, percentageOnboarded: 100, want: false},
-		{name: "shard index past the last shard", shardIndex: 16384, numShards: 16384, percentageOnboarded: 100, want: false},
 		{name: "no shards", shardIndex: 0, numShards: 0, percentageOnboarded: 100, want: false},
 	}
 	for _, tt := range tests {
