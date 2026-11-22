@@ -1800,7 +1800,41 @@ func (adh *adminHandlerImpl) updateDynamicConfigValue(
 	if err != nil {
 		return err
 	}
+	if err := validateIntConfigRange(keyVal, values); err != nil {
+		return adh.error(err, scope)
+	}
 	return client.UpdateValue(keyVal, values)
+}
+
+// intConfigRanges holds the inclusive bounds the admin API enforces when an int key is written.
+// The config store only checks the value's type.
+var intConfigRanges = map[dynamicproperties.IntKey]struct{ min, max int }{
+	dynamicproperties.MatchingPercentageOnboardedToShardManager: {0, 100},
+	dynamicproperties.HistoryPercentageOnboardedToShardManager:  {0, 100},
+}
+
+func validateIntConfigRange(key dynamicproperties.Key, values []*types.DynamicConfigValue) error {
+	intKey, ok := key.(dynamicproperties.IntKey)
+	if !ok {
+		return nil
+	}
+	bounds, ok := intConfigRanges[intKey]
+	if !ok {
+		return nil
+	}
+	for _, value := range values {
+		if value == nil || value.Value.GetEncodingType() != types.EncodingTypeJSON {
+			return &types.BadRequestError{Message: fmt.Sprintf("%s value must be JSON encoded", key)}
+		}
+		var number *int
+		if err := json.Unmarshal(value.Value.Data, &number); err != nil || number == nil {
+			return &types.BadRequestError{Message: fmt.Sprintf("%s value must be an integer", key)}
+		}
+		if *number < bounds.min || *number > bounds.max {
+			return &types.BadRequestError{Message: fmt.Sprintf("%s must be between %d and %d, got %d", key, bounds.min, bounds.max, *number)}
+		}
+	}
+	return nil
 }
 
 // restoreDynamicConfigValue is the shared implementation for RestoreDynamicConfig and
