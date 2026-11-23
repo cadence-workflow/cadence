@@ -92,7 +92,9 @@ func (s *WorkflowTimerTaskCleanupSuite) TestTimerCleanupAtRetention() {
 
 	// Domain with 0-day retention so DeleteHistoryEventTask fires on workflow close.
 	domainName := s.RandomizeStr("timer-cleanup-retention-domain")
-	s.NoError(s.RegisterDomain(domainName, 0, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
+	s.Require().NoError(s.RegisterDomain(domainName, 0, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
+	// A newly registered domain may not be visible until the cache can refresh.
+	s.Require().NoError(s.waitForDomains([]string{domainName}))
 
 	ctx, cancel := createContext()
 	defer cancel()
@@ -285,7 +287,9 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 
 	// Domain with 0-day retention so DeleteHistoryEventTask fires on workflow close.
 	domainName := s.RandomizeStr("timer-cleanup-disabled-domain")
-	s.NoError(s.RegisterDomain(domainName, 0, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
+	s.Require().NoError(s.RegisterDomain(domainName, 0, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
+	// A newly registered domain may not be visible until the cache can refresh.
+	s.Require().NoError(s.waitForDomains([]string{domainName}))
 
 	ctx, cancel := createContext()
 	defer cancel()

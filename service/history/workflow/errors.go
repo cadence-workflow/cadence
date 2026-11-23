@@ -59,4 +59,6 @@ var (
 	ErrConsistentQueryBufferExceeded = &types.InternalServiceError{Message: "consistent query buffer is full, cannot accept new consistent queries"}
 	// ErrConcurrentStartRequest is error indicating there is an outstanding start workflow request. The incoming request fails to acquires the lock before the outstanding request finishes.
 	ErrConcurrentStartRequest = &types.ServiceBusyError{Message: "an outstanding start workflow request is in-progress. Failed to acquire the resource."}
+	// ErrImportInProgress is the error indicating that the workflow is an import in progress, which accepts no external change
+	ErrImportInProgress = &types.BadRequestError{Message: "workflow import is in progress"}
 )

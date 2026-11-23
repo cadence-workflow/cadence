@@ -14,8 +14,8 @@ type (
 		// Start claims the bucket and loads its tokens. Only the first call loads.
 		Start(ctx context.Context) error
 		Stop()
-		// Acquire grants ownerID a token, or writes it as a waiter and answers Queued.
-		// A nil acquireDeadline means the waiter never expires.
+		// Acquire grants ownerID a token, or queues a task for it and answers Queued.
+		// A nil acquireDeadline means the task never expires.
 		Acquire(ctx context.Context, ownerID string, acquireDeadline *time.Time) (AcquireResult, error)
 		// Release frees the token ownerID holds. Releasing an owner that holds nothing succeeds.
 		Release(ctx context.Context, ownerID string) error

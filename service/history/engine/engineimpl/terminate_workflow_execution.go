@@ -24,6 +24,7 @@ package engineimpl
 import (
 	"context"
 
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/workflow"
@@ -61,6 +62,18 @@ func (e *historyEngineImpl) TerminateWorkflowExecution(
 		workflowExecution,
 		e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) (*workflow.UpdateAction, error) {
+			if mutableState.GetExecutionInfo().State == persistence.WorkflowStatePreparing {
+				// An import in progress has a new run ID, so it is not the child of a parent in this cluster
+				// and not a run of the requested chain. A not found error lets the parent close policy
+				// complete, in the transfer task and in the worker. Any other error makes it retry.
+				if childWorkflowOnly {
+					return nil, workflow.ErrParentMismatch
+				}
+				if request.GetFirstExecutionRunID() != "" {
+					return nil, &types.EntityNotExistsError{Message: "Workflow execution not found"}
+				}
+				return nil, workflow.ErrImportInProgress
+			}
 			if !mutableState.IsWorkflowExecutionRunning() {
 				return nil, workflow.ErrAlreadyCompleted
 			}
