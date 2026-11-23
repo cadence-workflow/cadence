@@ -100,6 +100,7 @@ type (
 		// Note that most components don't respect this, and it's only used in a few places.
 		// e.g. async workflow test's consumer manager and domain manager
 		TimeSource                     clock.MockedTimeSource
+		WorkflowIDRateLimitTimeSource  clock.TimeSource
 		FrontendDynamicConfigOverrides map[dynamicproperties.Key]interface{}
 		HistoryDynamicConfigOverrides  map[dynamicproperties.Key]interface{}
 		MatchingDynamicConfigOverrides map[dynamicproperties.Key]interface{}
@@ -199,6 +200,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		AuthorizationConfig:              aConfig,
 		AsyncWFQueues:                    options.AsyncWFQueues,
 		TimeSource:                       options.TimeSource,
+		WorkflowIDRateLimitTimeSource:    options.WorkflowIDRateLimitTimeSource,
 		DynamicClient:                    dynamicClient,
 		FrontendDynCfgOverrides:          options.FrontendDynamicConfigOverrides,
 		HistoryDynCfgOverrides:           options.HistoryDynamicConfigOverrides,

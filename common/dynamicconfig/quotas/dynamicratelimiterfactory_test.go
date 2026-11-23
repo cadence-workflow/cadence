@@ -24,9 +24,12 @@ package quotas
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/time/rate"
+
+	"github.com/uber/cadence/common/clock"
 )
 
 func TestNewSimpleDynamicRateLimiterFactory(t *testing.T) {
@@ -40,4 +43,25 @@ func TestNewSimpleDynamicRateLimiterFactory(t *testing.T) {
 	limiter := factory.GetLimiter(_testDomain)
 
 	assert.Equal(t, rate.Limit(100), limiter.Limit())
+}
+
+func TestFactoryControlledRefill(t *testing.T) {
+	ts := clock.NewMockedTimeSource()
+	factory := NewSimpleDynamicRateLimiterFactoryWithTimeSource(func(string) int { return 5 }, ts)
+	limiter := factory.GetLimiter("domain")
+	for i := 0; i < 5; i++ {
+		if !limiter.Allow() {
+			t.Fatal("initial burst rejected")
+		}
+	}
+	if limiter.Allow() {
+		t.Fatal("exhausted burst allowed")
+	}
+	ts.Advance(200 * time.Millisecond)
+	if !limiter.Allow() {
+		t.Fatal("one token did not refill")
+	}
+	if limiter.Allow() {
+		t.Fatal("more than one token refilled")
+	}
 }

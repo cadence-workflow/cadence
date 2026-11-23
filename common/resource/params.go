@@ -102,6 +102,8 @@ type (
 		OSConfig                   *config.ElasticSearchConfig
 		AsyncWorkflowQueueProvider queue.Provider
 		TimeSource                 clock.TimeSource
+		// WorkflowIDRateLimitTimeSource optionally controls history workflow limiter refill and cache expiry in tests.
+		WorkflowIDRateLimitTimeSource clock.TimeSource
 		// HistoryClientFn is used by integration tests to mock a history client
 		HistoryClientFn func() history.Client
 		// NewPersistenceBeanFn can be used to override the default persistence bean creation in unit tests to avoid DB setup

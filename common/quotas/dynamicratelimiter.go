@@ -64,6 +64,15 @@ func NewDynamicRateLimiter(rps RPSFunc) Limiter {
 	return NewDynamicRateLimiterWithOpts(rps, _defaultOpts)
 }
 
+// NewDynamicRateLimiterWithTimeSource preserves the default settings with an optional clock.
+func NewDynamicRateLimiterWithTimeSource(rps RPSFunc, timeSource clock.TimeSource) Limiter {
+	opts := _defaultOpts
+	if timeSource != nil {
+		opts.TimeSource = timeSource
+	}
+	return NewDynamicRateLimiterWithOpts(rps, opts)
+}
+
 func NewDynamicRateLimiterWithOpts(rps RPSFunc, opts DynamicRateLimiterOpts) Limiter {
 	ts := opts.TimeSource
 	if ts == nil {

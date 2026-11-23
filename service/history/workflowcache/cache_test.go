@@ -30,6 +30,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
+	dcquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -287,4 +289,42 @@ func expectRatelimitLog(logger *log.MockLogger, requestType string) {
 			tag.WorkflowID(testWorkflowID),
 		},
 	).Times(1)
+}
+
+func TestWorkflowLimiterClockIgnoresRequestLatency(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	domainCache := cache.NewMockDomainCache(ctrl)
+	domainCache.EXPECT().GetDomainName(testDomainID).Return(testDomainName, nil).AnyTimes()
+	ts := clock.NewMockedTimeSource()
+	factory := dcquotas.NewSimpleDynamicRateLimiterFactoryWithTimeSource(func(string) int { return 5 }, ts)
+	wfCache := New(Params{TTL: time.Second, MaxCount: 100, TimeSource: ts,
+		ExternalLimiterFactory: factory, InternalLimiterFactory: factory,
+		DomainCache: domainCache, Logger: log.NewNoop(), MetricsClient: metrics.NewNoopMetricsClient()})
+	for i := 0; i < 5; i++ {
+		if !wfCache.AllowExternal(testDomainID, testWorkflowID) {
+			t.Fatal("initial burst rejected")
+		}
+	}
+	// Simulate RPC latency longer than both the refill interval and cache TTL.
+	time.Sleep(1100 * time.Millisecond)
+	if wfCache.AllowExternal(testDomainID, testWorkflowID) {
+		t.Fatal("wall time refilled or reset the limiter")
+	}
+	if !wfCache.AllowExternal(testDomainID, testWorkflowID2) {
+		t.Fatal("another workflow shared the exhausted limiter")
+	}
+	ts.Advance(200 * time.Millisecond)
+	if !wfCache.AllowExternal(testDomainID, testWorkflowID) {
+		t.Fatal("controlled time did not refill a token")
+	}
+	if wfCache.AllowExternal(testDomainID, testWorkflowID) {
+		t.Fatal("controlled time refilled more than one token")
+	}
+	// Advancing past the cache TTL should construct a new limiter with a full burst.
+	ts.Advance(time.Second)
+	for i := 0; i < 5; i++ {
+		if !wfCache.AllowExternal(testDomainID, testWorkflowID) {
+			t.Fatal("expired entry did not reset the limiter")
+		}
+	}
 }

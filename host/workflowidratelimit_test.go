@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -49,6 +48,7 @@ func TestWorkflowIDRateLimitIntegrationSuite(t *testing.T) {
 	require.NoError(t, err)
 
 	clusterConfig.TimeSource = clock.NewMockedTimeSource()
+	clusterConfig.WorkflowIDRateLimitTimeSource = clusterConfig.TimeSource
 	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
 		dynamicproperties.WorkflowIDExternalRPS: 5,
 	}
@@ -125,27 +125,23 @@ func (s *WorkflowIDRateLimitIntegrationSuite) TestWorkflowIDSpecificRateLimits()
 	// The ratelimit is 5 per second with a burst of 5, so we should be able to start 5 workflows without any error
 	for i := 0; i < 5; i++ {
 		_, err := s.Engine.StartWorkflowExecution(ctx, request)
-		assert.NoError(s.T(), err)
+		s.Require().NoError(err)
 	}
 
-	// Now we should get a rate limit error (with some fuzziness for time passing)
-	limited := 0
+	// RPC latency cannot replenish tokens or expire the cache while the mock clock is frozen.
 	for i := 0; i < 5; i++ {
 		_, err := s.Engine.StartWorkflowExecution(ctx, request)
 		var busyErr *types.ServiceBusyError
-		if err != nil {
-			if assert.ErrorAs(s.T(), err, &busyErr) {
-				limited++
-				assert.Equal(s.T(), constants.WorkflowIDRateLimitReason, busyErr.Reason)
-			}
-		}
+		s.Require().ErrorAs(err, &busyErr)
+		s.Equal(constants.WorkflowIDRateLimitReason, busyErr.Reason)
 	}
-	// 5 fails occasionally, trying 4.  If needed, reduce to 3 or find a way to
-	// make this test less sensitive to latency, as test-runner hosts vary a lot.
-	assert.GreaterOrEqual(s.T(), limited, 4, "should have encountered some rate-limit errors after the burst was exhausted")
 
-	// After 1 second (200ms at a minimum) we should be able to start more workflows without being limited
-	time.Sleep(1 * time.Second)
+	// At 5 RPS, 200ms restores exactly one token, before the 1s cache TTL expires.
+	s.TestClusterConfig.TimeSource.Advance(200 * time.Millisecond)
 	_, err := s.Engine.StartWorkflowExecution(ctx, request)
-	assert.NoError(s.T(), err)
+	s.Require().NoError(err)
+	_, err = s.Engine.StartWorkflowExecution(ctx, request)
+	var busyErr *types.ServiceBusyError
+	s.Require().ErrorAs(err, &busyErr)
+	s.Equal(constants.WorkflowIDRateLimitReason, busyErr.Reason)
 }
