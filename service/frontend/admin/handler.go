@@ -1808,7 +1808,7 @@ func (adh *adminHandlerImpl) updateDynamicConfigValue(
 
 // intConfigRanges holds the inclusive bounds the admin API enforces when an int key is written.
 // The config store only checks the value's type.
-var intConfigRanges = map[dynamicproperties.IntKey]struct{ min, max int }{
+var intConfigRanges = map[dynamicproperties.IntKey]struct{ min, max float64 }{
 	dynamicproperties.MatchingPercentageOnboardedToShardManager: {0, 100},
 	dynamicproperties.HistoryPercentageOnboardedToShardManager:  {0, 100},
 }
@@ -1826,12 +1826,12 @@ func validateIntConfigRange(key dynamicproperties.Key, values []*types.DynamicCo
 		if value == nil || value.Value.GetEncodingType() != types.EncodingTypeJSON {
 			return &types.BadRequestError{Message: fmt.Sprintf("%s value must be JSON encoded", key)}
 		}
-		var number *int
-		if err := json.Unmarshal(value.Value.Data, &number); err != nil || number == nil {
+		var number *float64
+		if err := json.Unmarshal(value.Value.Data, &number); err != nil || number == nil || *number != math.Trunc(*number) {
 			return &types.BadRequestError{Message: fmt.Sprintf("%s value must be an integer", key)}
 		}
 		if *number < bounds.min || *number > bounds.max {
-			return &types.BadRequestError{Message: fmt.Sprintf("%s must be between %d and %d, got %d", key, bounds.min, bounds.max, *number)}
+			return &types.BadRequestError{Message: fmt.Sprintf("%s must be between %v and %v, got %v", key, bounds.min, bounds.max, *number)}
 		}
 	}
 	return nil
