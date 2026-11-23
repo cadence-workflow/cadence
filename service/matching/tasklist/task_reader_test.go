@@ -462,7 +462,7 @@ func TestGetTasksPumpConditionFailedUnloadsTaskList(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 }
 
-func TestStopLogsLeaseConflictAtInfoLevel(t *testing.T) {
+func TestStopAfterLeaseLostLogsLeaseConflict(t *testing.T) {
 	controller := gomock.NewController(t)
 	logger, logs := testlogger.NewObserved(t)
 	tlm := createTestTaskListManagerWithConfig(t, logger, controller, defaultConfig(), clock.NewMockedTimeSource())
