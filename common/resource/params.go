@@ -124,5 +124,9 @@ type (
 		// TaskListDifferentiator decides which task lists the shard distributor owns and which shard each
 		// one belongs to. The task list router and the matching service share it.
 		TaskListDifferentiator *matching.TaskListDifferentiator
+
+		// HistoryOnboardingGate decides which history shards the shard manager owns.
+		// It is the only read path for history.percentageOnboardedToShardManager.
+		HistoryOnboardingGate *history.OnboardingGate
 	}
 )

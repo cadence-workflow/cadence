@@ -21,6 +21,7 @@ import (
 	"go.uber.org/cadence/compatibility"
 	"go.uber.org/zap"
 
+	historyClient "github.com/uber/cadence/client/history"
 	matchingClient "github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
@@ -75,12 +76,13 @@ type (
 		peerProvider             membership.PeerProvider
 		archivalMetadata         archiver.ArchivalMetadata
 		archiverProvider         provider.ArchiverProvider
+		historyOnboardingGate    *historyClient.OnboardingGate
 	}
 )
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, dynamicCollection *dynamicconfig.Collection, operationalConfigStore configstore.Client, operationalDynamicConfig *dynamicconfig.Collection, scope tally.Scope, metricsClient metrics.Client, rpcFactory rpc.Factory, peerProvider membership.PeerProvider, archivalMetadata archiver.ArchivalMetadata, archiverProvider provider.ArchiverProvider) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, dynamicCollection *dynamicconfig.Collection, operationalConfigStore configstore.Client, operationalDynamicConfig *dynamicconfig.Collection, scope tally.Scope, metricsClient metrics.Client, rpcFactory rpc.Factory, peerProvider membership.PeerProvider, archivalMetadata archiver.ArchivalMetadata, archiverProvider provider.ArchiverProvider, historyOnboardingGate *historyClient.OnboardingGate) common.Daemon {
 	return &server{
 		cfg:                      cfg,
 		name:                     service,
@@ -97,6 +99,7 @@ func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *
 		peerProvider:             peerProvider,
 		archivalMetadata:         archivalMetadata,
 		archiverProvider:         archiverProvider,
+		historyOnboardingGate:    historyOnboardingGate,
 	}
 }
 
@@ -161,6 +164,7 @@ func (s *server) startService() common.Daemon {
 		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 		s.cfg.NumMatchingShards,
 	)
+	params.HistoryOnboardingGate = s.historyOnboardingGate
 
 	params.RPCFactory = s.rpcFactory
 

@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx/fxtest"
 	"go.uber.org/mock/gomock"
 
+	historyClient "github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -117,6 +118,7 @@ func (s *ServerSuite) TestServerStartup() {
 			&archiver.ArchivalDomainDefaults{},
 		)
 		archiverProvider := provider.NewNoOpArchiverProvider()
+		historyOnboardingGate := historyClient.NewOnboardingGate(metrics.NewNoopMetricsClient(), dynamicproperties.GetIntPropertyFn(0), cfg.Persistence.NumHistoryShards)
 		ctrl := gomock.NewController(s.T())
 		mockPeerProvider := membership.NewMockPeerProvider(ctrl)
 		mockPeerProvider.EXPECT().Start(gomock.Any()).Return(nil).AnyTimes()
@@ -125,7 +127,7 @@ func (s *ServerSuite) TestServerStartup() {
 		mockPeerProvider.EXPECT().WhoAmI().Return(membership.HostInfo{}, nil).AnyTimes()
 		mockPeerProvider.EXPECT().GetMembers(gomock.Any()).Return([]membership.HostInfo{}, nil).AnyTimes()
 		mockPeerProvider.EXPECT().SelfEvict().Return(nil).AnyTimes()
-		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, operationalConfigStore, operationalDC, tally.NoopScope, metrics.NewNoopMetricsClient(), rpcFactory, mockPeerProvider, archivalMetadata, archiverProvider)
+		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, operationalConfigStore, operationalDC, tally.NoopScope, metrics.NewNoopMetricsClient(), rpcFactory, mockPeerProvider, archivalMetadata, archiverProvider, historyOnboardingGate)
 		daemons = append(daemons, server)
 		server.Start()
 	}

@@ -174,6 +174,9 @@ func New(
 	if shardCount := params.TaskListDifferentiator.ShardCount(); shardCount <= 0 {
 		return nil, fmt.Errorf("creating resource: numMatchingShards must be positive, got %d", shardCount)
 	}
+	if params.HistoryOnboardingGate == nil {
+		return nil, errors.New("creating resource: resource.Params.HistoryOnboardingGate must be set")
+	}
 
 	hostname := params.HostName
 

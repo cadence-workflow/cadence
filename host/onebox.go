@@ -694,6 +694,10 @@ func newTaskListDifferentiator(params *resource.Params) *matchingClient.TaskList
 	)
 }
 
+func newHistoryOnboardingGate(params *resource.Params, numHistoryShards int) *historyClient.OnboardingGate {
+	return historyClient.NewOnboardingGate(params.MetricsClient, dynamicproperties.GetIntPropertyFn(0), numHistoryShards)
+}
+
 func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, startWG *sync.WaitGroup) {
 	params := new(resource.Params)
 	setOperationalDefaults(params)
@@ -729,6 +733,7 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 	params.PinotClient = c.pinotClient
 	params.GetIsolationGroups = getFromDynamicConfig(params)
 	params.TaskListDifferentiator = newTaskListDifferentiator(params)
+	params.HistoryOnboardingGate = newHistoryOnboardingGate(params, c.persistenceConfig.NumHistoryShards)
 	var err error
 	authorizer, err := authorization.NewAuthorizer(c.authorizationConfig, params.Logger, nil)
 	if err != nil {
@@ -827,6 +832,7 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 		params.PinotConfig = c.pinotConfig
 		params.GetIsolationGroups = getFromDynamicConfig(params)
 		params.TaskListDifferentiator = newTaskListDifferentiator(params)
+		params.HistoryOnboardingGate = newHistoryOnboardingGate(params, c.persistenceConfig.NumHistoryShards)
 
 		var err error
 		params.PersistenceConfig, err = copyPersistenceConfig(c.persistenceConfig)
@@ -921,6 +927,7 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 		params.ArchiverProvider = c.archiverProvider
 		params.GetIsolationGroups = getFromDynamicConfig(params)
 		params.TaskListDifferentiator = newTaskListDifferentiator(params)
+		params.HistoryOnboardingGate = newHistoryOnboardingGate(params, c.persistenceConfig.NumHistoryShards)
 
 		var err error
 		params.PersistenceConfig, err = copyPersistenceConfig(c.persistenceConfig)
@@ -1004,6 +1011,7 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	params.ArchiverProvider = c.archiverProvider
 	params.GetIsolationGroups = getFromDynamicConfig(params)
 	params.TaskListDifferentiator = newTaskListDifferentiator(params)
+	params.HistoryOnboardingGate = newHistoryOnboardingGate(params, c.persistenceConfig.NumHistoryShards)
 
 	var err error
 	params.PersistenceConfig, err = copyPersistenceConfig(c.persistenceConfig)

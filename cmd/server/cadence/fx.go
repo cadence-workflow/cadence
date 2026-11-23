@@ -8,6 +8,8 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
+	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/history/historyonboardingfx"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/archiverfx"
@@ -42,7 +44,8 @@ var _commonModule = fx.Options(
 	clockfx.Module,
 	rpcfx.Module,
 	ringpopfx.Module,
-	archiverfx.Module)
+	archiverfx.Module,
+	historyonboardingfx.Module)
 
 // Module provides a cadence server initialization with root components.
 // AppParams allows to provide optional/overrides for implementation specific dependencies.
@@ -89,6 +92,7 @@ type AppParams struct {
 	PeerProvider             membership.PeerProvider
 	ArchivalMetadata         archiver.ArchivalMetadata
 	ArchiverProvider         provider.ArchiverProvider
+	HistoryOnboardingGate    *history.OnboardingGate
 }
 
 // NewApp created a new Application from pre initalized config and logger.
@@ -108,6 +112,7 @@ func NewApp(params AppParams) *App {
 		peerProvider:             params.PeerProvider,
 		archivalMetadata:         params.ArchivalMetadata,
 		archiverProvider:         params.ArchiverProvider,
+		historyOnboardingGate:    params.HistoryOnboardingGate,
 	}
 
 	params.LifeCycle.Append(fx.StartHook(app.verifySchema))
@@ -132,13 +137,14 @@ type App struct {
 	peerProvider             membership.PeerProvider
 	archivalMetadata         archiver.ArchivalMetadata
 	archiverProvider         provider.ArchiverProvider
+	historyOnboardingGate    *history.OnboardingGate
 
 	daemon  common.Daemon
 	service string
 }
 
 func (a *App) Start(_ context.Context) error {
-	a.daemon = newServer(a.service, a.cfg, a.logger, a.zapLogger, a.dynamicConfig, a.dynamicCollection, a.operationalConfigStore, a.operationalDynamicConfig, a.scope, a.metricsClient, a.rpcFactory, a.peerProvider, a.archivalMetadata, a.archiverProvider)
+	a.daemon = newServer(a.service, a.cfg, a.logger, a.zapLogger, a.dynamicConfig, a.dynamicCollection, a.operationalConfigStore, a.operationalDynamicConfig, a.scope, a.metricsClient, a.rpcFactory, a.peerProvider, a.archivalMetadata, a.archiverProvider, a.historyOnboardingGate)
 	a.daemon.Start()
 	return nil
 }
