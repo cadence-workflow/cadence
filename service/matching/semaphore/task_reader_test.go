@@ -12,6 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -372,7 +373,7 @@ func TestGetTasksPumpDeletesWhenSignaled(t *testing.T) {
 	}
 }
 
-func TestGrantTasksLoop(t *testing.T) {
+func TestDispatchBufferedTasks(t *testing.T) {
 	tests := []struct {
 		name             string
 		grantTaskReturns map[int64]bool
@@ -395,10 +396,11 @@ func TestGrantTasksLoop(t *testing.T) {
 			store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
 			r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
 			granted := make(chan int64, 2)
-			r.grantTask = func(_ context.Context, task *persistence.SemaphoreTask) bool {
+			r.grantTask = func(_ context.Context, task *persistence.SemaphoreTask) (int, bool) {
 				granted <- task.TaskID
-				return tc.grantTaskReturns[task.TaskID]
+				return int(task.TaskID), tc.grantTaskReturns[task.TaskID]
 			}
+			r.recordTaskGranted = func(context.Context, *persistence.SemaphoreTask, int) bool { return true }
 			for _, task := range tasksWithIDs(1, 2) {
 				require.True(t, r.addTaskToBuffer(task))
 			}
@@ -407,7 +409,7 @@ func TestGrantTasksLoop(t *testing.T) {
 				Return(&persistence.RangeCompleteSemaphoreTasksResponse{}, nil)
 
 			r.wg.Add(1)
-			go r.grantTasksLoop()
+			go r.dispatchBufferedTasks()
 			assert.Equal(t, []int64{1, 2}, []int64{<-granted, <-granted})
 			require.Eventually(t, func() bool { return r.taskAckManager.GetAckLevel() == tc.wantAckLevel }, time.Second, time.Millisecond)
 			assert.Len(t, r.notifyC, 1, "taking a task makes room, so the read loop is signaled")
@@ -421,4 +423,104 @@ func TestGrantTasksLoop(t *testing.T) {
 			assert.Equal(t, tc.wantAckLevel, r.taskAckManager.GetAckLevel())
 		})
 	}
+}
+
+func TestDispatchTask(t *testing.T) {
+	tests := []struct {
+		name                        string
+		tokenID                     int
+		stoppedBeforeToken          bool
+		stoppedBeforeHistoryAnswers bool
+		wantContinue                bool
+		wantHistoryCalled           bool
+		wantAcked                   bool
+	}{
+		{
+			name:              "token granted: History is called, then the task is acked",
+			tokenID:           1,
+			wantContinue:      true,
+			wantHistoryCalled: true,
+			wantAcked:         true,
+		},
+		{
+			name:         "expired with no token: the task is acked without calling History",
+			tokenID:      constants.NoSemaphoreTokenID,
+			wantContinue: true,
+			wantAcked:    true,
+		},
+		{
+			name:               "stopped before a token: the task stays unacked and the loop stops",
+			stoppedBeforeToken: true,
+			wantContinue:       false,
+		},
+		{
+			name:                        "stopped before History answers: the task stays unacked",
+			tokenID:                     1,
+			stoppedBeforeHistoryAnswers: true,
+			wantContinue:                true,
+			wantHistoryCalled:           true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			defer goleak.VerifyNone(t)
+			store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+			r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
+			task := tasksWithIDs(1)[0]
+			require.NoError(t, r.taskAckManager.ReadItem(task.TaskID))
+			r.grantTask = func(context.Context, *persistence.SemaphoreTask) (int, bool) {
+				return tc.tokenID, !tc.stoppedBeforeToken
+			}
+			var historyCalled bool
+			r.recordTaskGranted = func(context.Context, *persistence.SemaphoreTask, int) bool {
+				historyCalled = true
+				return !tc.stoppedBeforeHistoryAnswers
+			}
+
+			assert.Equal(t, tc.wantContinue, r.dispatchTask(task))
+			r.wg.Wait()
+			assert.Equal(t, tc.wantHistoryCalled, historyCalled)
+			assert.Equal(t, tc.wantAcked, r.taskAckManager.GetBacklogCount() == 0)
+			assert.Empty(t, r.grantRecordLimiter, "the place in grantRecordLimiter is given back")
+		})
+	}
+}
+
+func TestDispatchTask_RecordsInGoroutine(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
+	task := tasksWithIDs(1)[0]
+	require.NoError(t, r.taskAckManager.ReadItem(task.TaskID))
+	r.grantTask = func(context.Context, *persistence.SemaphoreTask) (int, bool) { return 1, true }
+	historyAnswers := make(chan struct{})
+	r.recordTaskGranted = func(context.Context, *persistence.SemaphoreTask, int) bool {
+		select {
+		case <-historyAnswers:
+		case <-time.After(time.Second):
+			t.Error("dispatchTask waited for History")
+		}
+		return true
+	}
+
+	require.True(t, r.dispatchTask(task))
+	assert.False(t, r.hasTasks(), "a grant being recorded already has its token")
+	close(historyAnswers)
+	r.wg.Wait()
+	assert.Equal(t, int64(0), r.taskAckManager.GetBacklogCount(), "acked once History answers")
+}
+
+func TestDispatchTask_GrantRecordConcurrency(t *testing.T) {
+	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
+	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
+	for i := 0; i < grantRecordConcurrency; i++ {
+		r.grantRecordLimiter <- struct{}{}
+	}
+	r.grantTask = func(context.Context, *persistence.SemaphoreTask) (int, bool) {
+		t.Fatal("no token while grantRecordConcurrency grants are being recorded")
+		return constants.NoSemaphoreTokenID, false
+	}
+
+	r.cancelFunc()
+	assert.False(t, r.dispatchTask(tasksWithIDs(1)[0]))
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
@@ -64,21 +65,31 @@ func expectRefreshTasks(h *history.MockClient) *gomock.Call {
 	}).Times(1)
 }
 
-// runGrantTask runs grantTask for task, advancing the clock so every wait ends, and returns its
+// grantAndRecord grants task a token and records the grant, as the reader does. It returns
+// whether the task finished.
+func grantAndRecord(ctx context.Context, mgr *semaphoreManagerImpl, task *persistence.SemaphoreTask) bool {
+	tokenID, ok := mgr.grantTask(ctx, task)
+	if !ok || tokenID == constants.NoSemaphoreTokenID {
+		return ok
+	}
+	return mgr.recordTaskGranted(ctx, task, tokenID)
+}
+
+// runGrantTask runs grantAndRecord for task, advancing the clock so every wait ends, and returns its
 // result.
 func runGrantTask(t *testing.T, mgr *semaphoreManagerImpl, deps *mockDeps, task *persistence.SemaphoreTask) bool {
 	t.Helper()
 	done := make(chan bool, 1)
-	go func() { done <- mgr.grantTask(context.Background(), task) }()
+	go func() { done <- grantAndRecord(context.Background(), mgr, task) }()
 	timeout := time.After(10 * time.Second)
 	for {
 		select {
 		case finished := <-done:
 			return finished
 		case <-time.After(time.Millisecond):
-			deps.mockTimeSource.Advance(taskRetryMaxInterval)
+			deps.mockTimeSource.Advance(taskHistoryRetryMaxInterval)
 		case <-timeout:
-			t.Fatal("grantTask did not return")
+			t.Fatal("grantAndRecord did not return")
 		}
 	}
 }
@@ -354,7 +365,7 @@ func TestGrantTask_WokenByARelease(t *testing.T) {
 	done := make(chan bool, 1)
 	// The clock never reaches the deadline, so only a wake-up ends the wait.
 	deadline := deps.mockTimeSource.Now().Add(time.Hour)
-	go func() { done <- mgr.grantTask(context.Background(), testTask(&deadline)) }()
+	go func() { done <- grantAndRecord(context.Background(), mgr, testTask(&deadline)) }()
 	// The idle clock, the ack level timer and the grant wait's deadline timer.
 	deps.mockTimeSource.BlockUntil(3)
 	require.NoError(t, mgr.Release(context.Background(), "other-owner"))
@@ -405,14 +416,14 @@ func TestGrantTask_ContextEnds(t *testing.T) {
 			called := tc.setupMocks(deps)
 			ctx, cancel := context.WithCancel(context.Background())
 			done := make(chan bool, 1)
-			go func() { done <- mgr.grantTask(ctx, testTask(nil)) }()
+			go func() { done <- grantAndRecord(ctx, mgr, testTask(nil)) }()
 			<-called
 			cancel()
 			select {
 			case finished := <-done:
 				assert.False(t, finished, "the task is not finished")
 			case <-time.After(10 * time.Second):
-				t.Fatal("grantTask did not return")
+				t.Fatal("grantAndRecord did not return")
 			}
 		})
 	}

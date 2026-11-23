@@ -14,12 +14,11 @@ import (
 )
 
 const (
-	// taskCallTimeout is the timeout for each step of the grant loop: a grant attempt, a History
-	// call, a token lookup or a release.
-	taskCallTimeout = 10 * time.Second
-	// Backoff between retries in one retry loop.
-	taskRetryInitialInterval = 100 * time.Millisecond
-	taskRetryMaxInterval     = 10 * time.Second
+	// taskCallTimeout limits each call made for a task, to the database or to History.
+	taskCallTimeout             = 10 * time.Second
+	taskRetryInitialInterval    = 100 * time.Millisecond
+	taskRetryMaxInterval        = 10 * time.Second
+	taskHistoryRetryMaxInterval = time.Minute
 	// A retry loop logs its failures as critical after the first taskCriticalRetryCount.
 	taskCriticalRetryCount = 10
 	// taskReleaseTimeout is how long releaseTaskToken retries a release before it gives up.
@@ -32,8 +31,8 @@ type taskRetrier struct {
 	attempts int
 }
 
-// signalGrantLoop wakes grantTasksLoop when it waits for a free token, so it retries the task at the
-// front. It never blocks: if a signal is already pending, this one is dropped.
+// signalGrantLoop wakes dispatchBufferedTasks when it waits for a free token. It never blocks: if a
+// signal is already pending, this one is dropped.
 func (m *semaphoreManagerImpl) signalGrantLoop() {
 	select {
 	case m.grantNotifyC <- struct{}{}:
@@ -41,33 +40,26 @@ func (m *semaphoreManagerImpl) signalGrantLoop() {
 	}
 }
 
-// grantTask gets task's owner a token and records it in History. It returns false only if ctx
-// ends first.
-func (m *semaphoreManagerImpl) grantTask(ctx context.Context, task *persistence.SemaphoreTask) bool {
-	ownerID := commonsemaphore.Owner{WorkflowID: task.WorkflowID, RunID: task.RunID, HoldID: task.HoldID}.String()
-	tokenID, ok := m.waitForToken(ctx, task, ownerID)
-	if !ok {
-		return false
-	}
-	if tokenID == constants.NoSemaphoreTokenID {
-		// The task expired holding no token.
-		return true
-	}
-	return m.recordGrant(ctx, task, ownerID, tokenID)
+// taskOwnerID returns the owner id of task's hold.
+func taskOwnerID(task *persistence.SemaphoreTask) string {
+	return commonsemaphore.Owner{WorkflowID: task.WorkflowID, RunID: task.RunID, HoldID: task.HoldID}.String()
 }
 
-// waitForToken gets task's owner a token. It returns false only if ctx ends first. Each pass:
-//   - The task expired: check whether its owner was already granted a token.
+// grantTask grants a waiting task a token once one is free. It returns NoSemaphoreTokenID if the
+// task expired and holds none, and false only if ctx ends first. Each pass:
+//   - The task expired: check whether it was already granted a token.
 //   - Otherwise: try to grant a token. If none is free, wait for a signal or the deadline, then
 //     try again.
 //
 // A failed call backs off and tries again.
-func (m *semaphoreManagerImpl) waitForToken(ctx context.Context, task *persistence.SemaphoreTask, ownerID string) (int, bool) {
-	retrier := m.newTaskRetrier()
+func (m *semaphoreManagerImpl) grantTask(ctx context.Context, task *persistence.SemaphoreTask) (int, bool) {
+	ownerID := taskOwnerID(task)
+	retrier := m.newTaskRetrier(taskRetryMaxInterval)
 	for {
 		if m.isTaskExpired(task) {
-			// A token found here still goes to History, since only History knows whether it
-			// recorded that grant.
+			// An expired task gets no new token. But its owner may hold one granted before the
+			// deadline, if the bucket stopped before History answered. Return it, so History keeps
+			// it if it recorded the grant, or refuses it and the token is released.
 			tokenID, err := m.findHeldToken(ctx, ownerID)
 			if err == nil {
 				return tokenID, true
@@ -123,9 +115,11 @@ func (m *semaphoreManagerImpl) findHeldToken(ctx context.Context, ownerID string
 	return m.readOwnerRowToken(callCtx, m.currentCache(), ownerID)
 }
 
-// recordGrant tells History the task's owner holds tokenID, retrying until History answers, and
-// releases the token if History refuses it. It returns false only if ctx ends first.
-func (m *semaphoreManagerImpl) recordGrant(ctx context.Context, task *persistence.SemaphoreTask, ownerID string, tokenID int) bool {
+// recordTaskGranted records in History that task was granted tokenID. If History refuses the
+// grant, the token is released; any other error is retried. It returns true once the task is done,
+// and false if ctx ends first.
+func (m *semaphoreManagerImpl) recordTaskGranted(ctx context.Context, task *persistence.SemaphoreTask, tokenID int) bool {
+	ownerID := taskOwnerID(task)
 	request := &types.RecordSemaphoreAcquiredRequest{
 		DomainUUID:        m.id.DomainID,
 		WorkflowExecution: &types.WorkflowExecution{WorkflowID: task.WorkflowID, RunID: task.RunID},
@@ -133,7 +127,7 @@ func (m *semaphoreManagerImpl) recordGrant(ctx context.Context, task *persistenc
 		TokenID:           int32(tokenID),
 		SemaphoreName:     m.id.SemaphoreName,
 	}
-	retrier := m.newTaskRetrier()
+	retrier := m.newTaskRetrier(taskHistoryRetryMaxInterval)
 	for {
 		m.liveness.MarkAlive()
 		callCtx, cancel := context.WithTimeout(ctx, taskCallTimeout)
@@ -172,9 +166,8 @@ func (m *semaphoreManagerImpl) refreshWorkflowTasks(ctx context.Context, task *p
 		},
 	}
 	// No retry limit: giving up would leave this cluster with no acquire task for the run if the
-	// domain fails back. Blocking the tasks behind this one only matters for active-active domains,
-	// since in an active-passive domain they can't be recorded here either.
-	retrier := m.newTaskRetrier()
+	// domain fails back.
+	retrier := m.newTaskRetrier(taskHistoryRetryMaxInterval)
 	for {
 		callCtx, cancel := context.WithTimeout(ctx, taskCallTimeout)
 		err := m.historyService.RefreshWorkflowTasks(callCtx, request)
@@ -191,7 +184,7 @@ func (m *semaphoreManagerImpl) refreshWorkflowTasks(ctx context.Context, task *p
 // releaseTaskToken releases ownerID's tokenID, retrying until it succeeds or taskReleaseTimeout
 // passes. It returns false only if ctx ends first.
 func (m *semaphoreManagerImpl) releaseTaskToken(ctx context.Context, task *persistence.SemaphoreTask, ownerID string, tokenID int) bool {
-	retrier := m.newTaskRetrier()
+	retrier := m.newTaskRetrier(taskRetryMaxInterval)
 	start := m.timeSource.Now()
 	for {
 		callCtx, cancel := context.WithTimeout(ctx, taskCallTimeout)
@@ -201,8 +194,8 @@ func (m *semaphoreManagerImpl) releaseTaskToken(ctx context.Context, task *persi
 			return true
 		}
 		if m.timeSource.Since(start) >= taskReleaseTimeout {
-			// Retrying cannot fix rows that disagree. Leave the token held until reconciliation or
-			// a manual fix, so the tasks behind this one can be granted.
+			// Stop retrying after taskReleaseTimeout and finish the task. Reconciliation frees the
+			// token later.
 			m.logger.Error("Semaphore grant loop gave up releasing a refused grant",
 				append(taskLogTags(task), tag.Error(err), tag.SemaphoreTokenID(tokenID), tag.OperationCritical)...)
 			return true
@@ -232,9 +225,10 @@ func (m *semaphoreManagerImpl) waitForGrantSignal(ctx context.Context, deadline 
 	}
 }
 
-func (m *semaphoreManagerImpl) newTaskRetrier() *taskRetrier {
+// newTaskRetrier returns a retrier whose backoff grows up to maxInterval.
+func (m *semaphoreManagerImpl) newTaskRetrier(maxInterval time.Duration) *taskRetrier {
 	policy := backoff.NewExponentialRetryPolicy(taskRetryInitialInterval)
-	policy.SetMaximumInterval(taskRetryMaxInterval)
+	policy.SetMaximumInterval(maxInterval)
 	// No expiry: retry until success or stop.
 	policy.SetExpirationInterval(backoff.NoInterval)
 	return &taskRetrier{retrier: backoff.NewRetrier(policy, m.timeSource)}
@@ -245,7 +239,7 @@ func (m *semaphoreManagerImpl) waitToRetry(ctx context.Context, r *taskRetrier, 
 	r.attempts++
 	tags := append(taskLogTags(task), tag.Error(err), tag.AttemptCount(r.attempts))
 	if r.attempts > taskCriticalRetryCount {
-		// The tasks behind this one are blocked.
+		// Too many failures in a row: mark the log critical so it stands out.
 		tags = append(tags, tag.OperationCritical)
 	}
 	m.logger.Error(msg, tags...)
