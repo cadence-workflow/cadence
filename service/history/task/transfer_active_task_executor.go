@@ -481,7 +481,6 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 	if err != nil {
 		return err
 	}
-	wfCloseTime := completionEvent.GetTimestamp()
 
 	parentDomainID := executionInfo.ParentDomainID
 	parentWorkflowID := executionInfo.ParentWorkflowID
@@ -498,36 +497,12 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 		closedRunStartVersion = common.Int64Ptr(startVersion)
 	}
 	closedRunPolicy := executionInfo.ActiveClusterSelectionPolicy
-
-	workflowTypeName := executionInfo.WorkflowTypeName
-	workflowCloseTimestamp := wfCloseTime
-	workflowCloseStatus := persistence.ToInternalWorkflowExecutionCloseStatus(executionInfo.CloseStatus)
-	workflowHistoryLength := mutableState.GetNextEventID() - 1
-	isCron := len(executionInfo.CronSchedule) > 0
-	cronSchedule := executionInfo.CronSchedule
-	numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
-	updateTimestamp := t.shard.GetTimeSource().Now()
-
-	startEvent, err := mutableState.GetStartEvent(ctx)
-	if err != nil {
-		return err
-	}
-	workflowStartTimestamp := startEvent.GetTimestamp()
-	workflowExecutionTimestamp := getWorkflowExecutionTimestamp(mutableState, startEvent)
-	visibilityMemo := getWorkflowMemo(executionInfo.Memo)
-	searchAttr := executionInfo.SearchAttributes
-	headers := getWorkflowHeaders(startEvent)
 	domainName := mutableState.GetDomainEntry().GetInfo().Name
 	children := mutableState.GetPendingChildExecutionInfos()
 
-	executionStatus := getWorkflowExecutionStatus(mutableState, completionEvent)
-
-	// Calculate ScheduledExecutionTime
-	scheduledExecutionTimestamp := startEvent.GetTimestamp()
-	if startEvent.WorkflowExecutionStartedEventAttributes != nil &&
-		startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds() > 0 {
-		scheduledExecutionTimestamp = startEvent.GetTimestamp() +
-			int64(startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds())*int64(time.Second)
+	record, err := t.newClosedVisibilityRecord(ctx, mutableState, domainEntry, completionEvent)
+	if err != nil {
+		return err
 	}
 
 	// we've gathered all necessary information from mutable state.
@@ -537,30 +512,7 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 
 	// publish workflow closed visibility records
 	if recordWorkflowClosed {
-		if err := t.recordWorkflowClosed(
-			ctx,
-			task.GetDomainID(),
-			task.GetWorkflowID(),
-			task.GetRunID(),
-			workflowTypeName,
-			workflowStartTimestamp,
-			workflowExecutionTimestamp.UnixNano(),
-			workflowCloseTimestamp,
-			*workflowCloseStatus,
-			workflowHistoryLength,
-			task.GetTaskID(),
-			visibilityMemo,
-			executionInfo.TaskList,
-			isCron,
-			cronSchedule,
-			numClusters,
-			updateTimestamp.UnixNano(),
-			searchAttr,
-			headers,
-			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
-			executionStatus,
-			scheduledExecutionTimestamp,
-		); err != nil {
+		if err := t.recordWorkflowClosed(ctx, task, record); err != nil {
 			return err
 		}
 	}
@@ -1103,31 +1055,10 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 		return err
 	}
 
-	executionInfo := mutableState.GetExecutionInfo()
-	workflowTimeout := executionInfo.WorkflowTimeout
-	wfTypeName := executionInfo.WorkflowTypeName
-	startEvent, err := mutableState.GetStartEvent(ctx)
+	record, err := t.newStartedVisibilityRecord(ctx, mutableState, domainEntry)
 	if err != nil {
 		return err
 	}
-	startTimestamp := startEvent.GetTimestamp()
-	executionTimestamp := getWorkflowExecutionTimestamp(mutableState, startEvent)
-	visibilityMemo := getWorkflowMemo(executionInfo.Memo)
-	searchAttr := copySearchAttributes(executionInfo.SearchAttributes)
-	headers := getWorkflowHeaders(startEvent)
-	isCron := len(executionInfo.CronSchedule) > 0
-	cronSchedule := ""
-	if isCron {
-		cronSchedule = executionInfo.CronSchedule
-	}
-	numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
-	updateTimestamp := t.shard.GetTimeSource().Now()
-
-	isAdvancedVisibilityEnabled := common.IsAdvancedVisibilityWritingEnabled(
-		t.config.WriteVisibilityStoreName(),
-		t.config.IsAdvancedVisConfigExist,
-	)
-	executionStatus, scheduledExecutionTimestamp := determineExecutionStatusForVisibility(startEvent, mutableState, isAdvancedVisibilityEnabled)
 
 	// release the context lock since we no longer need mutable state builder and
 	// the rest of logic is making RPC call, which takes time.
@@ -1135,51 +1066,9 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 
 	if recordStart {
 		workflowStartedScope.IncCounter(metrics.WorkflowStartedCount)
-		return t.recordWorkflowStarted(
-			ctx,
-			task.GetDomainID(),
-			task.GetWorkflowID(),
-			task.GetRunID(),
-			wfTypeName,
-			startTimestamp,
-			executionTimestamp.UnixNano(),
-			workflowTimeout,
-			task.GetTaskID(),
-			executionInfo.TaskList,
-			isCron,
-			numClusters,
-			visibilityMemo,
-			updateTimestamp.UnixNano(),
-			searchAttr,
-			headers,
-			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
-			cronSchedule,
-			executionStatus,
-			scheduledExecutionTimestamp,
-		)
+		return t.recordWorkflowStarted(ctx, task, record)
 	}
-	return t.upsertWorkflowExecution(
-		ctx,
-		task.GetDomainID(),
-		task.GetWorkflowID(),
-		task.GetRunID(),
-		wfTypeName,
-		startTimestamp,
-		executionTimestamp.UnixNano(),
-		workflowTimeout,
-		task.GetTaskID(),
-		executionInfo.TaskList,
-		visibilityMemo,
-		isCron,
-		numClusters,
-		updateTimestamp.UnixNano(),
-		searchAttr,
-		headers,
-		executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
-		cronSchedule,
-		executionStatus,
-		scheduledExecutionTimestamp,
-	)
+	return t.upsertWorkflowExecution(ctx, task, record)
 }
 
 func (t *transferActiveTaskExecutor) processResetWorkflow(

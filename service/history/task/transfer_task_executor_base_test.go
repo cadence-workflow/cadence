@@ -22,6 +22,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -29,16 +30,19 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
+	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/shard"
 )
 
@@ -251,4 +255,236 @@ func TestPushDecision(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewStartedVisibilityRecord(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	startTime := now.Add(-time.Hour)
+	clusterAttribute := &types.ClusterAttribute{Scope: "region", Name: "us-west"}
+
+	tests := map[string]struct {
+		executionInfo     *persistence.WorkflowExecutionInfo
+		startAttributes   *types.WorkflowExecutionStartedEventAttributes
+		advancedVisMode   string
+		hasDecision       bool
+		wantRecordChanges func(record *visibilityRecord)
+	}{
+		"workflow without backoff": {
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				WorkflowTypeName: "wf-type",
+				TaskList:         "tl",
+				WorkflowTimeout:  60,
+				Memo:             map[string][]byte{"memo": []byte("m")},
+				SearchAttributes: map[string][]byte{"CustomKeywordField": []byte(`"v"`)},
+				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+					ClusterAttribute: clusterAttribute,
+				},
+			},
+			startAttributes: &types.WorkflowExecutionStartedEventAttributes{
+				Header: &types.Header{Fields: map[string][]byte{"header": []byte("h")}},
+			},
+			advancedVisMode: commonconstants.AdvancedVisibilityModeOff,
+		},
+		"cron workflow waiting for its first decision with advanced visibility is pending": {
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				WorkflowTypeName: "wf-type",
+				TaskList:         "tl",
+				WorkflowTimeout:  60,
+				CronSchedule:     "* * * * *",
+			},
+			startAttributes: &types.WorkflowExecutionStartedEventAttributes{
+				FirstDecisionTaskBackoffSeconds: common.Int32Ptr(30),
+			},
+			advancedVisMode: commonconstants.VisibilityModeES,
+			wantRecordChanges: func(record *visibilityRecord) {
+				record.isCron = true
+				record.cronSchedule = "* * * * *"
+				record.executionTimeUnixNano = startTime.Add(30 * time.Second).UnixNano()
+				record.scheduledExecutionTimeUnixNano = startTime.Add(30 * time.Second).UnixNano()
+				record.executionStatus = types.WorkflowExecutionStatusPending
+				record.visibilityMemo = nil
+				record.searchAttributes = nil
+				record.headers = nil
+				record.clusterAttribute = nil
+			},
+		},
+		"cron workflow waiting for its first decision with basic visibility is started": {
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				WorkflowTypeName: "wf-type",
+				TaskList:         "tl",
+				WorkflowTimeout:  60,
+				CronSchedule:     "* * * * *",
+			},
+			startAttributes: &types.WorkflowExecutionStartedEventAttributes{
+				FirstDecisionTaskBackoffSeconds: common.Int32Ptr(30),
+			},
+			advancedVisMode: commonconstants.AdvancedVisibilityModeOff,
+			wantRecordChanges: func(record *visibilityRecord) {
+				record.isCron = true
+				record.cronSchedule = "* * * * *"
+				record.executionTimeUnixNano = startTime.Add(30 * time.Second).UnixNano()
+				record.scheduledExecutionTimeUnixNano = startTime.Add(30 * time.Second).UnixNano()
+				record.visibilityMemo = nil
+				record.searchAttributes = nil
+				record.headers = nil
+				record.clusterAttribute = nil
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockShard := shard.NewMockContext(ctrl)
+			mockShard.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSourceAt(now)).AnyTimes()
+			cfg := config.NewForTest()
+			cfg.WriteVisibilityStoreName = dynamicproperties.GetStringPropertyFn(tc.advancedVisMode)
+			cfg.IsAdvancedVisConfigExist = true
+			executor := &transferTaskExecutorBase{shard: mockShard, config: cfg}
+
+			mutableState := execution.NewMockMutableState(ctrl)
+			mutableState.EXPECT().GetExecutionInfo().Return(tc.executionInfo).AnyTimes()
+			mutableState.EXPECT().GetStartEvent(gomock.Any()).Return(&types.HistoryEvent{
+				Timestamp:                               common.Int64Ptr(startTime.UnixNano()),
+				WorkflowExecutionStartedEventAttributes: tc.startAttributes,
+			}, nil)
+			mutableState.EXPECT().HasPendingDecision().Return(false).AnyTimes()
+			mutableState.EXPECT().HasInFlightDecision().Return(false).AnyTimes()
+			mutableState.EXPECT().HasProcessedOrPendingDecision().Return(false).AnyTimes()
+
+			record, err := executor.newStartedVisibilityRecord(context.Background(), mutableState, constants.TestGlobalDomainEntry)
+			assert.NoError(t, err)
+
+			want := &visibilityRecord{
+				workflowTypeName:               "wf-type",
+				startTimeUnixNano:              startTime.UnixNano(),
+				executionTimeUnixNano:          time.Unix(0, 0).UnixNano(),
+				workflowTimeout:                60,
+				taskList:                       "tl",
+				visibilityMemo:                 &types.Memo{Fields: map[string][]byte{"memo": []byte("m")}},
+				numClusters:                    int16(len(constants.TestGlobalDomainEntry.GetReplicationConfig().Clusters)),
+				updateTimeUnixNano:             now.UnixNano(),
+				searchAttributes:               map[string][]byte{"CustomKeywordField": []byte(`"v"`)},
+				headers:                        map[string][]byte{"header": []byte("h")},
+				clusterAttribute:               clusterAttribute,
+				executionStatus:                types.WorkflowExecutionStatusStarted,
+				scheduledExecutionTimeUnixNano: startTime.UnixNano(),
+			}
+			if tc.wantRecordChanges != nil {
+				tc.wantRecordChanges(want)
+			}
+			assert.Equal(t, want, record)
+		})
+	}
+}
+
+func TestNewClosedVisibilityRecord(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	startTime := now.Add(-time.Hour)
+	closeTime := now.Add(-time.Minute)
+
+	tests := map[string]struct {
+		executionInfo     *persistence.WorkflowExecutionInfo
+		startAttributes   *types.WorkflowExecutionStartedEventAttributes
+		completionEvent   *types.HistoryEvent
+		wantRecordChanges func(record *visibilityRecord)
+	}{
+		"completed workflow": {
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				WorkflowTypeName: "wf-type",
+				TaskList:         "tl",
+				CloseStatus:      persistence.WorkflowCloseStatusCompleted,
+				Memo:             map[string][]byte{"memo": []byte("m")},
+				SearchAttributes: map[string][]byte{"CustomKeywordField": []byte(`"v"`)},
+			},
+			startAttributes: &types.WorkflowExecutionStartedEventAttributes{
+				Header: &types.Header{Fields: map[string][]byte{"header": []byte("h")}},
+			},
+			completionEvent: &types.HistoryEvent{
+				Timestamp: common.Int64Ptr(closeTime.UnixNano()),
+				EventType: types.EventTypeWorkflowExecutionCompleted.Ptr(),
+			},
+		},
+		"failed cron workflow with first decision backoff": {
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				WorkflowTypeName: "wf-type",
+				TaskList:         "tl",
+				CloseStatus:      persistence.WorkflowCloseStatusFailed,
+				CronSchedule:     "* * * * *",
+			},
+			startAttributes: &types.WorkflowExecutionStartedEventAttributes{
+				FirstDecisionTaskBackoffSeconds: common.Int32Ptr(30),
+			},
+			completionEvent: &types.HistoryEvent{
+				Timestamp: common.Int64Ptr(closeTime.UnixNano()),
+				EventType: types.EventTypeWorkflowExecutionFailed.Ptr(),
+			},
+			wantRecordChanges: func(record *visibilityRecord) {
+				record.isCron = true
+				record.cronSchedule = "* * * * *"
+				record.executionTimeUnixNano = startTime.Add(30 * time.Second).UnixNano()
+				record.scheduledExecutionTimeUnixNano = startTime.Add(30 * time.Second).UnixNano()
+				record.executionStatus = types.WorkflowExecutionStatusFailed
+				record.closeStatus = types.WorkflowExecutionCloseStatusFailed
+				record.visibilityMemo = nil
+				record.searchAttributes = nil
+				record.headers = nil
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockShard := shard.NewMockContext(ctrl)
+			mockShard.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSourceAt(now)).AnyTimes()
+			executor := &transferTaskExecutorBase{shard: mockShard, config: config.NewForTest()}
+
+			mutableState := execution.NewMockMutableState(ctrl)
+			mutableState.EXPECT().GetExecutionInfo().Return(tc.executionInfo).AnyTimes()
+			mutableState.EXPECT().GetStartEvent(gomock.Any()).Return(&types.HistoryEvent{
+				Timestamp:                               common.Int64Ptr(startTime.UnixNano()),
+				WorkflowExecutionStartedEventAttributes: tc.startAttributes,
+			}, nil)
+			mutableState.EXPECT().GetNextEventID().Return(int64(11)).AnyTimes()
+
+			record, err := executor.newClosedVisibilityRecord(context.Background(), mutableState, constants.TestGlobalDomainEntry, tc.completionEvent)
+			assert.NoError(t, err)
+
+			want := &visibilityRecord{
+				workflowTypeName:               "wf-type",
+				startTimeUnixNano:              startTime.UnixNano(),
+				executionTimeUnixNano:          time.Unix(0, 0).UnixNano(),
+				taskList:                       "tl",
+				visibilityMemo:                 &types.Memo{Fields: map[string][]byte{"memo": []byte("m")}},
+				numClusters:                    int16(len(constants.TestGlobalDomainEntry.GetReplicationConfig().Clusters)),
+				updateTimeUnixNano:             now.UnixNano(),
+				searchAttributes:               map[string][]byte{"CustomKeywordField": []byte(`"v"`)},
+				headers:                        map[string][]byte{"header": []byte("h")},
+				executionStatus:                types.WorkflowExecutionStatusCompleted,
+				scheduledExecutionTimeUnixNano: startTime.UnixNano(),
+				endTimeUnixNano:                closeTime.UnixNano(),
+				closeStatus:                    types.WorkflowExecutionCloseStatusCompleted,
+				historyLength:                  10,
+			}
+			if tc.wantRecordChanges != nil {
+				tc.wantRecordChanges(want)
+			}
+			assert.Equal(t, want, record)
+		})
+	}
+}
+
+func TestNewVisibilityRecord_StartEventError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	executor := &transferTaskExecutorBase{shard: shard.NewMockContext(ctrl), config: config.NewForTest()}
+	mutableState := execution.NewMockMutableState(ctrl)
+	mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{}).AnyTimes()
+	startEventErr := errors.New("start event not found")
+	mutableState.EXPECT().GetStartEvent(gomock.Any()).Return(nil, startEventErr).Times(2)
+
+	_, err := executor.newStartedVisibilityRecord(context.Background(), mutableState, constants.TestGlobalDomainEntry)
+	assert.ErrorIs(t, err, startEventErr)
+	_, err = executor.newClosedVisibilityRecord(context.Background(), mutableState, constants.TestGlobalDomainEntry, &types.HistoryEvent{})
+	assert.ErrorIs(t, err, startEventErr)
 }

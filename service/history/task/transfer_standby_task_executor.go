@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -279,28 +278,6 @@ func (t *transferStandbyTaskExecutor) processCloseExecution(
 		if err != nil {
 			return nil, err
 		}
-		wfCloseTime := completionEvent.GetTimestamp()
-
-		executionInfo := mutableState.GetExecutionInfo()
-		workflowTypeName := executionInfo.WorkflowTypeName
-		workflowCloseTimestamp := wfCloseTime
-		workflowCloseStatus := persistence.ToInternalWorkflowExecutionCloseStatus(executionInfo.CloseStatus)
-		workflowHistoryLength := mutableState.GetNextEventID() - 1
-		startEvent, err := mutableState.GetStartEvent(ctx)
-		if err != nil {
-			return nil, err
-		}
-		workflowStartTimestamp := startEvent.GetTimestamp()
-		workflowExecutionTimestamp := getWorkflowExecutionTimestamp(mutableState, startEvent)
-		visibilityMemo := getWorkflowMemo(executionInfo.Memo)
-		searchAttr := executionInfo.SearchAttributes
-		headers := getWorkflowHeaders(startEvent)
-		isCron := len(executionInfo.CronSchedule) > 0
-		cronSchedule := ""
-		if isCron {
-			cronSchedule = executionInfo.CronSchedule
-		}
-		updateTimestamp := t.shard.GetTimeSource().Now()
 
 		lastWriteVersion, err := mutableState.GetLastWriteVersion()
 		if err != nil {
@@ -315,44 +292,15 @@ func (t *transferStandbyTaskExecutor) processCloseExecution(
 		if err != nil {
 			return nil, err
 		}
-		numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
 
-		executionStatus := getWorkflowExecutionStatus(mutableState, completionEvent)
-
-		// Calculate ScheduledExecutionTime
-		scheduledExecutionTimestamp := startEvent.GetTimestamp()
-		if startEvent.WorkflowExecutionStartedEventAttributes != nil &&
-			startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds() > 0 {
-			scheduledExecutionTimestamp = startEvent.GetTimestamp() +
-				int64(startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds())*int64(time.Second)
+		record, err := t.newClosedVisibilityRecord(ctx, mutableState, domainEntry, completionEvent)
+		if err != nil {
+			return nil, err
 		}
 
 		// DO NOT REPLY TO PARENT
 		// since event replication should be done by active cluster
-		return nil, t.recordWorkflowClosed(
-			ctx,
-			transferTask.DomainID,
-			transferTask.WorkflowID,
-			transferTask.RunID,
-			workflowTypeName,
-			workflowStartTimestamp,
-			workflowExecutionTimestamp.UnixNano(),
-			workflowCloseTimestamp,
-			*workflowCloseStatus,
-			workflowHistoryLength,
-			transferTask.GetTaskID(),
-			visibilityMemo,
-			executionInfo.TaskList,
-			isCron,
-			cronSchedule,
-			numClusters,
-			updateTimestamp.UnixNano(),
-			searchAttr,
-			headers,
-			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
-			executionStatus,
-			scheduledExecutionTimestamp,
-		)
+		return nil, t.recordWorkflowClosed(ctx, transferTask, record)
 	}
 
 	return t.processTransfer(
@@ -589,86 +537,21 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 		}
 	}
 
-	executionInfo := mutableState.GetExecutionInfo()
-	workflowTimeout := executionInfo.WorkflowTimeout
-	wfTypeName := executionInfo.WorkflowTypeName
-	startEvent, err := mutableState.GetStartEvent(ctx)
-	if err != nil {
-		return err
-	}
-	startTimestamp := startEvent.GetTimestamp()
-	executionTimestamp := getWorkflowExecutionTimestamp(mutableState, startEvent)
-	visibilityMemo := getWorkflowMemo(executionInfo.Memo)
-	isCron := len(executionInfo.CronSchedule) > 0
-	cronSchedule := ""
-	if isCron {
-		cronSchedule = executionInfo.CronSchedule
-	}
-	updateTimestamp := t.shard.GetTimeSource().Now()
-
 	domainEntry, err := t.shard.GetDomainCache().GetDomainByID(transferTask.GetDomainID())
 	if err != nil {
 		return err
 	}
-	numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
 
-	searchAttr := copySearchAttributes(executionInfo.SearchAttributes)
-	headers := getWorkflowHeaders(startEvent)
-
-	isAdvancedVisibilityEnabled := common.IsAdvancedVisibilityWritingEnabled(
-		t.config.WriteVisibilityStoreName(),
-		t.config.IsAdvancedVisConfigExist,
-	)
-	executionStatus, scheduledExecutionTimestamp := determineExecutionStatusForVisibility(startEvent, mutableState, isAdvancedVisibilityEnabled)
+	record, err := t.newStartedVisibilityRecord(ctx, mutableState, domainEntry)
+	if err != nil {
+		return err
+	}
 
 	if isRecordStart {
 		workflowStartedScope.IncCounter(metrics.WorkflowStartedCount)
-		return t.recordWorkflowStarted(
-			ctx,
-			transferTask.GetDomainID(),
-			transferTask.GetWorkflowID(),
-			transferTask.GetRunID(),
-			wfTypeName,
-			startTimestamp,
-			executionTimestamp.UnixNano(),
-			workflowTimeout,
-			transferTask.GetTaskID(),
-			executionInfo.TaskList,
-			isCron,
-			numClusters,
-			visibilityMemo,
-			updateTimestamp.UnixNano(),
-			searchAttr,
-			headers,
-			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
-			cronSchedule,
-			executionStatus,
-			scheduledExecutionTimestamp,
-		)
+		return t.recordWorkflowStarted(ctx, transferTask, record)
 	}
-	return t.upsertWorkflowExecution(
-		ctx,
-		transferTask.GetDomainID(),
-		transferTask.GetWorkflowID(),
-		transferTask.GetRunID(),
-		wfTypeName,
-		startTimestamp,
-		executionTimestamp.UnixNano(),
-		workflowTimeout,
-		transferTask.GetTaskID(),
-		executionInfo.TaskList,
-		visibilityMemo,
-		isCron,
-		numClusters,
-		updateTimestamp.UnixNano(),
-		searchAttr,
-		headers,
-		executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
-		cronSchedule,
-		executionStatus,
-		scheduledExecutionTimestamp,
-	)
-
+	return t.upsertWorkflowExecution(ctx, transferTask, record)
 }
 
 func (t *transferStandbyTaskExecutor) processTransfer(
