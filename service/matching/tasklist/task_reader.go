@@ -171,8 +171,8 @@ func (tr *taskReader) Stop() {
 		tr.cancelFunc()
 		if err := tr.persistAckLevel(); err != nil {
 			// The write only succeeds while the stored range ID matches ours, and another owner taking the lease increments it.
-			leaseLost := errors.As(err, new(*persistence.ConditionFailedError))
-			if leaseLost {
+			var condErr *persistence.ConditionFailedError
+			if errors.As(err, &condErr) {
 				tr.logger.Info("Final ack level write failed because another owner holds the task list lease.", tag.Error(err))
 			} else {
 				tr.logger.Error("Persistent store operation failure",
