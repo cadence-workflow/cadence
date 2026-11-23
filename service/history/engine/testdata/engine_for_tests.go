@@ -59,7 +59,7 @@ type NewEngineFn func(
 	rawMatchingClient matching.Client,
 	failoverCoordinator failover.Coordinator,
 	queueFactories []queue.Factory,
-	dlqHostLimiter *taskdlq.HostLimiter,
+	dlqHostBudget taskdlq.HostBudget,
 ) engine.Engine
 
 func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {

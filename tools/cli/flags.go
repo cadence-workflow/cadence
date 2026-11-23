@@ -75,6 +75,7 @@ const (
 	FlagCronSchedule                   = "cron"
 	FlagWorkflowType                   = "workflow_type"
 	FlagWorkflowStatus                 = "status"
+	FlagBatchOperationState            = "state"
 	FlagExecutionTimeout               = "execution_timeout"
 	FlagDecisionTimeout                = "decision_timeout"
 	FlagContextTimeout                 = "context_timeout"

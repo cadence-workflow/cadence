@@ -174,7 +174,7 @@ func TestIsbelowPercentage(t *testing.T) {
 	tests := []struct {
 		name       string
 		hash       uint64
-		percentage uint64
+		percentage int
 		want       bool
 	}{
 		{
@@ -312,6 +312,25 @@ func TestTaskListDifferentiator_TaskListShard_ID(t *testing.T) {
 			shardTaskListsByHash: true,
 			hashDomainID:         true,
 			percentageOnboarded:  0,
+			wantShardID:          "",
+			wantOnboarded:        false,
+		},
+		{
+			name:                 "shard by task list name - negative percentage onboards nothing",
+			domainID:             testDomainID,
+			taskListName:         "orders",
+			shardTaskListsByHash: false,
+			percentageOnboarded:  -1,
+			wantShardID:          "",
+			wantOnboarded:        false,
+		},
+		{
+			name:                 "shard by hash - negative percentage onboards nothing",
+			domainID:             testDomainID,
+			taskListName:         "orders",
+			shardTaskListsByHash: true,
+			hashDomainID:         true,
+			percentageOnboarded:  -1,
 			wantShardID:          "",
 			wantOnboarded:        false,
 		},

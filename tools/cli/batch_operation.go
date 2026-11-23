@@ -60,6 +60,68 @@ func newBatchOperationCommands() []*cli.Command {
 			Usage:       "Start a batch operation; pick the subcommand matching the operation to run",
 			Subcommands: newBatchStartCommands(),
 		},
+		{
+			Name:  "list",
+			Usage: "List batch operations for a domain",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  FlagBatchOperationState,
+					Usage: "Optional state filter: running, completed, failed, stopped",
+				},
+				&cli.IntFlag{
+					Name:  FlagPageSize,
+					Value: 100,
+					Usage: "Page size for each ListBatchOperations API call",
+				},
+			},
+			Action: ListBatchOperations,
+		},
+		{
+			Name:  "describe",
+			Usage: "Describe the status and progress of a single batch operation",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  FlagBatchID,
+					Usage: "Required: ID of the batch operation to describe",
+				},
+			},
+			Action: DescribeBatchOperation,
+		},
+		{
+			Name:  "stop",
+			Usage: "Stop a running batch operation",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  FlagBatchID,
+					Usage: "Required: ID of the batch operation to stop",
+				},
+				&cli.StringFlag{
+					Name:    FlagReason,
+					Aliases: []string{"re"},
+					Usage:   "Optional: reason for stopping this batch operation",
+				},
+			},
+			Action: StopBatchOperation,
+		},
+		{
+			Name:  "update",
+			Usage: "Update the RPS and/or concurrency of a running batch operation",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  FlagBatchID,
+					Usage: "Required: ID of the batch operation to update",
+				},
+				&cli.IntFlag{
+					Name:  FlagRPS,
+					Usage: "New maximum operations per second across the whole batch. Leave unset to keep the current value",
+				},
+				&cli.IntFlag{
+					Name:  FlagConcurrency,
+					Usage: "New number of workflows processed in parallel. Leave unset to keep the current value",
+				},
+			},
+			Action: UpdateBatchOperation,
+		},
 	}
 }
 

@@ -95,7 +95,7 @@ func TestAsyncHandlersPublishEnvelopeIdentity(t *testing.T) {
 				"hostname",
 				mockResource.GetLogger(),
 			)
-			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil)
+			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, NewPollTracker(log.NewNoop()), nil, nil)
 			wh.producerManager = mockProducerManager
 
 			var published []*sqlblobs.AsyncRequestMessage

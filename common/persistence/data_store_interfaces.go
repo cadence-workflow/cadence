@@ -491,6 +491,10 @@ type (
 
 		ActiveClusterSelectionPolicy *DataBlob
 
+		ImportSourceExecution *types.WorkflowExecution
+		ImportTimestamp       time.Time
+		ImportInProgress      bool
+
 		// attributes which are not related to mutable state at all
 		HistorySize int64
 		IsCron      bool

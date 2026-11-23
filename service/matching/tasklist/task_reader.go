@@ -170,9 +170,15 @@ func (tr *taskReader) Stop() {
 	if atomic.CompareAndSwapInt64(&tr.stopped, 0, 1) {
 		tr.cancelFunc()
 		if err := tr.persistAckLevel(); err != nil {
-			tr.logger.Error("Persistent store operation failure",
-				tag.StoreOperationUpdateTaskList,
-				tag.Error(err))
+			// The write only succeeds while the stored range ID matches ours, and another owner taking the lease increments it.
+			var condErr *persistence.ConditionFailedError
+			if errors.As(err, &condErr) {
+				tr.logger.Info("Final ack level write failed because another owner holds the task list lease.", tag.Error(err))
+			} else {
+				tr.logger.Error("Persistent store operation failure",
+					tag.StoreOperationUpdateTaskList,
+					tag.Error(err))
+			}
 		}
 		tr.taskGC.RunNow(tr.taskAckManager.GetAckLevel())
 		tr.stopWg.Wait()

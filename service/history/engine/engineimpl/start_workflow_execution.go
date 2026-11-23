@@ -1081,7 +1081,8 @@ func (e *historyEngineImpl) applyWorkflowIDReusePolicyHelper(
 	// or has history check if the workflow is finished
 	switch prevState {
 	case persistence.WorkflowStateCreated,
-		persistence.WorkflowStateRunning:
+		persistence.WorkflowStateRunning,
+		persistence.WorkflowStatePreparing:
 		msg := "Workflow execution is already running. WorkflowId: %v, RunId: %v."
 		return getWorkflowAlreadyStartedError(msg, prevStartRequestID, execution.GetWorkflowID(), prevRunID)
 	case persistence.WorkflowStateCompleted:

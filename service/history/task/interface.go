@@ -137,4 +137,6 @@ const (
 	QueueTypeTransfer
 	// QueueTypeTimer is the queue type for timer queue processor
 	QueueTypeTimer
+	// QueueTypeVisibility is the queue type for visibility queue processor
+	QueueTypeVisibility
 )

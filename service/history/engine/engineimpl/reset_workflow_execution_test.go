@@ -41,6 +41,7 @@ import (
 	"github.com/uber/cadence/service/history/engine/testdata"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/reset"
+	"github.com/uber/cadence/service/history/workflow"
 )
 
 var (
@@ -389,6 +390,88 @@ func TestResetWorkflowExecution(t *testing.T) {
 			expected: &types.ResetWorkflowExecutionResponse{
 				RunID: latestRunID,
 			},
+		},
+		{
+			name:    "Base run is an import in progress",
+			request: resetExecutionRequest(latestExecution, 24),
+			init: []InitFn{
+				withCurrentExecution(latestExecution),
+				withState(latestExecution, &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:         constants.TestDomainID,
+						WorkflowID:       constants.TestWorkflowID,
+						RunID:            latestRunID,
+						NextEventID:      26,
+						State:            persistence.WorkflowStatePreparing,
+						ImportInProgress: true,
+					},
+					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
+				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
+			},
+			expectedErr: workflow.ErrImportInProgress,
+		},
+		{
+			name:    "Base run is a zombie import",
+			request: resetExecutionRequest(previousExecution, 24),
+			init: []InitFn{
+				withCurrentExecution(latestExecution),
+				withState(latestExecution, &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:    constants.TestDomainID,
+						WorkflowID:  constants.TestWorkflowID,
+						RunID:       latestRunID,
+						State:       persistence.WorkflowStateCompleted,
+						CloseStatus: persistence.WorkflowCloseStatusCompleted,
+					},
+					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
+				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
+				withState(previousExecution, &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:         constants.TestDomainID,
+						WorkflowID:       constants.TestWorkflowID,
+						RunID:            previousRunID,
+						NextEventID:      26,
+						State:            persistence.WorkflowStateZombie,
+						CloseStatus:      persistence.WorkflowCloseStatusCompleted,
+						ImportInProgress: true,
+					},
+					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
+				}),
+				withActiveClusterInfo(constants.TestDomainID, previousExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
+			},
+			expectedErr: workflow.ErrImportInProgress,
+		},
+		{
+			name:    "Current run is an import in progress",
+			request: resetExecutionRequest(previousExecution, 24),
+			init: []InitFn{
+				withCurrentExecution(latestExecution),
+				withState(latestExecution, &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      latestRunID,
+						State:      persistence.WorkflowStatePreparing,
+					},
+					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
+				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
+				withState(previousExecution, &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:    constants.TestDomainID,
+						WorkflowID:  constants.TestWorkflowID,
+						RunID:       previousRunID,
+						NextEventID: 26,
+						State:       persistence.WorkflowStateCompleted,
+						CloseStatus: persistence.WorkflowCloseStatusCompleted,
+					},
+					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
+				}),
+				withActiveClusterInfo(constants.TestDomainID, previousExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
+			},
+			expectedErr: workflow.ErrImportInProgress,
 		},
 		{
 			name:    "Success",

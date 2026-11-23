@@ -69,6 +69,12 @@ type (
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
 		ShardDistributorMatchingConfig clientcommon.Config `yaml:"shard-distributor-matching"`
 
+		// ShardDistributorHistoryConfig is the shard distributor executor and spectator config for the
+		// history service.
+		// The namespace's shard count must equal persistence.numHistoryShards,
+		// and ttl_shard must be 0 because history shards are permanent.
+		ShardDistributorHistoryConfig clientcommon.Config `yaml:"shard-distributor-history"`
+
 		// NumMatchingShards is the number of shards matching hashes task lists into when
 		// matching.shardTaskListsByHashForShardManager is enabled. It must equal the shardNum of
 		// matching's namespace in the shard distributor, and every service must use the same value.
@@ -562,8 +568,30 @@ func (c *Config) validate() error {
 	if c.NumMatchingShards < 0 {
 		return fmt.Errorf("numMatchingShards must not be negative, got %d", c.NumMatchingShards)
 	}
+	if err := c.validateShardDistributorHistoryConfig(); err != nil {
+		return err
+	}
 
 	return c.Authorization.Validate()
+}
+
+// validateShardDistributorHistoryConfig accepts an empty block, which means history onboarding is
+// not configured.
+func (c *Config) validateShardDistributorHistoryConfig() error {
+	sdConfig := c.ShardDistributorHistoryConfig
+	if len(sdConfig.Namespaces) == 0 {
+		return nil
+	}
+	if err := sdConfig.Validate(); err != nil {
+		return fmt.Errorf("shard-distributor-history: %w", err)
+	}
+	if len(sdConfig.Namespaces) > 1 {
+		return fmt.Errorf("shard-distributor-history: exactly one namespace must be configured, got %d", len(sdConfig.Namespaces))
+	}
+	if ttl := sdConfig.Namespaces[0].TTLShard; ttl != 0 {
+		return fmt.Errorf("shard-distributor-history: ttl_shard must be 0 because history shards are permanent, got %v", ttl)
+	}
+	return nil
 }
 
 func (c *Config) fillDefaults() {

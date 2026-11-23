@@ -202,6 +202,7 @@ const (
 	WorkflowStateZombie
 	WorkflowStateVoid
 	WorkflowStateCorrupted
+	WorkflowStatePreparing
 )
 
 // Workflow execution close status
@@ -511,6 +512,11 @@ type (
 		CronSchedule      string
 
 		ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
+
+		// Import
+		ImportSourceExecution *types.WorkflowExecution
+		ImportTimestamp       time.Time
+		ImportInProgress      bool
 	}
 
 	// ExecutionStats is the statistics about workflow execution
@@ -2193,8 +2199,11 @@ type (
 	}
 
 	// AsyncWorkflowQueueManager manages the per-history-shard FIFO queue of async workflow requests
-	// (StartWorkflowExecutionAsync / SignalWithStartWorkflowExecutionAsync). It has no shard-ownership
-	// fence: enqueue and ack-level updates are unconditional writes, and message ids are minted by the caller.
+	// (StartWorkflowExecutionAsync / SignalWithStartWorkflowExecutionAsync). Message ids are minted by the
+	// caller. Enqueue is fenced on shard ownership: the store must return ShardOwnershipLostError unless the
+	// shard's range id still equals the request's RangeID, and a successful enqueue means the row was durable
+	// while it still did. How a store enforces that is its own detail. Ack-level updates and range deletes
+	// are unconditional.
 	AsyncWorkflowQueueManager interface {
 		Closeable
 		GetName() string
@@ -2316,7 +2325,8 @@ type (
 	EnqueueAsyncWorkflowMessageRequest struct {
 		ShardID         int
 		SourceCluster   string
-		MessageID       int64 // minted by the caller (shard task id); strictly increasing per (shard, source_cluster)
+		MessageID       int64 // minted by the caller (shard task id); strictly increasing per (shard, source_cluster) for one owner
+		RangeID         int64 // shard range id held when MessageID was minted; the store rejects the write once the shard's range id differs
 		DomainName      string
 		WorkflowID      string
 		RequestID       string

@@ -5,7 +5,7 @@ type Semaphore struct {
 	SemaphoreName string `json:"semaphoreName,omitempty"`
 	// Capacity is the total number of tokens.
 	Capacity int32 `json:"capacity,omitempty"`
-	// BucketCapacity is the number of tokens in each bucket.
+	// BucketCapacity is the most tokens one bucket holds.
 	BucketCapacity int32 `json:"bucketCapacity,omitempty"`
 }
 
@@ -36,7 +36,8 @@ type CreateSemaphoreRequest struct {
 	SemaphoreName string `json:"semaphoreName,omitempty"`
 	// Capacity is the total number of tokens. Must be positive.
 	Capacity int32 `json:"capacity,omitempty"`
-	// BucketCapacity is optional: zero means the server picks a default.
+	// BucketCapacity is the most tokens one bucket holds. Optional: zero means the server picks a
+	// default. It may be larger than Capacity, which gives one bucket holding Capacity tokens.
 	BucketCapacity int32 `json:"bucketCapacity,omitempty"`
 }
 

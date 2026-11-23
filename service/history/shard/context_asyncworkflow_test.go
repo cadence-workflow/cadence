@@ -3,6 +3,7 @@ package shard
 import (
 	"context"
 	"errors"
+	"fmt"
 	"runtime"
 	"sync"
 	"testing"
@@ -33,22 +34,27 @@ func newEnqueueRequest(shardID int) *persistence.EnqueueAsyncWorkflowMessageRequ
 
 func TestContext_EnqueueAsyncWorkflowMessage(t *testing.T) {
 	errManager := errors.New("manager failed")
+	errOwnershipLost := &persistence.ShardOwnershipLostError{ShardID: testShardID, Msg: "range id changed"}
 	tests := []struct {
 		name       string
 		closeShard bool
 		managerErr error
 		wantCall   bool
 		wantErr    bool
+		wantClosed bool
 	}{
-		{name: "row written with the allocated id", wantCall: true},
-		{name: "manager error is returned unchanged", managerErr: errManager, wantCall: true, wantErr: true},
-		{name: "closed shard is rejected before allocating an id", closeShard: true, wantErr: true},
+		{name: "row written with the allocated id and the current range id", wantCall: true},
+		{name: "manager error is returned unchanged and the shard stays open", managerErr: errManager, wantCall: true, wantErr: true},
+		{name: "ownership lost from the store closes the shard", managerErr: errOwnershipLost, wantCall: true, wantErr: true, wantClosed: true},
+		{name: "wrapped ownership lost from the store closes the shard", managerErr: fmt.Errorf("enqueue: %w", errOwnershipLost), wantCall: true, wantErr: true, wantClosed: true},
+		{name: "closed shard is rejected before allocating an id", closeShard: true, wantErr: true, wantClosed: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			s := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
 			t.Cleanup(func() { s.Finish(t) })
+			s.closeCallback = func(int, *historyShardsItem) {}
 
 			manager := s.Resource.AsyncWorkflowQueueMgr
 			var persisted *persistence.EnqueueAsyncWorkflowMessageRequest
@@ -60,12 +66,12 @@ func TestContext_EnqueueAsyncWorkflowMessage(t *testing.T) {
 					}).Times(1)
 			}
 			if tc.closeShard {
-				s.closeCallback = func(int, *historyShardsItem) {}
 				s.closeShard()
 			}
 
 			req := newEnqueueRequest(s.GetShardID())
 			id, err := s.EnqueueAsyncWorkflowMessage(context.Background(), req)
+			assert.Equal(t, tc.wantClosed, s.closedError() != nil, "shard closed state")
 			if tc.wantErr {
 				require.Error(t, err)
 				if tc.managerErr != nil {
@@ -79,8 +85,70 @@ func TestContext_EnqueueAsyncWorkflowMessage(t *testing.T) {
 			require.NotNil(t, persisted)
 			assert.Equal(t, id, persisted.MessageID, "the persisted row carries the returned id")
 			assert.Equal(t, id, req.MessageID, "request.MessageID is overwritten with the allocated id")
+			assert.Equal(t, int64(testRangeID), persisted.RangeID, "the persisted request carries the shard range id")
 		})
 	}
+}
+
+// TestContext_EnqueueAsyncWorkflowMessage_RetriesAfterOwnRangeRenewal covers the store rejecting a write
+// because this host renewed its own range while the write was in flight. That is not ownership loss: the
+// enqueue is retried under the new range id and the shard stays open.
+func TestContext_EnqueueAsyncWorkflowMessage_RetriesAfterOwnRangeRenewal(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+	t.Cleanup(func() { s.Finish(t) })
+	s.closeCallback = func(int, *historyShardsItem) {}
+	s.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
+
+	var rangeIDs, messageIDs []int64
+	manager := s.Resource.AsyncWorkflowQueueMgr
+	manager.EXPECT().EnqueueAsyncWorkflowMessage(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req *persistence.EnqueueAsyncWorkflowMessageRequest) error {
+			rangeIDs = append(rangeIDs, req.RangeID)
+			messageIDs = append(messageIDs, req.MessageID)
+			if len(rangeIDs) > 1 {
+				return nil
+			}
+			// Exhaust the range and allocate once more so this shard renews its own range mid-write.
+			s.Lock()
+			s.taskSequenceNumber = s.maxTaskSequenceNumber
+			_, err := s.generateTaskIDLocked()
+			s.Unlock()
+			require.NoError(t, err)
+			return &persistence.ShardOwnershipLostError{ShardID: testShardID, Msg: "range id changed"}
+		}).Times(2)
+
+	id, err := s.EnqueueAsyncWorkflowMessage(context.Background(), newEnqueueRequest(s.GetShardID()))
+	require.NoError(t, err)
+	require.Len(t, rangeIDs, 2)
+	assert.Equal(t, []int64{int64(testRangeID), int64(testRangeID) + 1}, rangeIDs, "the retry carries the renewed range id")
+	assert.Greater(t, messageIDs[1], messageIDs[0], "the retry mints a new id")
+	assert.Equal(t, messageIDs[1], id, "the returned id is the one that was accepted")
+	assert.NoError(t, s.closedError(), "the shard stays open")
+}
+
+// TestContext_EnqueueAsyncWorkflowMessage_RangeIDFollowsRenewalDuringAllocation exhausts the range so the
+// allocation renews it, and checks the request carries the renewed range id, not the one held before.
+func TestContext_EnqueueAsyncWorkflowMessage_RangeIDFollowsRenewalDuringAllocation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	s := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: testShardID, RangeID: testRangeID}, config.NewForTest())
+	t.Cleanup(func() { s.Finish(t) })
+	s.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
+	s.Lock()
+	s.taskSequenceNumber = s.maxTaskSequenceNumber
+	s.Unlock()
+
+	var persisted *persistence.EnqueueAsyncWorkflowMessageRequest
+	s.Resource.AsyncWorkflowQueueMgr.EXPECT().EnqueueAsyncWorkflowMessage(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req *persistence.EnqueueAsyncWorkflowMessageRequest) error {
+			persisted = req
+			return nil
+		}).Times(1)
+
+	_, err := s.EnqueueAsyncWorkflowMessage(context.Background(), newEnqueueRequest(s.GetShardID()))
+	require.NoError(t, err)
+	require.NotNil(t, persisted)
+	assert.Equal(t, int64(testRangeID)+1, persisted.RangeID)
 }
 
 // TestContext_EnqueueAsyncWorkflowMessage_ClosedDuringAllocation proves the closure re-check runs under the

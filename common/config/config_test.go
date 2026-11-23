@@ -24,7 +24,9 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	uconfig "go.uber.org/config"
@@ -256,6 +258,79 @@ func TestNumMatchingShards(t *testing.T) {
 
 		err := cfg.ValidateAndFillDefaults()
 		assert.EqualError(t, err, "numMatchingShards must not be negative, got -100")
+	})
+}
+
+func TestShardDistributorHistoryConfig(t *testing.T) {
+	validNamespace := clientcommon.NamespaceConfig{
+		Namespace:         "cadence-history",
+		HeartBeatInterval: time.Second,
+		TTLReport:         time.Minute,
+	}
+	tests := []struct {
+		name       string
+		namespaces []clientcommon.NamespaceConfig
+		wantErr    string
+	}{
+		{
+			name: "unset is valid",
+		},
+		{
+			name:       "one namespace with ttl_shard 0 is valid",
+			namespaces: []clientcommon.NamespaceConfig{validNamespace},
+		},
+		{
+			name: "two namespaces are rejected",
+			namespaces: []clientcommon.NamespaceConfig{
+				validNamespace,
+				{Namespace: "cadence-history-2", HeartBeatInterval: time.Second},
+			},
+			wantErr: "shard-distributor-history: exactly one namespace must be configured, got 2",
+		},
+		{
+			name: "non-zero ttl_shard is rejected",
+			namespaces: []clientcommon.NamespaceConfig{
+				{Namespace: "cadence-history", HeartBeatInterval: time.Second, TTLShard: 5 * time.Minute},
+			},
+			wantErr: "shard-distributor-history: ttl_shard must be 0 because history shards are permanent, got 5m0s",
+		},
+		{
+			name: "zero heartbeat_interval is rejected",
+			namespaces: []clientcommon.NamespaceConfig{
+				{Namespace: "cadence-history"},
+			},
+			wantErr: "shard-distributor-history: namespace 0 (cadence-history): heartbeat_interval must be greater than 0",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := getValidShardedNoSQLConfig()
+			cfg.ShardDistributorHistoryConfig.Namespaces = tt.namespaces
+
+			err := cfg.ValidateAndFillDefaults()
+			if tt.wantErr != "" {
+				assert.EqualError(t, err, tt.wantErr)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+
+	t.Run("populated from yaml", func(t *testing.T) {
+		yaml, err := uconfig.NewYAML(uconfig.RawSource(strings.NewReader(`
+shard-distributor-history:
+  namespaces:
+    - namespace: cadence-history
+      heartbeat_interval: 1s
+      ttl_shard: 0
+      ttl_report: 1m
+`)))
+		require.NoError(t, err)
+
+		var cfg Config
+		err = yaml.Get(uconfig.Root).Populate(&cfg)
+		require.NoError(t, err)
+		assert.Equal(t, []clientcommon.NamespaceConfig{validNamespace}, cfg.ShardDistributorHistoryConfig.Namespaces)
 	})
 }
 

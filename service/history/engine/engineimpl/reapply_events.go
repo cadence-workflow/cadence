@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/ndc"
@@ -69,6 +70,13 @@ func (e *historyEngineImpl) ReapplyEvents(
 		currentExecution,
 		e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) (*workflow.UpdateAction, error) {
+			// An import in progress is not running, so the reapply would reset it into a new run.
+			// Skip without an error: an error makes replication retry forever.
+			if mutableState.GetExecutionInfo().State == persistence.WorkflowStatePreparing {
+				e.metricsClient.IncCounter(metrics.HistoryReapplyEventsScope, metrics.EventReapplySkippedCount)
+				return &workflow.UpdateAction{Noop: true}, nil
+			}
+
 			// Filter out reapply event from the same cluster
 			toReapplyEvents := make([]*types.HistoryEvent, 0, len(reapplyEvents))
 			lastWriteVersion, err := mutableState.GetLastWriteVersion()

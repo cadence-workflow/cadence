@@ -123,6 +123,8 @@ func (e *matchingEngineImpl) shutDownNonOwnedTasklists() error {
 	return nil
 }
 
+// getNonOwnedTasklistsLocked returns the loaded task lists that the hash ring now routes to another
+// host. It runs on every ring change.
 func (e *matchingEngineImpl) getNonOwnedTasklistsLocked() ([]tasklist.Manager, error) {
 	var toShutDown []tasklist.Manager
 
@@ -134,7 +136,18 @@ func (e *matchingEngineImpl) getNonOwnedTasklistsLocked() ([]tasklist.Manager, e
 	}
 
 	for _, tl := range taskLists {
-		taskListOwner, err := e.taskListRouter.FromTaskList(tl.TaskListID().GetDomainID(), tl.TaskListID().GetName())
+		taskListID := tl.TaskListID()
+
+		// A ring change doesn't move an onboarded task list. When the shard distributor moves its
+		// shard, the executor stops it.
+		_, onboardedToShardDistributor := e.taskListDifferentiator.TaskListShard(taskListID.GetDomainID(), taskListID.GetName()).ShardID()
+		if onboardedToShardDistributor {
+			continue
+		}
+
+		// Otherwise the hash ring owns the task list, and we should unload it if the ring now routes it
+		// to another host.
+		taskListOwner, err := e.membershipResolver.Lookup(service.Matching, taskListID.GetName())
 		if err != nil {
 			return nil, fmt.Errorf("failed to lookup task list owner: %w", err)
 		}

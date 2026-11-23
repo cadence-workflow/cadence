@@ -36,6 +36,7 @@ var (
 		"Running":   WorkflowStateRunning,
 		"Completed": WorkflowStateCompleted,
 		"Zombie":    WorkflowStateZombie,
+		"Preparing": WorkflowStatePreparing,
 	}
 	workflowCloseStatuses = map[string]int{
 		"None":           WorkflowCloseStatusNone,
@@ -91,6 +92,9 @@ func TestWorkflowExecutionInfoIsRunning(t *testing.T) {
 		"Corrupted": {
 			WorkflowStateCorrupted, false,
 		},
+		"Preparing": {
+			WorkflowStatePreparing, false,
+		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -136,6 +140,14 @@ func TestWorkflowExecutionInfoUpdateWorkflowStateCloseStatus(t *testing.T) {
 			WorkflowStateRunning:   withCloseStatusNone(),
 			WorkflowStateCompleted: withAnyCloseStatusExcept(WorkflowCloseStatusNone),
 			WorkflowStateZombie:    withAnyCloseStatusExcept(WorkflowCloseStatusNone),
+			WorkflowStatePreparing: withCloseStatusNone(),
+		}),
+		WorkflowStatePreparing: toStates(map[int]stateChecker{
+			WorkflowStatePreparing: withAnyCloseStatusExcept(),
+			WorkflowStateZombie:    withCloseStatusNone(),
+			WorkflowStateCreated:   withCloseStatusNone(),
+			WorkflowStateRunning:   withCloseStatusNone(),
+			WorkflowStateCompleted: withAnyCloseStatusExcept(WorkflowCloseStatusNone),
 		}),
 	}
 	var testCases []*testCase

@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.56",
+  "MinCompatibleVersion": "0.56",
+  "Description": "Adding import fields to workflow_execution",
+  "SchemaUpdateCqlFiles": [
+    "workflow_execution.cql"
+  ]
+}

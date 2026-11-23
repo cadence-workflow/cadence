@@ -101,6 +101,10 @@ CREATE TYPE workflow_execution (
   task_list_kind                   int, -- enum TaskListKind {Normal, Sticky, Ephemeral},
   active_cluster_selection_policy blob, -- active cluster selection policy applicable to active-active domains
   active_cluster_selection_policy_encoding text, -- encoding for active_cluster_selection_policy
+  import_source_workflow_id        text, -- workflow ID of the source run of an imported run
+  import_source_run_id             uuid, -- run ID of the source run of an imported run
+  import_timestamp                 timestamp, -- time the import of this run started
+  import_in_progress               boolean, -- true while the import of this run is not complete
 );
 
 -- Replication information for each cluster

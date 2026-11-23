@@ -908,41 +908,60 @@ func TestIsShuttingDown(t *testing.T) {
 }
 
 func TestGetTasklistsNotOwned(t *testing.T) {
+	self := membership.NewDetailedHostInfo("", "10.0.0.1:7933", nil)
+	otherHost := membership.NewDetailedHostInfo("", "10.0.0.2:7933", nil)
 
-	ctrl := gomock.NewController(t)
-	resolver := membership.NewMockResolver(ctrl)
-
-	resolver.EXPECT().WhoAmI().Return(membership.NewDetailedHostInfo("self", "host123", nil), nil)
-	router := matching.NewMockTaskListRouter(ctrl)
-
-	tl1 := mustNewIdentifier(t, "domain-id-1", "tl1", 0)
-	tl2 := mustNewIdentifier(t, "domain-id-2", "tl2", 0)
-	tl3 := mustNewIdentifier(t, "domain-id-3", "tl3", 0)
-
-	tl1m := newMockManagerWithTaskListID(ctrl, tl1)
-	tl2m := newMockManagerWithTaskListID(ctrl, tl2)
-	tl3m := newMockManagerWithTaskListID(ctrl, tl3)
-
-	router.EXPECT().FromTaskList(tl1.GetDomainID(), tl1.GetName()).Return(membership.NewDetailedHostInfo("", "host123", nil), nil)
-	router.EXPECT().FromTaskList(tl2.GetDomainID(), tl2.GetName()).Return(membership.NewDetailedHostInfo("", "host456", nil), nil)
-	router.EXPECT().FromTaskList(tl3.GetDomainID(), tl3.GetName()).Return(membership.NewDetailedHostInfo("", "host123", nil), nil)
-
-	e := matchingEngineImpl{
-		shutdown:           make(chan struct{}),
-		membershipResolver: resolver,
-		taskListRouter:     router,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
-		config:             &config.Config{},
-		logger:             log.NewNoop(),
+	newEngine := func(resolver membership.Resolver, taskListDifferentiator *matching.TaskListDifferentiator) *matchingEngineImpl {
+		return &matchingEngineImpl{
+			shutdown:               make(chan struct{}),
+			membershipResolver:     resolver,
+			taskListDifferentiator: taskListDifferentiator,
+			taskListRegistry:       tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
+			config:                 &config.Config{},
+			logger:                 log.NewNoop(),
+		}
 	}
-	e.taskListRegistry.Register(*tl1, tl1m)
-	e.taskListRegistry.Register(*tl2, tl2m)
-	e.taskListRegistry.Register(*tl3, tl3m)
 
-	tls, err := e.getNonOwnedTasklistsLocked()
-	assert.NoError(t, err)
+	t.Run("a task list the hash ring moved to another host is not owned", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		resolver := membership.NewMockResolver(ctrl)
+		resolver.EXPECT().WhoAmI().Return(self, nil)
 
-	assert.Equal(t, []tasklist.Manager{tl2m}, tls)
+		movedTaskList := mustNewIdentifier(t, "domain-id-1", "moved", 0)
+		movedManager := newMockManagerWithTaskListID(ctrl, movedTaskList)
+		resolver.EXPECT().Lookup(service.Matching, movedTaskList.GetName()).Return(otherHost, nil)
+
+		keptTaskList := mustNewIdentifier(t, "domain-id-2", "kept", 0)
+		keptManager := newMockManagerWithTaskListID(ctrl, keptTaskList)
+		resolver.EXPECT().Lookup(service.Matching, keptTaskList.GetName()).Return(self, nil)
+
+		e := newEngine(resolver, newRingOnlyTaskListDifferentiator())
+		e.taskListRegistry.Register(*movedTaskList, movedManager)
+		e.taskListRegistry.Register(*keptTaskList, keptManager)
+
+		notOwned, err := e.getNonOwnedTasklistsLocked()
+		require.NoError(t, err)
+		assert.Equal(t, []tasklist.Manager{movedManager}, notOwned)
+	})
+
+	t.Run("a task list onboarded to the shard distributor is left to the executor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		// The resolver expects no Lookup: the hash ring doesn't decide who owns an onboarded task list.
+		resolver := membership.NewMockResolver(ctrl)
+		resolver.EXPECT().WhoAmI().Return(self, nil)
+
+		onboardedTaskList := mustNewIdentifier(t, "domain-id-1", "onboarded", 0)
+		onboardedManager := newMockManagerWithTaskListID(ctrl, onboardedTaskList)
+
+		excludeShortLivedTaskLists := false
+		shardTaskListsByHash := true
+		e := newEngine(resolver, newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByHash))
+		e.taskListRegistry.Register(*onboardedTaskList, onboardedManager)
+
+		notOwned, err := e.getNonOwnedTasklistsLocked()
+		require.NoError(t, err)
+		assert.Empty(t, notOwned)
+	})
 }
 
 func TestShutDownTasklistsNotOwned(t *testing.T) {
@@ -965,13 +984,13 @@ func TestShutDownTasklistsNotOwned(t *testing.T) {
 	resolver.EXPECT().Lookup(service.Matching, tl3.GetName()).Return(membership.NewDetailedHostInfo("", "host123", nil), nil)
 
 	e := matchingEngineImpl{
-		shutdown:           make(chan struct{}),
-		membershipResolver: resolver,
-		taskListRouter:     newTestTaskListRouter(resolver),
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
-		config:             &config.Config{},
-		metricsClient:      metrics.NewNoopMetricsClient(),
-		logger:             log.NewNoop(),
+		shutdown:               make(chan struct{}),
+		membershipResolver:     resolver,
+		taskListDifferentiator: newRingOnlyTaskListDifferentiator(),
+		taskListRegistry:       tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
+		config:                 &config.Config{},
+		metricsClient:          metrics.NewNoopMetricsClient(),
+		logger:                 log.NewNoop(),
 	}
 	e.taskListRegistry.Register(*tl1, tl1m)
 	e.taskListRegistry.Register(*tl2, tl2m)
@@ -1921,13 +1940,24 @@ func newSemaphoreMetadata(t *testing.T) persistence.SemaphoreMetadataManager {
 	return md
 }
 
-// newSemaphoreTasks returns a task store on which every bucket claims its queue.
+// newSemaphoreTasks returns a task store that accepts every claim, ack level save and delete of
+// finished tasks.
 func newSemaphoreTasks(t *testing.T) persistence.SemaphoreTaskManager {
 	t.Helper()
 	tasks := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
 	tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).AnyTimes().
 		Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+	expectAckLevelSavesAndDeletes(tasks)
 	return tasks
+}
+
+// expectAckLevelSavesAndDeletes accepts any number of ack level saves and deletes of finished
+// tasks.
+func expectAckLevelSavesAndDeletes(tasks *persistence.MockSemaphoreTaskManager) {
+	tasks.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.UpdateSemaphoreTaskBucketStateResponse{}, nil)
+	tasks.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.RangeCompleteSemaphoreTasksResponse{}, nil)
 }
 
 // mustNewSemaphoreIdentifier returns the id of one bucket of the test semaphore.
@@ -1957,6 +1987,7 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 		semaphoreTokenManager:    tokens,
 		semaphoreMetadataManager: newSemaphoreMetadata(t),
 		semaphoreTaskManager:     newSemaphoreTasks(t),
+		historyService:           history.NewMockClient(ctrl),
 		domainCache:              domainCache,
 		membershipResolver:       resolver,
 		taskListRouter:           newTestTaskListRouter(resolver),
@@ -1984,11 +2015,12 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 func newUnstartedSemaphoreManager(t *testing.T, id semaphore.Identifier, tokens persistence.SemaphoreTokenManager) semaphore.Manager {
 	t.Helper()
 	mgr, err := semaphore.NewManager(semaphore.ManagerParams{
-		ID:       id,
-		Tokens:   tokens,
-		Metadata: newSemaphoreMetadata(t),
-		Tasks:    newSemaphoreTasks(t),
-		Logger:   log.NewNoop(),
+		ID:             id,
+		Tokens:         tokens,
+		Metadata:       newSemaphoreMetadata(t),
+		Tasks:          newSemaphoreTasks(t),
+		HistoryService: history.NewMockClient(gomock.NewController(t)),
+		Logger:         log.NewNoop(),
 		Cfg: &config.Config{
 			SemaphoreIdleTime:          func(string) time.Duration { return time.Minute },
 			SemaphoreUpdateAckInterval: func(string) time.Duration { return time.Minute },
@@ -2260,6 +2292,7 @@ func TestAcquireSemaphore(t *testing.T) {
 				tasks := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
 				tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).
 					Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+				expectAckLevelSavesAndDeletes(tasks)
 				tc.tasksSetup(t, tasks)
 				e.semaphoreTaskManager = tasks
 			}
@@ -2462,9 +2495,10 @@ func newTestTaskListDifferentiator(excludeShortLivedTaskLists, shardTaskListsByH
 	)
 }
 
-// newTestTaskListRouter returns a router that looks up every task list on the resolver's hash ring.
-func newTestTaskListRouter(resolver membership.Resolver) matching.TaskListRouter {
-	taskListDifferentiator := matching.NewTaskListDifferentiator(
+// newRingOnlyTaskListDifferentiator returns a differentiator that onboards no task list to the shard
+// distributor, so the hash ring owns every task list.
+func newRingOnlyTaskListDifferentiator() *matching.TaskListDifferentiator {
+	return matching.NewTaskListDifferentiator(
 		metrics.NewNoopMetricsClient(),
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetBoolPropertyFn(false),
@@ -2472,5 +2506,9 @@ func newTestTaskListRouter(resolver membership.Resolver) matching.TaskListRouter
 		dynamicproperties.GetIntPropertyFn(0),
 		commonConfig.DefaultNumMatchingShards,
 	)
-	return matching.NewTaskListRouter(resolver, taskListDifferentiator, nil, log.NewNoop(), metrics.NoopScope)
+}
+
+// newTestTaskListRouter returns a router that looks up every task list on the resolver's hash ring.
+func newTestTaskListRouter(resolver membership.Resolver) matching.TaskListRouter {
+	return matching.NewTaskListRouter(resolver, newRingOnlyTaskListDifferentiator(), nil, log.NewNoop(), metrics.NoopScope)
 }

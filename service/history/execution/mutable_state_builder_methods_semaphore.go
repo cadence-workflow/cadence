@@ -37,21 +37,6 @@ func (e *mutableStateBuilder) GetPendingSemaphoreInfos() map[int64]*persistence.
 	return e.pendingSemaphoreInfoIDs
 }
 
-// UpsertSemaphoreInfo records a hold, replacing any entry already under the same initiated id.
-// Callers use it both to start a hold and to fill in the token once one is granted.
-func (e *mutableStateBuilder) UpsertSemaphoreInfo(
-	info *persistence.SemaphoreInfo,
-) {
-
-	// Load installs whatever persistence returned, which is nil on a backend that does not
-	// store holds. The other two maps are only ever set by the constructor and by the flush.
-	if e.pendingSemaphoreInfoIDs == nil {
-		e.pendingSemaphoreInfoIDs = make(map[int64]*persistence.SemaphoreInfo)
-	}
-	e.pendingSemaphoreInfoIDs[info.InitiatedID] = info
-	e.updateSemaphoreInfos[info.InitiatedID] = info
-}
-
 // DeleteSemaphoreInfo removes the hold started by initiatedEventID.
 func (e *mutableStateBuilder) DeleteSemaphoreInfo(
 	initiatedEventID int64,
@@ -126,7 +111,12 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquireInitiatedEvent(
 			Truncate(time.Millisecond),
 	}
 
-	e.UpsertSemaphoreInfo(semaphoreInfo)
+	if e.pendingSemaphoreInfoIDs == nil {
+		e.pendingSemaphoreInfoIDs = make(map[int64]*persistence.SemaphoreInfo)
+	}
+	e.pendingSemaphoreInfoIDs[semaphoreInfo.InitiatedID] = semaphoreInfo
+	e.updateSemaphoreInfos[semaphoreInfo.InitiatedID] = semaphoreInfo
+
 	if err := e.taskGenerator.GenerateAcquireSemaphoreTasks(semaphoreInfo.InitiatedID); err != nil {
 		return nil, err
 	}
@@ -186,8 +176,7 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquiredEvent(
 	}
 	semaphoreInfo.Version = event.Version
 	semaphoreInfo.TokenID = int(attributes.GetTokenID())
-	e.UpsertSemaphoreInfo(semaphoreInfo)
-
+	e.updateSemaphoreInfos[initiatedEventID] = semaphoreInfo
 	return nil
 }
 
@@ -240,7 +229,7 @@ func (e *mutableStateBuilder) ReplicateSemaphoreTokenLostEvent(
 	semaphoreInfo.Version = event.Version
 	semaphoreInfo.TokenID = constants.NoSemaphoreTokenID
 	semaphoreInfo.AcquireDeadline = time.Time{}
-	e.UpsertSemaphoreInfo(semaphoreInfo)
+	e.updateSemaphoreInfos[initiatedEventID] = semaphoreInfo
 
 	if err := e.taskGenerator.GenerateAcquireSemaphoreTasks(initiatedEventID); err != nil {
 		return err
