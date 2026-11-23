@@ -170,7 +170,7 @@ func (tr *taskReader) Stop() {
 	if atomic.CompareAndSwapInt64(&tr.stopped, 0, 1) {
 		tr.cancelFunc()
 		if err := tr.persistAckLevel(); err != nil {
-			// The write is conditioned on our range ID, which changes when another owner takes the lease.
+			// The write only succeeds while the stored range ID matches ours, and another owner taking the lease increments it.
 			leaseLost := errors.As(err, new(*persistence.ConditionFailedError))
 			if leaseLost {
 				tr.logger.Info("Final ack level write failed because another owner holds the task list lease.", tag.Error(err))
