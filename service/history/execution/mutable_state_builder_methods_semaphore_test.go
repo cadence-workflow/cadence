@@ -420,7 +420,7 @@ func Test__AddSemaphoreTokenLostEvent(t *testing.T) {
 				mb.executionInfo.State = persistence.WorkflowStateCompleted
 			}
 
-			event, err := mb.AddSemaphoreTokenLostEvent(2)
+			event, err := mb.AddSemaphoreTokenLostEvent(2, types.SemaphoreTokenLostCauseNotHeld)
 
 			if tc.wantErr != nil {
 				assert.Equal(t, tc.wantErr, err)
@@ -434,6 +434,7 @@ func Test__AddSemaphoreTokenLostEvent(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, types.EventTypeSemaphoreTokenLost, event.GetEventType())
 			assert.Equal(t, &types.SemaphoreTokenLostEventAttributes{
+				Cause:            types.SemaphoreTokenLostCauseNotHeld.Ptr(),
 				TokenID:          7,
 				InitiatedEventID: 2,
 			}, event.SemaphoreTokenLostEventAttributes)

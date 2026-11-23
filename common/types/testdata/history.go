@@ -634,6 +634,7 @@ var (
 		InitiatedEventID: EventID2,
 	}
 	SemaphoreTokenLostEventAttributes = types.SemaphoreTokenLostEventAttributes{
+		Cause:            types.SemaphoreTokenLostCauseNotHeld.Ptr(),
 		TokenID:          17,
 		InitiatedEventID: EventID2,
 	}

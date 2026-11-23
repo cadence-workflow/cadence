@@ -164,3 +164,4 @@ require (
 
 // DO NOT USE as it misses mysql/config store fix
 retract v1.2.3
+replace github.com/uber/cadence-idl => ./idls
