@@ -177,6 +177,14 @@ func (t *transferStandbyTaskExecutor) processActivityTask(
 		}
 
 		if activityInfo.StartedID == constants.EmptyEventID {
+			for _, semaphoreInfo := range mutableState.GetPendingSemaphoreInfos() {
+				// The active cluster holds the activity back until the semaphore gets a new token. Pushing it
+				// here would let it start without a token after a failover. When the grant event replicates,
+				// applying it adds a new task here.
+				if semaphoreInfo.InitiatedID <= activityInfo.ScheduleID && !semaphoreInfo.HasToken() {
+					return nil, nil
+				}
+			}
 			return newPushActivityToMatchingInfo(
 				activityInfo.ScheduleToStartTimeout,
 				taskList,

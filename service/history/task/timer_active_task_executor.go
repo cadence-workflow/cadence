@@ -719,6 +719,22 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 		}
 		return err
 	}
+	semaphoreInfo, err := getSemaphoreWithoutValidToken(ctx, t.shard.GetService().GetSemaphoreMetadataManager(), t.shard.GetService().GetMatchingClient(), mutableState, scheduledID)
+	if err != nil {
+		return err
+	}
+	if semaphoreInfo != nil {
+		if !semaphoreInfo.HasToken() {
+			// The loss is already recorded and a new acquire is under way. The activity is sent
+			// when that acquire ends or the semaphore is released.
+			return nil
+		}
+		// Matching no longer holds the token: record the loss, which starts a new acquire.
+		if _, err := mutableState.AddSemaphoreTokenLostEvent(semaphoreInfo.InitiatedID); err != nil {
+			return err
+		}
+		return t.updateWorkflowExecution(ctx, wfContext, mutableState, false)
+	}
 
 	domainID := task.DomainID
 	targetDomainID := domainID

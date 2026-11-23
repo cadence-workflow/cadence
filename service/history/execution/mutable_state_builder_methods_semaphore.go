@@ -154,9 +154,8 @@ func (e *mutableStateBuilder) AddSemaphoreAcquiredEvent(
 	return event, nil
 }
 
-// ReplicateSemaphoreAcquiredEvent fills in the granted token, which moves the hold to held.
-// Unlike AddSemaphoreAcquiredEvent, it also accepts a hold that already has a token: a standby
-// cluster or a rebuild must apply whatever the active side wrote.
+// ReplicateSemaphoreAcquiredEvent saves the granted token on the hold and re-sends the activities
+// and child workflows that were waiting for it.
 func (e *mutableStateBuilder) ReplicateSemaphoreAcquiredEvent(
 	event *types.HistoryEvent,
 ) error {
@@ -177,7 +176,8 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquiredEvent(
 	semaphoreInfo.Version = event.Version
 	semaphoreInfo.TokenID = int(attributes.GetTokenID())
 	e.updateSemaphoreInfos[initiatedEventID] = semaphoreInfo
-	return nil
+
+	return e.taskGenerator.GenerateUnstartedWorkTasks(initiatedEventID)
 }
 
 // AddSemaphoreTokenLostEvent records that the token of the hold started by initiatedEventID is no
@@ -267,12 +267,19 @@ func (e *mutableStateBuilder) AddSemaphoreAcquireFailedEvent(
 	return event, nil
 }
 
-// ReplicateSemaphoreAcquireFailedEvent ends the hold whose acquire failed.
+// ReplicateSemaphoreAcquireFailedEvent removes the hold and re-sends the tasks that were waiting for
+// its token, since no grant will come.
 func (e *mutableStateBuilder) ReplicateSemaphoreAcquireFailedEvent(
 	event *types.HistoryEvent,
 ) error {
 
-	return e.DeleteSemaphoreInfo(event.SemaphoreAcquireFailedEventAttributes.GetInitiatedEventID())
+	initiatedEventID := event.SemaphoreAcquireFailedEventAttributes.GetInitiatedEventID()
+	if _, ok := e.GetSemaphoreInfo(initiatedEventID); ok {
+		if err := e.taskGenerator.GenerateUnstartedWorkTasks(initiatedEventID); err != nil {
+			return err
+		}
+	}
+	return e.DeleteSemaphoreInfo(initiatedEventID)
 }
 
 // AddSemaphoreReleasedEvent releases the hold started by initiatedEventID. It refuses a missing hold.
@@ -302,16 +309,22 @@ func (e *mutableStateBuilder) AddSemaphoreReleasedEvent(
 	return event, nil
 }
 
-// ReplicateSemaphoreReleasedEvent ends the hold the released token belonged to, and adds the
-// transfer task that frees the token in Matching.
+// ReplicateSemaphoreReleasedEvent removes the hold and adds the transfer task that frees its token in
+// Matching. If the hold had no token, it also re-sends the tasks that were waiting for one, since no
+// grant will come.
 func (e *mutableStateBuilder) ReplicateSemaphoreReleasedEvent(
 	event *types.HistoryEvent,
 ) error {
 
 	initiatedEventID := event.SemaphoreReleasedEventAttributes.GetInitiatedEventID()
-	if _, ok := e.GetSemaphoreInfo(initiatedEventID); ok {
+	if semaphoreInfo, ok := e.GetSemaphoreInfo(initiatedEventID); ok {
 		if err := e.taskGenerator.GenerateReleaseSemaphoreTasks(initiatedEventID); err != nil {
 			return err
+		}
+		if !semaphoreInfo.HasToken() {
+			if err := e.taskGenerator.GenerateUnstartedWorkTasks(initiatedEventID); err != nil {
+				return err
+			}
 		}
 	}
 	return e.DeleteSemaphoreInfo(initiatedEventID)
