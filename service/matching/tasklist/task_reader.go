@@ -173,7 +173,6 @@ func (tr *taskReader) Stop() {
 			// The write is conditioned on our range ID, which changes when another owner takes the lease.
 			leaseLost := errors.As(err, new(*persistence.ConditionFailedError))
 			if leaseLost {
-				tr.scope.IncCounter(metrics.ConditionFailedErrorPerTaskListCounter)
 				tr.logger.Info("Final ack level write failed because another owner holds the task list lease.", tag.Error(err))
 			} else {
 				tr.logger.Error("Persistent store operation failure",
