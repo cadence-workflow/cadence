@@ -308,6 +308,29 @@ func TestNewStartedVisibilityRecord(t *testing.T) {
 				record.clusterAttribute = nil
 			},
 		},
+		"cron workflow whose first decision is scheduled with advanced visibility is started": {
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				WorkflowTypeName: "wf-type",
+				TaskList:         "tl",
+				WorkflowTimeout:  60,
+				CronSchedule:     "* * * * *",
+			},
+			startAttributes: &types.WorkflowExecutionStartedEventAttributes{
+				FirstDecisionTaskBackoffSeconds: common.Int32Ptr(30),
+			},
+			advancedVisMode: commonconstants.VisibilityModeES,
+			hasDecision:     true,
+			wantRecordChanges: func(record *visibilityRecord) {
+				record.isCron = true
+				record.cronSchedule = "* * * * *"
+				record.executionTimeUnixNano = startTime.Add(30 * time.Second).UnixNano()
+				record.scheduledExecutionTimeUnixNano = startTime.Add(30 * time.Second).UnixNano()
+				record.visibilityMemo = nil
+				record.searchAttributes = nil
+				record.headers = nil
+				record.clusterAttribute = nil
+			},
+		},
 		"cron workflow waiting for its first decision with basic visibility is started": {
 			executionInfo: &persistence.WorkflowExecutionInfo{
 				WorkflowTypeName: "wf-type",
@@ -348,9 +371,9 @@ func TestNewStartedVisibilityRecord(t *testing.T) {
 				Timestamp:                               common.Int64Ptr(startTime.UnixNano()),
 				WorkflowExecutionStartedEventAttributes: tc.startAttributes,
 			}, nil)
-			mutableState.EXPECT().HasPendingDecision().Return(false).AnyTimes()
+			mutableState.EXPECT().HasPendingDecision().Return(tc.hasDecision).AnyTimes()
 			mutableState.EXPECT().HasInFlightDecision().Return(false).AnyTimes()
-			mutableState.EXPECT().HasProcessedOrPendingDecision().Return(false).AnyTimes()
+			mutableState.EXPECT().HasProcessedOrPendingDecision().Return(tc.hasDecision).AnyTimes()
 
 			record, err := executor.newStartedVisibilityRecord(context.Background(), mutableState, constants.TestGlobalDomainEntry)
 			assert.NoError(t, err)
