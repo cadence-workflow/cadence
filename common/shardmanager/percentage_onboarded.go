@@ -10,16 +10,19 @@ import (
 type PercentageOnboarded struct {
 	metricsScope metrics.Scope
 	percentage   dynamicproperties.IntPropertyFn
+	numShards    int
 }
 
 func NewPercentageOnboarded(
 	metricsClient metrics.Client,
 	scopeIdx metrics.ScopeIdx,
 	percentage dynamicproperties.IntPropertyFn,
+	numShards int,
 ) PercentageOnboarded {
 	return PercentageOnboarded{
 		metricsScope: metricsClient.Scope(scopeIdx),
 		percentage:   percentage,
+		numShards:    numShards,
 	}
 }
 
@@ -34,10 +37,14 @@ func (p PercentageOnboarded) Enabled() bool {
 	return p.Current() > 0
 }
 
-// ShardOnboarded reports whether shardIndex is onboarded in a fixed namespace with numShards shards.
+// ShardOnboarded reports whether shardIndex is onboarded at the current percentage.
 // The lowest shard indexes are onboarded first,
 // so raising the percentage only adds shards and lowering it only removes them.
-func ShardOnboarded(shardIndex, numShards, percentageOnboarded int) bool {
+func (p PercentageOnboarded) ShardOnboarded(shardIndex int) bool {
+	return shardOnboarded(shardIndex, p.numShards, p.Current())
+}
+
+func shardOnboarded(shardIndex, numShards, percentageOnboarded int) bool {
 	if shardIndex < 0 || shardIndex >= numShards {
 		return false
 	}
