@@ -114,9 +114,12 @@ type (
 
 		ReplicateFailoverMarkers(ctx context.Context, markers []*persistence.FailoverMarkerTask) error
 		// EnqueueAsyncWorkflowMessage allocates the message id and writes the queue row while holding a
-		// per-shard enqueue lock, so message ids become visible to the consumer in allocation order (the same
-		// rule transfer and timer tasks follow). The shard lock is held only for the allocation, not the write.
-		// request.MessageID is overwritten with the allocated id, which is returned.
+		// per-shard enqueue lock, so one owner's message ids reach the store in allocation order. The shard
+		// lock is held only for the allocation, not the write. The request carries the range id the id was
+		// minted under; the store rejects the write with ShardOwnershipLostError once the shard's range id
+		// differs. If this host renewed the range itself the enqueue is retried under the new one, otherwise
+		// another host owns the shard and it is closed. request.MessageID and request.RangeID are overwritten;
+		// the allocated id is returned.
 		EnqueueAsyncWorkflowMessage(ctx context.Context, request *persistence.EnqueueAsyncWorkflowMessageRequest) (int64, error)
 		ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error
 		AddingPendingFailoverMarker(*types.FailoverMarkerAttributes) error
@@ -1571,32 +1574,56 @@ func (s *contextImpl) EnqueueAsyncWorkflowMessage(
 	s.asyncEnqueueMu.Lock()
 	defer s.asyncEnqueueMu.Unlock()
 
-	messageID, err := s.allocateAsyncWorkflowMessageID()
-	if err != nil {
-		return 0, err
-	}
-	request.MessageID = messageID
+	for {
+		messageID, rangeID, err := s.allocateAsyncWorkflowMessageID()
+		if err != nil {
+			return 0, err
+		}
+		request.MessageID = messageID
+		request.RangeID = rangeID
 
-	if err := s.GetService().GetPersistenceBean().GetAsyncWorkflowQueueManager().EnqueueAsyncWorkflowMessage(ctx, request); err != nil {
-		return 0, err
+		err = s.GetService().GetPersistenceBean().GetAsyncWorkflowQueueManager().EnqueueAsyncWorkflowMessage(ctx, request)
+		if err == nil {
+			return messageID, nil
+		}
+		if !errors.As(err, new(*persistence.ShardOwnershipLostError)) || !s.renewedRangeSince(rangeID) {
+			return 0, err
+		}
+		// This host renewed its own range while the write was in flight, so the store compared against a
+		// range id this host no longer uses. Retry under the new range; the first row is a duplicate the
+		// consumer dedups by request id.
 	}
-	return messageID, nil
 }
 
-// allocateAsyncWorkflowMessageID takes the shard lock only long enough to allocate the id and confirm
-// the shard is still open. Callers must hold asyncEnqueueMu so the write that follows keeps allocation order.
-func (s *contextImpl) allocateAsyncWorkflowMessageID() (int64, error) {
+// allocateAsyncWorkflowMessageID takes the shard lock only long enough to allocate the id, confirm the
+// shard is still open and read the range id the id was minted under. Callers must hold asyncEnqueueMu so
+// the write that follows keeps allocation order.
+func (s *contextImpl) allocateAsyncWorkflowMessageID() (messageID int64, rangeID int64, err error) {
 	s.Lock()
 	defer s.Unlock()
 
-	messageID, err := s.generateTaskIDLocked()
+	messageID, err = s.generateTaskIDLocked()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	if err := s.closedError(); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return messageID, nil
+	return messageID, s.shardInfo.RangeID, nil
+}
+
+// renewedRangeSince reports whether this shard is still open and has renewed its range since rangeID was
+// read. If not, the store saw another owner's range id and the shard is closed. Called after the store
+// rejected an async enqueue with ShardOwnershipLostError.
+func (s *contextImpl) renewedRangeSince(rangeID int64) bool {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.closedError() == nil && s.shardInfo.RangeID != rangeID {
+		return true
+	}
+	s.closeShard()
+	return false
 }
 
 // reinjectExecutionKey groups reinjected tasks by the execution they belong to, so

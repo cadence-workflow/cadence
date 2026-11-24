@@ -684,9 +684,11 @@ func (b *HistoryBuilder) AddSemaphoreReleasedEvent(
 func (b *HistoryBuilder) AddSemaphoreTokenLostEvent(
 	initiatedEventID int64,
 	tokenID int32,
+	cause types.SemaphoreTokenLostCause,
 ) *types.HistoryEvent {
 	event := b.msBuilder.CreateNewHistoryEvent(types.EventTypeSemaphoreTokenLost)
 	event.SemaphoreTokenLostEventAttributes = &types.SemaphoreTokenLostEventAttributes{
+		Cause:            cause.Ptr(),
 		TokenID:          tokenID,
 		InitiatedEventID: initiatedEventID,
 	}

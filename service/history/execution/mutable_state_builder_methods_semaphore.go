@@ -180,10 +180,11 @@ func (e *mutableStateBuilder) ReplicateSemaphoreAcquiredEvent(
 	return nil
 }
 
-// AddSemaphoreTokenLostEvent records that the token of the hold started by initiatedEventID is no
-// longer valid. The hold must exist and have a token.
+// AddSemaphoreTokenLostEvent records that the hold started by initiatedEventID lost its token, and
+// the cause. The hold must have a token.
 func (e *mutableStateBuilder) AddSemaphoreTokenLostEvent(
 	initiatedEventID int64,
+	cause types.SemaphoreTokenLostCause,
 ) (*types.HistoryEvent, error) {
 
 	opTag := tag.WorkflowActionSemaphoreTokenLost
@@ -202,7 +203,7 @@ func (e *mutableStateBuilder) AddSemaphoreTokenLostEvent(
 		return nil, e.createInternalServerError(opTag)
 	}
 
-	event := e.hBuilder.AddSemaphoreTokenLostEvent(initiatedEventID, int32(semaphoreInfo.TokenID))
+	event := e.hBuilder.AddSemaphoreTokenLostEvent(initiatedEventID, int32(semaphoreInfo.TokenID), cause)
 	if err := e.ReplicateSemaphoreTokenLostEvent(event); err != nil {
 		return nil, err
 	}
@@ -237,8 +238,8 @@ func (e *mutableStateBuilder) ReplicateSemaphoreTokenLostEvent(
 	return e.taskGenerator.GenerateSemaphoreAcquireTimeoutTasks(initiatedEventID)
 }
 
-// AddSemaphoreAcquireFailedEvent records that the acquire started by initiatedEventID ended
-// without a token. It refuses a missing hold or a hold that already has a token.
+// AddSemaphoreAcquireFailedEvent records that the hold's acquire failed and deletes the hold. The
+// hold must have no token.
 func (e *mutableStateBuilder) AddSemaphoreAcquireFailedEvent(
 	initiatedEventID int64,
 	cause types.SemaphoreAcquireFailedCause,
@@ -267,7 +268,8 @@ func (e *mutableStateBuilder) AddSemaphoreAcquireFailedEvent(
 	return event, nil
 }
 
-// ReplicateSemaphoreAcquireFailedEvent ends the hold whose acquire failed.
+// ReplicateSemaphoreAcquireFailedEvent deletes the hold. It adds no release task, since the hold
+// has no token.
 func (e *mutableStateBuilder) ReplicateSemaphoreAcquireFailedEvent(
 	event *types.HistoryEvent,
 ) error {

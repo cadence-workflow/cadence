@@ -6796,12 +6796,45 @@ func ToSemaphoreAcquireFailedEventAttributes(t *shared.SemaphoreAcquireFailedEve
 	}
 }
 
+// FromSemaphoreTokenLostCause converts internal SemaphoreTokenLostCause type to thrift
+func FromSemaphoreTokenLostCause(t *types.SemaphoreTokenLostCause) *shared.SemaphoreTokenLostCause {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case types.SemaphoreTokenLostCauseNotHeld:
+		v := shared.SemaphoreTokenLostCauseNotHeld
+		return &v
+	case types.SemaphoreTokenLostCauseReset:
+		v := shared.SemaphoreTokenLostCauseReset
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
+// ToSemaphoreTokenLostCause converts thrift SemaphoreTokenLostCause type to internal
+func ToSemaphoreTokenLostCause(t *shared.SemaphoreTokenLostCause) *types.SemaphoreTokenLostCause {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case shared.SemaphoreTokenLostCauseNotHeld:
+		v := types.SemaphoreTokenLostCauseNotHeld
+		return &v
+	case shared.SemaphoreTokenLostCauseReset:
+		v := types.SemaphoreTokenLostCauseReset
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
 // FromSemaphoreTokenLostEventAttributes converts internal SemaphoreTokenLostEventAttributes type to thrift
 func FromSemaphoreTokenLostEventAttributes(t *types.SemaphoreTokenLostEventAttributes) *shared.SemaphoreTokenLostEventAttributes {
 	if t == nil {
 		return nil
 	}
 	return &shared.SemaphoreTokenLostEventAttributes{
+		Cause:            FromSemaphoreTokenLostCause(t.Cause),
 		TokenId:          &t.TokenID,
 		InitiatedEventId: &t.InitiatedEventID,
 	}
@@ -6813,6 +6846,7 @@ func ToSemaphoreTokenLostEventAttributes(t *shared.SemaphoreTokenLostEventAttrib
 		return nil
 	}
 	return &types.SemaphoreTokenLostEventAttributes{
+		Cause:            ToSemaphoreTokenLostCause(t.Cause),
 		TokenID:          t.GetTokenId(),
 		InitiatedEventID: t.GetInitiatedEventId(),
 	}

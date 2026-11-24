@@ -8677,11 +8677,71 @@ func (v *SemaphoreAcquireFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
+// SemaphoreTokenLostCause is why a hold lost its token.
+type SemaphoreTokenLostCause int32
+
+// Ptr is a helper function for getting pointer value
+func (e SemaphoreTokenLostCause) Ptr() *SemaphoreTokenLostCause {
+	return &e
+}
+
+// String returns a readable string representation of SemaphoreTokenLostCause.
+func (e SemaphoreTokenLostCause) String() string {
+	w := int32(e)
+	switch w {
+	case 0:
+		return "NOT_HELD"
+	case 1:
+		return "RESET"
+	}
+	return fmt.Sprintf("SemaphoreTokenLostCause(%d)", w)
+}
+
+// UnmarshalText parses enum value from string representation
+func (e *SemaphoreTokenLostCause) UnmarshalText(value []byte) error {
+	switch s := strings.ToUpper(string(value)); s {
+	case "NOT_HELD":
+		*e = SemaphoreTokenLostCauseNotHeld
+		return nil
+	case "RESET":
+		*e = SemaphoreTokenLostCauseReset
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "SemaphoreTokenLostCause", err)
+		}
+		*e = SemaphoreTokenLostCause(val)
+		return nil
+	}
+}
+
+// MarshalText encodes SemaphoreTokenLostCause to text.
+func (e SemaphoreTokenLostCause) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
+const (
+	// SemaphoreTokenLostCauseNotHeld means Matching does not hold the token for the hold.
+	SemaphoreTokenLostCauseNotHeld SemaphoreTokenLostCause = iota
+	// SemaphoreTokenLostCauseReset means a reset copied a token the new run does not own.
+	SemaphoreTokenLostCauseReset
+)
+
 // SemaphoreTokenLostEventAttributes records that the hold the acquire InitiatedEventID started no
 // longer has TokenID, so the hold gets a token again.
 type SemaphoreTokenLostEventAttributes struct {
-	TokenID          int32 `json:"tokenId,omitempty"`
-	InitiatedEventID int64 `json:"initiatedEventId,omitempty"`
+	Cause            *SemaphoreTokenLostCause `json:"cause,omitempty"`
+	TokenID          int32                    `json:"tokenId,omitempty"`
+	InitiatedEventID int64                    `json:"initiatedEventId,omitempty"`
+}
+
+// GetCause is an internal getter
+func (v *SemaphoreTokenLostEventAttributes) GetCause() (o SemaphoreTokenLostCause) {
+	if v != nil && v.Cause != nil {
+		return *v.Cause
+	}
+	return
 }
 
 // GetTokenID is an internal getter

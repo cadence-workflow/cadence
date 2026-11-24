@@ -3212,7 +3212,13 @@ func TestSemaphoreAcquireFailedEventAttributesFuzz(t *testing.T) {
 }
 
 func TestSemaphoreTokenLostEventAttributesFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromSemaphoreTokenLostEventAttributes, ToSemaphoreTokenLostEventAttributes)
+	testutils.RunMapperFuzzTest(t, FromSemaphoreTokenLostEventAttributes, ToSemaphoreTokenLostEventAttributes,
+		testutils.WithCustomFuncs(
+			func(e *types.SemaphoreTokenLostCause, c fuzz.Continue) {
+				*e = types.SemaphoreTokenLostCause(c.Intn(2)) // 0-1: NotHeld, Reset
+			},
+		),
+	)
 }
 
 func TestExportWorkflowExecutionRequest(t *testing.T) {
