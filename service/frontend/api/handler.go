@@ -2244,7 +2244,8 @@ func (wh *WorkflowHandler) SignalWithStartWorkflowExecutionAsync(
 		return nil, err
 	}
 	if signalWithStartRequest.GetRequestID() == "" {
-		// Counted, not rejected: the data decides whether a request id becomes mandatory for async requests.
+		// TODO(c-warren): Remove this once we've validated history backed queues
+		// Count signalWithStartRequests with an empty requestID for history backed queues
 		scope.IncCounter(metrics.AsyncRequestMissingRequestID)
 	}
 	producer, err := wh.producerManager.GetProducerByDomain(signalWithStartRequest.GetDomain())
