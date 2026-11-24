@@ -78,6 +78,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableDistributedSemaphore":                {dynamicproperties.EnableDistributedSemaphore, false},
 		"SemaphoreIdleTime":                         {dynamicproperties.MatchingSemaphoreIdleTime, time.Duration(44)},
 		"SemaphoreUpdateAckInterval":                {dynamicproperties.MatchingSemaphoreUpdateAckInterval, time.Duration(45)},
+		"RecordSemaphoreAcquiredTimeout":            {dynamicproperties.MatchingRecordSemaphoreAcquiredTimeout, time.Duration(46)},
 		"AsyncTaskDispatchTimeout":                  {dynamicproperties.AsyncTaskDispatchTimeout, time.Duration(25)},
 		"LocalPollWaitTime":                         {dynamicproperties.LocalPollWaitTime, time.Duration(10)},
 		"LocalTaskWaitTime":                         {dynamicproperties.LocalTaskWaitTime, time.Duration(10)},

@@ -78,6 +78,8 @@ type semaphoreManagerImpl struct {
 	taskWriter     *taskWriter
 	taskReader     *taskReader
 	historyService history.Client
+	// historyCallLimiter caps the History calls in flight at historyCallConcurrency.
+	historyCallLimiter chan struct{}
 	// grantNotifyC wakes the grant loop. It holds at most one signal.
 	grantNotifyC chan struct{}
 	// shutdownCh is closed by Stop, so watchForStop exits.
@@ -167,19 +169,20 @@ func NewManager(p ManagerParams) (Manager, error) {
 	}
 	logger := p.Logger.WithTags(p.ID.LogTags()...)
 	m := &semaphoreManagerImpl{
-		id:             p.ID,
-		bucketDB:       &bucketDB{id: p.ID, tokens: p.Tokens, metadata: p.Metadata},
-		logger:         logger,
-		timeSource:     p.TimeSource,
-		config:         newSemaphoreConfig(p.Cfg, p.DomainName),
-		taskDB:         newTaskDB(p.ID, p.Tasks, logger),
-		taskAckManager: messaging.NewAckManager(logger),
-		historyService: p.HistoryService,
-		grantNotifyC:   make(chan struct{}, 1),
-		shutdownCh:     make(chan struct{}),
-		onStopFn:       p.OnStopFn,
-		startupDoneCh:  make(chan struct{}),
-		bucketLock:     locks.NewMutex(),
+		id:                 p.ID,
+		bucketDB:           &bucketDB{id: p.ID, tokens: p.Tokens, metadata: p.Metadata},
+		logger:             logger,
+		timeSource:         p.TimeSource,
+		config:             newSemaphoreConfig(p.Cfg, p.DomainName),
+		taskDB:             newTaskDB(p.ID, p.Tasks, logger),
+		taskAckManager:     messaging.NewAckManager(logger),
+		historyService:     p.HistoryService,
+		historyCallLimiter: make(chan struct{}, historyCallConcurrency),
+		grantNotifyC:       make(chan struct{}, 1),
+		shutdownCh:         make(chan struct{}),
+		onStopFn:           p.OnStopFn,
+		startupDoneCh:      make(chan struct{}),
+		bucketLock:         locks.NewMutex(),
 	}
 	// The writer first: the reader reads the writer's maxReadLevel.
 	m.taskWriter = newTaskWriter(m)
@@ -211,6 +214,13 @@ func newSemaphoreConfig(cfg *config.Config, domainName string) *config.Semaphore
 				return interval
 			}
 			return dynamicproperties.MatchingSemaphoreUpdateAckInterval.DefaultDuration()
+		},
+		RecordAcquiredTimeout: func() time.Duration {
+			// A zero or negative timeout would fail every call before it is sent.
+			if timeout := cfg.RecordSemaphoreAcquiredTimeout(domainName); timeout > 0 {
+				return timeout
+			}
+			return dynamicproperties.MatchingRecordSemaphoreAcquiredTimeout.DefaultDuration()
 		},
 	}
 }
