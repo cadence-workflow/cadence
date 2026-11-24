@@ -375,19 +375,19 @@ func TestGetTasksPumpDeletesWhenSignaled(t *testing.T) {
 
 func TestDispatchBufferedTasks(t *testing.T) {
 	tests := []struct {
-		name             string
-		grantTaskReturns map[int64]bool
-		wantAckLevel     int64
+		name                    string
+		grantTokenToTaskReturns map[int64]bool
+		wantAckLevel            int64
 	}{
 		{
-			name:             "grants tasks in order, acking each once it is finished",
-			grantTaskReturns: map[int64]bool{1: true, 2: true},
-			wantAckLevel:     2,
+			name:                    "grants tasks in order, acking each once it is finished",
+			grantTokenToTaskReturns: map[int64]bool{1: true, 2: true},
+			wantAckLevel:            2,
 		},
 		{
-			name:             "stops at a task that is not finished, leaving it unacked",
-			grantTaskReturns: map[int64]bool{1: true, 2: false},
-			wantAckLevel:     1,
+			name:                    "stops at a task that is not finished, leaving it unacked",
+			grantTokenToTaskReturns: map[int64]bool{1: true, 2: false},
+			wantAckLevel:            1,
 		},
 	}
 	for _, tc := range tests {
@@ -396,11 +396,11 @@ func TestDispatchBufferedTasks(t *testing.T) {
 			store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
 			r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
 			granted := make(chan int64, 2)
-			r.grantTask = func(_ context.Context, task *persistence.SemaphoreTask) (int, bool) {
+			r.grantTokenToTask = func(_ context.Context, task *persistence.SemaphoreTask) (int, bool) {
 				granted <- task.TaskID
-				return int(task.TaskID), tc.grantTaskReturns[task.TaskID]
+				return int(task.TaskID), tc.grantTokenToTaskReturns[task.TaskID]
 			}
-			r.recordTaskGranted = func(context.Context, *persistence.SemaphoreTask, int) bool { return true }
+			r.recordSemaphoreAcquired = func(context.Context, *persistence.SemaphoreTask, int) bool { return true }
 			for _, task := range tasksWithIDs(1, 2) {
 				require.True(t, r.addTaskToBuffer(task))
 			}
@@ -468,11 +468,11 @@ func TestDispatchTask(t *testing.T) {
 			r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
 			task := tasksWithIDs(1)[0]
 			require.NoError(t, r.taskAckManager.ReadItem(task.TaskID))
-			r.grantTask = func(context.Context, *persistence.SemaphoreTask) (int, bool) {
+			r.grantTokenToTask = func(context.Context, *persistence.SemaphoreTask) (int, bool) {
 				return tc.tokenID, !tc.stoppedBeforeToken
 			}
 			var historyCalled bool
-			r.recordTaskGranted = func(context.Context, *persistence.SemaphoreTask, int) bool {
+			r.recordSemaphoreAcquired = func(context.Context, *persistence.SemaphoreTask, int) bool {
 				historyCalled = true
 				return !tc.stoppedBeforeHistoryAnswers
 			}
@@ -481,7 +481,6 @@ func TestDispatchTask(t *testing.T) {
 			r.wg.Wait()
 			assert.Equal(t, tc.wantHistoryCalled, historyCalled)
 			assert.Equal(t, tc.wantAcked, r.taskAckManager.GetBacklogCount() == 0)
-			assert.Empty(t, r.grantRecordLimiter, "the place in grantRecordLimiter is given back")
 		})
 	}
 }
@@ -492,9 +491,9 @@ func TestDispatchTask_RecordsInGoroutine(t *testing.T) {
 	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
 	task := tasksWithIDs(1)[0]
 	require.NoError(t, r.taskAckManager.ReadItem(task.TaskID))
-	r.grantTask = func(context.Context, *persistence.SemaphoreTask) (int, bool) { return 1, true }
+	r.grantTokenToTask = func(context.Context, *persistence.SemaphoreTask) (int, bool) { return 1, true }
 	historyAnswers := make(chan struct{})
-	r.recordTaskGranted = func(context.Context, *persistence.SemaphoreTask, int) bool {
+	r.recordSemaphoreAcquired = func(context.Context, *persistence.SemaphoreTask, int) bool {
 		select {
 		case <-historyAnswers:
 		case <-time.After(time.Second):
@@ -508,19 +507,4 @@ func TestDispatchTask_RecordsInGoroutine(t *testing.T) {
 	close(historyAnswers)
 	r.wg.Wait()
 	assert.Equal(t, int64(0), r.taskAckManager.GetBacklogCount(), "acked once History answers")
-}
-
-func TestDispatchTask_GrantRecordConcurrency(t *testing.T) {
-	store := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
-	r := newTestTaskReader(t, store, 0, clock.NewMockedTimeSource())
-	for i := 0; i < grantRecordConcurrency; i++ {
-		r.grantRecordLimiter <- struct{}{}
-	}
-	r.grantTask = func(context.Context, *persistence.SemaphoreTask) (int, bool) {
-		t.Fatal("no token while grantRecordConcurrency grants are being recorded")
-		return constants.NoSemaphoreTokenID, false
-	}
-
-	r.cancelFunc()
-	assert.False(t, r.dispatchTask(tasksWithIDs(1)[0]))
 }

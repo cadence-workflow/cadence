@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	// taskCallTimeout limits each call made for a task, to the database or to History.
 	taskCallTimeout             = 10 * time.Second
 	taskRetryInitialInterval    = 100 * time.Millisecond
 	taskRetryMaxInterval        = 10 * time.Second
@@ -23,6 +22,8 @@ const (
 	taskCriticalRetryCount = 10
 	// taskReleaseTimeout is how long releaseTaskToken retries a release before it gives up.
 	taskReleaseTimeout = 5 * time.Minute
+	// historyCallConcurrency is the most History calls one bucket makes at once.
+	historyCallConcurrency = 10
 )
 
 // taskRetrier backs off one retry loop of the grant loop and counts its failures.
@@ -40,20 +41,20 @@ func (m *semaphoreManagerImpl) signalGrantLoop() {
 	}
 }
 
-// taskOwnerID returns the owner id of task's hold.
-func taskOwnerID(task *persistence.SemaphoreTask) string {
+// ownerIDFromTask returns the owner id of task's hold.
+func ownerIDFromTask(task *persistence.SemaphoreTask) string {
 	return commonsemaphore.Owner{WorkflowID: task.WorkflowID, RunID: task.RunID, HoldID: task.HoldID}.String()
 }
 
-// grantTask grants a waiting task a token once one is free. It returns NoSemaphoreTokenID if the
-// task expired and holds none, and false only if ctx ends first. Each pass:
+// grantTokenToTask grants a waiting task a token once one is free. It returns NoSemaphoreTokenID if
+// the task expired and holds none, and false only if ctx ends first. Each pass:
 //   - The task expired: check whether it was already granted a token.
 //   - Otherwise: try to grant a token. If none is free, wait for a signal or the deadline, then
 //     try again.
 //
 // A failed call backs off and tries again.
-func (m *semaphoreManagerImpl) grantTask(ctx context.Context, task *persistence.SemaphoreTask) (int, bool) {
-	ownerID := taskOwnerID(task)
+func (m *semaphoreManagerImpl) grantTokenToTask(ctx context.Context, task *persistence.SemaphoreTask) (int, bool) {
+	ownerID := ownerIDFromTask(task)
 	retrier := m.newTaskRetrier(taskRetryMaxInterval)
 	for {
 		if m.isTaskExpired(task) {
@@ -115,11 +116,11 @@ func (m *semaphoreManagerImpl) findHeldToken(ctx context.Context, ownerID string
 	return m.readOwnerRowToken(callCtx, m.currentCache(), ownerID)
 }
 
-// recordTaskGranted records in History that task was granted tokenID. If History refuses the
+// recordSemaphoreAcquired records in History that task was granted tokenID. If History refuses the
 // grant, the token is released; any other error is retried. It returns true once the task is done,
 // and false if ctx ends first.
-func (m *semaphoreManagerImpl) recordTaskGranted(ctx context.Context, task *persistence.SemaphoreTask, tokenID int) bool {
-	ownerID := taskOwnerID(task)
+func (m *semaphoreManagerImpl) recordSemaphoreAcquired(ctx context.Context, task *persistence.SemaphoreTask, tokenID int) bool {
+	ownerID := ownerIDFromTask(task)
 	request := &types.RecordSemaphoreAcquiredRequest{
 		DomainUUID:        m.id.DomainID,
 		WorkflowExecution: &types.WorkflowExecution{WorkflowID: task.WorkflowID, RunID: task.RunID},
@@ -130,9 +131,10 @@ func (m *semaphoreManagerImpl) recordTaskGranted(ctx context.Context, task *pers
 	retrier := m.newTaskRetrier(taskHistoryRetryMaxInterval)
 	for {
 		m.liveness.MarkAlive()
-		callCtx, cancel := context.WithTimeout(ctx, taskCallTimeout)
-		_, err := m.historyService.RecordSemaphoreAcquired(callCtx, request)
-		cancel()
+		err := m.callHistory(ctx, func(callCtx context.Context) error {
+			_, err := m.historyService.RecordSemaphoreAcquired(callCtx, request)
+			return err
+		})
 		switch {
 		case err == nil:
 			return true
@@ -169,9 +171,9 @@ func (m *semaphoreManagerImpl) refreshWorkflowTasks(ctx context.Context, task *p
 	// domain fails back.
 	retrier := m.newTaskRetrier(taskHistoryRetryMaxInterval)
 	for {
-		callCtx, cancel := context.WithTimeout(ctx, taskCallTimeout)
-		err := m.historyService.RefreshWorkflowTasks(callCtx, request)
-		cancel()
+		err := m.callHistory(ctx, func(callCtx context.Context) error {
+			return m.historyService.RefreshWorkflowTasks(callCtx, request)
+		})
 		if err == nil || errors.As(err, new(*types.EntityNotExistsError)) {
 			return true
 		}
@@ -179,6 +181,20 @@ func (m *semaphoreManagerImpl) refreshWorkflowTasks(ctx context.Context, task *p
 			return false
 		}
 	}
+}
+
+// callHistory makes one History call while holding one of historyCallConcurrency places, so a call
+// that keeps failing holds none while it waits to retry.
+func (m *semaphoreManagerImpl) callHistory(ctx context.Context, call func(ctx context.Context) error) error {
+	select {
+	case m.historyCallLimiter <- struct{}{}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	defer func() { <-m.historyCallLimiter }()
+	callCtx, cancel := context.WithTimeout(ctx, m.config.RecordAcquiredTimeout())
+	defer cancel()
+	return call(callCtx)
 }
 
 // releaseTaskToken releases ownerID's tokenID, retrying until it succeeds or taskReleaseTimeout

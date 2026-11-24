@@ -1996,9 +1996,10 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 		// A clock that only moves when a test moves it, so no bucket is evicted mid-test.
 		timeSource: clock.NewMockedTimeSource(),
 		config: &config.Config{
-			EnableDistributedSemaphore: func(string) bool { return true },
-			SemaphoreIdleTime:          func(string) time.Duration { return time.Minute },
-			SemaphoreUpdateAckInterval: func(string) time.Duration { return time.Minute },
+			EnableDistributedSemaphore:     func(string) bool { return true },
+			SemaphoreIdleTime:              func(string) time.Duration { return time.Minute },
+			SemaphoreUpdateAckInterval:     func(string) time.Duration { return time.Minute },
+			RecordSemaphoreAcquiredTimeout: func(string) time.Duration { return time.Second },
 		},
 	}
 
@@ -2022,8 +2023,9 @@ func newUnstartedSemaphoreManager(t *testing.T, id semaphore.Identifier, tokens 
 		HistoryService: history.NewMockClient(gomock.NewController(t)),
 		Logger:         log.NewNoop(),
 		Cfg: &config.Config{
-			SemaphoreIdleTime:          func(string) time.Duration { return time.Minute },
-			SemaphoreUpdateAckInterval: func(string) time.Duration { return time.Minute },
+			SemaphoreIdleTime:              func(string) time.Duration { return time.Minute },
+			SemaphoreUpdateAckInterval:     func(string) time.Duration { return time.Minute },
+			RecordSemaphoreAcquiredTimeout: func(string) time.Duration { return time.Second },
 		},
 		DomainName: testDomain,
 		OnStopFn:   func(semaphore.Manager) {},

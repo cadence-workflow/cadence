@@ -24,8 +24,6 @@ const (
 	readRangeSize = 50_000
 	// maxReadWindows is how many empty windows one pass reads before it yields to the loop.
 	maxReadWindows = 10
-	// grantRecordConcurrency is the most grants one bucket records in History at once.
-	grantRecordConcurrency = 10
 )
 
 // taskReader grants tokens to tasks in task id order, and records each grant in History in its own
@@ -42,12 +40,10 @@ type taskReader struct {
 
 	taskGC *taskGC
 
-	taskBuffer        chan *persistence.SemaphoreTask
-	grantTask         func(ctx context.Context, task *persistence.SemaphoreTask) (tokenID int, ok bool)
-	recordTaskGranted func(ctx context.Context, task *persistence.SemaphoreTask, tokenID int) bool
-	signalGrantLoop   func()
-	// grantRecordLimiter caps the grants being recorded at grantRecordConcurrency.
-	grantRecordLimiter chan struct{}
+	taskBuffer              chan *persistence.SemaphoreTask
+	grantTokenToTask        func(ctx context.Context, task *persistence.SemaphoreTask) (tokenID int, ok bool)
+	recordSemaphoreAcquired func(ctx context.Context, task *persistence.SemaphoreTask, tokenID int) bool
+	signalGrantLoop         func()
 	// outstandingGrantCount counts the grants History hasn't answered yet.
 	outstandingGrantCount int64
 	// notifyC wakes the read loop. It holds at most one signal.
@@ -84,17 +80,16 @@ func newTaskReader(m *semaphoreManagerImpl) *taskReader {
 			backoff.WithRetryPolicy(common.CreatePersistenceRetryPolicy()),
 			backoff.WithRetryableError(persistence.IsTransientError),
 		),
-		taskGC:             newTaskGC(m.taskDB, m.timeSource),
-		taskBuffer:         make(chan *persistence.SemaphoreTask, getTasksBatchSize),
-		grantTask:          m.grantTask,
-		recordTaskGranted:  m.recordTaskGranted,
-		signalGrantLoop:    m.signalGrantLoop,
-		grantRecordLimiter: make(chan struct{}, grantRecordConcurrency),
-		notifyC:            make(chan struct{}, 1),
-		gcNotifyC:          make(chan struct{}, 1),
-		cancelCtx:          cancelCtx,
-		cancelFunc:         cancelFunc,
-		fatalCh:            make(chan struct{}),
+		taskGC:                  newTaskGC(m.taskDB, m.timeSource),
+		taskBuffer:              make(chan *persistence.SemaphoreTask, getTasksBatchSize),
+		grantTokenToTask:        m.grantTokenToTask,
+		recordSemaphoreAcquired: m.recordSemaphoreAcquired,
+		signalGrantLoop:         m.signalGrantLoop,
+		notifyC:                 make(chan struct{}, 1),
+		gcNotifyC:               make(chan struct{}, 1),
+		cancelCtx:               cancelCtx,
+		cancelFunc:              cancelFunc,
+		fatalCh:                 make(chan struct{}),
 	}
 }
 
@@ -181,36 +176,26 @@ func (tr *taskReader) dispatchBufferedTasks() {
 	}
 }
 
-// dispatchTask grants a waiting task a token and records the grant in History in a new goroutine.
+// dispatchTask grants a task a token and records it in History in a new goroutine, one per token.
 // It returns false only if the reader stops first.
 func (tr *taskReader) dispatchTask(task *persistence.SemaphoreTask) bool {
-	// 1. Take a place in grantRecordLimiter before the token, so no token is held while waiting.
-	select {
-	case tr.grantRecordLimiter <- struct{}{}:
-	case <-tr.cancelCtx.Done():
-		return false
-	}
-
-	// 2. Grant a token.
-	tokenID, ok := tr.grantTask(tr.cancelCtx, task)
+	// 1. Grant a token.
+	tokenID, ok := tr.grantTokenToTask(tr.cancelCtx, task)
 	if !ok {
-		<-tr.grantRecordLimiter
 		return false
 	}
 	if tokenID == constants.NoSemaphoreTokenID {
 		// With ok true, no token means the task expired and holds none: nothing to record.
-		<-tr.grantRecordLimiter
 		tr.completeTask(task)
 		return true
 	}
 
-	// 3. Record the grant in its own goroutine, so a slow History call doesn't hold up later tasks.
+	// 2. Record the grant in its own goroutine, so a slow History call doesn't hold up later tasks.
 	atomic.AddInt64(&tr.outstandingGrantCount, 1)
 	tr.wg.Add(1)
 	go func() {
 		defer tr.wg.Done()
-		defer func() { <-tr.grantRecordLimiter }()
-		recorded := tr.recordTaskGranted(tr.cancelCtx, task, tokenID)
+		recorded := tr.recordSemaphoreAcquired(tr.cancelCtx, task, tokenID)
 		// Lower the count before the ack, as hasTasks expects.
 		atomic.AddInt64(&tr.outstandingGrantCount, -1)
 		// If the reader stopped first, leave the task unacked so the next load records it.

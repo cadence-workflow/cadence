@@ -67,8 +67,9 @@ type mockDeps struct {
 // testConfig returns a config whose buckets unload after idleTime.
 func testConfig(idleTime time.Duration) *config.Config {
 	return &config.Config{
-		SemaphoreIdleTime:          func(string) time.Duration { return idleTime },
-		SemaphoreUpdateAckInterval: func(string) time.Duration { return testUpdateAckInterval() },
+		SemaphoreIdleTime:              func(string) time.Duration { return idleTime },
+		SemaphoreUpdateAckInterval:     func(string) time.Duration { return testUpdateAckInterval() },
+		RecordSemaphoreAcquiredTimeout: func(string) time.Duration { return time.Second },
 	}
 }
 
