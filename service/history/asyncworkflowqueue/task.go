@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.uber.org/multierr"
+
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
@@ -53,9 +55,9 @@ func (t *asyncWorkflowTask) Execute() error {
 	}
 
 	// Decode is inside the retried closure because it resolves the domain ID, which can fail transiently.
-	// ThrottleRetry.Do prefers the previous attempt's error over the one that ended the retry, so the
-	// final attempt's error is tracked here: it is what Nack records as the DLQ reason.
-	var lastErr error
+	// ThrottleRetry.Do returns only one attempt's error, so every attempt's error is collected here:
+	// together they are what Nack records as the DLQ reason.
+	var attemptErrs error
 	err := backoff.NewThrottleRetry(
 		backoff.WithRetryPolicy(t.p.RetryPolicy),
 		backoff.WithRetryableError(common.IsServiceTransientError),
@@ -65,11 +67,11 @@ func (t *asyncWorkflowTask) Execute() error {
 		if err == nil {
 			err = t.p.Processor.Process(ctx, req)
 		}
-		lastErr = err
+		attemptErrs = multierr.Append(attemptErrs, err)
 		return err
 	})
-	if err != nil && lastErr != nil {
-		err = lastErr
+	if err != nil && attemptErrs != nil {
+		err = attemptErrs
 	}
 	if errors.Is(err, ErrCorruptMessage) {
 		t.p.Scope.IncCounter(metrics.AsyncWorkflowQueueDecodeFailuresCounter)

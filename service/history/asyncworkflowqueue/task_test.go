@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -87,6 +88,7 @@ func TestTask(t *testing.T) {
 		wantExactProcess    int // 0 = only the minimum is checked
 		wantDLQ             bool
 		wantReason          string // "" = no reason check
+		wantReasonPerCall   string // the reason must be this message once per Process call, joined by "; "
 		wantAcked           bool   // AckMgr ack level advanced to the message id
 		wantState           ctask.State
 	}{
@@ -128,19 +130,19 @@ func TestTask(t *testing.T) {
 			expectProcess:       true,
 			wantMinProcessCalls: 2,
 			wantDLQ:             true,
-			wantReason:          transientErr.Error(),
+			wantReasonPerCall:   transientErr.Error(),
 			wantAcked:           true,
 			wantState:           ctask.TaskStateCanceled,
 		},
 		{
-			name:                "transient then non-transient writes DLQ with the final error as the reason",
+			name:                "transient then non-transient writes DLQ with every attempt's error in the reason",
 			action:              actionRun,
 			processResults:      []error{transientErr, nonTransientErr},
 			expectProcess:       true,
 			wantMinProcessCalls: 2,
 			wantExactProcess:    2,
 			wantDLQ:             true,
-			wantReason:          nonTransientErr.Error(),
+			wantReason:          transientErr.Error() + "; " + nonTransientErr.Error(),
 			wantAcked:           true,
 			wantState:           ctask.TaskStateCanceled,
 		},
@@ -364,6 +366,13 @@ func TestTask(t *testing.T) {
 			}
 			if tc.wantReason != "" {
 				assert.Equal(t, tc.wantReason, gotReason)
+			}
+			if tc.wantReasonPerCall != "" {
+				parts := strings.Split(gotReason, "; ")
+				assert.Len(t, parts, int(processCalls.Load()))
+				for _, part := range parts {
+					assert.Equal(t, tc.wantReasonPerCall, part)
+				}
 			}
 
 		})
