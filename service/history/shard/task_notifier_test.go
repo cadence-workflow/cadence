@@ -25,13 +25,17 @@ package shard
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	hcommon "github.com/uber/cadence/service/history/common"
 	"github.com/uber/cadence/service/history/config"
+	"github.com/uber/cadence/service/history/engine"
 )
 
 func TestIsOperationPossiblySuccessfulError(t *testing.T) {
@@ -185,6 +189,70 @@ func TestLogNotifyTaskDroppedOnPersistenceError(t *testing.T) {
 			ctxMap := entries[0].ContextMap()
 			assert.Equal(t, tc.wantTimerIDs, toInt64s(ctxMap["droppedTimerTaskIDs"]))
 			assert.Equal(t, tc.wantTransferIDs, toInt64s(ctxMap["droppedTransferTaskIDs"]))
+		})
+	}
+}
+
+func TestNotifyTasks_RoutesByCategory(t *testing.T) {
+	visibilityTask := &persistence.RecordWorkflowStartedTask{TaskData: persistence.TaskData{TaskID: 3}}
+
+	tests := map[string]struct {
+		tasksByCategory map[persistence.HistoryTaskCategory][]persistence.Task
+		expect          func(mockEngine *engine.MockEngine)
+	}{
+		"transfer tasks notify the transfer processor": {
+			tasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: {transferTask(1)},
+			},
+			expect: func(mockEngine *engine.MockEngine) {
+				mockEngine.EXPECT().NotifyNewTransferTasks(gomock.Any()).Do(func(info *hcommon.NotifyTaskInfo) {
+					assert.Equal(t, []persistence.Task{transferTask(1)}, info.Tasks)
+				}).Times(1)
+			},
+		},
+		"timer tasks notify the timer processor": {
+			tasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTimer: {timerTask(2)},
+			},
+			expect: func(mockEngine *engine.MockEngine) {
+				mockEngine.EXPECT().NotifyNewTimerTasks(gomock.Any()).Do(func(info *hcommon.NotifyTaskInfo) {
+					assert.Equal(t, []persistence.Task{timerTask(2)}, info.Tasks)
+				}).Times(1)
+			},
+		},
+		"visibility tasks notify the visibility processor": {
+			tasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryVisibility: {visibilityTask},
+			},
+			expect: func(mockEngine *engine.MockEngine) {
+				mockEngine.EXPECT().NotifyNewVisibilityTasks(gomock.Any()).Do(func(info *hcommon.NotifyTaskInfo) {
+					assert.Equal(t, []persistence.Task{visibilityTask}, info.Tasks)
+					assert.True(t, info.PersistenceError)
+				}).Times(1)
+			},
+		},
+		"empty categories notify nothing": {
+			tasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryVisibility: {},
+			},
+			expect: func(mockEngine *engine.MockEngine) {},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockEngine := engine.NewMockEngine(ctrl)
+			tc.expect(mockEngine)
+			n := newTaskNotifier(
+				0,
+				config.NewForTest(),
+				testlogger.New(t),
+				func() engine.Engine { return mockEngine },
+				func([]persistence.Task) map[string]time.Time { return nil },
+			)
+
+			n.notifyTasks(&persistence.WorkflowExecutionInfo{}, tc.tasksByCategory, true)
 		})
 	}
 }

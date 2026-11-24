@@ -79,6 +79,7 @@ type (
 		NotifyNewHistoryEvent(event *events.Notification)
 		NotifyNewTransferTasks(info *hcommon.NotifyTaskInfo)
 		NotifyNewTimerTasks(info *hcommon.NotifyTaskInfo)
+		NotifyNewVisibilityTasks(info *hcommon.NotifyTaskInfo)
 		NotifyNewReplicationTasks(info *hcommon.NotifyTaskInfo)
 
 		EnqueueAsyncWorkflowMessage(ctx context.Context, request *types.EnqueueAsyncWorkflowMessageRequest) (*types.EnqueueAsyncWorkflowMessageResponse, error)

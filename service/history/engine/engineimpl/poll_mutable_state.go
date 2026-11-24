@@ -216,12 +216,24 @@ func (e *historyEngineImpl) getMutableStateOrLongPoll(
 		expectedNextEventID = request.GetExpectedNextEventID()
 	}
 
-	if expectedNextEventID < mutableState.GetNextEventID() || !mutableState.GetIsWorkflowRunning() {
+	if expectedNextEventID < mutableState.GetNextEventID() || !isOpenForLongPoll(mutableState) {
 		return mutableState, nil
 	}
 	// if caller decide to long poll on workflow execution
 	// and the event ID we are looking for is smaller than current next event ID
 	return e.longPollForEventID(ctx, expectedNextEventID, domainID, execution, request.VersionHistoryItem)
+}
+
+// isOpenForLongPoll returns true when a long poll must wait for new events. An import in progress
+// with no close status gets new events, the same as a running workflow. An import that already
+// has the close event gets no new events.
+func isOpenForLongPoll(mutableState *types.GetMutableStateResponse) bool {
+	if mutableState.GetIsWorkflowRunning() {
+		return true
+	}
+	return mutableState.WorkflowState != nil &&
+		int(*mutableState.WorkflowState) == persistence.WorkflowStatePreparing &&
+		int(mutableState.GetWorkflowCloseState()) == persistence.WorkflowCloseStatusNone
 }
 
 func (e *historyEngineImpl) longPollForEventID(
@@ -256,7 +268,7 @@ func (e *historyEngineImpl) longPollForEventID(
 		}
 	}
 
-	if expectedNextEventID < mutableState.GetNextEventID() || !mutableState.GetIsWorkflowRunning() {
+	if expectedNextEventID < mutableState.GetNextEventID() || !isOpenForLongPoll(mutableState) {
 		return mutableState, nil
 	}
 
@@ -310,7 +322,7 @@ func (e *historyEngineImpl) longPollForEventID(
 				}
 			}
 
-			if expectedNextEventID < mutableState.GetNextEventID() || !mutableState.GetIsWorkflowRunning() {
+			if expectedNextEventID < mutableState.GetNextEventID() || !isOpenForLongPoll(mutableState) {
 				return mutableState, nil
 			}
 		case <-timer.C:

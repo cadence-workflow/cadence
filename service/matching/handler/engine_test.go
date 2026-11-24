@@ -1940,13 +1940,24 @@ func newSemaphoreMetadata(t *testing.T) persistence.SemaphoreMetadataManager {
 	return md
 }
 
-// newSemaphoreTasks returns a task store on which every bucket claims its queue.
+// newSemaphoreTasks returns a task store that accepts every claim, ack level save and delete of
+// finished tasks.
 func newSemaphoreTasks(t *testing.T) persistence.SemaphoreTaskManager {
 	t.Helper()
 	tasks := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
 	tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).AnyTimes().
 		Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+	expectAckLevelSavesAndDeletes(tasks)
 	return tasks
+}
+
+// expectAckLevelSavesAndDeletes accepts any number of ack level saves and deletes of finished
+// tasks.
+func expectAckLevelSavesAndDeletes(tasks *persistence.MockSemaphoreTaskManager) {
+	tasks.EXPECT().UpdateSemaphoreTaskBucketState(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.UpdateSemaphoreTaskBucketStateResponse{}, nil)
+	tasks.EXPECT().RangeCompleteSemaphoreTasks(gomock.Any(), gomock.Any()).AnyTimes().
+		Return(&persistence.RangeCompleteSemaphoreTasksResponse{}, nil)
 }
 
 // mustNewSemaphoreIdentifier returns the id of one bucket of the test semaphore.
@@ -1976,6 +1987,7 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 		semaphoreTokenManager:    tokens,
 		semaphoreMetadataManager: newSemaphoreMetadata(t),
 		semaphoreTaskManager:     newSemaphoreTasks(t),
+		historyService:           history.NewMockClient(ctrl),
 		domainCache:              domainCache,
 		membershipResolver:       resolver,
 		taskListRouter:           newTestTaskListRouter(resolver),
@@ -2003,11 +2015,12 @@ func newEngineWithSemaphores(t *testing.T, bucketOwner membership.HostInfo) (*ma
 func newUnstartedSemaphoreManager(t *testing.T, id semaphore.Identifier, tokens persistence.SemaphoreTokenManager) semaphore.Manager {
 	t.Helper()
 	mgr, err := semaphore.NewManager(semaphore.ManagerParams{
-		ID:       id,
-		Tokens:   tokens,
-		Metadata: newSemaphoreMetadata(t),
-		Tasks:    newSemaphoreTasks(t),
-		Logger:   log.NewNoop(),
+		ID:             id,
+		Tokens:         tokens,
+		Metadata:       newSemaphoreMetadata(t),
+		Tasks:          newSemaphoreTasks(t),
+		HistoryService: history.NewMockClient(gomock.NewController(t)),
+		Logger:         log.NewNoop(),
 		Cfg: &config.Config{
 			SemaphoreIdleTime:          func(string) time.Duration { return time.Minute },
 			SemaphoreUpdateAckInterval: func(string) time.Duration { return time.Minute },
@@ -2279,6 +2292,7 @@ func TestAcquireSemaphore(t *testing.T) {
 				tasks := persistence.NewMockSemaphoreTaskManager(gomock.NewController(t))
 				tasks.EXPECT().ClaimSemaphoreTaskBucket(gomock.Any(), gomock.Any()).
 					Return(&persistence.ClaimSemaphoreTaskBucketResponse{RangeID: 1}, nil)
+				expectAckLevelSavesAndDeletes(tasks)
 				tc.tasksSetup(t, tasks)
 				e.semaphoreTaskManager = tasks
 			}

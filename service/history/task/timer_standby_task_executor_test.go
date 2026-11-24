@@ -1224,7 +1224,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessSemaphoreAcquireTimeout_Token
 
 	_, err = mutableState.AddSemaphoreAcquiredEvent(initiatedEvent.ID, 3)
 	s.NoError(err)
-	event, err := mutableState.AddSemaphoreTokenLostEvent(initiatedEvent.ID)
+	event, err := mutableState.AddSemaphoreTokenLostEvent(initiatedEvent.ID, types.SemaphoreTokenLostCauseNotHeld)
 	s.NoError(err)
 	mutableState.FlushBufferedEvents()
 

@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/shard"
 )
@@ -685,6 +686,124 @@ func TestWorkflowRepairer_VerifyAndRepairWorkflowIfNeeded(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+// TestWorkflowRepairer_RepairViaRebuild_ImportInProgress checks that the repair of an import in
+// progress, current (Preparing) or a zombie, removes the tasks that the rebuild refreshed from the
+// replayed state, and persists the import state and the import fields, which the replay does not set.
+func TestWorkflowRepairer_RepairViaRebuild_ImportInProgress(t *testing.T) {
+	tests := map[string]struct {
+		state int
+	}{
+		"current import in progress": {state: persistence.WorkflowStatePreparing},
+		"zombie import":              {state: persistence.WorkflowStateZombie},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockMetricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
+			mockConfig := config.NewForTest()
+			mockConfig.MutableStateChecksumVerifyProbability = func(domain string) int { return 100 }
+			mockConfig.EnableCorruptionAutoRepair = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
+			mockConfig.CorruptionRepairTimeout = dynamicproperties.GetDurationPropertyFnFilteredByDomain(testTimeout)
+			mockConfig.RequireChecksumMatchAfterRebuildRepair = dynamicproperties.GetBoolPropertyFnFilteredByDomain(false)
+			testShard := shard.NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: 0, RangeID: 1}, mockConfig)
+			setupDomainCacheMocks(testShard)
+
+			importSource := &types.WorkflowExecution{WorkflowID: testWorkflowID, RunID: "source-run-id"}
+			importTimestamp := time.Unix(100, 0)
+			ms := NewMockMutableState(ctrl)
+			ms.EXPECT().GetChecksum().Return(mismatchedChecksum).AnyTimes()
+			ms.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+				DomainID:              testDomainID,
+				WorkflowID:            testWorkflowID,
+				RunID:                 testRunID,
+				State:                 tc.state,
+				CloseStatus:           persistence.WorkflowCloseStatusCompleted,
+				ImportSourceExecution: importSource,
+				ImportTimestamp:       importTimestamp,
+				ImportInProgress:      true,
+			}).AnyTimes()
+			ms.EXPECT().GetDomainEntry().Return(cache.NewGlobalDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: testDomainID, Name: testDomainName},
+				&persistence.DomainConfig{},
+				&persistence.DomainReplicationConfig{ActiveClusterName: "active"},
+				0,
+			)).AnyTimes()
+			ms.EXPECT().GetPendingTimerInfos().Return(map[string]*persistence.TimerInfo{}).AnyTimes()
+			ms.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{}).AnyTimes()
+			ms.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{}).AnyTimes()
+			ms.EXPECT().GetPendingRequestCancelExternalInfos().Return(map[int64]*persistence.RequestCancelInfo{}).AnyTimes()
+			ms.EXPECT().GetPendingSignalExternalInfos().Return(map[int64]*persistence.SignalInfo{}).AnyTimes()
+			ms.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{}).AnyTimes()
+			setupVersionHistories(ms)
+
+			// The replay of a complete imported history ends Completed, without the import fields.
+			rebuiltInfo := &persistence.WorkflowExecutionInfo{
+				DomainID:    testDomainID,
+				WorkflowID:  testWorkflowID,
+				RunID:       testRunID,
+				State:       persistence.WorkflowStateCompleted,
+				CloseStatus: persistence.WorkflowCloseStatusCompleted,
+			}
+			mockRebuiltMS := NewMockMutableState(ctrl)
+			mockRebuiltMS.EXPECT().GetExecutionInfo().Return(rebuiltInfo).AnyTimes()
+			mockRebuiltMS.EXPECT().GetVersionHistories().Return(nil).AnyTimes()
+			mockRebuiltMS.EXPECT().GetPendingTimerInfos().Return(map[string]*persistence.TimerInfo{}).AnyTimes()
+			mockRebuiltMS.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{}).AnyTimes()
+			mockRebuiltMS.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{}).AnyTimes()
+			mockRebuiltMS.EXPECT().GetPendingRequestCancelExternalInfos().Return(map[int64]*persistence.RequestCancelInfo{}).AnyTimes()
+			mockRebuiltMS.EXPECT().GetPendingSignalExternalInfos().Return(map[int64]*persistence.SignalInfo{}).AnyTimes()
+			mockRebuiltMS.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{}).AnyTimes()
+			mockRebuiltMS.EXPECT().SetHistorySize(int64(0)).Times(1)
+			mockRebuiltMS.EXPECT().SetUpdateCondition(int64(0)).Times(1)
+			mockRebuiltMS.EXPECT().GetHistorySize().Return(int64(1024)).Times(1)
+			// The refreshed tasks are removed before the transaction that persists the repair is closed.
+			gomock.InOrder(
+				mockRebuiltMS.EXPECT().DeleteTransferTasks().Times(1),
+				mockRebuiltMS.EXPECT().DeleteTimerTasks().Times(1),
+				mockRebuiltMS.EXPECT().CloseTransactionAsMutation(gomock.Any(), TransactionPolicyPassive).DoAndReturn(
+					func(time.Time, TransactionPolicy) (*persistence.WorkflowMutation, []*persistence.WorkflowEvents, error) {
+						return &persistence.WorkflowMutation{ExecutionInfo: rebuiltInfo}, nil, nil
+					},
+				).Times(1),
+			)
+			sr := NewMockStateRebuilder(ctrl)
+			sr.EXPECT().Rebuild(
+				gomock.Any(), gomock.Any(), gomock.Any(),
+				[]byte(testBranchToken), int64(9), int64(1),
+				gomock.Any(), gomock.Any(), "",
+			).Return(mockRebuiltMS, int64(0), nil).Times(1)
+
+			var updateRequest *persistence.UpdateWorkflowExecutionRequest
+			testShard.Resource.ExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.Anything).
+				Run(func(args mock.Arguments) {
+					updateRequest = args.Get(1).(*persistence.UpdateWorkflowExecutionRequest)
+				}).
+				Return(&persistence.UpdateWorkflowExecutionResponse{}, nil).Once()
+
+			repairer := &workflowRepairerImpl{
+				shard:          testShard,
+				stateRebuilder: sr,
+				logger:         log.NewNoop(),
+				metricsClient:  mockMetricsClient,
+				scope:          mockMetricsClient.Scope(metrics.WorkflowCorruptionRepairScope),
+			}
+
+			repaired, err := repairer.VerifyAndRepairWorkflowIfNeeded(context.Background(), ms)
+			require.NoError(t, err)
+			require.True(t, repaired)
+
+			require.NotNil(t, updateRequest)
+			persistedInfo := updateRequest.UpdateWorkflowMutation.ExecutionInfo
+			require.Equal(t, tc.state, persistedInfo.State)
+			require.Equal(t, persistence.WorkflowCloseStatusCompleted, persistedInfo.CloseStatus)
+			require.Equal(t, importSource, persistedInfo.ImportSourceExecution)
+			require.Equal(t, importTimestamp, persistedInfo.ImportTimestamp)
+			require.True(t, persistedInfo.ImportInProgress)
 		})
 	}
 }

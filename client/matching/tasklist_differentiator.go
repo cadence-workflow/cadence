@@ -8,6 +8,7 @@ import (
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/shardmanager"
 )
 
 const uuidRegex = `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`
@@ -17,11 +18,10 @@ var uuidRegexp = regexp.MustCompile(uuidRegex)
 // TaskListDifferentiator decides which shard holds a task list and whether the shard distributor
 // manages it.
 type TaskListDifferentiator struct {
-	metricsClient              metrics.Client
 	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn
 	shardTaskListsByHash       dynamicproperties.BoolPropertyFn
 	hashDomainID               dynamicproperties.BoolPropertyFn
-	percentageOnboarded        dynamicproperties.IntPropertyFn
+	percentageOnboarded        shardmanager.PercentageOnboarded
 	shardCount                 int
 }
 
@@ -34,11 +34,10 @@ func NewTaskListDifferentiator(
 	shardCount int,
 ) *TaskListDifferentiator {
 	return &TaskListDifferentiator{
-		metricsClient:              metricsClient,
 		excludeShortLivedTaskLists: excludeShortLivedTaskLists,
 		shardTaskListsByHash:       shardTaskListsByHash,
 		hashDomainID:               hashDomainID,
-		percentageOnboarded:        percentageOnboarded,
+		percentageOnboarded:        shardmanager.NewPercentageOnboarded(metricsClient, metrics.ShardManagerOnboardingScope, percentageOnboarded, shardCount),
 		shardCount:                 shardCount,
 	}
 }
@@ -63,7 +62,6 @@ func (d *TaskListDifferentiator) TaskListShard(domainID, taskListName string) Ta
 	// This regex checks if the task list name has a UUID, if it does we
 	// consider it a short lived tasklist that will not be managed by the shard distributor.
 	excludedAsShortLived := d.excludeShortLivedTaskLists() && uuidRegexp.MatchString(taskListName)
-	percentageOnboarded := uint64(d.currentPercentageOnboarded())
 
 	if d.shardTaskListsByHash() {
 		var shardIndex uint64
@@ -74,15 +72,14 @@ func (d *TaskListDifferentiator) TaskListShard(domainID, taskListName string) Ta
 		}
 		// Onboard the first percentageOnboarded percent of shards, so every task list in a shard
 		// gets the same decision.
-		shardOnboarded := shardIndex*100 < percentageOnboarded*uint64(d.shardCount)
-		if excludedAsShortLived || !shardOnboarded {
+		if excludedAsShortLived || !d.percentageOnboarded.ShardOnboarded(int(shardIndex)) {
 			return TaskListShard{id: "", onboardedToShardDistributor: false}
 		}
 		return TaskListShard{id: formatShardID(shardIndex), onboardedToShardDistributor: true}
 	}
 
 	hash := farm.Fingerprint64([]byte(taskListName))
-	if excludedAsShortLived || !isbelowPercentage(hash, percentageOnboarded) {
+	if excludedAsShortLived || !isbelowPercentage(hash, d.percentageOnboarded.Current()) {
 		return TaskListShard{id: "", onboardedToShardDistributor: false}
 	}
 	return TaskListShard{id: taskListName, onboardedToShardDistributor: true}
@@ -91,7 +88,7 @@ func (d *TaskListDifferentiator) TaskListShard(domainID, taskListName string) Ta
 // ShardDistributorEnabled reports whether the onboarding percentage is above 0. Matching hosts
 // heartbeat to the shard distributor only while it is, so setting it to 0 offboards them.
 func (d *TaskListDifferentiator) ShardDistributorEnabled() bool {
-	return d.currentPercentageOnboarded() > 0
+	return d.percentageOnboarded.Enabled()
 }
 
 // ShardsByHash reports whether task lists are currently grouped into hashed shards.
@@ -117,14 +114,6 @@ func TaskListNameToShard(taskListName string, shardCount int) string {
 	return formatShardID(shardIndex)
 }
 
-// currentPercentageOnboarded reads the onboarding percentage and emits it as a gauge on every read.
-func (d *TaskListDifferentiator) currentPercentageOnboarded() int {
-	percentageOnboarded := d.percentageOnboarded()
-	d.metricsClient.Scope(metrics.ShardManagerOnboardingScope).
-		UpdateGauge(metrics.PercentageOnboardedToShardManagerGauge, float64(percentageOnboarded))
-	return percentageOnboarded
-}
-
 // The domain ID is hashed too, so task lists that share a name across domains spread over the shards.
 func taskListShardIndex(domainID, taskListName string, shardCount int) uint64 {
 	hash := farm.Fingerprint64([]byte(domainID + "/" + taskListName))
@@ -143,6 +132,6 @@ func formatShardID(shardIndex uint64) string {
 	return strconv.FormatUint(shardIndex, 10)
 }
 
-func isbelowPercentage(hash uint64, percentageOnboarded uint64) bool {
-	return hash%100 < percentageOnboarded
+func isbelowPercentage(hash uint64, percentageOnboarded int) bool {
+	return int(hash%100) < percentageOnboarded
 }

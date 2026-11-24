@@ -366,6 +366,8 @@ const (
 	HashringScope
 	// ShardManagerOnboardingScope is a metrics scope for the matching → shard-manager onboarding percentage gauge.
 	ShardManagerOnboardingScope
+	// ShardManagerHistoryOnboardingScope is a metrics scope for the history → shard-manager onboarding percentage gauge.
+	ShardManagerHistoryOnboardingScope
 	// ShardDistributorResolverScope is a metrics scope for matching routing decisions.
 	ShardDistributorResolverScope
 	// HistoryClientStartWorkflowExecutionScope tracks RPC calls to history service
@@ -2070,13 +2072,14 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 
 		GetAvailableIsolationGroupsScope: {operation: "GetAvailableIsolationGroups"},
 
-		DomainFailoverScope:           {operation: "DomainFailover"},
-		TaskValidatorScope:            {operation: "TaskValidation"},
-		DomainReplicationQueueScope:   {operation: "DomainReplicationQueue"},
-		ClusterMetadataScope:          {operation: "ClusterMetadata"},
-		HashringScope:                 {operation: "Hashring"},
-		ShardManagerOnboardingScope:   {operation: "ShardManagerOnboarding"},
-		ShardDistributorResolverScope: {operation: "ShardDistributorResolver"},
+		DomainFailoverScope:                {operation: "DomainFailover"},
+		TaskValidatorScope:                 {operation: "TaskValidation"},
+		DomainReplicationQueueScope:        {operation: "DomainReplicationQueue"},
+		ClusterMetadataScope:               {operation: "ClusterMetadata"},
+		HashringScope:                      {operation: "Hashring"},
+		ShardManagerOnboardingScope:        {operation: "ShardManagerOnboarding"},
+		ShardManagerHistoryOnboardingScope: {operation: "ShardManagerHistoryOnboarding"},
+		ShardDistributorResolverScope:      {operation: "ShardDistributorResolver"},
 
 		// currently used by both frontend and history, but may grow to other limiting-host-services.
 		GlobalRatelimiter:           {operation: "GlobalRatelimiter"},
@@ -3171,6 +3174,9 @@ const (
 	HistoryTaskDLQReinjectFailuresCounter
 	// HistoryTaskDLQPageSizeBytes tracks the serialized byte size of each re-injected DLQ page
 	HistoryTaskDLQPageSizeBytes
+	// HistoryTaskDLQBusyResponsesCounter counts ServiceBusy responses received by the DLQ processor,
+	// including the last one when retries run out
+	HistoryTaskDLQBusyResponsesCounter
 	// HistoryTaskDLQAckLevelRows tracks how many DLQ ack-level rows a shard carries, recorded
 	// once per periodic sweep from the length of the shard-scoped ack-level read
 	HistoryTaskDLQAckLevelRows
@@ -3859,6 +3865,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		HistoryTaskDLQReinjectFailuresCounter:   {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
 		HistoryTaskDLQPageSizeBytes:             {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
+		HistoryTaskDLQBusyResponsesCounter:      {metricName: "history_task_dlq_busy_responses", metricType: Counter},
 		HistoryTaskDLQAckLevelRows:              {metricName: "history_task_dlq_ack_level_rows", metricType: Histogram, buckets: TaskCountBuckets},
 		AsyncWorkflowQueueFetchedCounter:        {metricName: "async_workflow_queue_fetched", metricType: Counter},
 		AsyncWorkflowQueueSubmittedCounter:      {metricName: "async_workflow_queue_submitted", metricType: Counter},

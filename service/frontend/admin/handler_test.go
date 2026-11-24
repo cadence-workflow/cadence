@@ -2999,6 +2999,70 @@ func TestUpdateOperationalDynamicConfig(t *testing.T) {
 	})
 }
 
+func TestUpdateOperationalDynamicConfig_OnboardingPercentageRange(t *testing.T) {
+	jsonValue := func(data string) *types.DynamicConfigValue {
+		return &types.DynamicConfigValue{Value: &types.DataBlob{EncodingType: types.EncodingTypeJSON.Ptr(), Data: []byte(data)}}
+	}
+	key := dynamicproperties.HistoryPercentageOnboardedToShardManager.String()
+	tests := []struct {
+		name       string
+		configName string
+		values     []*types.DynamicConfigValue
+		wantStored bool
+	}{
+		{name: "0", configName: key, values: []*types.DynamicConfigValue{jsonValue("0")}, wantStored: true},
+		{name: "100", configName: key, values: []*types.DynamicConfigValue{jsonValue("100")}, wantStored: true},
+		{name: "-1", configName: key, values: []*types.DynamicConfigValue{jsonValue("-1")}},
+		{name: "101", configName: key, values: []*types.DynamicConfigValue{jsonValue("101")}},
+		{name: "null", configName: key, values: []*types.DynamicConfigValue{jsonValue("null")}},
+		{name: "integral float", configName: key, values: []*types.DynamicConfigValue{jsonValue("50.0")}, wantStored: true},
+		{name: "fraction", configName: key, values: []*types.DynamicConfigValue{jsonValue("50.5")}},
+		{name: "out of range float", configName: key, values: []*types.DynamicConfigValue{jsonValue("100.5")}},
+		{name: "string", configName: key, values: []*types.DynamicConfigValue{jsonValue(`"50"`)}},
+		{name: "nil entry", configName: key, values: []*types.DynamicConfigValue{nil}},
+		{name: "matching key is bounded too", configName: dynamicproperties.MatchingPercentageOnboardedToShardManager.String(), values: []*types.DynamicConfigValue{jsonValue("101")}},
+		{name: "unbounded int key accepts -5", configName: "testGetIntPropertyKey", values: []*types.DynamicConfigValue{jsonValue("-5")}, wantStored: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := configstore.NewMockClient(gomock.NewController(t))
+			if tt.wantStored {
+				store.EXPECT().UpdateValue(gomock.Any(), tt.values).Return(nil)
+			}
+			h := newOperationalConfigAdminHandler(t, store)
+
+			err := h.UpdateOperationalDynamicConfig(context.Background(), &types.UpdateOperationalDynamicConfigRequest{
+				ConfigName:   tt.configName,
+				ConfigValues: tt.values,
+			})
+
+			if tt.wantStored {
+				assert.NoError(t, err)
+				return
+			}
+			var bad *types.BadRequestError
+			require.ErrorAs(t, err, &bad)
+			assert.Contains(t, bad.Message, tt.configName)
+		})
+	}
+}
+
+func TestUpdateDynamicConfig_RejectsOutOfRangeOnboardingPercentage(t *testing.T) {
+	h := newOperationalConfigAdminHandler(t, nil)
+	h.params.DynamicConfig = configstore.NewMockClient(gomock.NewController(t))
+
+	err := h.UpdateDynamicConfig(context.Background(), &types.UpdateDynamicConfigRequest{
+		ConfigName: dynamicproperties.HistoryPercentageOnboardedToShardManager.String(),
+		ConfigValues: []*types.DynamicConfigValue{{
+			Value: &types.DataBlob{EncodingType: types.EncodingTypeJSON.Ptr(), Data: []byte("1000")},
+		}},
+	})
+
+	var bad *types.BadRequestError
+	require.ErrorAs(t, err, &bad)
+	assert.Equal(t, "history.percentageOnboardedToShardManager must be between 0 and 100, got 1000", bad.Message)
+}
+
 func TestGetOperationalDynamicConfig(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Run("nil request errors", func(t *testing.T) {

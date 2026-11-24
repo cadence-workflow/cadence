@@ -186,3 +186,198 @@ func StartBatchRefresh(c *cli.Context) error {
 		RefreshBatchOperation: &types.RefreshBatchOperation{},
 	})
 }
+
+var batchOperationStateMap = map[string]types.BatchOperationState{
+	"running":   types.BatchOperationStateRunning,
+	"completed": types.BatchOperationStateCompleted,
+	"failed":    types.BatchOperationStateFailed,
+	"stopped":   types.BatchOperationStateStopped,
+}
+
+func getBatchOperationState(stateStr string) (types.BatchOperationState, error) {
+	if state, ok := batchOperationStateMap[strings.ToLower(stateStr)]; ok {
+		return state, nil
+	}
+	return types.BatchOperationStateInvalid, commoncli.Problem(
+		"option state is not one of allowed values [running, completed, failed, stopped]", nil)
+}
+
+// DescribeBatchOperation prints the status and progress of a single batch.
+func DescribeBatchOperation(c *cli.Context) error {
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	batchID, err := getRequiredOption(c, FlagBatchID)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	frontendClient, err := getBatchOperationsClient(c)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
+	defer cancel()
+
+	resp, err := frontendClient.DescribeBatchOperation(ctx, &types.DescribeBatchOperationRequest{
+		Domain:  domain,
+		BatchID: batchID,
+	})
+	if err != nil {
+		return commoncli.Problem("Failed to describe batch operation", err)
+	}
+
+	output := map[string]interface{}{
+		"batchID":   batchID,
+		"state":     resp.GetState().String(),
+		"reason":    resp.GetReason(),
+		"startedBy": resp.GetStartedBy(),
+		"startTime": resp.GetStartTime(),
+		"closeTime": resp.GetCloseTime(),
+		"progress":  resp.GetProgress(),
+		"limits":    resp.GetLimits(),
+	}
+	prettyPrintJSONObject(getDeps(c).Output(), output)
+	return nil
+}
+
+// ListBatchOperations lists the batch operations started for a domain.
+func ListBatchOperations(c *cli.Context) error {
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	frontendClient, err := getBatchOperationsClient(c)
+	if err != nil {
+		return err
+	}
+
+	request := &types.ListBatchOperationsRequest{
+		Domain:   domain,
+		PageSize: int32(c.Int(FlagPageSize)),
+	}
+	if stateStr := c.String(FlagBatchOperationState); stateStr != "" {
+		state, err := getBatchOperationState(stateStr)
+		if err != nil {
+			return err
+		}
+		request.State = state
+	}
+
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
+	defer cancel()
+
+	found := false
+	for {
+		resp, err := frontendClient.ListBatchOperations(ctx, request)
+		if err != nil {
+			return commoncli.Problem("Failed to list batch operations", err)
+		}
+		for _, entry := range resp.GetBatchOperations() {
+			found = true
+			fmt.Printf("  %-40s  %-10s  %-20s\n", entry.BatchID, entry.State.String(), entry.StartedBy)
+		}
+		if len(resp.GetNextPageToken()) == 0 {
+			break
+		}
+		request.NextPageToken = resp.GetNextPageToken()
+	}
+
+	if !found {
+		fmt.Println("No batch operations found.")
+	}
+	return nil
+}
+
+// StopBatchOperation terminates a running batch operation.
+func StopBatchOperation(c *cli.Context) error {
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	batchID, err := getRequiredOption(c, FlagBatchID)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	frontendClient, err := getBatchOperationsClient(c)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
+	defer cancel()
+
+	_, err = frontendClient.StopBatchOperation(ctx, &types.StopBatchOperationRequest{
+		Domain:   domain,
+		BatchID:  batchID,
+		Reason:   c.String(FlagReason),
+		Identity: getCurrentUserFromEnv(),
+	})
+	if err != nil {
+		return commoncli.Problem("Failed to stop batch operation", err)
+	}
+
+	output := map[string]interface{}{
+		"msg":     "batch operation is stopped",
+		"batchID": batchID,
+	}
+	prettyPrintJSONObject(getDeps(c).Output(), output)
+	return nil
+}
+
+// UpdateBatchOperation changes the RPS and/or concurrency of a running batch.
+func UpdateBatchOperation(c *cli.Context) error {
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	batchID, err := getRequiredOption(c, FlagBatchID)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	rps, concurrency := c.Int(FlagRPS), c.Int(FlagConcurrency)
+	if rps < 0 || concurrency < 0 {
+		return commoncli.Problem("--rps and --concurrency must not be negative", nil)
+	}
+	if rps == 0 && concurrency == 0 {
+		return commoncli.Problem("At least one of --rps or --concurrency must be set to a positive value", nil)
+	}
+	frontendClient, err := getBatchOperationsClient(c)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
+	defer cancel()
+
+	_, err = frontendClient.UpdateBatchOperation(ctx, &types.UpdateBatchOperationRequest{
+		Domain:      domain,
+		BatchID:     batchID,
+		RPS:         int32(rps),
+		Concurrency: int32(concurrency),
+		Identity:    getCurrentUserFromEnv(),
+	})
+	if err != nil {
+		return commoncli.Problem("Failed to update batch operation", err)
+	}
+
+	output := map[string]interface{}{
+		"msg":     "batch operation is updated",
+		"batchID": batchID,
+	}
+	prettyPrintJSONObject(getDeps(c).Output(), output)
+	return nil
+}

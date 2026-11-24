@@ -1590,6 +1590,46 @@ func TestCloseShard(t *testing.T) {
 	assert.Equal(t, int64(-1), shardContext.shardInfo.RangeID)
 }
 
+func TestGetQueueState_Visibility(t *testing.T) {
+	persistedState := &types.QueueState{
+		ExclusiveMaxReadLevel: &types.TaskKey{TaskID: 100},
+	}
+
+	tests := map[string]struct {
+		queueStates map[int32]*types.QueueState
+		want        *types.QueueState
+	}{
+		"no persisted state starts from the minimum key": {
+			queueStates: map[int32]*types.QueueState{},
+			want: &types.QueueState{
+				ExclusiveMaxReadLevel: &types.TaskKey{TaskID: 0},
+			},
+		},
+		"persisted state is returned as is": {
+			queueStates: map[int32]*types.QueueState{
+				int32(persistence.HistoryTaskCategoryIDVisibility): persistedState,
+			},
+			want: persistedState,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			shardContext := &contextImpl{
+				shardInfo: &persistence.ShardInfo{
+					// legacy transfer ack level must not leak into the visibility queue state
+					TransferAckLevel: 50,
+					QueueStates:      tc.queueStates,
+				},
+			}
+
+			got, err := shardContext.GetQueueState(persistence.HistoryTaskCategoryVisibility)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestCloseShard_AlreadyClosed(t *testing.T) {
 	closeTime := time.Unix(123, 456)
 

@@ -488,7 +488,7 @@ func (t *taskImpl) shouldResubmitOnNack(err error) bool {
 		return true
 	}
 	return t.GetAttempt() < activeTaskResubmitMaxAttempts &&
-		(t.queueType == QueueTypeActiveTransfer || t.queueType == QueueTypeActiveTimer || ((t.queueType == QueueTypeTransfer || t.queueType == QueueTypeTimer) && t.isPreviousExecutorActive))
+		(t.queueType == QueueTypeActiveTransfer || t.queueType == QueueTypeActiveTimer || ((t.queueType == QueueTypeTransfer || t.queueType == QueueTypeTimer || t.queueType == QueueTypeVisibility) && t.isPreviousExecutorActive))
 }
 
 func (t *taskImpl) backoffDuration(attempt int) time.Duration {

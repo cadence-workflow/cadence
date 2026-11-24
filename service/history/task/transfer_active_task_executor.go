@@ -1356,7 +1356,8 @@ func (t *transferActiveTaskExecutor) processAcquireSemaphore(
 
 	bucket, err := t.getOwnerBucket(ctx, task.DomainID, semaphoreInfo.SemaphoreName, semaphoreInfo.OwnerID)
 	if errors.As(err, new(*types.EntityNotExistsError)) {
-		// The semaphore does not exist, so the acquire can never succeed.
+		// The semaphore doesn't exist: end the acquire with SemaphoreAcquireFailed (NOT_FOUND), so the
+		// workflow's acquire returns an error.
 		return recordSemaphoreAcquireFailed(ctx, t.logger, wfContext, task.InitiatedID,
 			types.SemaphoreAcquireFailedCauseNotFound, t.shard.GetTimeSource().Now())
 	}
@@ -2319,8 +2320,8 @@ func (t *transferActiveTaskExecutor) acquireSemaphoreToken(
 	}
 }
 
-// recordSemaphoreGranted records the token on the hold and schedules a decision so the workflow sees it.
-// It skips a closed run, a missing hold, or a token already recorded.
+// recordSemaphoreGranted records the token on the hold and schedules a decision so the workflow
+// sees it. A closed run, a missing hold, or a token already recorded is treated as done.
 func recordSemaphoreGranted(
 	ctx context.Context,
 	logger log.Logger,
@@ -2338,7 +2339,7 @@ func recordSemaphoreGranted(
 
 			semaphoreInfo, ok := mutableState.GetSemaphoreInfo(initiatedEventID)
 			if !ok {
-				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
+				return &types.EntityNotExistsError{Message: "Semaphore hold not found or already has a token."}
 			}
 			if semaphoreInfo.HasToken() {
 				if semaphoreInfo.TokenID != int(tokenID) {
@@ -2354,7 +2355,7 @@ func recordSemaphoreGranted(
 						tag.SemaphoreGrantedTokenID(int(tokenID)),
 					)
 				}
-				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
+				return &types.EntityNotExistsError{Message: "Semaphore hold not found or already has a token."}
 			}
 
 			_, err := mutableState.AddSemaphoreAcquiredEvent(initiatedEventID, tokenID)
@@ -2364,8 +2365,8 @@ func recordSemaphoreGranted(
 	)
 }
 
-// recordSemaphoreAcquireFailed ends the hold without a token and schedules a decision so the
-// workflow sees the failure. It skips a closed run, a missing hold, or a hold that has a token.
+// recordSemaphoreAcquireFailed deletes the hold and schedules a decision so the workflow sees
+// the failure. A closed run, a missing hold, or a hold with a token is treated as done.
 func recordSemaphoreAcquireFailed(
 	ctx context.Context,
 	logger log.Logger,
@@ -2383,7 +2384,7 @@ func recordSemaphoreAcquireFailed(
 
 			semaphoreInfo, ok := mutableState.GetSemaphoreInfo(initiatedEventID)
 			if !ok || semaphoreInfo.HasToken() {
-				return &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
+				return &types.EntityNotExistsError{Message: "Semaphore hold not found or already has a token."}
 			}
 
 			_, err := mutableState.AddSemaphoreAcquireFailedEvent(initiatedEventID, cause)

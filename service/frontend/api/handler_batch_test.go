@@ -173,6 +173,7 @@ func TestStartBatchOperation(t *testing.T) {
 						require.NotNil(t, params.Operation)
 						assert.Equal(t, types.BatchOperationTypeSignal, params.Operation.GetOperationType())
 						assert.Equal(t, "my-signal", params.Operation.GetSignalBatchOperation().GetSignalName())
+						assert.Equal(t, []byte("signal-input"), params.Operation.GetSignalBatchOperation().GetInput(), "the real signal input must still reach the workflow input")
 
 						return &types.StartWorkflowExecutionResponse{RunID: "test-run-id"}, nil
 					})
@@ -261,7 +262,9 @@ func TestDescribeBatchOperation(t *testing.T) {
 						assert.Equal(t, "cadence-sys-batch-operation:test-domain:my-batch-id", req.Request.Execution.WorkflowID)
 						return &types.DescribeWorkflowExecutionResponse{
 							WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
-								Memo:             &types.Memo{Fields: map[string][]byte{"Reason": reasonBytes}},
+								Memo: &types.Memo{Fields: map[string][]byte{
+									"Reason": reasonBytes,
+								}},
 								SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{"Operator": operatorBytes}},
 							},
 							PendingActivities: []*types.PendingActivityInfo{{HeartbeatDetails: hbd}},

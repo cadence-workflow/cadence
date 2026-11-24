@@ -54,6 +54,18 @@ func (e *historyEngineImpl) RequestCancelWorkflowExecution(
 
 	return workflow.UpdateCurrentWithActionFunc(ctx, e.logger, e.executionCache, e.executionManager, e.shard.GetShardID(), domainID, e.shard.GetDomainCache(), workflowExecution, e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) (*workflow.UpdateAction, error) {
+			if mutableState.GetExecutionInfo().State == persistence.WorkflowStatePreparing {
+				// An import in progress has a new run ID, so it is not the child of a parent in this cluster
+				// and not a run of the requested chain. A not found error lets the parent close policy
+				// complete, in the transfer task and in the worker. Any other error makes it retry.
+				if childWorkflowOnly {
+					return nil, workflow.ErrParentMismatch
+				}
+				if request.GetFirstExecutionRunID() != "" {
+					return nil, &types.EntityNotExistsError{Message: "Workflow execution not found"}
+				}
+				return nil, workflow.ErrImportInProgress
+			}
 			isCancelRequested, cancelRequestID := mutableState.IsCancelRequested()
 			if !mutableState.IsWorkflowExecutionRunning() {
 				_, closeStatus := mutableState.GetWorkflowStateCloseStatus()

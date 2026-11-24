@@ -135,34 +135,68 @@ func (s *IntegrationBase) setupSuite() {
 	}
 	s.TestRawHistoryDomainName = "TestRawHistoryDomain"
 	s.DomainName = s.RandomizeStr("integration-test-domain")
-	s.Require().NoError(
-		s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
-	s.Require().NoError(
-		s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 	s.ForeignDomainName = s.RandomizeStr("integration-foreign-test-domain")
-	s.Require().NoError(
-		s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
-
-	s.Require().NoError(s.registerArchivalDomain())
 	s.ActiveActiveDomainName = s.RandomizeStr("integration-active-active-test-domain")
-	s.Require().NoError(s.RegisterDomain(s.ActiveActiveDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", &types.ActiveClusters{
-		AttributeScopes: map[string]types.ClusterAttributeScope{
-			"region": {
-				ClusterAttributes: map[string]types.ActiveClusterInfo{
-					"us-east": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
-				},
-			},
-			"city": {
-				ClusterAttributes: map[string]types.ActiveClusterInfo{
-					"tokyo": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
-				},
-			},
-		},
-	}))
 
-	// this sleep is necessary because domainv2 cache gets refreshed in the
-	// background only every domainCacheRefreshInterval period
-	time.Sleep(cache.DomainCacheRefreshInterval + time.Second)
+	// Domain registrations share a persistence notification version. Keep them
+	// sequential so concurrent writes cannot race the metadata update.
+	registerDomain := func(domain string, registerFn func() error) {
+		s.Require().NoError(registerFn(), "register domain %s", domain)
+	}
+
+	registerDomain(s.DomainName, func() error {
+		return s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain(s.TestRawHistoryDomainName, func() error {
+		return s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain(s.ForeignDomainName, func() error {
+		return s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil)
+	})
+	registerDomain("ArchivalDomain", func() error {
+		return s.registerArchivalDomain()
+	})
+	registerDomain(s.ActiveActiveDomainName, func() error {
+		return s.RegisterDomain(s.ActiveActiveDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", &types.ActiveClusters{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-east": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
+					},
+				},
+				"city": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"tokyo": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
+					},
+				},
+			},
+		})
+	})
+
+	domains := []string{s.DomainName, s.TestRawHistoryDomainName, s.ForeignDomainName, s.ArchivalDomainName, s.ActiveActiveDomainName}
+	s.Require().NoError(s.waitForDomains(domains))
+}
+
+// waitForDomains waits for domains to be available in the cache.
+// Note: This helper uses real-time time.Sleep and relies on the domain cache's
+// background ticker. Reusing this from a suite with a fully mocked time source
+// may cause it to hang until timeout unless the mock clock is explicitly advanced.
+func (s *IntegrationBase) waitForDomains(domains []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	for _, domain := range domains {
+		for {
+			_, err := s.TestCluster.host.GetDomainCache().GetDomain(domain)
+			if err == nil {
+				break
+			}
+			if ctx.Err() != nil {
+				return fmt.Errorf("timeout waiting for domain %s: %w", domain, err)
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	return nil
 }
 
 func (s *IntegrationBase) SetupLogger() {
@@ -261,10 +295,44 @@ func (s *IntegrationBase) RegisterDomain(
 	})
 }
 
-func (s *IntegrationBase) domainCacheRefresh() {
+// domainCacheRefresh forces the in-memory domain cache to refresh from persistence by advancing the mock clock.
+func (s *IntegrationBase) domainCacheRefresh(domainNames ...string) {
+	// Read the target versions from persistence. Reading the cache first is not
+	// sufficient for newly registered domains because a cache miss loads the
+	// current version and leaves no later version increase to observe.
+	expectedVersions := make(map[string]int64)
+	for _, domain := range domainNames {
+		response, err := s.TestCluster.testBase.DomainManager.GetDomain(
+			context.Background(),
+			&persistence.GetDomainRequest{Name: domain},
+		)
+		s.Require().NoError(err, "get expected persistence version for domain %s", domain)
+		expectedVersions[domain] = response.NotificationVersion
+	}
+
 	s.TestClusterConfig.TimeSource.Advance(cache.DomainCacheRefreshInterval + time.Second)
-	// this sleep is necessary to yield execution to other goroutines. not 100% guaranteed to work
-	time.Sleep(2 * time.Second)
+
+	// Poll until the cache has loaded each persisted version.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	for _, domain := range domainNames {
+		expected := expectedVersions[domain]
+		for {
+			entry, err := s.TestCluster.host.GetDomainCache().GetDomain(domain)
+			if err == nil && entry.GetNotificationVersion() >= expected {
+				break
+			}
+			if ctx.Err() != nil {
+				s.Require().NoError(
+					ctx.Err(),
+					"timeout waiting for domain cache refresh: domain=%s expected_notification_version=%d",
+					domain,
+					expected,
+				)
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 }
 
 func (s *IntegrationBase) RandomizeStr(id string) string {
