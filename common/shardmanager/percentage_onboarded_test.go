@@ -29,7 +29,7 @@ func TestShardOnboarded(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, ShardOnboarded(tt.shardIndex, tt.numShards, tt.percentageOnboarded))
+			assert.Equal(t, tt.want, shardOnboarded(tt.shardIndex, tt.numShards, tt.percentageOnboarded))
 		})
 	}
 }
@@ -38,7 +38,7 @@ func TestShardOnboarded_RaisingThePercentageOnlyAddsShards(t *testing.T) {
 	for _, numShards := range []int{1, 4, 1000, 16384} {
 		for percentage := 0; percentage < 100; percentage++ {
 			for shardIndex := 0; shardIndex < numShards; shardIndex++ {
-				if ShardOnboarded(shardIndex, numShards, percentage) && !ShardOnboarded(shardIndex, numShards, percentage+1) {
+				if shardOnboarded(shardIndex, numShards, percentage) && !shardOnboarded(shardIndex, numShards, percentage+1) {
 					t.Fatalf("shard %d of %d is onboarded at %d%% but not at %d%%", shardIndex, numShards, percentage, percentage+1)
 				}
 			}
@@ -64,6 +64,7 @@ func TestPercentageOnboarded_Enabled(t *testing.T) {
 				metrics.NewClient(testScope, metrics.Matching, metrics.MigrationConfig{}),
 				metrics.ShardManagerOnboardingScope,
 				dynamicproperties.GetIntPropertyFn(tt.percentageOnboarded),
+				16384,
 			)
 
 			assert.Equal(t, tt.want, percentageOnboarded.Enabled())
@@ -85,6 +86,7 @@ func TestPercentageOnboarded_ReadsDynamicConfigOnEveryCall(t *testing.T) {
 		metrics.NewNoopMetricsClient(),
 		metrics.ShardManagerOnboardingScope,
 		func(...dynamicproperties.FilterOption) int { return percentage },
+		16384,
 	)
 
 	assert.Equal(t, 0, percentageOnboarded.Current())
