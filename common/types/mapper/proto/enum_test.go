@@ -525,6 +525,18 @@ func TestSemaphoreAcquireFailedCause(t *testing.T) {
 	assert.Nil(t, ToSemaphoreAcquireFailedCause(apiv1.SemaphoreAcquireFailedCause(UnknownValue)))
 }
 
+func TestSemaphoreTokenLostCause(t *testing.T) {
+	for _, item := range []*types.SemaphoreTokenLostCause{
+		nil,
+		types.SemaphoreTokenLostCauseNotHeld.Ptr(),
+		types.SemaphoreTokenLostCauseReset.Ptr(),
+	} {
+		assert.Equal(t, item, ToSemaphoreTokenLostCause(FromSemaphoreTokenLostCause(item)))
+	}
+	assert.Equal(t, apiv1.SemaphoreTokenLostCause_SEMAPHORE_TOKEN_LOST_CAUSE_INVALID, FromSemaphoreTokenLostCause(types.SemaphoreTokenLostCause(UnknownValue).Ptr()))
+	assert.Nil(t, ToSemaphoreTokenLostCause(apiv1.SemaphoreTokenLostCause(UnknownValue)))
+}
+
 func TestContinueAsNewInitiator(t *testing.T) {
 	for _, item := range []*types.ContinueAsNewInitiator{
 		nil,

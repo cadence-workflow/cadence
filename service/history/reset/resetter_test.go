@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -868,4 +869,46 @@ func (s *workflowResetterSuite) TestPagination() {
 	}
 
 	s.Equal(history, result)
+}
+
+func TestClearSemaphoreTokens(t *testing.T) {
+	tests := []struct {
+		name     string
+		tokenID  int
+		addErr   error
+		wantLost bool
+		wantErr  error
+	}{
+		{
+			name:     "hold with a token: the token is lost with cause RESET",
+			tokenID:  7,
+			wantLost: true,
+		},
+		{
+			name:    "hold still waiting for a token: skipped",
+			tokenID: commonconstants.NoSemaphoreTokenID,
+		},
+		{
+			name:     "adding the event fails: the error is returned",
+			tokenID:  7,
+			addErr:   assert.AnError,
+			wantLost: true,
+			wantErr:  assert.AnError,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mutableState := execution.NewMockMutableState(gomock.NewController(t))
+			mutableState.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{
+				5: {InitiatedID: 5, TokenID: tc.tokenID},
+			})
+			if tc.wantLost {
+				mutableState.EXPECT().AddSemaphoreTokenLostEvent(int64(5), types.SemaphoreTokenLostCauseReset).
+					Return(&types.HistoryEvent{}, tc.addErr)
+			}
+
+			err := (&workflowResetterImpl{}).clearSemaphoreTokens(mutableState)
+			assert.Equal(t, tc.wantErr, err)
+		})
+	}
 }
