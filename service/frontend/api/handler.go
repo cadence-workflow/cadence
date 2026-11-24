@@ -2243,6 +2243,10 @@ func (wh *WorkflowHandler) SignalWithStartWorkflowExecutionAsync(
 	if err != nil {
 		return nil, err
 	}
+	if signalWithStartRequest.GetRequestID() == "" {
+		// Counted, not rejected: the data decides whether a request id becomes mandatory for async requests.
+		scope.IncCounter(metrics.AsyncRequestMissingRequestID)
+	}
 	producer, err := wh.producerManager.GetProducerByDomain(signalWithStartRequest.GetDomain())
 	if err != nil {
 		return nil, err
