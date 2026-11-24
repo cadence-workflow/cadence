@@ -11,6 +11,7 @@ import (
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/frontend"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -87,11 +88,11 @@ func TestForwardProcessor_Process(t *testing.T) {
 			wantErr:   errRemote,
 		},
 		{
-			name:         "no remote client for cluster returns the bean error",
+			name:         "no remote client for cluster returns a non-transient error naming the cluster",
 			req:          startReq("cluster-x", unsortedHeaders),
 			beanErr:      errBean,
 			noRemoteCall: true,
-			wantErr:      errBean,
+			wantErr:      errors.New(`async workflow queue forward: no frontend client for active cluster "cluster-x"`),
 		},
 		{
 			name:         "empty ActiveCluster is an internal service error and makes no calls",
@@ -172,6 +173,9 @@ func TestForwardProcessor_Process(t *testing.T) {
 				require.ErrorAs(t, err, &ise)
 			case tc.wantErr != nil:
 				require.Equal(t, tc.wantErr, err)
+				if tc.beanErr != nil {
+					require.False(t, common.IsServiceTransientError(err), "a missing client cannot be fixed by retrying")
+				}
 			default:
 				require.NoError(t, err)
 			}

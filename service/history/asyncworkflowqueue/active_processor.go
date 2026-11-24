@@ -21,9 +21,8 @@ type activeProcessor struct {
 // NewActiveProcessor returns a Processor that starts workflows in the shard engine.
 // engineFn is called on every Process; its result is never cached.
 //
-// The start is an in-process engine call, so the frontend user rate limiter and the history
-// handler's rate limiters do not run. The frontend's async rate limit, applied when the request
-// was accepted, is the throttle for these requests.
+// The start is an in-process engine call, so the frontend and history handler rate limiters do
+// not run. This processor does no rate limiting of its own; its caller paces it.
 func NewActiveProcessor(engineFn func() engine.Engine, timeSource clock.TimeSource, scope metrics.Scope) Processor {
 	return &activeProcessor{
 		engineFn:   engineFn,
