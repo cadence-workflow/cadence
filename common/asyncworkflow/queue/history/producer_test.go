@@ -95,7 +95,7 @@ func TestProducerPublish(t *testing.T) {
 			message: newEnvelope(t, sqlblobs.AsyncRequestTypeStartWorkflowExecutionAsyncRequest, "wf-nodomain",
 				envelopeOpts{requestID: common.StringPtr("req-1")}),
 			setupClient:    func(t *testing.T, m *historyclient.MockClient) {},
-			wantErr:        "domainName",
+			wantErr:        "Domain is required for async requests on a history-backed queue.",
 			wantBadRequest: true,
 		},
 		{
@@ -103,7 +103,7 @@ func TestProducerPublish(t *testing.T) {
 			message: newEnvelope(t, sqlblobs.AsyncRequestTypeStartWorkflowExecutionAsyncRequest, "wf-noreq",
 				envelopeOpts{domain: common.StringPtr("domain-a")}),
 			setupClient:    func(t *testing.T, m *historyclient.MockClient) {},
-			wantErr:        "requestID",
+			wantErr:        "RequestID is required for async requests on a history-backed queue.",
 			wantBadRequest: true,
 		},
 		{

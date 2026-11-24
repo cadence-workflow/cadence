@@ -37,10 +37,10 @@ func (p *producerImpl) Publish(ctx context.Context, message interface{}) error {
 
 	workflowID := msg.GetPartitionKey()
 	if msg.GetDomainName() == "" {
-		return &types.BadRequestError{Message: "async request envelope is missing domainName"}
+		return &types.BadRequestError{Message: "Domain is required for async requests on a history-backed queue."}
 	}
 	if msg.GetRequestID() == "" {
-		return &types.BadRequestError{Message: "async request envelope is missing requestID"}
+		return &types.BadRequestError{Message: "RequestID is required for async requests on a history-backed queue."}
 	}
 
 	requestType, err := asyncRequestType(msg.GetType())

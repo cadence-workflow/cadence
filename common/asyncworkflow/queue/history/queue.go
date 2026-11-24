@@ -30,7 +30,7 @@ func (q *queueImpl) ID() string {
 }
 
 func (q *queueImpl) CreateConsumer(p *provider.Params) (provider.Consumer, error) {
-	p.Logger.Info("History-backed async workflow queues are consumed inside the history service")
+	p.Logger.Debug("History-backed async workflow queues are consumed inside the history service")
 	return &noopConsumer{}, nil
 }
 
