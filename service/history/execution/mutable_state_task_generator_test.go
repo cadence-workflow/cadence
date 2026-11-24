@@ -107,13 +107,14 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowCloseTasks_Jittered
 		var timerTasks []persistence.Task
 		mockMutableState.EXPECT().GetDomainEntry().Return(domainEntry).AnyTimes()
 		mockMutableState.EXPECT().AddTransferTasks(gomock.Any()).Do(func(tasks ...persistence.Task) {
-			transferTasks = tasks
-		}).MaxTimes(1)
+			transferTasks = append(transferTasks, tasks...)
+		}).AnyTimes()
 		mockMutableState.EXPECT().AddTimerTasks(gomock.Any()).Do(func(tasks ...persistence.Task) {
 			timerTasks = tasks
 		}).MaxTimes(1)
 
 		tc.setupFn(mockMutableState)
+		mockMutableState.EXPECT().GetPendingSemaphoreInfos().Return(nil).AnyTimes()
 		err := taskGenerator.GenerateWorkflowCloseTasks(closeEvent, 60)
 		s.NoError(err)
 
@@ -163,13 +164,14 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowCloseTasks() {
 		var timerTasks []persistence.Task
 		mockMutableState.EXPECT().GetDomainEntry().Return(domainEntry).AnyTimes()
 		mockMutableState.EXPECT().AddTransferTasks(gomock.Any()).Do(func(tasks ...persistence.Task) {
-			transferTasks = tasks
-		}).MaxTimes(1)
+			transferTasks = append(transferTasks, tasks...)
+		}).AnyTimes()
 		mockMutableState.EXPECT().AddTimerTasks(gomock.Any()).Do(func(tasks ...persistence.Task) {
 			timerTasks = tasks
 		}).MaxTimes(1)
 
 		tc.setupFn(mockMutableState)
+		mockMutableState.EXPECT().GetPendingSemaphoreInfos().Return(nil).AnyTimes()
 		err := taskGenerator.GenerateWorkflowCloseTasks(closeEvent, 1)
 		s.NoError(err)
 
@@ -229,6 +231,7 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowCloseTasks_NotActiv
 	})
 
 	s.mockMutableState.EXPECT().AddTransferTasks(transferTasks).Times(1)
+	s.mockMutableState.EXPECT().GetPendingSemaphoreInfos().Return(nil)
 
 	expectedDeletionTS := time.Unix(0, closeEvent.GetTimestamp()).
 		Add(time.Duration(defaultWorkflowRetentionInDays) * time.Hour * 24)
@@ -1617,6 +1620,60 @@ func GenerateWorkflowCloseTasksTestCases(retention time.Duration, closeEvent *ty
 						Version:             version,
 					},
 					TaskList: "task-list",
+				},
+				&persistence.DeleteHistoryEventTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
+					TaskData: persistence.TaskData{
+						VisibilityTimestamp: time.Unix(0, closeEvent.GetTimestamp()).Add(retention),
+						Version:             version,
+					},
+					TaskList: "task-list",
+				},
+			},
+		},
+		{
+			// run still holds a semaphore
+			setupFn: func(mockMutableState *MockMutableState) {
+				hold := &persistence.SemaphoreInfo{Version: 3, InitiatedID: 5, SemaphoreName: "my-semaphore"}
+				mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:   constants.TestDomainID,
+					WorkflowID: constants.TestWorkflowID,
+					RunID:      constants.TestRunID,
+					TaskList:   "task-list",
+				}).AnyTimes()
+				mockMutableState.EXPECT().GetPendingSemaphoreInfos().Return(map[int64]*persistence.SemaphoreInfo{5: hold})
+				mockMutableState.EXPECT().GetSemaphoreInfo(int64(5)).Return(hold, true)
+			},
+			generatedTasks: []persistence.Task{
+				&persistence.CloseExecutionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
+					TaskData: persistence.TaskData{
+						VisibilityTimestamp: now,
+						Version:             version,
+					},
+					TaskList: "task-list",
+				},
+				&persistence.ReleaseSemaphoreTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
+					TaskData: persistence.TaskData{
+						VisibilityTimestamp: now,
+						Version:             3,
+					},
+					InitiatedID:   5,
+					SemaphoreName: "my-semaphore",
+					TaskList:      "task-list",
 				},
 				&persistence.DeleteHistoryEventTask{
 					WorkflowIdentifier: persistence.WorkflowIdentifier{

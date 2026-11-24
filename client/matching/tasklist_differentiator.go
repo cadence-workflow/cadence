@@ -37,7 +37,7 @@ func NewTaskListDifferentiator(
 		excludeShortLivedTaskLists: excludeShortLivedTaskLists,
 		shardTaskListsByHash:       shardTaskListsByHash,
 		hashDomainID:               hashDomainID,
-		percentageOnboarded:        shardmanager.NewPercentageOnboarded(metricsClient, metrics.ShardManagerOnboardingScope, percentageOnboarded),
+		percentageOnboarded:        shardmanager.NewPercentageOnboarded(metricsClient, metrics.ShardManagerOnboardingScope, percentageOnboarded, shardCount),
 		shardCount:                 shardCount,
 	}
 }
@@ -62,7 +62,6 @@ func (d *TaskListDifferentiator) TaskListShard(domainID, taskListName string) Ta
 	// This regex checks if the task list name has a UUID, if it does we
 	// consider it a short lived tasklist that will not be managed by the shard distributor.
 	excludedAsShortLived := d.excludeShortLivedTaskLists() && uuidRegexp.MatchString(taskListName)
-	percentageOnboarded := d.percentageOnboarded.Current()
 
 	if d.shardTaskListsByHash() {
 		var shardIndex uint64
@@ -73,15 +72,14 @@ func (d *TaskListDifferentiator) TaskListShard(domainID, taskListName string) Ta
 		}
 		// Onboard the first percentageOnboarded percent of shards, so every task list in a shard
 		// gets the same decision.
-		shardOnboarded := shardmanager.ShardOnboarded(int(shardIndex), d.shardCount, percentageOnboarded)
-		if excludedAsShortLived || !shardOnboarded {
+		if excludedAsShortLived || !d.percentageOnboarded.ShardOnboarded(int(shardIndex)) {
 			return TaskListShard{id: "", onboardedToShardDistributor: false}
 		}
 		return TaskListShard{id: formatShardID(shardIndex), onboardedToShardDistributor: true}
 	}
 
 	hash := farm.Fingerprint64([]byte(taskListName))
-	if excludedAsShortLived || !isbelowPercentage(hash, percentageOnboarded) {
+	if excludedAsShortLived || !isbelowPercentage(hash, d.percentageOnboarded.Current()) {
 		return TaskListShard{id: "", onboardedToShardDistributor: false}
 	}
 	return TaskListShard{id: taskListName, onboardedToShardDistributor: true}

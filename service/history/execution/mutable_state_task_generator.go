@@ -180,6 +180,14 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowCloseTasks(
 		TaskList: taskList,
 	})
 
+	// Release every hold the run still has. A hold still waiting is released too, since Matching
+	// may have granted it a token History never recorded.
+	for initiatedEventID := range r.mutableState.GetPendingSemaphoreInfos() {
+		if err := r.GenerateReleaseSemaphoreTasks(initiatedEventID); err != nil {
+			return err
+		}
+	}
+
 	retentionInDays := defaultWorkflowRetentionInDays
 	domainEntry, err := r.domainCache.GetDomainByID(executionInfo.DomainID)
 	switch err.(type) {
@@ -537,7 +545,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateSemaphoreAcquireTimeoutTasks(
 }
 
 // GenerateReleaseSemaphoreTasks adds the transfer task that frees the hold's token in Matching.
-// The task keeps the semaphore name, since the hold is deleted before the task runs.
+// The task keeps the semaphore name, since an explicit release deletes the hold before the task runs.
 func (r *mutableStateTaskGeneratorImpl) GenerateReleaseSemaphoreTasks(
 	initiatedEventID int64,
 ) error {

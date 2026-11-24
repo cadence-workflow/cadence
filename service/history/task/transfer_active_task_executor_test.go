@@ -2402,7 +2402,7 @@ func TestRecordSemaphoreAcquire(t *testing.T) {
 		wfContext.EXPECT().UpdateWorkflowExecutionAsActive(gomock.Any(), testTime).Return(nil)
 	}
 	errCompleted := &types.WorkflowExecutionAlreadyCompletedError{Message: "Workflow execution already completed."}
-	errHoldNotFound := &types.EntityNotExistsError{Message: "Pending semaphore hold not found."}
+	errHoldNotFound := &types.EntityNotExistsError{Message: "Semaphore hold not found or already has a token."}
 
 	testCases := []struct {
 		name      string

@@ -595,18 +595,18 @@ func (mr *MockMutableStateMockRecorder) AddSemaphoreReleasedEvent(arg0, arg1 any
 }
 
 // AddSemaphoreTokenLostEvent mocks base method.
-func (m *MockMutableState) AddSemaphoreTokenLostEvent(arg0 int64) (*types.HistoryEvent, error) {
+func (m *MockMutableState) AddSemaphoreTokenLostEvent(arg0 int64, arg1 types.SemaphoreTokenLostCause) (*types.HistoryEvent, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddSemaphoreTokenLostEvent", arg0)
+	ret := m.ctrl.Call(m, "AddSemaphoreTokenLostEvent", arg0, arg1)
 	ret0, _ := ret[0].(*types.HistoryEvent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AddSemaphoreTokenLostEvent indicates an expected call of AddSemaphoreTokenLostEvent.
-func (mr *MockMutableStateMockRecorder) AddSemaphoreTokenLostEvent(arg0 any) *gomock.Call {
+func (mr *MockMutableStateMockRecorder) AddSemaphoreTokenLostEvent(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreTokenLostEvent", reflect.TypeOf((*MockMutableState)(nil).AddSemaphoreTokenLostEvent), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSemaphoreTokenLostEvent", reflect.TypeOf((*MockMutableState)(nil).AddSemaphoreTokenLostEvent), arg0, arg1)
 }
 
 // AddSignalExternalWorkflowExecutionFailedEvent mocks base method.
