@@ -122,30 +122,22 @@ func (s *WorkflowIDRateLimitIntegrationSuite) TestWorkflowIDSpecificRateLimits()
 	ctx, cancel := createContext()
 	defer cancel()
 
-	// The ratelimit is 5 per second with a burst of 5, so we should be able to start 5 workflows without any error
+	// History's rate limiter runs on the cluster's mocked time source, so time only moves when the test advances it.
+	// The ratelimit is 5 per second with a burst of 5, so the first 5 starts are allowed and the next 5 are limited.
 	for i := 0; i < 5; i++ {
 		_, err := s.Engine.StartWorkflowExecution(ctx, request)
 		assert.NoError(s.T(), err)
 	}
-
-	// Now we should get a rate limit error (with some fuzziness for time passing)
-	limited := 0
 	for i := 0; i < 5; i++ {
 		_, err := s.Engine.StartWorkflowExecution(ctx, request)
 		var busyErr *types.ServiceBusyError
-		if err != nil {
-			if assert.ErrorAs(s.T(), err, &busyErr) {
-				limited++
-				assert.Equal(s.T(), constants.WorkflowIDRateLimitReason, busyErr.Reason)
-			}
+		if assert.ErrorAs(s.T(), err, &busyErr) {
+			assert.Equal(s.T(), constants.WorkflowIDRateLimitReason, busyErr.Reason)
 		}
 	}
-	// 5 fails occasionally, trying 4.  If needed, reduce to 3 or find a way to
-	// make this test less sensitive to latency, as test-runner hosts vary a lot.
-	assert.GreaterOrEqual(s.T(), limited, 4, "should have encountered some rate-limit errors after the burst was exhausted")
 
-	// After 1 second (200ms at a minimum) we should be able to start more workflows without being limited
-	time.Sleep(1 * time.Second)
+	// After 1 second the bucket has refilled, so we can start more workflows.
+	s.TestClusterConfig.TimeSource.Advance(time.Second)
 	_, err := s.Engine.StartWorkflowExecution(ctx, request)
 	assert.NoError(s.T(), err)
 }

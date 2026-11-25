@@ -80,10 +80,16 @@ type Params struct {
 	DomainCache            cache.DomainCache
 	MetricsClient          metrics.Client
 	Logger                 log.Logger
+	// TimeSource drives the cache TTL; nil means the real clock.
+	TimeSource clock.TimeSource
 }
 
 // New creates a new WFCache
 func New(params Params) WFCache {
+	timeSource := params.TimeSource
+	if timeSource == nil {
+		timeSource = clock.NewRealTimeSource()
+	}
 	cache := &wfCache{
 		lru: cache.New(&cache.Options{
 			TTL:           params.TTL,
@@ -92,12 +98,13 @@ func New(params Params) WFCache {
 			ActivelyEvict: true,
 			MetricsScope:  params.MetricsClient.Scope(metrics.HistoryWorkflowCacheScope).Tagged(metrics.NonShardTag()),
 			Logger:        params.Logger,
+			TimeSource:    timeSource,
 		}),
 		externalLimiterFactory: params.ExternalLimiterFactory,
 		internalLimiterFactory: params.InternalLimiterFactory,
 		domainCache:            params.DomainCache,
 		metricsClient:          params.MetricsClient,
-		timeSource:             clock.NewRealTimeSource(),
+		timeSource:             timeSource,
 		logger:                 params.Logger,
 	}
 	// We set getCacheItemFn to cache.getCacheItem so that we can mock it in unit tests
