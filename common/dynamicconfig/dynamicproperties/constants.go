@@ -2757,6 +2757,15 @@ const (
 	// Allowed filters: DomainName, TaskListName, TaskType
 	MatchingOverrideTaskListRPS
 
+	// ShardDistributorClientHedgeShare is the share of calls to the shard distributor that may be hedged.
+	// 0 turns hedging off.
+	// Read from the primary database-backed operational dynamic config store.
+	// KeyName: system.shardDistributorClientHedgeShare
+	// Value type: Float64
+	// Default value: 0.1
+	// Allowed filters: N/A
+	ShardDistributorClientHedgeShare
+
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
 )
@@ -5745,6 +5754,11 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Description:  "MatchingOverrideTaskListRPS is the RPS override for a specific TaskList. When set to a non-zero value, this overrides the RPS value that pollers specify. By default (0), the pollers' specified RPS is respected.",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		DefaultValue: 0,
+	},
+	ShardDistributorClientHedgeShare: {
+		KeyName:      "system.shardDistributorClientHedgeShare",
+		Description:  "ShardDistributorClientHedgeShare is the share of calls to the shard distributor that may be hedged, 0 turns hedging off",
+		DefaultValue: 0.1,
 	},
 }
 
