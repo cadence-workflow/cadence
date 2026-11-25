@@ -2243,6 +2243,11 @@ func (wh *WorkflowHandler) SignalWithStartWorkflowExecutionAsync(
 	if err != nil {
 		return nil, err
 	}
+	if signalWithStartRequest.GetRequestID() == "" {
+		// TODO(c-warren): Remove this once we've validated history backed queues
+		// Count signalWithStartRequests with an empty requestID for history backed queues
+		scope.IncCounter(metrics.AsyncRequestMissingRequestID)
+	}
 	producer, err := wh.producerManager.GetProducerByDomain(signalWithStartRequest.GetDomain())
 	if err != nil {
 		return nil, err

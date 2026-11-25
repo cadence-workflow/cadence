@@ -2685,6 +2685,7 @@ const (
 
 	AsyncRequestPayloadSize
 	AsyncRequestPayloadSizeHistogram
+	AsyncRequestMissingRequestID
 
 	// limiter-side metrics
 	GlobalRatelimiterStartupUsageHistogram
@@ -3735,6 +3736,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		AsyncRequestPayloadSize:          {metricName: "async_request_payload_size_per_domain", metricRollupName: "async_request_payload_size", metricType: Timer},
 		AsyncRequestPayloadSizeHistogram: {metricName: "async_request_payload_size_per_domain_counts", metricRollupName: "async_request_payload_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
+		AsyncRequestMissingRequestID:     {metricName: "async_request_missing_request_id_per_domain", metricRollupName: "async_request_missing_request_id", metricType: Counter},
 
 		GlobalRatelimiterStartupUsageHistogram:  {metricName: "global_ratelimiter_startup_usage_histogram", metricType: Histogram, buckets: GlobalRatelimiterUsageHistogram},
 		GlobalRatelimiterFailingUsageHistogram:  {metricName: "global_ratelimiter_failing_usage_histogram", metricType: Histogram, buckets: GlobalRatelimiterUsageHistogram},
