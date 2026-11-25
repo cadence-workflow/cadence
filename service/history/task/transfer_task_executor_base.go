@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
@@ -193,32 +194,127 @@ func (t *transferTaskExecutorBase) pushDecision(
 	return err
 }
 
+// visibilityRecord holds the fields of a visibility record that are read from mutable state.
+// It is built while the workflow lock is held, so the visibility store can be written after the lock is released.
+type visibilityRecord struct {
+	workflowTypeName               string
+	startTimeUnixNano              int64
+	executionTimeUnixNano          int64
+	workflowTimeout                int32
+	taskList                       string
+	visibilityMemo                 *types.Memo
+	isCron                         bool
+	cronSchedule                   string
+	numClusters                    int16
+	updateTimeUnixNano             int64
+	searchAttributes               map[string][]byte
+	headers                        map[string][]byte
+	clusterAttribute               *types.ClusterAttribute
+	executionStatus                types.WorkflowExecutionStatus
+	scheduledExecutionTimeUnixNano int64
+
+	// only set for closed records
+	endTimeUnixNano int64
+	closeStatus     types.WorkflowExecutionCloseStatus
+	historyLength   int64
+}
+
+// newStartedVisibilityRecord builds the record for RecordWorkflowStarted and UpsertWorkflowSearchAttributes tasks
+func (t *transferTaskExecutorBase) newStartedVisibilityRecord(
+	ctx context.Context,
+	mutableState execution.MutableState,
+	domainEntry *cache.DomainCacheEntry,
+) (*visibilityRecord, error) {
+	executionInfo := mutableState.GetExecutionInfo()
+	startEvent, err := mutableState.GetStartEvent(ctx)
+	if err != nil {
+		return nil, err
+	}
+	isCron := len(executionInfo.CronSchedule) > 0
+	cronSchedule := ""
+	if isCron {
+		cronSchedule = executionInfo.CronSchedule
+	}
+	isAdvancedVisibilityEnabled := common.IsAdvancedVisibilityWritingEnabled(
+		t.config.WriteVisibilityStoreName(),
+		t.config.IsAdvancedVisConfigExist,
+	)
+	executionStatus, scheduledExecutionTimestamp := determineExecutionStatusForVisibility(startEvent, mutableState, isAdvancedVisibilityEnabled)
+
+	return &visibilityRecord{
+		workflowTypeName:               executionInfo.WorkflowTypeName,
+		startTimeUnixNano:              startEvent.GetTimestamp(),
+		executionTimeUnixNano:          getWorkflowExecutionTimestamp(mutableState, startEvent).UnixNano(),
+		workflowTimeout:                executionInfo.WorkflowTimeout,
+		taskList:                       executionInfo.TaskList,
+		visibilityMemo:                 getWorkflowMemo(executionInfo.Memo),
+		isCron:                         isCron,
+		cronSchedule:                   cronSchedule,
+		numClusters:                    int16(len(domainEntry.GetReplicationConfig().Clusters)),
+		updateTimeUnixNano:             t.shard.GetTimeSource().Now().UnixNano(),
+		searchAttributes:               copySearchAttributes(executionInfo.SearchAttributes),
+		headers:                        getWorkflowHeaders(startEvent),
+		clusterAttribute:               executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+		executionStatus:                executionStatus,
+		scheduledExecutionTimeUnixNano: scheduledExecutionTimestamp,
+	}, nil
+}
+
+// newClosedVisibilityRecord builds the record for the closed visibility record of a workflow.
+// completionEvent is passed in since callers also use it for other side effects of the close.
+func (t *transferTaskExecutorBase) newClosedVisibilityRecord(
+	ctx context.Context,
+	mutableState execution.MutableState,
+	domainEntry *cache.DomainCacheEntry,
+	completionEvent *types.HistoryEvent,
+) (*visibilityRecord, error) {
+	executionInfo := mutableState.GetExecutionInfo()
+	startEvent, err := mutableState.GetStartEvent(ctx)
+	if err != nil {
+		return nil, err
+	}
+	isCron := len(executionInfo.CronSchedule) > 0
+	cronSchedule := ""
+	if isCron {
+		cronSchedule = executionInfo.CronSchedule
+	}
+	scheduledExecutionTimestamp := startEvent.GetTimestamp()
+	if startEvent.WorkflowExecutionStartedEventAttributes != nil &&
+		startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds() > 0 {
+		scheduledExecutionTimestamp = startEvent.GetTimestamp() +
+			int64(startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds())*int64(time.Second)
+	}
+
+	return &visibilityRecord{
+		workflowTypeName:               executionInfo.WorkflowTypeName,
+		startTimeUnixNano:              startEvent.GetTimestamp(),
+		executionTimeUnixNano:          getWorkflowExecutionTimestamp(mutableState, startEvent).UnixNano(),
+		taskList:                       executionInfo.TaskList,
+		visibilityMemo:                 getWorkflowMemo(executionInfo.Memo),
+		isCron:                         isCron,
+		cronSchedule:                   cronSchedule,
+		numClusters:                    int16(len(domainEntry.GetReplicationConfig().Clusters)),
+		updateTimeUnixNano:             t.shard.GetTimeSource().Now().UnixNano(),
+		searchAttributes:               copySearchAttributes(executionInfo.SearchAttributes),
+		headers:                        getWorkflowHeaders(startEvent),
+		clusterAttribute:               executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+		executionStatus:                getWorkflowExecutionStatus(mutableState, completionEvent),
+		scheduledExecutionTimeUnixNano: scheduledExecutionTimestamp,
+		endTimeUnixNano:                completionEvent.GetTimestamp(),
+		closeStatus:                    *persistence.ToInternalWorkflowExecutionCloseStatus(executionInfo.CloseStatus),
+		historyLength:                  mutableState.GetNextEventID() - 1,
+	}, nil
+}
+
 func (t *transferTaskExecutorBase) recordWorkflowStarted(
 	ctx context.Context,
-	domainID string,
-	workflowID string,
-	runID string,
-	workflowTypeName string,
-	startTimeUnixNano int64,
-	executionTimeUnixNano int64,
-	workflowTimeout int32,
-	taskID int64,
-	taskList string,
-	isCron bool,
-	numClusters int16,
-	visibilityMemo *types.Memo,
-	updateTimeUnixNano int64,
-	immutableSearchAttributes map[string][]byte,
-	headers map[string][]byte,
-	clusterAttribute *types.ClusterAttribute,
-	cronSchedule string,
-	executionStatus types.WorkflowExecutionStatus,
-	scheduledExecutionTimeUnixNano int64,
+	task persistence.Task,
+	record *visibilityRecord,
 ) error {
 
 	domain := defaultDomainName
 
-	domainEntry, err := t.shard.GetDomainCache().GetDomainByID(domainID)
+	domainEntry, err := t.shard.GetDomainCache().GetDomainByID(task.GetDomainID())
 	if err != nil {
 		if _, ok := err.(*types.EntityNotExistsError); !ok {
 			return err
@@ -226,57 +322,57 @@ func (t *transferTaskExecutorBase) recordWorkflowStarted(
 	} else {
 		domain = domainEntry.GetInfo().Name
 		// if sampled for longer retention is enabled, only record those sampled events
-		if domainEntry.IsSampledForLongerRetentionEnabled(workflowID) &&
-			!domainEntry.IsSampledForLongerRetention(workflowID) {
+		if domainEntry.IsSampledForLongerRetentionEnabled(task.GetWorkflowID()) &&
+			!domainEntry.IsSampledForLongerRetention(task.GetWorkflowID()) {
 			return nil
 		}
 	}
 
 	// headers are appended into search attributes if enabled
-	searchAttributes := copySearchAttributes(immutableSearchAttributes)
+	searchAttributes := copySearchAttributes(record.searchAttributes)
 	if t.config.EnableContextHeaderInVisibility(domainEntry.GetInfo().Name) {
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
-		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
+		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, record.headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
 		}
 	}
 
 	request := &persistence.RecordWorkflowExecutionStartedRequest{
-		DomainUUID: domainID,
+		DomainUUID: task.GetDomainID(),
 		Domain:     domain,
 		Execution: types.WorkflowExecution{
-			WorkflowID: workflowID,
-			RunID:      runID,
+			WorkflowID: task.GetWorkflowID(),
+			RunID:      task.GetRunID(),
 		},
-		WorkflowTypeName:            workflowTypeName,
-		StartTimestamp:              startTimeUnixNano,
-		ExecutionTimestamp:          executionTimeUnixNano,
-		WorkflowTimeout:             int64(workflowTimeout),
-		TaskID:                      taskID,
-		Memo:                        visibilityMemo,
-		TaskList:                    taskList,
-		IsCron:                      isCron,
-		CronSchedule:                cronSchedule,
-		NumClusters:                 numClusters,
-		ClusterAttributeScope:       clusterAttribute.GetScope(),
-		ClusterAttributeName:        clusterAttribute.GetName(),
-		UpdateTimestamp:             updateTimeUnixNano,
+		WorkflowTypeName:            record.workflowTypeName,
+		StartTimestamp:              record.startTimeUnixNano,
+		ExecutionTimestamp:          record.executionTimeUnixNano,
+		WorkflowTimeout:             int64(record.workflowTimeout),
+		TaskID:                      task.GetTaskID(),
+		Memo:                        record.visibilityMemo,
+		TaskList:                    record.taskList,
+		IsCron:                      record.isCron,
+		CronSchedule:                record.cronSchedule,
+		NumClusters:                 record.numClusters,
+		ClusterAttributeScope:       record.clusterAttribute.GetScope(),
+		ClusterAttributeName:        record.clusterAttribute.GetName(),
+		UpdateTimestamp:             record.updateTimeUnixNano,
 		SearchAttributes:            searchAttributes,
 		ShardID:                     int16(t.shard.GetShardID()),
-		ExecutionStatus:             executionStatus,
-		ScheduledExecutionTimestamp: scheduledExecutionTimeUnixNano,
+		ExecutionStatus:             record.executionStatus,
+		ScheduledExecutionTimestamp: record.scheduledExecutionTimeUnixNano,
 	}
 
 	if t.config.EnableRecordWorkflowExecutionUninitialized(domain) {
 		uninitializedRequest := &persistence.RecordWorkflowExecutionUninitializedRequest{
-			DomainUUID: domainID,
+			DomainUUID: task.GetDomainID(),
 			Domain:     domain,
 			Execution: types.WorkflowExecution{
-				WorkflowID: workflowID,
-				RunID:      runID,
+				WorkflowID: task.GetWorkflowID(),
+				RunID:      task.GetRunID(),
 			},
-			WorkflowTypeName: workflowTypeName,
-			UpdateTimestamp:  updateTimeUnixNano,
+			WorkflowTypeName: record.workflowTypeName,
+			UpdateTimestamp:  record.updateTimeUnixNano,
 			ShardID:          int64(t.shard.GetShardID()),
 		}
 		if err := t.visibilityMgr.RecordWorkflowExecutionUninitialized(ctx, uninitializedRequest); err != nil {
@@ -289,28 +385,11 @@ func (t *transferTaskExecutorBase) recordWorkflowStarted(
 
 func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 	ctx context.Context,
-	domainID string,
-	workflowID string,
-	runID string,
-	workflowTypeName string,
-	startTimeUnixNano int64,
-	executionTimeUnixNano int64,
-	workflowTimeout int32,
-	taskID int64,
-	taskList string,
-	visibilityMemo *types.Memo,
-	isCron bool,
-	numClusters int16,
-	updateTimeUnixNano int64,
-	immutableSearchAttributes map[string][]byte,
-	headers map[string][]byte,
-	clusterAttribute *types.ClusterAttribute,
-	cronSchedule string,
-	executionStatus types.WorkflowExecutionStatus,
-	scheduledExecutionTimeUnixNano int64,
+	task persistence.Task,
+	record *visibilityRecord,
 ) error {
 
-	domain, err := t.shard.GetDomainCache().GetDomainName(domainID)
+	domain, err := t.shard.GetDomainCache().GetDomainName(task.GetDomainID())
 	if err != nil {
 		if _, ok := err.(*types.EntityNotExistsError); !ok {
 			return err
@@ -319,38 +398,38 @@ func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 	}
 
 	// headers are appended into search attributes if enabled
-	searchAttributes := copySearchAttributes(immutableSearchAttributes)
+	searchAttributes := copySearchAttributes(record.searchAttributes)
 	if t.config.EnableContextHeaderInVisibility(domain) {
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
-		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
+		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, record.headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
 		}
 	}
 
 	request := &persistence.UpsertWorkflowExecutionRequest{
-		DomainUUID: domainID,
+		DomainUUID: task.GetDomainID(),
 		Domain:     domain,
 		Execution: types.WorkflowExecution{
-			WorkflowID: workflowID,
-			RunID:      runID,
+			WorkflowID: task.GetWorkflowID(),
+			RunID:      task.GetRunID(),
 		},
-		WorkflowTypeName:            workflowTypeName,
-		StartTimestamp:              startTimeUnixNano,
-		ExecutionTimestamp:          executionTimeUnixNano,
-		WorkflowTimeout:             int64(workflowTimeout),
-		TaskID:                      taskID,
-		Memo:                        visibilityMemo,
-		TaskList:                    taskList,
-		IsCron:                      isCron,
-		NumClusters:                 numClusters,
-		ClusterAttributeScope:       clusterAttribute.GetScope(),
-		ClusterAttributeName:        clusterAttribute.GetName(),
+		WorkflowTypeName:            record.workflowTypeName,
+		StartTimestamp:              record.startTimeUnixNano,
+		ExecutionTimestamp:          record.executionTimeUnixNano,
+		WorkflowTimeout:             int64(record.workflowTimeout),
+		TaskID:                      task.GetTaskID(),
+		Memo:                        record.visibilityMemo,
+		TaskList:                    record.taskList,
+		IsCron:                      record.isCron,
+		NumClusters:                 record.numClusters,
+		ClusterAttributeScope:       record.clusterAttribute.GetScope(),
+		ClusterAttributeName:        record.clusterAttribute.GetName(),
 		SearchAttributes:            searchAttributes,
-		UpdateTimestamp:             updateTimeUnixNano,
+		UpdateTimestamp:             record.updateTimeUnixNano,
 		ShardID:                     int64(t.shard.GetShardID()),
-		ExecutionStatus:             executionStatus,
-		CronSchedule:                cronSchedule,
-		ScheduledExecutionTimestamp: scheduledExecutionTimeUnixNano,
+		ExecutionStatus:             record.executionStatus,
+		CronSchedule:                record.cronSchedule,
+		ScheduledExecutionTimestamp: record.scheduledExecutionTimeUnixNano,
 	}
 
 	return t.visibilityMgr.UpsertWorkflowExecution(ctx, request)
@@ -358,27 +437,8 @@ func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 
 func (t *transferTaskExecutorBase) recordWorkflowClosed(
 	ctx context.Context,
-	domainID string,
-	workflowID string,
-	runID string,
-	workflowTypeName string,
-	startTimeUnixNano int64,
-	executionTimeUnixNano int64,
-	endTimeUnixNano int64,
-	closeStatus types.WorkflowExecutionCloseStatus,
-	historyLength int64,
-	taskID int64,
-	visibilityMemo *types.Memo,
-	taskList string,
-	isCron bool,
-	cronSchedule string,
-	numClusters int16,
-	updateTimeUnixNano int64,
-	immutableSearchAttributes map[string][]byte,
-	headers map[string][]byte,
-	clusterAttribute *types.ClusterAttribute,
-	executionStatus types.WorkflowExecutionStatus,
-	scheduledExecutionTimeUnixNano int64,
+	task persistence.Task,
+	record *visibilityRecord,
 ) error {
 
 	// Record closing in visibility store
@@ -387,18 +447,18 @@ func (t *transferTaskExecutorBase) recordWorkflowClosed(
 	recordWorkflowClose := true
 	archiveVisibility := false
 
-	domainEntry, err := t.shard.GetDomainCache().GetDomainByID(domainID)
+	domainEntry, err := t.shard.GetDomainCache().GetDomainByID(task.GetDomainID())
 	if err != nil && !isWorkflowNotExistError(err) {
 		return err
 	}
 
 	if err == nil {
 		// retention in domain config is in days, convert to seconds
-		retentionSeconds = int64(domainEntry.GetRetentionDays(workflowID)) * int64(secondsInDay)
+		retentionSeconds = int64(domainEntry.GetRetentionDays(task.GetWorkflowID())) * int64(secondsInDay)
 		domain = domainEntry.GetInfo().Name
 		// if sampled for longer retention is enabled, only record those sampled events
-		if domainEntry.IsSampledForLongerRetentionEnabled(workflowID) &&
-			!domainEntry.IsSampledForLongerRetention(workflowID) {
+		if domainEntry.IsSampledForLongerRetentionEnabled(task.GetWorkflowID()) &&
+			!domainEntry.IsSampledForLongerRetention(task.GetWorkflowID()) {
 			recordWorkflowClose = false
 		}
 
@@ -408,42 +468,42 @@ func (t *transferTaskExecutorBase) recordWorkflowClosed(
 	}
 
 	// headers are appended into search attributes if enabled
-	searchAttributes := copySearchAttributes(immutableSearchAttributes)
+	searchAttributes := copySearchAttributes(record.searchAttributes)
 	if t.config.EnableContextHeaderInVisibility(domainEntry.GetInfo().Name) {
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
-		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
+		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, record.headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
 		}
 	}
 
 	if recordWorkflowClose {
 		if err := t.visibilityMgr.RecordWorkflowExecutionClosed(ctx, &persistence.RecordWorkflowExecutionClosedRequest{
-			DomainUUID: domainID,
+			DomainUUID: task.GetDomainID(),
 			Domain:     domain,
 			Execution: types.WorkflowExecution{
-				WorkflowID: workflowID,
-				RunID:      runID,
+				WorkflowID: task.GetWorkflowID(),
+				RunID:      task.GetRunID(),
 			},
-			WorkflowTypeName:            workflowTypeName,
-			StartTimestamp:              startTimeUnixNano,
-			ExecutionTimestamp:          executionTimeUnixNano,
-			CloseTimestamp:              endTimeUnixNano,
-			Status:                      closeStatus,
-			HistoryLength:               historyLength,
+			WorkflowTypeName:            record.workflowTypeName,
+			StartTimestamp:              record.startTimeUnixNano,
+			ExecutionTimestamp:          record.executionTimeUnixNano,
+			CloseTimestamp:              record.endTimeUnixNano,
+			Status:                      record.closeStatus,
+			HistoryLength:               record.historyLength,
 			RetentionSeconds:            retentionSeconds,
-			TaskID:                      taskID,
-			Memo:                        visibilityMemo,
-			TaskList:                    taskList,
+			TaskID:                      task.GetTaskID(),
+			Memo:                        record.visibilityMemo,
+			TaskList:                    record.taskList,
 			SearchAttributes:            searchAttributes,
-			IsCron:                      isCron,
-			CronSchedule:                cronSchedule,
-			ClusterAttributeScope:       clusterAttribute.GetScope(),
-			ClusterAttributeName:        clusterAttribute.GetName(),
-			UpdateTimestamp:             updateTimeUnixNano,
-			NumClusters:                 numClusters,
+			IsCron:                      record.isCron,
+			CronSchedule:                record.cronSchedule,
+			ClusterAttributeScope:       record.clusterAttribute.GetScope(),
+			ClusterAttributeName:        record.clusterAttribute.GetName(),
+			UpdateTimestamp:             record.updateTimeUnixNano,
+			NumClusters:                 record.numClusters,
 			ShardID:                     int16(t.shard.GetShardID()),
-			ExecutionStatus:             executionStatus,
-			ScheduledExecutionTimestamp: scheduledExecutionTimeUnixNano,
+			ExecutionStatus:             record.executionStatus,
+			ScheduledExecutionTimestamp: record.scheduledExecutionTimeUnixNano,
 		}); err != nil {
 			return err
 		}
@@ -454,17 +514,17 @@ func (t *transferTaskExecutorBase) recordWorkflowClosed(
 		defer cancel()
 		_, err := t.archiverClient.Archive(archiveCtx, &archiver.ClientRequest{
 			ArchiveRequest: &archiver.ArchiveRequest{
-				DomainID:           domainID,
+				DomainID:           task.GetDomainID(),
 				DomainName:         domain,
-				WorkflowID:         workflowID,
-				RunID:              runID,
-				WorkflowTypeName:   workflowTypeName,
-				StartTimestamp:     startTimeUnixNano,
-				ExecutionTimestamp: executionTimeUnixNano,
-				CloseTimestamp:     endTimeUnixNano,
-				CloseStatus:        closeStatus,
-				HistoryLength:      historyLength,
-				Memo:               visibilityMemo,
+				WorkflowID:         task.GetWorkflowID(),
+				RunID:              task.GetRunID(),
+				WorkflowTypeName:   record.workflowTypeName,
+				StartTimestamp:     record.startTimeUnixNano,
+				ExecutionTimestamp: record.executionTimeUnixNano,
+				CloseTimestamp:     record.endTimeUnixNano,
+				CloseStatus:        record.closeStatus,
+				HistoryLength:      record.historyLength,
+				Memo:               record.visibilityMemo,
 				SearchAttributes:   searchAttributes,
 				VisibilityURI:      domainEntry.GetConfig().VisibilityArchivalURI,
 				URI:                domainEntry.GetConfig().HistoryArchivalURI,
