@@ -13,3 +13,6 @@ worker.enableScheduler:
 system.minRetentionDays:
 - value: 0
   constraints: {}
+system.enableDistributedSemaphore:
+- value: true
+  constraints: {}
