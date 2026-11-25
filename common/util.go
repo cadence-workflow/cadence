@@ -194,10 +194,7 @@ func CreateFrontendServiceRetryPolicy() backoff.RetryPolicy {
 	return policy
 }
 
-// CreateFrontendPollRetryPolicy creates the retry policy for the frontend's long polls to
-// matching. It caps the number of attempts and has no expiration: one attempt can wait for up
-// to a minute, so a time budget would leave a long poll that fails late with no retry. The
-// caller's context still bounds the total time.
+// CreateFrontendPollRetryPolicy creates the retry policy for the frontend's long polls to matching
 func CreateFrontendPollRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(frontendPollInitialInterval)
 	policy.SetMaximumInterval(frontendPollMaxInterval)
