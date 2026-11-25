@@ -61,3 +61,6 @@ frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
 worker.enableScheduler:
 - value: true
   constraints: {}
+frontend.cancelOutstandingPollsOnShutdown:
+- value: true
+  constraints: {}

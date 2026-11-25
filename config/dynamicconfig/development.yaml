@@ -112,3 +112,6 @@ history.enableTransferQueueV2:
 history.taskSchedulerEnableRateLimiter:
 - value: true
   constraints: {}
+frontend.cancelOutstandingPollsOnShutdown:
+- value: true
+  constraints: {}
