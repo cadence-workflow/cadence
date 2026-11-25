@@ -131,13 +131,6 @@ authorization:
     enable: false
     maxJwtTTL: 86400
 
-shard-distributor-matching:
-  namespaces:
-    - namespace: "cadence-matching"
-      heartbeat_interval: "1s"
-      ttl_shard: "5m"
-      ttl_report: "1m"
-
 gauge-migration:
   default: gauge
   names: {}
