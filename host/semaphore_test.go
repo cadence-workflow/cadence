@@ -1,7 +1,9 @@
 package host
 
 import (
+	"context"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/pborman/uuid"
@@ -63,22 +65,31 @@ func (s *IntegrationSuite) TestSemaphore_SLOW() {
 	})
 	s.NoError(err)
 
-	// Step 2: start the worker. The activity blocks until the test closes unblockActivities. Until
+	// Step 2: start the worker. The activity blocks until the test calls unblockActivities. Until
 	// then, the 2 workflows that got a token can't release it, so the test can check that the
 	// other 3 are still waiting.
-	unblockActivities := make(chan struct{})
+	activitiesUnblocked := make(chan struct{})
+	unblockActivities := sync.OnceFunc(func() { close(activitiesUnblocked) })
 	activity := activityTaskHandler(func(*types.WorkflowExecution, *types.ActivityType, string, []byte, []byte) ([]byte, bool, error) {
-		<-unblockActivities
+		<-activitiesUnblocked
 		return nil, false, nil
 	})
 	poller := s.newPoller(semaphoreWorkflow(semaphoreName), activity)
 	cancelDecisionPoller := poller.PollAndProcessDecisions()
 	defer cancelDecisionPoller()
 	// One activity poller per workflow, so the pollers never limit how many activities run.
+	var cancelActivityPollers []context.CancelFunc
 	for i := 0; i < numWorkflows; i++ {
-		cancelActivityPoller := poller.PollAndProcessActivities()
-		defer cancelActivityPoller()
+		cancelActivityPollers = append(cancelActivityPollers, poller.PollAndProcessActivities())
 	}
+	defer func() {
+		// Stopping a poller waits for its current activity, so unblock them first in case the
+		// test ends before step 5.
+		unblockActivities()
+		for _, cancelActivityPoller := range cancelActivityPollers {
+			cancelActivityPoller()
+		}
+	}()
 
 	// Step 3: start 5 workflows. 2 get a token and 3 wait for one.
 	var executions []*types.WorkflowExecution
@@ -109,12 +120,12 @@ func (s *IntegrationSuite) TestSemaphore_SLOW() {
 	timedOut := s.startSemaphoreWorkflow(semaphoreTimeoutWorkflowType, poller.TaskList)
 	s.waitForWorkflowCompleted(timedOut)
 	failed := findEvent(s.getHistory(s.DomainName, timedOut), types.EventTypeSemaphoreAcquireFailed)
-	s.NotNil(failed)
+	s.Require().NotNil(failed)
 	s.Equal(types.SemaphoreAcquireFailedCauseTimedOut, failed.SemaphoreAcquireFailedEventAttributes.GetCause())
 
 	// Step 5: let the activities finish. Each release frees a token for a waiting workflow, so all 5
 	// finish.
-	close(unblockActivities)
+	unblockActivities()
 	for _, execution := range executions {
 		s.waitForWorkflowCompleted(execution)
 	}
@@ -166,7 +177,7 @@ func (s *IntegrationSuite) TestSemaphoreAutoRelease() {
 	second := s.startSemaphoreWorkflow(semaphoreAutoReleaseWorkflowType, poller.TaskList)
 	s.waitForWorkflowCompleted(second)
 	acquired := findEvent(s.getHistory(s.DomainName, second), types.EventTypeSemaphoreAcquired)
-	s.NotNil(acquired, "the second workflow gets the token the first one held")
+	s.Require().NotNil(acquired, "the second workflow gets the token the first one held")
 	s.Equal(int32(1), acquired.SemaphoreAcquiredEventAttributes.GetTokenID())
 }
 
