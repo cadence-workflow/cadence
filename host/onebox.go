@@ -137,7 +137,6 @@ type (
 		pinotClient                      pinot.GenericClient
 		asyncWFQueues                    map[string]config.AsyncWorkflowQueueProvider
 		timeSource                       clock.TimeSource
-		workflowIDRateLimitTimeSource    clock.TimeSource
 		dynamicClient                    dynamicconfig.Client
 
 		// dynamicconfig overrides per service
@@ -336,7 +335,6 @@ type (
 		PinotClient                      pinot.GenericClient
 		AsyncWFQueues                    map[string]config.AsyncWorkflowQueueProvider
 		TimeSource                       clock.TimeSource
-		WorkflowIDRateLimitTimeSource    clock.TimeSource
 		DynamicClient                    dynamicconfig.Client
 
 		FrontendDynCfgOverrides map[dynamicproperties.Key]interface{}
@@ -375,7 +373,6 @@ func NewCadence(params *CadenceParams) Cadence {
 		pinotClient:                      params.PinotClient,
 		asyncWFQueues:                    params.AsyncWFQueues,
 		timeSource:                       params.TimeSource,
-		workflowIDRateLimitTimeSource:    params.WorkflowIDRateLimitTimeSource,
 		dynamicClient:                    params.DynamicClient,
 		frontendDynCfgOverrides:          params.FrontendDynCfgOverrides,
 		historyDynCfgOverrides:           params.HistoryDynCfgOverrides,
@@ -802,7 +799,6 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 		params.ZapLogger = c.zapLogger
 		params.ThrottledLogger = c.logger
 		params.TimeSource = c.timeSource
-		params.WorkflowIDRateLimitTimeSource = c.workflowIDRateLimitTimeSource
 		params.PProfInitializer = newPProfInitializerImpl(c.logger, pprofPorts[i])
 		params.MetricScope = tally.NewTestScope(service.History, make(map[string]string))
 		params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.MigrationConfig{} /* default, only used in test setups */)

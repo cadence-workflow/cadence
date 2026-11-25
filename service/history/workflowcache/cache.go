@@ -73,7 +73,6 @@ type cacheValue struct {
 
 // Params is the parameters for a new WFCache
 type Params struct {
-	TimeSource             clock.TimeSource
 	TTL                    time.Duration
 	MaxCount               int
 	ExternalLimiterFactory quotas.LimiterFactory[string]
@@ -85,13 +84,9 @@ type Params struct {
 
 // New creates a new WFCache
 func New(params Params) WFCache {
-	if params.TimeSource == nil {
-		params.TimeSource = clock.NewRealTimeSource()
-	}
 	cache := &wfCache{
 		lru: cache.New(&cache.Options{
 			TTL:           params.TTL,
-			TimeSource:    params.TimeSource,
 			Pin:           false,
 			MaxCount:      params.MaxCount,
 			ActivelyEvict: true,
@@ -102,7 +97,7 @@ func New(params Params) WFCache {
 		internalLimiterFactory: params.InternalLimiterFactory,
 		domainCache:            params.DomainCache,
 		metricsClient:          params.MetricsClient,
-		timeSource:             params.TimeSource,
+		timeSource:             clock.NewRealTimeSource(),
 		logger:                 params.Logger,
 	}
 	// We set getCacheItemFn to cache.getCacheItem so that we can mock it in unit tests

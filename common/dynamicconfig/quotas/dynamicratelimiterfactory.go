@@ -23,7 +23,6 @@
 package quotas
 
 import (
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/quotas"
 )
@@ -31,20 +30,16 @@ import (
 // NewSimpleDynamicRateLimiterFactory creates a new LimiterFactory which creates
 // a new DynamicRateLimiter for each domain, the RPS for the DynamicRateLimiter is given by the dynamic config
 func NewSimpleDynamicRateLimiterFactory(rps dynamicproperties.IntPropertyFnWithDomainFilter) quotas.LimiterFactory[string] {
-	return NewSimpleDynamicRateLimiterFactoryWithTimeSource(rps, nil)
-}
-
-// NewSimpleDynamicRateLimiterFactoryWithTimeSource uses an optional clock for token refill.
-func NewSimpleDynamicRateLimiterFactoryWithTimeSource(rps dynamicproperties.IntPropertyFnWithDomainFilter, timeSource clock.TimeSource) quotas.LimiterFactory[string] {
-	return dynamicRateLimiterFactory{rps: rps, timeSource: timeSource}
+	return dynamicRateLimiterFactory{
+		rps: rps,
+	}
 }
 
 type dynamicRateLimiterFactory struct {
-	rps        dynamicproperties.IntPropertyFnWithDomainFilter
-	timeSource clock.TimeSource
+	rps dynamicproperties.IntPropertyFnWithDomainFilter
 }
 
 // GetLimiter returns a new Limiter for the given domain
 func (f dynamicRateLimiterFactory) GetLimiter(domain string) quotas.Limiter {
-	return quotas.NewDynamicRateLimiterWithTimeSource(func() float64 { return float64(f.rps(domain)) }, f.timeSource)
+	return quotas.NewDynamicRateLimiter(func() float64 { return float64(f.rps(domain)) })
 }

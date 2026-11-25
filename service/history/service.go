@@ -95,9 +95,8 @@ func (s *Service) Start() {
 
 	wfIDCache := workflowcache.New(workflowcache.Params{
 		TTL:                    workflowIDCacheTTL,
-		TimeSource:             s.params.WorkflowIDRateLimitTimeSource,
-		ExternalLimiterFactory: quotas.NewSimpleDynamicRateLimiterFactoryWithTimeSource(s.config.WorkflowIDExternalRPS, s.params.WorkflowIDRateLimitTimeSource),
-		InternalLimiterFactory: quotas.NewSimpleDynamicRateLimiterFactoryWithTimeSource(s.config.WorkflowIDInternalRPS, s.params.WorkflowIDRateLimitTimeSource),
+		ExternalLimiterFactory: quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDExternalRPS),
+		InternalLimiterFactory: quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDInternalRPS),
 		MaxCount:               workflowIDCacheMaxCount,
 		DomainCache:            s.Resource.GetDomainCache(),
 		Logger:                 s.Resource.GetLogger(),
