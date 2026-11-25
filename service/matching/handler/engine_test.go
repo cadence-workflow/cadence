@@ -1887,29 +1887,29 @@ func TestRefreshWorkflowTasks(t *testing.T) {
 	}
 }
 
-func TestSetupExecutorWithEmptyConfig(t *testing.T) {
-	// When no shard-distributor namespaces are configured, setupExecutor must
-	// succeed and install a no-op executor so the matching service falls back
-	// to local hash-ring assignment.
-	registry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards)
-	engine := &matchingEngineImpl{
-		taskListRegistry:               registry,
-		logger:                         log.NewNoop(),
-		timeSource:                     clock.NewRealTimeSource(),
-		ShardDistributorMatchingConfig: clientcommon.Config{}, // empty – no namespaces
-		config:                         &config.Config{},
+func TestSetupExecutorWithoutShardDistributor(t *testing.T) {
+	// Without shard-distributor namespaces or an outbound, setupExecutor must succeed and install a
+	// no-op executor so the matching service falls back to local hash-ring assignment.
+	for name, cfg := range map[string]clientcommon.Config{
+		"no namespaces": {},
+		"no outbound":   {Namespaces: []clientcommon.NamespaceConfig{{Namespace: "cadence-matching"}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			engine := &matchingEngineImpl{
+				taskListRegistry:               tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient(), commonConfig.DefaultNumMatchingShards),
+				logger:                         log.NewNoop(),
+				timeSource:                     clock.NewRealTimeSource(),
+				ShardDistributorMatchingConfig: cfg,
+				config:                         &config.Config{},
+			}
+
+			engine.setupExecutor(nil)
+
+			require.NotNil(t, engine.taskListsFactory)
+			_, err := engine.executor.GetShardProcess(context.Background(), "any-shard")
+			assert.ErrorIs(t, err, executorclient.ErrShardProcessNotFound)
+		})
 	}
-
-	// Must not panic or fatal; executor must be set afterward.
-	engine.setupExecutor(nil)
-
-	require.NotNil(t, engine.executor)
-	require.NotNil(t, engine.taskListsFactory)
-
-	// The no-op executor owns no shards, so any lookup falls back to local
-	// hash-ring ownership by returning ErrShardProcessNotFound.
-	_, err := engine.executor.GetShardProcess(context.Background(), "any-shard")
-	assert.ErrorIs(t, err, executorclient.ErrShardProcessNotFound)
 }
 
 const (
