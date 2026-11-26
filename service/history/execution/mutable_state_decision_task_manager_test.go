@@ -96,6 +96,7 @@ func TestReplicateDecisionTaskScheduledEvent(t *testing.T) {
 	tests := []struct {
 		name         string
 		assertions   func(t *testing.T, info *DecisionInfo, err error, logs *observer.ObservedLogs)
+		assertMsb    func(t *testing.T, msb *mutableStateBuilder)
 		expectations func(mgr *mutableStateDecisionTaskManagerImpl)
 		newMsb       func(t *testing.T) *mutableStateBuilder
 	}{
@@ -129,6 +130,28 @@ func TestReplicateDecisionTaskScheduledEvent(t *testing.T) {
 					attempt,
 					0,
 				)).Len())
+			},
+		},
+		{
+			name: "import in progress stays Preparing",
+			newMsb: func(t *testing.T) *mutableStateBuilder {
+				return &mutableStateBuilder{
+					executionInfo: &persistence.WorkflowExecutionInfo{
+						State:            persistence.WorkflowStatePreparing,
+						ImportInProgress: true,
+					},
+					taskGenerator: NewMockMutableStateTaskGenerator(gomock.NewController(t)),
+				}
+			},
+			expectations: func(mgr *mutableStateDecisionTaskManagerImpl) {
+				mgr.msb.taskGenerator.(*MockMutableStateTaskGenerator).EXPECT().GenerateDecisionScheduleTasks(scheduleID)
+			},
+			assertions: func(t *testing.T, info *DecisionInfo, err error, observedLogs *observer.ObservedLogs) {
+				require.NoError(t, err)
+				assert.Equal(t, scheduleID, info.ScheduleID)
+			},
+			assertMsb: func(t *testing.T, msb *mutableStateBuilder) {
+				assert.Equal(t, persistence.WorkflowStatePreparing, msb.executionInfo.State)
 			},
 		},
 		{
@@ -184,6 +207,9 @@ func TestReplicateDecisionTaskScheduledEvent(t *testing.T) {
 			}
 			info, err := m.ReplicateDecisionTaskScheduledEvent(version, scheduleID, taskList, startToCloseTimeoutSeconds, attempt, scheduleTimestamp, originalScheduledTimestamp, bypassTaskGeneration)
 			test.assertions(t, info, err, observedLogs)
+			if test.assertMsb != nil {
+				test.assertMsb(t, m.msb)
+			}
 		})
 	}
 }

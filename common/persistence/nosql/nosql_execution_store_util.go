@@ -489,7 +489,8 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionTxn(
 	// validate workflow state & close status
 	if err := persistence.ValidateUpdateWorkflowStateCloseStatus(
 		executionInfo.State,
-		executionInfo.CloseStatus); err != nil {
+		executionInfo.CloseStatus,
+		executionInfo.ImportInProgress); err != nil {
 		return nil, err
 	}
 

@@ -799,6 +799,8 @@ func (e *mutableStateBuilder) IsCurrentWorkflowGuaranteed() bool {
 	// 2. stateInDB being completed does not guarantee this workflow being the current workflow
 	// 3. stateInDB being zombie guarantees this workflow not being the current workflow
 	// 4. stateInDB cannot be void, void is only possible when mutable state is just initialized
+	// 5. stateInDB being preparing meaning that this workflow must be the current workflow: an
+	//  import in progress that is not the current workflow is a zombie
 
 	switch e.stateInDB {
 	case persistence.WorkflowStateVoid:
@@ -813,6 +815,8 @@ func (e *mutableStateBuilder) IsCurrentWorkflowGuaranteed() bool {
 		return false
 	case persistence.WorkflowStateCorrupted:
 		return false
+	case persistence.WorkflowStatePreparing:
+		return true
 	default:
 		panic(fmt.Sprintf("unknown workflow state: %v", e.executionInfo.State))
 	}
@@ -1207,17 +1211,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionTerminatedEvent(
 	event *types.HistoryEvent,
 ) error {
 
-	if err := e.UpdateWorkflowStateCloseStatus(
-		persistence.WorkflowStateCompleted,
-		persistence.WorkflowCloseStatusTerminated,
-	); err != nil {
-		return err
-	}
-	e.executionInfo.CompletionEventBatchID = firstEventID // Used when completion event needs to be loaded from database
-	e.ClearStickyness()
-	e.writeEventToCache(event)
-
-	return e.taskGenerator.GenerateWorkflowCloseTasks(event, e.config.WorkflowDeletionJitterRange(e.domainEntry.GetInfo().Name))
+	return e.closeWorkflow(firstEventID, persistence.WorkflowCloseStatusTerminated, event)
 }
 
 func (e *mutableStateBuilder) AddContinueAsNewEvent(
@@ -1342,17 +1336,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionContinuedAsNewEvent(
 	continueAsNewEvent *types.HistoryEvent,
 ) error {
 
-	if err := e.UpdateWorkflowStateCloseStatus(
-		persistence.WorkflowStateCompleted,
-		persistence.WorkflowCloseStatusContinuedAsNew,
-	); err != nil {
-		return err
-	}
-	e.executionInfo.CompletionEventBatchID = firstEventID // Used when completion event needs to be loaded from database
-	e.ClearStickyness()
-	e.writeEventToCache(continueAsNewEvent)
-
-	return e.taskGenerator.GenerateWorkflowCloseTasks(continueAsNewEvent, e.config.WorkflowDeletionJitterRange(e.domainEntry.GetInfo().Name))
+	return e.closeWorkflow(firstEventID, persistence.WorkflowCloseStatusContinuedAsNew, continueAsNewEvent)
 }
 
 // TODO mutable state should generate corresponding transfer / timer tasks according to
@@ -1413,6 +1397,34 @@ func (e *mutableStateBuilder) UpdateWorkflowStateCloseStatus(
 ) error {
 
 	return e.executionInfo.UpdateWorkflowStateCloseStatus(state, closeStatus)
+}
+
+// closeWorkflow applies the close event of the workflow. An import in progress, current or a
+// zombie, keeps its state and gets no close tasks: a run never leaves Preparing and comes back,
+// and the import generates the close tasks when it ends.
+func (e *mutableStateBuilder) closeWorkflow(
+	firstEventID int64,
+	closeStatus int,
+	event *types.HistoryEvent,
+) error {
+
+	state := e.executionInfo.State
+	isImportInProgress := state == persistence.WorkflowStatePreparing ||
+		(state == persistence.WorkflowStateZombie && e.executionInfo.ImportInProgress)
+	if !isImportInProgress {
+		state = persistence.WorkflowStateCompleted
+	}
+	if err := e.UpdateWorkflowStateCloseStatus(state, closeStatus); err != nil {
+		return err
+	}
+	e.executionInfo.CompletionEventBatchID = firstEventID // Used when completion event needs to be loaded from database
+	e.ClearStickyness()
+	e.writeEventToCache(event)
+
+	if isImportInProgress {
+		return nil
+	}
+	return e.taskGenerator.GenerateWorkflowCloseTasks(event, e.config.WorkflowDeletionJitterRange(e.domainEntry.GetInfo().Name))
 }
 
 func (e *mutableStateBuilder) StartTransaction(

@@ -158,9 +158,12 @@ func (e *WorkflowExecutionInfo) UpdateWorkflowStateCloseStatus(
 
 		case WorkflowStatePreparing:
 			// A zombie import in progress that becomes current again (Revive). This is the only
-			// transition into Preparing: the import code sets Preparing directly. A zombie always
-			// has close status None, so the revived run keeps None.
-			if closeStatus != WorkflowCloseStatusNone {
+			// transition into Preparing: the import code sets Preparing directly.
+			if !e.ImportInProgress {
+				return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
+			}
+			// A zombie import can have the close event, so the revived run keeps its close status.
+			if closeStatus != e.CloseStatus {
 				return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
 			}
 
@@ -176,10 +179,13 @@ func (e *WorkflowExecutionInfo) UpdateWorkflowStateCloseStatus(
 			// so any close status is valid.
 
 		case WorkflowStateZombie:
-			// An import in progress that lost a run conflict. ValidateUpdateWorkflowStateCloseStatus
-			// rejects a zombie with a close status, so only an import without the close event can
-			// become a zombie.
-			if closeStatus != WorkflowCloseStatusNone {
+			// An import in progress that lost a run conflict keeps its close status, so a revive
+			// makes it the same import in progress again. Any other zombie has close status None.
+			if e.ImportInProgress {
+				if closeStatus != e.CloseStatus {
+					return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
+				}
+			} else if closeStatus != WorkflowCloseStatusNone {
 				return e.createInvalidStateTransitionErr(e.State, state, closeStatus)
 			}
 

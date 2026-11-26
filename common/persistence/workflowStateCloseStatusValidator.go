@@ -80,6 +80,7 @@ func ValidateCreateWorkflowStateCloseStatus(
 func ValidateUpdateWorkflowStateCloseStatus(
 	state int,
 	closeStatus int,
+	importInProgress bool,
 ) error {
 
 	if err := validateWorkflowState(state); err != nil {
@@ -92,6 +93,12 @@ func ValidateUpdateWorkflowStateCloseStatus(
 	// An import writes its imported events, including the close event, while the run is
 	// Preparing, so any close status is valid.
 	if state == WorkflowStatePreparing {
+		return nil
+	}
+
+	// An import in progress that lost a run conflict is a zombie. It keeps the close status of
+	// its imported close event, and replication can apply the close event to it.
+	if state == WorkflowStateZombie && importInProgress {
 		return nil
 	}
 

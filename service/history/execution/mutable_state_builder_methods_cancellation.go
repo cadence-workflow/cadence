@@ -109,17 +109,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionCanceledEvent(
 	firstEventID int64,
 	event *types.HistoryEvent,
 ) error {
-	if err := e.UpdateWorkflowStateCloseStatus(
-		persistence.WorkflowStateCompleted,
-		persistence.WorkflowCloseStatusCanceled,
-	); err != nil {
-		return err
-	}
-	e.executionInfo.CompletionEventBatchID = firstEventID // Used when completion event needs to be loaded from database
-	e.ClearStickyness()
-	e.writeEventToCache(event)
-
-	return e.taskGenerator.GenerateWorkflowCloseTasks(event, e.config.WorkflowDeletionJitterRange(e.domainEntry.GetInfo().Name))
+	return e.closeWorkflow(firstEventID, persistence.WorkflowCloseStatusCanceled, event)
 }
 
 func (e *mutableStateBuilder) AddRequestCancelExternalWorkflowExecutionInitiatedEvent(

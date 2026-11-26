@@ -125,7 +125,8 @@ func (r *transactionManagerForNewWorkflowImpl) dispatchForNewWorkflow(
 	}
 
 	// target workflow is newer than current workflow
-	if !currentWorkflow.GetMutableState().IsWorkflowExecutionRunning() {
+	// an import in progress is suppressed like a running workflow
+	if !execution.IsRunningOrImporting(currentWorkflow.GetMutableState()) {
 		// current workflow is completed
 		// proceed to create workflow
 		return r.executeTransaction(
@@ -266,10 +267,14 @@ func (r *transactionManagerForNewWorkflowImpl) createAsZombie(
 	currentWorkflow.GetReleaseFn()(nil)
 	currentWorkflow = nil
 
-	if err := targetWorkflow.GetContext().ReapplyEvents(
-		targetWorkflowEventsSeq,
-	); err != nil {
-		return err
+	// The events of an import in progress are a copy of the source workflow history, and the source
+	// workflow already received its signals. A reapply would deliver them again to the current run.
+	if !targetWorkflow.GetMutableState().GetExecutionInfo().ImportInProgress {
+		if err := targetWorkflow.GetContext().ReapplyEvents(
+			targetWorkflowEventsSeq,
+		); err != nil {
+			return err
+		}
 	}
 
 	createMode := persistence.CreateWorkflowModeZombie

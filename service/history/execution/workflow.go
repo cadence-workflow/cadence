@@ -153,6 +153,14 @@ func (r *workflowImpl) Revive() error {
 	}
 
 	// workflow is in zombie state, need to set the state correctly accordingly
+	// a zombie import in progress has a partial history, so it is an import in progress again
+	executionInfo := r.mutableState.GetExecutionInfo()
+	if executionInfo.ImportInProgress {
+		return r.mutableState.UpdateWorkflowStateCloseStatus(
+			persistence.WorkflowStatePreparing,
+			executionInfo.CloseStatus,
+		)
+	}
 	state = persistence.WorkflowStateCreated
 	if r.mutableState.HasProcessedOrPendingDecision() {
 		state = persistence.WorkflowStateRunning
@@ -190,6 +198,12 @@ func (r *workflowImpl) SuppressBy(
 		return TransactionPolicyActive, &types.InternalServiceError{
 			Message: "nDCWorkflow cannot suppress workflow by older workflow",
 		}
+	}
+
+	// an import in progress becomes a zombie on every cluster: its events are written by the import
+	// only, so there is no workflow progress to terminate
+	if r.mutableState.GetExecutionInfo().State == persistence.WorkflowStatePreparing {
+		return TransactionPolicyPassive, r.zombiefyWorkflow()
 	}
 
 	// if workflow is in zombie or finished state, keep as is
@@ -297,9 +311,11 @@ func (r *workflowImpl) terminateWorkflow(
 
 func (r *workflowImpl) zombiefyWorkflow() error {
 
-	return r.mutableState.GetExecutionInfo().UpdateWorkflowStateCloseStatus(
+	// a running workflow has close status None, and an import in progress keeps its close status
+	executionInfo := r.mutableState.GetExecutionInfo()
+	return executionInfo.UpdateWorkflowStateCloseStatus(
 		persistence.WorkflowStateZombie,
-		persistence.WorkflowCloseStatusNone,
+		executionInfo.CloseStatus,
 	)
 }
 

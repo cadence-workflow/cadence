@@ -1589,6 +1589,68 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 			},
 		},
 		{
+			name: "import in progress skips the events reapplication",
+			newContext: &contextImpl{
+				stats:         &persistence.ExecutionStats{},
+				metricsClient: metrics.NewNoopMetricsClient(),
+			},
+			updateMode:                       persistence.UpdateWorkflowModeBypassCurrent,
+			currentWorkflowTransactionPolicy: TransactionPolicyPassive,
+			newWorkflowTransactionPolicy:     TransactionPolicyPassive.Ptr(),
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockMutableState *MockMutableState, mockNewMutableState *MockMutableState, mockEngine *engine.MockEngine) {
+				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
+				mockMutableState.EXPECT().CloseTransactionAsMutation(gomock.Any(), gomock.Any()).Return(&persistence.WorkflowMutation{}, []*persistence.WorkflowEvents{
+					{
+						Events: []*types.HistoryEvent{
+							{
+								ID: 1,
+							},
+						},
+						BranchToken: []byte{1, 2, 3},
+					},
+				}, nil)
+				mockMutableState.EXPECT().GetNextEventID().Return(int64(11))
+				mockMutableState.EXPECT().SetHistorySize(gomock.Any())
+				mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					State:            persistence.WorkflowStateZombie,
+					ImportInProgress: true,
+				}).AnyTimes()
+				mockNewMutableState.EXPECT().CloseTransactionAsSnapshot(gomock.Any(), gomock.Any()).Return(&persistence.WorkflowSnapshot{}, []*persistence.WorkflowEvents{
+					{
+						Events: []*types.HistoryEvent{
+							{
+								ID: constants.FirstEventID,
+							},
+						},
+						BranchToken: []byte{4},
+					},
+				}, nil)
+			},
+			mockPersistNonStartWorkflowBatchEventsFn: func(context.Context, *persistence.WorkflowEvents) (events.PersistedBlob, error) {
+				return events.PersistedBlob{}, nil
+			},
+			mockPersistStartWorkflowBatchEventsFn: func(context.Context, *persistence.WorkflowEvents) (events.PersistedBlob, error) {
+				return events.PersistedBlob{}, nil
+			},
+			mockMergeContinueAsNewReplicationTasksFn: func(persistence.UpdateWorkflowMode, *persistence.WorkflowMutation, *persistence.WorkflowSnapshot) error {
+				return nil
+			},
+			mockUpdateWorkflowExecutionEventReapplyFn: func(persistence.UpdateWorkflowMode, []*persistence.WorkflowEvents, []*persistence.WorkflowEvents) error {
+				return errors.New("events reapplication of an import in progress")
+			},
+			// the update error, not the reapplication error, shows that the reapplication was skipped
+			mockUpdateWorkflowExecutionFn: func(context.Context, *persistence.UpdateWorkflowExecutionRequest) (*persistence.UpdateWorkflowExecutionResponse, error) {
+				return nil, errors.New("update error")
+			},
+			mockNotifyTasksFromWorkflowMutationFn: func(*persistence.WorkflowMutation, events.PersistedBlobs, bool) {},
+			mockNotifyTasksFromWorkflowSnapshotFn: func(*persistence.WorkflowSnapshot, events.PersistedBlobs, bool) {},
+			wantErr:                               true,
+			assertErr: func(t *testing.T, err error) {
+				assert.Equal(t, errors.New("update error"), err)
+			},
+		},
+		{
 			name: "updateWorkflowExecution failed",
 			newContext: &contextImpl{
 				stats:         &persistence.ExecutionStats{},
@@ -1919,6 +1981,8 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 			if tc.mockSetup != nil {
 				tc.mockSetup(mockShard, mockDomainCache, mockMutableState, mockNewMutableState, mockEngine)
 			}
+			// the events reapplication reads the import flag: the workflow is not an import in progress
+			mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{}).AnyTimes()
 			ctx := &contextImpl{
 				logger:                                testlogger.New(t),
 				shard:                                 mockShard,
@@ -2369,6 +2433,74 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			},
 		},
 		{
+			name: "import in progress skips the events reapplication",
+			newContext: &contextImpl{
+				stats:         &persistence.ExecutionStats{},
+				metricsClient: metrics.NewNoopMetricsClient(),
+			},
+			currentContext: &contextImpl{
+				stats:         &persistence.ExecutionStats{},
+				metricsClient: metrics.NewNoopMetricsClient(),
+			},
+			conflictResolveMode:              persistence.ConflictResolveWorkflowModeBypassCurrent,
+			currentWorkflowTransactionPolicy: TransactionPolicyPassive.Ptr(),
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockResetMutableState *MockMutableState, mockNewMutableState *MockMutableState, mockMutableState *MockMutableState, mockEngine *engine.MockEngine) {
+				mockResetMutableState.EXPECT().CloseTransactionAsSnapshot(gomock.Any(), gomock.Any()).Return(&persistence.WorkflowSnapshot{}, []*persistence.WorkflowEvents{
+					{
+						Events: []*types.HistoryEvent{
+							{
+								ID: 1,
+							},
+						},
+						BranchToken: []byte{1, 2, 3},
+					},
+				}, nil)
+				mockResetMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					State:            persistence.WorkflowStateZombie,
+					ImportInProgress: true,
+				}).AnyTimes()
+				mockNewMutableState.EXPECT().CloseTransactionAsSnapshot(gomock.Any(), gomock.Any()).Return(&persistence.WorkflowSnapshot{}, []*persistence.WorkflowEvents{
+					{
+						Events: []*types.HistoryEvent{
+							{
+								ID: constants.FirstEventID,
+							},
+						},
+						BranchToken: []byte{4},
+					},
+				}, nil)
+				mockMutableState.EXPECT().CloseTransactionAsMutation(gomock.Any(), gomock.Any()).Return(&persistence.WorkflowMutation{}, []*persistence.WorkflowEvents{
+					{
+						Events: []*types.HistoryEvent{
+							{
+								ID: 2,
+							},
+						},
+						BranchToken: []byte{5, 6},
+					},
+				}, nil)
+				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
+				// the persistence error, not the reapplication error, shows that the reapplication was skipped
+				mockShard.EXPECT().ConflictResolveWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, errors.New("persistence error"))
+			},
+			mockPersistNonStartWorkflowBatchEventsFn: func(_ context.Context, history *persistence.WorkflowEvents) (events.PersistedBlob, error) {
+				return events.PersistedBlob{}, nil
+			},
+			mockPersistStartWorkflowBatchEventsFn: func(context.Context, *persistence.WorkflowEvents) (events.PersistedBlob, error) {
+				return events.PersistedBlob{}, nil
+			},
+			mockConflictResolveWorkflowExecutionEventReapplyFn: func(persistence.ConflictResolveWorkflowMode, []*persistence.WorkflowEvents, []*persistence.WorkflowEvents) error {
+				return errors.New("events reapplication of an import in progress")
+			},
+			mockNotifyTasksFromWorkflowMutationFn: func(*persistence.WorkflowMutation, events.PersistedBlobs, bool) {},
+			mockNotifyTasksFromWorkflowSnapshotFn: func(*persistence.WorkflowSnapshot, events.PersistedBlobs, bool) {},
+			wantErr:                               true,
+			assertErr: func(t *testing.T, err error) {
+				assert.Equal(t, errors.New("persistence error"), err)
+			},
+		},
+		{
 			name: "ConflictResolveWorkflowExecution failed",
 			newContext: &contextImpl{
 				stats:         &persistence.ExecutionStats{},
@@ -2701,6 +2833,8 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			if tc.mockSetup != nil {
 				tc.mockSetup(mockShard, mockDomainCache, mockResetMutableState, mockNewMutableState, mockMutableState, mockEngine)
 			}
+			// the events reapplication reads the import flag: the reset workflow is not an import in progress
+			mockResetMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{}).AnyTimes()
 			ctx := &contextImpl{
 				logger:                               testlogger.New(t),
 				shard:                                mockShard,
