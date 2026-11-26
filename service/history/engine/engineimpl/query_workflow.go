@@ -37,6 +37,19 @@ import (
 	"github.com/uber/cadence/service/history/workflow"
 )
 
+// emitQueryWorkflowAgeDays records workflow_query_age_days. The status tag values must match the
+// frontend's emitWorkflowAgeDays so the series stay comparable on the same histogram.
+func (e *historyEngineImpl) emitQueryWorkflowAgeDays(domain string, closeTime time.Time, closeStatus types.WorkflowExecutionCloseStatus) {
+	statusTag := "failure"
+	switch closeStatus {
+	case types.WorkflowExecutionCloseStatusCompleted, types.WorkflowExecutionCloseStatusContinuedAsNew:
+		statusTag = "success"
+	}
+	ageDays := time.Since(closeTime).Hours() / 24
+	e.metricsClient.Scope(metrics.HistoryQueryWorkflowScope, metrics.DomainTag(domain), metrics.WorkflowCloseStatusTag(statusTag)).
+		RecordHistogramValue(metrics.WorkflowQueryAgeDays, ageDays)
+}
+
 func (e *historyEngineImpl) QueryWorkflow(
 	ctx context.Context,
 	request *types.HistoryQueryWorkflowRequest,
@@ -55,6 +68,13 @@ func (e *historyEngineImpl) QueryWorkflow(
 	}
 
 	execution := *request.GetRequest().GetExecution()
+	var closeTime time.Time
+	var ageCloseStatus types.WorkflowExecutionCloseStatus
+	defer func() {
+		if retErr == nil && !closeTime.IsZero() {
+			e.emitQueryWorkflowAgeDays(request.GetRequest().GetDomain(), closeTime, ageCloseStatus)
+		}
+	}()
 
 	mutableStateResp, err := e.getMutableState(ctx, request.GetDomainUUID(), execution)
 	if err != nil {
@@ -129,6 +149,17 @@ func (e *historyEngineImpl) QueryWorkflow(
 		return nil, err
 	} else if corrupted {
 		return nil, &types.EntityNotExistsError{Message: "Workflow execution corrupted."}
+	}
+
+	// shortcut: best-effort close time. LastUpdatedTimestamp is already in memory, and reading the
+	// completion event can hit persistence. A later write to the workflow, or replication lag on a
+	// standby cluster, makes the age slightly off. Upgrade only if exact ages matter.
+	if !mutableState.IsWorkflowExecutionRunning() {
+		info := mutableState.GetExecutionInfo()
+		if status := persistence.ToInternalWorkflowExecutionCloseStatus(info.CloseStatus); status != nil {
+			closeTime = info.LastUpdatedTimestamp
+			ageCloseStatus = *status
+		}
 	}
 
 	// There are two ways in which queries get dispatched to decider. First, queries can be dispatched on decision tasks.
