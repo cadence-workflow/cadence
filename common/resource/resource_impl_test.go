@@ -32,6 +32,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -183,6 +184,7 @@ func TestStartStop(t *testing.T) {
 		RPCFactory:             rpcFac,
 		MembershipResolver:     memberRes,
 		TaskListDifferentiator: taskListDifferentiator,
+		HistoryOnboardingGate:  history.NewOnboardingGate(metrics.NewNoopMetricsClient(), dynamicproperties.GetIntPropertyFn(0), 1024),
 		DynamicConfig:          dc,
 		DynamicCollection: dynamicconfig.NewCollection(
 			dc,
@@ -303,4 +305,19 @@ func TestNewFailsWithoutMatchingShards(t *testing.T) {
 
 	_, err := New(params, "test-service", &service.Config{})
 	assert.ErrorContains(t, err, "numMatchingShards must be positive, got 0")
+}
+
+func TestNewFailsWithoutHistoryOnboardingGate(t *testing.T) {
+	differentiator := matching.NewTaskListDifferentiator(
+		metrics.NewNoopMetricsClient(),
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
+		dynamicproperties.GetIntPropertyFn(0),
+		config.DefaultNumMatchingShards,
+	)
+	params := &Params{Logger: testlogger.New(t), TaskListDifferentiator: differentiator}
+
+	_, err := New(params, "test-service", &service.Config{})
+	assert.ErrorContains(t, err, "resource.Params.HistoryOnboardingGate must be set")
 }
