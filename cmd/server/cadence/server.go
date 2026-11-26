@@ -6,13 +6,6 @@ import (
 	"time"
 
 	sharddistributorv1 "github.com/cadence-workflow/shard-manager/.gen/proto/sharddistributor/v1"
-	"github.com/cadence-workflow/shard-manager/client/sharddistributor"
-	smgrpc "github.com/cadence-workflow/shard-manager/client/wrappers/grpc"
-	smmetered "github.com/cadence-workflow/shard-manager/client/wrappers/metered"
-	smretryable "github.com/cadence-workflow/shard-manager/client/wrappers/retryable"
-	smtimeoutwrapper "github.com/cadence-workflow/shard-manager/client/wrappers/timeout"
-	smcommon "github.com/cadence-workflow/shard-manager/common"
-	smmetrics "github.com/cadence-workflow/shard-manager/common/metrics"
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 	"github.com/startreedata/pinot-client-go/pinot"
 	"github.com/uber-go/tally"
@@ -173,13 +166,15 @@ func (s *server) startService() common.Daemon {
 		if len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 1 {
 			s.logger.Fatal("spectator does not support multiple namespaces", tag.Value(s.cfg.ShardDistributorMatchingConfig.Namespaces))
 		}
+		hedgeShare := s.operationalDynamicConfig.GetFloat64Property(dynamicproperties.ShardDistributorClientHedgeShare)
 		spectatorParams := spectatorclient.Params{
-			Client:       shardDistributorClient,
+			YarpcClient:  shardDistributorClient,
 			MetricsScope: params.MetricScope,
 			Logger:       params.ZapLogger,
 			Config:       s.cfg.ShardDistributorMatchingConfig,
 			TimeSource:   clock.NewSMTimeSourceAdapter(clock.NewRealTimeSource()),
 			Enabled:      params.TaskListDifferentiator.ShardDistributorEnabled,
+			HedgeShare:   func() float64 { return hedgeShare() },
 		}
 		namespace := s.cfg.ShardDistributorMatchingConfig.Namespaces[0].Namespace
 		spectator, err = spectatorclient.NewSpectatorWithNamespace(
@@ -296,7 +291,7 @@ func (s *server) startService() common.Daemon {
 
 func (*server) createShardDistributorClient(
 	params resource.Params,
-) sharddistributor.Client {
+) sharddistributorv1.ShardDistributorAPIYARPCClient {
 	shardDistributorClientConfig, ok := params.RPCFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
 
 	if !ok {
@@ -310,21 +305,7 @@ func (*server) createShardDistributorClient(
 		params.Logger.Error("shard distributor client does not support stream outbound will fail back to hashring")
 		return nil
 	}
-
-	shardDistributorClient := smgrpc.NewShardDistributorClient(
-		sharddistributorv1.NewShardDistributorAPIYARPCClient(shardDistributorClientConfig),
-	)
-	shardDistributorClient = smtimeoutwrapper.NewShardDistributorClient(shardDistributorClient, smtimeoutwrapper.ShardDistributorDefaultTimeout)
-	shardDistributorClient = smretryable.NewShardDistributorClient(
-		shardDistributorClient,
-		smcommon.CreateShardDistributorServiceRetryPolicy(),
-		smcommon.IsServiceTransientError,
-	)
-	if params.MetricScope != nil {
-		metricsClient := smmetrics.NewClient(params.MetricScope, smmetrics.ShardDistributor, smmetrics.MigrationConfig{})
-		shardDistributorClient = smmetered.NewShardDistributorClient(shardDistributorClient, metricsClient)
-	}
-	return shardDistributorClient
+	return sharddistributorv1.NewShardDistributorAPIYARPCClient(shardDistributorClientConfig)
 }
 
 // execute runs the daemon in a separate go routine

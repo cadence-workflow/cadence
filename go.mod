@@ -9,7 +9,7 @@ require (
 	github.com/VividCortex/mysqlerr v1.0.0
 	github.com/aws/aws-sdk-go v1.54.12
 	github.com/cactus/go-statsd-client/statsd v0.0.0-20191106001114-12b4e2b38748
-	github.com/cadence-workflow/shard-manager v0.0.0-20261125143726-91bc192f594c
+	github.com/cadence-workflow/shard-manager v0.0.0-20261126101855-1f2f7351bc90
 	github.com/cch123/elasticsql v0.0.0-20190321073543-a1a440758eb9
 	github.com/dave/dst v0.26.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc

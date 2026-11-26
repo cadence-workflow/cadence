@@ -68,7 +68,7 @@ require (
 )
 
 require (
-	github.com/cadence-workflow/shard-manager v0.0.0-20261125143726-91bc192f594c
+	github.com/cadence-workflow/shard-manager v0.0.0-20261126101855-1f2f7351bc90
 	github.com/ncruces/go-sqlite3 v0.23.3
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/common/archiver/gcloud v0.0.0-00010101000000-000000000000
