@@ -120,9 +120,15 @@ func (db *CDB) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) err
 	}
 
 	if !applied {
-		// Domain already exist.  Delete orphan domain record before returning back to user
-		if errDelete := db.session.Query(templateDeleteDomainQuery, row.Info.ID).WithContext(ctx).Exec(); errDelete != nil {
+		// Domain already exist.  Delete orphan domain record before returning back to user.
+		// The delete must be a LWT conditioned on the row this call inserted: a plain delete is not
+		// serialized with the LWT inserts, so under contention it can remove a by-ID row re-inserted by
+		// a concurrent create of the same domain ID, orphaning that create's domains_by_name_v2 row.
+		deleteQuery := db.session.Query(templateDeleteOrphanDomainQuery, row.Info.ID, timeStamp).WithContext(ctx)
+		if deleted, errDelete := deleteQuery.MapScanCAS(make(map[string]interface{})); errDelete != nil {
 			db.logger.Warn("Unable to delete orphan domain record. Error", tag.Error(errDelete))
+		} else if !deleted {
+			db.logger.Warn("Orphan domain record was not deleted because it no longer matches the inserted record")
 		}
 
 		for {
