@@ -70,18 +70,35 @@ func (s *IntegrationSuite) TestWorkflowRetryPolicyTimeout_SLOW() {
 	s.Nil(err0)
 
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
-	time.Sleep(3 * time.Second) // wait 1 second for timeout
 
-	ctx, cancel = createContext()
-	defer cancel()
-	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain: s.DomainName,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: id,
-		},
-	})
-	s.Nil(err)
-	history := historyResponse.History
+	var history *types.History
+	s.Require().Eventually(func() bool {
+		ctx, cancel := createContext()
+		defer cancel()
+		historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+			Domain: s.DomainName,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: id,
+			},
+		})
+		if err != nil || historyResponse == nil || historyResponse.History == nil || len(historyResponse.History.Events) == 0 {
+			return false
+		}
+		history = historyResponse.History
+		lastEvent := history.Events[len(history.Events)-1]
+		if *lastEvent.EventType != types.EventTypeWorkflowExecutionTimedOut {
+			s.Logger.Warn("Execution not timedout yet.")
+			return false
+		}
+		return true
+	}, 10*time.Second, 200*time.Millisecond)
+
+	lastEvent := history.Events[len(history.Events)-1]
+	s.Require().Equal(types.EventTypeWorkflowExecutionTimedOut, *lastEvent.EventType)
+	timeoutEventAttributes := lastEvent.WorkflowExecutionTimedOutEventAttributes
+	s.Require().NotNil(timeoutEventAttributes)
+	s.Equal(types.TimeoutTypeStartToClose, *timeoutEventAttributes.TimeoutType)
+
 	firstEvent := history.Events[0]
 	s.NotNil(firstEvent)
 	s.Equal(firstEvent.EventType, types.EventTypeWorkflowExecutionStarted.Ptr())
@@ -91,7 +108,7 @@ func (s *IntegrationSuite) TestWorkflowRetryPolicyTimeout_SLOW() {
 	s.True(delta > 0*time.Second)
 	s.True(delta < 2*time.Second)
 
-	lastEvent := history.Events[len(history.Events)-1]
+	lastEvent = history.Events[len(history.Events)-1]
 	delta = time.Unix(0, common.Int64Default(lastEvent.Timestamp)).Sub(time.Unix(0, common.Int64Default(firstEvent.Timestamp)))
 	s.True(delta > 2*time.Second)
 	s.True(delta < 4*time.Second)
