@@ -56,3 +56,6 @@ history.EnableConsistentQueryByDomain:
 worker.enableScheduler:
 - value: true
   constraints: {}
+frontend.cancelOutstandingPollsOnShutdown:
+- value: true
+  constraints: {}
