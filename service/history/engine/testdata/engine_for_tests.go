@@ -137,7 +137,12 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 	transferQProcessor.EXPECT().Stop().Return().Times(1)
 	transferQueueFactory.EXPECT().CreateQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(transferQProcessor).Times(1)
 
-	queueFactories := []queue.Factory{timerQueueFactory, transferQueueFactory}
+	// the visibility queue is disabled by default, so its factory returns no processor
+	visibilityQueueFactory := queue.NewMockFactory(controller)
+	visibilityQueueFactory.EXPECT().Category().Return(persistence.HistoryTaskCategoryVisibility).AnyTimes()
+	visibilityQueueFactory.EXPECT().CreateQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	queueFactories := []queue.Factory{timerQueueFactory, transferQueueFactory, visibilityQueueFactory}
 
 	engine := newEngineFn(
 		shardCtx,

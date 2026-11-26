@@ -24,8 +24,10 @@ package engineimpl
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
 
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/engine/testdata"
 )
 
@@ -34,6 +36,21 @@ func TestHistoryEngineStartStop(t *testing.T) {
 
 	eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
 
+	eft.Engine.Start()
+	eft.Engine.Stop()
+}
+
+func TestNewEngineSkipsDisabledQueue(t *testing.T) {
+	t.Cleanup(func() { goleak.VerifyNone(t) })
+
+	eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
+
+	queueProcessors := eft.Engine.(*historyEngineImpl).queueProcessors
+	assert.Contains(t, queueProcessors, persistence.HistoryTaskCategoryTransfer)
+	assert.Contains(t, queueProcessors, persistence.HistoryTaskCategoryTimer)
+	assert.NotContains(t, queueProcessors, persistence.HistoryTaskCategoryVisibility)
+
+	// start and stop only the queues that were created
 	eft.Engine.Start()
 	eft.Engine.Stop()
 }

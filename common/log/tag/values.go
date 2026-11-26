@@ -113,6 +113,7 @@ var (
 	ComponentTransferQueueV2                  = component("transfer-queue-processor-v2")
 	ComponentTimerQueue                       = component("timer-queue-processor")
 	ComponentTimerQueueV2                     = component("timer-queue-processor-v2")
+	ComponentVisibilityQueue                  = component("visibility-queue-processor")
 	ComponentCachedScheduledQueueReader       = component("cached-scheduled-queue-reader")
 	ComponentCachedImmediateQueueReader       = component("cached-immediate-queue-reader")
 	ComponentTimerBuilder                     = component("timer-builder")
