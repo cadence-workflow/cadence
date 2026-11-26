@@ -26,7 +26,6 @@ import (
 
 	sharddistributorv1 "github.com/cadence-workflow/shard-manager/.gen/proto/sharddistributor/v1"
 	smgrpc "github.com/cadence-workflow/shard-manager/client/wrappers/grpc"
-	smtimeoutwrapper "github.com/cadence-workflow/shard-manager/client/wrappers/timeout"
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	adminv1 "github.com/uber/cadence-idl/go/proto/admin/v1"
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
@@ -258,8 +257,5 @@ func (cf *rpcClientFactory) NewShardDistributorExecutorClient() (executorclient.
 		return nil, fmt.Errorf("shard distributor client does not support non-GRPC outbound")
 	}
 
-	client := smgrpc.NewShardDistributorExecutorClient(sharddistributorv1.NewShardDistributorExecutorAPIYARPCClient(outboundConfig))
-	client = smtimeoutwrapper.NewShardDistributorExecutorClient(client, smtimeoutwrapper.ShardDistributorExecutorDefaultTimeout)
-
-	return client, nil
+	return smgrpc.NewShardDistributorExecutorClient(sharddistributorv1.NewShardDistributorExecutorAPIYARPCClient(outboundConfig)), nil
 }
