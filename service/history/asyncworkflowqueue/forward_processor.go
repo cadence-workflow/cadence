@@ -2,6 +2,7 @@ package asyncworkflowqueue
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"go.uber.org/yarpc"
@@ -25,6 +26,8 @@ func NewForwardProcessor(clientBean client.Bean, scope metrics.Scope) Processor 
 	}
 }
 
+// Process makes one attempt. An active cluster with no frontend client and a domain the remote
+// cluster does not know are both returned as non-transient errors, so the caller does not retry them.
 func (p *forwardProcessor) Process(ctx context.Context, req *Request) error {
 	if req.ActiveCluster == "" {
 		return &types.InternalServiceError{
@@ -45,7 +48,8 @@ func (p *forwardProcessor) Process(ctx context.Context, req *Request) error {
 
 	fe, err := p.clientBean.GetRemoteFrontendClient(req.ActiveCluster)
 	if err != nil {
-		return err
+		// The bean's error lists every configured client; keep the reason to the cluster name.
+		return fmt.Errorf("async workflow queue forward: no frontend client for active cluster %q", req.ActiveCluster)
 	}
 
 	opts := headerOptions(req.Headers)
