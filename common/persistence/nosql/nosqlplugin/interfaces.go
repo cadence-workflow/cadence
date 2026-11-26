@@ -71,6 +71,7 @@ type (
 		SemaphoreTaskCRUD
 		SemaphoreTokenCRUD
 		HistoryDLQTaskCRUD
+		AsyncWorkflowQueueCRUD
 	}
 
 	// ClientErrorChecker checks for common nosql errors on client
@@ -683,5 +684,27 @@ type (
 		// no row for this (shard, domain, scope, name, task_category) already exists.
 		// Both outcomes (created or already present) are successful.
 		InsertHistoryDLQAckLevelIfNotExistsRow(ctx context.Context, row *HistoryDLQAckLevelRow) error
+	}
+
+	/***
+	 * AsyncWorkflowQueueCRUD is for the per-history-shard async workflow request queue.
+	 *
+	 * Significant columns:
+	 * async_workflow_queue partition key: shard_id; range key: (type, source_cluster, message_id)
+	 * message rows: type=0; control rows: type=1, message_id=-12345, condition column: ack_level
+	 */
+	AsyncWorkflowQueueCRUD interface {
+		// InsertAsyncWorkflowMessage inserts one message row. Returns ConditionFailure if a row with the same
+		// (shard, source cluster, message id) already exists; the existing row is not changed.
+		InsertAsyncWorkflowMessage(ctx context.Context, row *AsyncWorkflowMessageRow) error
+		// SelectAsyncWorkflowMessages returns up to pageSize message rows of one source cluster with
+		// message_id > exclusiveMinMessageID, ascending.
+		SelectAsyncWorkflowMessages(ctx context.Context, shardID int, sourceCluster string, exclusiveMinMessageID int64, pageSize int) ([]*AsyncWorkflowMessageRow, error)
+		// SelectAsyncWorkflowAckLevels returns source cluster -> ack level for every control row of the shard.
+		SelectAsyncWorkflowAckLevels(ctx context.Context, shardID int) (map[string]int64, error)
+		// UpsertAsyncWorkflowAckLevel creates the control row or advances its ack level; it never moves it backwards.
+		UpsertAsyncWorkflowAckLevel(ctx context.Context, shardID int, sourceCluster string, ackLevel int64, now time.Time) error
+		// RangeDeleteAsyncWorkflowMessages deletes message rows (type=0 only) with message_id <= inclusiveMaxMessageID.
+		RangeDeleteAsyncWorkflowMessages(ctx context.Context, shardID int, sourceCluster string, inclusiveMaxMessageID int64) error
 	}
 )

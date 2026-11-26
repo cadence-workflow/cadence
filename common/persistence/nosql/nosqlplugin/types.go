@@ -453,6 +453,20 @@ type (
 		ClusterAttributeName  string
 	}
 
+	// AsyncWorkflowMessageRow is one message row (type=0) of async_workflow_queue.
+	AsyncWorkflowMessageRow struct {
+		ShardID         int
+		SourceCluster   string
+		MessageID       int64
+		DomainName      string
+		WorkflowID      string
+		RequestID       string
+		RequestType     int
+		Payload         []byte
+		PayloadEncoding string
+		CreatedTime     time.Time
+	}
+
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween
 	SelectMessagesBetweenRequest struct {
 		QueueType               persistence.QueueType

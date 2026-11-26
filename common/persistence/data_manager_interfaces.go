@@ -2359,7 +2359,7 @@ type (
 		AckLevels map[string]int64
 	}
 
-	// UpdateAsyncWorkflowAckLevelRequest is an unconditional upsert of the (shard, source_cluster) control row.
+	// UpdateAsyncWorkflowAckLevelRequest advances the (shard, source_cluster) control row's ack level; the store never moves it backwards.
 	UpdateAsyncWorkflowAckLevelRequest struct {
 		ShardID       int
 		SourceCluster string
