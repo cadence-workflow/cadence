@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/cache"
@@ -45,10 +46,12 @@ type (
 	}
 
 	producerManagerImpl struct {
-		domainCache   cache.DomainCache
-		provider      queue.Provider
-		logger        log.Logger
-		metricsClient metrics.Client
+		domainCache      cache.DomainCache
+		provider         queue.Provider
+		historyClient    history.Client
+		numHistoryShards int
+		logger           log.Logger
+		metricsClient    metrics.Client
 
 		producerCache cache.Cache
 	}
@@ -57,14 +60,18 @@ type (
 func NewProducerManager(
 	domainCache cache.DomainCache,
 	provider queue.Provider,
+	historyClient history.Client,
+	numHistoryShards int,
 	logger log.Logger,
 	metricsClient metrics.Client,
 ) ProducerManager {
 	return &producerManagerImpl{
-		domainCache:   domainCache,
-		provider:      provider,
-		logger:        logger,
-		metricsClient: metricsClient,
+		domainCache:      domainCache,
+		provider:         provider,
+		historyClient:    historyClient,
+		numHistoryShards: numHistoryShards,
+		logger:           logger,
+		metricsClient:    metricsClient,
 		producerCache: cache.New(&cache.Options{
 			TTL:             time.Minute * 5,
 			InitialCapacity: 5,
@@ -107,7 +114,12 @@ func (q *producerManagerImpl) GetProducerByDomain(
 		return val.(messaging.Producer), nil
 	}
 
-	producer, err := queue.CreateProducer(&provider.Params{Logger: q.logger, MetricsClient: q.metricsClient})
+	producer, err := queue.CreateProducer(&provider.Params{
+		Logger:           q.logger,
+		MetricsClient:    q.metricsClient,
+		HistoryClient:    q.historyClient,
+		NumHistoryShards: q.numHistoryShards,
+	})
 	if err != nil {
 		return nil, err
 	}
