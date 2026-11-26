@@ -39,13 +39,13 @@ import (
 
 // emitQueryWorkflowAgeDays records workflow_query_age_days. The status tag values must match the
 // frontend's emitWorkflowAgeDays so the series stay comparable on the same histogram.
-func (e *historyEngineImpl) emitQueryWorkflowAgeDays(domain string, closeTimeNanos int64, closeStatus types.WorkflowExecutionCloseStatus) {
+func (e *historyEngineImpl) emitQueryWorkflowAgeDays(domain string, closeTime time.Time, closeStatus types.WorkflowExecutionCloseStatus) {
 	statusTag := "failure"
 	switch closeStatus {
 	case types.WorkflowExecutionCloseStatusCompleted, types.WorkflowExecutionCloseStatusContinuedAsNew:
 		statusTag = "success"
 	}
-	ageDays := time.Since(time.Unix(0, closeTimeNanos)).Hours() / 24
+	ageDays := time.Since(closeTime).Hours() / 24
 	e.metricsClient.Scope(metrics.HistoryQueryWorkflowScope, metrics.DomainTag(domain), metrics.WorkflowCloseStatusTag(statusTag)).
 		RecordHistogramValue(metrics.WorkflowQueryAgeDays, ageDays)
 }
@@ -68,11 +68,11 @@ func (e *historyEngineImpl) QueryWorkflow(
 	}
 
 	execution := *request.GetRequest().GetExecution()
-	var closeTimeNanos *int64
+	var closeTime time.Time
 	var ageCloseStatus types.WorkflowExecutionCloseStatus
 	defer func() {
-		if retErr == nil && closeTimeNanos != nil {
-			e.emitQueryWorkflowAgeDays(request.GetRequest().GetDomain(), *closeTimeNanos, ageCloseStatus)
+		if retErr == nil && !closeTime.IsZero() {
+			e.emitQueryWorkflowAgeDays(request.GetRequest().GetDomain(), closeTime, ageCloseStatus)
 		}
 	}()
 
@@ -141,11 +141,13 @@ func (e *historyEngineImpl) QueryWorkflow(
 		return nil, &types.EntityNotExistsError{Message: "Workflow execution corrupted."}
 	}
 
-	// Read while the workflow lock is held. Best-effort: failing to read the completion event never fails the query.
+	// shortcut: best-effort close time. LastUpdatedTimestamp is already in memory, and reading the
+	// completion event can hit persistence. A later write to the workflow, or replication lag on a
+	// standby cluster, makes the age slightly off. Upgrade only if exact ages matter.
 	if !mutableState.IsWorkflowExecutionRunning() {
-		status := persistence.ToInternalWorkflowExecutionCloseStatus(mutableState.GetExecutionInfo().CloseStatus)
-		if event, err := mutableState.GetCompletionEvent(ctx); err == nil && event != nil && event.Timestamp != nil && status != nil {
-			closeTimeNanos = event.Timestamp
+		info := mutableState.GetExecutionInfo()
+		if status := persistence.ToInternalWorkflowExecutionCloseStatus(info.CloseStatus); status != nil {
+			closeTime = info.LastUpdatedTimestamp
 			ageCloseStatus = *status
 		}
 	}

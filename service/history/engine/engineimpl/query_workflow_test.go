@@ -124,11 +124,11 @@ func TestQueryWorkflowEmitsAgeDays(t *testing.T) {
 
 			ms := execution.CreatePersistenceMutableState(t, msBuilder)
 			if td.complete != nil {
-				// The completion event is read from here, which lets the test control the close time.
+				// Close time is read from here; any persistence read for it would hit an unmocked call.
+				ms.ExecutionInfo.LastUpdatedTimestamp = time.Now().Add(-td.closedAgo)
 				if td.closeStatus != 0 {
 					ms.ExecutionInfo.CloseStatus = td.closeStatus
 				}
-				ms.ExecutionInfo.CompletionEvent = &types.HistoryEvent{Timestamp: new(time.Now().Add(-td.closedAgo).UnixNano())}
 			}
 			mockShard.Resource.ExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: ms}, nil)
 			if td.matchingErr != nil {
