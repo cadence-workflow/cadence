@@ -31,7 +31,7 @@ require (
 	github.com/aws/aws-sdk-go v1.54.12 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cactus/go-statsd-client/statsd v0.0.0-20191106001114-12b4e2b38748 // indirect
-	github.com/cadence-workflow/shard-manager v0.0.0-20261125143726-91bc192f594c // indirect
+	github.com/cadence-workflow/shard-manager v0.0.0-20261126101855-1f2f7351bc90 // indirect
 	github.com/cch123/elasticsql v0.0.0-20190321073543-a1a440758eb9 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
