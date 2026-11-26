@@ -88,8 +88,10 @@ func (sp *shardProcessorImpl) GetShardReport() executorclient.ShardReport {
 	defer sp.reportLock.Unlock()
 	load := sp.shardReport.ShardLoad
 
-	if sp.reportTime.Add(sp.reportTTL).Before(sp.timeSource.Now()) {
+	now := sp.timeSource.Now()
+	if sp.reportTime.Add(sp.reportTTL).Before(now) {
 		load = sp.getShardLoad()
+		sp.reportTime = now
 	}
 	sp.shardReport = executorclient.ShardReport{
 		ShardLoad: load,
