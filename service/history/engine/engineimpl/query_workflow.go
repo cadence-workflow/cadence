@@ -55,6 +55,13 @@ func (e *historyEngineImpl) QueryWorkflow(
 	}
 
 	execution := *request.GetRequest().GetExecution()
+	var closeTimeNanos *int64
+	var ageCloseStatus types.WorkflowExecutionCloseStatus
+	defer func() {
+		if retErr == nil && closeTimeNanos != nil {
+			metrics.EmitWorkflowAgeDays(e.metricsClient, metrics.HistoryQueryWorkflowScope, request.GetRequest().GetDomain(), *closeTimeNanos, ageCloseStatus)
+		}
+	}()
 
 	mutableStateResp, err := e.getMutableState(ctx, request.GetDomainUUID(), execution)
 	if err != nil {
@@ -119,6 +126,15 @@ func (e *historyEngineImpl) QueryWorkflow(
 		return nil, err
 	} else if corrupted {
 		return nil, &types.EntityNotExistsError{Message: "Workflow execution corrupted."}
+	}
+
+	// Read while the workflow lock is held. Best-effort: failing to read the completion event never fails the query.
+	if !mutableState.IsWorkflowExecutionRunning() {
+		status := persistence.ToInternalWorkflowExecutionCloseStatus(mutableState.GetExecutionInfo().CloseStatus)
+		if event, err := mutableState.GetCompletionEvent(ctx); err == nil && event != nil && event.Timestamp != nil && status != nil {
+			closeTimeNanos = event.Timestamp
+			ageCloseStatus = *status
+		}
 	}
 
 	// There are two ways in which queries get dispatched to decider. First, queries can be dispatched on decision tasks.
