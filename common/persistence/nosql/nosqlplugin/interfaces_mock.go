@@ -410,6 +410,20 @@ func (mr *MockDBMockRecorder) GrantSemaphoreToken(ctx, row any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrantSemaphoreToken", reflect.TypeOf((*MockDB)(nil).GrantSemaphoreToken), ctx, row)
 }
 
+// InsertAsyncWorkflowMessage mocks base method.
+func (m *MockDB) InsertAsyncWorkflowMessage(ctx context.Context, row *AsyncWorkflowMessageRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAsyncWorkflowMessage", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertAsyncWorkflowMessage indicates an expected call of InsertAsyncWorkflowMessage.
+func (mr *MockDBMockRecorder) InsertAsyncWorkflowMessage(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAsyncWorkflowMessage", reflect.TypeOf((*MockDB)(nil).InsertAsyncWorkflowMessage), ctx, row)
+}
+
 // InsertConfig mocks base method.
 func (m *MockDB) InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error {
 	m.ctrl.T.Helper()
@@ -790,6 +804,20 @@ func (mr *MockDBMockRecorder) PluginName() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PluginName", reflect.TypeOf((*MockDB)(nil).PluginName))
 }
 
+// RangeDeleteAsyncWorkflowMessages mocks base method.
+func (m *MockDB) RangeDeleteAsyncWorkflowMessages(ctx context.Context, shardID int, sourceCluster string, inclusiveMaxMessageID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowMessages", ctx, shardID, sourceCluster, inclusiveMaxMessageID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteAsyncWorkflowMessages indicates an expected call of RangeDeleteAsyncWorkflowMessages.
+func (mr *MockDBMockRecorder) RangeDeleteAsyncWorkflowMessages(ctx, shardID, sourceCluster, inclusiveMaxMessageID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowMessages", reflect.TypeOf((*MockDB)(nil).RangeDeleteAsyncWorkflowMessages), ctx, shardID, sourceCluster, inclusiveMaxMessageID)
+}
+
 // RangeDeleteHistoryDLQTaskRows mocks base method.
 func (m *MockDB) RangeDeleteHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskRangeDeleteFilter) error {
 	m.ctrl.T.Helper()
@@ -996,6 +1024,36 @@ func (m *MockDB) SelectAllWorkflowExecutions(ctx context.Context, shardID int, p
 func (mr *MockDBMockRecorder) SelectAllWorkflowExecutions(ctx, shardID, pageToken, pageSize any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAllWorkflowExecutions", reflect.TypeOf((*MockDB)(nil).SelectAllWorkflowExecutions), ctx, shardID, pageToken, pageSize)
+}
+
+// SelectAsyncWorkflowAckLevels mocks base method.
+func (m *MockDB) SelectAsyncWorkflowAckLevels(ctx context.Context, shardID int) (map[string]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowAckLevels", ctx, shardID)
+	ret0, _ := ret[0].(map[string]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectAsyncWorkflowAckLevels indicates an expected call of SelectAsyncWorkflowAckLevels.
+func (mr *MockDBMockRecorder) SelectAsyncWorkflowAckLevels(ctx, shardID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowAckLevels", reflect.TypeOf((*MockDB)(nil).SelectAsyncWorkflowAckLevels), ctx, shardID)
+}
+
+// SelectAsyncWorkflowMessages mocks base method.
+func (m *MockDB) SelectAsyncWorkflowMessages(ctx context.Context, shardID int, sourceCluster string, exclusiveMinMessageID int64, pageSize int) ([]*AsyncWorkflowMessageRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowMessages", ctx, shardID, sourceCluster, exclusiveMinMessageID, pageSize)
+	ret0, _ := ret[0].([]*AsyncWorkflowMessageRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectAsyncWorkflowMessages indicates an expected call of SelectAsyncWorkflowMessages.
+func (mr *MockDBMockRecorder) SelectAsyncWorkflowMessages(ctx, shardID, sourceCluster, exclusiveMinMessageID, pageSize any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowMessages", reflect.TypeOf((*MockDB)(nil).SelectAsyncWorkflowMessages), ctx, shardID, sourceCluster, exclusiveMinMessageID, pageSize)
 }
 
 // SelectCurrentWorkflow mocks base method.
@@ -1630,6 +1688,20 @@ func (mr *MockDBMockRecorder) UpdateWorkflowExecutionWithTasks(ctx, requests, cu
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkflowExecutionWithTasks", reflect.TypeOf((*MockDB)(nil).UpdateWorkflowExecutionWithTasks), ctx, requests, currentWorkflowRequest, mutatedExecution, insertedExecution, activeClusterSelectionPolicyRow, resetExecution, tasksByCategory, shardCondition)
 }
 
+// UpsertAsyncWorkflowAckLevel mocks base method.
+func (m *MockDB) UpsertAsyncWorkflowAckLevel(ctx context.Context, shardID int, sourceCluster string, ackLevel int64, now time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAsyncWorkflowAckLevel", ctx, shardID, sourceCluster, ackLevel, now)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertAsyncWorkflowAckLevel indicates an expected call of UpsertAsyncWorkflowAckLevel.
+func (mr *MockDBMockRecorder) UpsertAsyncWorkflowAckLevel(ctx, shardID, sourceCluster, ackLevel, now any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAsyncWorkflowAckLevel", reflect.TypeOf((*MockDB)(nil).UpsertAsyncWorkflowAckLevel), ctx, shardID, sourceCluster, ackLevel, now)
+}
+
 // MocktableCRUD is a mock of tableCRUD interface.
 type MocktableCRUD struct {
 	ctrl     *gomock.Controller
@@ -1936,6 +2008,20 @@ func (m *MocktableCRUD) GrantSemaphoreToken(ctx context.Context, row *SemaphoreO
 func (mr *MocktableCRUDMockRecorder) GrantSemaphoreToken(ctx, row any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrantSemaphoreToken", reflect.TypeOf((*MocktableCRUD)(nil).GrantSemaphoreToken), ctx, row)
+}
+
+// InsertAsyncWorkflowMessage mocks base method.
+func (m *MocktableCRUD) InsertAsyncWorkflowMessage(ctx context.Context, row *AsyncWorkflowMessageRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAsyncWorkflowMessage", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertAsyncWorkflowMessage indicates an expected call of InsertAsyncWorkflowMessage.
+func (mr *MocktableCRUDMockRecorder) InsertAsyncWorkflowMessage(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAsyncWorkflowMessage", reflect.TypeOf((*MocktableCRUD)(nil).InsertAsyncWorkflowMessage), ctx, row)
 }
 
 // InsertConfig mocks base method.
@@ -2248,6 +2334,20 @@ func (mr *MocktableCRUDMockRecorder) ListTaskList(ctx, pageSize, nextPageToken a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTaskList", reflect.TypeOf((*MocktableCRUD)(nil).ListTaskList), ctx, pageSize, nextPageToken)
 }
 
+// RangeDeleteAsyncWorkflowMessages mocks base method.
+func (m *MocktableCRUD) RangeDeleteAsyncWorkflowMessages(ctx context.Context, shardID int, sourceCluster string, inclusiveMaxMessageID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowMessages", ctx, shardID, sourceCluster, inclusiveMaxMessageID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteAsyncWorkflowMessages indicates an expected call of RangeDeleteAsyncWorkflowMessages.
+func (mr *MocktableCRUDMockRecorder) RangeDeleteAsyncWorkflowMessages(ctx, shardID, sourceCluster, inclusiveMaxMessageID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowMessages", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteAsyncWorkflowMessages), ctx, shardID, sourceCluster, inclusiveMaxMessageID)
+}
+
 // RangeDeleteHistoryDLQTaskRows mocks base method.
 func (m *MocktableCRUD) RangeDeleteHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskRangeDeleteFilter) error {
 	m.ctrl.T.Helper()
@@ -2454,6 +2554,36 @@ func (m *MocktableCRUD) SelectAllWorkflowExecutions(ctx context.Context, shardID
 func (mr *MocktableCRUDMockRecorder) SelectAllWorkflowExecutions(ctx, shardID, pageToken, pageSize any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAllWorkflowExecutions", reflect.TypeOf((*MocktableCRUD)(nil).SelectAllWorkflowExecutions), ctx, shardID, pageToken, pageSize)
+}
+
+// SelectAsyncWorkflowAckLevels mocks base method.
+func (m *MocktableCRUD) SelectAsyncWorkflowAckLevels(ctx context.Context, shardID int) (map[string]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowAckLevels", ctx, shardID)
+	ret0, _ := ret[0].(map[string]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectAsyncWorkflowAckLevels indicates an expected call of SelectAsyncWorkflowAckLevels.
+func (mr *MocktableCRUDMockRecorder) SelectAsyncWorkflowAckLevels(ctx, shardID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowAckLevels", reflect.TypeOf((*MocktableCRUD)(nil).SelectAsyncWorkflowAckLevels), ctx, shardID)
+}
+
+// SelectAsyncWorkflowMessages mocks base method.
+func (m *MocktableCRUD) SelectAsyncWorkflowMessages(ctx context.Context, shardID int, sourceCluster string, exclusiveMinMessageID int64, pageSize int) ([]*AsyncWorkflowMessageRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowMessages", ctx, shardID, sourceCluster, exclusiveMinMessageID, pageSize)
+	ret0, _ := ret[0].([]*AsyncWorkflowMessageRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectAsyncWorkflowMessages indicates an expected call of SelectAsyncWorkflowMessages.
+func (mr *MocktableCRUDMockRecorder) SelectAsyncWorkflowMessages(ctx, shardID, sourceCluster, exclusiveMinMessageID, pageSize any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowMessages", reflect.TypeOf((*MocktableCRUD)(nil).SelectAsyncWorkflowMessages), ctx, shardID, sourceCluster, exclusiveMinMessageID, pageSize)
 }
 
 // SelectCurrentWorkflow mocks base method.
@@ -3086,6 +3216,20 @@ func (m *MocktableCRUD) UpdateWorkflowExecutionWithTasks(ctx context.Context, re
 func (mr *MocktableCRUDMockRecorder) UpdateWorkflowExecutionWithTasks(ctx, requests, currentWorkflowRequest, mutatedExecution, insertedExecution, activeClusterSelectionPolicyRow, resetExecution, tasksByCategory, shardCondition any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkflowExecutionWithTasks", reflect.TypeOf((*MocktableCRUD)(nil).UpdateWorkflowExecutionWithTasks), ctx, requests, currentWorkflowRequest, mutatedExecution, insertedExecution, activeClusterSelectionPolicyRow, resetExecution, tasksByCategory, shardCondition)
+}
+
+// UpsertAsyncWorkflowAckLevel mocks base method.
+func (m *MocktableCRUD) UpsertAsyncWorkflowAckLevel(ctx context.Context, shardID int, sourceCluster string, ackLevel int64, now time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAsyncWorkflowAckLevel", ctx, shardID, sourceCluster, ackLevel, now)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertAsyncWorkflowAckLevel indicates an expected call of UpsertAsyncWorkflowAckLevel.
+func (mr *MocktableCRUDMockRecorder) UpsertAsyncWorkflowAckLevel(ctx, shardID, sourceCluster, ackLevel, now any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAsyncWorkflowAckLevel", reflect.TypeOf((*MocktableCRUD)(nil).UpsertAsyncWorkflowAckLevel), ctx, shardID, sourceCluster, ackLevel, now)
 }
 
 // MockClientErrorChecker is a mock of ClientErrorChecker interface.
@@ -4912,4 +5056,100 @@ func (m *MockHistoryDLQTaskCRUD) SelectHistoryDLQTaskRows(ctx context.Context, f
 func (mr *MockHistoryDLQTaskCRUDMockRecorder) SelectHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQTaskRows", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).SelectHistoryDLQTaskRows), ctx, filter)
+}
+
+// MockAsyncWorkflowQueueCRUD is a mock of AsyncWorkflowQueueCRUD interface.
+type MockAsyncWorkflowQueueCRUD struct {
+	ctrl     *gomock.Controller
+	recorder *MockAsyncWorkflowQueueCRUDMockRecorder
+	isgomock struct{}
+}
+
+// MockAsyncWorkflowQueueCRUDMockRecorder is the mock recorder for MockAsyncWorkflowQueueCRUD.
+type MockAsyncWorkflowQueueCRUDMockRecorder struct {
+	mock *MockAsyncWorkflowQueueCRUD
+}
+
+// NewMockAsyncWorkflowQueueCRUD creates a new mock instance.
+func NewMockAsyncWorkflowQueueCRUD(ctrl *gomock.Controller) *MockAsyncWorkflowQueueCRUD {
+	mock := &MockAsyncWorkflowQueueCRUD{ctrl: ctrl}
+	mock.recorder = &MockAsyncWorkflowQueueCRUDMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockAsyncWorkflowQueueCRUD) EXPECT() *MockAsyncWorkflowQueueCRUDMockRecorder {
+	return m.recorder
+}
+
+// InsertAsyncWorkflowMessage mocks base method.
+func (m *MockAsyncWorkflowQueueCRUD) InsertAsyncWorkflowMessage(ctx context.Context, row *AsyncWorkflowMessageRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAsyncWorkflowMessage", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertAsyncWorkflowMessage indicates an expected call of InsertAsyncWorkflowMessage.
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) InsertAsyncWorkflowMessage(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAsyncWorkflowMessage", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).InsertAsyncWorkflowMessage), ctx, row)
+}
+
+// RangeDeleteAsyncWorkflowMessages mocks base method.
+func (m *MockAsyncWorkflowQueueCRUD) RangeDeleteAsyncWorkflowMessages(ctx context.Context, shardID int, sourceCluster string, inclusiveMaxMessageID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowMessages", ctx, shardID, sourceCluster, inclusiveMaxMessageID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteAsyncWorkflowMessages indicates an expected call of RangeDeleteAsyncWorkflowMessages.
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) RangeDeleteAsyncWorkflowMessages(ctx, shardID, sourceCluster, inclusiveMaxMessageID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowMessages", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).RangeDeleteAsyncWorkflowMessages), ctx, shardID, sourceCluster, inclusiveMaxMessageID)
+}
+
+// SelectAsyncWorkflowAckLevels mocks base method.
+func (m *MockAsyncWorkflowQueueCRUD) SelectAsyncWorkflowAckLevels(ctx context.Context, shardID int) (map[string]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowAckLevels", ctx, shardID)
+	ret0, _ := ret[0].(map[string]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectAsyncWorkflowAckLevels indicates an expected call of SelectAsyncWorkflowAckLevels.
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectAsyncWorkflowAckLevels(ctx, shardID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowAckLevels", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectAsyncWorkflowAckLevels), ctx, shardID)
+}
+
+// SelectAsyncWorkflowMessages mocks base method.
+func (m *MockAsyncWorkflowQueueCRUD) SelectAsyncWorkflowMessages(ctx context.Context, shardID int, sourceCluster string, exclusiveMinMessageID int64, pageSize int) ([]*AsyncWorkflowMessageRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowMessages", ctx, shardID, sourceCluster, exclusiveMinMessageID, pageSize)
+	ret0, _ := ret[0].([]*AsyncWorkflowMessageRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectAsyncWorkflowMessages indicates an expected call of SelectAsyncWorkflowMessages.
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectAsyncWorkflowMessages(ctx, shardID, sourceCluster, exclusiveMinMessageID, pageSize any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowMessages", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectAsyncWorkflowMessages), ctx, shardID, sourceCluster, exclusiveMinMessageID, pageSize)
+}
+
+// UpsertAsyncWorkflowAckLevel mocks base method.
+func (m *MockAsyncWorkflowQueueCRUD) UpsertAsyncWorkflowAckLevel(ctx context.Context, shardID int, sourceCluster string, ackLevel int64, now time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAsyncWorkflowAckLevel", ctx, shardID, sourceCluster, ackLevel, now)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertAsyncWorkflowAckLevel indicates an expected call of UpsertAsyncWorkflowAckLevel.
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) UpsertAsyncWorkflowAckLevel(ctx, shardID, sourceCluster, ackLevel, now any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAsyncWorkflowAckLevel", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).UpsertAsyncWorkflowAckLevel), ctx, shardID, sourceCluster, ackLevel, now)
 }
