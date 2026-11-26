@@ -37,6 +37,19 @@ import (
 	"github.com/uber/cadence/service/history/workflow"
 )
 
+// emitQueryWorkflowAgeDays records workflow_query_age_days. The status tag values must match the
+// frontend's emitWorkflowAgeDays so the series stay comparable on the same histogram.
+func (e *historyEngineImpl) emitQueryWorkflowAgeDays(domain string, closeTimeNanos int64, closeStatus types.WorkflowExecutionCloseStatus) {
+	statusTag := "failure"
+	switch closeStatus {
+	case types.WorkflowExecutionCloseStatusCompleted, types.WorkflowExecutionCloseStatusContinuedAsNew:
+		statusTag = "success"
+	}
+	ageDays := time.Since(time.Unix(0, closeTimeNanos)).Hours() / 24
+	e.metricsClient.Scope(metrics.HistoryQueryWorkflowScope, metrics.DomainTag(domain), metrics.WorkflowCloseStatusTag(statusTag)).
+		RecordHistogramValue(metrics.WorkflowQueryAgeDays, ageDays)
+}
+
 func (e *historyEngineImpl) QueryWorkflow(
 	ctx context.Context,
 	request *types.HistoryQueryWorkflowRequest,
@@ -59,7 +72,7 @@ func (e *historyEngineImpl) QueryWorkflow(
 	var ageCloseStatus types.WorkflowExecutionCloseStatus
 	defer func() {
 		if retErr == nil && closeTimeNanos != nil {
-			metrics.EmitWorkflowAgeDays(e.metricsClient, metrics.HistoryQueryWorkflowScope, request.GetRequest().GetDomain(), *closeTimeNanos, ageCloseStatus)
+			e.emitQueryWorkflowAgeDays(request.GetRequest().GetDomain(), *closeTimeNanos, ageCloseStatus)
 		}
 	}()
 

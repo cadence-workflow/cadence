@@ -28,6 +28,7 @@ func TestQueryWorkflowEmitsAgeDays(t *testing.T) {
 
 	tests := map[string]struct {
 		complete       func(execution.MutableState, int64)
+		closeStatus    int // overrides the persisted close status when set
 		closedAgo      time.Duration
 		matchingErr    error
 		expectMetric   bool
@@ -43,6 +44,30 @@ func TestQueryWorkflowEmitsAgeDays(t *testing.T) {
 		},
 		"closed failed workflow": {
 			complete:       func(ms execution.MutableState, id int64) { test.AddFailWorkflowEvent(ms, id, "reason", nil) },
+			closedAgo:      23 * time.Hour,
+			expectMetric:   true,
+			expectedStatus: "failure",
+			expectedBucket: 1,
+		},
+		"closed continued as new workflow": {
+			complete:       func(ms execution.MutableState, id int64) { test.AddCompleteWorkflowEvent(ms, id, nil) },
+			closeStatus:    persistence.WorkflowCloseStatusContinuedAsNew,
+			closedAgo:      23 * time.Hour,
+			expectMetric:   true,
+			expectedStatus: "success",
+			expectedBucket: 1,
+		},
+		"closed terminated workflow": {
+			complete:       func(ms execution.MutableState, id int64) { test.AddCompleteWorkflowEvent(ms, id, nil) },
+			closeStatus:    persistence.WorkflowCloseStatusTerminated,
+			closedAgo:      23 * time.Hour,
+			expectMetric:   true,
+			expectedStatus: "failure",
+			expectedBucket: 1,
+		},
+		"closed timed out workflow": {
+			complete:       func(ms execution.MutableState, id int64) { test.AddCompleteWorkflowEvent(ms, id, nil) },
+			closeStatus:    persistence.WorkflowCloseStatusTimedOut,
 			closedAgo:      23 * time.Hour,
 			expectMetric:   true,
 			expectedStatus: "failure",
@@ -100,6 +125,9 @@ func TestQueryWorkflowEmitsAgeDays(t *testing.T) {
 			ms := execution.CreatePersistenceMutableState(t, msBuilder)
 			if td.complete != nil {
 				// The completion event is read from here, which lets the test control the close time.
+				if td.closeStatus != 0 {
+					ms.ExecutionInfo.CloseStatus = td.closeStatus
+				}
 				ms.ExecutionInfo.CompletionEvent = &types.HistoryEvent{Timestamp: new(time.Now().Add(-td.closedAgo).UnixNano())}
 			}
 			mockShard.Resource.ExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: ms}, nil)

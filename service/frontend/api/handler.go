@@ -3292,7 +3292,7 @@ func (wh *WorkflowHandler) emitDescribeWorkflowExecutionMetrics(domain string, r
 
 	info := response.WorkflowExecutionInfo
 	if info != nil && info.CloseStatus != nil && info.CloseTime != nil {
-		metrics.EmitWorkflowAgeDays(wh.GetMetricsClient(), metrics.FrontendDescribeWorkflowExecutionStatusScope, domain, *info.CloseTime, *info.CloseStatus)
+		wh.emitWorkflowAgeDays(metrics.FrontendDescribeWorkflowExecutionStatusScope, domain, *info.CloseTime, *info.CloseStatus)
 	}
 }
 
@@ -3306,7 +3306,22 @@ func (wh *WorkflowHandler) emitWorkflowQueryAgeDays(domainName string, events []
 		return
 	}
 
-	metrics.EmitWorkflowAgeDays(wh.GetMetricsClient(), metrics.FrontendGetWorkflowExecutionHistoryScope, domainName, *lastEvent.Timestamp, eventTypeToCloseStatus(lastEvent.GetEventType()))
+	wh.emitWorkflowAgeDays(metrics.FrontendGetWorkflowExecutionHistoryScope, domainName, *lastEvent.Timestamp, eventTypeToCloseStatus(lastEvent.GetEventType()))
+}
+
+func (wh *WorkflowHandler) emitWorkflowAgeDays(scopeIdx metrics.ScopeIdx, domainName string, closeTimeNanos int64, closeStatus types.WorkflowExecutionCloseStatus) {
+	closeTime := time.Unix(0, closeTimeNanos)
+	ageDays := time.Since(closeTime).Hours() / 24
+
+	// Collapse close statuses to "success" or "failure" to limit tag cardinality.
+	statusTag := "failure"
+	switch closeStatus {
+	case types.WorkflowExecutionCloseStatusCompleted, types.WorkflowExecutionCloseStatusContinuedAsNew:
+		statusTag = "success"
+	}
+
+	scope := wh.GetMetricsClient().Scope(scopeIdx, metrics.DomainTag(domainName), metrics.WorkflowCloseStatusTag(statusTag))
+	scope.RecordHistogramValue(metrics.WorkflowQueryAgeDays, ageDays)
 }
 
 func eventTypeToCloseStatus(eventType types.EventType) types.WorkflowExecutionCloseStatus {
