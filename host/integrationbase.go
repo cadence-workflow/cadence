@@ -184,16 +184,18 @@ func (s *IntegrationBase) setupSuite() {
 func (s *IntegrationBase) waitForDomains(domains []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	for _, domain := range domains {
-		for {
-			_, err := s.TestCluster.host.GetDomainCache().GetDomain(domain)
-			if err == nil {
-				break
+	for _, domainCache := range s.TestCluster.host.GetDomainCaches() {
+		for _, domain := range domains {
+			for {
+				_, err := domainCache.GetDomain(domain)
+				if err == nil {
+					break
+				}
+				if ctx.Err() != nil {
+					return fmt.Errorf("timeout waiting for domain %s: %w", domain, err)
+				}
+				time.Sleep(100 * time.Millisecond)
 			}
-			if ctx.Err() != nil {
-				return fmt.Errorf("timeout waiting for domain %s: %w", domain, err)
-			}
-			time.Sleep(100 * time.Millisecond)
 		}
 	}
 	return nil
@@ -315,22 +317,24 @@ func (s *IntegrationBase) domainCacheRefresh(domainNames ...string) {
 	// Poll until the cache has loaded each persisted version.
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	for _, domain := range domainNames {
-		expected := expectedVersions[domain]
-		for {
-			entry, err := s.TestCluster.host.GetDomainCache().GetDomain(domain)
-			if err == nil && entry.GetNotificationVersion() >= expected {
-				break
+	for _, domainCache := range s.TestCluster.host.GetDomainCaches() {
+		for _, domain := range domainNames {
+			expected := expectedVersions[domain]
+			for {
+				entry, err := domainCache.GetDomain(domain)
+				if err == nil && entry.GetNotificationVersion() >= expected {
+					break
+				}
+				if ctx.Err() != nil {
+					s.Require().NoError(
+						ctx.Err(),
+						"timeout waiting for domain cache refresh: domain=%s expected_notification_version=%d",
+						domain,
+						expected,
+					)
+				}
+				time.Sleep(100 * time.Millisecond)
 			}
-			if ctx.Err() != nil {
-				s.Require().NoError(
-					ctx.Err(),
-					"timeout waiting for domain cache refresh: domain=%s expected_notification_version=%d",
-					domain,
-					expected,
-				)
-			}
-			time.Sleep(100 * time.Millisecond)
 		}
 	}
 }
