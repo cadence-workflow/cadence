@@ -119,6 +119,7 @@ type (
 		MaxTimeBetweenTaskDeletes time.Duration
 
 		ExcludeShortLivedTaskListsFromShardManager dynamicproperties.BoolPropertyFn
+		ShardDistributorHedgeShare                 dynamicproperties.FloatPropertyFn
 		RecordTaskStartedTimeout                   dynamicproperties.DurationPropertyFnWithDomainFilter
 	}
 
@@ -267,6 +268,7 @@ func NewConfig(dc *dynamicconfig.Collection, operationalDC *dynamicconfig.Collec
 		EnableClientAutoConfig:                     dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableClientAutoConfig),
 		EnableReturnAllTaskListKinds:               dc.GetBoolProperty(dynamicproperties.MatchingEnableReturnAllTaskListKinds),
 		ExcludeShortLivedTaskListsFromShardManager: operationalDC.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
+		ShardDistributorHedgeShare:                 operationalDC.GetFloat64Property(dynamicproperties.ShardDistributorClientHedgeShare),
 		RecordTaskStartedTimeout:                   dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingRecordTaskStartedTimeout),
 		MinTaskListWritePartitions:                 dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingTaskListMinimumWritePartitions),
 	}

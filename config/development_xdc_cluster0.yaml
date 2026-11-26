@@ -136,10 +136,3 @@ dynamicconfig:
   filebased:
     filepath: "config/dynamicconfig/development.yaml"
     pollInterval: "10s"
-
-shard-distributor-matching:
-  namespaces:
-    - namespace: cadence-matching-dev
-      heartbeat_interval: 1s
-      ttl_shard: 5m
-      ttl_report: 1m

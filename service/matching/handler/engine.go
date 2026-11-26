@@ -279,6 +279,7 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 			"hostIP":   hostIP.String(),
 		},
 		DrainObserver: e.drainObserver,
+		HedgeShare:    func() float64 { return e.config.ShardDistributorHedgeShare() },
 	}
 	executor, err := executorclient.NewExecutor[tasklist.ShardProcessor](params)
 	if err != nil {
