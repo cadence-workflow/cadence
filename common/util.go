@@ -67,6 +67,10 @@ const (
 	frontendServiceOperationMaxInterval        = 5 * time.Second
 	frontendServiceOperationExpirationInterval = 15 * time.Second
 
+	frontendPollInitialInterval = 200 * time.Millisecond
+	frontendPollMaxInterval     = 5 * time.Second
+	frontendPollMaxAttempts     = 8
+
 	adminServiceOperationInitialInterval    = 200 * time.Millisecond
 	adminServiceOperationMaxInterval        = 5 * time.Second
 	adminServiceOperationExpirationInterval = 15 * time.Second
@@ -186,6 +190,16 @@ func CreateFrontendServiceRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(frontendServiceOperationInitialInterval)
 	policy.SetMaximumInterval(frontendServiceOperationMaxInterval)
 	policy.SetExpirationInterval(frontendServiceOperationExpirationInterval)
+
+	return policy
+}
+
+// CreateFrontendPollRetryPolicy creates the retry policy for the frontend's long polls to matching
+func CreateFrontendPollRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(frontendPollInitialInterval)
+	policy.SetMaximumInterval(frontendPollMaxInterval)
+	policy.SetMaximumAttempts(frontendPollMaxAttempts)
+	policy.SetExpirationInterval(backoff.NoInterval)
 
 	return policy
 }

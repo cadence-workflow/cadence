@@ -37,6 +37,7 @@ import (
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
+	"go.uber.org/yarpc/yarpcerrors"
 	"go.uber.org/yarpc/yarpctest"
 
 	"github.com/uber/cadence/client/history"
@@ -46,11 +47,13 @@ import (
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/messaging"
@@ -5208,5 +5211,127 @@ func TestConstructRestartWorkflowRequest(t *testing.T) {
 			assert.NotNil(t, startRequest.DelayStartSeconds, "DelayStartSeconds should not be nil")
 			assert.Equal(t, int32(0), *startRequest.DelayStartSeconds, "DelayStartSeconds should be 0 for restart requests")
 		})
+	}
+}
+
+type instantClock struct {
+	clock.MockedTimeSource
+}
+
+func (c instantClock) After(d time.Duration) <-chan time.Time {
+	c.Advance(d)
+	ch := make(chan time.Time, 1)
+	ch <- c.Now()
+	return ch
+}
+
+type pollAttempt struct {
+	took time.Duration
+	err  error
+}
+
+func TestPollRetriesWhileTaskListMoves(t *testing.T) {
+	notOwned := cadence_errors.NewTaskListNotOwnedByHostError("10.0.0.2:7835", "10.0.0.1:7835", "task-list")
+	connectionClosing := yarpcerrors.CancelledErrorf(constants.GRPCConnectionClosingError)
+
+	scenarios := []struct {
+		name     string
+		attempts []pollAttempt // the last entry repeats
+		wantErr  bool
+	}{
+		{
+			name: "retried on the new owner after a long poll fails late",
+			attempts: []pollAttempt{
+				{err: notOwned},
+				{took: 40 * time.Second, err: connectionClosing},
+				{err: nil},
+			},
+		},
+		{
+			name:     "gives up when matching keeps rejecting",
+			attempts: []pollAttempt{{err: notOwned}},
+			wantErr:  true,
+		},
+	}
+	polls := []struct {
+		name   string
+		expect func(m *resource.Test, attempt func() error)
+		poll   func(ctx context.Context, wh *WorkflowHandler) error
+	}{
+		{
+			name: "activity",
+			expect: func(m *resource.Test, attempt func() error) {
+				m.MatchingClient.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(context.Context, *types.MatchingPollForActivityTaskRequest, ...interface{}) (*types.MatchingPollForActivityTaskResponse, error) {
+						return &types.MatchingPollForActivityTaskResponse{}, attempt()
+					}).AnyTimes()
+			},
+			poll: func(ctx context.Context, wh *WorkflowHandler) error {
+				_, err := wh.PollForActivityTask(ctx, &types.PollForActivityTaskRequest{
+					Domain:   testDomain,
+					TaskList: &types.TaskList{Name: "task-list"},
+				})
+				return err
+			},
+		},
+		{
+			name: "decision",
+			expect: func(m *resource.Test, attempt func() error) {
+				m.MatchingClient.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(context.Context, *types.MatchingPollForDecisionTaskRequest, ...interface{}) (*types.MatchingPollForDecisionTaskResponse, error) {
+						return &types.MatchingPollForDecisionTaskResponse{}, attempt()
+					}).AnyTimes()
+			},
+			poll: func(ctx context.Context, wh *WorkflowHandler) error {
+				_, err := wh.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+					Domain:   testDomain,
+					TaskList: &types.TaskList{Name: "task-list"},
+				})
+				return err
+			},
+		},
+	}
+
+	for _, p := range polls {
+		for _, sc := range scenarios {
+			t.Run(p.name+"/"+sc.name, func(t *testing.T) {
+				ctrl := gomock.NewController(t)
+				mockResource := resource.NewTest(t, ctrl, metrics.Frontend)
+				clk := instantClock{clock.NewMockedTimeSource()}
+				mockResource.TimeSource = clk
+				mockResource.DomainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				mockResource.DomainCache.EXPECT().GetDomainName(testDomainID).Return(testDomain, nil).AnyTimes()
+				mockResource.DomainCache.EXPECT().GetDomain(testDomain).Return(cache.NewLocalDomainCacheEntryForTest(
+					&persistence.DomainInfo{Name: testDomain, ID: testDomainID}, &persistence.DomainConfig{}, "",
+				), nil).AnyTimes()
+
+				calls := 0
+				p.expect(mockResource, func() error {
+					a := sc.attempts[min(calls, len(sc.attempts)-1)]
+					calls++
+					clk.Advance(a.took)
+					return a.err
+				})
+
+				config := frontendcfg.NewConfig(
+					dc.NewCollection(dc.NewInMemoryClient(), mockResource.GetLogger()),
+					numHistoryShards, false, "hostname", mockResource.GetLogger(),
+				)
+				wh := NewWorkflowHandler(mockResource, config, nil, NewPollTracker(log.NewNoop()), nil, nil)
+
+				ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+				defer cancel()
+				err := p.poll(ctx, wh)
+
+				if sc.wantErr {
+					require.Error(t, err)
+					assert.True(t, errors.As(err, new(*cadence_errors.TaskListNotOwnedByHostError)), "got %v", err)
+					assert.Greater(t, calls, 3, "should retry several times before giving up")
+				} else {
+					require.NoError(t, err)
+					assert.Equal(t, len(sc.attempts), calls)
+				}
+			})
+		}
 	}
 }
