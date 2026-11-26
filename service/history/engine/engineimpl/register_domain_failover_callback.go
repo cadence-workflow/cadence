@@ -80,7 +80,8 @@ func (e *historyEngineImpl) registerDomainFailoverCallback() {
 		if len(updatedEntries) > 0 {
 			e.logger.Info("catchUpFn calling prepareCallback and callback", tag.Dynamic("domain-names", domainNames))
 			prepareCallback()
-			callback(updatedEntries)
+			// catch-up has no previous state, so prev is all nil
+			callback(make([]*cache.DomainCacheEntry, len(updatedEntries)), updatedEntries)
 		}
 	}
 
@@ -93,13 +94,18 @@ func (e *historyEngineImpl) registerDomainFailoverCallback() {
 	)
 }
 
-func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry) {
+func (e *historyEngineImpl) domainChangeCB(prevDomains, nextDomains []*cache.DomainCacheEntry) {
 	defer func() {
 		e.unlockProcessingForDomainUpdate()
 	}()
 
 	if len(nextDomains) == 0 {
 		return
+	}
+	if len(prevDomains) != len(nextDomains) {
+		e.logger.Error("domain change callback received misaligned previous/next entries",
+			tag.Dynamic("prev-len", len(prevDomains)), tag.Dynamic("next-len", len(nextDomains)))
+		prevDomains = make([]*cache.DomainCacheEntry, len(nextDomains))
 	}
 
 	shardNotificationVersion := e.shard.GetDomainNotificationVersion()
@@ -108,7 +114,8 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 	// dlqPartitions collects the domain and cluster-attribute pairs that were failed over.
 	var dlqPartitions []taskdlq.Partition
 
-	for _, nextDomain := range nextDomains {
+	for i, nextDomain := range nextDomains {
+		prev := prevDomains[i]
 		domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
 		domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
 
@@ -120,13 +127,15 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 			domainFailoverNotificationVersion >= shardNotificationVersion &&
 			domainActiveCluster == e.currentClusterName {
 			failoverActivePassiveDomainIDs[nextDomain.GetInfo().ID] = struct{}{}
-			dlqPartitions = append(dlqPartitions, taskdlq.Partition{DomainID: nextDomain.GetInfo().ID})
+			if prev == nil || prev.GetReplicationConfig() == nil || prev.GetReplicationConfig().ActiveClusterName != e.currentClusterName {
+				dlqPartitions = append(dlqPartitions, taskdlq.Partition{DomainID: nextDomain.GetInfo().ID})
+			}
 		}
 		if nextDomain.GetReplicationConfig().IsActiveActive() &&
 			domainFailoverNotificationVersion >= shardNotificationVersion &&
 			nextDomain.IsActiveIn(e.currentClusterName) {
 			failoverActiveActiveDomainIDs[nextDomain.GetInfo().ID] = struct{}{}
-			for _, ca := range activeClusterAttributesIn(nextDomain, e.currentClusterName) {
+			for _, ca := range newlyActiveAttributesIn(prev, nextDomain, e.currentClusterName) {
 				dlqPartitions = append(dlqPartitions, taskdlq.Partition{
 					DomainID:              nextDomain.GetInfo().ID,
 					ClusterAttributeScope: ca.Scope,
@@ -178,19 +187,28 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 	e.shard.UpdateDomainNotificationVersion(nextDomains[len(nextDomains)-1].GetNotificationVersion() + 1)
 }
 
-// activeClusterAttributesIn returns which cluster attributes of an active-active domain are active in the given cluster.
-// Used to determine which cluster attributes need to be reprocessed for a given domain failover.
-func activeClusterAttributesIn(entry *cache.DomainCacheEntry, cluster string) []types.ClusterAttribute {
-	rc := entry.GetReplicationConfig()
+// newlyActiveAttributesIn returns the cluster attributes of next that are active in cluster and were
+// not active in cluster in prev. A nil prev (first sight or catch-up) means every attribute active
+// in cluster is newly active. New scopes and new attributes count as newly active.
+func newlyActiveAttributesIn(prev, next *cache.DomainCacheEntry, cluster string) []types.ClusterAttribute {
+	rc := next.GetReplicationConfig()
 	if rc == nil || rc.ActiveClusters == nil {
 		return nil
+	}
+	var prevScopes map[string]types.ClusterAttributeScope
+	if prev != nil && prev.GetReplicationConfig() != nil && prev.GetReplicationConfig().ActiveClusters != nil {
+		prevScopes = prev.GetReplicationConfig().ActiveClusters.AttributeScopes
 	}
 	var out []types.ClusterAttribute
 	for scope, s := range rc.ActiveClusters.AttributeScopes {
 		for name, info := range s.ClusterAttributes {
-			if info.ActiveClusterName == cluster {
-				out = append(out, types.ClusterAttribute{Scope: scope, Name: name})
+			if info.ActiveClusterName != cluster {
+				continue
 			}
+			if prevInfo, ok := prevScopes[scope].ClusterAttributes[name]; ok && prevInfo.ActiveClusterName == cluster {
+				continue // already active here before this update
+			}
+			out = append(out, types.ClusterAttribute{Scope: scope, Name: name})
 		}
 	}
 	return out

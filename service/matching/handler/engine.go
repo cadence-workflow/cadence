@@ -1805,7 +1805,7 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 	}
 }
 
-func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {
+func (e *matchingEngineImpl) domainChangeCallback(_ []*cache.DomainCacheEntry, nextDomains []*cache.DomainCacheEntry) {
 	newFailoverNotificationVersion := e.failoverNotificationVersion
 
 	for _, domain := range nextDomains {
