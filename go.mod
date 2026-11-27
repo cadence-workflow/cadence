@@ -9,7 +9,7 @@ require (
 	github.com/VividCortex/mysqlerr v1.0.0
 	github.com/aws/aws-sdk-go v1.54.12
 	github.com/cactus/go-statsd-client/statsd v0.0.0-20191106001114-12b4e2b38748
-	github.com/cadence-workflow/shard-manager v0.0.0-20260610143419-4bef35311802
+	github.com/cadence-workflow/shard-manager v0.0.0-20261126101855-1f2f7351bc90
 	github.com/cch123/elasticsql v0.0.0-20190321073543-a1a440758eb9
 	github.com/dave/dst v0.26.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -39,7 +39,7 @@ require (
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally v3.5.8+incompatible
-	github.com/uber/cadence-idl v0.0.0-20261114004946-093f2e3b8d73
+	github.com/uber/cadence-idl v0.0.0-20261123224259-0b80653eb1f9
 	github.com/uber/ringpop-go v0.10.0
 	github.com/uber/tchannel-go v1.34.4
 	github.com/urfave/cli/v2 v2.27.4
@@ -56,10 +56,10 @@ require (
 	go.uber.org/yarpc v1.88.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
-	golang.org/x/net v0.58.0
-	golang.org/x/sync v0.22.0
+	golang.org/x/net v0.60.0
+	golang.org/x/sync v0.23.0
 	golang.org/x/time v0.12.0
-	golang.org/x/tools v0.48.0
+	golang.org/x/tools v0.49.0
 	gonum.org/v1/gonum v0.17.0
 	google.golang.org/grpc v1.83.2
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19
@@ -93,6 +93,7 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 )
 
@@ -132,10 +133,10 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.21.1 // indirect
+	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.63.0 // indirect
-	github.com/prometheus/procfs v0.16.0 // indirect
+	github.com/prometheus/common v0.66.1 // indirect
+	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
@@ -149,12 +150,12 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/goleak v1.3.0
 	go.uber.org/net/metrics v1.4.0 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/mod v0.38.0
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/mod v0.41.0
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

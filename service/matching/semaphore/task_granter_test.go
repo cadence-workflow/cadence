@@ -12,9 +12,11 @@ import (
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	commonsemaphore "github.com/uber/cadence/common/semaphore"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/matching/config"
 )
 
 var (
@@ -64,26 +66,36 @@ func expectRefreshTasks(h *history.MockClient) *gomock.Call {
 	}).Times(1)
 }
 
-// runGrantTask runs grantTask for task, advancing the clock so every wait ends, and returns its
+// grantAndRecord grants task a token and records the grant, as the reader does. It returns
+// whether the task finished.
+func grantAndRecord(ctx context.Context, mgr *semaphoreManagerImpl, task *persistence.SemaphoreTask) bool {
+	tokenID, ok := mgr.grantTokenToTask(ctx, task)
+	if !ok || tokenID == constants.NoSemaphoreTokenID {
+		return ok
+	}
+	return mgr.recordSemaphoreAcquired(ctx, task, tokenID)
+}
+
+// runGrantTask runs grantAndRecord for task, advancing the clock so every wait ends, and returns its
 // result.
 func runGrantTask(t *testing.T, mgr *semaphoreManagerImpl, deps *mockDeps, task *persistence.SemaphoreTask) bool {
 	t.Helper()
 	done := make(chan bool, 1)
-	go func() { done <- mgr.grantTask(context.Background(), task) }()
+	go func() { done <- grantAndRecord(context.Background(), mgr, task) }()
 	timeout := time.After(10 * time.Second)
 	for {
 		select {
 		case finished := <-done:
 			return finished
 		case <-time.After(time.Millisecond):
-			deps.mockTimeSource.Advance(taskRetryMaxInterval)
+			deps.mockTimeSource.Advance(taskHistoryRetryMaxInterval)
 		case <-timeout:
-			t.Fatal("grantTask did not return")
+			t.Fatal("grantAndRecord did not return")
 		}
 	}
 }
 
-func TestGrantTask(t *testing.T) {
+func TestGrantTokenToTask(t *testing.T) {
 	ownerID := testTaskOwner.String()
 	applied := &persistence.GrantSemaphoreTokenResponse{Outcome: persistence.SemaphoreGrantApplied}
 	// heldByOwner is the bucket's only token, held by the task's owner since before the load.
@@ -317,7 +329,7 @@ func TestGrantTask(t *testing.T) {
 	}
 }
 
-func TestGrantTask_StaleCacheWaitsForReload(t *testing.T) {
+func TestGrantTokenToTask_StaleCacheWaitsForReload(t *testing.T) {
 	ownerID := testTaskOwner.String()
 	mgr, deps := startGranterTestManager(t, 2, nil)
 	var refusedToken int
@@ -341,7 +353,7 @@ func TestGrantTask_StaleCacheWaitsForReload(t *testing.T) {
 	assert.True(t, runGrantTask(t, mgr, deps, testTask(nil)))
 }
 
-func TestGrantTask_WokenByARelease(t *testing.T) {
+func TestGrantTokenToTask_WokenByARelease(t *testing.T) {
 	ownerID := testTaskOwner.String()
 	mgr, deps := startGranterTestManager(t, 1, []*persistence.SemaphoreOwnership{tokenRow(1, "other-owner"), ownerRow("other-owner", 1)})
 	gomock.InOrder(
@@ -354,7 +366,7 @@ func TestGrantTask_WokenByARelease(t *testing.T) {
 	done := make(chan bool, 1)
 	// The clock never reaches the deadline, so only a wake-up ends the wait.
 	deadline := deps.mockTimeSource.Now().Add(time.Hour)
-	go func() { done <- mgr.grantTask(context.Background(), testTask(&deadline)) }()
+	go func() { done <- grantAndRecord(context.Background(), mgr, testTask(&deadline)) }()
 	// The idle clock, the ack level timer and the grant wait's deadline timer.
 	deps.mockTimeSource.BlockUntil(3)
 	require.NoError(t, mgr.Release(context.Background(), "other-owner"))
@@ -366,7 +378,7 @@ func TestGrantTask_WokenByARelease(t *testing.T) {
 	}
 }
 
-func TestGrantTask_ContextEnds(t *testing.T) {
+func TestGrantTokenToTask_ContextEnds(t *testing.T) {
 	ownerID := testTaskOwner.String()
 	testCases := []struct {
 		name string
@@ -405,14 +417,64 @@ func TestGrantTask_ContextEnds(t *testing.T) {
 			called := tc.setupMocks(deps)
 			ctx, cancel := context.WithCancel(context.Background())
 			done := make(chan bool, 1)
-			go func() { done <- mgr.grantTask(ctx, testTask(nil)) }()
+			go func() { done <- grantAndRecord(ctx, mgr, testTask(nil)) }()
 			<-called
 			cancel()
 			select {
 			case finished := <-done:
 				assert.False(t, finished, "the task is not finished")
 			case <-time.After(10 * time.Second):
-				t.Fatal("grantTask did not return")
+				t.Fatal("grantAndRecord did not return")
+			}
+		})
+	}
+}
+
+func TestCallHistory(t *testing.T) {
+	tests := []struct {
+		name       string
+		placesFull bool
+		wantCalled bool
+		wantErr    error
+	}{
+		{
+			name:       "a place is free: the call runs and gives its place back",
+			wantCalled: true,
+			wantErr:    assert.AnError,
+		},
+		{
+			name:       "every place taken: no call, and the ctx error once ctx ends",
+			placesFull: true,
+			wantErr:    context.Canceled,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mgr := &semaphoreManagerImpl{
+				config:             &config.SemaphoreConfig{RecordAcquiredTimeout: func() time.Duration { return time.Second }},
+				historyCallLimiter: make(chan struct{}, historyCallConcurrency),
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			if tc.placesFull {
+				for i := 0; i < historyCallConcurrency; i++ {
+					mgr.historyCallLimiter <- struct{}{}
+				}
+				cancel()
+			}
+			defer cancel()
+
+			var called bool
+			err := mgr.callHistory(ctx, func(callCtx context.Context) error {
+				called = true
+				deadline, ok := callCtx.Deadline()
+				assert.True(t, ok && time.Until(deadline) <= time.Second, "the call is limited to RecordAcquiredTimeout")
+				return assert.AnError
+			})
+
+			assert.Equal(t, tc.wantCalled, called)
+			assert.ErrorIs(t, err, tc.wantErr)
+			if !tc.placesFull {
+				assert.Empty(t, mgr.historyCallLimiter, "a failed call holds no place while it waits to retry")
 			}
 		})
 	}

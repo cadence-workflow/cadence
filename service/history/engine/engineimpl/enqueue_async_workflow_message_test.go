@@ -73,9 +73,9 @@ func TestEnqueueAsyncWorkflowMessage(t *testing.T) {
 		name string
 		// request is the RPC request handed to the engine.
 		request *types.EnqueueAsyncWorkflowMessageRequest
-		// wantPersisted, when non-nil, is the request the queue manager must receive. SourceCluster and MessageID
-		// are filled in by the test body: SourceCluster must equal the shard's current cluster name, and MessageID
-		// must be positive and equal to the id returned to the caller. When nil, the manager must not be called.
+		// wantPersisted, when non-nil, is the request the queue manager must receive. SourceCluster, MessageID and
+		// RangeID are filled in by the test body: SourceCluster must equal the shard's current cluster name, MessageID
+		// must be positive and equal to the id returned to the caller, and RangeID is set by the shard context. When nil, the manager must not be called.
 		wantPersisted *persistence.EnqueueAsyncWorkflowMessageRequest
 		managerErr    error
 		// exhaustTaskIDs drains the shard's current task-id range so the next GenerateTaskID must renew the range,
@@ -263,6 +263,8 @@ func TestEnqueueAsyncWorkflowMessage(t *testing.T) {
 			assert.NotEmpty(t, want.SourceCluster)
 			assert.Greater(t, persisted.MessageID, int64(0))
 			want.MessageID = persisted.MessageID
+			assert.Greater(t, persisted.RangeID, int64(0))
+			want.RangeID = persisted.RangeID
 			assert.Equal(t, want, *persisted)
 			if resp != nil {
 				assert.Equal(t, persisted.MessageID, resp.MessageID, "returned message id must be the persisted one")

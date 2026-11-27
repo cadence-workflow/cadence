@@ -12,6 +12,7 @@ import (
 	"go.uber.org/cadence/.gen/go/shared"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
@@ -45,6 +46,25 @@ func Test__Check(t *testing.T) {
 				},
 			},
 			err: nil,
+		},
+		{
+			name:     "workflow execution timeout and continued as new",
+			testData: wfTimeoutContinuedAsNewHistory(),
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: TimeoutTypeExecution.String(),
+					Reason:        "START_TO_CLOSE",
+					Metadata:      wfTimeoutDataInBytes(t),
+				},
+			},
+			err: nil,
+		},
+		{
+			name:           "workflow failed with timeout reason and continued as new",
+			testData:       wfFailedWithTimeoutReasonContinuedAsNewHistory(),
+			expectedResult: []invariant.InvariantCheckResult{},
+			err:            nil,
 		},
 		{
 			name:     "child workflow execution timeout",
@@ -136,6 +156,66 @@ func wfTimeoutHistory() *types.GetWorkflowExecutionHistoryResponse {
 					ID:                                       2,
 					Timestamp:                                common.Int64Ptr(testTimeStamp + int64(workflowTimeoutSecond)*timeUnit.Nanoseconds()),
 					WorkflowExecutionTimedOutEventAttributes: &types.WorkflowExecutionTimedOutEventAttributes{TimeoutType: types.TimeoutTypeStartToClose.Ptr()},
+				},
+			},
+		},
+	}
+}
+
+func wfTimeoutContinuedAsNewHistory() *types.GetWorkflowExecutionHistoryResponse {
+	return &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					ID:        1,
+					Timestamp: common.Int64Ptr(testTimeStamp),
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
+						TaskList: &types.TaskList{
+							Name: testTasklist,
+							Kind: nil,
+						},
+					},
+				},
+				{
+					ID:        2,
+					Timestamp: common.Int64Ptr(testTimeStamp + int64(workflowTimeoutSecond)*timeUnit.Nanoseconds()),
+					WorkflowExecutionContinuedAsNewEventAttributes: &types.WorkflowExecutionContinuedAsNewEventAttributes{
+						DecisionTaskCompletedEventID: constants.EmptyEventID,
+						FailureReason:                common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
+						Initiator:                    types.ContinueAsNewInitiatorRetryPolicy.Ptr(),
+					},
+				},
+			},
+		},
+	}
+}
+
+func wfFailedWithTimeoutReasonContinuedAsNewHistory() *types.GetWorkflowExecutionHistoryResponse {
+	return &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					ID:        1,
+					Timestamp: common.Int64Ptr(testTimeStamp),
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
+						TaskList:                            &types.TaskList{Name: testTasklist},
+					},
+				},
+				{
+					ID: 10,
+					DecisionTaskCompletedEventAttributes: &types.DecisionTaskCompletedEventAttributes{
+						Identity: "localhost",
+					},
+				},
+				{
+					ID: 11,
+					WorkflowExecutionContinuedAsNewEventAttributes: &types.WorkflowExecutionContinuedAsNewEventAttributes{
+						DecisionTaskCompletedEventID: 10,
+						FailureReason:                common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
+						Initiator:                    types.ContinueAsNewInitiatorRetryPolicy.Ptr(),
+					},
 				},
 			},
 		},

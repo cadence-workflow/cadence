@@ -2862,6 +2862,20 @@ func TestSemaphoreAcquireFailedCauseConversion(t *testing.T) {
 	}
 }
 
+func TestSemaphoreTokenLostCauseConversion(t *testing.T) {
+	testCases := []*types.SemaphoreTokenLostCause{
+		nil,
+		types.SemaphoreTokenLostCauseNotHeld.Ptr(),
+		types.SemaphoreTokenLostCauseReset.Ptr(),
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromSemaphoreTokenLostCause(original)
+		roundTripObj := ToSemaphoreTokenLostCause(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
 func TestServiceBusyErrorConversion(t *testing.T) {
 	testCases := []*types.ServiceBusyError{
 		nil,
@@ -3931,7 +3945,13 @@ func TestSemaphoreAcquireFailedEventAttributesFuzz(t *testing.T) {
 }
 
 func TestSemaphoreTokenLostEventAttributesFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromSemaphoreTokenLostEventAttributes, ToSemaphoreTokenLostEventAttributes)
+	testutils.RunMapperFuzzTest(t, FromSemaphoreTokenLostEventAttributes, ToSemaphoreTokenLostEventAttributes,
+		testutils.WithCustomFuncs(
+			func(e *types.SemaphoreTokenLostCause, c fuzz.Continue) {
+				*e = types.SemaphoreTokenLostCause(c.Intn(2)) // 0-1: NotHeld, Reset
+			},
+		),
+	)
 }
 
 func TestExportWorkflowExecutionRequest(t *testing.T) {

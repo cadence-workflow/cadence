@@ -94,19 +94,6 @@ func Test__DeleteSemaphoreInfo(t *testing.T) {
 	})
 }
 
-func Test__CheckResettable_Semaphore(t *testing.T) {
-	t.Run("no holds", func(t *testing.T) {
-		mb := testMutableStateBuilder(t)
-		assert.NoError(t, mb.CheckResettable())
-	})
-	t.Run("hold outstanding", func(t *testing.T) {
-		mb := testMutableStateBuilder(t)
-		mb.pendingSemaphoreInfoIDs[2] = testSemaphoreInfo(2)
-		err := mb.CheckResettable()
-		assert.ErrorContains(t, err, "pending semaphore holds")
-	})
-}
-
 // testSemaphoreMutableStateBuilder returns a builder for a running workflow whose next event id
 // is 5, so an event appended immediately gets id 5.
 func testSemaphoreMutableStateBuilder(t *testing.T) *mutableStateBuilder {
@@ -420,7 +407,7 @@ func Test__AddSemaphoreTokenLostEvent(t *testing.T) {
 				mb.executionInfo.State = persistence.WorkflowStateCompleted
 			}
 
-			event, err := mb.AddSemaphoreTokenLostEvent(2)
+			event, err := mb.AddSemaphoreTokenLostEvent(2, types.SemaphoreTokenLostCauseNotHeld)
 
 			if tc.wantErr != nil {
 				assert.Equal(t, tc.wantErr, err)
@@ -434,6 +421,7 @@ func Test__AddSemaphoreTokenLostEvent(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, types.EventTypeSemaphoreTokenLost, event.GetEventType())
 			assert.Equal(t, &types.SemaphoreTokenLostEventAttributes{
+				Cause:            types.SemaphoreTokenLostCauseNotHeld.Ptr(),
 				TokenID:          7,
 				InitiatedEventID: 2,
 			}, event.SemaphoreTokenLostEventAttributes)

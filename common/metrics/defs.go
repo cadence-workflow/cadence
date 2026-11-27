@@ -366,6 +366,8 @@ const (
 	HashringScope
 	// ShardManagerOnboardingScope is a metrics scope for the matching → shard-manager onboarding percentage gauge.
 	ShardManagerOnboardingScope
+	// ShardManagerHistoryOnboardingScope is a metrics scope for the history → shard-manager onboarding percentage gauge.
+	ShardManagerHistoryOnboardingScope
 	// ShardDistributorResolverScope is a metrics scope for matching routing decisions.
 	ShardDistributorResolverScope
 	// HistoryClientStartWorkflowExecutionScope tracks RPC calls to history service
@@ -2070,13 +2072,14 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 
 		GetAvailableIsolationGroupsScope: {operation: "GetAvailableIsolationGroups"},
 
-		DomainFailoverScope:           {operation: "DomainFailover"},
-		TaskValidatorScope:            {operation: "TaskValidation"},
-		DomainReplicationQueueScope:   {operation: "DomainReplicationQueue"},
-		ClusterMetadataScope:          {operation: "ClusterMetadata"},
-		HashringScope:                 {operation: "Hashring"},
-		ShardManagerOnboardingScope:   {operation: "ShardManagerOnboarding"},
-		ShardDistributorResolverScope: {operation: "ShardDistributorResolver"},
+		DomainFailoverScope:                {operation: "DomainFailover"},
+		TaskValidatorScope:                 {operation: "TaskValidation"},
+		DomainReplicationQueueScope:        {operation: "DomainReplicationQueue"},
+		ClusterMetadataScope:               {operation: "ClusterMetadata"},
+		HashringScope:                      {operation: "Hashring"},
+		ShardManagerOnboardingScope:        {operation: "ShardManagerOnboarding"},
+		ShardManagerHistoryOnboardingScope: {operation: "ShardManagerHistoryOnboarding"},
+		ShardDistributorResolverScope:      {operation: "ShardDistributorResolver"},
 
 		// currently used by both frontend and history, but may grow to other limiting-host-services.
 		GlobalRatelimiter:           {operation: "GlobalRatelimiter"},
@@ -2682,6 +2685,7 @@ const (
 
 	AsyncRequestPayloadSize
 	AsyncRequestPayloadSizeHistogram
+	AsyncRequestMissingRequestID
 
 	// limiter-side metrics
 	GlobalRatelimiterStartupUsageHistogram
@@ -3732,6 +3736,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		AsyncRequestPayloadSize:          {metricName: "async_request_payload_size_per_domain", metricRollupName: "async_request_payload_size", metricType: Timer},
 		AsyncRequestPayloadSizeHistogram: {metricName: "async_request_payload_size_per_domain_counts", metricRollupName: "async_request_payload_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
+		AsyncRequestMissingRequestID:     {metricName: "async_request_missing_request_id_per_domain", metricRollupName: "async_request_missing_request_id", metricType: Counter},
 
 		GlobalRatelimiterStartupUsageHistogram:  {metricName: "global_ratelimiter_startup_usage_histogram", metricType: Histogram, buckets: GlobalRatelimiterUsageHistogram},
 		GlobalRatelimiterFailingUsageHistogram:  {metricName: "global_ratelimiter_failing_usage_histogram", metricType: Histogram, buckets: GlobalRatelimiterUsageHistogram},

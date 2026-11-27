@@ -244,6 +244,10 @@ func (r *workflowResetterImpl) prepareResetWorkflow(
 		return nil, err
 	}
 
+	if err := r.clearSemaphoreTokens(resetMutableState); err != nil {
+		return nil, err
+	}
+
 	// TODO right now only signals are eligible for reapply, so we can directly skip the whole reapply process
 	// for the sake of performance. In the future, if there are other events that need to be reapplied, remove this check
 	// For example, we may want to re-apply activity/timer results for https://github.com/uber/cadence/issues/2934
@@ -436,6 +440,26 @@ func (r *workflowResetterImpl) failInflightActivity(
 			); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// clearSemaphoreTokens records SemaphoreTokenLost for every hold with a token. The token was granted
+// to the base run, so the reset run acquires its own.
+func (r *workflowResetterImpl) clearSemaphoreTokens(
+	mutableState execution.MutableState,
+) error {
+
+	for _, semaphoreInfo := range mutableState.GetPendingSemaphoreInfos() {
+		if !semaphoreInfo.HasToken() {
+			continue
+		}
+		if _, err := mutableState.AddSemaphoreTokenLostEvent(
+			semaphoreInfo.InitiatedID,
+			types.SemaphoreTokenLostCauseReset,
+		); err != nil {
+			return err
 		}
 	}
 	return nil

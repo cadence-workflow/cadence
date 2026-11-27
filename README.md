@@ -4,6 +4,7 @@
 [![Slack Status](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://communityinviter.com/apps/cloud-native/cncf)
 [![Github release](https://img.shields.io/github/v/release/cadence-workflow/cadence.svg)](https://github.com/cadence-workflow/cadence/releases)
 [![License](https://img.shields.io/github/license/cadence-workflow/cadence.svg)](http://www.apache.org/licenses/LICENSE-2.0)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11161/badge)](https://www.bestpractices.dev/projects/11161)
 
 Cadence Workflow is an open-source platform since 2017 for building and running scalable, fault-tolerant, and long-running workflows. This repository contains the core orchestration engine and tools including CLI, schema managment, benchmark and canary.
 

@@ -2757,6 +2757,15 @@ const (
 	// Allowed filters: DomainName, TaskListName, TaskType
 	MatchingOverrideTaskListRPS
 
+	// ShardDistributorClientHedgeShare is the share of calls to the shard distributor that may be hedged.
+	// 0 turns hedging off.
+	// Read from the primary database-backed operational dynamic config store.
+	// KeyName: system.shardDistributorClientHedgeShare
+	// Value type: Float64
+	// Default value: 0.1
+	// Allowed filters: N/A
+	ShardDistributorClientHedgeShare
+
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
 )
@@ -2996,6 +3005,12 @@ const (
 	// Default value: 1m (1*time.Minute)
 	// Allowed filters: DomainName
 	MatchingSemaphoreUpdateAckInterval
+	// MatchingRecordSemaphoreAcquiredTimeout is the timeout of each History call a semaphore bucket makes: RecordSemaphoreAcquired, and RefreshWorkflowTasks when the domain has failed over to another region
+	// KeyName: matching.recordSemaphoreAcquiredTimeout
+	// Value type: Duration
+	// Default value: 5s (5*time.Second)
+	// Allowed filters: DomainName
+	MatchingRecordSemaphoreAcquiredTimeout
 	// MatchingShutdownDrainDuration is the duration of traffic drain during shutdown
 	// KeyName: matching.shutdownDrainDuration
 	// Value type: Duration
@@ -5740,6 +5755,11 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		DefaultValue: 0,
 	},
+	ShardDistributorClientHedgeShare: {
+		KeyName:      "system.shardDistributorClientHedgeShare",
+		Description:  "ShardDistributorClientHedgeShare is the share of calls to the shard distributor that may be hedged, 0 turns hedging off",
+		DefaultValue: 0.1,
+	},
 }
 
 var StringKeys = map[StringKey]DynamicString{
@@ -5959,6 +5979,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName},
 		Description:  "MatchingSemaphoreUpdateAckInterval is how often a semaphore bucket saves its waiter queue's ack level",
 		DefaultValue: time.Minute,
+	},
+	MatchingRecordSemaphoreAcquiredTimeout: {
+		KeyName:      "matching.recordSemaphoreAcquiredTimeout",
+		Filters:      []Filter{DomainName},
+		Description:  "MatchingRecordSemaphoreAcquiredTimeout is the timeout of each History call a semaphore bucket makes: RecordSemaphoreAcquired, and RefreshWorkflowTasks when the domain has failed over to another region",
+		DefaultValue: time.Second * 5,
 	},
 	MatchingShutdownDrainDuration: {
 		KeyName:      "matching.shutdownDrainDuration",

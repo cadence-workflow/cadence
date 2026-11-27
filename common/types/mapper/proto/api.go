@@ -5045,11 +5045,37 @@ func ToSemaphoreAcquireFailedEventAttributes(t *apiv1.SemaphoreAcquireFailedEven
 	}
 }
 
+func FromSemaphoreTokenLostCause(t *types.SemaphoreTokenLostCause) apiv1.SemaphoreTokenLostCause {
+	if t == nil {
+		return apiv1.SemaphoreTokenLostCause_SEMAPHORE_TOKEN_LOST_CAUSE_INVALID
+	}
+	switch *t {
+	case types.SemaphoreTokenLostCauseNotHeld:
+		return apiv1.SemaphoreTokenLostCause_SEMAPHORE_TOKEN_LOST_CAUSE_NOT_HELD
+	case types.SemaphoreTokenLostCauseReset:
+		return apiv1.SemaphoreTokenLostCause_SEMAPHORE_TOKEN_LOST_CAUSE_RESET
+	}
+	return apiv1.SemaphoreTokenLostCause_SEMAPHORE_TOKEN_LOST_CAUSE_INVALID
+}
+
+func ToSemaphoreTokenLostCause(t apiv1.SemaphoreTokenLostCause) *types.SemaphoreTokenLostCause {
+	switch t {
+	case apiv1.SemaphoreTokenLostCause_SEMAPHORE_TOKEN_LOST_CAUSE_INVALID:
+		return nil
+	case apiv1.SemaphoreTokenLostCause_SEMAPHORE_TOKEN_LOST_CAUSE_NOT_HELD:
+		return types.SemaphoreTokenLostCauseNotHeld.Ptr()
+	case apiv1.SemaphoreTokenLostCause_SEMAPHORE_TOKEN_LOST_CAUSE_RESET:
+		return types.SemaphoreTokenLostCauseReset.Ptr()
+	}
+	return nil
+}
+
 func FromSemaphoreTokenLostEventAttributes(t *types.SemaphoreTokenLostEventAttributes) *apiv1.SemaphoreTokenLostEventAttributes {
 	if t == nil {
 		return nil
 	}
 	return &apiv1.SemaphoreTokenLostEventAttributes{
+		Cause:            FromSemaphoreTokenLostCause(t.Cause),
 		TokenId:          t.TokenID,
 		InitiatedEventId: t.InitiatedEventID,
 	}
@@ -5060,6 +5086,7 @@ func ToSemaphoreTokenLostEventAttributes(t *apiv1.SemaphoreTokenLostEventAttribu
 		return nil
 	}
 	return &types.SemaphoreTokenLostEventAttributes{
+		Cause:            ToSemaphoreTokenLostCause(t.Cause),
 		TokenID:          t.TokenId,
 		InitiatedEventID: t.InitiatedEventId,
 	}

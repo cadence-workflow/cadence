@@ -365,12 +365,17 @@ asyncWorkflowQueues:
       topic: {{ default .Env.ASYNC_WF_KAFKA_QUEUE_TOPIC "default-topic" }}
 {{- end }}
 
+{{- if .Env.SHARD_DISTRIBUTOR_HOST_PORT }}
+shardDistributorClient:
+  hostPort: {{ .Env.SHARD_DISTRIBUTOR_HOST_PORT }}
+
 shard-distributor-matching:
   namespaces:
     - namespace: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_NAMESPACE "cadence-matching" }}
       heartbeat_interval: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_HEARTBEAT_INTERVAL "1s" }}
       ttl_shard: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_TTL_SHARD "5m" }}
       ttl_report: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_TTL_REPORT "1m" }}
+{{- end }}
 
 {{- $enableMetricsMigration := default .Env.ENABLE_METRICS_MIGRATION "false" | lower -}}
 {{- if eq $enableMetricsMigration "true" }}
