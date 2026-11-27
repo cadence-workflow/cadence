@@ -9,6 +9,7 @@ const {
   detectTemplate,
   detectIssueType,
   evaluateIssue,
+  run,
 } = require("./validate-issue.js");
 
 describe("parseSections", () => {
@@ -220,5 +221,173 @@ describe("evaluateIssue", () => {
       authorAssociation: "NONE",
     });
     assert.equal(result.typeToApply, "kind/bug");
+  });
+});
+
+describe("run", () => {
+  const MARKER = "<!-- issue-template-check -->";
+
+  const MISSING_BODY = "### Description\nSomething broke";
+  const COMPLETE_BODY = [
+    "### Description",
+    "The server crashes on startup",
+    "### Steps to Reproduce / How to Trigger",
+    "1. Start the server",
+    "### Expected Behavior",
+    "It starts",
+    "### Actual Behavior",
+    "It crashes",
+    "### Logs / Screenshots",
+    "panic: nil pointer",
+    "### Environment",
+    "linux/amd64",
+  ].join("\n");
+
+  function fakeGitHub({ comments = [], labelExists = true } = {}) {
+    const calls = [];
+    const rest = {
+      issues: {
+        listComments: "listComments",
+        addLabels: async (args) => calls.push(["addLabels", args]),
+        removeLabel: async (args) => calls.push(["removeLabel", args]),
+        createComment: async (args) => calls.push(["createComment", args]),
+        updateComment: async (args) => calls.push(["updateComment", args]),
+        deleteComment: async (args) => calls.push(["deleteComment", args]),
+        createLabel: async (args) => calls.push(["createLabel", args]),
+        getLabel: async () => {
+          if (!labelExists) {
+            const error = new Error("not found");
+            error.status = 404;
+            throw error;
+          }
+          return {};
+        },
+      },
+    };
+    const paginate = async (method) => {
+      if (method === "listComments") return comments;
+      throw new Error(`unexpected paginate ${method}`);
+    };
+    return { github: { rest, paginate }, calls };
+  }
+
+  function contextFor(body, labels) {
+    return {
+      payload: {
+        issue: {
+          number: 7,
+          title: "Server crashes",
+          body,
+          labels: labels.map((name) => ({ name })),
+          author_association: "NONE",
+        },
+      },
+      repo: { owner: "cadence-workflow", repo: "cadence" },
+    };
+  }
+
+  it("refreshes the bot comment when the label already exists", async () => {
+    const { github, calls } = fakeGitHub({
+      comments: [{ id: 7, user: { type: "Bot" }, body: `${MARKER}\nold` }],
+    });
+
+    await run({
+      github,
+      context: contextFor(MISSING_BODY, ["kind/bug", "triage/needs-info"]),
+    });
+
+    assert.deepEqual(
+      calls.map(([name]) => name),
+      ["updateComment"],
+    );
+    const body = calls[0][1].body;
+    assert.ok(body.includes("Steps to Reproduce / How to Trigger"));
+    assert.ok(!body.includes("- Description"));
+  });
+
+  it("does not rewrite an up-to-date bot comment", async () => {
+    const first = fakeGitHub({
+      comments: [{ id: 7, user: { type: "Bot" }, body: `${MARKER}\nold` }],
+    });
+    await run({
+      github: first.github,
+      context: contextFor(MISSING_BODY, ["kind/bug", "triage/needs-info"]),
+    });
+    const updatedBody = first.calls[0][1].body;
+
+    const second = fakeGitHub({
+      comments: [{ id: 7, user: { type: "Bot" }, body: updatedBody }],
+    });
+    await run({
+      github: second.github,
+      context: contextFor(MISSING_BODY, ["kind/bug", "triage/needs-info"]),
+    });
+
+    assert.deepEqual(second.calls, []);
+  });
+
+  it("adds the label and posts the comment on the first pass", async () => {
+    const { github, calls } = fakeGitHub();
+
+    await run({ github, context: contextFor(MISSING_BODY, ["kind/bug"]) });
+
+    assert.deepEqual(
+      calls.map(([name]) => name),
+      ["addLabels", "createComment"],
+    );
+    assert.equal(calls[0][1].labels[0], "triage/needs-info");
+  });
+
+  it("creates the label when the repository does not have it yet", async () => {
+    const { github, calls } = fakeGitHub({ labelExists: false });
+
+    await run({ github, context: contextFor(MISSING_BODY, ["kind/bug"]) });
+
+    assert.deepEqual(
+      calls.map(([name]) => name),
+      ["createLabel", "addLabels", "createComment"],
+    );
+  });
+
+  it("removes the label and deletes the bot comment once the issue is complete", async () => {
+    const { github, calls } = fakeGitHub({
+      comments: [{ id: 7, user: { type: "Bot" }, body: `${MARKER}\nold` }],
+    });
+
+    await run({
+      github,
+      context: contextFor(COMPLETE_BODY, ["kind/bug", "triage/needs-info"]),
+    });
+
+    assert.deepEqual(
+      calls.map(([name]) => name),
+      ["removeLabel", "deleteComment"],
+    );
+  });
+
+  it("deletes a stale bot comment when no label is present", async () => {
+    const { github, calls } = fakeGitHub({
+      comments: [{ id: 7, user: { type: "Bot" }, body: `${MARKER}\nold` }],
+    });
+
+    await run({ github, context: contextFor(COMPLETE_BODY, ["kind/bug"]) });
+
+    assert.deepEqual(
+      calls.map(([name]) => name),
+      ["deleteComment"],
+    );
+  });
+
+  it("reports needsInfo separately from the label transition", () => {
+    const result = evaluateIssue({
+      title: "Server crashes",
+      body: MISSING_BODY,
+      labels: [{ name: "kind/bug" }, { name: "triage/needs-info" }],
+      authorAssociation: "NONE",
+      templates: null,
+    });
+
+    assert.equal(result.needsInfo, true);
+    assert.equal(result.addNeedsInfo, false);
   });
 });

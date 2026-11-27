@@ -209,6 +209,7 @@ function evaluateIssue({ title, body, labels, authorAssociation, templates }) {
 
   return {
     typeToApply,
+    needsInfo,
     addNeedsInfo: needsInfo && !labelNames.includes(LABELS.NEEDS_INFO),
     removeNeedsInfo: !needsInfo && labelNames.includes(LABELS.NEEDS_INFO),
     missingSections,
@@ -287,25 +288,6 @@ async function run({ github, context }) {
       issue_number: issueNumber,
       labels: [LABELS.NEEDS_INFO],
     });
-
-    const body = formatComment(result.comment, owner, repo);
-    const existing = await findBotComment();
-    if (existing) {
-      await github.rest.issues.updateComment({
-        owner,
-        repo,
-        comment_id: existing.id,
-        body,
-      });
-    } else {
-      await github.rest.issues.createComment({
-        owner,
-        repo,
-        issue_number: issueNumber,
-        body,
-      });
-    }
-    return;
   }
 
   if (result.removeNeedsInfo) {
@@ -317,7 +299,29 @@ async function run({ github, context }) {
     });
   }
 
-  if (result.deleteComment) {
+  // Keep the bot comment in sync with the issue whenever information is still
+  // missing, not only on the first run that adds the label. The label usually
+  // stays on the issue while the reporter edits the body, so refreshing the
+  // comment has to be driven by `needsInfo` instead of `addNeedsInfo`.
+  if (result.needsInfo) {
+    const body = formatComment(result.comment, owner, repo);
+    const existing = await findBotComment();
+    if (!existing) {
+      await github.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: issueNumber,
+        body,
+      });
+    } else if (existing.body !== body) {
+      await github.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: existing.id,
+        body,
+      });
+    }
+  } else if (result.deleteComment) {
     const existing = await findBotComment();
     if (existing) {
       await github.rest.issues.deleteComment({
