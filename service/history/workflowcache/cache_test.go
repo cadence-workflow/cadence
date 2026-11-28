@@ -28,8 +28,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"testing/synctest"
 
 	"github.com/uber/cadence/common/cache"
+	dcquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -287,4 +289,48 @@ func expectRatelimitLog(logger *log.MockLogger, requestType string) {
 			tag.WorkflowID(testWorkflowID),
 		},
 	).Times(1)
+}
+
+func TestWorkflowLimiterRefillAndCacheExpiry(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		domainCache := cache.NewMockDomainCache(ctrl)
+		domainCache.EXPECT().GetDomainName(testDomainID).Return(testDomainName, nil).AnyTimes()
+		factory := dcquotas.NewSimpleDynamicRateLimiterFactory(func(string) int { return 5 })
+		wfCache := New(Params{
+			TTL:                    time.Second,
+			MaxCount:               100,
+			ExternalLimiterFactory: factory,
+			InternalLimiterFactory: factory,
+			DomainCache:            domainCache,
+			Logger:                 log.NewNoop(),
+			MetricsClient:          metrics.NewNoopMetricsClient(),
+		})
+		for i := 0; i < 5; i++ {
+			if !wfCache.AllowExternal(testDomainID, testWorkflowID) {
+				t.Fatal("initial burst rejected")
+			}
+		}
+		if wfCache.AllowExternal(testDomainID, testWorkflowID) {
+			t.Fatal("exhausted burst allowed")
+		}
+		if !wfCache.AllowExternal(testDomainID, testWorkflowID2) {
+			t.Fatal("another workflow shared the exhausted limiter")
+		}
+		// At 5 RPS, 200ms restores exactly one token; fake time advances only while sleeping.
+		time.Sleep(200 * time.Millisecond)
+		if !wfCache.AllowExternal(testDomainID, testWorkflowID) {
+			t.Fatal("did not refill a token")
+		}
+		if wfCache.AllowExternal(testDomainID, testWorkflowID) {
+			t.Fatal("refilled more than one token")
+		}
+		// LRU expiry uses currentTime.After(createTime+TTL), so sleep past the remaining TTL.
+		time.Sleep(800*time.Millisecond + time.Nanosecond)
+		for i := 0; i < 5; i++ {
+			if !wfCache.AllowExternal(testDomainID, testWorkflowID) {
+				t.Fatal("expired entry did not reset the limiter")
+			}
+		}
+	})
 }

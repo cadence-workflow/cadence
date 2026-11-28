@@ -122,7 +122,8 @@ func (s *WorkflowIDRateLimitIntegrationSuite) TestWorkflowIDSpecificRateLimits()
 	ctx, cancel := createContext()
 	defer cancel()
 
-	// The ratelimit is 5 per second with a burst of 5, so we should be able to start 5 workflows without any error
+	// The ratelimit is 5 per second with a burst of 5, so we should be able to start 5 workflows without any error.
+	// Exact refill/TTL timing is covered by synctest unit tests in workflowcache/quotas.
 	for i := 0; i < 5; i++ {
 		_, err := s.Engine.StartWorkflowExecution(ctx, request)
 		assert.NoError(s.T(), err)
