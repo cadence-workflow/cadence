@@ -24,11 +24,11 @@ package workflowcache
 
 import (
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"testing/synctest"
 
 	"github.com/uber/cadence/common/cache"
 	dcquotas "github.com/uber/cadence/common/dynamicconfig/quotas"

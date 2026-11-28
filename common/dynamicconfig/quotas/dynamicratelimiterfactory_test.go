@@ -24,11 +24,11 @@ package quotas
 
 import (
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/time/rate"
+	"testing/synctest"
 )
 
 func TestNewSimpleDynamicRateLimiterFactory(t *testing.T) {
